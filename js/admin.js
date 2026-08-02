@@ -1,4 +1,4 @@
-// Admin Master Data & Payment Verification Panel with Real-time Sync, Edit & Delete (Developer: Suman Kolay)
+// Admin Master Data & Payment Verification Panel with Single Source Cloud Control (Developer: Suman Kolay)
 
 import { store } from './store.js';
 import { exportPlayersToCSV, exportTeamsToCSV } from './export.js';
@@ -28,16 +28,19 @@ export function renderAdminDashboard(containerEl) {
             </span>
             <div>
               <h1 class="text-lg sm:text-2xl font-black text-white">Master Admin Control Panel</h1>
-              <p class="text-xs text-slate-400">Log ID: <strong class="text-amber-400">bakolaypan@gmail.com</strong> • Realtime Live Sync & Full Edit/Delete Control</p>
+              <p class="text-xs text-slate-400">Log ID: <strong class="text-amber-400">bakolaypan@gmail.com</strong> • Single Source Cloud Realtime Database</p>
             </div>
           </div>
         </div>
         <div class="flex flex-wrap items-center gap-2.5">
           <button id="export-master-csv-btn" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl border border-slate-700 flex items-center gap-2 transition-all">
-            <i data-lucide="download" class="w-4 h-4 text-emerald-400"></i> Export Master CSV
+            <i data-lucide="download" class="w-4 h-4 text-emerald-400"></i> Export CSV
           </button>
-          <button id="admin-logout-btn" class="px-3.5 py-2 bg-red-950/80 hover:bg-red-900 text-red-300 text-xs font-bold rounded-xl border border-red-800 flex items-center gap-1.5 transition-colors">
-            <i data-lucide="log-out" class="w-4 h-4"></i> Logout Admin
+          <button id="clear-all-players-btn" class="px-3 py-2 bg-red-950 hover:bg-red-900 text-red-300 text-xs font-bold rounded-xl border border-red-800 flex items-center gap-1.5 transition-colors">
+            <i data-lucide="trash-2" class="w-4 h-4 text-red-400"></i> Clear All Registrations
+          </button>
+          <button id="admin-logout-btn" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 flex items-center gap-1.5 transition-colors">
+            <i data-lucide="log-out" class="w-4 h-4"></i> Logout
           </button>
         </div>
       </div>
@@ -323,6 +326,14 @@ function setupAdminEventHandlers(containerEl) {
         renderAdminDashboard(containerEl);
       }
     });
+  });
+
+  // Delete All Registrations Button
+  containerEl.querySelector('#clear-all-players-btn')?.addEventListener('click', () => {
+    if (confirm("⚠️ ARE YOU SURE YOU WANT TO CLEAR ALL REGISTERED PLAYERS ACROSS ALL DEVICES?")) {
+      store.clearAllPlayers();
+      renderAdminDashboard(containerEl);
+    }
   });
 
   // Edit Team Event Listeners

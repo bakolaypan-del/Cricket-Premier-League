@@ -1,4 +1,4 @@
-// LocalStorage & Automatic Cloud Database Reactive Store (Developer: Suman Kolay)
+// Single Source of Truth Cloud Database & Reactive Store (Developer: Suman Kolay)
 
 import { INITIAL_LEAGUES, INITIAL_TEAMS, INITIAL_PLAYERS, INITIAL_FIXTURES } from './data.js';
 import { 
@@ -11,12 +11,12 @@ import {
 } from './supabase.js';
 
 const STORAGE_KEYS = {
-  LEAGUES: 'cpl_leagues_v6',
-  TEAMS: 'cpl_teams_v6',
-  PLAYERS: 'cpl_players_v6',
-  FIXTURES: 'cpl_fixtures_v6',
-  USER: 'cpl_user_v6',
-  ADMIN_AUTH: 'cpl_admin_auth_v6'
+  LEAGUES: 'cpl_leagues_v7',
+  TEAMS: 'cpl_teams_v7',
+  PLAYERS: 'cpl_players_v7',
+  FIXTURES: 'cpl_fixtures_v7',
+  USER: 'cpl_user_v7',
+  ADMIN_AUTH: 'cpl_admin_auth_v7'
 };
 
 class Store {
@@ -32,10 +32,10 @@ class Store {
       localStorage.setItem(STORAGE_KEYS.LEAGUES, JSON.stringify(INITIAL_LEAGUES));
     }
     if (!localStorage.getItem(STORAGE_KEYS.TEAMS)) {
-      localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(INITIAL_TEAMS));
+      localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify([]));
     }
     if (!localStorage.getItem(STORAGE_KEYS.PLAYERS)) {
-      localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(INITIAL_PLAYERS));
+      localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify([]));
     }
     if (!localStorage.getItem(STORAGE_KEYS.FIXTURES)) {
       localStorage.setItem(STORAGE_KEYS.FIXTURES, JSON.stringify(INITIAL_FIXTURES));
@@ -50,50 +50,42 @@ class Store {
     }
   }
 
+  // --- SINGLE SOURCE OF TRUTH CLOUD SYNC ---
   async syncWithCloud() {
     try {
       const cloudData = await fetchCloudData();
-      let updated = false;
-
-      if (cloudData.players && cloudData.players.length > 0) {
-        const localPlayers = this.getPlayers();
-        const mergedPlayers = [...cloudData.players];
-        localPlayers.forEach(lp => {
-          if (!mergedPlayers.some(cp => cp.id === lp.id)) {
-            mergedPlayers.push(lp);
-          }
-        });
-        if (JSON.stringify(mergedPlayers) !== JSON.stringify(localPlayers)) {
-          localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(mergedPlayers));
+      
+      // 1. Sync Players (Cloud replaces Local to keep all devices 100% identical)
+      if (Array.isArray(cloudData.players)) {
+        const localPlayersStr = localStorage.getItem(STORAGE_KEYS.PLAYERS) || '[]';
+        const cloudPlayersStr = JSON.stringify(cloudData.players);
+        
+        if (localPlayersStr !== cloudPlayersStr) {
+          localStorage.setItem(STORAGE_KEYS.PLAYERS, cloudPlayersStr);
           this.notify('players_updated');
-          updated = true;
         }
       }
 
-      if (cloudData.teams && cloudData.teams.length > 0) {
-        const localTeams = this.getTeams();
-        const mergedTeams = [...cloudData.teams];
-        localTeams.forEach(lt => {
-          if (!mergedTeams.some(ct => ct.id === lt.id)) {
-            mergedTeams.push(lt);
-          }
-        });
-        if (JSON.stringify(mergedTeams) !== JSON.stringify(localTeams)) {
-          localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(mergedTeams));
+      // 2. Sync Teams (Cloud replaces Local to keep all devices 100% identical)
+      if (Array.isArray(cloudData.teams)) {
+        const localTeamsStr = localStorage.getItem(STORAGE_KEYS.TEAMS) || '[]';
+        const cloudTeamsStr = JSON.stringify(cloudData.teams);
+        
+        if (localTeamsStr !== cloudTeamsStr) {
+          localStorage.setItem(STORAGE_KEYS.TEAMS, cloudTeamsStr);
           this.notify('teams_updated');
-          updated = true;
         }
       }
     } catch (err) {
-      console.warn("Cloud sync error:", err);
+      console.warn("Cloud single source sync error:", err);
     }
   }
 
   startCloudPolling() {
-    // Poll Cloud Database every 3 seconds for instant multi-device real-time sync
+    // Poll Cloud Database every 2.5 seconds so all phones & laptops stay 100% synchronized
     setInterval(() => {
       this.syncWithCloud();
-    }, 3000);
+    }, 2500);
   }
 
   setupRealtimeListeners() {
@@ -222,7 +214,6 @@ class Store {
         team.squadCount = Math.max(0, team.squadCount - 1);
         team.purseSpent = Math.max(0, team.purseSpent - (playerToDelete.soldPrice || 0));
         localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(teams));
-        this.notify('teams_updated');
       }
     }
 
@@ -231,6 +222,18 @@ class Store {
     saveCloudData(players, this.getTeams());
     deletePlayerFromSupabase(playerId);
     this.notify('players_updated');
+  }
+
+  clearAllPlayers() {
+    localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify([]));
+    saveCloudData([], this.getTeams());
+    this.notify('players_updated');
+  }
+
+  clearAllTeams() {
+    localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify([]));
+    saveCloudData(this.getPlayers(), []);
+    this.notify('teams_updated');
   }
 
   updatePlayerStatus(playerId, status, notes = '') {
