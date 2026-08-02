@@ -199,7 +199,7 @@ class Store {
     return this.getPlayers().find(p => p.id === id);
   }
 
-  registerPlayer(playerData) {
+  async registerPlayer(playerData) {
     const players = this.getPlayers();
     const serialNo = players.length + 1;
     const regNo = `JSL-2026-${String(serialNo).padStart(3, '0')}`;
@@ -240,13 +240,13 @@ class Store {
       }
     }
 
-    saveCloudData(players, this.getTeams());
+    await saveCloudData(players, this.getTeams());
     syncPlayerToSupabase(newPlayer);
     this.notify('players_updated');
     return newPlayer;
   }
 
-  updatePlayer(updatedPlayerData) {
+  async updatePlayer(updatedPlayerData) {
     const players = this.getPlayers();
     const idx = players.findIndex(p => p.id === updatedPlayerData.id);
     if (idx !== -1) {
@@ -257,8 +257,12 @@ class Store {
         p.serialNo = i + 1;
       });
 
-      localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
-      saveCloudData(players, this.getTeams());
+      try {
+        localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
+      } catch (e) {
+        console.warn("localStorage quota notice:", e);
+      }
+      await saveCloudData(players, this.getTeams());
       syncPlayerToSupabase(players[idx]);
       this.notify('players_updated');
       return players[idx];
@@ -267,7 +271,7 @@ class Store {
   }
 
   // --- AUTOMATIC RE-INDEXING ON DELETE PLAYER ---
-  deletePlayer(playerId) {
+  async deletePlayer(playerId) {
     const deletedPlayerIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.DELETED_PLAYERS) || '[]');
     if (!deletedPlayerIds.includes(playerId)) {
       deletedPlayerIds.push(playerId);
@@ -296,8 +300,12 @@ class Store {
       p.regNo = `JSL-2026-${String(idx + 1).padStart(3, '0')}`;
     });
 
-    localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
-    saveCloudData(players, this.getTeams());
+    try {
+      localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
+    } catch (e) {
+      console.warn("localStorage quota notice:", e);
+    }
+    await saveCloudData(players, this.getTeams());
     deletePlayerFromSupabase(playerId);
     this.notify('players_updated');
   }

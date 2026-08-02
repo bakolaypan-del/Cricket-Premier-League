@@ -1109,7 +1109,7 @@ function openPlayerRegisterFormModal() {
         if (uploaded) finalProofUrl = uploaded;
       }
 
-      const newPlayer = store.registerPlayer({
+      const newPlayer = await store.registerPlayer({
         name,
         phone,
         address,
