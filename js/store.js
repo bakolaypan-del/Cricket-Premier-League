@@ -11,12 +11,12 @@ import {
 } from './supabase.js';
 
 const STORAGE_KEYS = {
-  LEAGUES: 'cpl_leagues_v7',
-  TEAMS: 'cpl_teams_v7',
-  PLAYERS: 'cpl_players_v7',
-  FIXTURES: 'cpl_fixtures_v7',
-  USER: 'cpl_user_v7',
-  ADMIN_AUTH: 'cpl_admin_auth_v7'
+  LEAGUES: 'cpl_leagues_v8',
+  TEAMS: 'cpl_teams_v8',
+  PLAYERS: 'cpl_players_v8',
+  FIXTURES: 'cpl_fixtures_v8',
+  USER: 'cpl_user_v8',
+  ADMIN_AUTH: 'cpl_admin_auth_v8'
 };
 
 class Store {

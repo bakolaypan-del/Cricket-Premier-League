@@ -71,12 +71,14 @@ export async function uploadImageToSupabaseStorage(file, folder = 'documents') {
   });
 }
 
-// --- INSTANT CLOUD DATA FETCH ---
+// --- INSTANT REALTIME CLOUD DATA FETCH (ANTI-CACHE TIMESTAMPING) ---
 export async function fetchCloudData() {
-  // 1. Primary: Try Google Drive Realtime Cloud Backend (Zero Rate Limit)
+  const cacheBuster = `?_cb=${Date.now()}`;
+
+  // 1. Primary: Try Google Drive Realtime Cloud Backend (Zero Rate Limit & Fresh Data)
   if (GOOGLE_APPS_SCRIPT_URL) {
     try {
-      const res = await fetch(GOOGLE_APPS_SCRIPT_URL, { cache: 'no-store' });
+      const res = await fetch(GOOGLE_APPS_SCRIPT_URL + cacheBuster, { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } });
       if (res.ok) {
         const data = await res.json();
         if (data && (Array.isArray(data.players) || Array.isArray(data.teams))) {
@@ -109,7 +111,7 @@ export async function fetchCloudData() {
 
   // 3. JsonBlob Fetch Fallback
   try {
-    const res = await fetch(CLOUD_BLOB_URL, { cache: 'no-store' });
+    const res = await fetch(CLOUD_BLOB_URL + cacheBuster, { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } });
     if (res.ok) {
       const data = await res.json();
       if (data && (Array.isArray(data.players) || Array.isArray(data.teams))) {
