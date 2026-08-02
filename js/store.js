@@ -1,14 +1,13 @@
-// LocalStorage & Supabase Real-Time Cloud State Store (Developer: Suman Kolay)
+// LocalStorage & Automatic Cloud Database Reactive Store (Developer: Suman Kolay)
 
 import { INITIAL_LEAGUES, INITIAL_TEAMS, INITIAL_PLAYERS, INITIAL_FIXTURES } from './data.js';
 import { 
+  fetchCloudData, 
+  saveCloudData, 
   syncPlayerToSupabase, 
-  fetchPlayersFromSupabase, 
   deletePlayerFromSupabase,
   syncTeamToSupabase, 
-  fetchTeamsFromSupabase, 
-  deleteTeamFromSupabase,
-  subscribeToSupabaseRealtime 
+  deleteTeamFromSupabase 
 } from './supabase.js';
 
 const STORAGE_KEYS = {
@@ -24,7 +23,8 @@ class Store {
   constructor() {
     this.init();
     this.setupRealtimeListeners();
-    this.syncWithSupabaseCloud();
+    this.syncWithCloud();
+    this.startCloudPolling();
   }
 
   init() {
@@ -50,47 +50,58 @@ class Store {
     }
   }
 
-  async syncWithSupabaseCloud() {
+  async syncWithCloud() {
     try {
-      const cloudPlayers = await fetchPlayersFromSupabase();
-      if (cloudPlayers && cloudPlayers.length > 0) {
+      const cloudData = await fetchCloudData();
+      let updated = false;
+
+      if (cloudData.players && cloudData.players.length > 0) {
         const localPlayers = this.getPlayers();
-        // Merge cloud players into local store
-        const mergedPlayers = [...cloudPlayers];
+        const mergedPlayers = [...cloudData.players];
         localPlayers.forEach(lp => {
           if (!mergedPlayers.some(cp => cp.id === lp.id)) {
             mergedPlayers.push(lp);
           }
         });
-        localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(mergedPlayers));
-        this.notify('players_updated');
+        if (JSON.stringify(mergedPlayers) !== JSON.stringify(localPlayers)) {
+          localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(mergedPlayers));
+          this.notify('players_updated');
+          updated = true;
+        }
       }
 
-      const cloudTeams = await fetchTeamsFromSupabase();
-      if (cloudTeams && cloudTeams.length > 0) {
+      if (cloudData.teams && cloudData.teams.length > 0) {
         const localTeams = this.getTeams();
-        const mergedTeams = [...cloudTeams];
+        const mergedTeams = [...cloudData.teams];
         localTeams.forEach(lt => {
           if (!mergedTeams.some(ct => ct.id === lt.id)) {
             mergedTeams.push(lt);
           }
         });
-        localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(mergedTeams));
-        this.notify('teams_updated');
+        if (JSON.stringify(mergedTeams) !== JSON.stringify(localTeams)) {
+          localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(mergedTeams));
+          this.notify('teams_updated');
+          updated = true;
+        }
       }
     } catch (err) {
-      console.warn("Supabase Cloud Initial Fetch Info:", err);
+      console.warn("Cloud sync error:", err);
     }
   }
 
+  startCloudPolling() {
+    // Poll Cloud Database every 3 seconds for instant multi-device real-time sync
+    setInterval(() => {
+      this.syncWithCloud();
+    }, 3000);
+  }
+
   setupRealtimeListeners() {
-    // 1. Cross-tab storage change listener
     window.addEventListener('storage', (e) => {
       if (e.key === STORAGE_KEYS.PLAYERS) this.notify('players_updated');
       if (e.key === STORAGE_KEYS.TEAMS) this.notify('teams_updated');
     });
 
-    // 2. BroadcastChannel cross-window sync
     if ('BroadcastChannel' in window) {
       try {
         this.broadcastChannel = new BroadcastChannel('cpl_realtime_sync_channel');
@@ -100,19 +111,9 @@ class Store {
           }
         };
       } catch (err) {
-        console.warn("BroadcastChannel fallback active:", err);
+        console.warn("BroadcastChannel fallback:", err);
       }
     }
-
-    // 3. Supabase Live WebSockets subscription across devices
-    subscribeToSupabaseRealtime(
-      async () => {
-        await this.syncWithSupabaseCloud();
-      },
-      async () => {
-        await this.syncWithSupabaseCloud();
-      }
-    );
   }
 
   // --- ADMIN STRICT AUTHENTICATION (ID: bakolaypan@gmail.com, Password: Suman@1995) ---
@@ -190,6 +191,7 @@ class Store {
       localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(compactPlayers));
     }
 
+    saveCloudData(players, this.getTeams());
     syncPlayerToSupabase(newPlayer);
     this.notify('players_updated');
     return newPlayer;
@@ -201,6 +203,7 @@ class Store {
     if (idx !== -1) {
       players[idx] = { ...players[idx], ...updatedPlayerData };
       localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
+      saveCloudData(players, this.getTeams());
       syncPlayerToSupabase(players[idx]);
       this.notify('players_updated');
       return players[idx];
@@ -225,6 +228,7 @@ class Store {
 
     players = players.filter(p => p.id !== playerId);
     localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
+    saveCloudData(players, this.getTeams());
     deletePlayerFromSupabase(playerId);
     this.notify('players_updated');
   }
@@ -236,6 +240,7 @@ class Store {
       player.paymentStatus = status;
       player.adminNotes = notes;
       localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
+      saveCloudData(players, this.getTeams());
       syncPlayerToSupabase(player);
       this.notify('players_updated');
     }
@@ -265,6 +270,7 @@ class Store {
 
       localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
       localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(teams));
+      saveCloudData(players, teams);
       syncPlayerToSupabase(player);
       syncTeamToSupabase(team);
       this.notify('players_updated');
@@ -308,6 +314,7 @@ class Store {
       localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(compactTeams));
     }
 
+    saveCloudData(this.getPlayers(), teams);
     syncTeamToSupabase(newTeam);
     this.notify('teams_updated');
     return newTeam;
@@ -319,6 +326,7 @@ class Store {
     if (idx !== -1) {
       teams[idx] = { ...teams[idx], ...updatedTeamData };
       localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(teams));
+      saveCloudData(this.getPlayers(), teams);
       syncTeamToSupabase(teams[idx]);
       this.notify('teams_updated');
       return teams[idx];
@@ -340,6 +348,7 @@ class Store {
 
     localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(teams));
     localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
+    saveCloudData(players, teams);
     deleteTeamFromSupabase(teamId);
     this.notify('teams_updated');
     this.notify('players_updated');
