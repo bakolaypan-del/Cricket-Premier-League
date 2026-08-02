@@ -509,7 +509,17 @@ function openRegisteredTeamsModal(allTeams) {
 
   renderTeamListContent();
 
-  const removeModal = () => document.getElementById('teams-view-modal')?.remove();
+  const handleTeamsUpdated = () => {
+    allTeams = store.getTeams();
+    filteredTeams = [...allTeams];
+    renderTeamListContent();
+  };
+  window.addEventListener('teams_updated', handleTeamsUpdated);
+
+  const removeModal = () => {
+    window.removeEventListener('teams_updated', handleTeamsUpdated);
+    document.getElementById('teams-view-modal')?.remove();
+  };
   document.getElementById('close-teams-modal')?.addEventListener('click', removeModal);
   document.getElementById('close-teams-modal-bottom')?.addEventListener('click', removeModal);
 
@@ -601,7 +611,17 @@ function openRegisteredPlayersModal(allPlayers) {
 
   renderPlayerListContent();
 
-  const removeModal = () => document.getElementById('players-view-modal')?.remove();
+  const handlePlayersUpdated = () => {
+    allPlayers = store.getPlayers();
+    filteredPlayers = [...allPlayers];
+    renderPlayerListContent();
+  };
+  window.addEventListener('players_updated', handlePlayersUpdated);
+
+  const removeModal = () => {
+    window.removeEventListener('players_updated', handlePlayersUpdated);
+    document.getElementById('players-view-modal')?.remove();
+  };
   document.getElementById('close-players-modal')?.addEventListener('click', removeModal);
   document.getElementById('close-players-modal-bottom')?.addEventListener('click', removeModal);
 
