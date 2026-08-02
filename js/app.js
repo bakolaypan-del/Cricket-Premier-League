@@ -4,6 +4,7 @@ import { store } from './store.js';
 import { exportPlayersToCSV, exportTeamsToCSV, printDigitalPass } from './export.js';
 import { renderAdminDashboard } from './admin.js';
 
+// ALWAYS default to landing page (No category opens automatically!)
 let currentRoute = 'landing'; // landing, jsl-hub, admin
 let activeJSLTab = 'teams'; // teams, players
 
@@ -34,7 +35,7 @@ function navigate(route) {
 }
 
 // --- IMAGE COMPRESSION UTILITY ---
-function compressImage(file, maxWidth = 300, maxHeight = 300, quality = 0.65) {
+function compressImage(file, maxWidth = 250, maxHeight = 250, quality = 0.65) {
   return new Promise((resolve) => {
     if (!file) {
       resolve('https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300');
@@ -83,14 +84,14 @@ function renderNavbar() {
     <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-14 sm:h-16 md:h-20 flex items-center justify-between gap-2">
       <!-- Title, Subtitle & Developer Credit -->
       <div class="flex items-center gap-2 sm:gap-3 cursor-pointer min-w-0" id="brand-header-logo">
-        <div class="w-9 h-9 sm:w-11 sm:h-11 rounded-xl bg-amber-500 flex items-center justify-center text-white font-black text-lg sm:text-2xl shadow-sm flex-shrink-0">
+        <div class="w-8 h-8 sm:w-11 sm:h-11 rounded-xl bg-amber-500 flex items-center justify-center text-white font-black text-base sm:text-2xl shadow-sm flex-shrink-0">
           🏏
         </div>
         <div class="truncate">
-          <h1 class="text-sm sm:text-lg md:text-2xl font-black text-slate-900 leading-none tracking-tight truncate">
+          <h1 class="text-xs sm:text-lg md:text-2xl font-black text-slate-900 leading-none tracking-tight truncate">
             Cricket Premier League
           </h1>
-          <div class="text-[9px] sm:text-xs font-bold text-amber-600 truncate mt-0.5">Official Registration Portal</div>
+          <div class="text-[8px] sm:text-xs font-bold text-amber-600 truncate mt-0.5">Official Tournament & Registration Portal</div>
           <div class="text-[8px] sm:text-[10px] font-bold text-slate-500 tracking-wide truncate">Developer - <span class="text-sky-600 font-extrabold">Suman Kolay</span></div>
         </div>
       </div>
@@ -179,43 +180,40 @@ function renderCurrentView() {
   if (window.lucide) window.lucide.createIcons();
 }
 
-// --- FIRST PAGE LANDING (COMPACT CATEGORY ROW FOR MOBILE) ---
+// --- FIRST PAGE LANDING (3 CATEGORY SQUARE BOXES IN A SINGLE ROW) ---
 function renderFirstPageLanding(containerEl) {
   containerEl.innerHTML = `
-    <div class="min-h-[55vh] flex flex-col items-center justify-center space-y-4 sm:space-y-8 animate-fade-in py-2 sm:py-6">
+    <div class="min-h-[50vh] flex flex-col items-center justify-center space-y-4 sm:space-y-8 animate-fade-in py-3 sm:py-8">
       
       <div class="text-center space-y-1 px-2">
-        <span class="px-3 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-extrabold uppercase tracking-widest">
+        <span class="px-3 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 text-[10px] sm:text-xs font-extrabold uppercase tracking-widest">
           Select Premier League
         </span>
-        <h2 class="text-xl sm:text-3xl md:text-4xl font-black text-slate-900 tracking-tight">Choose Tournament Category</h2>
+        <h2 class="text-lg sm:text-3xl md:text-4xl font-black text-slate-900 tracking-tight">Choose Tournament Category</h2>
       </div>
 
-      <!-- COMPACT 3 CATEGORY BOXES -->
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-6 md:gap-8 w-full max-w-4xl px-2 sm:px-4">
+      <!-- 3 CATEGORY SQUARE BOXES IN A SINGLE ROW (grid-cols-3) -->
+      <div class="grid grid-cols-3 gap-2 sm:gap-6 md:gap-8 w-full max-w-4xl px-2 sm:px-4">
         
+        <!-- JPL SQUARE BOX -->
         <div id="btn-click-jpl" class="square-category-box group">
           <div class="category-logo-badge logo-jpl">JPL</div>
-          <div>
-            <h3 class="text-base sm:text-xl font-black text-slate-900 group-hover:text-amber-600 transition-colors">JPL</h3>
-            <p class="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">Jhankra Premier League</p>
-          </div>
+          <h3 class="text-xs sm:text-2xl font-black text-slate-900 group-hover:text-amber-600 transition-colors">JPL</h3>
+          <p class="text-[8px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider hidden sm:block">Jhankra Premier League</p>
         </div>
 
+        <!-- JSL SQUARE BOX -->
         <div id="btn-click-jsl" class="square-category-box group border-sky-400">
           <div class="category-logo-badge logo-jsl">JSL</div>
-          <div>
-            <h3 class="text-base sm:text-xl font-black text-slate-900 group-hover:text-sky-600 transition-colors">JSL</h3>
-            <p class="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">Jhankra Super League</p>
-          </div>
+          <h3 class="text-xs sm:text-2xl font-black text-slate-900 group-hover:text-sky-600 transition-colors">JSL</h3>
+          <p class="text-[8px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider hidden sm:block">Jhankra Super League</p>
         </div>
 
+        <!-- KPL SQUARE BOX -->
         <div id="btn-click-kpl" class="square-category-box group border-purple-400">
           <div class="category-logo-badge logo-kpl">KPL</div>
-          <div>
-            <h3 class="text-base sm:text-xl font-black text-slate-900 group-hover:text-purple-600 transition-colors">KPL</h3>
-            <p class="text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">Kota Premier League</p>
-          </div>
+          <h3 class="text-xs sm:text-2xl font-black text-slate-900 group-hover:text-purple-600 transition-colors">KPL</h3>
+          <p class="text-[8px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider hidden sm:block">Kota Premier League</p>
         </div>
 
       </div>
@@ -267,7 +265,7 @@ function openComingSoonModal(code, title) {
   document.getElementById('ok-cs-btn')?.addEventListener('click', removeModal);
 }
 
-// --- JSL HUB WITH COMPACT POSTER BANNER ---
+// --- JSL HUB WITH MOBILE-OPTIMIZED POSTER BANNER ---
 function renderJSLHub(containerEl) {
   const teams = store.getTeams();
   const players = store.getPlayers();
@@ -281,10 +279,10 @@ function renderJSLHub(containerEl) {
         <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> Back to Premier League Selector
       </button>
 
-      <!-- COMPACT JSL POSTER BANNER -->
-      <div class="jsl-poster-container p-3.5 sm:p-6 space-y-3 sm:space-y-5">
+      <!-- JSL POSTER BANNER HEADER -->
+      <div class="jsl-poster-container p-3 sm:p-6 space-y-3 sm:space-y-5">
         <div class="flex flex-col sm:flex-row items-center justify-between gap-3 border-b border-slate-100 pb-3 text-center sm:text-left">
-          <div class="flex items-center gap-3">
+          <div class="flex items-center gap-2.5 sm:gap-4">
             <div class="w-12 h-14 sm:w-18 sm:h-22 rounded-xl bg-gradient-to-b from-blue-900 to-red-600 p-0.5 flex-shrink-0 shadow relative border border-white flex flex-col items-center justify-center text-white">
               <i data-lucide="shield" class="w-6 h-6 sm:w-10 sm:h-10 text-white"></i>
               <span class="text-[8px] sm:text-[10px] font-black tracking-widest">JSL</span>
@@ -292,7 +290,7 @@ function renderJSLHub(containerEl) {
             <div>
               <div class="jsl-poster-title-navy">JHANKRA</div>
               <div class="jsl-poster-title-red">SUPER LEAGUE</div>
-              <div class="inline-block mt-0.5 px-2.5 py-0.5 bg-slate-900 text-white font-extrabold text-[9px] sm:text-xs rounded tracking-wider uppercase">
+              <div class="inline-block mt-0.5 px-2 py-0.5 bg-slate-900 text-white font-extrabold text-[9px] sm:text-xs rounded tracking-wider uppercase">
                 🚩 8 TEAM LEAGUE CRICKET TOURNAMENT
               </div>
             </div>
@@ -305,74 +303,74 @@ function renderJSLHub(containerEl) {
 
         <!-- Poster Cards Grid -->
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 sm:gap-4">
-          <div class="bg-red-50/70 border border-red-300 rounded-xl p-3 text-center space-y-1.5">
-            <div class="inline-block px-2.5 py-0.5 bg-red-600 text-white font-black text-[9px] rounded-full uppercase">★ PRIZE MONEY ★</div>
-            <div class="grid grid-cols-2 gap-2">
-              <div class="bg-white p-2 rounded-lg border border-red-200 shadow-sm">
+          <div class="bg-red-50/70 border border-red-300 rounded-xl p-2.5 sm:p-3 text-center space-y-1">
+            <div class="inline-block px-2 py-0.5 bg-red-600 text-white font-black text-[9px] rounded-full uppercase">★ PRIZE MONEY ★</div>
+            <div class="grid grid-cols-2 gap-1.5">
+              <div class="bg-white p-1.5 rounded-lg border border-red-200 shadow-sm">
                 <div class="text-[8px] font-bold text-red-600">WINNER</div>
-                <div class="text-xl sm:text-2xl font-black text-red-600">35K 🏆</div>
+                <div class="text-lg sm:text-2xl font-black text-red-600">35K 🏆</div>
               </div>
-              <div class="bg-white p-2 rounded-lg border border-blue-200 shadow-sm">
+              <div class="bg-white p-1.5 rounded-lg border border-blue-200 shadow-sm">
                 <div class="text-[8px] font-bold text-blue-900">RUNNERS</div>
-                <div class="text-xl sm:text-2xl font-black text-blue-950">25K 🏆</div>
+                <div class="text-lg sm:text-2xl font-black text-blue-950">25K 🏆</div>
               </div>
             </div>
           </div>
 
-          <div class="bg-emerald-50/70 border border-emerald-400 rounded-xl p-3 text-center space-y-1">
-            <div class="inline-block px-2.5 py-0.5 bg-emerald-700 text-white font-black text-[9px] rounded-full uppercase">TEAM ENTRY</div>
+          <div class="bg-emerald-50/70 border border-emerald-400 rounded-xl p-2.5 sm:p-3 text-center space-y-1">
+            <div class="inline-block px-2 py-0.5 bg-emerald-700 text-white font-black text-[9px] rounded-full uppercase">TEAM ENTRY</div>
             <div class="text-2xl sm:text-3xl font-black text-emerald-700">15K</div>
-            <div class="text-[9px] font-bold text-emerald-900 uppercase bg-white p-1 rounded border border-emerald-200">
+            <div class="text-[8px] sm:text-[9px] font-bold text-emerald-900 uppercase bg-white p-1 rounded border border-emerald-200">
               ( 8K AUCTION + 7K ENTRY FEE )
             </div>
           </div>
 
-          <div class="bg-slate-900 text-white rounded-xl p-3 flex flex-col justify-between space-y-1.5 shadow">
+          <div class="bg-slate-900 text-white rounded-xl p-2.5 sm:p-3 flex flex-col justify-between space-y-1 shadow">
             <div class="flex items-center gap-1 text-amber-400 font-black text-[10px] uppercase">
               <i data-lucide="clipboard-list" class="w-3.5 h-3.5"></i> TOURNAMENT RULES
             </div>
-            <div class="bg-slate-800/80 p-2 rounded-lg border border-slate-700 text-[11px] font-bold text-red-400 leading-tight">
+            <div class="bg-slate-800/80 p-1.5 rounded-lg border border-slate-700 text-[10px] font-bold text-red-400 leading-tight">
               ⚠️ ONLY CHANDRAKONA TOWN PS PLAYERS ALLOWED.
             </div>
           </div>
         </div>
 
         <!-- Venue & Date -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-xs font-bold">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-50 border border-slate-200 p-2 rounded-xl text-xs font-bold">
           <div class="flex items-center gap-2">
-            <div class="p-1.5 bg-red-600 text-white rounded flex-shrink-0"><i data-lucide="calendar" class="w-4 h-4"></i></div>
+            <div class="p-1 bg-red-600 text-white rounded flex-shrink-0"><i data-lucide="calendar" class="w-3.5 h-3.5"></i></div>
             <div>
               <span class="text-slate-500 text-[8px] block uppercase">DATES</span>
-              <span class="text-red-600 text-xs font-extrabold">29, 30 & 31 AUGUST 2026</span>
+              <span class="text-red-600 text-[11px] font-extrabold">29, 30 & 31 AUGUST 2026</span>
             </div>
           </div>
           <div class="flex items-center gap-2">
-            <div class="p-1.5 bg-blue-900 text-white rounded flex-shrink-0"><i data-lucide="map-pin" class="w-4 h-4"></i></div>
+            <div class="p-1 bg-blue-900 text-white rounded flex-shrink-0"><i data-lucide="map-pin" class="w-3.5 h-3.5"></i></div>
             <div>
               <span class="text-slate-500 text-[8px] block uppercase">VENUE</span>
-              <span class="text-blue-950 text-xs font-extrabold">JHANKRA SCHOOL GROUND</span>
+              <span class="text-blue-950 text-[11px] font-extrabold">JHANKRA SCHOOL GROUND</span>
             </div>
           </div>
         </div>
 
         <!-- Contact Ribbon -->
-        <div class="bg-gradient-to-r from-slate-900 via-slate-900 to-red-900 text-white p-2.5 rounded-xl flex flex-row items-center justify-between gap-2 text-xs font-bold">
-          <span class="text-amber-400 text-[10px]">TEAM ENTRY CONTACT:</span>
-          <span class="bg-emerald-600 px-2.5 py-1 rounded text-xs font-black">📞 PINTU SANTRA - 89722144166</span>
+        <div class="bg-gradient-to-r from-slate-900 via-slate-900 to-red-900 text-white p-2 rounded-xl flex flex-row items-center justify-between gap-2 text-xs font-bold">
+          <span class="text-amber-400 text-[9px]">TEAM ENTRY CONTACT:</span>
+          <span class="bg-emerald-600 px-2 py-0.5 rounded text-[11px] font-black">📞 PINTU SANTRA - 89722144166</span>
         </div>
       </div>
 
       <!-- MAIN SPLIT LAYOUT -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-5 items-start">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 items-start">
         
         <!-- LEFT SIDE: REGISTERED TEAMS & PLAYERS -->
-        <div class="lg:col-span-2 space-y-4">
+        <div class="lg:col-span-2 space-y-3">
           
           <div class="flex border-b border-slate-200 space-x-2">
-            <button id="tab-btn-teams" class="jsl-left-tab px-3.5 py-2 rounded-t-lg font-black text-xs flex items-center gap-1 border-b-2 whitespace-nowrap ${activeJSLTab === 'teams' ? 'border-sky-600 text-sky-600 bg-white' : 'border-transparent text-slate-500'}">
+            <button id="tab-btn-teams" class="jsl-left-tab px-3 py-1.5 rounded-t-lg font-black text-xs flex items-center gap-1 border-b-2 whitespace-nowrap ${activeJSLTab === 'teams' ? 'border-sky-600 text-sky-600 bg-white' : 'border-transparent text-slate-500'}">
               <i data-lucide="shield" class="w-3.5 h-3.5"></i> Teams (${teams.length})
             </button>
-            <button id="tab-btn-players" class="jsl-left-tab px-3.5 py-2 rounded-t-lg font-black text-xs flex items-center gap-1 border-b-2 whitespace-nowrap ${activeJSLTab === 'players' ? 'border-sky-600 text-sky-600 bg-white' : 'border-transparent text-slate-500'}">
+            <button id="tab-btn-players" class="jsl-left-tab px-3 py-1.5 rounded-t-lg font-black text-xs flex items-center gap-1 border-b-2 whitespace-nowrap ${activeJSLTab === 'players' ? 'border-sky-600 text-sky-600 bg-white' : 'border-transparent text-slate-500'}">
               <i data-lucide="users" class="w-3.5 h-3.5"></i> Player List (${players.length})
             </button>
           </div>
@@ -380,26 +378,26 @@ function renderJSLHub(containerEl) {
           <!-- TAB 1: TEAMS -->
           <div id="jsl-tab-teams-content" class="${activeJSLTab === 'teams' ? 'space-y-3' : 'hidden'}">
             ${teams.length === 0 ? `
-              <div class="glass-card p-6 text-center space-y-2 bg-white border border-slate-200">
+              <div class="glass-card p-5 text-center space-y-1.5 bg-white border border-slate-200">
                 <i data-lucide="shield-off" class="w-6 h-6 text-slate-400 mx-auto"></i>
-                <h3 class="text-sm font-bold text-slate-900">No Teams Registered Yet</h3>
-                <p class="text-[11px] text-slate-500">Click "Registration Here" to register your team.</p>
+                <h3 class="text-xs font-bold text-slate-900">No Teams Registered Yet</h3>
+                <p class="text-[10px] text-slate-500">Click "Registration Here" to register your team.</p>
               </div>
             ` : `
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
                 ${teams.map((t, idx) => `
-                  <div class="glass-card p-4 flex flex-col justify-between">
+                  <div class="glass-card p-3 flex flex-col justify-between">
                     <div>
-                      <div class="flex justify-between items-start mb-2">
-                        <span class="px-2 py-0.5 bg-amber-100 text-amber-800 text-[10px] font-black rounded">Team ${idx + 1}</span>
-                        <span class="text-[10px] font-mono text-slate-400">${t.regDate}</span>
+                      <div class="flex justify-between items-start mb-1.5">
+                        <span class="px-1.5 py-0.5 bg-amber-100 text-amber-800 text-[9px] font-black rounded">Team ${idx + 1}</span>
+                        <span class="text-[9px] font-mono text-slate-400">${t.regDate}</span>
                       </div>
 
-                      <div class="flex items-center gap-3">
-                        <img src="${t.logoUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=300'}" class="w-10 h-10 rounded-lg object-cover border border-slate-200 shadow-sm" onerror="this.src='https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=300'"/>
+                      <div class="flex items-center gap-2.5">
+                        <img src="${t.logoUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=300'}" class="w-9 h-9 rounded object-cover border border-slate-200 shadow-sm" onerror="this.src='https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=300'"/>
                         <div>
-                          <h3 class="text-sm font-black text-slate-900 leading-tight">${t.name}</h3>
-                          <div class="text-[11px] text-slate-600">Owner: <strong>${t.ownerName}</strong></div>
+                          <h3 class="text-xs font-black text-slate-900 leading-tight">${t.name}</h3>
+                          <div class="text-[10px] text-slate-600">Owner: <strong>${t.ownerName}</strong></div>
                         </div>
                       </div>
                     </div>
@@ -412,13 +410,13 @@ function renderJSLHub(containerEl) {
           <!-- TAB 2: PLAYERS (COMPACT 2-COLUMN GRID ON MOBILE) -->
           <div id="jsl-tab-players-content" class="${activeJSLTab === 'players' ? 'space-y-3' : 'hidden'}">
             ${players.length === 0 ? `
-              <div class="glass-card p-6 text-center space-y-2 bg-white border border-slate-200">
+              <div class="glass-card p-5 text-center space-y-1.5 bg-white border border-slate-200">
                 <i data-lucide="user-x" class="w-6 h-6 text-slate-400 mx-auto"></i>
-                <h3 class="text-sm font-bold text-slate-900">No Players Registered Yet</h3>
-                <p class="text-[11px] text-slate-500">Click "Registration Here" to submit your player registration for ₹ 200!</p>
+                <h3 class="text-xs font-bold text-slate-900">No Players Registered Yet</h3>
+                <p class="text-[10px] text-slate-500">Click "Registration Here" to submit your player registration for ₹ 200!</p>
               </div>
             ` : `
-              <div class="grid grid-cols-2 gap-3" id="jsl-players-container">
+              <div class="grid grid-cols-2 gap-2.5" id="jsl-players-container">
                 ${renderPlayerCardsWithSerial(players, teamMap)}
               </div>
             `}
@@ -427,25 +425,25 @@ function renderJSLHub(containerEl) {
         </div>
 
         <!-- RIGHT SIDE: REGISTRATION CARD WITH EXACT QR CODE -->
-        <div class="lg:col-span-1 space-y-4">
-          <div class="glass-card p-4 border border-amber-300 shadow-lg relative overflow-hidden bg-gradient-to-b from-white to-amber-50 text-center space-y-3">
+        <div class="lg:col-span-1 space-y-3">
+          <div class="glass-card p-3 border border-amber-300 shadow-md relative overflow-hidden bg-gradient-to-b from-white to-amber-50 text-center space-y-2.5">
             
             <div>
-              <span class="px-2.5 py-0.5 bg-amber-100 text-amber-800 font-extrabold text-[9px] rounded-full uppercase tracking-wider">JSL 2026</span>
-              <h3 class="text-lg font-black text-slate-900 mt-1">Registration Portal</h3>
+              <span class="px-2 py-0.5 bg-amber-100 text-amber-800 font-extrabold text-[9px] rounded-full uppercase">JSL 2026</span>
+              <h3 class="text-base font-black text-slate-900 mt-0.5">Registration Portal</h3>
             </div>
 
-            <button id="jsl-right-reg-btn" class="btn-blink-always w-full py-3 bg-gradient-to-r from-amber-500 to-red-600 text-white font-black text-xs rounded-xl shadow flex items-center justify-center gap-1.5">
-              <i data-lucide="edit-3" class="w-4 h-4"></i> Registration Here
+            <button id="jsl-right-reg-btn" class="btn-blink-always w-full py-2.5 bg-gradient-to-r from-amber-500 to-red-600 text-white font-black text-xs rounded-xl shadow flex items-center justify-center gap-1">
+              <i data-lucide="edit-3" class="w-3.5 h-3.5"></i> Registration Here
             </button>
 
             <!-- NAVI QR CODE IMAGE -->
-            <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm space-y-2">
-              <div class="text-[10px] font-black text-slate-800 uppercase">Scan & Pay ₹ 200 via Any UPI</div>
-              <div class="overflow-hidden rounded-lg border border-slate-200 shadow-inner p-1.5 inline-block">
-                <img src="assets/navi_qr_code.jpg" alt="Pintu Santra Navi UPI QR Code" class="w-36 h-auto mx-auto object-contain rounded" />
+            <div class="bg-white p-2.5 rounded-xl border border-slate-200 shadow-sm space-y-1.5">
+              <div class="text-[9px] font-black text-slate-800 uppercase">Scan & Pay ₹ 200 via Any UPI</div>
+              <div class="overflow-hidden rounded-lg border border-slate-900 p-1 inline-block">
+                <img src="assets/navi_qr_code.jpg" alt="Pintu Santra Navi UPI QR Code" class="w-32 h-auto mx-auto object-contain rounded" />
               </div>
-              <div class="text-[10px] font-bold text-emerald-800 font-mono bg-emerald-50 py-0.5 px-2 rounded border border-emerald-200 inline-block">
+              <div class="text-[9px] font-bold text-emerald-800 font-mono bg-emerald-50 py-0.5 px-2 rounded border border-emerald-200 inline-block">
                 pintusantra4166@nyes
               </div>
             </div>
@@ -475,41 +473,41 @@ function renderJSLHub(containerEl) {
   attachPlayerProfileModalListeners(containerEl);
 }
 
-// --- RENDER PLAYER CARDS (COMPACT 2-COLUMN LAYOUT ON MOBILE) ---
+// --- RENDER PLAYER CARDS (COMPACT 2-COLUMN GRID ON MOBILE) ---
 function renderPlayerCardsWithSerial(playersList, teamMap) {
   return playersList.map((p, idx) => {
     const serialNum = p.serialNo || (idx + 1);
     const isApproved = p.paymentStatus === 'APPROVED';
 
     return `
-      <div class="glass-card p-3 flex flex-col justify-between items-center text-center relative border border-slate-200 shadow-sm bg-white">
+      <div class="glass-card p-2.5 flex flex-col justify-between items-center text-center relative border border-slate-200 shadow-sm bg-white">
         
-        <div class="w-full flex justify-between items-center mb-2">
-          <span class="px-1.5 py-0.5 bg-slate-900 text-white font-mono font-black text-[9px] rounded">
-            S-${serialNum}
+        <div class="w-full flex justify-between items-center mb-1.5">
+          <span class="px-1.5 py-0.5 bg-slate-900 text-white font-mono font-black text-[8px] rounded">
+            Serial ${serialNum}
           </span>
 
           <div class="flex items-center gap-1" title="${isApproved ? 'Payment Approved' : 'Pending Verification'}">
             <span class="${isApproved ? 'status-circle-green' : 'status-circle-red'}"></span>
-            <span class="text-[9px] font-bold ${isApproved ? 'text-emerald-600' : 'text-red-500'}">
-              ${isApproved ? 'OK' : 'PEND'}
+            <span class="text-[8px] font-bold ${isApproved ? 'text-emerald-600' : 'text-red-500'}">
+              ${isApproved ? 'OK' : 'PENDING'}
             </span>
           </div>
         </div>
 
-        <div class="relative mb-2">
+        <div class="relative mb-1.5">
           <img src="${p.photoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300'}" class="player-square-photo" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300'" />
         </div>
 
-        <div class="space-y-0.5 mb-2 w-full">
-          <h3 class="font-extrabold text-slate-900 text-xs truncate leading-tight">${p.name}</h3>
-          <div class="text-[9px] font-bold text-sky-700 truncate">
+        <div class="space-y-0.5 mb-1.5 w-full">
+          <h3 class="font-extrabold text-slate-900 text-[11px] truncate leading-tight">${p.name}</h3>
+          <div class="text-[8px] font-bold text-sky-700 truncate">
             ${p.category || 'Player'}
           </div>
         </div>
 
-        <button data-profile-id="${p.id}" class="view-profile-modal-btn w-full py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-[10px] font-bold rounded-lg shadow-sm flex items-center justify-center gap-1">
-          <i data-lucide="user" class="w-3 h-3 text-amber-400"></i> Profile
+        <button data-profile-id="${p.id}" class="view-profile-modal-btn w-full py-1 bg-slate-900 hover:bg-slate-800 text-white text-[9px] font-bold rounded shadow-sm flex items-center justify-center gap-0.5">
+          <i data-lucide="user" class="w-2.5 h-2.5 text-amber-400"></i> Profile
         </button>
       </div>
     `;
@@ -533,24 +531,24 @@ function openFullPlayerProfileModal(player) {
 
   const modalHtml = `
     <div id="player-profile-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3">
-      <div class="bg-white max-w-md w-full p-4 sm:p-6 relative space-y-4 animate-fade-in rounded-2xl shadow-2xl border border-slate-200 modal-content-container">
+      <div class="bg-white max-w-sm w-full p-4 relative space-y-3.5 animate-fade-in rounded-2xl shadow-2xl border border-slate-200 modal-content-container">
         <button id="close-profile-btn" class="absolute top-3 right-3 text-slate-400 hover:text-slate-700 p-1">
           <i data-lucide="x" class="w-4 h-4"></i>
         </button>
 
         <div class="flex items-center gap-3 border-b border-slate-200 pb-3">
-          <img src="${player.photoUrl}" class="w-14 h-14 sm:w-18 sm:h-18 rounded-xl object-cover border-2 border-slate-300 shadow" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300'" />
+          <img src="${player.photoUrl}" class="w-14 h-14 rounded-xl object-cover border-2 border-slate-300 shadow" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300'" />
           <div>
-            <span class="px-2 py-0.5 bg-slate-900 text-white font-mono font-black text-[10px] rounded">Serial ${player.serialNo || 1}</span>
-            <h2 class="text-lg font-black text-slate-900 mt-0.5">${player.name}</h2>
-            <div class="flex items-center gap-1 text-[11px] font-bold ${isApproved ? 'text-emerald-600' : 'text-red-500'}">
+            <span class="px-1.5 py-0.5 bg-slate-900 text-white font-mono font-black text-[9px] rounded">Serial ${player.serialNo || 1}</span>
+            <h2 class="text-base font-black text-slate-900 mt-0.5">${player.name}</h2>
+            <div class="flex items-center gap-1 text-[10px] font-bold ${isApproved ? 'text-emerald-600' : 'text-red-500'}">
               <span class="${isApproved ? 'status-circle-green' : 'status-circle-red'}"></span>
               <span>Status: ${isApproved ? 'Approved' : 'Pending Payment Verification'}</span>
             </div>
           </div>
         </div>
 
-        <div class="grid grid-cols-2 gap-2 text-[11px]">
+        <div class="grid grid-cols-2 gap-2 text-[10px]">
           <div class="bg-slate-50 p-2 rounded-lg border border-slate-200">
             <span class="text-slate-500 block uppercase font-semibold text-[8px]">Mobile Phone</span>
             <span class="font-extrabold text-slate-900">${player.phone || 'N/A'}</span>
@@ -578,10 +576,10 @@ function openFullPlayerProfileModal(player) {
         </div>
 
         <div class="flex gap-2 pt-1">
-          <button id="print-pass-btn" class="flex-1 py-2.5 bg-amber-500 hover:bg-amber-600 text-white font-bold text-xs rounded-xl shadow transition-colors flex items-center justify-center gap-1">
-            <i data-lucide="ticket" class="w-4 h-4"></i> Download Pass
+          <button id="print-pass-btn" class="flex-1 py-2 bg-amber-500 text-white font-bold text-xs rounded-xl shadow flex items-center justify-center gap-1">
+            <i data-lucide="ticket" class="w-3.5 h-3.5"></i> Download Pass
           </button>
-          <button id="close-profile-bottom-btn" class="py-2.5 px-4 bg-slate-100 text-slate-800 font-bold text-xs rounded-xl border border-slate-300">
+          <button id="close-profile-bottom-btn" class="py-2 px-3 bg-slate-100 text-slate-800 font-bold text-xs rounded-xl border border-slate-300">
             Close
           </button>
         </div>
@@ -604,21 +602,21 @@ function openFullPlayerProfileModal(player) {
 function openRegistrationTypeModal() {
   const modalHtml = `
     <div id="reg-type-backdrop" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3">
-      <div class="bg-white max-w-sm w-full p-5 relative space-y-4 animate-fade-in rounded-2xl shadow-2xl border border-slate-200 text-center modal-content-container">
+      <div class="bg-white max-w-sm w-full p-4 relative space-y-3.5 animate-fade-in rounded-2xl shadow-2xl border border-slate-200 text-center modal-content-container">
         <button id="close-reg-type-btn" class="absolute top-3 right-3 text-slate-400 hover:text-slate-700 p-1">
           <i data-lucide="x" class="w-4 h-4"></i>
         </button>
 
         <div>
-          <span class="px-2.5 py-0.5 bg-amber-100 text-amber-800 font-black text-[10px] rounded-full uppercase">JHANKRA SUPER LEAGUE</span>
-          <h2 class="text-lg font-black text-slate-900 mt-1">Registration Here</h2>
-          <p class="text-[11px] text-slate-500">Select registration type to proceed</p>
+          <span class="px-2 py-0.5 bg-amber-100 text-amber-800 font-black text-[9px] rounded-full uppercase">JHANKRA SUPER LEAGUE</span>
+          <h2 class="text-base font-black text-slate-900 mt-1">Registration Here</h2>
+          <p class="text-[10px] text-slate-500">Select registration type to proceed</p>
         </div>
 
-        <div class="grid grid-cols-1 gap-2.5 pt-1">
-          <button id="select-team-reg-btn" class="p-3.5 rounded-xl bg-gradient-to-r from-sky-600 to-blue-700 text-white font-extrabold text-xs flex items-center justify-between shadow">
-            <div class="flex items-center gap-2.5">
-              <i data-lucide="shield" class="w-5 h-5 text-amber-300"></i>
+        <div class="grid grid-cols-1 gap-2 pt-1">
+          <button id="select-team-reg-btn" class="p-3 rounded-xl bg-gradient-to-r from-sky-600 to-blue-700 text-white font-extrabold text-xs flex items-center justify-between shadow">
+            <div class="flex items-center gap-2">
+              <i data-lucide="shield" class="w-4 h-4 text-amber-300"></i>
               <div class="text-left">
                 <div>Part 1: Team Register</div>
                 <div class="text-[9px] font-normal text-sky-100">15K (8K Auction + 7K Fee)</div>
@@ -627,9 +625,9 @@ function openRegistrationTypeModal() {
             <i data-lucide="chevron-right" class="w-4 h-4"></i>
           </button>
 
-          <button id="select-player-reg-btn" class="p-3.5 rounded-xl bg-gradient-to-r from-amber-500 to-red-600 text-white font-extrabold text-xs flex items-center justify-between shadow">
-            <div class="flex items-center gap-2.5">
-              <i data-lucide="user-plus" class="w-5 h-5 text-white"></i>
+          <button id="select-player-reg-btn" class="p-3 rounded-xl bg-gradient-to-r from-amber-500 to-red-600 text-white font-extrabold text-xs flex items-center justify-between shadow">
+            <div class="flex items-center gap-2">
+              <i data-lucide="user-plus" class="w-4 h-4 text-white"></i>
               <div class="text-left">
                 <div>Part 2: Player Register</div>
                 <div class="text-[9px] font-normal text-amber-100">Entry Fee: ₹ 200 Rupees</div>
@@ -665,54 +663,54 @@ function openTeamRegisterFormModal() {
 
   const modalHtml = `
     <div id="team-reg-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3 overflow-y-auto">
-      <div class="bg-white max-w-md w-full p-4 sm:p-6 relative space-y-3.5 animate-fade-in rounded-2xl shadow-2xl border border-slate-200 modal-content-container">
+      <div class="bg-white max-w-md w-full p-4 relative space-y-3 animate-fade-in rounded-2xl shadow-2xl border border-slate-200 modal-content-container">
         <button id="close-team-modal-btn" class="absolute top-3 right-3 text-slate-400 hover:text-slate-700 p-1">
           <i data-lucide="x" class="w-4 h-4"></i>
         </button>
 
         <div>
           <span class="px-2 py-0.5 bg-sky-100 text-sky-800 text-[9px] font-black rounded border border-sky-300">PART 1: TEAM REGISTER</span>
-          <h2 class="text-lg font-black text-slate-900 mt-0.5">Register New Team</h2>
+          <h2 class="text-base font-black text-slate-900 mt-0.5">Register New Team</h2>
         </div>
 
-        <form id="team-registration-form" class="space-y-3">
+        <form id="team-registration-form" class="space-y-2.5">
           <div>
-            <label class="block text-[11px] font-bold text-slate-700 uppercase mb-0.5">Name of The Team *</label>
-            <input type="text" id="team-name" required placeholder="e.g. Jhankra Strikers XI" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-2.5 focus:outline-none" />
+            <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Name of The Team *</label>
+            <input type="text" id="team-name" required placeholder="Jhankra Strikers XI" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-2 focus:outline-none" />
           </div>
 
           <div class="grid grid-cols-2 gap-2">
             <div>
-              <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Owner Name *</label>
+              <label class="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">Owner Name *</label>
               <input type="text" id="owner-name" required placeholder="Vikram Rathore" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-2 focus:outline-none" />
             </div>
             <div>
-              <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Phone *</label>
+              <label class="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">Phone *</label>
               <input type="tel" id="owner-phone" required placeholder="+91 98765..." class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-2 focus:outline-none" />
             </div>
           </div>
 
           <div class="grid grid-cols-2 gap-2">
             <div>
-              <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Co-Owner Name</label>
+              <label class="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">Co-Owner Name</label>
               <input type="text" id="co-owner-name" placeholder="Rohit Verma" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-2 focus:outline-none" />
             </div>
             <div>
-              <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Co-Owner Phone</label>
+              <label class="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">Co-Owner Phone</label>
               <input type="tel" id="co-owner-phone" placeholder="+91 98123..." class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-2 focus:outline-none" />
             </div>
           </div>
 
           <div>
-            <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Upload Team Logo File</label>
-            <input type="file" id="team-logo-file" accept="image/*" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-[11px] rounded-lg p-1.5 file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:text-[10px] file:font-bold file:bg-sky-600 file:text-white" />
-            <div id="team-logo-preview-box" class="hidden mt-1.5 flex items-center gap-2 bg-slate-50 p-1.5 rounded-lg border border-slate-200">
-              <img id="team-logo-preview-img" class="w-10 h-10 rounded object-cover" />
-              <span class="text-[10px] text-emerald-700 font-bold">Logo selected!</span>
+            <label class="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">Upload Team Logo File</label>
+            <input type="file" id="team-logo-file" accept="image/*" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-[10px] rounded-lg p-1 file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:text-[9px] file:font-bold file:bg-sky-600 file:text-white" />
+            <div id="team-logo-preview-box" class="hidden mt-1 flex items-center gap-2 bg-slate-50 p-1 rounded-lg border border-slate-200">
+              <img id="team-logo-preview-img" class="w-8 h-8 rounded object-cover" />
+              <span class="text-[9px] text-emerald-700 font-bold">Logo selected!</span>
             </div>
           </div>
 
-          <button type="submit" class="w-full py-3 bg-gradient-to-r from-sky-600 to-blue-700 text-white font-extrabold text-xs rounded-xl shadow">
+          <button type="submit" class="w-full py-2.5 bg-gradient-to-r from-sky-600 to-blue-700 text-white font-extrabold text-xs rounded-xl shadow">
             Submit Team Registration
           </button>
         </form>
@@ -729,7 +727,7 @@ function openTeamRegisterFormModal() {
   document.getElementById('team-logo-file')?.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (file) {
-      teamLogoDataUrl = await compressImage(file, 180, 180, 0.7);
+      teamLogoDataUrl = await compressImage(file, 160, 160, 0.7);
       document.getElementById('team-logo-preview-img').src = teamLogoDataUrl;
       document.getElementById('team-logo-preview-box').classList.remove('hidden');
     }
@@ -772,35 +770,35 @@ function openPlayerRegisterFormModal() {
 
   const modalHtml = `
     <div id="player-reg-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3 overflow-y-auto">
-      <div class="bg-white max-w-md w-full p-4 sm:p-6 relative space-y-3.5 animate-fade-in rounded-2xl shadow-2xl border border-slate-200 modal-content-container">
+      <div class="bg-white max-w-md w-full p-4 relative space-y-3 animate-fade-in rounded-2xl shadow-2xl border border-slate-200 modal-content-container">
         <button id="close-player-modal-btn" class="absolute top-3 right-3 text-slate-400 hover:text-slate-700 p-1">
           <i data-lucide="x" class="w-4 h-4"></i>
         </button>
 
         <div>
           <span class="px-2 py-0.5 bg-amber-100 text-amber-800 text-[9px] font-black rounded border border-amber-300">PART 2: PLAYER REGISTER</span>
-          <h2 class="text-lg font-black text-slate-900 mt-0.5">Player Registration Form</h2>
+          <h2 class="text-base font-black text-slate-900 mt-0.5">Player Registration Form</h2>
         </div>
 
-        <form id="player-registration-form" class="space-y-3">
+        <form id="player-registration-form" class="space-y-2.5">
           <div class="grid grid-cols-2 gap-2">
             <div>
-              <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Full Name *</label>
+              <label class="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">Full Name *</label>
               <input type="text" id="ply-name" required placeholder="Rahul Sharma" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-2 focus:outline-none" />
             </div>
             <div>
-              <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Phone Number *</label>
+              <label class="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">Phone Number *</label>
               <input type="tel" id="ply-phone" required placeholder="+91 98765..." class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-2 focus:outline-none" />
             </div>
           </div>
 
           <div>
-            <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Full Address *</label>
+            <label class="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">Full Address *</label>
             <input type="text" id="ply-address" required placeholder="Chandrakona Town PS Area, Jhankra" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-2 focus:outline-none" />
           </div>
 
           <div>
-            <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Player Category *</label>
+            <label class="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">Player Category *</label>
             <select id="ply-category" required class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-2 focus:outline-none">
               <option value="Right Hand Batsman">Right Hand Batsman</option>
               <option value="Left Hand Batsman">Left Hand Batsman</option>
@@ -812,73 +810,73 @@ function openPlayerRegisterFormModal() {
           </div>
 
           <div>
-            <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Upload Photo *</label>
-            <input type="file" id="ply-photo-file" accept="image/*" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-[11px] rounded-lg p-1.5 file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:text-[10px] file:font-bold file:bg-amber-500 file:text-white" />
-            <div id="ply-photo-preview-box" class="hidden mt-1 flex items-center gap-2 bg-slate-50 p-1.5 rounded-lg border border-slate-200">
-              <img id="ply-photo-preview-img" class="w-10 h-10 rounded object-cover" />
-              <span class="text-[10px] text-emerald-700 font-bold">Photo ready!</span>
+            <label class="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">Upload Photo *</label>
+            <input type="file" id="ply-photo-file" accept="image/*" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-[10px] rounded-lg p-1 file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:text-[9px] file:font-bold file:bg-amber-500 file:text-white" />
+            <div id="ply-photo-preview-box" class="hidden mt-1 flex items-center gap-2 bg-slate-50 p-1 rounded-lg border border-slate-200">
+              <img id="ply-photo-preview-img" class="w-8 h-8 rounded object-cover" />
+              <span class="text-[9px] text-emerald-700 font-bold">Photo ready!</span>
             </div>
           </div>
 
           <div>
-            <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Upload Aadhar Card (Back side Only) *</label>
-            <input type="file" id="ply-aadhar-file" accept="image/*" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-[11px] rounded-lg p-1.5 file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:text-[10px] file:font-bold file:bg-sky-600 file:text-white" />
-            <div id="ply-aadhar-preview-box" class="hidden mt-1 flex items-center gap-2 bg-slate-50 p-1.5 rounded-lg border border-slate-200">
-              <img id="ply-aadhar-preview-img" class="w-12 h-9 rounded object-cover" />
-              <span class="text-[10px] text-emerald-700 font-bold">Aadhar Back ready!</span>
+            <label class="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">Upload Aadhar Card (Back side Only) *</label>
+            <input type="file" id="ply-aadhar-file" accept="image/*" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-[10px] rounded-lg p-1 file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:text-[9px] file:font-bold file:bg-sky-600 file:text-white" />
+            <div id="ply-aadhar-preview-box" class="hidden mt-1 flex items-center gap-2 bg-slate-50 p-1 rounded-lg border border-slate-200">
+              <img id="ply-aadhar-preview-img" class="w-10 h-7 rounded object-cover" />
+              <span class="text-[9px] text-emerald-700 font-bold">Aadhar Back ready!</span>
             </div>
           </div>
 
-          <div class="bg-gradient-to-b from-amber-50 to-white p-3 rounded-xl border border-amber-300 space-y-2.5 shadow-sm">
-            <div class="flex justify-between items-center border-b border-amber-200 pb-2">
+          <div class="bg-gradient-to-b from-amber-50 to-white p-2.5 rounded-xl border border-amber-300 space-y-2 shadow-sm">
+            <div class="flex justify-between items-center border-b border-amber-200 pb-1.5">
               <div>
                 <span class="font-extrabold text-slate-900 text-xs block">Entry Fee Payment</span>
               </div>
-              <span class="text-xl font-black text-amber-700">₹ 200</span>
+              <span class="text-lg font-black text-amber-700">₹ 200</span>
             </div>
 
-            <div class="bg-white p-2.5 rounded-xl border border-slate-200 text-center shadow-inner flex flex-col items-center space-y-1.5">
-              <div class="text-[10px] font-black text-slate-800 uppercase">Scan QR Code Below</div>
+            <div class="bg-white p-2 rounded-xl border border-slate-200 text-center shadow-inner flex flex-col items-center space-y-1">
+              <div class="text-[9px] font-black text-slate-800 uppercase">Scan QR Code Below</div>
               
               <div class="overflow-hidden rounded-lg border border-slate-900 p-1 inline-block">
-                <img src="assets/navi_qr_code.jpg" alt="Pintu Santra Navi UPI QR Code" class="w-36 h-auto mx-auto object-contain rounded" />
+                <img src="assets/navi_qr_code.jpg" alt="Pintu Santra Navi UPI QR Code" class="w-32 h-auto mx-auto object-contain rounded" />
               </div>
 
-              <div class="font-mono font-bold text-[10px] text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-block">
+              <div class="font-mono font-bold text-[9px] text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-block">
                 pintusantra4166@nyes
               </div>
             </div>
 
-            <div class="grid grid-cols-3 gap-1.5">
-              <a href="${phonepeUrl}" class="py-1.5 px-1 bg-purple-600 text-white font-extrabold text-[10px] rounded-lg text-center shadow">
+            <div class="grid grid-cols-3 gap-1">
+              <a href="${phonepeUrl}" class="py-1 px-1 bg-purple-600 text-white font-extrabold text-[9px] rounded text-center shadow">
                 PhonePe
               </a>
-              <a href="${gpayUrl}" class="py-1.5 px-1 bg-blue-600 text-white font-extrabold text-[10px] rounded-lg text-center shadow">
+              <a href="${gpayUrl}" class="py-1 px-1 bg-blue-600 text-white font-extrabold text-[9px] rounded text-center shadow">
                 GPay
               </a>
-              <a href="${genericUpiUrl}" class="py-1.5 px-1 bg-emerald-600 text-white font-extrabold text-[10px] rounded-lg text-center shadow">
+              <a href="${genericUpiUrl}" class="py-1 px-1 bg-emerald-600 text-white font-extrabold text-[9px] rounded text-center shadow">
                 Any UPI
               </a>
             </div>
 
-            <div class="space-y-2">
+            <div class="space-y-1.5">
               <div>
-                <label class="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">UPI Transaction Number *</label>
-                <input type="text" id="ply-upi-ref" required placeholder="UPI/9812736451/PINTU" class="w-full bg-white border border-slate-300 text-emerald-700 font-mono text-xs rounded p-2 focus:outline-none" />
+                <label class="block text-[8px] font-bold text-slate-700 uppercase mb-0.5">UPI Transaction Number *</label>
+                <input type="text" id="ply-upi-ref" required placeholder="UPI/9812736451/PINTU" class="w-full bg-white border border-slate-300 text-emerald-700 font-mono text-[11px] rounded p-1.5 focus:outline-none" />
               </div>
 
               <div>
-                <label class="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">Upload Payment Screenshot File</label>
-                <input type="file" id="ply-proof-file" accept="image/*" class="w-full bg-white border border-slate-300 text-slate-900 text-[10px] rounded p-1.5 file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:text-[9px] file:font-bold file:bg-emerald-600 file:text-white" />
-                <div id="ply-proof-preview-box" class="hidden mt-1 flex items-center gap-2 bg-white p-1.5 rounded-lg border border-slate-200">
-                  <img id="ply-proof-preview-img" class="w-12 h-9 rounded object-cover" />
-                  <span class="text-[10px] text-emerald-700 font-bold">Receipt attached!</span>
+                <label class="block text-[8px] font-bold text-slate-700 uppercase mb-0.5">Upload Payment Screenshot File</label>
+                <input type="file" id="ply-proof-file" accept="image/*" class="w-full bg-white border border-slate-300 text-slate-900 text-[9px] rounded p-1 file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:text-[8px] file:font-bold file:bg-emerald-600 file:text-white" />
+                <div id="ply-proof-preview-box" class="hidden mt-1 flex items-center gap-2 bg-white p-1 rounded-lg border border-slate-200">
+                  <img id="ply-proof-preview-img" class="w-10 h-7 rounded object-cover" />
+                  <span class="text-[9px] text-emerald-700 font-bold">Receipt attached!</span>
                 </div>
               </div>
             </div>
           </div>
 
-          <button type="submit" id="submit-player-reg-btn" class="w-full py-3 bg-gradient-to-r from-amber-500 to-red-600 text-white font-extrabold text-xs rounded-xl shadow">
+          <button type="submit" id="submit-player-reg-btn" class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-red-600 text-white font-extrabold text-xs rounded-xl shadow">
             Submit Player Registration
           </button>
         </form>
@@ -895,7 +893,7 @@ function openPlayerRegisterFormModal() {
   document.getElementById('ply-photo-file')?.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (file) {
-      plyPhotoDataUrl = await compressImage(file, 250, 250, 0.65);
+      plyPhotoDataUrl = await compressImage(file, 220, 220, 0.65);
       document.getElementById('ply-photo-preview-img').src = plyPhotoDataUrl;
       document.getElementById('ply-photo-preview-box').classList.remove('hidden');
     }
@@ -904,7 +902,7 @@ function openPlayerRegisterFormModal() {
   document.getElementById('ply-aadhar-file')?.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (file) {
-      plyAadharDataUrl = await compressImage(file, 280, 200, 0.6);
+      plyAadharDataUrl = await compressImage(file, 250, 180, 0.6);
       document.getElementById('ply-aadhar-preview-img').src = plyAadharDataUrl;
       document.getElementById('ply-aadhar-preview-box').classList.remove('hidden');
     }
@@ -913,7 +911,7 @@ function openPlayerRegisterFormModal() {
   document.getElementById('ply-proof-file')?.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (file) {
-      plyProofDataUrl = await compressImage(file, 280, 200, 0.6);
+      plyProofDataUrl = await compressImage(file, 250, 180, 0.6);
       document.getElementById('ply-proof-preview-img').src = plyProofDataUrl;
       document.getElementById('ply-proof-preview-box').classList.remove('hidden');
     }
@@ -939,7 +937,7 @@ function openPlayerRegisterFormModal() {
         aadharBackUrl: plyAadharDataUrl,
         paymentRef: upiRef,
         paymentProofUrl: plyProofDataUrl,
-        basePrice: 200
+ basePrice: 200
       });
 
       store.setUserRole('PLAYER', newPlayer.name, newPlayer);

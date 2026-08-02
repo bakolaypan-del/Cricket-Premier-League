@@ -1,4 +1,4 @@
-/* Compact & Ultra Mobile-Friendly White Theme (Developer: Suman Kolay) */
+/* Professional Square Category White Theme (Developer: Suman Kolay) */
 
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Teko:wght@700&family=JetBrains+Mono:wght@400;600&display=swap');
 
@@ -22,15 +22,15 @@ body {
   font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
   background-color: var(--bg-main);
   background-image: 
-    radial-gradient(at 0% 0%, rgba(245, 158, 11, 0.05) 0px, transparent 50%),
-    radial-gradient(at 100% 0%, rgba(2, 132, 199, 0.05) 0px, transparent 50%),
-    radial-gradient(at 50% 100%, rgba(124, 58, 237, 0.04) 0px, transparent 50%);
+    radial-gradient(at 0% 0%, rgba(245, 158, 11, 0.04) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(2, 132, 199, 0.04) 0px, transparent 50%),
+    radial-gradient(at 50% 100%, rgba(124, 58, 237, 0.03) 0px, transparent 50%);
   background-attachment: fixed;
   color: var(--text-main);
   min-height: 100vh;
   margin: 0;
   overflow-x: hidden;
-  padding-bottom: 65px; /* Space for mobile sticky action bar */
+  padding-bottom: 65px;
 }
 
 @media (min-width: 768px) {
@@ -44,7 +44,7 @@ body {
   background: var(--bg-card);
   border: 1px solid var(--border-light);
   border-radius: 1rem;
-  box-shadow: 0 4px 15px -2px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.04);
   transition: all 0.25s ease;
 }
 
@@ -55,72 +55,61 @@ body {
   }
 }
 
-.glass-card:hover {
-  border-color: rgba(245, 158, 11, 0.4);
-}
-
-/* Category Boxes: Compact Row on Mobile, Square on Desktop */
+/* 3 CATEGORY SQUARE BOXES - ALWAYS IN A ROW & ALWAYS SQUARE SHAPE */
 .square-category-box {
+  aspect-ratio: 1 / 1 !important; /* Force exact square shape on mobile & desktop */
   background: linear-gradient(145deg, #FFFFFF 0%, #F8FAFC 100%);
-  border: 1.5px solid var(--border-light);
+  border: 2px solid var(--border-light);
   border-radius: 1rem;
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  justify-content: flex-start;
-  padding: 0.85rem 1rem;
-  gap: 1rem;
-  text-align: left;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0.5rem;
+  text-align: center;
   position: relative;
   overflow: hidden;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.04);
-  transition: all 0.3s ease;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
 }
 
 @media (min-width: 640px) {
   .square-category-box {
-    aspect-ratio: 1 / 1;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 1.75rem;
-    text-align: center;
-    border-width: 2px;
     border-radius: 1.75rem;
-    gap: 0;
+    padding: 1.5rem;
   }
 }
 
 .square-category-box:hover {
-  transform: translateY(-4px);
-  box-shadow: 0 12px 25px -5px rgba(15, 23, 42, 0.1);
+  transform: translateY(-4px) scale(1.02);
+  box-shadow: 0 12px 25px -5px rgba(15, 23, 42, 0.12);
   border-color: var(--brand-gold);
 }
 
-/* Logos */
+/* Logos inside Square Boxes */
 .category-logo-badge {
-  width: 50px;
-  height: 50px;
-  border-radius: 0.85rem;
+  width: 44px;
+  height: 44px;
+  border-radius: 0.75rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.35rem;
+  font-size: 1.15rem;
   font-weight: 900;
   letter-spacing: -0.5px;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
-  margin-bottom: 0;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  margin-bottom: 0.4rem;
   flex-shrink: 0;
 }
 
 @media (min-width: 640px) {
   .category-logo-badge {
-    width: 90px;
-    height: 90px;
+    width: 85px;
+    height: 85px;
     border-radius: 1.5rem;
-    font-size: 2.35rem;
-    margin-bottom: 1.25rem;
+    font-size: 2.25rem;
+    margin-bottom: 1rem;
   }
 }
 
@@ -142,12 +131,12 @@ body {
   border: 2px solid #A78BFA;
 }
 
-/* JSL Poster Styles - Compact Scaling */
+/* JSL Poster Styles - Mobile Responsive */
 .jsl-poster-container {
   background: #FFFFFF;
   border: 2px solid #0F172A;
   border-radius: 1rem;
-  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
   overflow: hidden;
 }
 
@@ -161,7 +150,7 @@ body {
 .jsl-poster-title-navy {
   font-family: 'Teko', 'Outfit', sans-serif;
   color: #0B192C;
-  font-size: 1.75rem;
+  font-size: 1.6rem;
   line-height: 0.95;
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -171,7 +160,7 @@ body {
 .jsl-poster-title-red {
   font-family: 'Teko', 'Outfit', sans-serif;
   color: #DC2626;
-  font-size: 2.1rem;
+  font-size: 1.95rem;
   line-height: 0.95;
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -184,8 +173,8 @@ body {
 }
 
 @media (min-width: 1024px) {
-  .jsl-poster-title-navy { font-size: 4.25rem; }
-  .jsl-poster-title-red { font-size: 5rem; }
+  .jsl-poster-title-navy { font-size: 4rem; }
+  .jsl-poster-title-red { font-size: 4.75rem; }
 }
 
 /* PERSISTENT BLINKING ANIMATION */
@@ -198,7 +187,7 @@ body {
   50% {
     opacity: 0.85;
     transform: scale(1.02);
-    box-shadow: 0 0 20px rgba(220, 38, 38, 0.8);
+    box-shadow: 0 0 18px rgba(220, 38, 38, 0.8);
   }
 }
 
@@ -208,40 +197,40 @@ body {
 
 /* STATUS CIRCLES */
 .status-circle-red {
-  width: 12px;
-  height: 12px;
+  width: 11px;
+  height: 11px;
   background-color: #EF476F;
   border-radius: 50%;
   border: 1.5px solid #FFFFFF;
-  box-shadow: 0 0 6px rgba(239, 71, 111, 0.8);
+  box-shadow: 0 0 5px rgba(239, 71, 111, 0.8);
   display: inline-block;
 }
 
 .status-circle-green {
-  width: 12px;
-  height: 12px;
+  width: 11px;
+  height: 11px;
   background-color: #10B981;
   border-radius: 50%;
   border: 1.5px solid #FFFFFF;
-  box-shadow: 0 0 6px rgba(16, 185, 129, 0.8);
+  box-shadow: 0 0 5px rgba(16, 185, 129, 0.8);
   display: inline-block;
 }
 
-/* Compact Player Photo for Mobile */
+/* Medium Square Photo for Players */
 .player-square-photo {
-  width: 70px;
-  height: 70px;
-  border-radius: 0.75rem;
+  width: 65px;
+  height: 65px;
+  border-radius: 0.65rem;
   object-fit: cover;
   border: 2px solid #E2E8F0;
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.06);
 }
 
 @media (min-width: 640px) {
   .player-square-photo {
-    width: 105px;
-    height: 105px;
-    border-radius: 1.15rem;
+    width: 95px;
+    height: 95px;
+    border-radius: 1rem;
     border-width: 3px;
   }
 }
