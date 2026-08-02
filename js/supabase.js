@@ -89,22 +89,41 @@ export async function fetchCloudData() {
     }
   }
 
-  // 2. Primary Blob Fetch
+  // 2. Try Primary Blob Fetch
   try {
     const res = await fetch(CLOUD_BLOB_URL, { cache: 'no-store' });
-    if (!res.ok) {
-      console.warn("Cloud blob fetch HTTP status:", res.status);
-      return { players: [], teams: [] };
+    if (res.ok) {
+      const data = await res.json();
+      if (data && (Array.isArray(data.players) || Array.isArray(data.teams))) {
+        return {
+          players: Array.isArray(data.players) ? data.players : [],
+          teams: Array.isArray(data.teams) ? data.teams : []
+        };
+      }
     }
-    const data = await res.json();
-    return {
-      players: Array.isArray(data.players) ? data.players : [],
-      teams: Array.isArray(data.teams) ? data.teams : []
-    };
   } catch (err) {
     console.warn("Cloud blob fetch warning:", err);
-    return { players: [], teams: [] };
   }
+
+  // 3. Fallback to Google Drive Web App Fetch
+  if (GOOGLE_APPS_SCRIPT_URL) {
+    try {
+      const res = await fetch(GOOGLE_APPS_SCRIPT_URL, { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && (Array.isArray(data.players) || Array.isArray(data.teams))) {
+          return {
+            players: Array.isArray(data.players) ? data.players : [],
+            teams: Array.isArray(data.teams) ? data.teams : []
+          };
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  return { players: [], teams: [] };
 }
 
 // --- INSTANT CLOUD DATA SAVE ---
@@ -125,7 +144,7 @@ export async function saveCloudData(playersList, teamsList) {
     if (res.ok) {
       console.log("Cloud Database updated successfully!");
     } else {
-      console.warn("Cloud Database update returned HTTP:", res.status);
+      console.warn("Cloud Database update returned HTTP status:", res.status);
     }
 
     // 2. Send backup to Google Drive Web App
