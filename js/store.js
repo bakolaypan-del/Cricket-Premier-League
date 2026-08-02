@@ -16,7 +16,9 @@ const STORAGE_KEYS = {
   PLAYERS: 'cpl_players_v8',
   FIXTURES: 'cpl_fixtures_v8',
   USER: 'cpl_user_v8',
-  ADMIN_AUTH: 'cpl_admin_auth_v8'
+  ADMIN_AUTH: 'cpl_admin_auth_v8',
+  DELETED_PLAYERS: 'cpl_deleted_players_v8',
+  DELETED_TEAMS: 'cpl_deleted_teams_v8'
 };
 
 class Store {
@@ -40,6 +42,12 @@ class Store {
     if (!localStorage.getItem(STORAGE_KEYS.FIXTURES)) {
       localStorage.setItem(STORAGE_KEYS.FIXTURES, JSON.stringify(INITIAL_FIXTURES));
     }
+    if (!localStorage.getItem(STORAGE_KEYS.DELETED_PLAYERS)) {
+      localStorage.setItem(STORAGE_KEYS.DELETED_PLAYERS, JSON.stringify([]));
+    }
+    if (!localStorage.getItem(STORAGE_KEYS.DELETED_TEAMS)) {
+      localStorage.setItem(STORAGE_KEYS.DELETED_TEAMS, JSON.stringify([]));
+    }
     if (!localStorage.getItem(STORAGE_KEYS.USER)) {
       localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify({
         role: 'GUEST',
@@ -50,7 +58,7 @@ class Store {
     }
   }
 
-  // --- STABLE CLOUD SYNC (PREVENTS BLINKING & DOES NOT DELETE LOCAL UNPUSHED DATA) ---
+  // --- STABLE CLOUD SYNC (PREVENTS BLINKING & PRESERVES NEW REGISTRATIONS) ---
   async syncWithCloud() {
     if (this.isSyncing) return;
     this.isSyncing = true;
@@ -60,40 +68,61 @@ class Store {
       // If a registration modal or form is open, DO NOT interrupt the user!
       const isUserFillingForm = document.getElementById('player-reg-modal') || document.getElementById('team-reg-modal');
 
-      // 1. PLAYERS SYNC
+      // 1. SMART NON-DESTRUCTIVE PLAYERS MERGE
       const localPlayers = JSON.parse(localStorage.getItem(STORAGE_KEYS.PLAYERS) || '[]');
       const cloudPlayers = Array.isArray(cloudData.players) ? cloudData.players : [];
+      const deletedPlayerIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.DELETED_PLAYERS) || '[]');
 
-      let mergedPlayers = [];
-      if (cloudPlayers.length > 0 || localPlayers.length === 0) {
-        mergedPlayers = cloudPlayers.map((p, idx) => ({
-          ...p,
-          serialNo: idx + 1,
-          regNo: p.regNo || `JSL-2026-${String(idx + 1).padStart(3, '0')}`
-        }));
-      } else {
-        mergedPlayers = localPlayers;
-      }
+      const playerMap = new Map();
+      localPlayers.forEach(p => {
+        if (p && p.id && !deletedPlayerIds.includes(p.id)) playerMap.set(p.id, p);
+      });
+      cloudPlayers.forEach(cp => {
+        if (cp && cp.id && !deletedPlayerIds.includes(cp.id)) {
+          const existing = playerMap.get(cp.id);
+          playerMap.set(cp.id, { ...existing, ...cp });
+        }
+      });
 
-      // 2. TEAMS SYNC
+      const mergedPlayers = Array.from(playerMap.values()).map((p, idx) => ({
+        ...p,
+        serialNo: idx + 1,
+        regNo: p.regNo || `JSL-2026-${String(idx + 1).padStart(3, '0')}`
+      }));
+
+      // 2. SMART NON-DESTRUCTIVE TEAMS MERGE
       const localTeams = JSON.parse(localStorage.getItem(STORAGE_KEYS.TEAMS) || '[]');
       const cloudTeams = Array.isArray(cloudData.teams) ? cloudData.teams : [];
+      const deletedTeamIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.DELETED_TEAMS) || '[]');
 
-      let mergedTeams = [];
-      if (cloudTeams.length > 0 || localTeams.length === 0) {
-        mergedTeams = cloudTeams.map((t, idx) => ({
-          ...t,
-          serialNo: idx + 1
-        }));
-      } else {
-        mergedTeams = localTeams;
-      }
+      const teamMap = new Map();
+      localTeams.forEach(t => {
+        if (t && t.id && !deletedTeamIds.includes(t.id)) teamMap.set(t.id, t);
+      });
+      cloudTeams.forEach(ct => {
+        if (ct && ct.id && !deletedTeamIds.includes(ct.id)) {
+          const existing = teamMap.get(ct.id);
+          teamMap.set(ct.id, { ...existing, ...ct });
+        }
+      });
+
+      const mergedTeams = Array.from(teamMap.values()).map((t, idx) => ({
+        ...t,
+        serialNo: idx + 1
+      }));
 
       const localPlayersStr = JSON.stringify(localPlayers);
       const mergedPlayersStr = JSON.stringify(mergedPlayers);
 
       const localTeamsStr = JSON.stringify(localTeams);
       const mergedTeamsStr = JSON.stringify(mergedTeams);
+
+      // Auto-push any locally registered entries to cloud if cloud state doesn't have them
+      const cloudPlayersStr = JSON.stringify(cloudPlayers);
+      const cloudTeamsStr = JSON.stringify(cloudTeams);
+      if (mergedPlayersStr !== cloudPlayersStr || mergedTeamsStr !== cloudTeamsStr) {
+        saveCloudData(mergedPlayers, mergedTeams);
+      }
 
       if (localPlayersStr !== mergedPlayersStr) {
         localStorage.setItem(STORAGE_KEYS.PLAYERS, mergedPlayersStr);
@@ -262,6 +291,12 @@ class Store {
 
   // --- AUTOMATIC RE-INDEXING ON DELETE PLAYER ---
   deletePlayer(playerId) {
+    const deletedPlayerIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.DELETED_PLAYERS) || '[]');
+    if (!deletedPlayerIds.includes(playerId)) {
+      deletedPlayerIds.push(playerId);
+      localStorage.setItem(STORAGE_KEYS.DELETED_PLAYERS, JSON.stringify(deletedPlayerIds));
+    }
+
     let players = this.getPlayers();
     const playerToDelete = players.find(p => p.id === playerId);
     
@@ -416,6 +451,12 @@ class Store {
 
   // --- AUTOMATIC RE-INDEXING ON DELETE TEAM ---
   deleteTeam(teamId) {
+    const deletedTeamIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.DELETED_TEAMS) || '[]');
+    if (!deletedTeamIds.includes(teamId)) {
+      deletedTeamIds.push(teamId);
+      localStorage.setItem(STORAGE_KEYS.DELETED_TEAMS, JSON.stringify(deletedTeamIds));
+    }
+
     let teams = this.getTeams();
     teams = teams.filter(t => t.id !== teamId);
     
