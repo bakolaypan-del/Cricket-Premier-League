@@ -74,7 +74,7 @@ function compressImage(file, maxWidth = 250, maxHeight = 250, quality = 0.65) {
   });
 }
 
-// --- UPPER HEADER ---
+// --- UPPER HEADER (CLEANED: NO REGISTRATION BUTTON IN HEADER) ---
 function renderNavbar() {
   const navbarEl = document.getElementById('app-navbar');
   if (!navbarEl) return;
@@ -95,21 +95,10 @@ function renderNavbar() {
         </div>
       </div>
 
-      <!-- Desktop Action Buttons -->
-      <div class="hidden sm:flex items-center gap-2 flex-shrink-0">
-        <button id="admin-panel-nav-btn" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 text-xs font-bold rounded-lg flex items-center gap-1 transition-colors">
+      <!-- Admin Panel Button Only -->
+      <div class="flex items-center gap-2 flex-shrink-0">
+        <button id="admin-panel-nav-btn" class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 text-[11px] sm:text-xs font-bold rounded-lg flex items-center gap-1 transition-colors">
           <i data-lucide="shield-check" class="w-3.5 h-3.5 text-amber-600"></i> Admin Panel
-        </button>
-
-        <button id="header-reg-btn" class="btn-blink-always px-3 py-1.5 bg-gradient-to-r from-amber-500 to-red-600 hover:from-amber-600 hover:to-red-700 text-white font-black text-xs rounded-lg shadow flex items-center gap-1">
-          <i data-lucide="edit-3" class="w-3.5 h-3.5"></i> Registration Here
-        </button>
-      </div>
-
-      <!-- Small Mobile Quick Trigger -->
-      <div class="sm:hidden flex items-center gap-1 flex-shrink-0">
-        <button id="mobile-top-reg-btn" class="btn-blink-always px-2 py-1 bg-gradient-to-r from-amber-500 to-red-600 text-white font-black text-[10px] rounded shadow flex items-center gap-1">
-          <i data-lucide="edit-3" class="w-3 h-3"></i> Register
         </button>
       </div>
     </div>
@@ -117,8 +106,6 @@ function renderNavbar() {
 
   document.getElementById('brand-header-logo')?.addEventListener('click', () => navigate('landing'));
   document.getElementById('admin-panel-nav-btn')?.addEventListener('click', () => navigate('admin'));
-  document.getElementById('header-reg-btn')?.addEventListener('click', openRegistrationTypeModal);
-  document.getElementById('mobile-top-reg-btn')?.addEventListener('click', openRegistrationTypeModal);
   if (window.lucide) window.lucide.createIcons();
 }
 
@@ -127,33 +114,27 @@ function renderMobileBottomNav() {
   const bottomNavEl = document.getElementById('mobile-bottom-nav');
   if (!bottomNavEl) return;
 
-  bottomNavEl.className = "fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-3 py-1 sm:hidden shadow-lg flex items-center justify-between";
+  bottomNavEl.className = "fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-4 py-2 sm:hidden shadow-lg flex items-center justify-around";
 
   bottomNavEl.innerHTML = `
-    <button id="mob-nav-home" class="flex flex-col items-center gap-0.5 px-2 ${currentRoute === 'landing' ? 'text-amber-600 font-extrabold' : 'text-slate-500'}">
+    <button id="mob-nav-home" class="flex flex-col items-center gap-0.5 ${currentRoute === 'landing' ? 'text-amber-600 font-extrabold' : 'text-slate-500'}">
       <i data-lucide="trophy" class="w-4 h-4"></i>
-      <span class="text-[8px]">Home</span>
+      <span class="text-[9px]">Home</span>
     </button>
 
-    <button id="mob-nav-jsl" class="flex flex-col items-center gap-0.5 px-2 ${currentRoute === 'jsl-hub' ? 'text-sky-600 font-extrabold' : 'text-slate-500'}">
+    <button id="mob-nav-jsl" class="flex flex-col items-center gap-0.5 ${currentRoute === 'jsl-hub' ? 'text-sky-600 font-extrabold' : 'text-slate-500'}">
       <i data-lucide="shield" class="w-4 h-4"></i>
-      <span class="text-[8px]">JSL Hub</span>
+      <span class="text-[9px]">JSL Hub</span>
     </button>
 
-    <!-- STICKY BLINKING BUTTON -->
-    <button id="mob-nav-reg" class="btn-blink-always px-2.5 py-1 bg-gradient-to-r from-amber-500 to-red-600 text-white rounded-lg shadow flex items-center gap-1 text-[10px] font-black">
-      <i data-lucide="edit-3" class="w-3 h-3"></i> Registration Here
-    </button>
-
-    <button id="mob-nav-admin" class="flex flex-col items-center gap-0.5 px-2 ${currentRoute === 'admin' ? 'text-amber-600 font-extrabold' : 'text-slate-500'}">
+    <button id="mob-nav-admin" class="flex flex-col items-center gap-0.5 ${currentRoute === 'admin' ? 'text-amber-600 font-extrabold' : 'text-slate-500'}">
       <i data-lucide="shield-check" class="w-4 h-4"></i>
-      <span class="text-[8px]">Admin</span>
+      <span class="text-[9px]">Admin</span>
     </button>
   `;
 
   document.getElementById('mob-nav-home')?.addEventListener('click', () => navigate('landing'));
   document.getElementById('mob-nav-jsl')?.addEventListener('click', () => navigate('jsl-hub'));
-  document.getElementById('mob-nav-reg')?.addEventListener('click', openRegistrationTypeModal);
   document.getElementById('mob-nav-admin')?.addEventListener('click', () => navigate('admin'));
   if (window.lucide) window.lucide.createIcons();
 }
@@ -264,7 +245,7 @@ function openComingSoonModal(code, title) {
   document.getElementById('ok-cs-btn')?.addEventListener('click', removeModal);
 }
 
-// --- JSL HUB (ULTRA-COMPACT HEADER STRIP + 3 HORIZONTAL COLUMNS) ---
+// --- JSL HUB (ULTRA-COMPACT HEADER + 3 HORIZONTAL COLUMNS BELOW) ---
 function renderJSLHub(containerEl) {
   const teams = store.getTeams();
   const players = store.getPlayers();
@@ -283,27 +264,21 @@ function renderJSLHub(containerEl) {
         </span>
       </div>
 
-      <!-- ULTRA-COMPACT JSL POSTER HEADER STRIP (TAKES MINIMAL VERTICAL SPACE) -->
-      <div class="jsl-header-strip p-2.5 space-y-2">
-        <!-- Line 1: Title + Action Register Button -->
-        <div class="flex flex-row items-center justify-between gap-2">
-          <div class="flex items-center gap-2">
-            <div class="w-8 h-9 rounded bg-gradient-to-b from-blue-900 to-red-600 flex items-center justify-center text-white font-black text-xs shadow flex-shrink-0">
-              JSL
-            </div>
-            <div>
-              <div class="jsl-poster-title-navy">JHANKRA <span class="jsl-poster-title-red">SUPER LEAGUE</span></div>
-              <div class="text-[8px] font-bold text-slate-500 uppercase">8 TEAM TOURNAMENT • 29-31 AUG 2026 @ JHANKRA SCHOOL GROUND</div>
-            </div>
+      <!-- ULTRA-COMPACT JSL HEADER POSTER STRIP (NO REGISTRATION BUTTON HERE) -->
+      <div class="jsl-header-strip p-2.5 space-y-1.5">
+        <!-- Title Line -->
+        <div class="flex items-center gap-2">
+          <div class="w-8 h-8 rounded bg-gradient-to-b from-blue-900 to-red-600 flex items-center justify-center text-white font-black text-xs shadow flex-shrink-0">
+            JSL
           </div>
-
-          <button id="jsl-poster-reg-btn" class="btn-blink-always px-3 py-1.5 bg-gradient-to-r from-amber-500 to-red-600 text-white font-black text-[10px] rounded-lg shadow flex items-center gap-1 flex-shrink-0">
-            <i data-lucide="edit-3" class="w-3 h-3"></i> Register
-          </button>
+          <div>
+            <div class="jsl-poster-title-navy">JHANKRA <span class="jsl-poster-title-red">SUPER LEAGUE</span></div>
+            <div class="text-[8px] font-bold text-slate-500 uppercase">8 TEAM TOURNAMENT • 29-31 AUG 2026 @ JHANKRA SCHOOL GROUND</div>
+          </div>
         </div>
 
-        <!-- Line 2: Compact Pill Badges (Prize, Fee, Rules, Contact) -->
-        <div class="flex flex-wrap items-center gap-1.5 text-[9px] font-extrabold pt-1 border-t border-slate-100">
+        <!-- Pill Badges (Prize, Fee, Rules, Contact) -->
+        <div class="flex flex-wrap items-center gap-1 text-[9px] font-extrabold pt-1 border-t border-slate-100">
           <span class="px-2 py-0.5 bg-red-100 text-red-800 rounded border border-red-200">🏆 Winner: 35K | Runners: 25K</span>
           <span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded border border-emerald-200">💰 Team Entry: 15K (8K Auction + 7K Fee)</span>
           <span class="px-2 py-0.5 bg-slate-900 text-white rounded">⚠️ Rules: Chandrakona PS Only</span>
@@ -346,7 +321,7 @@ function renderJSLHub(containerEl) {
           </button>
         </div>
 
-        <!-- COLUMN 3 (RIGHT SIDE): REGISTRATION HERE CARD -->
+        <!-- COLUMN 3 (RIGHT SIDE): REGISTRATION HERE CARD (ONLY REGISTRATION TRIGGER) -->
         <div class="glass-card p-2 sm:p-3 text-center space-y-2 border border-amber-300 bg-gradient-to-b from-white to-amber-50">
           <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-amber-500 text-white mx-auto flex items-center justify-center font-black">
             ✍️
@@ -354,7 +329,7 @@ function renderJSLHub(containerEl) {
 
           <div>
             <div class="text-[9px] sm:text-xs font-black text-slate-900 leading-tight">Team / Player Registration</div>
-            <div class="text-[8px] font-bold text-amber-700">Click Here to Apply</div>
+            <div class="text-[8px] font-bold text-amber-700">Click Below to Apply</div>
           </div>
 
           <!-- PERSISTENT BLINKING REGISTRATION BUTTON -->
@@ -369,7 +344,6 @@ function renderJSLHub(containerEl) {
   `;
 
   document.getElementById('back-to-landing-btn')?.addEventListener('click', () => navigate('landing'));
-  document.getElementById('jsl-poster-reg-btn')?.addEventListener('click', openRegistrationTypeModal);
   document.getElementById('jsl-right-reg-btn')?.addEventListener('click', openRegistrationTypeModal);
 
   // Click-to-Open Modal Listeners (Ensure options do not open automatically!)
@@ -396,7 +370,7 @@ function openRegisteredTeamsModal(teams) {
             <div class="p-4 text-center space-y-1 bg-slate-50 rounded-xl border border-slate-200">
               <i data-lucide="shield-off" class="w-5 h-5 text-slate-400 mx-auto"></i>
               <div class="text-xs font-bold text-slate-800">No Teams Registered Yet</div>
-              <div class="text-[10px] text-slate-500">Click "Registration Here" to submit your team.</div>
+              <div class="text-[10px] text-slate-500">Click "Registration Here" on the right side card to submit team.</div>
             </div>
           ` : teams.map((t, idx) => `
             <div class="p-2.5 rounded-xl border border-slate-200 bg-white flex items-center gap-2.5 shadow-sm">
@@ -444,7 +418,7 @@ function openRegisteredPlayersModal(players) {
             <div class="p-4 text-center space-y-1 bg-slate-50 rounded-xl border border-slate-200">
               <i data-lucide="user-x" class="w-5 h-5 text-slate-400 mx-auto"></i>
               <div class="text-xs font-bold text-slate-800">No Players Registered Yet</div>
-              <div class="text-[10px] text-slate-500">Click "Registration Here" to submit player entry for ₹ 200!</div>
+              <div class="text-[10px] text-slate-500">Click "Registration Here" on the right side card to submit player entry for ₹ 200!</div>
             </div>
           ` : `
             <div class="grid grid-cols-2 gap-2">
@@ -743,6 +717,7 @@ function openTeamRegisterFormModal() {
     removeModal();
     alert(`Register Successful!\n\nTeam "${newTeam.name}" registered.`);
     navigate('jsl-hub');
+    openRegisteredTeamsModal(store.getTeams());
   });
 }
 
