@@ -1,4 +1,4 @@
-// Core Application Router & Registration Portal (Developer: Suman Kolay)
+// Core Application Router & Registration Portal (Developer: Suman Kolay - Concept 4 Neon Glassmorphism)
 
 import { store } from './store.js';
 import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, printDigitalPass } from './export.js';
@@ -74,7 +74,7 @@ function compressImage(file, maxWidth = 250, maxHeight = 250, quality = 0.65) {
   });
 }
 
-// --- UPPER HEADER ---
+// --- UPPER HEADER (CONCEPT 4 NEON GLASS) ---
 function renderNavbar() {
   const navbarEl = document.getElementById('app-navbar');
   if (!navbarEl) return;
@@ -83,22 +83,22 @@ function renderNavbar() {
     <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-12 sm:h-16 md:h-18 flex items-center justify-between gap-2">
       <!-- Title, Subtitle & Developer Credit -->
       <div class="flex items-center gap-2 sm:gap-3 cursor-pointer min-w-0" id="brand-header-logo">
-        <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-amber-500 flex items-center justify-center text-white font-black text-base sm:text-xl shadow-sm flex-shrink-0">
+        <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-slate-950 font-black text-base sm:text-xl shadow-lg flex-shrink-0 border border-amber-300">
           🏏
         </div>
         <div class="truncate">
-          <h1 class="text-xs sm:text-lg md:text-2xl font-black text-slate-900 leading-none tracking-tight truncate">
+          <h1 class="text-xs sm:text-lg md:text-2xl font-black text-white leading-none tracking-tight truncate drop-shadow-md">
             Cricket Premier League
           </h1>
-          <div class="text-[8px] sm:text-xs font-bold text-amber-600 truncate mt-0.5">Official Tournament Portal</div>
-          <div class="text-[8px] sm:text-[10px] font-bold text-slate-500 tracking-wide truncate">Developer - <span class="text-sky-600 font-extrabold">Suman Kolay</span></div>
+          <div class="text-[8px] sm:text-xs font-bold text-amber-400 truncate mt-0.5">Official Tournament Portal</div>
+          <div class="text-[8px] sm:text-[10px] font-bold text-slate-400 tracking-wide truncate">Developer - <span class="text-sky-400 font-extrabold">Suman Kolay</span></div>
         </div>
       </div>
 
-      <!-- Admin Panel Button Only -->
+      <!-- Admin Panel Button -->
       <div class="flex items-center gap-2 flex-shrink-0">
-        <button id="admin-panel-nav-btn" class="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 text-[11px] sm:text-xs font-bold rounded-lg flex items-center gap-1 transition-colors">
-          <i data-lucide="shield-check" class="w-3.5 h-3.5 text-amber-600"></i> Admin Panel
+        <button id="admin-panel-nav-btn" class="px-2.5 py-1.5 bg-slate-900/90 hover:bg-slate-800 border border-amber-500/40 text-amber-400 text-[11px] sm:text-xs font-bold rounded-xl flex items-center gap-1 transition-all shadow-lg hover:shadow-amber-500/20">
+          <i data-lucide="shield-check" class="w-3.5 h-3.5 text-amber-400"></i> Admin Panel
         </button>
       </div>
     </div>
@@ -109,25 +109,25 @@ function renderNavbar() {
   if (window.lucide) window.lucide.createIcons();
 }
 
-// --- MOBILE STICKY BOTTOM BAR ---
+// --- MOBILE STICKY BOTTOM BAR (CONCEPT 4 NEON GLASS) ---
 function renderMobileBottomNav() {
   const bottomNavEl = document.getElementById('mobile-bottom-nav');
   if (!bottomNavEl) return;
 
-  bottomNavEl.className = "fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-4 py-2 sm:hidden shadow-lg flex items-center justify-around";
+  bottomNavEl.className = "fixed bottom-0 left-0 right-0 z-40 bg-slate-950/90 backdrop-blur-xl border-t border-slate-800 px-4 py-2 sm:hidden shadow-2xl flex items-center justify-around";
 
   bottomNavEl.innerHTML = `
-    <button id="mob-nav-home" class="flex flex-col items-center gap-0.5 ${currentRoute === 'landing' ? 'text-amber-600 font-extrabold' : 'text-slate-500'}">
+    <button id="mob-nav-home" class="flex flex-col items-center gap-0.5 ${currentRoute === 'landing' ? 'text-amber-400 font-extrabold' : 'text-slate-400'}">
       <i data-lucide="trophy" class="w-4 h-4"></i>
       <span class="text-[9px]">Home</span>
     </button>
 
-    <button id="mob-nav-jsl" class="flex flex-col items-center gap-0.5 ${currentRoute === 'jsl-hub' ? 'text-sky-600 font-extrabold' : 'text-slate-500'}">
+    <button id="mob-nav-jsl" class="flex flex-col items-center gap-0.5 ${currentRoute === 'jsl-hub' ? 'text-sky-400 font-extrabold' : 'text-slate-400'}">
       <i data-lucide="shield" class="w-4 h-4"></i>
       <span class="text-[9px]">JSL Hub</span>
     </button>
 
-    <button id="mob-nav-admin" class="flex flex-col items-center gap-0.5 ${currentRoute === 'admin' ? 'text-amber-600 font-extrabold' : 'text-slate-500'}">
+    <button id="mob-nav-admin" class="flex flex-col items-center gap-0.5 ${currentRoute === 'admin' ? 'text-amber-400 font-extrabold' : 'text-slate-400'}">
       <i data-lucide="shield-check" class="w-4 h-4"></i>
       <span class="text-[9px]">Admin</span>
     </button>
@@ -160,29 +160,29 @@ function renderCurrentView() {
   if (window.lucide) window.lucide.createIcons();
 }
 
-// --- FIRST PAGE LANDING (STYLISH WELCOME NOTE + CRICKET MOTIVATIONAL NOTE + 3 SQUARE CATEGORIES) ---
+// --- FIRST PAGE LANDING (CONCEPT 4 NEON GLASSMORPHISM NIGHT) ---
 function renderFirstPageLanding(containerEl) {
   containerEl.innerHTML = `
     <div class="min-h-[50vh] flex flex-col items-center justify-center space-y-4 sm:space-y-6 animate-fade-in py-2 sm:py-6">
       
       <!-- STYLISH WELCOME NOTE & SMART CRICKET MOTIVATIONAL NOTE -->
-      <div class="w-full max-w-2xl text-center space-y-2 px-3">
-        <div class="inline-block px-3 py-1 bg-gradient-to-r from-amber-500 via-red-500 to-amber-500 text-white font-black text-[11px] sm:text-xs rounded-full shadow-md uppercase tracking-wider">
+      <div class="w-full max-w-2xl text-center space-y-2.5 px-3">
+        <div class="inline-block px-3.5 py-1 bg-gradient-to-r from-amber-500 via-red-600 to-amber-500 text-slate-950 font-black text-[11px] sm:text-xs rounded-full shadow-lg uppercase tracking-wider border border-amber-300">
           ✨ Welcome Champions & Cricket Enthusiasts! ✨
         </div>
 
-        <h2 class="text-base sm:text-2xl font-black text-slate-900 leading-snug">
+        <h2 class="text-base sm:text-2xl font-black text-white leading-snug drop-shadow-md">
           "Champions aren't made in gymnasiums. Champions are made from a desire, a dream, & a vision. Play with Passion, Rise with Glory!"
         </h2>
 
-        <p class="text-[10px] sm:text-xs font-bold text-slate-500 italic">
+        <p class="text-[10px] sm:text-xs font-bold text-slate-400 italic">
           🏏 Official Tournament Portal • Step onto the pitch and claim your victory!
         </p>
       </div>
 
-      <!-- SELECT PREMIER LEAGUE PILL BADGE (ABOVE CATEGORIES) -->
+      <!-- SELECT PREMIER LEAGUE PILL BADGE -->
       <div class="text-center">
-        <span class="px-3.5 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-300 text-[10px] sm:text-xs font-extrabold uppercase tracking-widest shadow-sm">
+        <span class="px-4 py-1 rounded-full bg-slate-900/90 text-amber-400 border border-amber-500/50 text-[10px] sm:text-xs font-extrabold uppercase tracking-widest shadow-xl backdrop-blur-md">
           Select Premier League
         </span>
       </div>
@@ -191,24 +191,24 @@ function renderFirstPageLanding(containerEl) {
       <div class="grid grid-cols-3 gap-2 sm:gap-6 md:gap-8 w-full max-w-3xl px-2 sm:px-4">
         
         <!-- JPL SQUARE BOX -->
-        <div id="btn-click-jpl" class="square-category-box group">
+        <div id="btn-click-jpl" class="square-category-box group border-amber-500/50">
           <div class="category-logo-badge logo-jpl">JPL</div>
-          <h3 class="text-[11px] sm:text-2xl font-black text-slate-900 group-hover:text-amber-600 transition-colors">JPL</h3>
-          <p class="text-[8px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider hidden sm:block">Jhankra Premier League</p>
+          <h3 class="text-[11px] sm:text-2xl font-black text-white group-hover:text-amber-400 transition-colors">JPL</h3>
+          <p class="text-[8px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider hidden sm:block">Jhankra Premier League</p>
         </div>
 
         <!-- JSL SQUARE BOX -->
-        <div id="btn-click-jsl" class="square-category-box group border-sky-400">
+        <div id="btn-click-jsl" class="square-category-box group border-sky-400/60">
           <div class="category-logo-badge logo-jsl">JSL</div>
-          <h3 class="text-[11px] sm:text-2xl font-black text-slate-900 group-hover:text-sky-600 transition-colors">JSL</h3>
-          <p class="text-[8px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider hidden sm:block">Jhankra Super League</p>
+          <h3 class="text-[11px] sm:text-2xl font-black text-white group-hover:text-sky-400 transition-colors">JSL</h3>
+          <p class="text-[8px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider hidden sm:block">Jhankra Super League</p>
         </div>
 
         <!-- KPL SQUARE BOX -->
-        <div id="btn-click-kpl" class="square-category-box group border-purple-400">
+        <div id="btn-click-kpl" class="square-category-box group border-purple-400/60">
           <div class="category-logo-badge logo-kpl">KPL</div>
-          <h3 class="text-[11px] sm:text-2xl font-black text-slate-900 group-hover:text-purple-600 transition-colors">KPL</h3>
-          <p class="text-[8px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider hidden sm:block">Kota Premier League</p>
+          <h3 class="text-[11px] sm:text-2xl font-black text-white group-hover:text-purple-400 transition-colors">KPL</h3>
+          <p class="text-[8px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider hidden sm:block">Kota Premier League</p>
         </div>
 
       </div>
@@ -221,12 +221,12 @@ function renderFirstPageLanding(containerEl) {
   document.getElementById('btn-click-jsl')?.addEventListener('click', () => navigate('jsl-hub'));
 }
 
-// --- COMING SOON MODAL ---
+// --- COMING SOON MODAL (CONCEPT 4 NEON GLASS) ---
 function openComingSoonModal(code, title) {
   const modalHtml = `
     <div id="coming-soon-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3">
-      <div class="bg-white max-w-xs w-full p-4 text-center relative space-y-3 animate-fade-in rounded-2xl shadow-2xl border-2 ${code === 'JPL' ? 'border-amber-400' : 'border-purple-400'}">
-        <button id="close-cs-btn" class="absolute top-2.5 right-2.5 text-slate-400 hover:text-slate-700 p-1">
+      <div class="bg-slate-900/95 backdrop-blur-2xl max-w-xs w-full p-4 text-center relative space-y-3 animate-fade-in rounded-2xl shadow-2xl border ${code === 'JPL' ? 'border-amber-400/60' : 'border-purple-400/60'}">
+        <button id="close-cs-btn" class="absolute top-2.5 right-2.5 text-slate-400 hover:text-white p-1">
           <i data-lucide="x" class="w-4 h-4"></i>
         </button>
 
@@ -235,17 +235,17 @@ function openComingSoonModal(code, title) {
         </div>
 
         <div>
-          <h3 class="text-lg font-black text-slate-900">${title}</h3>
-          <div class="inline-block mt-1 px-2.5 py-0.5 bg-amber-100 text-amber-800 border border-amber-300 rounded-full font-black text-[9px] uppercase tracking-widest animate-pulse">
+          <h3 class="text-lg font-black text-white">${title}</h3>
+          <div class="inline-block mt-1 px-2.5 py-0.5 bg-amber-500/20 text-amber-300 border border-amber-400/50 rounded-full font-black text-[9px] uppercase tracking-widest animate-pulse">
             Coming Soon...
           </div>
         </div>
 
-        <p class="text-[11px] text-slate-600 leading-snug">
+        <p class="text-[11px] text-slate-300 leading-snug">
           Registrations for <strong>${title} (${code})</strong> will open shortly. Stay tuned!
         </p>
 
-        <button id="ok-cs-btn" class="w-full py-2 bg-slate-900 text-white font-bold text-xs rounded-xl shadow-md">
+        <button id="ok-cs-btn" class="w-full py-2 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black text-xs rounded-xl shadow-md">
           Got It
         </button>
       </div>
@@ -260,7 +260,7 @@ function openComingSoonModal(code, title) {
   document.getElementById('ok-cs-btn')?.addEventListener('click', removeModal);
 }
 
-// --- JSL HUB (ULTRA-COMPACT HEADER + 3 HORIZONTAL COLUMNS BELOW) ---
+// --- JSL HUB (CONCEPT 4 NEON GLASS + 3 HORIZONTAL COLUMNS BELOW) ---
 function renderJSLHub(containerEl) {
   const teams = store.getTeams();
   const players = store.getPlayers();
@@ -270,32 +270,32 @@ function renderJSLHub(containerEl) {
       
       <!-- Back Button & Header Bar -->
       <div class="flex items-center justify-between gap-2">
-        <button id="back-to-landing-btn" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 text-[10px] font-bold rounded-lg border border-slate-300 flex items-center gap-1">
-          <i data-lucide="arrow-left" class="w-3 h-3"></i> Category Selector
+        <button id="back-to-landing-btn" class="px-2.5 py-1 bg-slate-900/90 hover:bg-slate-800 text-slate-200 text-[10px] font-bold rounded-lg border border-slate-700 flex items-center gap-1">
+          <i data-lucide="arrow-left" class="w-3 h-3 text-amber-400"></i> Category Selector
         </button>
 
-        <span class="text-[10px] font-extrabold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200">
+        <span class="text-[10px] font-extrabold text-sky-400 bg-sky-950/60 px-2 py-0.5 rounded border border-sky-800">
           JHANKRA SUPER LEAGUE 2026
         </span>
       </div>
 
-      <!-- ULTRA-COMPACT JSL HEADER POSTER STRIP -->
+      <!-- ULTRA-COMPACT JSL HEADER POSTER STRIP (CONCEPT 4 NEON GLASS) -->
       <div class="jsl-header-strip p-2.5 space-y-1.5">
         <div class="flex items-center gap-2">
-          <div class="w-8 h-8 rounded bg-gradient-to-b from-blue-900 to-red-600 flex items-center justify-center text-white font-black text-xs shadow flex-shrink-0">
+          <div class="w-8 h-8 rounded bg-gradient-to-b from-blue-600 to-red-600 flex items-center justify-center text-white font-black text-xs shadow-lg flex-shrink-0 border border-blue-400">
             JSL
           </div>
           <div>
             <div class="jsl-poster-title-navy">JHANKRA <span class="jsl-poster-title-red">SUPER LEAGUE</span></div>
-            <div class="text-[8px] font-bold text-slate-500 uppercase">8 TEAM TOURNAMENT • 29-31 AUG 2026 @ JHANKRA SCHOOL GROUND</div>
+            <div class="text-[8px] font-bold text-slate-400 uppercase">8 TEAM TOURNAMENT • 29-31 AUG 2026 @ JHANKRA SCHOOL GROUND</div>
           </div>
         </div>
 
-        <div class="flex flex-wrap items-center gap-1 text-[9px] font-extrabold pt-1 border-t border-slate-100">
-          <span class="px-2 py-0.5 bg-red-100 text-red-800 rounded border border-red-200">🏆 Winner: 35K | Runners: 25K</span>
-          <span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded border border-emerald-200">💰 Team Entry: 15K (8K Auction + 7K Fee)</span>
-          <span class="px-2 py-0.5 bg-slate-900 text-white rounded">⚠️ Rules: Chandrakona PS Only</span>
-          <span class="px-2 py-0.5 bg-emerald-600 text-white rounded">📞 Contact: Pintu Santra (89722144166)</span>
+        <div class="flex flex-wrap items-center gap-1 text-[9px] font-extrabold pt-1 border-t border-slate-800">
+          <span class="px-2 py-0.5 bg-red-950/80 text-red-300 rounded border border-red-800">🏆 Winner: 35K | Runners: 25K</span>
+          <span class="px-2 py-0.5 bg-emerald-950/80 text-emerald-300 rounded border border-emerald-800">💰 Team Entry: 15K (8K Auction + 7K Fee)</span>
+          <span class="px-2 py-0.5 bg-slate-900 text-white rounded border border-slate-700">⚠️ Rules: Chandrakona PS Only</span>
+          <span class="px-2 py-0.5 bg-emerald-600 text-white rounded shadow">📞 Contact: Pintu Santra (89722144166)</span>
         </div>
       </div>
 
@@ -303,50 +303,50 @@ function renderJSLHub(containerEl) {
       <div class="grid grid-cols-3 gap-2 sm:gap-4 items-start">
         
         <!-- COLUMN 1 (LEFT SIDE): REGISTERED TEAMS CARD (CLICK TO VIEW & SEARCH) -->
-        <div class="glass-card p-2 sm:p-3 text-center space-y-2 border border-slate-200">
-          <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-sky-100 text-sky-700 mx-auto flex items-center justify-center">
+        <div class="glass-card p-2 sm:p-3 text-center space-y-2 border border-slate-800">
+          <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-sky-950/80 text-sky-400 mx-auto flex items-center justify-center border border-sky-800">
             <i data-lucide="shield" class="w-4 h-4 sm:w-5 sm:h-5"></i>
           </div>
 
           <div>
-            <div class="text-[9px] sm:text-xs font-black text-slate-900 leading-tight">Total Registered Teams</div>
-            <div class="text-base sm:text-2xl font-black text-sky-600 mt-0.5">${teams.length}</div>
+            <div class="text-[9px] sm:text-xs font-black text-white leading-tight">Total Registered Teams</div>
+            <div class="text-base sm:text-2xl font-black text-sky-400 mt-0.5">${teams.length}</div>
           </div>
 
-          <button id="open-teams-modal-btn" class="w-full py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-[9px] sm:text-xs font-bold rounded-lg shadow-sm flex items-center justify-center gap-1">
+          <button id="open-teams-modal-btn" class="w-full py-1.5 bg-slate-900 hover:bg-slate-800 text-sky-300 border border-sky-700/50 text-[9px] sm:text-xs font-bold rounded-lg shadow-sm flex items-center justify-center gap-1">
             <i data-lucide="search" class="w-3 h-3"></i> View Teams
           </button>
         </div>
 
         <!-- COLUMN 2 (MIDDLE): REGISTERED PLAYER LIST CARD (CLICK TO VIEW, SEARCH & PDF) -->
-        <div class="glass-card p-2 sm:p-3 text-center space-y-2 border border-slate-200">
-          <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-amber-100 text-amber-700 mx-auto flex items-center justify-center">
+        <div class="glass-card p-2 sm:p-3 text-center space-y-2 border border-slate-800">
+          <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-amber-950/80 text-amber-400 mx-auto flex items-center justify-center border border-amber-800">
             <i data-lucide="users" class="w-4 h-4 sm:w-5 sm:h-5"></i>
           </div>
 
           <div>
-            <div class="text-[9px] sm:text-xs font-black text-slate-900 leading-tight">Total Registered Player List</div>
-            <div class="text-base sm:text-2xl font-black text-amber-600 mt-0.5">${players.length}</div>
+            <div class="text-[9px] sm:text-xs font-black text-white leading-tight">Total Registered Player List</div>
+            <div class="text-base sm:text-2xl font-black text-amber-400 mt-0.5">${players.length}</div>
           </div>
 
-          <button id="open-players-modal-btn" class="w-full py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-[9px] sm:text-xs font-bold rounded-lg shadow-sm flex items-center justify-center gap-1">
+          <button id="open-players-modal-btn" class="w-full py-1.5 bg-slate-900 hover:bg-slate-800 text-amber-300 border border-amber-700/50 text-[9px] sm:text-xs font-bold rounded-lg shadow-sm flex items-center justify-center gap-1">
             <i data-lucide="search" class="w-3 h-3"></i> View Players
           </button>
         </div>
 
         <!-- COLUMN 3 (RIGHT SIDE): REGISTRATION HERE CARD (ONLY REGISTRATION TRIGGER) -->
-        <div class="glass-card p-2 sm:p-3 text-center space-y-2 border border-amber-300 bg-gradient-to-b from-white to-amber-50">
-          <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-amber-500 text-white mx-auto flex items-center justify-center font-black">
+        <div class="glass-card p-2 sm:p-3 text-center space-y-2 border border-amber-500/40 bg-gradient-to-b from-slate-900/90 to-slate-950">
+          <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-amber-500 text-slate-950 mx-auto flex items-center justify-center font-black shadow-lg">
             ✍️
           </div>
 
           <div>
-            <div class="text-[9px] sm:text-xs font-black text-slate-900 leading-tight">Team / Player Registration</div>
-            <div class="text-[8px] font-bold text-amber-700">Click Below to Apply</div>
+            <div class="text-[9px] sm:text-xs font-black text-white leading-tight">Team / Player Registration</div>
+            <div class="text-[8px] font-bold text-amber-400">Click Below to Apply</div>
           </div>
 
           <!-- PERSISTENT BLINKING REGISTRATION BUTTON -->
-          <button id="jsl-right-reg-btn" class="btn-blink-always w-full py-1.5 bg-gradient-to-r from-amber-500 to-red-600 text-white font-black text-[9px] sm:text-xs rounded-lg shadow flex items-center justify-center gap-1">
+          <button id="jsl-right-reg-btn" class="btn-blink-always w-full py-1.5 bg-gradient-to-r from-amber-500 to-red-600 text-white font-black text-[9px] sm:text-xs rounded-lg shadow-xl flex items-center justify-center gap-1">
             <i data-lucide="edit-3" class="w-3 h-3"></i> Registration Here
           </button>
         </div>
@@ -364,7 +364,7 @@ function renderJSLHub(containerEl) {
   document.getElementById('open-players-modal-btn')?.addEventListener('click', () => openRegisteredPlayersModal(players));
 }
 
-// --- REGISTERED TEAMS MODAL WITH SEARCH OPTION ---
+// --- REGISTERED TEAMS MODAL WITH SEARCH OPTION (CONCEPT 4 NEON GLASS) ---
 function openRegisteredTeamsModal(allTeams) {
   let filteredTeams = [...allTeams];
 
@@ -374,20 +374,20 @@ function openRegisteredTeamsModal(allTeams) {
 
     if (filteredTeams.length === 0) {
       container.innerHTML = `
-        <div class="p-4 text-center space-y-1 bg-slate-50 rounded-xl border border-slate-200">
-          <i data-lucide="shield-off" class="w-5 h-5 text-slate-400 mx-auto"></i>
-          <div class="text-xs font-bold text-slate-800">No matching teams found</div>
-          <div class="text-[10px] text-slate-500">Try searching with a different name or owner.</div>
+        <div class="p-4 text-center space-y-1 bg-slate-950/80 rounded-xl border border-slate-800">
+          <i data-lucide="shield-off" class="w-5 h-5 text-slate-500 mx-auto"></i>
+          <div class="text-xs font-bold text-slate-300">No matching teams found</div>
+          <div class="text-[10px] text-slate-400">Try searching with a different name or owner.</div>
         </div>
       `;
     } else {
       container.innerHTML = filteredTeams.map((t, idx) => `
-        <div class="p-2.5 rounded-xl border border-slate-200 bg-white flex items-center gap-2.5 shadow-sm">
-          <img src="${t.logoUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=300'}" class="w-10 h-10 rounded-lg object-cover border border-slate-200" />
+        <div class="p-2.5 rounded-xl border border-slate-800 bg-slate-900/90 flex items-center gap-2.5 shadow-md">
+          <img src="${t.logoUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=300'}" class="w-10 h-10 rounded-lg object-cover border border-slate-700" />
           <div>
-            <div class="text-xs font-black text-slate-900 leading-tight">${t.name}</div>
-            <div class="text-[10px] text-slate-600">Owner: <strong>${t.ownerName}</strong> (${t.ownerPhone})</div>
-            ${t.coOwnerName ? `<div class="text-[9px] text-slate-500">Co-Owner: ${t.coOwnerName} (${t.coOwnerPhone})</div>` : ''}
+            <div class="text-xs font-black text-white leading-tight">${t.name}</div>
+            <div class="text-[10px] text-slate-300">Owner: <strong>${t.ownerName}</strong> (${t.ownerPhone})</div>
+            ${t.coOwnerName ? `<div class="text-[9px] text-slate-400">Co-Owner: ${t.coOwnerName} (${t.coOwnerPhone})</div>` : ''}
           </div>
         </div>
       `).join('');
@@ -397,24 +397,24 @@ function openRegisteredTeamsModal(allTeams) {
 
   const modalHtml = `
     <div id="teams-view-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3">
-      <div class="bg-white max-w-md w-full p-4 relative space-y-3 animate-fade-in rounded-2xl shadow-2xl border border-slate-200 modal-content-container">
-        <button id="close-teams-modal" class="absolute top-3 right-3 text-slate-400 hover:text-slate-700 p-1">
+      <div class="bg-slate-900/95 backdrop-blur-2xl max-w-md w-full p-4 relative space-y-3 animate-fade-in rounded-2xl shadow-2xl border border-slate-800 modal-content-container">
+        <button id="close-teams-modal" class="absolute top-3 right-3 text-slate-400 hover:text-white p-1">
           <i data-lucide="x" class="w-4 h-4"></i>
         </button>
 
         <div>
-          <span class="px-2 py-0.5 bg-sky-100 text-sky-800 text-[9px] font-black rounded uppercase">JSL 2026</span>
-          <h2 class="text-base font-black text-slate-900 mt-0.5">Registered Team List (${allTeams.length})</h2>
+          <span class="px-2 py-0.5 bg-sky-950 text-sky-400 text-[9px] font-black rounded border border-sky-800 uppercase">JSL 2026</span>
+          <h2 class="text-base font-black text-white mt-0.5">Registered Team List (${allTeams.length})</h2>
         </div>
 
         <!-- SEARCH BAR FOR TEAMS -->
         <div class="relative">
-          <input type="text" id="team-search-input" placeholder="🔍 Search team by name or owner..." class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 pl-3 focus:outline-none focus:border-sky-600" />
+          <input type="text" id="team-search-input" placeholder="🔍 Search team by name or owner..." class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-xl p-2.5 pl-3 focus:outline-none focus:border-sky-500 placeholder-slate-500" />
         </div>
 
         <div id="teams-list-container" class="space-y-2 max-h-[55vh] overflow-y-auto pr-1"></div>
 
-        <button id="close-teams-modal-bottom" class="w-full py-2 bg-slate-900 text-white font-bold text-xs rounded-xl shadow">
+        <button id="close-teams-modal-bottom" class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl shadow">
           Close List
         </button>
       </div>
@@ -442,7 +442,7 @@ function openRegisteredTeamsModal(allTeams) {
   });
 }
 
-// --- REGISTERED PLAYERS MODAL WITH SEARCH OPTION & DOWNLOAD PDF BUTTON ---
+// --- REGISTERED PLAYERS MODAL WITH SEARCH OPTION & DOWNLOAD PDF BUTTON (CONCEPT 4 NEON GLASS) ---
 function openRegisteredPlayersModal(allPlayers) {
   let filteredPlayers = [...allPlayers];
 
@@ -455,10 +455,10 @@ function openRegisteredPlayersModal(allPlayers) {
 
     if (filteredPlayers.length === 0) {
       container.innerHTML = `
-        <div class="p-4 text-center space-y-1 bg-slate-50 rounded-xl border border-slate-200">
-          <i data-lucide="user-x" class="w-5 h-5 text-slate-400 mx-auto"></i>
-          <div class="text-xs font-bold text-slate-800">No matching players found</div>
-          <div class="text-[10px] text-slate-500">Try searching with a different alphabet, name, category, or address.</div>
+        <div class="p-4 text-center space-y-1 bg-slate-950/80 rounded-xl border border-slate-800">
+          <i data-lucide="user-x" class="w-5 h-5 text-slate-500 mx-auto"></i>
+          <div class="text-xs font-bold text-slate-300">No matching players found</div>
+          <div class="text-[10px] text-slate-400">Try searching with a different alphabet, name, category, or address.</div>
         </div>
       `;
     } else {
@@ -482,31 +482,31 @@ function openRegisteredPlayersModal(allPlayers) {
 
   const modalHtml = `
     <div id="players-view-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3">
-      <div class="bg-white max-w-lg w-full p-4 relative space-y-3 animate-fade-in rounded-2xl shadow-2xl border border-slate-200 modal-content-container">
-        <button id="close-players-modal" class="absolute top-3 right-3 text-slate-400 hover:text-slate-700 p-1">
+      <div class="bg-slate-900/95 backdrop-blur-2xl max-w-lg w-full p-4 relative space-y-3 animate-fade-in rounded-2xl shadow-2xl border border-slate-800 modal-content-container">
+        <button id="close-players-modal" class="absolute top-3 right-3 text-slate-400 hover:text-white p-1">
           <i data-lucide="x" class="w-4 h-4"></i>
         </button>
 
-        <div class="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
+        <div class="flex items-center justify-between gap-2 border-b border-slate-800 pb-2">
           <div>
-            <span class="px-2 py-0.5 bg-amber-100 text-amber-800 text-[9px] font-black rounded uppercase">JSL 2026</span>
-            <h2 class="text-base font-black text-slate-900 mt-0.5">Registered Player List <span id="player-count-display">(${allPlayers.length})</span></h2>
+            <span class="px-2 py-0.5 bg-amber-950 text-amber-400 text-[9px] font-black rounded border border-amber-800 uppercase">JSL 2026</span>
+            <h2 class="text-base font-black text-white mt-0.5">Registered Player List <span id="player-count-display">(${allPlayers.length})</span></h2>
           </div>
 
           <!-- DOWNLOAD PLAYERS PDF BUTTON -->
-          <button id="download-players-pdf-btn" class="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs rounded-xl shadow flex items-center gap-1.5 transition-colors">
+          <button id="download-players-pdf-btn" class="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs rounded-xl shadow-lg flex items-center gap-1.5 transition-colors">
             <i data-lucide="file-text" class="w-3.5 h-3.5"></i> Download PDF List
           </button>
         </div>
 
         <!-- SEARCH BAR FOR PLAYERS -->
         <div class="relative">
-          <input type="text" id="player-search-input" placeholder="🔍 Search player by name, category, phone, address..." class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 pl-3 focus:outline-none focus:border-amber-500" />
+          <input type="text" id="player-search-input" placeholder="🔍 Search player by name, category, phone, address..." class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-xl p-2.5 pl-3 focus:outline-none focus:border-amber-500 placeholder-slate-500" />
         </div>
 
         <div id="players-list-container" class="max-h-[58vh] overflow-y-auto pr-1"></div>
 
-        <button id="close-players-modal-bottom" class="w-full py-2 bg-slate-900 text-white font-bold text-xs rounded-xl shadow">
+        <button id="close-players-modal-bottom" class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl shadow">
           Close List
         </button>
       </div>
@@ -540,23 +540,23 @@ function openRegisteredPlayersModal(allPlayers) {
   });
 }
 
-// --- RENDER PLAYER CARDS (2-COLUMN GRID) ---
+// --- RENDER PLAYER CARDS (CONCEPT 4 NEON GLASS) ---
 function renderPlayerCardsWithSerial(playersList) {
   return playersList.map((p, idx) => {
     const serialNum = p.serialNo || (idx + 1);
     const isApproved = p.paymentStatus === 'APPROVED';
 
     return `
-      <div class="glass-card p-2 flex flex-col justify-between items-center text-center relative border border-slate-200 shadow-sm bg-white">
+      <div class="glass-card p-2 flex flex-col justify-between items-center text-center relative border border-slate-800 shadow-lg bg-slate-900/90">
         
         <div class="w-full flex justify-between items-center mb-1">
-          <span class="px-1 py-0.5 bg-slate-900 text-white font-mono font-black text-[8px] rounded">
+          <span class="px-1 py-0.5 bg-slate-950 text-white font-mono font-black text-[8px] rounded border border-slate-800">
             Serial ${serialNum}
           </span>
 
           <div class="flex items-center gap-0.5" title="${isApproved ? 'Payment Approved' : 'Pending Verification'}">
             <span class="${isApproved ? 'status-circle-green' : 'status-circle-red'}"></span>
-            <span class="text-[8px] font-bold ${isApproved ? 'text-emerald-600' : 'text-red-500'}">
+            <span class="text-[8px] font-bold ${isApproved ? 'text-emerald-400' : 'text-red-400'}">
               ${isApproved ? 'OK' : 'PEND'}
             </span>
           </div>
@@ -567,13 +567,13 @@ function renderPlayerCardsWithSerial(playersList) {
         </div>
 
         <div class="space-y-0.5 mb-1.5 w-full">
-          <h3 class="font-extrabold text-slate-900 text-[10px] truncate leading-tight">${p.name}</h3>
-          <div class="text-[8px] font-bold text-sky-700 truncate">
+          <h3 class="font-extrabold text-white text-[10px] truncate leading-tight">${p.name}</h3>
+          <div class="text-[8px] font-bold text-sky-400 truncate">
             ${p.category || 'Player'}
           </div>
         </div>
 
-        <button data-profile-id="${p.id}" class="view-profile-modal-btn w-full py-1 bg-slate-900 hover:bg-slate-800 text-white text-[9px] font-bold rounded shadow-sm flex items-center justify-center gap-0.5">
+        <button data-profile-id="${p.id}" class="view-profile-modal-btn w-full py-1 bg-slate-950 hover:bg-slate-800 text-white text-[9px] font-bold rounded border border-slate-800 shadow-sm flex items-center justify-center gap-0.5">
           <i data-lucide="user" class="w-2.5 h-2.5 text-amber-400"></i> Profile
         </button>
       </div>
@@ -581,24 +581,24 @@ function renderPlayerCardsWithSerial(playersList) {
   }).join('');
 }
 
-// --- FULL PLAYER PROFILE MODAL ---
+// --- FULL PLAYER PROFILE MODAL (CONCEPT 4 NEON GLASS) ---
 function openFullPlayerProfileModal(player) {
   if (!player) return;
   const isApproved = player.paymentStatus === 'APPROVED';
 
   const modalHtml = `
     <div id="player-profile-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3">
-      <div class="bg-white max-w-sm w-full p-4 relative space-y-3.5 animate-fade-in rounded-2xl shadow-2xl border border-slate-200 modal-content-container">
-        <button id="close-profile-btn" class="absolute top-3 right-3 text-slate-400 hover:text-slate-700 p-1">
+      <div class="bg-slate-900/95 backdrop-blur-2xl max-w-sm w-full p-4 relative space-y-3.5 animate-fade-in rounded-2xl shadow-2xl border border-slate-800 modal-content-container">
+        <button id="close-profile-btn" class="absolute top-3 right-3 text-slate-400 hover:text-white p-1">
           <i data-lucide="x" class="w-4 h-4"></i>
         </button>
 
-        <div class="flex items-center gap-3 border-b border-slate-200 pb-3">
-          <img src="${player.photoUrl}" class="w-14 h-14 rounded-xl object-cover border-2 border-slate-300 shadow" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300'" />
+        <div class="flex items-center gap-3 border-b border-slate-800 pb-3">
+          <img src="${player.photoUrl}" class="w-14 h-14 rounded-xl object-cover border-2 border-slate-700 shadow-lg" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300'" />
           <div>
-            <span class="px-1.5 py-0.5 bg-slate-900 text-white font-mono font-black text-[9px] rounded">Serial ${player.serialNo || 1}</span>
-            <h2 class="text-base font-black text-slate-900 mt-0.5">${player.name}</h2>
-            <div class="flex items-center gap-1 text-[10px] font-bold ${isApproved ? 'text-emerald-600' : 'text-red-500'}">
+            <span class="px-1.5 py-0.5 bg-slate-950 text-white font-mono font-black text-[9px] rounded border border-slate-800">Serial ${player.serialNo || 1}</span>
+            <h2 class="text-base font-black text-white mt-0.5">${player.name}</h2>
+            <div class="flex items-center gap-1 text-[10px] font-bold ${isApproved ? 'text-emerald-400' : 'text-red-400'}">
               <span class="${isApproved ? 'status-circle-green' : 'status-circle-red'}"></span>
               <span>Status: ${isApproved ? 'Approved' : 'Pending Payment Verification'}</span>
             </div>
@@ -606,37 +606,37 @@ function openFullPlayerProfileModal(player) {
         </div>
 
         <div class="grid grid-cols-2 gap-2 text-[10px]">
-          <div class="bg-slate-50 p-2 rounded-lg border border-slate-200">
-            <span class="text-slate-500 block uppercase font-semibold text-[8px]">Mobile Phone</span>
-            <span class="font-extrabold text-slate-900">${player.phone || 'N/A'}</span>
+          <div class="bg-slate-950/80 p-2 rounded-lg border border-slate-800">
+            <span class="text-slate-400 block uppercase font-semibold text-[8px]">Mobile Phone</span>
+            <span class="font-extrabold text-white">${player.phone || 'N/A'}</span>
           </div>
 
-          <div class="bg-slate-50 p-2 rounded-lg border border-slate-200">
-            <span class="text-slate-500 block uppercase font-semibold text-[8px]">Category</span>
-            <span class="font-extrabold text-sky-700">${player.category || player.role}</span>
+          <div class="bg-slate-950/80 p-2 rounded-lg border border-slate-800">
+            <span class="text-slate-400 block uppercase font-semibold text-[8px]">Category</span>
+            <span class="font-extrabold text-sky-400">${player.category || player.role}</span>
           </div>
 
-          <div class="col-span-2 bg-slate-50 p-2 rounded-lg border border-slate-200">
-            <span class="text-slate-500 block uppercase font-semibold text-[8px]">Full Address</span>
-            <span class="font-bold text-slate-800">${player.address || 'Chandrakona Town PS Area'}</span>
+          <div class="col-span-2 bg-slate-950/80 p-2 rounded-lg border border-slate-800">
+            <span class="text-slate-400 block uppercase font-semibold text-[8px]">Full Address</span>
+            <span class="font-bold text-slate-200">${player.address || 'Chandrakona Town PS Area'}</span>
           </div>
 
-          <div class="bg-slate-50 p-2 rounded-lg border border-slate-200">
-            <span class="text-slate-500 block uppercase font-semibold text-[8px]">UPI Ref No</span>
-            <span class="font-mono font-bold text-emerald-700">${player.paymentRef || 'N/A'}</span>
+          <div class="bg-slate-950/80 p-2 rounded-lg border border-slate-800">
+            <span class="text-slate-400 block uppercase font-semibold text-[8px]">UPI Ref No</span>
+            <span class="font-mono font-bold text-emerald-400">${player.paymentRef || 'N/A'}</span>
           </div>
 
-          <div class="bg-slate-50 p-2 rounded-lg border border-slate-200">
-            <span class="text-slate-500 block uppercase font-semibold text-[8px]">Registration Date</span>
-            <span class="font-bold text-slate-800">${player.regDate}</span>
+          <div class="bg-slate-950/80 p-2 rounded-lg border border-slate-800">
+            <span class="text-slate-400 block uppercase font-semibold text-[8px]">Registration Date</span>
+            <span class="font-bold text-slate-200">${player.regDate}</span>
           </div>
         </div>
 
         <div class="flex gap-2 pt-1">
-          <button id="print-pass-btn" class="flex-1 py-2 bg-amber-500 text-white font-bold text-xs rounded-xl shadow flex items-center justify-center gap-1">
+          <button id="print-pass-btn" class="flex-1 py-2 bg-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-lg flex items-center justify-center gap-1">
             <i data-lucide="ticket" class="w-3.5 h-3.5"></i> Download Pass
           </button>
-          <button id="close-profile-bottom-btn" class="py-2 px-3 bg-slate-100 text-slate-800 font-bold text-xs rounded-xl border border-slate-300">
+          <button id="close-profile-bottom-btn" class="py-2 px-3 bg-slate-800 text-slate-200 font-bold text-xs rounded-xl border border-slate-700">
             Close
           </button>
         </div>
@@ -659,19 +659,19 @@ function openFullPlayerProfileModal(player) {
 function openRegistrationTypeModal() {
   const modalHtml = `
     <div id="reg-type-backdrop" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3">
-      <div class="bg-white max-w-sm w-full p-4 relative space-y-3.5 animate-fade-in rounded-2xl shadow-2xl border border-slate-200 text-center modal-content-container">
-        <button id="close-reg-type-btn" class="absolute top-3 right-3 text-slate-400 hover:text-slate-700 p-1">
+      <div class="bg-slate-900/95 backdrop-blur-2xl max-w-sm w-full p-4 relative space-y-3.5 animate-fade-in rounded-2xl shadow-2xl border border-slate-800 text-center modal-content-container">
+        <button id="close-reg-type-btn" class="absolute top-3 right-3 text-slate-400 hover:text-white p-1">
           <i data-lucide="x" class="w-4 h-4"></i>
         </button>
 
         <div>
-          <span class="px-2 py-0.5 bg-amber-100 text-amber-800 font-black text-[9px] rounded-full uppercase">JHANKRA SUPER LEAGUE</span>
-          <h2 class="text-base font-black text-slate-900 mt-1">Registration Here</h2>
-          <p class="text-[10px] text-slate-500">Select registration type to proceed</p>
+          <span class="px-2 py-0.5 bg-amber-950 text-amber-400 font-black text-[9px] rounded-full uppercase border border-amber-800">JHANKRA SUPER LEAGUE</span>
+          <h2 class="text-base font-black text-white mt-1">Registration Here</h2>
+          <p class="text-[10px] text-slate-400">Select registration type to proceed</p>
         </div>
 
         <div class="grid grid-cols-1 gap-2 pt-1">
-          <button id="select-team-reg-btn" class="p-3 rounded-xl bg-gradient-to-r from-sky-600 to-blue-700 text-white font-extrabold text-xs flex items-center justify-between shadow">
+          <button id="select-team-reg-btn" class="p-3 rounded-xl bg-gradient-to-r from-sky-600 to-blue-700 text-white font-extrabold text-xs flex items-center justify-between shadow-lg">
             <div class="flex items-center gap-2">
               <i data-lucide="shield" class="w-4 h-4 text-amber-300"></i>
               <div class="text-left">
@@ -682,7 +682,7 @@ function openRegistrationTypeModal() {
             <i data-lucide="chevron-right" class="w-4 h-4"></i>
           </button>
 
-          <button id="select-player-reg-btn" class="p-3 rounded-xl bg-gradient-to-r from-amber-500 to-red-600 text-white font-extrabold text-xs flex items-center justify-between shadow">
+          <button id="select-player-reg-btn" class="p-3 rounded-xl bg-gradient-to-r from-amber-500 to-red-600 text-white font-extrabold text-xs flex items-center justify-between shadow-lg">
             <div class="flex items-center gap-2">
               <i data-lucide="user-plus" class="w-4 h-4 text-white"></i>
               <div class="text-left">
@@ -720,54 +720,54 @@ function openTeamRegisterFormModal() {
 
   const modalHtml = `
     <div id="team-reg-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3 overflow-y-auto">
-      <div class="bg-white max-w-md w-full p-4 relative space-y-3 animate-fade-in rounded-2xl shadow-2xl border border-slate-200 modal-content-container">
-        <button id="close-team-modal-btn" class="absolute top-3 right-3 text-slate-400 hover:text-slate-700 p-1">
+      <div class="bg-slate-900/95 backdrop-blur-2xl max-w-md w-full p-4 relative space-y-3 animate-fade-in rounded-2xl shadow-2xl border border-slate-800 modal-content-container">
+        <button id="close-team-modal-btn" class="absolute top-3 right-3 text-slate-400 hover:text-white p-1">
           <i data-lucide="x" class="w-4 h-4"></i>
         </button>
 
         <div>
-          <span class="px-2 py-0.5 bg-sky-100 text-sky-800 text-[9px] font-black rounded border border-sky-300">PART 1: TEAM REGISTER</span>
-          <h2 class="text-base font-black text-slate-900 mt-0.5">Register New Team</h2>
+          <span class="px-2 py-0.5 bg-sky-950 text-sky-400 text-[9px] font-black rounded border border-sky-800">PART 1: TEAM REGISTER</span>
+          <h2 class="text-base font-black text-white mt-0.5">Register New Team</h2>
         </div>
 
         <form id="team-registration-form" class="space-y-2.5">
           <div>
-            <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Name of The Team *</label>
-            <input type="text" id="team-name" required placeholder="Jhankra Strikers XI" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-2 focus:outline-none" />
+            <label class="block text-[10px] font-bold text-slate-300 uppercase mb-0.5">Name of The Team *</label>
+            <input type="text" id="team-name" required placeholder="Jhankra Strikers XI" class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-lg p-2 focus:outline-none focus:border-sky-500" />
           </div>
 
           <div class="grid grid-cols-2 gap-2">
             <div>
-              <label class="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">Owner Name *</label>
-              <input type="text" id="owner-name" required placeholder="Vikram Rathore" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-2 focus:outline-none" />
+              <label class="block text-[9px] font-bold text-slate-300 uppercase mb-0.5">Owner Name *</label>
+              <input type="text" id="owner-name" required placeholder="Vikram Rathore" class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-lg p-2 focus:outline-none focus:border-sky-500" />
             </div>
             <div>
-              <label class="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">Phone *</label>
-              <input type="tel" id="owner-phone" required placeholder="+91 98765..." class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-2 focus:outline-none" />
+              <label class="block text-[9px] font-bold text-slate-300 uppercase mb-0.5">Phone *</label>
+              <input type="tel" id="owner-phone" required placeholder="+91 98765..." class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-lg p-2 focus:outline-none focus:border-sky-500" />
             </div>
           </div>
 
           <div class="grid grid-cols-2 gap-2">
             <div>
-              <label class="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">Co-Owner Name</label>
-              <input type="text" id="co-owner-name" placeholder="Rohit Verma" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-2 focus:outline-none" />
+              <label class="block text-[9px] font-bold text-slate-300 uppercase mb-0.5">Co-Owner Name</label>
+              <input type="text" id="co-owner-name" placeholder="Rohit Verma" class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-lg p-2 focus:outline-none focus:border-sky-500" />
             </div>
             <div>
-              <label class="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">Co-Owner Phone</label>
-              <input type="tel" id="co-owner-phone" placeholder="+91 98123..." class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-2 focus:outline-none" />
+              <label class="block text-[9px] font-bold text-slate-300 uppercase mb-0.5">Co-Owner Phone</label>
+              <input type="tel" id="co-owner-phone" placeholder="+91 98123..." class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-lg p-2 focus:outline-none focus:border-sky-500" />
             </div>
           </div>
 
           <div>
-            <label class="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">Upload Team Logo File</label>
-            <input type="file" id="team-logo-file" accept="image/*" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-[10px] rounded-lg p-1 file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:text-[9px] file:font-bold file:bg-sky-600 file:text-white" />
-            <div id="team-logo-preview-box" class="hidden mt-1 flex items-center gap-2 bg-slate-50 p-1 rounded-lg border border-slate-200">
+            <label class="block text-[9px] font-bold text-slate-300 uppercase mb-0.5">Upload Team Logo File</label>
+            <input type="file" id="team-logo-file" accept="image/*" class="w-full bg-slate-950 border border-slate-800 text-slate-300 text-[10px] rounded-lg p-1 file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:text-[9px] file:font-bold file:bg-sky-600 file:text-white" />
+            <div id="team-logo-preview-box" class="hidden mt-1 flex items-center gap-2 bg-slate-950 p-1 rounded-lg border border-slate-800">
               <img id="team-logo-preview-img" class="w-8 h-8 rounded object-cover" />
-              <span class="text-[9px] text-emerald-700 font-bold">Logo selected!</span>
+              <span class="text-[9px] text-emerald-400 font-bold">Logo selected!</span>
             </div>
           </div>
 
-          <button type="submit" class="w-full py-2.5 bg-gradient-to-r from-sky-600 to-blue-700 text-white font-extrabold text-xs rounded-xl shadow">
+          <button type="submit" class="w-full py-2.5 bg-gradient-to-r from-sky-600 to-blue-700 text-white font-extrabold text-xs rounded-xl shadow-lg">
             Submit Team Registration
           </button>
         </form>
@@ -828,36 +828,36 @@ function openPlayerRegisterFormModal() {
 
   const modalHtml = `
     <div id="player-reg-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3 overflow-y-auto">
-      <div class="bg-white max-w-md w-full p-4 relative space-y-3 animate-fade-in rounded-2xl shadow-2xl border border-slate-200 modal-content-container">
-        <button id="close-player-modal-btn" class="absolute top-3 right-3 text-slate-400 hover:text-slate-700 p-1">
+      <div class="bg-slate-900/95 backdrop-blur-2xl max-w-md w-full p-4 relative space-y-3 animate-fade-in rounded-2xl shadow-2xl border border-slate-800 modal-content-container">
+        <button id="close-player-modal-btn" class="absolute top-3 right-3 text-slate-400 hover:text-white p-1">
           <i data-lucide="x" class="w-4 h-4"></i>
         </button>
 
         <div>
-          <span class="px-2 py-0.5 bg-amber-100 text-amber-800 text-[9px] font-black rounded border border-amber-300">PART 2: PLAYER REGISTER</span>
-          <h2 class="text-base font-black text-slate-900 mt-0.5">Player Registration Form</h2>
+          <span class="px-2 py-0.5 bg-amber-950 text-amber-400 text-[9px] font-black rounded border border-amber-800">PART 2: PLAYER REGISTER</span>
+          <h2 class="text-base font-black text-white mt-0.5">Player Registration Form</h2>
         </div>
 
         <form id="player-registration-form" class="space-y-2.5">
           <div class="grid grid-cols-2 gap-2">
             <div>
-              <label class="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">Full Name *</label>
-              <input type="text" id="ply-name" required placeholder="Rahul Sharma" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-2 focus:outline-none" />
+              <label class="block text-[9px] font-bold text-slate-300 uppercase mb-0.5">Full Name *</label>
+              <input type="text" id="ply-name" required placeholder="Rahul Sharma" class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-lg p-2 focus:outline-none focus:border-amber-500" />
             </div>
             <div>
-              <label class="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">Phone Number *</label>
-              <input type="tel" id="ply-phone" required placeholder="+91 98765..." class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-2 focus:outline-none" />
+              <label class="block text-[9px] font-bold text-slate-300 uppercase mb-0.5">Phone Number *</label>
+              <input type="tel" id="ply-phone" required placeholder="+91 98765..." class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-lg p-2 focus:outline-none focus:border-amber-500" />
             </div>
           </div>
 
           <div>
-            <label class="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">Full Address *</label>
-            <input type="text" id="ply-address" required placeholder="Chandrakona Town PS Area, Jhankra" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-2 focus:outline-none" />
+            <label class="block text-[9px] font-bold text-slate-300 uppercase mb-0.5">Full Address *</label>
+            <input type="text" id="ply-address" required placeholder="Chandrakona Town PS Area, Jhankra" class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-lg p-2 focus:outline-none focus:border-amber-500" />
           </div>
 
           <div>
-            <label class="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">Player Category *</label>
-            <select id="ply-category" required class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-2 focus:outline-none">
+            <label class="block text-[9px] font-bold text-slate-300 uppercase mb-0.5">Player Category *</label>
+            <select id="ply-category" required class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-lg p-2 focus:outline-none focus:border-amber-500">
               <option value="Right Hand Batsman">Right Hand Batsman</option>
               <option value="Left Hand Batsman">Left Hand Batsman</option>
               <option value="Right Hand Bowler">Right Hand Bowler</option>
@@ -868,39 +868,39 @@ function openPlayerRegisterFormModal() {
           </div>
 
           <div>
-            <label class="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">Upload Photo *</label>
-            <input type="file" id="ply-photo-file" accept="image/*" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-[10px] rounded-lg p-1 file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:text-[9px] file:font-bold file:bg-amber-500 file:text-white" />
-            <div id="ply-photo-preview-box" class="hidden mt-1 flex items-center gap-2 bg-slate-50 p-1 rounded-lg border border-slate-200">
+            <label class="block text-[9px] font-bold text-slate-300 uppercase mb-0.5">Upload Photo *</label>
+            <input type="file" id="ply-photo-file" accept="image/*" class="w-full bg-slate-950 border border-slate-800 text-slate-300 text-[10px] rounded-lg p-1 file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:text-[9px] file:font-bold file:bg-amber-500 file:text-slate-950" />
+            <div id="ply-photo-preview-box" class="hidden mt-1 flex items-center gap-2 bg-slate-950 p-1 rounded-lg border border-slate-800">
               <img id="ply-photo-preview-img" class="w-8 h-8 rounded object-cover" />
-              <span class="text-[9px] text-emerald-700 font-bold">Photo ready!</span>
+              <span class="text-[9px] text-emerald-400 font-bold">Photo ready!</span>
             </div>
           </div>
 
           <div>
-            <label class="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">Upload Aadhar Card (Back side Only) *</label>
-            <input type="file" id="ply-aadhar-file" accept="image/*" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-[10px] rounded-lg p-1 file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:text-[9px] file:font-bold file:bg-sky-600 file:text-white" />
-            <div id="ply-aadhar-preview-box" class="hidden mt-1 flex items-center gap-2 bg-slate-50 p-1 rounded-lg border border-slate-200">
+            <label class="block text-[9px] font-bold text-slate-300 uppercase mb-0.5">Upload Aadhar Card (Back side Only) *</label>
+            <input type="file" id="ply-aadhar-file" accept="image/*" class="w-full bg-slate-950 border border-slate-800 text-slate-300 text-[10px] rounded-lg p-1 file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:text-[9px] file:font-bold file:bg-sky-600 file:text-white" />
+            <div id="ply-aadhar-preview-box" class="hidden mt-1 flex items-center gap-2 bg-slate-950 p-1 rounded-lg border border-slate-800">
               <img id="ply-aadhar-preview-img" class="w-10 h-7 rounded object-cover" />
-              <span class="text-[9px] text-emerald-700 font-bold">Aadhar Back ready!</span>
+              <span class="text-[9px] text-emerald-400 font-bold">Aadhar Back ready!</span>
             </div>
           </div>
 
-          <div class="bg-gradient-to-b from-amber-50 to-white p-2.5 rounded-xl border border-amber-300 space-y-2 shadow-sm">
-            <div class="flex justify-between items-center border-b border-amber-200 pb-1.5">
+          <div class="bg-slate-950 p-2.5 rounded-xl border border-amber-500/40 space-y-2 shadow-inner">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-1.5">
               <div>
-                <span class="font-extrabold text-slate-900 text-xs block">Entry Fee Payment</span>
+                <span class="font-extrabold text-white text-xs block">Entry Fee Payment</span>
               </div>
-              <span class="text-lg font-black text-amber-700">₹ 200</span>
+              <span class="text-lg font-black text-amber-400">₹ 200</span>
             </div>
 
-            <div class="bg-white p-2 rounded-xl border border-slate-200 text-center shadow-inner flex flex-col items-center space-y-1">
-              <div class="text-[9px] font-black text-slate-800 uppercase">Scan QR Code Below</div>
+            <div class="bg-slate-900 p-2 rounded-xl border border-slate-800 text-center flex flex-col items-center space-y-1">
+              <div class="text-[9px] font-black text-slate-200 uppercase">Scan QR Code Below</div>
               
-              <div class="overflow-hidden rounded-lg border border-slate-900 p-1 inline-block">
+              <div class="overflow-hidden rounded-lg border border-slate-700 p-1 bg-white inline-block">
                 <img src="assets/navi_qr_code.jpg" alt="Pintu Santra Navi UPI QR Code" class="w-32 h-auto mx-auto object-contain rounded" />
               </div>
 
-              <div class="font-mono font-bold text-[9px] text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 inline-block">
+              <div class="font-mono font-bold text-[9px] text-emerald-300 bg-emerald-950 px-2 py-0.5 rounded border border-emerald-800 inline-block">
                 pintusantra4166@nyes
               </div>
             </div>
@@ -919,22 +919,22 @@ function openPlayerRegisterFormModal() {
 
             <div class="space-y-1.5">
               <div>
-                <label class="block text-[8px] font-bold text-slate-700 uppercase mb-0.5">UPI Transaction Number *</label>
-                <input type="text" id="ply-upi-ref" required placeholder="UPI/9812736451/PINTU" class="w-full bg-white border border-slate-300 text-emerald-700 font-mono text-[11px] rounded p-1.5 focus:outline-none" />
+                <label class="block text-[8px] font-bold text-slate-300 uppercase mb-0.5">UPI Transaction Number *</label>
+                <input type="text" id="ply-upi-ref" required placeholder="UPI/9812736451/PINTU" class="w-full bg-slate-900 border border-slate-700 text-emerald-400 font-mono text-[11px] rounded p-1.5 focus:outline-none" />
               </div>
 
               <div>
-                <label class="block text-[8px] font-bold text-slate-700 uppercase mb-0.5">Upload Payment Screenshot File</label>
-                <input type="file" id="ply-proof-file" accept="image/*" class="w-full bg-white border border-slate-300 text-slate-900 text-[9px] rounded p-1 file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:text-[8px] file:font-bold file:bg-emerald-600 file:text-white" />
-                <div id="ply-proof-preview-box" class="hidden mt-1 flex items-center gap-2 bg-white p-1 rounded-lg border border-slate-200">
+                <label class="block text-[8px] font-bold text-slate-300 uppercase mb-0.5">Upload Payment Screenshot File</label>
+                <input type="file" id="ply-proof-file" accept="image/*" class="w-full bg-slate-900 border border-slate-700 text-slate-300 text-[9px] rounded p-1 file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:text-[8px] file:font-bold file:bg-emerald-600 file:text-white" />
+                <div id="ply-proof-preview-box" class="hidden mt-1 flex items-center gap-2 bg-slate-900 p-1 rounded-lg border border-slate-800">
                   <img id="ply-proof-preview-img" class="w-10 h-7 rounded object-cover" />
-                  <span class="text-[9px] text-emerald-700 font-bold">Receipt attached!</span>
+                  <span class="text-[9px] text-emerald-400 font-bold">Receipt attached!</span>
                 </div>
               </div>
             </div>
           </div>
 
-          <button type="submit" id="submit-player-reg-btn" class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-red-600 text-white font-extrabold text-xs rounded-xl shadow">
+          <button type="submit" id="submit-player-reg-btn" class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-red-600 text-white font-extrabold text-xs rounded-xl shadow-lg">
             Submit Player Registration
           </button>
         </form>
