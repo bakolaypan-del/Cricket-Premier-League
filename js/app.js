@@ -42,8 +42,8 @@ function navigate(route) {
   renderCurrentView();
 }
 
-// --- IMAGE COMPRESSION UTILITY ---
-function compressImage(file, maxWidth = 250, maxHeight = 250, quality = 0.65) {
+// --- HIGH DEFINITION HD IMAGE COMPRESSION UTILITY (200KB-300KB CRISP QUALITY) ---
+function compressImage(file, maxWidth = 800, maxHeight = 800, quality = 0.85) {
   return new Promise((resolve) => {
     if (!file) {
       resolve('https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300');
@@ -1050,7 +1050,7 @@ function openPlayerRegisterFormModal() {
     const file = e.target.files[0];
     if (file) {
       plyPhotoFileObj = file;
-      plyPhotoDataUrl = await compressImage(file, 150, 150, 0.5);
+      plyPhotoDataUrl = await compressImage(file, 600, 600, 0.85);
       document.getElementById('ply-photo-preview-img').src = plyPhotoDataUrl;
       document.getElementById('ply-photo-preview-box').classList.remove('hidden');
     }
@@ -1060,7 +1060,7 @@ function openPlayerRegisterFormModal() {
     const file = e.target.files[0];
     if (file) {
       plyAadharFileObj = file;
-      plyAadharDataUrl = await compressImage(file, 250, 180, 0.6);
+      plyAadharDataUrl = await compressImage(file, 800, 600, 0.85);
       document.getElementById('ply-aadhar-preview-img').src = plyAadharDataUrl;
       document.getElementById('ply-aadhar-preview-box').classList.remove('hidden');
     }
@@ -1070,7 +1070,7 @@ function openPlayerRegisterFormModal() {
     const file = e.target.files[0];
     if (file) {
       plyProofFileObj = file;
-      plyProofDataUrl = await compressImage(file, 250, 180, 0.6);
+      plyProofDataUrl = await compressImage(file, 800, 600, 0.85);
       document.getElementById('ply-proof-preview-img').src = plyProofDataUrl;
       document.getElementById('ply-proof-preview-box').classList.remove('hidden');
     }
