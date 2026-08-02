@@ -81,22 +81,6 @@ class Store {
         regNo: p.regNo || `JSL-2026-${String(idx + 1).padStart(3, '0')}`
       }));
 
-      const localPlayersStr = JSON.stringify(localPlayers);
-      const mergedPlayersStr = JSON.stringify(mergedPlayers);
-      
-      // If local storage has extra entries not yet in cloud (e.g. freshly registered), auto-push to cloud!
-      const cloudPlayersStr = JSON.stringify(cloudPlayers);
-      if (mergedPlayers.length > cloudPlayers.length || localPlayersStr !== cloudPlayersStr) {
-        saveCloudData(mergedPlayers, mergedTeams);
-      }
-
-      if (localPlayersStr !== mergedPlayersStr) {
-        localStorage.setItem(STORAGE_KEYS.PLAYERS, mergedPlayersStr);
-        if (!isUserFillingForm) {
-          this.notify('players_updated');
-        }
-      }
-
       // 2. SMART NON-DESTRUCTIVE MERGE FOR TEAMS
       const localTeams = JSON.parse(localStorage.getItem(STORAGE_KEYS.TEAMS) || '[]');
       const cloudTeams = Array.isArray(cloudData.teams) ? cloudData.teams : [];
@@ -117,9 +101,27 @@ class Store {
         serialNo: idx + 1
       }));
 
+      // 3. AUTO-PUSH UNPUSHED ENTRIES TO CLOUD DUAL BACKEND
+      const localPlayersStr = JSON.stringify(localPlayers);
+      const mergedPlayersStr = JSON.stringify(mergedPlayers);
+      const cloudPlayersStr = JSON.stringify(cloudPlayers);
+
       const localTeamsStr = JSON.stringify(localTeams);
       const mergedTeamsStr = JSON.stringify(mergedTeams);
-      
+      const cloudTeamsStr = JSON.stringify(cloudTeams);
+
+      if (mergedPlayers.length > cloudPlayers.length || localPlayersStr !== cloudPlayersStr ||
+          mergedTeams.length > cloudTeams.length || localTeamsStr !== cloudTeamsStr) {
+        saveCloudData(mergedPlayers, mergedTeams);
+      }
+
+      if (localPlayersStr !== mergedPlayersStr) {
+        localStorage.setItem(STORAGE_KEYS.PLAYERS, mergedPlayersStr);
+        if (!isUserFillingForm) {
+          this.notify('players_updated');
+        }
+      }
+
       if (localTeamsStr !== mergedTeamsStr) {
         localStorage.setItem(STORAGE_KEYS.TEAMS, mergedTeamsStr);
         if (!isUserFillingForm) {
