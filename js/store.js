@@ -253,11 +253,8 @@ class Store {
       console.warn("Storage quota limit reached, trimming local document buffers:", err);
       const compactPlayers = players.map(p => ({
         ...p,
-        photoUrl: p.photoUrl && p.photoUrl.length > 20000 && !p.photoUrl.startsWith('http')
-          ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300'
-          : p.photoUrl,
-        aadharBackUrl: p.aadharBackUrl && p.aadharBackUrl.length > 10000 ? 'Attached Document Proof' : p.aadharBackUrl,
-        paymentProofUrl: p.paymentProofUrl && p.paymentProofUrl.length > 10000 ? 'Attached Receipt Screenshot' : p.paymentProofUrl
+        aadharBackUrl: p.aadharBackUrl && p.aadharBackUrl.length > 50000 ? 'Attached Document Proof' : p.aadharBackUrl,
+        paymentProofUrl: p.paymentProofUrl && p.paymentProofUrl.length > 50000 ? 'Attached Receipt Screenshot' : p.paymentProofUrl
       }));
       try {
         localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(compactPlayers));

@@ -92,16 +92,14 @@ export async function fetchCloudData() {
   return { players: [], teams: [] };
 }
 
-// Helper: Sanitize player payload for lightweight real-time database (< 8KB)
+// Helper: Preserve player uploaded photo 100% without fallback replacement
 function sanitizePlayerForRest(p) {
   const pCopy = { ...p };
-  if (pCopy.photoUrl && pCopy.photoUrl.length > 30000 && !pCopy.photoUrl.startsWith('http')) {
-    pCopy.photoUrl = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300';
-  }
-  if (pCopy.aadharBackUrl && pCopy.aadharBackUrl.length > 10000 && !pCopy.aadharBackUrl.startsWith('http')) {
+  // Preserve pCopy.photoUrl 100% as uploaded by player!
+  if (pCopy.aadharBackUrl && pCopy.aadharBackUrl.length > 50000 && !pCopy.aadharBackUrl.startsWith('http')) {
     pCopy.aadharBackUrl = 'Attached Document Proof';
   }
-  if (pCopy.paymentProofUrl && pCopy.paymentProofUrl.length > 10000 && !pCopy.paymentProofUrl.startsWith('http')) {
+  if (pCopy.paymentProofUrl && pCopy.paymentProofUrl.length > 50000 && !pCopy.paymentProofUrl.startsWith('http')) {
     pCopy.paymentProofUrl = 'Attached Receipt Screenshot';
   }
   return pCopy;
