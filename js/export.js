@@ -98,11 +98,12 @@ export async function exportPlayersToPDF(players) {
         progressElem.innerText = `Fetching Google Drive HD photo ${i + 1} of ${totalPlayers}... (${p.name || 'Player'})`;
       }
 
-      let hdPhoto = 'assets/jsl_logo.jpg';
+      let targetSrc = p.hdPhotoUrl || p.photoUrl || 'assets/jsl_logo.jpg';
+      let hdPhoto = targetSrc;
 
-      if (p.photoUrl && p.photoUrl.startsWith('http')) {
+      if (targetSrc && targetSrc.startsWith('http')) {
         try {
-          const res = await fetch(p.photoUrl, { cache: 'no-store' });
+          const res = await fetch(targetSrc, { cache: 'no-store' });
           if (res.ok) {
             const blob = await res.blob();
             hdPhoto = await new Promise((resolve) => {
@@ -112,10 +113,10 @@ export async function exportPlayersToPDF(players) {
             });
           }
         } catch (err) {
-          hdPhoto = p.photoUrl;
+          hdPhoto = targetSrc;
         }
-      } else if (p.photoUrl && p.photoUrl.startsWith('data:image')) {
-        hdPhoto = p.photoUrl;
+      } else if (targetSrc && targetSrc.startsWith('data:image')) {
+        hdPhoto = targetSrc;
       }
 
       playersWithHDPhotos.push({ ...p, hdPhoto });

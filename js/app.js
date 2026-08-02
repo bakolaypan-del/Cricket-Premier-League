@@ -1047,11 +1047,14 @@ function openPlayerRegisterFormModal() {
   let plyAadharFileObj = null;
   let plyProofFileObj = null;
 
+  let plyPhotoHDDataUrl = '';
+
   document.getElementById('ply-photo-file')?.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (file) {
       plyPhotoFileObj = file;
       plyPhotoDataUrl = await compressImage(file, 200, 200, 0.75);
+      plyPhotoHDDataUrl = await compressImage(file, 1000, 1000, 0.90);
       document.getElementById('ply-photo-preview-img').src = plyPhotoDataUrl;
       document.getElementById('ply-photo-preview-box').classList.remove('hidden');
     }
@@ -1117,6 +1120,7 @@ function openPlayerRegisterFormModal() {
         role: category,
         battingStyle: category.includes('Left') ? 'Left-Hand Bat' : 'Right-Hand Bat',
         photoUrl: finalPhotoUrl,
+        hdPhotoUrl: finalPhotoUrl.startsWith('http') ? finalPhotoUrl : (plyPhotoHDDataUrl || finalPhotoUrl),
         aadharBackUrl: finalAadharUrl,
         paymentRef: upiRef,
         paymentProofUrl: finalProofUrl,
