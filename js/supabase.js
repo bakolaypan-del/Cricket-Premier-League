@@ -1,7 +1,6 @@
-// Automatic Zero-Setup Cloud Database & Supabase Integration (Developer: Suman Kolay)
+// Automatic Zero-Setup Cloud Database & Official Firebase Realtime Integration (Developer: Suman Kolay)
 
-const CRUD_API_BASE = "https://crudcrud.com/api/d074e1a43f5b451ba1768dd0e8381ccf";
-const CLOUD_BLOB_URL = "https://jsonblob.com/api/jsonBlob/019fc3e1-cd40-79b5-ae05-5e2bb58082f5";
+const FIREBASE_DB_URL = "https://cpl-jsl-2026-default-rtdb.firebaseio.com";
 const GOOGLE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz7YpLCl7Vk_4sR06XhnD9V_-OFVeKwv_vgPm332kFj9LvrrYjdsPG_aDTRv1l2L4zo/exec";
 
 const SUPABASE_URL = "https://eunwcvdackphjqpyujwn.supabase.co";
@@ -70,60 +69,32 @@ export async function uploadImageToSupabaseStorage(file, folder = 'documents') {
   });
 }
 
-// --- INSTANT REALTIME CLOUD DATA FETCH ---
+// --- INSTANT REALTIME CLOUD DATA FETCH (OFFICIAL GOOGLE FIREBASE REALTIME DATABASE) ---
 export async function fetchCloudData() {
-  // 1. Primary: High-Speed Realtime REST API with FULL CORS support
   try {
-    const pRes = await fetch(`${CRUD_API_BASE}/players`, { cache: 'no-store' });
-    const tRes = await fetch(`${CRUD_API_BASE}/teams`, { cache: 'no-store' });
-    if (pRes.ok && tRes.ok) {
-      const players = await pRes.json();
-      const teams = await tRes.json();
-      if (Array.isArray(players) && Array.isArray(teams)) {
+    const res = await fetch(`${FIREBASE_DB_URL}/cpl_master.json?_t=${Date.now()}`, { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      if (data) {
+        const rawPlayers = data.players ? (Array.isArray(data.players) ? data.players : Object.values(data.players)) : [];
+        const rawTeams = data.teams ? (Array.isArray(data.teams) ? data.teams : Object.values(data.teams)) : [];
+        
+        const players = rawPlayers.filter(p => p && p.id);
+        const teams = rawTeams.filter(t => t && t.id);
+
         return { players, teams };
       }
     }
   } catch (err) {
-    console.warn("Realtime REST fetch warning:", err);
+    console.warn("Firebase Realtime Database fetch warning:", err);
   }
-
-  // 2. Google Drive Fallback
-  if (GOOGLE_APPS_SCRIPT_URL) {
-    try {
-      const res = await fetch(GOOGLE_APPS_SCRIPT_URL, { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json();
-        if (data && (Array.isArray(data.players) || Array.isArray(data.teams))) {
-          return {
-            players: Array.isArray(data.players) ? data.players : [],
-            teams: Array.isArray(data.teams) ? data.teams : []
-          };
-        }
-      }
-    } catch (e) {}
-  }
-
-  // 3. JsonBlob Fallback
-  try {
-    const res = await fetch(CLOUD_BLOB_URL, { cache: 'no-store' });
-    if (res.ok) {
-      const data = await res.json();
-      if (data && (Array.isArray(data.players) || Array.isArray(data.teams))) {
-        return {
-          players: Array.isArray(data.players) ? data.players : [],
-          teams: Array.isArray(data.teams) ? data.teams : []
-        };
-      }
-    }
-  } catch (err) {}
 
   return { players: [], teams: [] };
 }
 
-// Helper: Sanitize player payload for lightweight REST API (< 8KB)
+// Helper: Sanitize player payload for lightweight real-time database (< 8KB)
 function sanitizePlayerForRest(p) {
   const pCopy = { ...p };
-  // If photoUrl is heavy base64 > 30KB, keep photoUrl clean
   if (pCopy.photoUrl && pCopy.photoUrl.length > 30000 && !pCopy.photoUrl.startsWith('http')) {
     pCopy.photoUrl = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300';
   }
@@ -136,66 +107,30 @@ function sanitizePlayerForRest(p) {
   return pCopy;
 }
 
-// --- INSTANT REALTIME CLOUD DATA SAVE ---
+// --- INSTANT REALTIME CLOUD DATA SAVE (OFFICIAL GOOGLE FIREBASE REALTIME DATABASE) ---
 export async function saveCloudData(playersList, teamsList) {
   try {
-    // 1. Sync Players to CRUD REST API (Sanitized lightweight payload < 8KB)
-    if (Array.isArray(playersList)) {
-      const existingRes = await fetch(`${CRUD_API_BASE}/players`);
-      let existingPlayers = existingRes.ok ? await existingRes.json() : [];
+    const sanitizedPlayers = (playersList || []).map(p => sanitizePlayerForRest(p));
+    const sanitizedTeams = teamsList || [];
 
-      for (const ep of existingPlayers) {
-        if (!playersList.some(p => p.id === ep.id)) {
-          await fetch(`${CRUD_API_BASE}/players/${ep._id}`, { method: 'DELETE' }).catch(e => {});
-        }
-      }
-      
-      for (const p of playersList) {
-        const found = existingPlayers.find(ep => ep.id === p.id);
-        if (!found) {
-          const restPlayer = sanitizePlayerForRest(p);
-          await fetch(`${CRUD_API_BASE}/players`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(restPlayer)
-          }).catch(e => {});
-        }
-      }
-    }
+    const payload = {
+      players: sanitizedPlayers,
+      teams: sanitizedTeams,
+      lastUpdated: new Date().toISOString()
+    };
 
-    // 2. Sync Teams to CRUD REST API
-    if (Array.isArray(teamsList)) {
-      const existingTRes = await fetch(`${CRUD_API_BASE}/teams`);
-      let existingTeams = existingTRes.ok ? await existingTRes.json() : [];
-
-      for (const et of existingTeams) {
-        if (!teamsList.some(t => t.id === et.id)) {
-          await fetch(`${CRUD_API_BASE}/teams/${et._id}`, { method: 'DELETE' }).catch(e => {});
-        }
-      }
-      
-      for (const t of teamsList) {
-        const found = existingTeams.find(et => et.id === t.id);
-        if (!found) {
-          await fetch(`${CRUD_API_BASE}/teams`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(t)
-          }).catch(e => {});
-        }
-      }
-    }
-
-    // 3. Backup FULL DATA (with complete HD images) to Google Drive Web App (15 GB storage)
-    const payload = { players: playersList || [], teams: teamsList || [] };
-    saveToGoogleDriveScript(payload);
-
-    // 4. Backup to JsonBlob
-    fetch(CLOUD_BLOB_URL, {
+    // 1. Save to Official Google Firebase Realtime Database
+    fetch(`${FIREBASE_DB_URL}/cpl_master.json`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
-    }).catch(e => {});
+    }).then(res => res.json())
+      .then(d => console.log("Firebase Realtime Database synced successfully!"))
+      .catch(e => console.warn("Firebase save warning:", e));
+
+    // 2. Backup FULL DATA (with complete HD images) to Google Drive Web App (15 GB storage)
+    const fullPayload = { players: playersList || [], teams: teamsList || [] };
+    saveToGoogleDriveScript(fullPayload);
   } catch (err) {
     console.warn("Cloud save warning:", err);
   }
@@ -203,29 +138,11 @@ export async function saveCloudData(playersList, teamsList) {
 
 // --- DELETE HELPERS ---
 export async function deletePlayerFromSupabase(playerId) {
-  try {
-    const existingRes = await fetch(`${CRUD_API_BASE}/players`);
-    if (existingRes.ok) {
-      const existingPlayers = await existingRes.json();
-      const target = existingPlayers.find(ep => ep.id === playerId);
-      if (target && target._id) {
-        await fetch(`${CRUD_API_BASE}/players/${target._id}`, { method: 'DELETE' });
-      }
-    }
-  } catch (e) {}
+  // Automatically synced to Firebase via saveCloudData
 }
 
 export async function deleteTeamFromSupabase(teamId) {
-  try {
-    const existingTRes = await fetch(`${CRUD_API_BASE}/teams`);
-    if (existingTRes.ok) {
-      const existingTeams = await existingTRes.json();
-      const target = existingTeams.find(et => et.id === teamId);
-      if (target && target._id) {
-        await fetch(`${CRUD_API_BASE}/teams/${target._id}`, { method: 'DELETE' });
-      }
-    }
-  } catch (e) {}
+  // Automatically synced to Firebase via saveCloudData
 }
 
 export async function syncPlayerToSupabase(playerData) {}

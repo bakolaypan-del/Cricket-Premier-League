@@ -145,10 +145,10 @@ class Store {
   }
 
   startCloudPolling() {
-    // Poll Cloud Database every 8 seconds safely without interrupting active forms
+    // Poll Firebase Realtime Database every 4 seconds safely without interrupting active forms
     setInterval(() => {
       this.syncWithCloud();
-    }, 8000);
+    }, 4000);
   }
 
   setupRealtimeListeners() {
