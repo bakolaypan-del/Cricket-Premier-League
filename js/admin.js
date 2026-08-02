@@ -377,8 +377,64 @@ function openAdminEditPlayerModal(player, containerEl) {
         </button>
 
         <div>
-          <span class="px-2 py-0.5 bg-amber-950 text-amber-400 text-[9px] font-black rounded border border-amber-800">MASTER ADMIN EDIT</span>
-          <h2 class="text-base font-black text-white mt-0.5">Edit Player Details</h2>
+          <span class="px-2 py-0.5 bg-amber-950 text-amber-400 text-[9px] font-black rounded border border-amber-800">MASTER ADMIN VERIFICATION</span>
+          <h2 class="text-base font-black text-white mt-0.5">Player Verification & Edit</h2>
+        </div>
+
+        <!-- ADMIN DOCUMENT & PROOF INSPECTION GALLERY -->
+        <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2">
+          <div class="text-[10px] font-black text-amber-400 uppercase tracking-wider flex items-center gap-1 border-b border-slate-800 pb-1">
+            <i data-lucide="eye" class="w-3.5 h-3.5"></i> Uploaded Documents & Payment Receipts
+          </div>
+
+          <div class="grid grid-cols-3 gap-2 text-center">
+            <!-- 1. PROFILE PHOTO -->
+            <div class="space-y-1">
+              <span class="text-[8px] font-extrabold text-slate-300 block uppercase">Profile Photo</span>
+              ${player.photoUrl && player.photoUrl.startsWith('http') ? `
+                <a href="${player.photoUrl}" target="_blank" class="block">
+                  <img src="${player.photoUrl}" class="w-full h-16 rounded-lg object-cover border border-amber-500/50 hover:border-amber-400 shadow cursor-pointer" title="Click to view full HD photo" />
+                </a>
+              ` : `
+                <img src="${player.photoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300'}" class="w-full h-16 rounded-lg object-cover border border-amber-500/50 shadow" />
+              `}
+              <span class="text-[8px] text-slate-400 block truncate">Photo</span>
+            </div>
+
+            <!-- 2. AADHAR CARD BACK -->
+            <div class="space-y-1">
+              <span class="text-[8px] font-extrabold text-slate-300 block uppercase">Aadhar Card Back</span>
+              ${player.aadharBackUrl && player.aadharBackUrl.startsWith('http') ? `
+                <a href="${player.aadharBackUrl}" target="_blank" class="block">
+                  <img src="${player.aadharBackUrl}" class="w-full h-16 rounded-lg object-cover border border-sky-500/50 hover:border-sky-400 shadow cursor-pointer" title="Click to view full HD Aadhar document" />
+                </a>
+              ` : player.aadharBackUrl && player.aadharBackUrl.startsWith('data:image') ? `
+                <img src="${player.aadharBackUrl}" class="w-full h-16 rounded-lg object-cover border border-sky-500/50 shadow" />
+              ` : `
+                <div class="w-full h-16 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-[8px] font-bold text-sky-400 p-1 leading-tight">
+                  ${player.aadharBackUrl || 'Attached'}
+                </div>
+              `}
+              <span class="text-[8px] text-sky-400 block truncate">Aadhar Proof</span>
+            </div>
+
+            <!-- 3. PAYMENT RECEIPT SCREENSHOT -->
+            <div class="space-y-1">
+              <span class="text-[8px] font-extrabold text-slate-300 block uppercase">Payment Receipt</span>
+              ${player.paymentProofUrl && player.paymentProofUrl.startsWith('http') ? `
+                <a href="${player.paymentProofUrl}" target="_blank" class="block">
+                  <img src="${player.paymentProofUrl}" class="w-full h-16 rounded-lg object-cover border border-emerald-500/50 hover:border-emerald-400 shadow cursor-pointer" title="Click to view full HD payment receipt" />
+                </a>
+              ` : player.paymentProofUrl && player.paymentProofUrl.startsWith('data:image') ? `
+                <img src="${player.paymentProofUrl}" class="w-full h-16 rounded-lg object-cover border border-emerald-500/50 shadow" />
+              ` : `
+                <div class="w-full h-16 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-[8px] font-bold text-emerald-400 p-1 leading-tight">
+                  ${player.paymentProofUrl || 'Attached'}
+                </div>
+              `}
+              <span class="text-[8px] text-emerald-400 block truncate">Receipt Proof</span>
+            </div>
+          </div>
         </div>
 
         <form id="admin-edit-player-form" class="space-y-2.5">
