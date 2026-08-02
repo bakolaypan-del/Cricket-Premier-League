@@ -1,4 +1,4 @@
-// Core Application Router & Registration Portal (Developer: Suman Kolay - Form Protection & No-Blink Release)
+// Core Application Router & Registration Portal (Developer: Suman Kolay - Clean Player Profile Release)
 
 import { store } from './store.js';
 import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, printDigitalPass } from './export.js';
@@ -663,65 +663,57 @@ function renderPlayerCardsWithSerial(playersList) {
   }).join('');
 }
 
-// --- FULL PLAYER PROFILE MODAL ---
+// --- CLEAN PLAYER PROFILE MODAL (LARGE PICTURE, NAME, CATEGORY, PHONE & ADDRESS ONLY) ---
 function openFullPlayerProfileModal(player) {
   if (!player) return;
-  const isApproved = player.paymentStatus === 'APPROVED';
 
   const modalHtml = `
     <div id="player-profile-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3">
-      <div class="bg-slate-900/95 backdrop-blur-2xl max-w-sm w-full p-4 relative space-y-3.5 animate-fade-in rounded-2xl shadow-2xl border border-slate-800 modal-content-container">
-        <button id="close-profile-btn" class="absolute top-3 right-3 text-slate-400 hover:text-white p-1">
+      <div class="bg-slate-900/95 backdrop-blur-2xl max-w-xs sm:max-w-sm w-full p-4 text-center relative space-y-3 animate-fade-in rounded-2xl shadow-2xl border-2 border-amber-500/50 modal-content-container">
+        
+        <button id="close-profile-btn" class="absolute top-2.5 right-2.5 text-slate-400 hover:text-white p-1">
           <i data-lucide="x" class="w-4 h-4"></i>
         </button>
 
-        <div class="flex items-center gap-3 border-b border-slate-800 pb-3">
-          <img src="${player.photoUrl}" class="w-14 h-14 rounded-xl object-cover border-2 border-slate-700 shadow-lg" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300'" />
-          <div>
-            <span class="px-1.5 py-0.5 bg-slate-950 text-white font-mono font-black text-[9px] rounded border border-slate-800">Serial ${player.serialNo || 1}</span>
-            <h2 class="text-base font-black text-white mt-0.5">${player.name}</h2>
-            <div class="flex items-center gap-1 text-[10px] font-bold ${isApproved ? 'text-emerald-400' : 'text-red-400'}">
-              <span class="${isApproved ? 'status-circle-green' : 'status-circle-red'}"></span>
-              <span>Status: ${isApproved ? 'Approved' : 'Pending Payment Verification'}</span>
+        <!-- LARGE SIZE PICTURE WITH CRISP BORDER -->
+        <div class="pt-1">
+          <img src="${player.photoUrl}" class="w-32 h-32 sm:w-36 sm:h-36 rounded-2xl mx-auto object-cover border-2 border-amber-400 shadow-2xl" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300'" />
+        </div>
+
+        <!-- PLAYER NAME & CATEGORY -->
+        <div class="space-y-1">
+          <h2 class="text-lg sm:text-xl font-black text-white leading-tight">${player.name}</h2>
+          <div class="inline-block px-3 py-0.5 bg-sky-950 text-sky-300 font-extrabold text-xs rounded-full border border-sky-700">
+            ${player.category || player.role || 'Player'}
+          </div>
+        </div>
+
+        <!-- PHONE & ADDRESS ONLY -->
+        <div class="space-y-2 text-left bg-slate-950/80 p-3 rounded-xl border border-slate-800 text-xs">
+          <div class="flex items-center gap-2">
+            <i data-lucide="phone" class="w-4 h-4 text-amber-400 flex-shrink-0"></i>
+            <div>
+              <span class="text-[9px] text-slate-400 uppercase font-bold block">Mobile Phone</span>
+              <span class="font-extrabold text-white">${player.phone || 'N/A'}</span>
+            </div>
+          </div>
+
+          <div class="flex items-start gap-2 pt-1 border-t border-slate-800/80">
+            <i data-lucide="map-pin" class="w-4 h-4 text-sky-400 flex-shrink-0 mt-0.5"></i>
+            <div>
+              <span class="text-[9px] text-slate-400 uppercase font-bold block">Full Address</span>
+              <span class="font-bold text-slate-200">${player.address || 'Chandrakona Town PS Area'}</span>
             </div>
           </div>
         </div>
 
-        <div class="grid grid-cols-2 gap-2 text-[10px]">
-          <div class="bg-slate-950/80 p-2 rounded-lg border border-slate-800">
-            <span class="text-slate-400 block uppercase font-semibold text-[8px]">Mobile Phone</span>
-            <span class="font-extrabold text-white">${player.phone || 'N/A'}</span>
-          </div>
-
-          <div class="bg-slate-950/80 p-2 rounded-lg border border-slate-800">
-            <span class="text-slate-400 block uppercase font-semibold text-[8px]">Category</span>
-            <span class="font-extrabold text-sky-400">${player.category || player.role}</span>
-          </div>
-
-          <div class="col-span-2 bg-slate-950/80 p-2 rounded-lg border border-slate-800">
-            <span class="text-slate-400 block uppercase font-semibold text-[8px]">Full Address</span>
-            <span class="font-bold text-slate-200">${player.address || 'Chandrakona Town PS Area'}</span>
-          </div>
-
-          <div class="bg-slate-950/80 p-2 rounded-lg border border-slate-800">
-            <span class="text-slate-400 block uppercase font-semibold text-[8px]">UPI Ref No</span>
-            <span class="font-mono font-bold text-emerald-400">${player.paymentRef || 'N/A'}</span>
-          </div>
-
-          <div class="bg-slate-950/80 p-2 rounded-lg border border-slate-800">
-            <span class="text-slate-400 block uppercase font-semibold text-[8px]">Registration Date</span>
-            <span class="font-bold text-slate-200">${player.regDate}</span>
-          </div>
-        </div>
-
-        <div class="flex gap-2 pt-1">
-          <button id="print-pass-btn" class="flex-1 py-2 bg-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-lg flex items-center justify-center gap-1">
-            <i data-lucide="ticket" class="w-3.5 h-3.5"></i> Download Pass
-          </button>
-          <button id="close-profile-bottom-btn" class="py-2 px-3 bg-slate-800 text-slate-200 font-bold text-xs rounded-xl border border-slate-700">
-            Close
+        <!-- CLOSE BUTTON -->
+        <div class="pt-1">
+          <button id="close-profile-bottom-btn" class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl shadow">
+            Close Profile
           </button>
         </div>
+
       </div>
     </div>
   `;
@@ -732,9 +724,6 @@ function openFullPlayerProfileModal(player) {
   const removeModal = () => document.getElementById('player-profile-modal')?.remove();
   document.getElementById('close-profile-btn')?.addEventListener('click', removeModal);
   document.getElementById('close-profile-bottom-btn')?.addEventListener('click', removeModal);
-  document.getElementById('print-pass-btn')?.addEventListener('click', () => {
-    printDigitalPass(player, store.getLeagueById('leg-jsl'), store.getTeamById(player.teamId));
-  });
 }
 
 // --- TWO-PART REGISTRATION TYPE MODAL ---
