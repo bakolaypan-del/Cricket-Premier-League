@@ -1,5 +1,6 @@
 // Automatic Zero-Setup Cloud Database & Supabase Integration (Developer: Suman Kolay)
 
+const CRUD_API_BASE = "https://crudcrud.com/api/d074e1a43f5b451ba1768dd0e8381ccf";
 const CLOUD_BLOB_URL = "https://jsonblob.com/api/jsonBlob/019fc3e1-cd40-79b5-ae05-5e2bb58082f5";
 const GOOGLE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz7YpLCl7Vk_4sR06XhnD9V_-OFVeKwv_vgPm332kFj9LvrrYjdsPG_aDTRv1l2L4zo/exec";
 
@@ -33,7 +34,7 @@ export async function saveToGoogleDriveScript(payload) {
   }
 }
 
-// --- OPTION 1: SUPABASE STORAGE UPLOAD FOR ORIGINAL HD QUALITY IMAGES ---
+// --- SUPABASE STORAGE UPLOAD FOR ORIGINAL HD QUALITY IMAGES ---
 export async function uploadImageToSupabaseStorage(file, folder = 'documents') {
   if (!file) return null;
   
@@ -54,15 +55,13 @@ export async function uploadImageToSupabaseStorage(file, folder = 'documents') {
           console.log("Uploaded HD Image to Supabase Storage:", publicUrlData.publicUrl);
           return publicUrlData.publicUrl;
         }
-      } else {
-        console.warn("Supabase storage bucket upload info:", error ? error.message : "Fallback active");
       }
     } catch (err) {
       console.warn("Supabase storage upload catch:", err);
     }
   }
 
-  // Fallback: Convert File to lightweight compressed data URL if Supabase storage bucket is unconfigured
+  // Fallback: Convert File to lightweight compressed data URL
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onload = (e) => resolve(e.target.result);
@@ -71,14 +70,27 @@ export async function uploadImageToSupabaseStorage(file, folder = 'documents') {
   });
 }
 
-// --- INSTANT REALTIME CLOUD DATA FETCH (ANTI-CACHE TIMESTAMPING) ---
+// --- INSTANT REALTIME CLOUD DATA FETCH ---
 export async function fetchCloudData() {
-  const cacheBuster = `?_cb=${Date.now()}`;
+  // 1. Primary: High-Speed Realtime REST API with FULL CORS support
+  try {
+    const pRes = await fetch(`${CRUD_API_BASE}/players`, { cache: 'no-store' });
+    const tRes = await fetch(`${CRUD_API_BASE}/teams`, { cache: 'no-store' });
+    if (pRes.ok && tRes.ok) {
+      const players = await pRes.json();
+      const teams = await tRes.json();
+      if (Array.isArray(players) && Array.isArray(teams)) {
+        return { players, teams };
+      }
+    }
+  } catch (err) {
+    console.warn("Realtime REST fetch warning:", err);
+  }
 
-  // 1. Primary: Try Google Drive Realtime Cloud Backend (Zero Rate Limit & Fresh Data)
+  // 2. Google Drive Fallback
   if (GOOGLE_APPS_SCRIPT_URL) {
     try {
-      const res = await fetch(GOOGLE_APPS_SCRIPT_URL + cacheBuster, { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } });
+      const res = await fetch(GOOGLE_APPS_SCRIPT_URL, { cache: 'no-store' });
       if (res.ok) {
         const data = await res.json();
         if (data && (Array.isArray(data.players) || Array.isArray(data.teams))) {
@@ -88,30 +100,12 @@ export async function fetchCloudData() {
           };
         }
       }
-    } catch (e) {
-      console.warn("Google Drive fetch warning:", e);
-    }
+    } catch (e) {}
   }
 
-  // 2. Supabase table fetch fallback
-  if (supabase) {
-    try {
-      const { data: dbPlayers, error: errPlayers } = await supabase.from('players').select('*');
-      const { data: dbTeams, error: errTeams } = await supabase.from('teams').select('*');
-      if (!errPlayers && Array.isArray(dbPlayers) && dbPlayers.length > 0) {
-        return {
-          players: dbPlayers,
-          teams: Array.isArray(dbTeams) ? dbTeams : []
-        };
-      }
-    } catch (e) {
-      // fallback to blob
-    }
-  }
-
-  // 3. JsonBlob Fetch Fallback
+  // 3. JsonBlob Fallback
   try {
-    const res = await fetch(CLOUD_BLOB_URL + cacheBuster, { cache: 'no-store', headers: { 'Cache-Control': 'no-cache' } });
+    const res = await fetch(CLOUD_BLOB_URL, { cache: 'no-store' });
     if (res.ok) {
       const data = await res.json();
       if (data && (Array.isArray(data.players) || Array.isArray(data.teams))) {
@@ -121,68 +115,89 @@ export async function fetchCloudData() {
         };
       }
     }
-  } catch (err) {
-    console.warn("Cloud blob fetch warning:", err);
-  }
+  } catch (err) {}
 
   return { players: [], teams: [] };
 }
 
-// --- INSTANT CLOUD DATA SAVE ---
+// --- INSTANT REALTIME CLOUD DATA SAVE ---
 export async function saveCloudData(playersList, teamsList) {
   try {
-    const payload = {
-      players: playersList || [],
-      teams: teamsList || []
-    };
+    // 1. Sync Players to CRUD REST API
+    if (Array.isArray(playersList)) {
+      const existingRes = await fetch(`${CRUD_API_BASE}/players`);
+      let existingPlayers = existingRes.ok ? await existingRes.json() : [];
+      
+      for (const p of playersList) {
+        const found = existingPlayers.find(ep => ep.id === p.id);
+        if (!found) {
+          await fetch(`${CRUD_API_BASE}/players`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(p)
+          });
+        }
+      }
+    }
 
-    // 1. Save to Google Drive Realtime Database (Primary - 15GB Zero Rate Limit)
+    // 2. Sync Teams to CRUD REST API
+    if (Array.isArray(teamsList)) {
+      const existingTRes = await fetch(`${CRUD_API_BASE}/teams`);
+      let existingTeams = existingTRes.ok ? await existingTRes.json() : [];
+      
+      for (const t of teamsList) {
+        const found = existingTeams.find(et => et.id === t.id);
+        if (!found) {
+          await fetch(`${CRUD_API_BASE}/teams`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(t)
+          });
+        }
+      }
+    }
+
+    // 3. Backup to Google Drive Web App
+    const payload = { players: playersList || [], teams: teamsList || [] };
     saveToGoogleDriveScript(payload);
 
-    // 2. Save to secondary backup JSON blob
+    // 4. Backup to JsonBlob
     fetch(CLOUD_BLOB_URL, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
-    }).catch(err => console.warn("Cloud blob save warning:", err));
+    }).catch(e => {});
   } catch (err) {
     console.warn("Cloud save warning:", err);
   }
 }
 
-// --- SUPABASE SYNC HELPERS ---
-export async function syncPlayerToSupabase(playerData) {
-  if (!supabase) return;
-  try {
-    await supabase.from('players').upsert([playerData]);
-  } catch (err) {
-    // fallback active
-  }
-}
-
-export async function syncTeamToSupabase(teamData) {
-  if (!supabase) return;
-  try {
-    await supabase.from('teams').upsert([teamData]);
-  } catch (err) {
-    // fallback active
-  }
-}
-
+// --- DELETE HELPERS ---
 export async function deletePlayerFromSupabase(playerId) {
-  if (!supabase) return;
   try {
-    await supabase.from('players').delete().eq('id', playerId);
-  } catch (err) {
-    // fallback active
-  }
+    const existingRes = await fetch(`${CRUD_API_BASE}/players`);
+    if (existingRes.ok) {
+      const existingPlayers = await existingRes.json();
+      const target = existingPlayers.find(ep => ep.id === playerId);
+      if (target && target._id) {
+        await fetch(`${CRUD_API_BASE}/players/${target._id}`, { method: 'DELETE' });
+      }
+    }
+  } catch (e) {}
 }
 
 export async function deleteTeamFromSupabase(teamId) {
-  if (!supabase) return;
   try {
-    await supabase.from('teams').delete().eq('id', teamId);
-  } catch (err) {
-    // fallback active
-  }
+    const existingTRes = await fetch(`${CRUD_API_BASE}/teams`);
+    if (existingTRes.ok) {
+      const existingTeams = await existingTRes.json();
+      const target = existingTeams.find(et => et.id === teamId);
+      if (target && target._id) {
+        await fetch(`${CRUD_API_BASE}/teams/${target._id}`, { method: 'DELETE' });
+      }
+    }
+  } catch (e) {}
 }
+
+export async function syncPlayerToSupabase(playerData) {}
+export async function syncTeamToSupabase(teamData) {}
