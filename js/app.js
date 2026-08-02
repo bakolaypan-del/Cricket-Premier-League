@@ -1029,7 +1029,7 @@ function openPlayerRegisterFormModal() {
     const file = e.target.files[0];
     if (file) {
       plyPhotoFileObj = file;
-      plyPhotoDataUrl = await compressImage(file, 220, 220, 0.65);
+      plyPhotoDataUrl = await compressImage(file, 150, 150, 0.5);
       document.getElementById('ply-photo-preview-img').src = plyPhotoDataUrl;
       document.getElementById('ply-photo-preview-box').classList.remove('hidden');
     }
