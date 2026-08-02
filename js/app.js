@@ -20,8 +20,9 @@ function initApp() {
   renderCurrentView();
 
   const safeRenderCurrentView = () => {
-    // PROTECT ACTIVE USER FORMS: If any modal or form is open, DO NOT re-render or reset form data!
-    if (document.querySelector('.modal-overlay')) return;
+    // PROTECT ACTIVE REGISTRATION FORMS: Only block re-rendering if a user is actively typing in a registration form!
+    const isFillingRegForm = document.getElementById('player-reg-modal') || document.getElementById('team-reg-modal');
+    if (isFillingRegForm) return;
     renderCurrentView();
   };
 

@@ -94,14 +94,22 @@ class Store {
       const mergedTeamsStr = JSON.stringify(mergedTeams);
 
       if (localPlayersStr !== mergedPlayersStr) {
-        localStorage.setItem(STORAGE_KEYS.PLAYERS, mergedPlayersStr);
+        try {
+          localStorage.setItem(STORAGE_KEYS.PLAYERS, mergedPlayersStr);
+        } catch (quotaErr) {
+          console.warn("localStorage quota notice (using memory state):", quotaErr);
+        }
         if (!isUserFillingForm) {
           this.notify('players_updated');
         }
       }
 
       if (localTeamsStr !== mergedTeamsStr) {
-        localStorage.setItem(STORAGE_KEYS.TEAMS, mergedTeamsStr);
+        try {
+          localStorage.setItem(STORAGE_KEYS.TEAMS, mergedTeamsStr);
+        } catch (quotaErr) {
+          console.warn("localStorage quota notice (using memory state):", quotaErr);
+        }
         if (!isUserFillingForm) {
           this.notify('teams_updated');
         }
