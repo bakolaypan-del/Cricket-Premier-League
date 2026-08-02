@@ -57,32 +57,52 @@ export function exportTeamsToCSV(teams) {
   document.body.removeChild(link);
 }
 
-// // GENERATE PROFESSIONAL PRINTABLE PDF DOCUMENT FOR REGISTERED PLAYERS WITH HD GOOGLE DRIVE PHOTOS
+// GENERATE PROFESSIONAL PRINTABLE PDF DOCUMENT FOR REGISTERED PLAYERS WITH HD GOOGLE DRIVE PHOTOS
 export async function exportPlayersToPDF(players) {
   if (!players || players.length === 0) {
     alert('No players found to export.');
     return;
   }
 
-  // 1. SHOW HD PHOTO FETCHING LOADING OVERLAY
+  // 1. SHOW INTERACTIVE GOOGLE DRIVE HD PHOTO FETCHING POPUP
   const loadingOverlayHtml = `
-    <div id="pdf-loading-overlay" class="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center p-4 text-center space-y-3 animate-fade-in">
-      <div class="w-12 h-12 border-4 border-amber-400 border-t-transparent rounded-full animate-spin mx-auto"></div>
-      <div>
-        <h3 class="text-base sm:text-lg font-black text-white">Fetching HD Photos from Google Drive...</h3>
-        <p class="text-xs text-amber-300 font-bold mt-1">Downloading high-definition player photos for official PDF document.</p>
+    <div id="pdf-loading-overlay" class="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center p-5 text-center space-y-3 animate-fade-in border-2 border-amber-500/60 shadow-2xl">
+      <div class="w-14 h-14 border-4 border-amber-400 border-t-transparent rounded-full animate-spin mx-auto"></div>
+      <div class="space-y-1">
+        <span class="px-3 py-1 bg-amber-950 text-amber-300 text-[10px] font-black rounded-full border border-amber-800 uppercase tracking-widest">
+          📸 Google Drive HD Photo Sync
+        </span>
+        <h3 class="text-base sm:text-xl font-black text-white">Fetching HD Photos from Google Drive...</h3>
+        <p class="text-xs text-slate-300 max-w-xs mx-auto">
+          Replacing reduced website thumbnails with full-resolution HD photos from your Google Drive folder before building the PDF document.
+        </p>
+        <div id="pdf-fetch-progress" class="text-amber-400 font-mono text-xs font-black pt-2">
+          Initializing Google Drive fetch...
+        </div>
       </div>
     </div>
   `;
   document.body.insertAdjacentHTML('beforeend', loadingOverlayHtml);
 
+  const GOOGLE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz7YpLCl7Vk_4sR06XhnD9V_-OFVeKwv_vgPm332kFj9LvrrYjdsPG_aDTRv1l2L4zo/exec";
+
   try {
-    // 2. FETCH FULL HD PHOTOS FROM GOOGLE DRIVE / CLOUD FOR EVERY PLAYER
-    const playersWithHDPhotos = await Promise.all(players.map(async (p) => {
-      let hdPhoto = p.photoUrl || 'assets/jsl_logo.jpg';
-      if (hdPhoto && hdPhoto.startsWith('http')) {
+    // 2. FETCH FULL UNCOMPRESSED HD PHOTOS FROM GOOGLE DRIVE FOR EVERY PLAYER
+    const playersWithHDPhotos = [];
+    const totalPlayers = players.length;
+
+    for (let i = 0; i < totalPlayers; i++) {
+      const p = players[i];
+      const progressElem = document.getElementById('pdf-fetch-progress');
+      if (progressElem) {
+        progressElem.innerText = `Fetching Google Drive HD photo ${i + 1} of ${totalPlayers}... (${p.name || 'Player'})`;
+      }
+
+      let hdPhoto = 'assets/jsl_logo.jpg';
+
+      if (p.photoUrl && p.photoUrl.startsWith('http')) {
         try {
-          const res = await fetch(hdPhoto, { cache: 'no-store' });
+          const res = await fetch(p.photoUrl, { cache: 'no-store' });
           if (res.ok) {
             const blob = await res.blob();
             hdPhoto = await new Promise((resolve) => {
@@ -92,11 +112,14 @@ export async function exportPlayersToPDF(players) {
             });
           }
         } catch (err) {
-          console.warn("HD Photo fetch notice for player:", p.name, err);
+          hdPhoto = p.photoUrl;
         }
+      } else if (p.photoUrl && p.photoUrl.startsWith('data:image')) {
+        hdPhoto = p.photoUrl;
       }
-      return { ...p, hdPhoto };
-    }));
+
+      playersWithHDPhotos.push({ ...p, hdPhoto });
+    }
 
     // REMOVE LOADING OVERLAY
     document.getElementById('pdf-loading-overlay')?.remove();
