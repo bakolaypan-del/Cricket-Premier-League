@@ -1,4 +1,4 @@
-// Core Application Router & Registration Portal (Developer: Suman Kolay - 3 Stylish Logos Release)
+// Core Application Router & Registration Portal (Developer: Suman Kolay - Grand Night Stadium Glassmorphism)
 
 import { store } from './store.js';
 import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, printDigitalPass } from './export.js';
@@ -160,7 +160,7 @@ function renderCurrentView() {
   if (window.lucide) window.lucide.createIcons();
 }
 
-// --- FIRST PAGE LANDING (WITH 3 STYLISH LOGOS FOR JPL, JSL, KPL) ---
+// --- FIRST PAGE LANDING ---
 function renderFirstPageLanding(containerEl) {
   containerEl.innerHTML = `
     <div class="min-h-[50vh] flex flex-col items-center justify-center space-y-4 sm:space-y-6 animate-fade-in py-2 sm:py-6">
@@ -258,92 +258,109 @@ function openComingSoonModal(code, title, logoPath) {
   document.getElementById('ok-cs-btn')?.addEventListener('click', removeModal);
 }
 
-// --- JSL HUB (WITH STYLISH JSL LOGO) ---
+// --- JSL HUB (MATCHES FIRST SCREEN GRAND STADIUM GLASSMORPHISM LOOK 100%) ---
 function renderJSLHub(containerEl) {
   const teams = store.getTeams();
   const players = store.getPlayers();
 
   containerEl.innerHTML = `
-    <div class="space-y-3 animate-fade-in">
+    <div class="space-y-4 animate-fade-in max-w-4xl mx-auto py-2">
       
       <!-- Back Button & Header Bar -->
       <div class="flex items-center justify-between gap-2">
-        <button id="back-to-landing-btn" class="px-2.5 py-1 bg-slate-900/90 hover:bg-slate-800 text-slate-200 text-[10px] font-bold rounded-lg border border-slate-700 flex items-center gap-1">
-          <i data-lucide="arrow-left" class="w-3 h-3 text-amber-400"></i> Category Selector
+        <button id="back-to-landing-btn" class="px-3 py-1.5 bg-slate-900/90 hover:bg-slate-800 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 flex items-center gap-1.5 shadow-lg backdrop-blur-md">
+          <i data-lucide="arrow-left" class="w-3.5 h-3.5 text-amber-400"></i> Category Selector
         </button>
 
-        <span class="text-[10px] font-extrabold text-sky-400 bg-sky-950/60 px-2 py-0.5 rounded border border-sky-800">
-          JHANKRA SUPER LEAGUE 2026
+        <span class="text-[10px] sm:text-xs font-black text-sky-400 bg-slate-900/90 px-3 py-1 rounded-xl border border-sky-500/40 shadow-lg backdrop-blur-md">
+          🏆 JHANKRA SUPER LEAGUE 2026
         </span>
       </div>
 
-      <!-- ULTRA-COMPACT JSL HEADER POSTER STRIP WITH STYLISH JSL LOGO -->
-      <div class="jsl-header-strip p-2.5 space-y-1.5">
-        <div class="flex items-center gap-2.5">
-          <img src="assets/jsl_logo.jpg" alt="JSL Logo" class="w-9 h-9 rounded-lg object-cover border-2 border-sky-400 shadow-lg flex-shrink-0" />
+      <!-- GRAND STADIUM POSTER STRIP (MATCHES FIRST SCREEN GLOW & TYPOGRAPHY) -->
+      <div class="jsl-header-strip p-3 sm:p-4 space-y-3 border-2 border-sky-500/50 shadow-2xl">
+        <div class="flex items-center gap-3">
+          <img src="assets/jsl_logo.jpg" alt="JSL Logo" class="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl object-cover border-2 border-sky-400 shadow-xl flex-shrink-0" />
           <div>
             <div class="jsl-poster-title-navy">JHANKRA <span class="jsl-poster-title-red">SUPER LEAGUE</span></div>
-            <div class="text-[8px] font-bold text-slate-400 uppercase">8 TEAM TOURNAMENT • 29-31 AUG 2026 @ JHANKRA SCHOOL GROUND</div>
+            <div class="text-[9px] sm:text-xs font-extrabold text-sky-300 uppercase tracking-wide mt-0.5">
+              8 TEAM TOURNAMENT • 29, 30 & 31 AUG 2026 @ JHANKRA SCHOOL GROUND
+            </div>
           </div>
         </div>
 
-        <div class="flex flex-wrap items-center gap-1 text-[9px] font-extrabold pt-1 border-t border-slate-800">
-          <span class="px-2 py-0.5 bg-red-950/80 text-red-300 rounded border border-red-800">🏆 Winner: 35K | Runners: 25K</span>
-          <span class="px-2 py-0.5 bg-emerald-950/80 text-emerald-300 rounded border border-emerald-800">💰 Team Entry: 15K (8K Auction + 7K Fee)</span>
-          <span class="px-2 py-0.5 bg-slate-900 text-white rounded border border-slate-700">⚠️ Rules: Chandrakona PS Only</span>
-          <span class="px-2 py-0.5 bg-emerald-600 text-white rounded shadow">📞 Contact: Pintu Santra (89722144166)</span>
+        <!-- STYLISH GRADIENT PILL BADGES FOR PRIZE MONEY, FEES, RULES & CONTACT -->
+        <div class="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-700/60 text-[9px] sm:text-xs font-black">
+          <span class="px-2.5 py-1 bg-gradient-to-r from-red-600 to-amber-600 text-white rounded-lg shadow border border-red-400">
+            🏆 Winner: 35K | Runners: 25K
+          </span>
+          <span class="px-2.5 py-1 bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-lg shadow border border-emerald-400">
+            💰 Team Entry: 15K (8K Auction + 7K Fee)
+          </span>
+          <span class="px-2.5 py-1 bg-slate-900 text-amber-300 rounded-lg border border-amber-500/40 shadow">
+            ⚠️ Chandrakona PS Only
+          </span>
+          <span class="px-2.5 py-1 bg-sky-600 text-white rounded-lg shadow border border-sky-400">
+            📞 Contact: Pintu Santra (89722144166)
+          </span>
         </div>
       </div>
 
-      <!-- 3 HORIZONTAL COLUMNS (grid-cols-3 ON ALL DEVICES) -->
-      <div class="grid grid-cols-3 gap-2 sm:gap-4 items-start">
+      <!-- 3 HORIZONTAL COLUMNS (grid-cols-3 ON ALL DEVICES - MATCHES FIRST SCREEN GLASSMORPHISM CARDS) -->
+      <div class="grid grid-cols-3 gap-2 sm:gap-4 items-stretch">
         
-        <!-- COLUMN 1 (LEFT SIDE): REGISTERED TEAMS CARD (CLICK TO VIEW & SEARCH) -->
-        <div class="glass-card p-2 sm:p-3 text-center space-y-2 border border-slate-800">
-          <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-sky-950/80 text-sky-400 mx-auto flex items-center justify-center border border-sky-800">
-            <i data-lucide="shield" class="w-4 h-4 sm:w-5 sm:h-5"></i>
+        <!-- COLUMN 1 (LEFT SIDE): REGISTERED TEAMS CARD -->
+        <div class="glass-card p-2.5 sm:p-4 text-center space-y-3 border-2 border-sky-500/40 flex flex-col justify-between hover:border-sky-400">
+          <div class="space-y-2">
+            <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-sky-500 to-blue-700 text-white mx-auto flex items-center justify-center shadow-lg border border-sky-300">
+              <i data-lucide="shield" class="w-5 h-5 sm:w-6 sm:h-6"></i>
+            </div>
+
+            <div>
+              <div class="text-[9px] sm:text-xs font-black text-slate-300 uppercase tracking-wide leading-tight">Registered Teams</div>
+              <div class="text-lg sm:text-3xl font-black text-sky-400 mt-1 drop-shadow-md">${teams.length}</div>
+            </div>
           </div>
 
-          <div>
-            <div class="text-[9px] sm:text-xs font-black text-white leading-tight">Total Registered Teams</div>
-            <div class="text-base sm:text-2xl font-black text-sky-400 mt-0.5">${teams.length}</div>
-          </div>
-
-          <button id="open-teams-modal-btn" class="w-full py-1.5 bg-slate-900 hover:bg-slate-800 text-sky-300 border border-sky-700/50 text-[9px] sm:text-xs font-bold rounded-lg shadow-sm flex items-center justify-center gap-1">
-            <i data-lucide="search" class="w-3 h-3"></i> View Teams
+          <button id="open-teams-modal-btn" class="w-full py-2 bg-slate-900/90 hover:bg-slate-800 text-sky-300 border border-sky-500/50 text-[9px] sm:text-xs font-black rounded-xl shadow-lg flex items-center justify-center gap-1 transition-all">
+            <i data-lucide="search" class="w-3.5 h-3.5"></i> View Teams
           </button>
         </div>
 
-        <!-- COLUMN 2 (MIDDLE): REGISTERED PLAYER LIST CARD (CLICK TO VIEW, SEARCH & PDF) -->
-        <div class="glass-card p-2 sm:p-3 text-center space-y-2 border border-slate-800">
-          <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-amber-950/80 text-amber-400 mx-auto flex items-center justify-center border border-amber-800">
-            <i data-lucide="users" class="w-4 h-4 sm:w-5 sm:h-5"></i>
+        <!-- COLUMN 2 (MIDDLE): REGISTERED PLAYER LIST CARD -->
+        <div class="glass-card p-2.5 sm:p-4 text-center space-y-3 border-2 border-amber-500/40 flex flex-col justify-between hover:border-amber-400">
+          <div class="space-y-2">
+            <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 text-slate-950 mx-auto flex items-center justify-center shadow-lg border border-amber-300 font-black">
+              <i data-lucide="users" class="w-5 h-5 sm:w-6 sm:h-6"></i>
+            </div>
+
+            <div>
+              <div class="text-[9px] sm:text-xs font-black text-slate-300 uppercase tracking-wide leading-tight">Registered Players</div>
+              <div class="text-lg sm:text-3xl font-black text-amber-400 mt-1 drop-shadow-md">${players.length}</div>
+            </div>
           </div>
 
-          <div>
-            <div class="text-[9px] sm:text-xs font-black text-white leading-tight">Total Registered Player List</div>
-            <div class="text-base sm:text-2xl font-black text-amber-400 mt-0.5">${players.length}</div>
-          </div>
-
-          <button id="open-players-modal-btn" class="w-full py-1.5 bg-slate-900 hover:bg-slate-800 text-amber-300 border border-amber-700/50 text-[9px] sm:text-xs font-bold rounded-lg shadow-sm flex items-center justify-center gap-1">
-            <i data-lucide="search" class="w-3 h-3"></i> View Players
+          <button id="open-players-modal-btn" class="w-full py-2 bg-slate-900/90 hover:bg-slate-800 text-amber-300 border border-amber-500/50 text-[9px] sm:text-xs font-black rounded-xl shadow-lg flex items-center justify-center gap-1 transition-all">
+            <i data-lucide="search" class="w-3.5 h-3.5"></i> View Players
           </button>
         </div>
 
-        <!-- COLUMN 3 (RIGHT SIDE): REGISTRATION HERE CARD (ONLY REGISTRATION TRIGGER) -->
-        <div class="glass-card p-2 sm:p-3 text-center space-y-2 border border-amber-500/40 bg-gradient-to-b from-slate-900/90 to-slate-950">
-          <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-amber-500 text-slate-950 mx-auto flex items-center justify-center font-black shadow-lg">
-            ✍️
-          </div>
+        <!-- COLUMN 3 (RIGHT SIDE): REGISTRATION HERE CARD -->
+        <div class="glass-card p-2.5 sm:p-4 text-center space-y-3 border-2 border-red-500/50 flex flex-col justify-between bg-gradient-to-b from-slate-900/90 via-slate-950 to-slate-950 hover:border-red-400">
+          <div class="space-y-2">
+            <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-gradient-to-br from-red-500 to-amber-500 text-white mx-auto flex items-center justify-center font-black shadow-lg border border-amber-300">
+              ✍️
+            </div>
 
-          <div>
-            <div class="text-[9px] sm:text-xs font-black text-white leading-tight">Team / Player Registration</div>
-            <div class="text-[8px] font-bold text-amber-400">Click Below to Apply</div>
+            <div>
+              <div class="text-[9px] sm:text-xs font-black text-white uppercase tracking-wide leading-tight">Registration Here</div>
+              <div class="text-[8px] sm:text-[10px] font-bold text-amber-400 mt-0.5">Team / Player Application</div>
+            </div>
           </div>
 
           <!-- PERSISTENT BLINKING REGISTRATION BUTTON -->
-          <button id="jsl-right-reg-btn" class="btn-blink-always w-full py-1.5 bg-gradient-to-r from-amber-500 to-red-600 text-white font-black text-[9px] sm:text-xs rounded-lg shadow-xl flex items-center justify-center gap-1">
-            <i data-lucide="edit-3" class="w-3 h-3"></i> Registration Here
+          <button id="jsl-right-reg-btn" class="btn-blink-always w-full py-2 bg-gradient-to-r from-amber-500 via-red-600 to-amber-500 text-white font-black text-[9px] sm:text-xs rounded-xl shadow-xl flex items-center justify-center gap-1">
+            <i data-lucide="edit-3" class="w-3.5 h-3.5"></i> Registration Here
           </button>
         </div>
 
