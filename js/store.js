@@ -58,7 +58,7 @@ class Store {
     }
   }
 
-  // --- STABLE CLOUD SYNC (PREVENTS BLINKING & PRESERVES NEW REGISTRATIONS) ---
+  // --- STABLE CLOUD SYNC (FIREBASE SINGLE SOURCE OF TRUTH) ---
   async syncWithCloud() {
     if (this.isSyncing) return;
     this.isSyncing = true;
@@ -68,46 +68,30 @@ class Store {
       // If a registration modal or form is open, DO NOT interrupt the user!
       const isUserFillingForm = document.getElementById('player-reg-modal') || document.getElementById('team-reg-modal');
 
-      // 1. PLAYERS MASTER CLOUD SYNC
       const localPlayers = JSON.parse(localStorage.getItem(STORAGE_KEYS.PLAYERS) || '[]');
       const cloudPlayers = Array.isArray(cloudData.players) ? cloudData.players : [];
 
-      const now = Date.now();
-      const unpushedLocalPlayers = localPlayers.filter(lp => {
-        const timestamp = parseInt((lp.id || '').replace('ply-', ''), 10) || 0;
-        const isRecent = (now - timestamp) < 60000;
-        const inCloud = cloudPlayers.some(cp => cp.id === lp.id);
-        return isRecent && !inCloud;
-      });
+      const localTeams = JSON.parse(localStorage.getItem(STORAGE_KEYS.TEAMS) || '[]');
+      const cloudTeams = Array.isArray(cloudData.teams) ? cloudData.teams : [];
 
-      const masterPlayersList = [...cloudPlayers, ...unpushedLocalPlayers];
-      const mergedPlayers = masterPlayersList.map((p, idx) => ({
+      // 1. PLAYERS DIRECT FIREBASE MASTER SYNC
+      const mergedPlayers = cloudPlayers.map((p, idx) => ({
         ...p,
         serialNo: idx + 1,
         regNo: p.regNo || `JSL-2026-${String(idx + 1).padStart(3, '0')}`
       }));
 
-      // 2. TEAMS MASTER CLOUD SYNC
-      const localTeams = JSON.parse(localStorage.getItem(STORAGE_KEYS.TEAMS) || '[]');
-      const cloudTeams = Array.isArray(cloudData.teams) ? cloudData.teams : [];
-
-      const unpushedLocalTeams = localTeams.filter(lt => {
-        const timestamp = parseInt((lt.id || '').replace('team-', ''), 10) || 0;
-        const isRecent = (now - timestamp) < 60000;
-        const inCloud = cloudTeams.some(ct => ct.id === lt.id);
-        return isRecent && !inCloud;
-      });
-
-      const masterTeamsList = [...cloudTeams, ...unpushedLocalTeams];
-      const mergedTeams = masterTeamsList.map((t, idx) => ({
+      // 2. TEAMS DIRECT FIREBASE MASTER SYNC
+      const mergedTeams = cloudTeams.map((t, idx) => ({
         ...t,
         serialNo: idx + 1
       }));
 
-      // Auto-push any unpushed recent entries to cloud
-      if (unpushedLocalPlayers.length > 0 || unpushedLocalTeams.length > 0) {
-        saveCloudData(mergedPlayers, mergedTeams);
-      }
+      const localPlayersStr = JSON.stringify(localPlayers);
+      const mergedPlayersStr = JSON.stringify(mergedPlayers);
+
+      const localTeamsStr = JSON.stringify(localTeams);
+      const mergedTeamsStr = JSON.stringify(mergedTeams);
 
       if (localPlayersStr !== mergedPlayersStr) {
         localStorage.setItem(STORAGE_KEYS.PLAYERS, mergedPlayersStr);
