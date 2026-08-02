@@ -3,7 +3,7 @@
 import { store } from './store.js';
 import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, printDigitalPass, openUserGuidePDF } from './export.js';
 import { renderAdminDashboard } from './admin.js';
-import { uploadImageToSupabaseStorage } from './supabase.js';
+import { uploadImageToSupabaseStorage, uploadImageToGoogleDrive } from './supabase.js';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
 
@@ -1097,15 +1097,15 @@ function openPlayerRegisterFormModal() {
       let finalProofUrl = plyProofDataUrl;
 
       if (plyPhotoFileObj) {
-        const uploaded = await uploadImageToSupabaseStorage(plyPhotoFileObj, 'photos');
+        const uploaded = await uploadImageToGoogleDrive(plyPhotoFileObj, 'photos') || await uploadImageToSupabaseStorage(plyPhotoFileObj, 'photos');
         if (uploaded) finalPhotoUrl = uploaded;
       }
       if (plyAadharFileObj) {
-        const uploaded = await uploadImageToSupabaseStorage(plyAadharFileObj, 'aadhar');
+        const uploaded = await uploadImageToGoogleDrive(plyAadharFileObj, 'aadhar') || await uploadImageToSupabaseStorage(plyAadharFileObj, 'aadhar');
         if (uploaded) finalAadharUrl = uploaded;
       }
       if (plyProofFileObj) {
-        const uploaded = await uploadImageToSupabaseStorage(plyProofFileObj, 'receipts');
+        const uploaded = await uploadImageToGoogleDrive(plyProofFileObj, 'receipts') || await uploadImageToSupabaseStorage(plyProofFileObj, 'receipts');
         if (uploaded) finalProofUrl = uploaded;
       }
 

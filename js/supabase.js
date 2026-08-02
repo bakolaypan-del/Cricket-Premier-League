@@ -33,6 +33,49 @@ export async function saveToGoogleDriveScript(payload) {
   }
 }
 
+// --- UPLOAD DIRECT TO GOOGLE DRIVE (RETURNS PUBLIC HD GOOGLE CDN IMAGE URL) ---
+export async function uploadImageToGoogleDrive(file, folderName = 'photos') {
+  if (!file || !GOOGLE_APPS_SCRIPT_URL) return null;
+
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = async (e) => {
+      const base64Data = e.target.result;
+      const payload = {
+        action: 'upload_image',
+        folder: folderName,
+        fileName: `${folderName}_${Date.now()}_${file.name ? file.name.replace(/[^a-zA-Z0-9._-]/g, '_') : 'image.jpg'}`,
+        mimeType: file.type || 'image/jpeg',
+        base64: base64Data
+      };
+
+      try {
+        const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+          body: JSON.stringify(payload)
+        });
+
+        if (response.ok) {
+          const resData = await response.json();
+          if (resData && resData.directUrl) {
+            console.log("Uploaded image directly to Google Drive:", resData.directUrl);
+            resolve(resData.directUrl);
+            return;
+          }
+        }
+      } catch (err) {
+        console.warn("Google Drive direct upload notice:", err);
+      }
+
+      resolve(null);
+    };
+
+    reader.onerror = () => resolve(null);
+    reader.readAsDataURL(file);
+  });
+}
+
 // --- SUPABASE STORAGE UPLOAD FOR ORIGINAL HD QUALITY IMAGES ---
 export async function uploadImageToSupabaseStorage(file, folder = 'documents') {
   if (!file) return null;
@@ -89,7 +132,10 @@ export async function fetchCloudData() {
 // Helper: Keep Realtime Database payloads ultra-lightweight (< 15 KB per player) for instant 0.05-second sync across all devices
 function sanitizePlayerForRest(p) {
   const pCopy = { ...p };
-  if (pCopy.photoUrl && pCopy.photoUrl.length > 25000 && !pCopy.photoUrl.startsWith('http')) {
+  if (pCopy.photoUrl && pCopy.photoUrl.startsWith('http')) {
+    return pCopy;
+  }
+  if (pCopy.photoUrl && pCopy.photoUrl.length > 25000) {
     pCopy.photoUrl = pCopy.photoUrl.substring(0, 20000);
   }
   if (pCopy.aadharBackUrl && pCopy.aadharBackUrl.length > 25000 && !pCopy.aadharBackUrl.startsWith('http')) {
