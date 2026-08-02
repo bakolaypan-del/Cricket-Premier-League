@@ -50,55 +50,85 @@ class Store {
     }
   }
 
-  // --- STABLE CLOUD SYNC (PREVENTS BLINKING & DOES NOT INTERRUPT ACTIVE REGISTRATION FORMS) ---
+  // --- STABLE CLOUD SYNC (PREVENTS BLINKING & DOES NOT DELETE LOCAL UNPUSHED DATA) ---
   async syncWithCloud() {
+    if (this.isSyncing) return;
+    this.isSyncing = true;
     try {
       const cloudData = await fetchCloudData();
       
       // If a registration modal or form is open, DO NOT interrupt the user!
       const isUserFillingForm = document.getElementById('player-reg-modal') || document.getElementById('team-reg-modal');
-      if (isUserFillingForm) return;
 
-      // 1. Sync Players ONLY if valid array received from cloud
-      if (Array.isArray(cloudData.players)) {
-        // Auto-ensure strictly sequential serial numbers (1, 2, 3...)
-        const reindexedPlayers = cloudData.players.map((p, idx) => ({
-          ...p,
-          serialNo: idx + 1,
-          regNo: p.regNo || `JSL-2026-${String(idx + 1).padStart(3, '0')}`
-        }));
+      // 1. SMART NON-DESTRUCTIVE MERGE FOR PLAYERS
+      const localPlayers = JSON.parse(localStorage.getItem(STORAGE_KEYS.PLAYERS) || '[]');
+      const cloudPlayers = Array.isArray(cloudData.players) ? cloudData.players : [];
 
-        const localPlayersStr = localStorage.getItem(STORAGE_KEYS.PLAYERS) || '[]';
-        const cloudPlayersStr = JSON.stringify(reindexedPlayers);
-        
-        if (localPlayersStr !== cloudPlayersStr) {
-          localStorage.setItem(STORAGE_KEYS.PLAYERS, cloudPlayersStr);
+      const playerMap = new Map();
+      localPlayers.forEach(p => {
+        if (p && p.id) playerMap.set(p.id, p);
+      });
+      cloudPlayers.forEach(cp => {
+        if (cp && cp.id) {
+          const existing = playerMap.get(cp.id);
+          playerMap.set(cp.id, { ...existing, ...cp });
+        }
+      });
+
+      const mergedPlayers = Array.from(playerMap.values()).map((p, idx) => ({
+        ...p,
+        serialNo: idx + 1,
+        regNo: p.regNo || `JSL-2026-${String(idx + 1).padStart(3, '0')}`
+      }));
+
+      const localPlayersStr = JSON.stringify(localPlayers);
+      const mergedPlayersStr = JSON.stringify(mergedPlayers);
+      
+      if (localPlayersStr !== mergedPlayersStr) {
+        localStorage.setItem(STORAGE_KEYS.PLAYERS, mergedPlayersStr);
+        if (!isUserFillingForm) {
           this.notify('players_updated');
         }
       }
 
-      // 2. Sync Teams ONLY if valid array received from cloud
-      if (Array.isArray(cloudData.teams)) {
-        const reindexedTeams = cloudData.teams.map((t, idx) => ({
-          ...t,
-          serialNo: idx + 1
-        }));
+      // 2. SMART NON-DESTRUCTIVE MERGE FOR TEAMS
+      const localTeams = JSON.parse(localStorage.getItem(STORAGE_KEYS.TEAMS) || '[]');
+      const cloudTeams = Array.isArray(cloudData.teams) ? cloudData.teams : [];
 
-        const localTeamsStr = localStorage.getItem(STORAGE_KEYS.TEAMS) || '[]';
-        const cloudTeamsStr = JSON.stringify(reindexedTeams);
-        
-        if (localTeamsStr !== cloudTeamsStr) {
-          localStorage.setItem(STORAGE_KEYS.TEAMS, cloudTeamsStr);
+      const teamMap = new Map();
+      localTeams.forEach(t => {
+        if (t && t.id) teamMap.set(t.id, t);
+      });
+      cloudTeams.forEach(ct => {
+        if (ct && ct.id) {
+          const existing = teamMap.get(ct.id);
+          teamMap.set(ct.id, { ...existing, ...ct });
+        }
+      });
+
+      const mergedTeams = Array.from(teamMap.values()).map((t, idx) => ({
+        ...t,
+        serialNo: idx + 1
+      }));
+
+      const localTeamsStr = JSON.stringify(localTeams);
+      const mergedTeamsStr = JSON.stringify(mergedTeams);
+      
+      if (localTeamsStr !== mergedTeamsStr) {
+        localStorage.setItem(STORAGE_KEYS.TEAMS, mergedTeamsStr);
+        if (!isUserFillingForm) {
           this.notify('teams_updated');
         }
       }
     } catch (err) {
       console.warn("Cloud single source sync error:", err);
+    } finally {
+      this.isSyncing = false;
     }
   }
 
   startCloudPolling() {
-    // Poll Cloud Database every 5 seconds without interrupting active forms
+    // Poll Cloud Database every 5 seconds safely without interrupting active forms
     setInterval(() => {
       this.syncWithCloud();
     }, 5000);

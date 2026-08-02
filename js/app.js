@@ -3,6 +3,7 @@
 import { store } from './store.js';
 import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, printDigitalPass, openUserGuidePDF } from './export.js';
 import { renderAdminDashboard } from './admin.js';
+import { uploadImageToSupabaseStorage } from './supabase.js';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
 
@@ -1020,9 +1021,14 @@ function openPlayerRegisterFormModal() {
   const removeModal = () => document.getElementById('player-reg-modal')?.remove();
   document.getElementById('close-player-modal-btn')?.addEventListener('click', removeModal);
 
+  let plyPhotoFileObj = null;
+  let plyAadharFileObj = null;
+  let plyProofFileObj = null;
+
   document.getElementById('ply-photo-file')?.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (file) {
+      plyPhotoFileObj = file;
       plyPhotoDataUrl = await compressImage(file, 220, 220, 0.65);
       document.getElementById('ply-photo-preview-img').src = plyPhotoDataUrl;
       document.getElementById('ply-photo-preview-box').classList.remove('hidden');
@@ -1032,6 +1038,7 @@ function openPlayerRegisterFormModal() {
   document.getElementById('ply-aadhar-file')?.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (file) {
+      plyAadharFileObj = file;
       plyAadharDataUrl = await compressImage(file, 250, 180, 0.6);
       document.getElementById('ply-aadhar-preview-img').src = plyAadharDataUrl;
       document.getElementById('ply-aadhar-preview-box').classList.remove('hidden');
@@ -1041,20 +1048,44 @@ function openPlayerRegisterFormModal() {
   document.getElementById('ply-proof-file')?.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (file) {
+      plyProofFileObj = file;
       plyProofDataUrl = await compressImage(file, 250, 180, 0.6);
       document.getElementById('ply-proof-preview-img').src = plyProofDataUrl;
       document.getElementById('ply-proof-preview-box').classList.remove('hidden');
     }
   });
 
-  document.getElementById('player-registration-form')?.addEventListener('submit', (e) => {
+  document.getElementById('player-registration-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
+    const submitBtn = document.getElementById('submit-player-reg-btn');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerText = "Uploading HD Documents & Submitting...";
+    }
+
     try {
       const name = document.getElementById('ply-name').value;
       const phone = document.getElementById('ply-phone').value;
       const address = document.getElementById('ply-address').value;
       const category = document.getElementById('ply-category').value;
       const upiRef = document.getElementById('ply-upi-ref').value;
+
+      let finalPhotoUrl = plyPhotoDataUrl;
+      let finalAadharUrl = plyAadharDataUrl;
+      let finalProofUrl = plyProofDataUrl;
+
+      if (plyPhotoFileObj) {
+        const uploaded = await uploadImageToSupabaseStorage(plyPhotoFileObj, 'photos');
+        if (uploaded) finalPhotoUrl = uploaded;
+      }
+      if (plyAadharFileObj) {
+        const uploaded = await uploadImageToSupabaseStorage(plyAadharFileObj, 'aadhar');
+        if (uploaded) finalAadharUrl = uploaded;
+      }
+      if (plyProofFileObj) {
+        const uploaded = await uploadImageToSupabaseStorage(plyProofFileObj, 'receipts');
+        if (uploaded) finalProofUrl = uploaded;
+      }
 
       const newPlayer = store.registerPlayer({
         name,
@@ -1063,10 +1094,10 @@ function openPlayerRegisterFormModal() {
         category,
         role: category,
         battingStyle: category.includes('Left') ? 'Left-Hand Bat' : 'Right-Hand Bat',
-        photoUrl: plyPhotoDataUrl,
-        aadharBackUrl: plyAadharDataUrl,
+        photoUrl: finalPhotoUrl,
+        aadharBackUrl: finalAadharUrl,
         paymentRef: upiRef,
-        paymentProofUrl: plyProofDataUrl,
+        paymentProofUrl: finalProofUrl,
         basePrice: 200
       });
 
@@ -1078,6 +1109,10 @@ function openPlayerRegisterFormModal() {
     } catch (err) {
       console.error("Player Registration Error:", err);
       alert("Registration Error: " + err.message);
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerText = "Submit Player Registration";
+      }
     }
   });
 }

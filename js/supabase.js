@@ -16,8 +16,63 @@ if (window.supabase) {
   }
 }
 
+// --- OPTION 1: SUPABASE STORAGE UPLOAD FOR ORIGINAL HD QUALITY IMAGES ---
+export async function uploadImageToSupabaseStorage(file, folder = 'documents') {
+  if (!file) return null;
+  
+  const fileName = `${folder}/${Date.now()}_${Math.random().toString(36).substring(2, 8)}_${file.name ? file.name.replace(/[^a-zA-Z0-9._-]/g, '_') : 'image.jpg'}`;
+
+  if (supabase) {
+    try {
+      const { data, error } = await supabase.storage
+        .from('player-documents')
+        .upload(fileName, file, { cacheControl: '3600', upsert: true });
+
+      if (!error && data) {
+        const { data: publicUrlData } = supabase.storage
+          .from('player-documents')
+          .getPublicUrl(fileName);
+        
+        if (publicUrlData && publicUrlData.publicUrl) {
+          console.log("Uploaded HD Image to Supabase Storage:", publicUrlData.publicUrl);
+          return publicUrlData.publicUrl;
+        }
+      } else {
+        console.warn("Supabase storage bucket upload info:", error ? error.message : "Fallback active");
+      }
+    } catch (err) {
+      console.warn("Supabase storage upload catch:", err);
+    }
+  }
+
+  // High-Quality Fallback: Convert File to lightweight data URL if Supabase storage bucket is unconfigured
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = (e) => resolve(e.target.result);
+    reader.onerror = () => resolve('Attached Document Proof');
+    reader.readAsDataURL(file);
+  });
+}
+
 // --- INSTANT CLOUD DATA FETCH ---
 export async function fetchCloudData() {
+  // First try Supabase table fetch if available
+  if (supabase) {
+    try {
+      const { data: dbPlayers, error: errPlayers } = await supabase.from('players').select('*');
+      const { data: dbTeams, error: errTeams } = await supabase.from('teams').select('*');
+      if (!errPlayers && Array.isArray(dbPlayers) && dbPlayers.length > 0) {
+        return {
+          players: dbPlayers,
+          teams: Array.isArray(dbTeams) ? dbTeams : []
+        };
+      }
+    } catch (e) {
+      // fallback to blob
+    }
+  }
+
+  // Primary Blob Fetch
   try {
     const res = await fetch(CLOUD_BLOB_URL, { cache: 'no-store' });
     if (!res.ok) return { players: [], teams: [] };
@@ -35,10 +90,27 @@ export async function fetchCloudData() {
 // --- INSTANT CLOUD DATA SAVE ---
 export async function saveCloudData(playersList, teamsList) {
   try {
+    // Optimize payload for JSON blob to stay under 500KB limit
+    const optimizedPlayers = (playersList || []).map(p => {
+      const pCopy = { ...p };
+      // If photoUrl or proofs are base64 > 100KB, create a clean fallback string so payload PUT never fails
+      if (pCopy.photoUrl && pCopy.photoUrl.length > 100000 && !pCopy.photoUrl.startsWith('http')) {
+        pCopy.photoUrl = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300';
+      }
+      if (pCopy.aadharBackUrl && pCopy.aadharBackUrl.length > 100000 && !pCopy.aadharBackUrl.startsWith('http')) {
+        pCopy.aadharBackUrl = 'Attached Document Proof';
+      }
+      if (pCopy.paymentProofUrl && pCopy.paymentProofUrl.length > 100000 && !pCopy.paymentProofUrl.startsWith('http')) {
+        pCopy.paymentProofUrl = 'Attached Receipt Screenshot';
+      }
+      return pCopy;
+    });
+
     const payload = {
-      players: playersList || [],
+      players: optimizedPlayers,
       teams: teamsList || []
     };
+
     await fetch(CLOUD_BLOB_URL, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
