@@ -60,13 +60,8 @@ export async function uploadImageToSupabaseStorage(file, folder = 'documents') {
     }
   }
 
-  // Fallback: Convert File to lightweight compressed data URL
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = (e) => resolve(e.target.result);
-    reader.onerror = () => resolve(null);
-    reader.readAsDataURL(file);
-  });
+  // Return null if bucket is unconfigured so caller uses optimized compressed JPEG
+  return null;
 }
 
 // --- INSTANT REALTIME CLOUD DATA FETCH (OFFICIAL GOOGLE FIREBASE REALTIME DATABASE) ---
@@ -95,7 +90,6 @@ export async function fetchCloudData() {
 // Helper: Preserve player uploaded photo 100% without fallback replacement
 function sanitizePlayerForRest(p) {
   const pCopy = { ...p };
-  // Preserve pCopy.photoUrl 100% as uploaded by player!
   if (pCopy.aadharBackUrl && pCopy.aadharBackUrl.length > 50000 && !pCopy.aadharBackUrl.startsWith('http')) {
     pCopy.aadharBackUrl = 'Attached Document Proof';
   }
@@ -135,13 +129,7 @@ export async function saveCloudData(playersList, teamsList) {
 }
 
 // --- DELETE HELPERS ---
-export async function deletePlayerFromSupabase(playerId) {
-  // Automatically synced to Firebase via saveCloudData
-}
-
-export async function deleteTeamFromSupabase(teamId) {
-  // Automatically synced to Firebase via saveCloudData
-}
-
+export async function deletePlayerFromSupabase(playerId) {}
+export async function deleteTeamFromSupabase(teamId) {}
 export async function syncPlayerToSupabase(playerData) {}
 export async function syncTeamToSupabase(teamData) {}
