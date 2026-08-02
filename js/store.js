@@ -1,4 +1,4 @@
-// LocalStorage & Supabase Reactive State Store (Developer: Suman Kolay)
+// LocalStorage & Broadcast Real-Time State Store (Developer: Suman Kolay)
 
 import { INITIAL_LEAGUES, INITIAL_TEAMS, INITIAL_PLAYERS, INITIAL_FIXTURES } from './data.js';
 import { syncPlayerToSupabase, syncTeamToSupabase } from './supabase.js';
@@ -15,6 +15,7 @@ const STORAGE_KEYS = {
 class Store {
   constructor() {
     this.init();
+    this.setupRealtimeListeners();
   }
 
   init() {
@@ -37,6 +38,28 @@ class Store {
         id: null,
         phone: null
       }));
+    }
+  }
+
+  setupRealtimeListeners() {
+    // 1. Cross-tab storage change listener
+    window.addEventListener('storage', (e) => {
+      if (e.key === STORAGE_KEYS.PLAYERS) this.notify('players_updated');
+      if (e.key === STORAGE_KEYS.TEAMS) this.notify('teams_updated');
+    });
+
+    // 2. BroadcastChannel cross-window sync
+    if ('BroadcastChannel' in window) {
+      try {
+        this.broadcastChannel = new BroadcastChannel('cpl_realtime_sync_channel');
+        this.broadcastChannel.onmessage = (event) => {
+          if (event.data && event.data.type) {
+            window.dispatchEvent(new CustomEvent(event.data.type));
+          }
+        };
+      } catch (err) {
+        console.warn("BroadcastChannel fallback active:", err);
+      }
     }
   }
 
@@ -283,6 +306,13 @@ class Store {
 
   notify(eventName) {
     window.dispatchEvent(new CustomEvent(eventName));
+    if (this.broadcastChannel) {
+      try {
+        this.broadcastChannel.postMessage({ type: eventName });
+      } catch (err) {
+        // ignore fallback
+      }
+    }
   }
 }
 
