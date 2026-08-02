@@ -7,3 +7,5 @@ Thumbs.db
 .vs/
 .idea/
 *.tmp
+
+.vercel

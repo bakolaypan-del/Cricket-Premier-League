@@ -1,4 +1,4 @@
-/* Clean Professional White Background Design System for Cricket Premier League (Developer: Suman Kolay) */
+/* Mobile-Optimized Professional White Background Design System (Developer: Suman Kolay) */
 
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Teko:wght@700&family=JetBrains+Mono:wght@400;600&display=swap');
 
@@ -13,6 +13,11 @@
   --brand-purple: #7C3AED;
 }
 
+* {
+  box-sizing: border-box;
+  touch-action: manipulation;
+}
+
 body {
   font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
   background-color: var(--bg-main);
@@ -24,13 +29,21 @@ body {
   color: var(--text-main);
   min-height: 100vh;
   margin: 0;
+  overflow-x: hidden; /* Prevent horizontal scroll on mobile */
+  padding-bottom: 70px; /* Space for mobile sticky action bar */
+}
+
+@media (min-width: 768px) {
+  body {
+    padding-bottom: 0;
+  }
 }
 
 /* Glass & Card Utilities */
 .glass-card {
   background: var(--bg-card);
   border: 1px solid var(--border-light);
-  border-radius: 1.5rem;
+  border-radius: 1.25rem;
   box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.06), 0 4px 6px -2px rgba(0, 0, 0, 0.02);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
@@ -40,50 +53,67 @@ body {
   box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.1);
 }
 
-/* Three Category Square Boxes */
+/* Three Category Square Boxes - Fully Responsive */
 .square-category-box {
   aspect-ratio: 1 / 1;
   background: linear-gradient(145deg, #FFFFFF 0%, #F8FAFC 100%);
   border: 2px solid var(--border-light);
-  border-radius: 2rem;
+  border-radius: 1.5rem;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 2rem;
+  padding: 1.25rem;
   text-align: center;
   position: relative;
   overflow: hidden;
   cursor: pointer;
   box-shadow: 0 10px 25px -5px rgba(15, 23, 42, 0.06);
-  transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  transition: all 0.35s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+
+@media (min-width: 640px) {
+  .square-category-box {
+    border-radius: 2rem;
+    padding: 2rem;
+  }
 }
 
 .square-category-box:hover {
-  transform: translateY(-8px) scale(1.03);
-  box-shadow: 0 25px 40px -10px rgba(15, 23, 42, 0.12), 0 0 20px rgba(245, 158, 11, 0.15);
+  transform: translateY(-6px) scale(1.02);
+  box-shadow: 0 20px 35px -10px rgba(15, 23, 42, 0.12), 0 0 20px rgba(245, 158, 11, 0.15);
   border-color: var(--brand-gold);
 }
 
 /* Logos */
 .category-logo-badge {
-  width: 100px;
-  height: 100px;
-  border-radius: 1.75rem;
+  width: 75px;
+  height: 75px;
+  border-radius: 1.25rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 2.5rem;
+  font-size: 2rem;
   font-weight: 900;
   letter-spacing: -1px;
-  box-shadow: 0 12px 25px -5px rgba(0, 0, 0, 0.15);
-  margin-bottom: 1.5rem;
+  box-shadow: 0 10px 20px -5px rgba(0, 0, 0, 0.12);
+  margin-bottom: 1rem;
   position: relative;
   transition: transform 0.3s ease;
 }
 
+@media (min-width: 640px) {
+  .category-logo-badge {
+    width: 95px;
+    height: 95px;
+    border-radius: 1.75rem;
+    font-size: 2.5rem;
+    margin-bottom: 1.5rem;
+  }
+}
+
 .square-category-box:hover .category-logo-badge {
-  transform: scale(1.1) rotate(-3deg);
+  transform: scale(1.08) rotate(-3deg);
 }
 
 .logo-jpl {
@@ -104,22 +134,29 @@ body {
   border: 3px solid #A78BFA;
 }
 
-/* JSL Poster Styles */
+/* JSL Poster Styles - Fluid Typography on Mobile */
 .jsl-poster-container {
   background: #FFFFFF;
-  border: 3px solid #0F172A;
-  border-radius: 1.75rem;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.12);
+  border: 2px solid #0F172A;
+  border-radius: 1.25rem;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.1);
   overflow: hidden;
   position: relative;
+}
+
+@media (min-width: 640px) {
+  .jsl-poster-container {
+    border-width: 3px;
+    border-radius: 1.75rem;
+  }
 }
 
 .jsl-poster-title-navy {
   font-family: 'Teko', 'Outfit', sans-serif;
   color: #0B192C;
-  font-size: 3rem;
-  line-height: 0.9;
-  letter-spacing: 2px;
+  font-size: 2.25rem;
+  line-height: 0.95;
+  letter-spacing: 1px;
   text-transform: uppercase;
   font-weight: 900;
 }
@@ -127,14 +164,19 @@ body {
 .jsl-poster-title-red {
   font-family: 'Teko', 'Outfit', sans-serif;
   color: #DC2626;
-  font-size: 3.5rem;
-  line-height: 0.9;
+  font-size: 2.75rem;
+  line-height: 0.95;
   letter-spacing: 1px;
   text-transform: uppercase;
   font-weight: 900;
 }
 
-@media (min-width: 768px) {
+@media (min-width: 640px) {
+  .jsl-poster-title-navy { font-size: 3.5rem; letter-spacing: 2px; }
+  .jsl-poster-title-red { font-size: 4.25rem; }
+}
+
+@media (min-width: 1024px) {
   .jsl-poster-title-navy { font-size: 4.5rem; }
   .jsl-poster-title-red { font-size: 5.5rem; }
 }
@@ -144,12 +186,12 @@ body {
   0%, 100% {
     opacity: 1;
     transform: scale(1);
-    box-shadow: 0 0 15px rgba(245, 158, 11, 0.7);
+    box-shadow: 0 0 12px rgba(245, 158, 11, 0.7);
   }
   50% {
-    opacity: 0.75;
-    transform: scale(1.03);
-    box-shadow: 0 0 30px rgba(220, 38, 38, 0.9);
+    opacity: 0.85;
+    transform: scale(1.02);
+    box-shadow: 0 0 25px rgba(220, 38, 38, 0.9);
   }
 }
 
@@ -159,8 +201,8 @@ body {
 
 /* STATUS CIRCLE INDICATORS */
 .status-circle-red {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   background-color: #EF476F;
   border-radius: 50%;
   border: 2px solid #FFFFFF;
@@ -169,8 +211,8 @@ body {
 }
 
 .status-circle-green {
-  width: 16px;
-  height: 16px;
+  width: 14px;
+  height: 14px;
   background-color: #10B981;
   border-radius: 50%;
   border: 2px solid #FFFFFF;
@@ -180,29 +222,44 @@ body {
 
 /* Medium Square Photo for Players */
 .player-square-photo {
-  width: 110px;
-  height: 110px;
-  border-radius: 1.25rem;
+  width: 90px;
+  height: 90px;
+  border-radius: 1rem;
   object-fit: cover;
   border: 3px solid #E2E8F0;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.08);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.08);
 }
 
-/* Modal Overlay */
+@media (min-width: 640px) {
+  .player-square-photo {
+    width: 110px;
+    height: 110px;
+    border-radius: 1.25rem;
+  }
+}
+
+/* Modal Overlay & Responsive Mobile Fit */
 .modal-overlay {
-  background: rgba(15, 23, 42, 0.7);
-  backdrop-filter: blur(8px);
+  background: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.modal-content-container {
+  max-height: 92vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(12px); }
+  from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
 .animate-fade-in {
-  animation: fadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: fadeIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
 }
 
-::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: #F1F5F9; }
 ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
