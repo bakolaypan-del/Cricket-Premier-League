@@ -1,7 +1,7 @@
-// Core Application Router & Registration Portal (Developer: Suman Kolay - Clean Player Profile Release)
+// Core Application Router & Registration Portal (Developer: Suman Kolay - User Guide PDF Release)
 
 import { store } from './store.js';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, printDigitalPass } from './export.js';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, printDigitalPass, openUserGuidePDF } from './export.js';
 import { renderAdminDashboard } from './admin.js';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
@@ -334,9 +334,9 @@ function renderJSLHub(containerEl) {
           <i data-lucide="arrow-left" class="w-3.5 h-3.5 text-amber-400"></i> Category Selector
         </button>
 
-        <span class="text-[10px] sm:text-xs font-black text-sky-400 bg-slate-900/90 px-3 py-1 rounded-xl border border-sky-500/40 shadow-lg backdrop-blur-md">
-          🏆 JHANKRA SUPER LEAGUE 2026
-        </span>
+        <button id="open-user-guide-pdf-btn" class="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-extrabold text-[10px] sm:text-xs rounded-xl border border-emerald-400 shadow-lg flex items-center gap-1.5 transition-all">
+          <i data-lucide="book-open" class="w-3.5 h-3.5 text-amber-300"></i> 📖 User Guide PDF (English & বাংলা)
+        </button>
       </div>
 
       <!-- GRAND STADIUM POSTER STRIP -->
@@ -432,6 +432,7 @@ function renderJSLHub(containerEl) {
   `;
 
   document.getElementById('back-to-landing-btn')?.addEventListener('click', () => navigate('landing'));
+  document.getElementById('open-user-guide-pdf-btn')?.addEventListener('click', openUserGuidePDF);
   document.getElementById('jsl-right-reg-btn')?.addEventListener('click', openRegistrationTypeModal);
 
   // Click-to-Open Modal Listeners (Ensure options do not open automatically!)
