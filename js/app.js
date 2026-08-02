@@ -1,4 +1,4 @@
-// Core Application Router & Registration Portal (Developer: Suman Kolay - Concept 4 Neon Glassmorphism)
+// Core Application Router & Registration Portal (Developer: Suman Kolay - 3 Stylish Logos Release)
 
 import { store } from './store.js';
 import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, printDigitalPass } from './export.js';
@@ -74,7 +74,7 @@ function compressImage(file, maxWidth = 250, maxHeight = 250, quality = 0.65) {
   });
 }
 
-// --- UPPER HEADER (CONCEPT 4 NEON GLASS) ---
+// --- UPPER HEADER ---
 function renderNavbar() {
   const navbarEl = document.getElementById('app-navbar');
   if (!navbarEl) return;
@@ -109,7 +109,7 @@ function renderNavbar() {
   if (window.lucide) window.lucide.createIcons();
 }
 
-// --- MOBILE STICKY BOTTOM BAR (CONCEPT 4 NEON GLASS) ---
+// --- MOBILE STICKY BOTTOM BAR ---
 function renderMobileBottomNav() {
   const bottomNavEl = document.getElementById('mobile-bottom-nav');
   if (!bottomNavEl) return;
@@ -160,7 +160,7 @@ function renderCurrentView() {
   if (window.lucide) window.lucide.createIcons();
 }
 
-// --- FIRST PAGE LANDING (CONCEPT 4 NEON GLASSMORPHISM NIGHT) ---
+// --- FIRST PAGE LANDING (WITH 3 STYLISH LOGOS FOR JPL, JSL, KPL) ---
 function renderFirstPageLanding(containerEl) {
   containerEl.innerHTML = `
     <div class="min-h-[50vh] flex flex-col items-center justify-center space-y-4 sm:space-y-6 animate-fade-in py-2 sm:py-6">
@@ -187,26 +187,26 @@ function renderFirstPageLanding(containerEl) {
         </span>
       </div>
 
-      <!-- 3 CATEGORY SQUARE BOXES IN A SINGLE HORIZONTAL ROW (grid-cols-3) -->
+      <!-- 3 CATEGORY SQUARE BOXES WITH 3 STYLISH LOGO IMAGES (grid-cols-3) -->
       <div class="grid grid-cols-3 gap-2 sm:gap-6 md:gap-8 w-full max-w-3xl px-2 sm:px-4">
         
-        <!-- JPL SQUARE BOX -->
-        <div id="btn-click-jpl" class="square-category-box group border-amber-500/50">
-          <div class="category-logo-badge logo-jpl">JPL</div>
+        <!-- JPL STYLISH SQUARE BOX -->
+        <div id="btn-click-jpl" class="square-category-box group border-amber-500/60">
+          <img src="assets/jpl_logo.jpg" alt="JPL Logo" class="category-stylish-logo-img logo-border-jpl" />
           <h3 class="text-[11px] sm:text-2xl font-black text-white group-hover:text-amber-400 transition-colors">JPL</h3>
           <p class="text-[8px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider hidden sm:block">Jhankra Premier League</p>
         </div>
 
-        <!-- JSL SQUARE BOX -->
+        <!-- JSL STYLISH SQUARE BOX -->
         <div id="btn-click-jsl" class="square-category-box group border-sky-400/60">
-          <div class="category-logo-badge logo-jsl">JSL</div>
+          <img src="assets/jsl_logo.jpg" alt="JSL Logo" class="category-stylish-logo-img logo-border-jsl" />
           <h3 class="text-[11px] sm:text-2xl font-black text-white group-hover:text-sky-400 transition-colors">JSL</h3>
           <p class="text-[8px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider hidden sm:block">Jhankra Super League</p>
         </div>
 
-        <!-- KPL SQUARE BOX -->
+        <!-- KPL STYLISH SQUARE BOX -->
         <div id="btn-click-kpl" class="square-category-box group border-purple-400/60">
-          <div class="category-logo-badge logo-kpl">KPL</div>
+          <img src="assets/kpl_logo.jpg" alt="KPL Logo" class="category-stylish-logo-img logo-border-kpl" />
           <h3 class="text-[11px] sm:text-2xl font-black text-white group-hover:text-purple-400 transition-colors">KPL</h3>
           <p class="text-[8px] sm:text-xs font-bold text-slate-400 uppercase tracking-wider hidden sm:block">Kota Premier League</p>
         </div>
@@ -216,13 +216,13 @@ function renderFirstPageLanding(containerEl) {
     </div>
   `;
 
-  document.getElementById('btn-click-jpl')?.addEventListener('click', () => openComingSoonModal('JPL', 'Jhankra Premier League'));
-  document.getElementById('btn-click-kpl')?.addEventListener('click', () => openComingSoonModal('KPL', 'Kota Premier League'));
+  document.getElementById('btn-click-jpl')?.addEventListener('click', () => openComingSoonModal('JPL', 'Jhankra Premier League', 'assets/jpl_logo.jpg'));
+  document.getElementById('btn-click-kpl')?.addEventListener('click', () => openComingSoonModal('KPL', 'Kota Premier League', 'assets/kpl_logo.jpg'));
   document.getElementById('btn-click-jsl')?.addEventListener('click', () => navigate('jsl-hub'));
 }
 
-// --- COMING SOON MODAL (CONCEPT 4 NEON GLASS) ---
-function openComingSoonModal(code, title) {
+// --- COMING SOON MODAL WITH STYLISH LOGOS ---
+function openComingSoonModal(code, title, logoPath) {
   const modalHtml = `
     <div id="coming-soon-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3">
       <div class="bg-slate-900/95 backdrop-blur-2xl max-w-xs w-full p-4 text-center relative space-y-3 animate-fade-in rounded-2xl shadow-2xl border ${code === 'JPL' ? 'border-amber-400/60' : 'border-purple-400/60'}">
@@ -230,9 +230,7 @@ function openComingSoonModal(code, title) {
           <i data-lucide="x" class="w-4 h-4"></i>
         </button>
 
-        <div class="w-12 h-12 rounded-xl mx-auto ${code === 'JPL' ? 'logo-jpl' : 'logo-kpl'} flex items-center justify-center font-black text-xl shadow-md">
-          ${code}
-        </div>
+        <img src="${logoPath}" class="w-14 h-14 rounded-xl mx-auto border-2 ${code === 'JPL' ? 'border-amber-400' : 'border-purple-400'} shadow-lg object-cover" />
 
         <div>
           <h3 class="text-lg font-black text-white">${title}</h3>
@@ -260,7 +258,7 @@ function openComingSoonModal(code, title) {
   document.getElementById('ok-cs-btn')?.addEventListener('click', removeModal);
 }
 
-// --- JSL HUB (CONCEPT 4 NEON GLASS + 3 HORIZONTAL COLUMNS BELOW) ---
+// --- JSL HUB (WITH STYLISH JSL LOGO) ---
 function renderJSLHub(containerEl) {
   const teams = store.getTeams();
   const players = store.getPlayers();
@@ -279,12 +277,10 @@ function renderJSLHub(containerEl) {
         </span>
       </div>
 
-      <!-- ULTRA-COMPACT JSL HEADER POSTER STRIP (CONCEPT 4 NEON GLASS) -->
+      <!-- ULTRA-COMPACT JSL HEADER POSTER STRIP WITH STYLISH JSL LOGO -->
       <div class="jsl-header-strip p-2.5 space-y-1.5">
-        <div class="flex items-center gap-2">
-          <div class="w-8 h-8 rounded bg-gradient-to-b from-blue-600 to-red-600 flex items-center justify-center text-white font-black text-xs shadow-lg flex-shrink-0 border border-blue-400">
-            JSL
-          </div>
+        <div class="flex items-center gap-2.5">
+          <img src="assets/jsl_logo.jpg" alt="JSL Logo" class="w-9 h-9 rounded-lg object-cover border-2 border-sky-400 shadow-lg flex-shrink-0" />
           <div>
             <div class="jsl-poster-title-navy">JHANKRA <span class="jsl-poster-title-red">SUPER LEAGUE</span></div>
             <div class="text-[8px] font-bold text-slate-400 uppercase">8 TEAM TOURNAMENT • 29-31 AUG 2026 @ JHANKRA SCHOOL GROUND</div>
@@ -364,7 +360,7 @@ function renderJSLHub(containerEl) {
   document.getElementById('open-players-modal-btn')?.addEventListener('click', () => openRegisteredPlayersModal(players));
 }
 
-// --- REGISTERED TEAMS MODAL WITH SEARCH OPTION (CONCEPT 4 NEON GLASS) ---
+// --- REGISTERED TEAMS MODAL WITH SEARCH OPTION ---
 function openRegisteredTeamsModal(allTeams) {
   let filteredTeams = [...allTeams];
 
@@ -442,7 +438,7 @@ function openRegisteredTeamsModal(allTeams) {
   });
 }
 
-// --- REGISTERED PLAYERS MODAL WITH SEARCH OPTION & DOWNLOAD PDF BUTTON (CONCEPT 4 NEON GLASS) ---
+// --- REGISTERED PLAYERS MODAL WITH SEARCH OPTION & DOWNLOAD PDF BUTTON ---
 function openRegisteredPlayersModal(allPlayers) {
   let filteredPlayers = [...allPlayers];
 
@@ -540,7 +536,7 @@ function openRegisteredPlayersModal(allPlayers) {
   });
 }
 
-// --- RENDER PLAYER CARDS (CONCEPT 4 NEON GLASS) ---
+// --- RENDER PLAYER CARDS ---
 function renderPlayerCardsWithSerial(playersList) {
   return playersList.map((p, idx) => {
     const serialNum = p.serialNo || (idx + 1);
@@ -581,7 +577,7 @@ function renderPlayerCardsWithSerial(playersList) {
   }).join('');
 }
 
-// --- FULL PLAYER PROFILE MODAL (CONCEPT 4 NEON GLASS) ---
+// --- FULL PLAYER PROFILE MODAL ---
 function openFullPlayerProfileModal(player) {
   if (!player) return;
   const isApproved = player.paymentStatus === 'APPROVED';

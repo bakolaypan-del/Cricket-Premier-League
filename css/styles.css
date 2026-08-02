@@ -104,50 +104,44 @@ body {
   border-color: var(--brand-gold);
 }
 
-.category-logo-badge {
-  width: 38px;
-  height: 38px;
-  border-radius: 0.6rem;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1rem;
-  font-weight: 900;
-  letter-spacing: -0.5px;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.4);
-  margin-bottom: 0.25rem;
+/* STYLISH LOGO IMAGES FOR JPL, JSL, KPL */
+.category-stylish-logo-img {
+  width: 42px;
+  height: 42px;
+  border-radius: 0.65rem;
+  object-fit: cover;
+  margin-bottom: 0.3rem;
   flex-shrink: 0;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
+  transition: transform 0.25s ease;
 }
 
 @media (min-width: 640px) {
-  .category-logo-badge {
+  .category-stylish-logo-img {
     width: 75px;
     height: 75px;
     border-radius: 1.25rem;
-    font-size: 2rem;
     margin-bottom: 0.75rem;
   }
 }
 
-.logo-jpl {
-  background: linear-gradient(135deg, #FF9900 0%, #FF5500 100%);
-  color: #FFFFFF;
+.square-category-box:hover .category-stylish-logo-img {
+  transform: scale(1.08);
+}
+
+.logo-border-jpl {
   border: 2px solid #F59E0B;
-  box-shadow: 0 0 20px rgba(245, 158, 11, 0.7);
+  box-shadow: 0 0 16px rgba(245, 158, 11, 0.7);
 }
 
-.logo-jsl {
-  background: linear-gradient(135deg, #0284C7 0%, #0369A1 100%);
-  color: #FFFFFF;
+.logo-border-jsl {
   border: 2px solid #38BDF8;
-  box-shadow: 0 0 20px rgba(56, 189, 248, 0.7);
+  box-shadow: 0 0 16px rgba(56, 189, 248, 0.7);
 }
 
-.logo-kpl {
-  background: linear-gradient(135deg, #7C3AED 0%, #5B21B6 100%);
-  color: #FFFFFF;
+.logo-border-kpl {
   border: 2px solid #A78BFA;
-  box-shadow: 0 0 20px rgba(167, 139, 250, 0.7);
+  box-shadow: 0 0 16px rgba(167, 139, 250, 0.7);
 }
 
 /* JSL Ultra-Compact Header Strip - Night Stadium Glass */
@@ -245,7 +239,7 @@ body {
   }
 }
 
-/* Modal Overlay & Mobile Fit - Concept 4 Night Stadium Glass */
+/* Modal Overlay & Mobile Fit */
 .modal-overlay {
   background: rgba(3, 7, 18, 0.88);
   backdrop-filter: blur(12px);
