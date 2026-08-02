@@ -239,14 +239,17 @@ class Store {
     try {
       localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
     } catch (err) {
-      console.warn("Storage quota limit reached, stripping heavy image buffers:", err);
+      console.warn("Storage quota limit reached, trimming local document buffers:", err);
       const compactPlayers = players.map(p => ({
         ...p,
-        photoUrl: p.photoUrl && p.photoUrl.length > 500000 ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300' : p.photoUrl,
-        aadharBackUrl: 'Attached Document Proof',
-        paymentProofUrl: 'Attached Receipt Screenshot'
+        aadharBackUrl: p.aadharBackUrl && p.aadharBackUrl.length > 50000 ? 'Attached Document Proof' : p.aadharBackUrl,
+        paymentProofUrl: p.paymentProofUrl && p.paymentProofUrl.length > 50000 ? 'Attached Receipt Screenshot' : p.paymentProofUrl
       }));
-      localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(compactPlayers));
+      try {
+        localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(compactPlayers));
+      } catch (e) {
+        console.warn("LocalStorage quota full, saved to cloud and Google Drive");
+      }
     }
 
     saveCloudData(players, this.getTeams());
@@ -466,8 +469,24 @@ class Store {
   }
 
   setUserRole(role, name = 'User', playerDetails = null) {
-    const user = { role, name, playerDetails };
-    localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
+    let cleanPlayerDetails = playerDetails;
+    if (playerDetails) {
+      cleanPlayerDetails = {
+        id: playerDetails.id,
+        name: playerDetails.name,
+        phone: playerDetails.phone,
+        category: playerDetails.category || playerDetails.role,
+        serialNo: playerDetails.serialNo,
+        regNo: playerDetails.regNo,
+        paymentStatus: playerDetails.paymentStatus
+      };
+    }
+    const user = { role, name, playerDetails: cleanPlayerDetails };
+    try {
+      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
+    } catch (err) {
+      console.warn("User storage quota fallback:", err);
+    }
     this.notify('user_updated');
     return user;
   }
