@@ -436,9 +436,9 @@ function renderJSLHub(containerEl) {
   document.getElementById('open-user-guide-pdf-btn')?.addEventListener('click', openUserGuidePDF);
   document.getElementById('jsl-right-reg-btn')?.addEventListener('click', openRegistrationTypeModal);
 
-  // Click-to-Open Modal Listeners (Ensure options do not open automatically!)
-  document.getElementById('open-teams-modal-btn')?.addEventListener('click', () => openRegisteredTeamsModal(teams));
-  document.getElementById('open-players-modal-btn')?.addEventListener('click', () => openRegisteredPlayersModal(players));
+  // Click-to-Open Modal Listeners (Dynamically fetch latest store state on every click!)
+  document.getElementById('open-teams-modal-btn')?.addEventListener('click', () => openRegisteredTeamsModal(store.getTeams()));
+  document.getElementById('open-players-modal-btn')?.addEventListener('click', () => openRegisteredPlayersModal(store.getPlayers()));
 }
 
 // --- REGISTERED TEAMS MODAL WITH MEDIUM SQUARE LOGO CARDS (NO NESTED SHAPES) ---
@@ -536,7 +536,8 @@ function openRegisteredTeamsModal(allTeams) {
 }
 
 // --- REGISTERED PLAYERS MODAL WITH MEDIUM SQUARE PHOTO CARDS (NO NESTED SHAPES) ---
-function openRegisteredPlayersModal(allPlayers) {
+function openRegisteredPlayersModal(playersList) {
+  let allPlayers = playersList && playersList.length > 0 ? playersList : store.getPlayers();
   let filteredPlayers = [...allPlayers];
 
   const renderPlayerListContent = () => {
