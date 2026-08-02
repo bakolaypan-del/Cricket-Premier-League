@@ -1,4 +1,4 @@
-/* Professional Square Category White Theme (Developer: Suman Kolay) */
+/* Compact 3-Column White Theme Design (Developer: Suman Kolay) */
 
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Teko:wght@700&family=JetBrains+Mono:wght@400;600&display=swap');
 
@@ -43,73 +43,76 @@ body {
 .glass-card {
   background: var(--bg-card);
   border: 1px solid var(--border-light);
-  border-radius: 1rem;
+  border-radius: 0.85rem;
   box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.04);
   transition: all 0.25s ease;
 }
 
 @media (min-width: 640px) {
   .glass-card {
-    border-radius: 1.25rem;
-    box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.06);
+    border-radius: 1.15rem;
+    box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.06);
   }
+}
+
+.glass-card:hover {
+  border-color: rgba(245, 158, 11, 0.4);
 }
 
 /* 3 CATEGORY SQUARE BOXES - ALWAYS IN A ROW & ALWAYS SQUARE SHAPE */
 .square-category-box {
-  aspect-ratio: 1 / 1 !important; /* Force exact square shape on mobile & desktop */
+  aspect-ratio: 1 / 1 !important;
   background: linear-gradient(145deg, #FFFFFF 0%, #F8FAFC 100%);
   border: 2px solid var(--border-light);
-  border-radius: 1rem;
+  border-radius: 0.85rem;
   display: flex !important;
   flex-direction: column !important;
   align-items: center !important;
   justify-content: center !important;
-  padding: 0.5rem;
+  padding: 0.4rem;
   text-align: center;
   position: relative;
   overflow: hidden;
   cursor: pointer;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.05);
-  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.04);
+  transition: all 0.25s ease;
 }
 
 @media (min-width: 640px) {
   .square-category-box {
-    border-radius: 1.75rem;
-    padding: 1.5rem;
+    border-radius: 1.5rem;
+    padding: 1.25rem;
   }
 }
 
 .square-category-box:hover {
-  transform: translateY(-4px) scale(1.02);
-  box-shadow: 0 12px 25px -5px rgba(15, 23, 42, 0.12);
+  transform: translateY(-3px);
+  box-shadow: 0 10px 20px -4px rgba(15, 23, 42, 0.1);
   border-color: var(--brand-gold);
 }
 
-/* Logos inside Square Boxes */
 .category-logo-badge {
-  width: 44px;
-  height: 44px;
-  border-radius: 0.75rem;
+  width: 40px;
+  height: 40px;
+  border-radius: 0.65rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.15rem;
+  font-size: 1.1rem;
   font-weight: 900;
   letter-spacing: -0.5px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-  margin-bottom: 0.4rem;
+  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
+  margin-bottom: 0.3rem;
   flex-shrink: 0;
 }
 
 @media (min-width: 640px) {
   .category-logo-badge {
-    width: 85px;
-    height: 85px;
-    border-radius: 1.5rem;
-    font-size: 2.25rem;
-    margin-bottom: 1rem;
+    width: 80px;
+    height: 80px;
+    border-radius: 1.35rem;
+    font-size: 2.1rem;
+    margin-bottom: 0.75rem;
   }
 }
 
@@ -131,27 +134,27 @@ body {
   border: 2px solid #A78BFA;
 }
 
-/* JSL Poster Styles - Mobile Responsive */
+/* JSL Ultra Compact Poster Banner */
 .jsl-poster-container {
   background: #FFFFFF;
-  border: 2px solid #0F172A;
-  border-radius: 1rem;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
+  border: 1.5px solid #0F172A;
+  border-radius: 0.85rem;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.05);
   overflow: hidden;
 }
 
 @media (min-width: 640px) {
   .jsl-poster-container {
-    border-width: 3px;
-    border-radius: 1.5rem;
+    border-width: 2px;
+    border-radius: 1.25rem;
   }
 }
 
 .jsl-poster-title-navy {
   font-family: 'Teko', 'Outfit', sans-serif;
   color: #0B192C;
-  font-size: 1.6rem;
-  line-height: 0.95;
+  font-size: 1.45rem;
+  line-height: 0.9;
   letter-spacing: 0.5px;
   text-transform: uppercase;
   font-weight: 900;
@@ -160,21 +163,16 @@ body {
 .jsl-poster-title-red {
   font-family: 'Teko', 'Outfit', sans-serif;
   color: #DC2626;
-  font-size: 1.95rem;
-  line-height: 0.95;
+  font-size: 1.75rem;
+  line-height: 0.9;
   letter-spacing: 0.5px;
   text-transform: uppercase;
   font-weight: 900;
 }
 
 @media (min-width: 640px) {
-  .jsl-poster-title-navy { font-size: 3.25rem; letter-spacing: 1.5px; }
-  .jsl-poster-title-red { font-size: 4rem; }
-}
-
-@media (min-width: 1024px) {
-  .jsl-poster-title-navy { font-size: 4rem; }
-  .jsl-poster-title-red { font-size: 4.75rem; }
+  .jsl-poster-title-navy { font-size: 2.75rem; }
+  .jsl-poster-title-red { font-size: 3.35rem; }
 }
 
 /* PERSISTENT BLINKING ANIMATION */
@@ -182,12 +180,12 @@ body {
   0%, 100% {
     opacity: 1;
     transform: scale(1);
-    box-shadow: 0 0 10px rgba(245, 158, 11, 0.6);
+    box-shadow: 0 0 8px rgba(245, 158, 11, 0.6);
   }
   50% {
     opacity: 0.85;
     transform: scale(1.02);
-    box-shadow: 0 0 18px rgba(220, 38, 38, 0.8);
+    box-shadow: 0 0 15px rgba(220, 38, 38, 0.8);
   }
 }
 
@@ -197,41 +195,41 @@ body {
 
 /* STATUS CIRCLES */
 .status-circle-red {
-  width: 11px;
-  height: 11px;
+  width: 10px;
+  height: 10px;
   background-color: #EF476F;
   border-radius: 50%;
   border: 1.5px solid #FFFFFF;
-  box-shadow: 0 0 5px rgba(239, 71, 111, 0.8);
+  box-shadow: 0 0 4px rgba(239, 71, 111, 0.8);
   display: inline-block;
 }
 
 .status-circle-green {
-  width: 11px;
-  height: 11px;
+  width: 10px;
+  height: 10px;
   background-color: #10B981;
   border-radius: 50%;
   border: 1.5px solid #FFFFFF;
-  box-shadow: 0 0 5px rgba(16, 185, 129, 0.8);
+  box-shadow: 0 0 4px rgba(16, 185, 129, 0.8);
   display: inline-block;
 }
 
-/* Medium Square Photo for Players */
+/* Compact Player Photo */
 .player-square-photo {
-  width: 65px;
-  height: 65px;
-  border-radius: 0.65rem;
+  width: 60px;
+  height: 60px;
+  border-radius: 0.5rem;
   object-fit: cover;
-  border: 2px solid #E2E8F0;
-  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.06);
+  border: 1.5px solid #E2E8F0;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
 }
 
 @media (min-width: 640px) {
   .player-square-photo {
-    width: 95px;
-    height: 95px;
-    border-radius: 1rem;
-    border-width: 3px;
+    width: 85px;
+    height: 85px;
+    border-radius: 0.85rem;
+    border-width: 2px;
   }
 }
 
@@ -249,12 +247,12 @@ body {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
+  from { opacity: 0; transform: translateY(6px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
 .animate-fade-in {
-  animation: fadeIn 0.25s ease-out forwards;
+  animation: fadeIn 0.2s ease-out forwards;
 }
 
 ::-webkit-scrollbar { width: 5px; height: 5px; }
