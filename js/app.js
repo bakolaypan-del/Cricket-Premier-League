@@ -669,7 +669,7 @@ function renderPlayerCardsWithSerial(playersList) {
         </div>
 
         <!-- MEDIUM SQUARE FORMAT PICTURE WITH BORDER (NO NESTED SHAPE) -->
-        <img src="${p.photoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300'}" class="medium-square-photo mb-1.5" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300'" />
+        <img src="${p.photoUrl || 'assets/jsl_logo.jpg'}" class="medium-square-photo mb-1.5" />
 
         <!-- LOWER NAME & CATEGORY BELOW PICTURE -->
         <div class="space-y-0.5 mb-2 w-full">
@@ -701,7 +701,7 @@ function openFullPlayerProfileModal(player) {
 
         <!-- LARGE SIZE PICTURE WITH CRISP BORDER -->
         <div class="pt-1">
-          <img src="${player.photoUrl}" class="w-32 h-32 sm:w-36 sm:h-36 rounded-2xl mx-auto object-cover border-2 border-amber-400 shadow-2xl" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300'" />
+          <img src="${player.photoUrl || 'assets/jsl_logo.jpg'}" class="w-32 h-32 sm:w-36 sm:h-36 rounded-2xl mx-auto object-cover border-2 border-amber-400 shadow-2xl" />
         </div>
 
         <!-- PLAYER NAME & CATEGORY -->

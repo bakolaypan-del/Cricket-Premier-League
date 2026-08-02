@@ -129,19 +129,13 @@ export async function fetchCloudData() {
   return { players: [], teams: [] };
 }
 
-// Helper: Keep Realtime Database payloads ultra-lightweight (< 15 KB per player) for instant 0.05-second sync across all devices
+// Helper: Keep Realtime Database payloads ultra-lightweight while preserving original photo URLs 100%
 function sanitizePlayerForRest(p) {
   const pCopy = { ...p };
-  if (pCopy.photoUrl && pCopy.photoUrl.startsWith('http')) {
-    return pCopy;
-  }
-  if (pCopy.photoUrl && pCopy.photoUrl.length > 25000) {
-    pCopy.photoUrl = pCopy.photoUrl.substring(0, 20000);
-  }
-  if (pCopy.aadharBackUrl && pCopy.aadharBackUrl.length > 25000 && !pCopy.aadharBackUrl.startsWith('http')) {
+  if (pCopy.aadharBackUrl && pCopy.aadharBackUrl.length > 30000 && !pCopy.aadharBackUrl.startsWith('http')) {
     pCopy.aadharBackUrl = 'Attached Document Proof';
   }
-  if (pCopy.paymentProofUrl && pCopy.paymentProofUrl.length > 25000 && !pCopy.paymentProofUrl.startsWith('http')) {
+  if (pCopy.paymentProofUrl && pCopy.paymentProofUrl.length > 30000 && !pCopy.paymentProofUrl.startsWith('http')) {
     pCopy.paymentProofUrl = 'Attached Receipt Screenshot';
   }
   return pCopy;
