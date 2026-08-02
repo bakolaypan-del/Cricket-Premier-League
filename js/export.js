@@ -57,86 +57,136 @@ export function exportTeamsToCSV(teams) {
   document.body.removeChild(link);
 }
 
-// GENERATE PROFESSIONAL PRINTABLE PDF DOCUMENT FOR REGISTERED PLAYERS WITH HD PHOTOS
-export function exportPlayersToPDF(players) {
+// // GENERATE PROFESSIONAL PRINTABLE PDF DOCUMENT FOR REGISTERED PLAYERS WITH HD GOOGLE DRIVE PHOTOS
+export async function exportPlayersToPDF(players) {
   if (!players || players.length === 0) {
     alert('No players found to export.');
     return;
   }
 
-  const printWindow = window.open('', '_blank');
-  if (!printWindow) {
-    alert('Please allow popups to download the PDF.');
-    return;
-  }
-
-  const rowsHtml = players.map((p, idx) => `
-    <tr>
-      <td style="text-align: center; font-weight: bold;">S-${p.serialNo || (idx + 1)}</td>
-      <td style="text-align: center; width: 75px;">
-        <img src="${p.photoUrl || 'assets/jsl_logo.jpg'}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 8px; border: 1.5px solid #0F172A; box-shadow: 0 2px 4px rgba(0,0,0,0.15);" />
-      </td>
-      <td style="font-weight: bold; color: #0F172A;">${p.name}</td>
-      <td style="color: #0284C7; font-weight: bold;">${p.category || p.role || 'Player'}</td>
-      <td style="font-family: monospace;">${p.phone || 'N/A'}</td>
-      <td style="font-size: 11px;">${p.address || 'Chandrakona Town PS'}</td>
-      <td style="text-align: center; font-weight: bold; color: ${p.paymentStatus === 'APPROVED' ? '#10B981' : '#EF476F'};">
-        ${p.paymentStatus === 'APPROVED' ? 'APPROVED' : 'PENDING'}
-      </td>
-    </tr>
-  `).join('');
-
-  const html = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>JSL 2026 - Registered Players List PDF</title>
-      <style>
-        body { font-family: 'Helvetica Neue', Arial, sans-serif; padding: 20px; color: #1E293B; }
-        .header-box { text-align: center; border-bottom: 2px solid #0F172A; padding-bottom: 15px; margin-bottom: 20px; }
-        .title { font-size: 24px; font-weight: 900; color: #0B192C; margin: 0; }
-        .subtitle { font-size: 14px; font-weight: bold; color: #DC2626; margin-top: 4px; }
-        .meta { font-size: 11px; color: #64748B; margin-top: 6px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
-        th, td { border: 1px solid #CBD5E1; padding: 8px; text-align: left; vertical-align: middle; }
-        th { background-color: #0F172A; color: white; font-weight: bold; text-align: center; }
-        tr:nth-child(even) { background-color: #F8FAFC; }
-        .footer { margin-top: 30px; text-align: center; font-size: 10px; color: #94A3B8; border-top: 1px solid #E2E8F0; padding-top: 10px; }
-      </style>
-    </head>
-    <body>
-      <div class="header-box">
-        <h1 class="title">JHANKRA SUPER LEAGUE (JSL 2026)</h1>
-        <div class="subtitle">Official Registered Players Directory (HD Printable List)</div>
-        <div class="meta">Generated: ${new Date().toLocaleString()} • Total Players: ${players.length}</div>
+  // 1. SHOW HD PHOTO FETCHING LOADING OVERLAY
+  const loadingOverlayHtml = `
+    <div id="pdf-loading-overlay" class="fixed inset-0 z-50 bg-slate-950/90 backdrop-blur-md flex flex-col items-center justify-center p-4 text-center space-y-3 animate-fade-in">
+      <div class="w-12 h-12 border-4 border-amber-400 border-t-transparent rounded-full animate-spin mx-auto"></div>
+      <div>
+        <h3 class="text-base sm:text-lg font-black text-white">Fetching HD Photos from Google Drive...</h3>
+        <p class="text-xs text-amber-300 font-bold mt-1">Downloading high-definition player photos for official PDF document.</p>
       </div>
-
-      <table>
-        <thead>
-          <tr>
-            <th style="width: 50px;">Serial</th>
-            <th style="width: 75px;">Photo</th>
-            <th>Player Name</th>
-            <th>Category</th>
-            <th>Phone</th>
-            <th>Address</th>
-            <th style="width: 80px;">Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${rowsHtml}
-        </tbody>
-      </table>
-
-      <div class="footer">
-        }
-      </script>
-    </body>
-    </html>
+    </div>
   `;
+  document.body.insertAdjacentHTML('beforeend', loadingOverlayHtml);
 
-  printWindow.document.write(html);
-  printWindow.document.close();
+  try {
+    // 2. FETCH FULL HD PHOTOS FROM GOOGLE DRIVE / CLOUD FOR EVERY PLAYER
+    const playersWithHDPhotos = await Promise.all(players.map(async (p) => {
+      let hdPhoto = p.photoUrl || 'assets/jsl_logo.jpg';
+      if (hdPhoto && hdPhoto.startsWith('http')) {
+        try {
+          const res = await fetch(hdPhoto, { cache: 'no-store' });
+          if (res.ok) {
+            const blob = await res.blob();
+            hdPhoto = await new Promise((resolve) => {
+              const reader = new FileReader();
+              reader.onloadend = () => resolve(reader.result);
+              reader.readAsDataURL(blob);
+            });
+          }
+        } catch (err) {
+          console.warn("HD Photo fetch notice for player:", p.name, err);
+        }
+      }
+      return { ...p, hdPhoto };
+    }));
+
+    // REMOVE LOADING OVERLAY
+    document.getElementById('pdf-loading-overlay')?.remove();
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert('Please allow popups to download the PDF.');
+      return;
+    }
+
+    const rowsHtml = playersWithHDPhotos.map((p, idx) => `
+      <tr>
+        <td style="text-align: center; font-weight: bold;">S-${p.serialNo || (idx + 1)}</td>
+        <td style="text-align: center; width: 75px;">
+          <img src="${p.hdPhoto}" style="width: 65px; height: 65px; object-fit: cover; border-radius: 8px; border: 1.5px solid #0F172A; box-shadow: 0 2px 4px rgba(0,0,0,0.15);" />
+        </td>
+        <td style="font-weight: bold; color: #0F172A; font-size: 13px;">${p.name}</td>
+        <td style="color: #0284C7; font-weight: bold;">${p.category || p.role || 'Player'}</td>
+        <td style="font-family: monospace; font-weight: bold;">${p.phone || 'N/A'}</td>
+        <td style="font-size: 11px;">${p.address || 'Chandrakona Town PS'}</td>
+        <td style="text-align: center; font-weight: bold; color: ${p.paymentStatus === 'APPROVED' ? '#10B981' : '#EF476F'};">
+          ${p.paymentStatus === 'APPROVED' ? 'APPROVED' : 'PENDING'}
+        </td>
+      </tr>
+    `).join('');
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>JSL 2026 - Registered Players List HD PDF</title>
+        <style>
+          body { font-family: 'Helvetica Neue', Arial, sans-serif; padding: 20px; color: #1E293B; }
+          .header-box { text-align: center; border-bottom: 2px solid #0F172A; padding-bottom: 15px; margin-bottom: 20px; }
+          .title { font-size: 24px; font-weight: 900; color: #0B192C; margin: 0; }
+          .subtitle { font-size: 14px; font-weight: bold; color: #DC2626; margin-top: 4px; }
+          .meta { font-size: 11px; color: #64748B; margin-top: 6px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+          th, td { border: 1px solid #CBD5E1; padding: 8px; text-align: left; vertical-align: middle; }
+          th { background-color: #0F172A; color: white; font-weight: bold; text-align: center; }
+          tr:nth-child(even) { background-color: #F8FAFC; }
+          .footer { margin-top: 30px; text-align: center; font-size: 10px; color: #94A3B8; border-top: 1px solid #E2E8F0; padding-top: 10px; }
+        </style>
+      </head>
+      <body>
+        <div class="header-box">
+          <h1 class="title">JHANKRA SUPER LEAGUE (JSL 2026)</h1>
+          <div class="subtitle">Official Registered Players Directory (Google Drive HD Photos)</div>
+          <div class="meta">Generated: ${new Date().toLocaleString()} • Total Players: ${players.length} • HD Photo Document</div>
+        </div>
+
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 50px;">Serial</th>
+              <th style="width: 75px;">HD Photo</th>
+              <th>Player Name</th>
+              <th>Category</th>
+              <th>Phone</th>
+              <th>Address</th>
+              <th style="width: 80px;">Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+
+        <div class="footer">
+          Jhankra Super League (JSL 2026) • Official Registration Management System • Developer: Suman Kolay
+        </div>
+      </body>
+      </html>
+    `;
+
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+
+    printWindow.onload = () => {
+      setTimeout(() => {
+        printWindow.focus();
+        printWindow.print();
+      }, 400);
+    };
+  } catch (err) {
+    document.getElementById('pdf-loading-overlay')?.remove();
+    console.error("PDF generation error:", err);
+    alert("An error occurred while fetching HD photos for PDF. Please try again.");
+  }
 }
 
 // PRINT DIGITAL PASS FOR INDIVIDUAL PLAYER
