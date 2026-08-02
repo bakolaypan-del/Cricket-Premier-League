@@ -84,6 +84,12 @@ class Store {
       const localPlayersStr = JSON.stringify(localPlayers);
       const mergedPlayersStr = JSON.stringify(mergedPlayers);
       
+      // If local storage has extra entries not yet in cloud (e.g. freshly registered), auto-push to cloud!
+      const cloudPlayersStr = JSON.stringify(cloudPlayers);
+      if (mergedPlayers.length > cloudPlayers.length || localPlayersStr !== cloudPlayersStr) {
+        saveCloudData(mergedPlayers, mergedTeams);
+      }
+
       if (localPlayersStr !== mergedPlayersStr) {
         localStorage.setItem(STORAGE_KEYS.PLAYERS, mergedPlayersStr);
         if (!isUserFillingForm) {
@@ -128,10 +134,10 @@ class Store {
   }
 
   startCloudPolling() {
-    // Poll Cloud Database every 5 seconds safely without interrupting active forms
+    // Poll Cloud Database every 8 seconds safely without interrupting active forms
     setInterval(() => {
       this.syncWithCloud();
-    }, 5000);
+    }, 8000);
   }
 
   setupRealtimeListeners() {

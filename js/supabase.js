@@ -1,6 +1,7 @@
 // Automatic Zero-Setup Cloud Database & Supabase Integration (Developer: Suman Kolay)
 
-const CLOUD_BLOB_URL = "https://jsonblob.com/api/jsonBlob/019fc276-8dac-7215-9dea-84b45ba09252";
+const CLOUD_BLOB_URL = "https://jsonblob.com/api/jsonBlob/019fc3e1-cd40-79b5-ae05-5e2bb58082f5";
+const GOOGLE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz7YpLCl7Vk_4sR06XhnD9V_-OFVeKwv_vgPm332kFj9LvrrYjdsPG_aDTRv1l2L4zo/exec";
 
 const SUPABASE_URL = "https://eunwcvdackphjqpyujwn.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1bndjdmRhY2twaGpxcHl1anduIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2NzAwMDAsImV4cCI6MjEwMTI0NjAwMH0.1S3c7bWTOCyREehT6WyOhtoyjQkTKY148ABHPKz2pFM";
@@ -13,6 +14,22 @@ if (window.supabase) {
     console.log("Supabase Client initialized.");
   } catch (err) {
     console.warn("Supabase init error:", err);
+  }
+}
+
+// --- GOOGLE DRIVE AUTOMATIC BACKUP BACKEND ---
+export async function saveToGoogleDriveScript(payload) {
+  if (!GOOGLE_APPS_SCRIPT_URL) return;
+  try {
+    fetch(GOOGLE_APPS_SCRIPT_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    }).then(() => console.log("Data backup sent to Google Drive!"))
+      .catch(err => console.warn("Google Drive Sync warning:", err));
+  } catch (err) {
+    console.warn("Google Drive sync error:", err);
   }
 }
 
@@ -45,18 +62,18 @@ export async function uploadImageToSupabaseStorage(file, folder = 'documents') {
     }
   }
 
-  // High-Quality Fallback: Convert File to lightweight data URL if Supabase storage bucket is unconfigured
+  // Fallback: Convert File to lightweight compressed data URL if Supabase storage bucket is unconfigured
   return new Promise((resolve) => {
     const reader = new FileReader();
     reader.onload = (e) => resolve(e.target.result);
-    reader.onerror = () => resolve('Attached Document Proof');
+    reader.onerror = () => resolve(null);
     reader.readAsDataURL(file);
   });
 }
 
 // --- INSTANT CLOUD DATA FETCH ---
 export async function fetchCloudData() {
-  // First try Supabase table fetch if available
+  // 1. First try Supabase table fetch if available
   if (supabase) {
     try {
       const { data: dbPlayers, error: errPlayers } = await supabase.from('players').select('*');
@@ -72,10 +89,13 @@ export async function fetchCloudData() {
     }
   }
 
-  // Primary Blob Fetch
+  // 2. Primary Blob Fetch
   try {
     const res = await fetch(CLOUD_BLOB_URL, { cache: 'no-store' });
-    if (!res.ok) return { players: [], teams: [] };
+    if (!res.ok) {
+      console.warn("Cloud blob fetch HTTP status:", res.status);
+      return { players: [], teams: [] };
+    }
     const data = await res.json();
     return {
       players: Array.isArray(data.players) ? data.players : [],
@@ -90,33 +110,26 @@ export async function fetchCloudData() {
 // --- INSTANT CLOUD DATA SAVE ---
 export async function saveCloudData(playersList, teamsList) {
   try {
-    // Optimize payload for JSON blob to stay under 500KB limit
-    const optimizedPlayers = (playersList || []).map(p => {
-      const pCopy = { ...p };
-      // If photoUrl or proofs are base64 > 100KB, create a clean fallback string so payload PUT never fails
-      if (pCopy.photoUrl && pCopy.photoUrl.length > 100000 && !pCopy.photoUrl.startsWith('http')) {
-        pCopy.photoUrl = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300';
-      }
-      if (pCopy.aadharBackUrl && pCopy.aadharBackUrl.length > 100000 && !pCopy.aadharBackUrl.startsWith('http')) {
-        pCopy.aadharBackUrl = 'Attached Document Proof';
-      }
-      if (pCopy.paymentProofUrl && pCopy.paymentProofUrl.length > 100000 && !pCopy.paymentProofUrl.startsWith('http')) {
-        pCopy.paymentProofUrl = 'Attached Receipt Screenshot';
-      }
-      return pCopy;
-    });
-
     const payload = {
-      players: optimizedPlayers,
+      players: playersList || [],
       teams: teamsList || []
     };
 
-    await fetch(CLOUD_BLOB_URL, {
+    // 1. Save to primary cloud storage
+    const res = await fetch(CLOUD_BLOB_URL, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
     });
-    console.log("Cloud Database updated successfully!");
+
+    if (res.ok) {
+      console.log("Cloud Database updated successfully!");
+    } else {
+      console.warn("Cloud Database update returned HTTP:", res.status);
+    }
+
+    // 2. Send backup to Google Drive Web App
+    saveToGoogleDriveScript(payload);
   } catch (err) {
     console.warn("Cloud blob save warning:", err);
   }
