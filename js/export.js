@@ -1,250 +1,204 @@
-// Data Export & Digital Pass Generator for Cricket Premier League
+// Export & Printing Utility Module for PDF & CSV (Developer: Suman Kolay)
 
-export function exportPlayersToCSV(players, leagues, teams) {
+export function exportPlayersToCSV(players) {
   if (!players || players.length === 0) {
-    alert("No player data available to export.");
+    alert('No player data available to export.');
     return;
   }
 
-  const leagueMap = new Map(leagues.map(l => [l.id, l.name]));
-  const teamMap = new Map(teams.map(t => [t.id, t.name]));
-
-  const headers = [
-    "Reg No", "Full Name", "Phone", "Email", "League Name",
-    "Role", "Batting Style", "Bowling Style", "T-Shirt Size",
-    "T-Shirt No", "Payment Status", "Payment Ref No", "Team",
-    "Base Price (INR)", "Sold Price (INR)", "Reg Date"
-  ];
-
+  const headers = ['Serial No', 'Player ID', 'Full Name', 'Phone', 'Address', 'Category', 'Payment Ref', 'Payment Status', 'Reg Date'];
   const rows = players.map(p => [
-    `"${p.regNo || ''}"`,
-    `"${p.name || ''}"`,
+    p.serialNo || '',
+    p.id || '',
+    `"${(p.name || '').replace(/"/g, '""')}"`,
     `"${p.phone || ''}"`,
-    `"${p.email || ''}"`,
-    `"${leagueMap.get(p.leagueId) || 'General'}"`,
-    `"${p.role || ''}"`,
-    `"${p.battingStyle || ''}"`,
-    `"${p.bowlingStyle || ''}"`,
-    `"${p.tshirtSize || ''}"`,
-    `"${p.tshirtNumber || ''}"`,
-    `"${p.paymentStatus || ''}"`,
+    `"${(p.address || '').replace(/"/g, '""')}"`,
+    `"${p.category || p.role || ''}"`,
     `"${p.paymentRef || ''}"`,
-    `"${teamMap.get(p.teamId) || 'Unassigned'}"`,
-    `"${p.basePrice || 0}"`,
-    `"${p.soldPrice || 0}"`,
-    `"${p.regDate || ''}"`
+    p.paymentStatus || 'PENDING',
+    p.regDate || ''
   ]);
 
-  const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
-  downloadCSVFile(csvContent, `CPL_Registered_Players_${new Date().toISOString().split('T')[0]}.csv`);
-}
-
-export function exportTeamsToCSV(teams, leagues, players) {
-  if (!teams || teams.length === 0) {
-    alert("No team data available to export.");
-    return;
-  }
-
-  const leagueMap = new Map(leagues.map(l => [l.id, l.name]));
-
-  const headers = [
-    "Team Short Code", "Team Name", "League", "Captain Name",
-    "Captain Phone", "Squad Count", "Max Capacity", "Purse Spent (INR)", "Purse Budget (INR)"
-  ];
-
-  const rows = teams.map(t => [
-    `"${t.shortCode || ''}"`,
-    `"${t.name || ''}"`,
-    `"${leagueMap.get(t.leagueId) || 'General'}"`,
-    `"${t.captainName || ''}"`,
-    `"${t.captainPhone || ''}"`,
-    `"${t.squadCount || 0}"`,
-    `"${t.maxSquad || 15}"`,
-    `"${t.purseSpent || 0}"`,
-    `"${t.purseBudget || 50000}"`
-  ]);
-
-  const csvContent = [headers.join(","), ...rows.map(r => r.join(","))].join("\n");
-  downloadCSVFile(csvContent, `CPL_Registered_Teams_${new Date().toISOString().split('T')[0]}.csv`);
-}
-
-export function downloadCSVFile(content, fileName) {
-  const blob = new Blob([content], { type: 'text/csv;charset=utf-8;' });
-  const link = document.createElement("a");
-  const url = URL.createObjectURL(blob);
-  link.setAttribute("href", url);
-  link.setAttribute("download", fileName);
-  link.style.visibility = 'hidden';
+  const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement('a');
+  link.setAttribute('href', encodedUri);
+  link.setAttribute('download', `JSL_Registered_Players_${new Date().toISOString().slice(0, 10)}.csv`);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
 }
 
-export function printDigitalPass(player, league, team) {
-  const printWindow = window.open('', '_blank', 'width=800,height=900');
-  const statusColor = player.paymentStatus === 'APPROVED' ? '#10B981' : '#F59E0B';
+export function exportTeamsToCSV(teams) {
+  if (!teams || teams.length === 0) {
+    alert('No team data available to export.');
+    return;
+  }
+
+  const headers = ['Team ID', 'Team Name', 'Short Code', 'Owner Name', 'Owner Phone', 'Co-Owner Name', 'Co-Owner Phone', 'Reg Date'];
+  const rows = teams.map(t => [
+    t.id || '',
+    `"${(t.name || '').replace(/"/g, '""')}"`,
+    t.shortCode || '',
+    `"${(t.ownerName || '').replace(/"/g, '""')}"`,
+    `"${t.ownerPhone || ''}"`,
+    `"${(t.coOwnerName || '').replace(/"/g, '""')}"`,
+    `"${t.coOwnerPhone || ''}"`,
+    t.regDate || ''
+  ]);
+
+  const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map(e => e.join(','))].join('\n');
+  const encodedUri = encodeURI(csvContent);
+  const link = document.createElement('a');
+  link.setAttribute('href', encodedUri);
+  link.setAttribute('download', `JSL_Registered_Teams_${new Date().toISOString().slice(0, 10)}.csv`);
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
+// GENERATE PROFESSIONAL PRINTABLE PDF DOCUMENT FOR REGISTERED PLAYERS
+export function exportPlayersToPDF(players) {
+  if (!players || players.length === 0) {
+    alert('No players found to export.');
+    return;
+  }
+
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) {
+    alert('Please allow popups to download the PDF.');
+    return;
+  }
+
+  const rowsHtml = players.map((p, idx) => `
+    <tr>
+      <td style="text-align: center; font-weight: bold;">S-${p.serialNo || (idx + 1)}</td>
+      <td style="text-align: center;">
+        <img src="${p.photoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}" style="width: 55px; height: 55px; object-fit: cover; border-radius: 6px; border: 1px solid #ccc;" />
+      </td>
+      <td style="font-weight: bold; color: #0F172A;">${p.name}</td>
+      <td style="color: #0284C7; font-weight: bold;">${p.category || p.role || 'Player'}</td>
+      <td style="font-family: monospace;">${p.phone || 'N/A'}</td>
+      <td style="font-size: 11px;">${p.address || 'Chandrakona Town PS'}</td>
+      <td style="text-align: center; font-weight: bold; color: ${p.paymentStatus === 'APPROVED' ? '#10B981' : '#EF476F'};">
+        ${p.paymentStatus === 'APPROVED' ? 'APPROVED' : 'PENDING'}
+      </td>
+    </tr>
+  `).join('');
 
   const html = `
     <!DOCTYPE html>
     <html>
     <head>
-      <title>Digital Player Registration Pass - ${player.name}</title>
+      <title>JSL 2026 - Registered Players List PDF</title>
       <style>
-        body {
-          font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-          background: #0b132b;
-          color: #ffffff;
-          padding: 40px;
-          display: flex;
-          justify-content: center;
-        }
-        .ticket-card {
-          width: 480px;
-          background: linear-gradient(135deg, #1c2541 0%, #0b132b 100%);
-          border: 2px solid #3a506b;
-          border-radius: 20px;
-          padding: 30px;
-          box-shadow: 0 20px 40px rgba(0,0,0,0.6);
-          position: relative;
-          overflow: hidden;
-        }
-        .header {
-          text-align: center;
-          border-bottom: 2px dashed #3a506b;
-          padding-bottom: 20px;
-          margin-bottom: 20px;
-        }
-        .title {
-          font-size: 24px;
-          font-weight: 800;
-          color: #ffd166;
-          letter-spacing: 1px;
-          margin: 0;
-          text-transform: uppercase;
-        }
-        .subtitle {
-          font-size: 13px;
-          color: #a0aec0;
-          margin-top: 5px;
-        }
-        .status-badge {
-          display: inline-block;
-          padding: 6px 14px;
-          border-radius: 20px;
-          font-size: 12px;
-          font-weight: 700;
-          background: ${statusColor};
-          color: #000;
-          margin-top: 10px;
-          text-transform: uppercase;
-        }
-        .player-info {
-          display: flex;
-          gap: 20px;
-          align-items: center;
-          margin-bottom: 20px;
-        }
-        .avatar {
-          width: 100px;
-          height: 100px;
-          border-radius: 16px;
-          object-fit: cover;
-          border: 3px solid #ffd166;
-        }
-        .details h2 {
-          margin: 0;
-          font-size: 22px;
-          color: #ffffff;
-        }
-        .details p {
-          margin: 4px 0;
-          color: #cbd5e1;
-          font-size: 14px;
-        }
-        .grid {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 12px;
-          background: rgba(255,255,255,0.05);
-          padding: 16px;
-          border-radius: 12px;
-          margin-bottom: 20px;
-        }
-        .item label {
-          font-size: 11px;
-          color: #94a3b8;
-          display: block;
-          text-transform: uppercase;
-        }
-        .item span {
-          font-size: 15px;
-          font-weight: 600;
-          color: #f8fafc;
-        }
-        .footer {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          border-top: 2px dashed #3a506b;
-          padding-top: 20px;
-        }
-        .qr-placeholder {
-          background: #ffffff;
-          padding: 8px;
-          border-radius: 8px;
-          color: #000;
-          font-weight: 800;
-          font-size: 11px;
-          text-align: center;
-        }
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; padding: 20px; color: #1E293B; }
+        .header-box { text-align: center; border-bottom: 2px solid #0F172A; padding-bottom: 15px; margin-bottom: 20px; }
+        .title { font-size: 24px; font-weight: 900; color: #0B192C; margin: 0; }
+        .subtitle { font-size: 14px; font-weight: bold; color: #DC2626; margin-top: 4px; }
+        .meta { font-size: 11px; color: #64748B; margin-top: 6px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+        th { background-color: #0F172A; color: #FFFFFF; padding: 8px; text-align: left; font-size: 11px; text-transform: uppercase; }
+        td { padding: 8px; border-bottom: 1px solid #E2E8F0; vertical-align: middle; }
+        tr:nth-child(even) { background-color: #F8FAFC; }
+        .footer { text-align: center; margin-top: 25px; font-size: 10px; color: #94A3B8; border-top: 1px solid #E2E8F0; padding-top: 10px; }
         @media print {
-          body { background: white; color: black; }
-          .ticket-card { border-color: #000; background: #fff; color: #000; }
-          .details h2, .item span { color: #000; }
-          .subtitle, .details p, .item label { color: #444; }
+          body { padding: 0; }
         }
       </style>
     </head>
     <body>
-      <div class="ticket-card">
-        <div class="header">
-          <h1 class="title">${league ? league.name : 'CRICKET PREMIER LEAGUE'}</h1>
-          <div class="subtitle">OFFICIAL PLAYER REGISTRATION DIGITAL PASS</div>
-          <div class="status-badge">PAYMENT STATUS: ${player.paymentStatus}</div>
-        </div>
-
-        <div class="player-info">
-          <img class="avatar" src="${player.photoUrl}" alt="${player.name}" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300'" />
-          <div class="details">
-            <h2>${player.name}</h2>
-            <p><strong>Reg No:</strong> ${player.regNo}</p>
-            <p><strong>Role:</strong> ${player.role}</p>
-            <p><strong>Team:</strong> ${team ? team.name : 'Unassigned (Draft Eligible)'}</p>
-          </div>
-        </div>
-
-        <div class="grid">
-          <div class="item"><label>Batting Style</label><span>${player.battingStyle}</span></div>
-          <div class="item"><label>Bowling Style</label><span>${player.bowlingStyle}</span></div>
-          <div class="item"><label>T-Shirt Size</label><span>Size ${player.tshirtSize} (#${player.tshirtNumber})</span></div>
-          <div class="item"><label>Base Price</label><span>₹ ${player.basePrice}</span></div>
-        </div>
-
-        <div class="footer">
-          <div>
-            <p style="margin:0; font-size:12px; color:#94a3b8;">Issued On: ${player.regDate}</p>
-            <p style="margin:2px 0 0 0; font-size:11px; color:#64748b;">Ref: ${player.paymentRef}</p>
-          </div>
-          <div class="qr-placeholder">
-            <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3h6v6H3zM15 3h6v6h-6zM3 15h6v6H3zM15 15h3v3h-3zM18 18h3v3h-3zM15 18h3v3h-3z"/></svg>
-            <div>VERIFIED PASS</div>
-          </div>
-        </div>
+      <div class="header-box">
+        <h1 class="title">JHANKRA SUPER LEAGUE 2026</h1>
+        <div class="subtitle">OFFICIAL REGISTERED PLAYERS DIRECTORY</div>
+        <div class="meta">Total Players: ${players.length} | Generated on: ${new Date().toLocaleDateString()} | Developer: Suman Kolay</div>
       </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 50px; text-align: center;">Serial</th>
+            <th style="width: 70px; text-align: center;">Photo</th>
+            <th>Player Name</th>
+            <th>Category</th>
+            <th>Phone</th>
+            <th>Address</th>
+            <th style="text-align: center;">Status</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml}
+        </tbody>
+      </table>
+
+      <div class="footer">
+        Jhankra Super League Official Tournament & Registration Portal • Developer: Suman Kolay
+      </div>
+
       <script>
         window.onload = function() {
           window.print();
         }
+      </script>
+    </body>
+    </html>
+  `;
+
+  printWindow.document.write(html);
+  printWindow.document.close();
+}
+
+export function printDigitalPass(player, league, team) {
+  if (!player) return;
+
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) {
+    alert('Please allow popups to print Digital Pass.');
+    return;
+  }
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>Digital Player Pass - ${player.name}</title>
+      <style>
+        body { font-family: sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; background: #f0f2f5; }
+        .pass-card { width: 340px; background: white; border: 2px solid #0f172a; border-radius: 16px; overflow: hidden; box-shadow: 0 10px 25px rgba(0,0,0,0.15); }
+        .header { background: #0f172a; color: white; padding: 14px; text-align: center; }
+        .header h2 { margin: 0; font-size: 16px; font-weight: 800; color: #f59e0b; }
+        .body { padding: 16px; text-align: center; }
+        .photo { width: 90px; height: 90px; border-radius: 12px; object-fit: cover; border: 3px solid #f59e0b; margin: 0 auto 10px; }
+        .name { font-size: 18px; font-weight: 900; color: #0f172a; margin-bottom: 2px; }
+        .role { font-size: 12px; font-weight: bold; color: #0284c7; background: #e0f2fe; display: inline-block; padding: 2px 8px; border-radius: 6px; margin-bottom: 12px; }
+        .details { text-align: left; font-size: 11px; background: #f8fafc; padding: 10px; border-radius: 8px; border: 1px solid #e2e8f0; }
+        .details div { margin-bottom: 4px; }
+        .footer { background: #f1f5f9; padding: 8px; text-align: center; font-size: 9px; color: #64748b; font-weight: bold; border-top: 1px solid #e2e8f0; }
+      </style>
+    </head>
+    <body>
+      <div class="pass-card">
+        <div class="header">
+          <h2>JHANKRA SUPER LEAGUE 2026</h2>
+          <div style="font-size:10px; color:#cbd5e1;">OFFICIAL DIGITAL PLAYER PASS</div>
+        </div>
+        <div class="body">
+          <img src="${player.photoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300'}" class="photo" />
+          <div class="name">${player.name}</div>
+          <div class="role">${player.category || player.role || 'Player'}</div>
+          
+          <div class="details">
+            <div><strong>Serial No:</strong> S-${player.serialNo || 1}</div>
+            <div><strong>Phone:</strong> ${player.phone || 'N/A'}</div>
+            <div><strong>Address:</strong> ${player.address || 'Chandrakona Town PS'}</div>
+            <div><strong>Payment Ref:</strong> ${player.paymentRef || 'N/A'}</div>
+            <div><strong>Status:</strong> ${player.paymentStatus || 'PENDING'}</div>
+          </div>
+        </div>
+        <div class="footer">Developer - Suman Kolay • Official Tournament Pass</div>
+      </div>
+      <script>
+        window.onload = function() { window.print(); }
       </script>
     </body>
     </html>

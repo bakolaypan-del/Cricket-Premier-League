@@ -1,7 +1,7 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay)
 
 import { store } from './store.js';
-import { exportPlayersToCSV, exportTeamsToCSV, printDigitalPass } from './export.js';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, printDigitalPass } from './export.js';
 import { renderAdminDashboard } from './admin.js';
 
 // ALWAYS default to landing page (No category opens automatically!)
@@ -74,7 +74,7 @@ function compressImage(file, maxWidth = 250, maxHeight = 250, quality = 0.65) {
   });
 }
 
-// --- UPPER HEADER (CLEANED: NO REGISTRATION BUTTON IN HEADER) ---
+// --- UPPER HEADER ---
 function renderNavbar() {
   const navbarEl = document.getElementById('app-navbar');
   if (!navbarEl) return;
@@ -264,9 +264,8 @@ function renderJSLHub(containerEl) {
         </span>
       </div>
 
-      <!-- ULTRA-COMPACT JSL HEADER POSTER STRIP (NO REGISTRATION BUTTON HERE) -->
+      <!-- ULTRA-COMPACT JSL HEADER POSTER STRIP -->
       <div class="jsl-header-strip p-2.5 space-y-1.5">
-        <!-- Title Line -->
         <div class="flex items-center gap-2">
           <div class="w-8 h-8 rounded bg-gradient-to-b from-blue-900 to-red-600 flex items-center justify-center text-white font-black text-xs shadow flex-shrink-0">
             JSL
@@ -277,7 +276,6 @@ function renderJSLHub(containerEl) {
           </div>
         </div>
 
-        <!-- Pill Badges (Prize, Fee, Rules, Contact) -->
         <div class="flex flex-wrap items-center gap-1 text-[9px] font-extrabold pt-1 border-t border-slate-100">
           <span class="px-2 py-0.5 bg-red-100 text-red-800 rounded border border-red-200">🏆 Winner: 35K | Runners: 25K</span>
           <span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded border border-emerald-200">💰 Team Entry: 15K (8K Auction + 7K Fee)</span>
@@ -289,7 +287,7 @@ function renderJSLHub(containerEl) {
       <!-- 3 HORIZONTAL COLUMNS (grid-cols-3 ON ALL DEVICES) -->
       <div class="grid grid-cols-3 gap-2 sm:gap-4 items-start">
         
-        <!-- COLUMN 1 (LEFT SIDE): REGISTERED TEAMS CARD (CLICK TO VIEW) -->
+        <!-- COLUMN 1 (LEFT SIDE): REGISTERED TEAMS CARD (CLICK TO VIEW & SEARCH) -->
         <div class="glass-card p-2 sm:p-3 text-center space-y-2 border border-slate-200">
           <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-sky-100 text-sky-700 mx-auto flex items-center justify-center">
             <i data-lucide="shield" class="w-4 h-4 sm:w-5 sm:h-5"></i>
@@ -301,11 +299,11 @@ function renderJSLHub(containerEl) {
           </div>
 
           <button id="open-teams-modal-btn" class="w-full py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-[9px] sm:text-xs font-bold rounded-lg shadow-sm flex items-center justify-center gap-1">
-            <i data-lucide="list" class="w-3 h-3"></i> View Teams
+            <i data-lucide="search" class="w-3 h-3"></i> Search / View Teams
           </button>
         </div>
 
-        <!-- COLUMN 2 (MIDDLE): REGISTERED PLAYER LIST CARD (CLICK TO VIEW) -->
+        <!-- COLUMN 2 (MIDDLE): REGISTERED PLAYER LIST CARD (CLICK TO VIEW, SEARCH & PDF) -->
         <div class="glass-card p-2 sm:p-3 text-center space-y-2 border border-slate-200">
           <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-amber-100 text-amber-700 mx-auto flex items-center justify-center">
             <i data-lucide="users" class="w-4 h-4 sm:w-5 sm:h-5"></i>
@@ -317,7 +315,7 @@ function renderJSLHub(containerEl) {
           </div>
 
           <button id="open-players-modal-btn" class="w-full py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-[9px] sm:text-xs font-bold rounded-lg shadow-sm flex items-center justify-center gap-1">
-            <i data-lucide="user-check" class="w-3 h-3"></i> View Players
+            <i data-lucide="search" class="w-3 h-3"></i> Search / View Players
           </button>
         </div>
 
@@ -351,8 +349,37 @@ function renderJSLHub(containerEl) {
   document.getElementById('open-players-modal-btn')?.addEventListener('click', () => openRegisteredPlayersModal(players));
 }
 
-// --- REGISTERED TEAMS MODAL (CLICK TO OPEN) ---
-function openRegisteredTeamsModal(teams) {
+// --- REGISTERED TEAMS MODAL WITH SEARCH OPTION ---
+function openRegisteredTeamsModal(allTeams) {
+  let filteredTeams = [...allTeams];
+
+  const renderTeamListContent = () => {
+    const container = document.getElementById('teams-list-container');
+    if (!container) return;
+
+    if (filteredTeams.length === 0) {
+      container.innerHTML = `
+        <div class="p-4 text-center space-y-1 bg-slate-50 rounded-xl border border-slate-200">
+          <i data-lucide="shield-off" class="w-5 h-5 text-slate-400 mx-auto"></i>
+          <div class="text-xs font-bold text-slate-800">No matching teams found</div>
+          <div class="text-[10px] text-slate-500">Try searching with a different name or owner.</div>
+        </div>
+      `;
+    } else {
+      container.innerHTML = filteredTeams.map((t, idx) => `
+        <div class="p-2.5 rounded-xl border border-slate-200 bg-white flex items-center gap-2.5 shadow-sm">
+          <img src="${t.logoUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=300'}" class="w-10 h-10 rounded-lg object-cover border border-slate-200" />
+          <div>
+            <div class="text-xs font-black text-slate-900 leading-tight">${t.name}</div>
+            <div class="text-[10px] text-slate-600">Owner: <strong>${t.ownerName}</strong> (${t.ownerPhone})</div>
+            ${t.coOwnerName ? `<div class="text-[9px] text-slate-500">Co-Owner: ${t.coOwnerName} (${t.coOwnerPhone})</div>` : ''}
+          </div>
+        </div>
+      `).join('');
+    }
+    if (window.lucide) window.lucide.createIcons();
+  };
+
   const modalHtml = `
     <div id="teams-view-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3">
       <div class="bg-white max-w-md w-full p-4 relative space-y-3 animate-fade-in rounded-2xl shadow-2xl border border-slate-200 modal-content-container">
@@ -362,27 +389,15 @@ function openRegisteredTeamsModal(teams) {
 
         <div>
           <span class="px-2 py-0.5 bg-sky-100 text-sky-800 text-[9px] font-black rounded uppercase">JSL 2026</span>
-          <h2 class="text-base font-black text-slate-900 mt-0.5">Registered Team List (${teams.length})</h2>
+          <h2 class="text-base font-black text-slate-900 mt-0.5">Registered Team List (${allTeams.length})</h2>
         </div>
 
-        <div class="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
-          ${teams.length === 0 ? `
-            <div class="p-4 text-center space-y-1 bg-slate-50 rounded-xl border border-slate-200">
-              <i data-lucide="shield-off" class="w-5 h-5 text-slate-400 mx-auto"></i>
-              <div class="text-xs font-bold text-slate-800">No Teams Registered Yet</div>
-              <div class="text-[10px] text-slate-500">Click "Registration Here" on the right side card to submit team.</div>
-            </div>
-          ` : teams.map((t, idx) => `
-            <div class="p-2.5 rounded-xl border border-slate-200 bg-white flex items-center gap-2.5 shadow-sm">
-              <img src="${t.logoUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=300'}" class="w-10 h-10 rounded-lg object-cover border border-slate-200" />
-              <div>
-                <div class="text-xs font-black text-slate-900 leading-tight">${t.name}</div>
-                <div class="text-[10px] text-slate-600">Owner: <strong>${t.ownerName}</strong> (${t.ownerPhone})</div>
-                ${t.coOwnerName ? `<div class="text-[9px] text-slate-500">Co-Owner: ${t.coOwnerName} (${t.coOwnerPhone})</div>` : ''}
-              </div>
-            </div>
-          `).join('')}
+        <!-- SEARCH BAR FOR TEAMS -->
+        <div class="relative">
+          <input type="text" id="team-search-input" placeholder="🔍 Search team by name or owner..." class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 pl-3 focus:outline-none focus:border-sky-600" />
         </div>
+
+        <div id="teams-list-container" class="space-y-2 max-h-[55vh] overflow-y-auto pr-1"></div>
 
         <button id="close-teams-modal-bottom" class="w-full py-2 bg-slate-900 text-white font-bold text-xs rounded-xl shadow">
           Close List
@@ -394,13 +409,62 @@ function openRegisteredTeamsModal(teams) {
   document.body.insertAdjacentHTML('beforeend', modalHtml);
   if (window.lucide) window.lucide.createIcons();
 
+  renderTeamListContent();
+
   const removeModal = () => document.getElementById('teams-view-modal')?.remove();
   document.getElementById('close-teams-modal')?.addEventListener('click', removeModal);
   document.getElementById('close-teams-modal-bottom')?.addEventListener('click', removeModal);
+
+  // SEARCH FILTER EVENT LISTENER FOR TEAMS
+  document.getElementById('team-search-input')?.addEventListener('input', (e) => {
+    const query = e.target.value.toLowerCase().trim();
+    filteredTeams = allTeams.filter(t => 
+      (t.name || '').toLowerCase().includes(query) ||
+      (t.ownerName || '').toLowerCase().includes(query) ||
+      (t.coOwnerName || '').toLowerCase().includes(query)
+    );
+    renderTeamListContent();
+  });
 }
 
-// --- REGISTERED PLAYERS MODAL (CLICK TO OPEN) ---
-function openRegisteredPlayersModal(players) {
+// --- REGISTERED PLAYERS MODAL WITH SEARCH OPTION & DOWNLOAD PDF BUTTON ---
+function openRegisteredPlayersModal(allPlayers) {
+  let filteredPlayers = [...allPlayers];
+
+  const renderPlayerListContent = () => {
+    const container = document.getElementById('players-list-container');
+    const countEl = document.getElementById('player-count-display');
+    if (!container) return;
+
+    if (countEl) countEl.innerText = `(${filteredPlayers.length})`;
+
+    if (filteredPlayers.length === 0) {
+      container.innerHTML = `
+        <div class="p-4 text-center space-y-1 bg-slate-50 rounded-xl border border-slate-200">
+          <i data-lucide="user-x" class="w-5 h-5 text-slate-400 mx-auto"></i>
+          <div class="text-xs font-bold text-slate-800">No matching players found</div>
+          <div class="text-[10px] text-slate-500">Try searching with a different alphabet, name, category, or address.</div>
+        </div>
+      `;
+    } else {
+      container.innerHTML = `
+        <div class="grid grid-cols-2 gap-2">
+          ${renderPlayerCardsWithSerial(filteredPlayers)}
+        </div>
+      `;
+    }
+
+    if (window.lucide) window.lucide.createIcons();
+
+    container.querySelectorAll('.view-profile-modal-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const playerId = e.currentTarget.getAttribute('data-profile-id');
+        const player = store.getPlayerById(playerId);
+        openFullPlayerProfileModal(player);
+      });
+    });
+  };
+
   const modalHtml = `
     <div id="players-view-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3">
       <div class="bg-white max-w-lg w-full p-4 relative space-y-3 animate-fade-in rounded-2xl shadow-2xl border border-slate-200 modal-content-container">
@@ -408,24 +472,24 @@ function openRegisteredPlayersModal(players) {
           <i data-lucide="x" class="w-4 h-4"></i>
         </button>
 
-        <div>
-          <span class="px-2 py-0.5 bg-amber-100 text-amber-800 text-[9px] font-black rounded uppercase">JSL 2026</span>
-          <h2 class="text-base font-black text-slate-900 mt-0.5">Registered Player List (${players.length})</h2>
+        <div class="flex items-center justify-between gap-2 border-b border-slate-100 pb-2">
+          <div>
+            <span class="px-2 py-0.5 bg-amber-100 text-amber-800 text-[9px] font-black rounded uppercase">JSL 2026</span>
+            <h2 class="text-base font-black text-slate-900 mt-0.5">Registered Player List <span id="player-count-display">(${allPlayers.length})</span></h2>
+          </div>
+
+          <!-- DOWNLOAD PLAYERS PDF BUTTON -->
+          <button id="download-players-pdf-btn" class="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs rounded-xl shadow flex items-center gap-1.5 transition-colors">
+            <i data-lucide="file-text" class="w-3.5 h-3.5"></i> Download PDF List
+          </button>
         </div>
 
-        <div class="max-h-[65vh] overflow-y-auto pr-1">
-          ${players.length === 0 ? `
-            <div class="p-4 text-center space-y-1 bg-slate-50 rounded-xl border border-slate-200">
-              <i data-lucide="user-x" class="w-5 h-5 text-slate-400 mx-auto"></i>
-              <div class="text-xs font-bold text-slate-800">No Players Registered Yet</div>
-              <div class="text-[10px] text-slate-500">Click "Registration Here" on the right side card to submit player entry for ₹ 200!</div>
-            </div>
-          ` : `
-            <div class="grid grid-cols-2 gap-2">
-              ${renderPlayerCardsWithSerial(players)}
-            </div>
-          `}
+        <!-- SEARCH BAR FOR PLAYERS -->
+        <div class="relative">
+          <input type="text" id="player-search-input" placeholder="🔍 Search player by name, category, phone, address..." class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 pl-3 focus:outline-none focus:border-amber-500" />
         </div>
+
+        <div id="players-list-container" class="max-h-[58vh] overflow-y-auto pr-1"></div>
 
         <button id="close-players-modal-bottom" class="w-full py-2 bg-slate-900 text-white font-bold text-xs rounded-xl shadow">
           Close List
@@ -437,16 +501,27 @@ function openRegisteredPlayersModal(players) {
   document.body.insertAdjacentHTML('beforeend', modalHtml);
   if (window.lucide) window.lucide.createIcons();
 
+  renderPlayerListContent();
+
   const removeModal = () => document.getElementById('players-view-modal')?.remove();
   document.getElementById('close-players-modal')?.addEventListener('click', removeModal);
   document.getElementById('close-players-modal-bottom')?.addEventListener('click', removeModal);
 
-  document.querySelectorAll('.view-profile-modal-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const playerId = e.currentTarget.getAttribute('data-profile-id');
-      const player = store.getPlayerById(playerId);
-      openFullPlayerProfileModal(player);
-    });
+  // PDF EXPORT EVENT LISTENER
+  document.getElementById('download-players-pdf-btn')?.addEventListener('click', () => {
+    exportPlayersToPDF(filteredPlayers);
+  });
+
+  // REAL-TIME SEARCH FILTER EVENT LISTENER FOR PLAYERS
+  document.getElementById('player-search-input')?.addEventListener('input', (e) => {
+    const query = e.target.value.toLowerCase().trim();
+    filteredPlayers = allPlayers.filter(p => 
+      (p.name || '').toLowerCase().includes(query) ||
+      (p.category || p.role || '').toLowerCase().includes(query) ||
+      (p.phone || '').toLowerCase().includes(query) ||
+      (p.address || '').toLowerCase().includes(query)
+    );
+    renderPlayerListContent();
   });
 }
 
