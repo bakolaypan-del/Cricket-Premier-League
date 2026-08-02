@@ -1,4 +1,4 @@
-// Core Application Router & Registration Portal (Developer: Suman Kolay - WhatsApp Group Release)
+// Core Application Router & Registration Portal (Developer: Suman Kolay - Clean Header & JSL Only WhatsApp Prompt)
 
 import { store } from './store.js';
 import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, printDigitalPass } from './export.js';
@@ -97,11 +97,8 @@ function renderNavbar() {
         </div>
       </div>
 
-      <!-- Admin Panel & WhatsApp Group Button -->
+      <!-- Admin Panel Button -->
       <div class="flex items-center gap-2 flex-shrink-0">
-        <a href="${WHATSAPP_GROUP_LINK}" target="_blank" class="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] sm:text-xs font-extrabold rounded-xl flex items-center gap-1 transition-all shadow-lg border border-emerald-400">
-          <i data-lucide="message-square" class="w-3.5 h-3.5"></i> <span class="hidden sm:inline">WhatsApp Group</span>
-        </a>
         <button id="admin-panel-nav-btn" class="px-2.5 py-1.5 bg-slate-900/90 hover:bg-slate-800 border border-amber-500/40 text-amber-400 text-[11px] sm:text-xs font-bold rounded-xl flex items-center gap-1 transition-all shadow-lg hover:shadow-amber-500/20">
           <i data-lucide="shield-check" class="w-3.5 h-3.5 text-amber-400"></i> Admin Panel
         </button>
@@ -131,11 +128,6 @@ function renderMobileBottomNav() {
       <i data-lucide="shield" class="w-4 h-4"></i>
       <span class="text-[9px]">JSL Hub</span>
     </button>
-
-    <a href="${WHATSAPP_GROUP_LINK}" target="_blank" class="flex flex-col items-center gap-0.5 text-emerald-400">
-      <i data-lucide="message-square" class="w-4 h-4"></i>
-      <span class="text-[9px] font-black">Group</span>
-    </a>
 
     <button id="mob-nav-admin" class="flex flex-col items-center gap-0.5 ${currentRoute === 'admin' ? 'text-amber-400 font-extrabold' : 'text-slate-400'}">
       <i data-lucide="shield-check" class="w-4 h-4"></i>
@@ -171,7 +163,7 @@ function renderCurrentView() {
   if (window.lucide) window.lucide.createIcons();
 }
 
-// --- WHATSAPP GROUP POPUP PROMPT ---
+// --- WHATSAPP GROUP POPUP PROMPT (SHOWS ONLY WHEN CLICKING JSL HUB) ---
 function checkAndPromptWhatsAppGroup() {
   if (!sessionStorage.getItem('jsl_wa_group_prompted')) {
     sessionStorage.setItem('jsl_wa_group_prompted', 'true');
@@ -336,9 +328,9 @@ function renderJSLHub(containerEl) {
           <i data-lucide="arrow-left" class="w-3.5 h-3.5 text-amber-400"></i> Category Selector
         </button>
 
-        <a href="${WHATSAPP_GROUP_LINK}" target="_blank" class="px-3 py-1 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white font-extrabold text-[10px] sm:text-xs border border-emerald-400 shadow-lg flex items-center gap-1">
-          💬 Join WhatsApp Group
-        </a>
+        <span class="text-[10px] sm:text-xs font-black text-sky-400 bg-slate-900/90 px-3 py-1 rounded-xl border border-sky-500/40 shadow-lg backdrop-blur-md">
+          🏆 JHANKRA SUPER LEAGUE 2026
+        </span>
       </div>
 
       <!-- GRAND STADIUM POSTER STRIP -->
@@ -361,9 +353,9 @@ function renderJSLHub(containerEl) {
           <span class="px-2.5 py-1 bg-gradient-to-r from-emerald-600 to-teal-700 text-white rounded-lg shadow border border-emerald-400">
             💰 Team Entry: 15K (8K Auction + 7K Fee)
           </span>
-          <a href="${WHATSAPP_GROUP_LINK}" target="_blank" class="px-2.5 py-1 bg-emerald-600 text-white rounded-lg shadow border border-emerald-300 flex items-center gap-1">
-            💬 WhatsApp Group Link
-          </a>
+          <span class="px-2.5 py-1 bg-slate-900 text-amber-300 rounded-lg border border-amber-500/40 shadow">
+            ⚠️ Chandrakona PS Only
+          </span>
           <span class="px-2.5 py-1 bg-sky-600 text-white rounded-lg shadow border border-sky-400">
             📞 Contact: Pintu Santra (89722144166)
           </span>
