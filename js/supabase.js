@@ -73,7 +73,25 @@ export async function uploadImageToSupabaseStorage(file, folder = 'documents') {
 
 // --- INSTANT CLOUD DATA FETCH ---
 export async function fetchCloudData() {
-  // 1. First try Supabase table fetch if available
+  // 1. Primary: Try Google Drive Realtime Cloud Backend (Zero Rate Limit)
+  if (GOOGLE_APPS_SCRIPT_URL) {
+    try {
+      const res = await fetch(GOOGLE_APPS_SCRIPT_URL, { cache: 'no-store' });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && (Array.isArray(data.players) || Array.isArray(data.teams))) {
+          return {
+            players: Array.isArray(data.players) ? data.players : [],
+            teams: Array.isArray(data.teams) ? data.teams : []
+          };
+        }
+      }
+    } catch (e) {
+      console.warn("Google Drive fetch warning:", e);
+    }
+  }
+
+  // 2. Supabase table fetch fallback
   if (supabase) {
     try {
       const { data: dbPlayers, error: errPlayers } = await supabase.from('players').select('*');
@@ -89,7 +107,7 @@ export async function fetchCloudData() {
     }
   }
 
-  // 2. Try Primary Blob Fetch
+  // 3. JsonBlob Fetch Fallback
   try {
     const res = await fetch(CLOUD_BLOB_URL, { cache: 'no-store' });
     if (res.ok) {
@@ -105,24 +123,6 @@ export async function fetchCloudData() {
     console.warn("Cloud blob fetch warning:", err);
   }
 
-  // 3. Fallback to Google Drive Web App Fetch
-  if (GOOGLE_APPS_SCRIPT_URL) {
-    try {
-      const res = await fetch(GOOGLE_APPS_SCRIPT_URL, { cache: 'no-store' });
-      if (res.ok) {
-        const data = await res.json();
-        if (data && (Array.isArray(data.players) || Array.isArray(data.teams))) {
-          return {
-            players: Array.isArray(data.players) ? data.players : [],
-            teams: Array.isArray(data.teams) ? data.teams : []
-          };
-        }
-      }
-    } catch (e) {
-      // ignore
-    }
-  }
-
   return { players: [], teams: [] };
 }
 
@@ -134,23 +134,17 @@ export async function saveCloudData(playersList, teamsList) {
       teams: teamsList || []
     };
 
-    // 1. Save to primary cloud storage
-    const res = await fetch(CLOUD_BLOB_URL, {
+    // 1. Save to Google Drive Realtime Database (Primary - 15GB Zero Rate Limit)
+    saveToGoogleDriveScript(payload);
+
+    // 2. Save to secondary backup JSON blob
+    fetch(CLOUD_BLOB_URL, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
-    });
-
-    if (res.ok) {
-      console.log("Cloud Database updated successfully!");
-    } else {
-      console.warn("Cloud Database update returned HTTP status:", res.status);
-    }
-
-    // 2. Send backup to Google Drive Web App
-    saveToGoogleDriveScript(payload);
+    }).catch(err => console.warn("Cloud blob save warning:", err));
   } catch (err) {
-    console.warn("Cloud blob save warning:", err);
+    console.warn("Cloud save warning:", err);
   }
 }
 
