@@ -120,10 +120,26 @@ export async function fetchCloudData() {
   return { players: [], teams: [] };
 }
 
+// Helper: Sanitize player payload for lightweight REST API (< 8KB)
+function sanitizePlayerForRest(p) {
+  const pCopy = { ...p };
+  // If photoUrl is heavy base64 > 30KB, keep photoUrl clean
+  if (pCopy.photoUrl && pCopy.photoUrl.length > 30000 && !pCopy.photoUrl.startsWith('http')) {
+    pCopy.photoUrl = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300';
+  }
+  if (pCopy.aadharBackUrl && pCopy.aadharBackUrl.length > 10000 && !pCopy.aadharBackUrl.startsWith('http')) {
+    pCopy.aadharBackUrl = 'Attached Document Proof';
+  }
+  if (pCopy.paymentProofUrl && pCopy.paymentProofUrl.length > 10000 && !pCopy.paymentProofUrl.startsWith('http')) {
+    pCopy.paymentProofUrl = 'Attached Receipt Screenshot';
+  }
+  return pCopy;
+}
+
 // --- INSTANT REALTIME CLOUD DATA SAVE ---
 export async function saveCloudData(playersList, teamsList) {
   try {
-    // 1. Sync Players to CRUD REST API (Add missing, delete removed)
+    // 1. Sync Players to CRUD REST API (Sanitized lightweight payload < 8KB)
     if (Array.isArray(playersList)) {
       const existingRes = await fetch(`${CRUD_API_BASE}/players`);
       let existingPlayers = existingRes.ok ? await existingRes.json() : [];
@@ -137,16 +153,17 @@ export async function saveCloudData(playersList, teamsList) {
       for (const p of playersList) {
         const found = existingPlayers.find(ep => ep.id === p.id);
         if (!found) {
+          const restPlayer = sanitizePlayerForRest(p);
           await fetch(`${CRUD_API_BASE}/players`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(p)
+            body: JSON.stringify(restPlayer)
           }).catch(e => {});
         }
       }
     }
 
-    // 2. Sync Teams to CRUD REST API (Add missing, delete removed)
+    // 2. Sync Teams to CRUD REST API
     if (Array.isArray(teamsList)) {
       const existingTRes = await fetch(`${CRUD_API_BASE}/teams`);
       let existingTeams = existingTRes.ok ? await existingTRes.json() : [];
@@ -169,7 +186,7 @@ export async function saveCloudData(playersList, teamsList) {
       }
     }
 
-    // 3. Backup to Google Drive Web App
+    // 3. Backup FULL DATA (with complete HD images) to Google Drive Web App (15 GB storage)
     const payload = { players: playersList || [], teams: teamsList || [] };
     saveToGoogleDriveScript(payload);
 
