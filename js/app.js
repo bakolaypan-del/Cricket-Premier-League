@@ -7,10 +7,6 @@ import { renderAdminDashboard } from './admin.js';
 // ALWAYS default to landing page (No category opens automatically!)
 let currentRoute = 'landing'; // landing, jsl-hub, admin
 
-// Accordion toggle state for JSL Hub columns (default: CLOSED so options do not open automatically!)
-let teamsOpen = false;
-let playersOpen = false;
-
 document.addEventListener('DOMContentLoaded', () => {
   initApp();
 });
@@ -84,35 +80,35 @@ function renderNavbar() {
   if (!navbarEl) return;
 
   navbarEl.innerHTML = `
-    <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-14 sm:h-16 md:h-20 flex items-center justify-between gap-2">
+    <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-12 sm:h-16 md:h-18 flex items-center justify-between gap-2">
       <!-- Title, Subtitle & Developer Credit -->
       <div class="flex items-center gap-2 sm:gap-3 cursor-pointer min-w-0" id="brand-header-logo">
-        <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-amber-500 flex items-center justify-center text-white font-black text-base sm:text-xl shadow-sm flex-shrink-0">
+        <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-amber-500 flex items-center justify-center text-white font-black text-base sm:text-xl shadow-sm flex-shrink-0">
           🏏
         </div>
         <div class="truncate">
           <h1 class="text-xs sm:text-lg md:text-2xl font-black text-slate-900 leading-none tracking-tight truncate">
             Cricket Premier League
           </h1>
-          <div class="text-[8px] sm:text-xs font-bold text-amber-600 truncate mt-0.5">Official Tournament & Registration Portal</div>
+          <div class="text-[8px] sm:text-xs font-bold text-amber-600 truncate mt-0.5">Official Tournament Portal</div>
           <div class="text-[8px] sm:text-[10px] font-bold text-slate-500 tracking-wide truncate">Developer - <span class="text-sky-600 font-extrabold">Suman Kolay</span></div>
         </div>
       </div>
 
       <!-- Desktop Action Buttons -->
       <div class="hidden sm:flex items-center gap-2 flex-shrink-0">
-        <button id="admin-panel-nav-btn" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 text-xs font-bold rounded-xl flex items-center gap-1.5 transition-colors">
-          <i data-lucide="shield-check" class="w-4 h-4 text-amber-600"></i> Admin Panel
+        <button id="admin-panel-nav-btn" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 border border-slate-300 text-slate-800 text-xs font-bold rounded-lg flex items-center gap-1 transition-colors">
+          <i data-lucide="shield-check" class="w-3.5 h-3.5 text-amber-600"></i> Admin Panel
         </button>
 
-        <button id="header-reg-btn" class="btn-blink-always px-3.5 py-2 bg-gradient-to-r from-amber-500 to-red-600 hover:from-amber-600 hover:to-red-700 text-white font-black text-xs rounded-xl shadow flex items-center gap-1.5">
-          <i data-lucide="edit-3" class="w-4 h-4"></i> Registration Here
+        <button id="header-reg-btn" class="btn-blink-always px-3 py-1.5 bg-gradient-to-r from-amber-500 to-red-600 hover:from-amber-600 hover:to-red-700 text-white font-black text-xs rounded-lg shadow flex items-center gap-1">
+          <i data-lucide="edit-3" class="w-3.5 h-3.5"></i> Registration Here
         </button>
       </div>
 
       <!-- Small Mobile Quick Trigger -->
       <div class="sm:hidden flex items-center gap-1 flex-shrink-0">
-        <button id="mobile-top-reg-btn" class="btn-blink-always px-2.5 py-1 bg-gradient-to-r from-amber-500 to-red-600 text-white font-black text-[10px] rounded-md shadow flex items-center gap-1">
+        <button id="mobile-top-reg-btn" class="btn-blink-always px-2 py-1 bg-gradient-to-r from-amber-500 to-red-600 text-white font-black text-[10px] rounded shadow flex items-center gap-1">
           <i data-lucide="edit-3" class="w-3 h-3"></i> Register
         </button>
       </div>
@@ -131,27 +127,27 @@ function renderMobileBottomNav() {
   const bottomNavEl = document.getElementById('mobile-bottom-nav');
   if (!bottomNavEl) return;
 
-  bottomNavEl.className = "fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-3 py-1.5 sm:hidden shadow-lg flex items-center justify-between";
+  bottomNavEl.className = "fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md border-t border-slate-200 px-3 py-1 sm:hidden shadow-lg flex items-center justify-between";
 
   bottomNavEl.innerHTML = `
     <button id="mob-nav-home" class="flex flex-col items-center gap-0.5 px-2 ${currentRoute === 'landing' ? 'text-amber-600 font-extrabold' : 'text-slate-500'}">
       <i data-lucide="trophy" class="w-4 h-4"></i>
-      <span class="text-[9px]">Home</span>
+      <span class="text-[8px]">Home</span>
     </button>
 
     <button id="mob-nav-jsl" class="flex flex-col items-center gap-0.5 px-2 ${currentRoute === 'jsl-hub' ? 'text-sky-600 font-extrabold' : 'text-slate-500'}">
       <i data-lucide="shield" class="w-4 h-4"></i>
-      <span class="text-[9px]">JSL Hub</span>
+      <span class="text-[8px]">JSL Hub</span>
     </button>
 
     <!-- STICKY BLINKING BUTTON -->
-    <button id="mob-nav-reg" class="btn-blink-always px-3 py-1.5 bg-gradient-to-r from-amber-500 to-red-600 text-white rounded-xl shadow flex items-center gap-1 text-[10px] font-black">
+    <button id="mob-nav-reg" class="btn-blink-always px-2.5 py-1 bg-gradient-to-r from-amber-500 to-red-600 text-white rounded-lg shadow flex items-center gap-1 text-[10px] font-black">
       <i data-lucide="edit-3" class="w-3 h-3"></i> Registration Here
     </button>
 
     <button id="mob-nav-admin" class="flex flex-col items-center gap-0.5 px-2 ${currentRoute === 'admin' ? 'text-amber-600 font-extrabold' : 'text-slate-500'}">
       <i data-lucide="shield-check" class="w-4 h-4"></i>
-      <span class="text-[9px]">Admin</span>
+      <span class="text-[8px]">Admin</span>
     </button>
   `;
 
@@ -183,39 +179,39 @@ function renderCurrentView() {
   if (window.lucide) window.lucide.createIcons();
 }
 
-// --- FIRST PAGE LANDING (3 CATEGORY SQUARE BOXES IN A SINGLE ROW) ---
+// --- FIRST PAGE LANDING (3 CATEGORY SQUARE BOXES IN A HORIZONTAL ROW) ---
 function renderFirstPageLanding(containerEl) {
   containerEl.innerHTML = `
-    <div class="min-h-[50vh] flex flex-col items-center justify-center space-y-4 sm:space-y-8 animate-fade-in py-3 sm:py-8">
+    <div class="min-h-[45vh] flex flex-col items-center justify-center space-y-3 sm:space-y-6 animate-fade-in py-2 sm:py-6">
       
-      <div class="text-center space-y-1 px-2">
-        <span class="px-3 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 text-[10px] sm:text-xs font-extrabold uppercase tracking-widest">
+      <div class="text-center space-y-0.5 px-2">
+        <span class="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 text-[9px] sm:text-xs font-extrabold uppercase tracking-widest">
           Select Premier League
         </span>
-        <h2 class="text-lg sm:text-3xl md:text-4xl font-black text-slate-900 tracking-tight">Choose Tournament Category</h2>
+        <h2 class="text-base sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight">Choose Tournament Category</h2>
       </div>
 
-      <!-- 3 CATEGORY SQUARE BOXES IN A SINGLE ROW (grid-cols-3) -->
-      <div class="grid grid-cols-3 gap-2 sm:gap-6 md:gap-8 w-full max-w-4xl px-2 sm:px-4">
+      <!-- 3 CATEGORY SQUARE BOXES IN A SINGLE HORIZONTAL ROW (grid-cols-3) -->
+      <div class="grid grid-cols-3 gap-2 sm:gap-6 md:gap-8 w-full max-w-3xl px-2 sm:px-4">
         
         <!-- JPL SQUARE BOX -->
         <div id="btn-click-jpl" class="square-category-box group">
           <div class="category-logo-badge logo-jpl">JPL</div>
-          <h3 class="text-xs sm:text-2xl font-black text-slate-900 group-hover:text-amber-600 transition-colors">JPL</h3>
+          <h3 class="text-[11px] sm:text-2xl font-black text-slate-900 group-hover:text-amber-600 transition-colors">JPL</h3>
           <p class="text-[8px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider hidden sm:block">Jhankra Premier League</p>
         </div>
 
         <!-- JSL SQUARE BOX -->
         <div id="btn-click-jsl" class="square-category-box group border-sky-400">
           <div class="category-logo-badge logo-jsl">JSL</div>
-          <h3 class="text-xs sm:text-2xl font-black text-slate-900 group-hover:text-sky-600 transition-colors">JSL</h3>
+          <h3 class="text-[11px] sm:text-2xl font-black text-slate-900 group-hover:text-sky-600 transition-colors">JSL</h3>
           <p class="text-[8px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider hidden sm:block">Jhankra Super League</p>
         </div>
 
         <!-- KPL SQUARE BOX -->
         <div id="btn-click-kpl" class="square-category-box group border-purple-400">
           <div class="category-logo-badge logo-kpl">KPL</div>
-          <h3 class="text-xs sm:text-2xl font-black text-slate-900 group-hover:text-purple-600 transition-colors">KPL</h3>
+          <h3 class="text-[11px] sm:text-2xl font-black text-slate-900 group-hover:text-purple-600 transition-colors">KPL</h3>
           <p class="text-[8px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider hidden sm:block">Kota Premier League</p>
         </div>
 
@@ -233,27 +229,27 @@ function renderFirstPageLanding(containerEl) {
 function openComingSoonModal(code, title) {
   const modalHtml = `
     <div id="coming-soon-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3">
-      <div class="bg-white max-w-sm w-full p-5 text-center relative space-y-4 animate-fade-in rounded-2xl shadow-2xl border-2 ${code === 'JPL' ? 'border-amber-400' : 'border-purple-400'}">
-        <button id="close-cs-btn" class="absolute top-3 right-3 text-slate-400 hover:text-slate-700 p-1">
+      <div class="bg-white max-w-xs w-full p-4 text-center relative space-y-3 animate-fade-in rounded-2xl shadow-2xl border-2 ${code === 'JPL' ? 'border-amber-400' : 'border-purple-400'}">
+        <button id="close-cs-btn" class="absolute top-2.5 right-2.5 text-slate-400 hover:text-slate-700 p-1">
           <i data-lucide="x" class="w-4 h-4"></i>
         </button>
 
-        <div class="w-14 h-14 rounded-xl mx-auto ${code === 'JPL' ? 'logo-jpl' : 'logo-kpl'} flex items-center justify-center font-black text-2xl shadow-md">
+        <div class="w-12 h-12 rounded-xl mx-auto ${code === 'JPL' ? 'logo-jpl' : 'logo-kpl'} flex items-center justify-center font-black text-xl shadow-md">
           ${code}
         </div>
 
         <div>
-          <h3 class="text-xl font-black text-slate-900">${title}</h3>
-          <div class="inline-block mt-1.5 px-3 py-0.5 bg-amber-100 text-amber-800 border border-amber-300 rounded-full font-black text-[10px] uppercase tracking-widest animate-pulse">
+          <h3 class="text-lg font-black text-slate-900">${title}</h3>
+          <div class="inline-block mt-1 px-2.5 py-0.5 bg-amber-100 text-amber-800 border border-amber-300 rounded-full font-black text-[9px] uppercase tracking-widest animate-pulse">
             Coming Soon...
           </div>
         </div>
 
-        <p class="text-xs text-slate-600 leading-relaxed">
+        <p class="text-[11px] text-slate-600 leading-snug">
           Registrations for <strong>${title} (${code})</strong> will open shortly. Stay tuned!
         </p>
 
-        <button id="ok-cs-btn" class="w-full py-2.5 bg-slate-900 text-white font-bold text-xs rounded-xl shadow-md">
+        <button id="ok-cs-btn" class="w-full py-2 bg-slate-900 text-white font-bold text-xs rounded-xl shadow-md">
           Got It
         </button>
       </div>
@@ -268,182 +264,103 @@ function openComingSoonModal(code, title) {
   document.getElementById('ok-cs-btn')?.addEventListener('click', removeModal);
 }
 
-// --- JSL HUB (COMPACT HEADER + 3 COLUMNS: LEFT, MIDDLE, RIGHT) ---
+// --- JSL HUB (ULTRA-COMPACT HEADER STRIP + 3 HORIZONTAL COLUMNS) ---
 function renderJSLHub(containerEl) {
   const teams = store.getTeams();
   const players = store.getPlayers();
-  const teamMap = new Map(teams.map(t => [t.id, t.name]));
 
   containerEl.innerHTML = `
-    <div class="space-y-4 animate-fade-in">
+    <div class="space-y-3 animate-fade-in">
       
-      <!-- Back Button -->
-      <button id="back-to-landing-btn" class="px-3 py-1.5 bg-slate-100 text-slate-800 text-[11px] font-bold rounded-lg border border-slate-300 flex items-center gap-1">
-        <i data-lucide="arrow-left" class="w-3.5 h-3.5"></i> Back to Premier League Selector
-      </button>
+      <!-- Back Button & Header Bar -->
+      <div class="flex items-center justify-between gap-2">
+        <button id="back-to-landing-btn" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 text-[10px] font-bold rounded-lg border border-slate-300 flex items-center gap-1">
+          <i data-lucide="arrow-left" class="w-3 h-3"></i> Category Selector
+        </button>
 
-      <!-- ULTRA COMPACT JSL HEADER POSTER BANNER -->
-      <div class="jsl-poster-container p-3 sm:p-4 space-y-2.5">
-        
-        <!-- Header Top Line -->
-        <div class="flex flex-row items-center justify-between gap-2 border-b border-slate-100 pb-2">
-          <div class="flex items-center gap-2">
-            <div class="w-9 h-11 sm:w-14 sm:h-16 rounded-lg bg-gradient-to-b from-blue-900 to-red-600 p-0.5 flex-shrink-0 shadow relative border border-white flex flex-col items-center justify-center text-white">
-              <i data-lucide="shield" class="w-4 h-4 sm:w-8 sm:h-8 text-white"></i>
-              <span class="text-[7px] sm:text-[9px] font-black tracking-widest">JSL</span>
-            </div>
-            <div>
-              <div class="jsl-poster-title-navy">JHANKRA</div>
-              <div class="jsl-poster-title-red">SUPER LEAGUE</div>
-              <div class="inline-block mt-0.5 px-2 py-0.5 bg-slate-900 text-white font-extrabold text-[8px] sm:text-[10px] rounded tracking-wider uppercase">
-                🚩 8 TEAM LEAGUE CRICKET TOURNAMENT
-              </div>
-            </div>
-          </div>
-
-          <button id="jsl-poster-reg-btn" class="btn-blink-always px-3 py-2 bg-gradient-to-r from-amber-500 to-red-600 text-white font-black text-xs rounded-xl shadow flex items-center justify-center gap-1">
-            <i data-lucide="edit-3" class="w-3.5 h-3.5"></i> Register
-          </button>
-        </div>
-
-        <!-- Poster Cards Grid (Prize Money, Entry, Rules, Venue, Contact) -->
-        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
-          
-          <div class="bg-red-50/70 border border-red-200 rounded-lg p-2 text-center space-y-1">
-            <div class="inline-block px-2 py-0.5 bg-red-600 text-white font-black text-[8px] rounded-full uppercase">★ PRIZE MONEY ★</div>
-            <div class="flex justify-center items-center gap-2 font-black text-xs sm:text-sm">
-              <span class="text-red-600">WINNER 35K 🏆</span>
-              <span class="text-slate-300">|</span>
-              <span class="text-blue-950">RUNNERS 25K 🏆</span>
-            </div>
-          </div>
-
-          <div class="bg-emerald-50/70 border border-emerald-300 rounded-lg p-2 text-center space-y-0.5">
-            <div class="inline-block px-2 py-0.5 bg-emerald-700 text-white font-black text-[8px] rounded-full uppercase">TEAM ENTRY</div>
-            <div class="text-sm sm:text-base font-black text-emerald-800">15K (8K AUCTION + 7K FEE)</div>
-          </div>
-
-          <div class="bg-slate-900 text-white rounded-lg p-2 flex items-center justify-between gap-1">
-            <div class="text-[9px] font-bold text-red-400 leading-tight">
-              ⚠️ CHANDRAKONA TOWN PS PLAYERS ONLY
-            </div>
-            <div class="text-[8px] text-amber-400 font-bold whitespace-nowrap">RULES</div>
-          </div>
-
-        </div>
-
-        <!-- Venue & Date & Contact Ribbon -->
-        <div class="flex flex-col sm:flex-row items-center justify-between gap-1.5 bg-slate-50 border border-slate-200 p-2 rounded-lg text-[10px] font-bold">
-          <div class="flex items-center gap-2 text-red-600">
-            <i data-lucide="calendar" class="w-3.5 h-3.5"></i>
-            <span>29, 30 & 31 AUG 2026 @ JHANKRA SCHOOL GROUND</span>
-          </div>
-
-          <div class="flex items-center gap-1.5 text-emerald-800 font-extrabold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-            <i data-lucide="phone-call" class="w-3 h-3 text-emerald-700"></i>
-            <span>PINTU SANTRA - 89722144166</span>
-          </div>
-        </div>
-
+        <span class="text-[10px] font-extrabold text-sky-700 bg-sky-50 px-2 py-0.5 rounded border border-sky-200">
+          JHANKRA SUPER LEAGUE 2026
+        </span>
       </div>
 
-      <!-- 3 COLUMNS BELOW HEADER: LEFT (Registered Teams), MIDDLE (Registered Players), RIGHT (Registration Here) -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-3.5 items-start">
+      <!-- ULTRA-COMPACT JSL POSTER HEADER STRIP (TAKES MINIMAL VERTICAL SPACE) -->
+      <div class="jsl-header-strip p-2.5 space-y-2">
+        <!-- Line 1: Title + Action Register Button -->
+        <div class="flex flex-row items-center justify-between gap-2">
+          <div class="flex items-center gap-2">
+            <div class="w-8 h-9 rounded bg-gradient-to-b from-blue-900 to-red-600 flex items-center justify-center text-white font-black text-xs shadow flex-shrink-0">
+              JSL
+            </div>
+            <div>
+              <div class="jsl-poster-title-navy">JHANKRA <span class="jsl-poster-title-red">SUPER LEAGUE</span></div>
+              <div class="text-[8px] font-bold text-slate-500 uppercase">8 TEAM TOURNAMENT • 29-31 AUG 2026 @ JHANKRA SCHOOL GROUND</div>
+            </div>
+          </div>
+
+          <button id="jsl-poster-reg-btn" class="btn-blink-always px-3 py-1.5 bg-gradient-to-r from-amber-500 to-red-600 text-white font-black text-[10px] rounded-lg shadow flex items-center gap-1 flex-shrink-0">
+            <i data-lucide="edit-3" class="w-3 h-3"></i> Register
+          </button>
+        </div>
+
+        <!-- Line 2: Compact Pill Badges (Prize, Fee, Rules, Contact) -->
+        <div class="flex flex-wrap items-center gap-1.5 text-[9px] font-extrabold pt-1 border-t border-slate-100">
+          <span class="px-2 py-0.5 bg-red-100 text-red-800 rounded border border-red-200">🏆 Winner: 35K | Runners: 25K</span>
+          <span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded border border-emerald-200">💰 Team Entry: 15K (8K Auction + 7K Fee)</span>
+          <span class="px-2 py-0.5 bg-slate-900 text-white rounded">⚠️ Rules: Chandrakona PS Only</span>
+          <span class="px-2 py-0.5 bg-emerald-600 text-white rounded">📞 Contact: Pintu Santra (89722144166)</span>
+        </div>
+      </div>
+
+      <!-- 3 HORIZONTAL COLUMNS (grid-cols-3 ON ALL DEVICES) -->
+      <div class="grid grid-cols-3 gap-2 sm:gap-4 items-start">
         
-        <!-- COLUMN 1 (LEFT SIDE): REGISTERED TEAM LIST (CLICK TO OPEN) -->
-        <div class="glass-card border border-slate-200 overflow-hidden">
-          
-          <button id="toggle-teams-btn" class="w-full p-3 bg-slate-50 hover:bg-slate-100 border-b border-slate-200 flex items-center justify-between font-black text-xs text-slate-900 transition-colors">
-            <div class="flex items-center gap-2">
-              <i data-lucide="shield" class="w-4 h-4 text-sky-600"></i>
-              <span>Registered Team List (${teams.length})</span>
-            </div>
-            <div class="flex items-center gap-1 text-[10px] text-slate-500 font-normal">
-              <span>${teamsOpen ? 'Click to Close' : 'Click to Open'}</span>
-              <i data-lucide="${teamsOpen ? 'chevron-up' : 'chevron-down'}" class="w-4 h-4 text-slate-600"></i>
-            </div>
-          </button>
-
-          <!-- COLLAPSIBLE CONTENT (CLOSED BY DEFAULT) -->
-          <div id="teams-content-box" class="${teamsOpen ? 'p-3 space-y-2' : 'hidden'}">
-            ${teams.length === 0 ? `
-              <div class="p-4 text-center space-y-1 bg-white">
-                <i data-lucide="shield-off" class="w-5 h-5 text-slate-400 mx-auto"></i>
-                <div class="text-xs font-bold text-slate-800">No Teams Registered Yet</div>
-                <div class="text-[10px] text-slate-500">Click "Registration Here" to submit your team.</div>
-              </div>
-            ` : `
-              <div class="space-y-2">
-                ${teams.map((t, idx) => `
-                  <div class="p-2.5 rounded-lg border border-slate-200 bg-white flex items-center gap-2.5">
-                    <img src="${t.logoUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=300'}" class="w-8 h-8 rounded object-cover border border-slate-200" />
-                    <div>
-                      <div class="text-xs font-black text-slate-900 leading-tight">${t.name}</div>
-                      <div class="text-[10px] text-slate-500">Owner: ${t.ownerName} (${t.ownerPhone})</div>
-                    </div>
-                  </div>
-                `).join('')}
-              </div>
-            `}
+        <!-- COLUMN 1 (LEFT SIDE): REGISTERED TEAMS CARD (CLICK TO VIEW) -->
+        <div class="glass-card p-2 sm:p-3 text-center space-y-2 border border-slate-200">
+          <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-sky-100 text-sky-700 mx-auto flex items-center justify-center">
+            <i data-lucide="shield" class="w-4 h-4 sm:w-5 sm:h-5"></i>
           </div>
 
-        </div>
-
-        <!-- COLUMN 2 (MIDDLE): REGISTERED PLAYER LIST (CLICK TO OPEN) -->
-        <div class="glass-card border border-slate-200 overflow-hidden">
-          
-          <button id="toggle-players-btn" class="w-full p-3 bg-slate-50 hover:bg-slate-100 border-b border-slate-200 flex items-center justify-between font-black text-xs text-slate-900 transition-colors">
-            <div class="flex items-center gap-2">
-              <i data-lucide="users" class="w-4 h-4 text-amber-600"></i>
-              <span>Registered Player List (${players.length})</span>
-            </div>
-            <div class="flex items-center gap-1 text-[10px] text-slate-500 font-normal">
-              <span>${playersOpen ? 'Click to Close' : 'Click to Open'}</span>
-              <i data-lucide="${playersOpen ? 'chevron-up' : 'chevron-down'}" class="w-4 h-4 text-slate-600"></i>
-            </div>
-          </button>
-
-          <!-- COLLAPSIBLE CONTENT (CLOSED BY DEFAULT) -->
-          <div id="players-content-box" class="${playersOpen ? 'p-3 space-y-2' : 'hidden'}">
-            ${players.length === 0 ? `
-              <div class="p-4 text-center space-y-1 bg-white">
-                <i data-lucide="user-x" class="w-5 h-5 text-slate-400 mx-auto"></i>
-                <div class="text-xs font-bold text-slate-800">No Players Registered Yet</div>
-                <div class="text-[10px] text-slate-500">Click "Registration Here" to submit player entry for ₹ 200!</div>
-              </div>
-            ` : `
-              <div class="grid grid-cols-2 gap-2">
-                ${renderPlayerCardsWithSerial(players, teamMap)}
-              </div>
-            `}
-          </div>
-
-        </div>
-
-        <!-- COLUMN 3 (RIGHT SIDE): REGISTRATION HERE ACTION CARD WITH EXACT QR CODE -->
-        <div class="glass-card p-3.5 border border-amber-300 shadow-md bg-gradient-to-b from-white to-amber-50 text-center space-y-3">
-          
           <div>
-            <span class="px-2 py-0.5 bg-amber-100 text-amber-800 font-extrabold text-[9px] rounded-full uppercase">JSL 2026</span>
-            <h3 class="text-base font-black text-slate-900 mt-0.5">Registration Portal</h3>
+            <div class="text-[9px] sm:text-xs font-black text-slate-900 leading-tight">Total Registered Teams</div>
+            <div class="text-base sm:text-2xl font-black text-sky-600 mt-0.5">${teams.length}</div>
+          </div>
+
+          <button id="open-teams-modal-btn" class="w-full py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-[9px] sm:text-xs font-bold rounded-lg shadow-sm flex items-center justify-center gap-1">
+            <i data-lucide="list" class="w-3 h-3"></i> View Teams
+          </button>
+        </div>
+
+        <!-- COLUMN 2 (MIDDLE): REGISTERED PLAYER LIST CARD (CLICK TO VIEW) -->
+        <div class="glass-card p-2 sm:p-3 text-center space-y-2 border border-slate-200">
+          <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-amber-100 text-amber-700 mx-auto flex items-center justify-center">
+            <i data-lucide="users" class="w-4 h-4 sm:w-5 sm:h-5"></i>
+          </div>
+
+          <div>
+            <div class="text-[9px] sm:text-xs font-black text-slate-900 leading-tight">Total Registered Player List</div>
+            <div class="text-base sm:text-2xl font-black text-amber-600 mt-0.5">${players.length}</div>
+          </div>
+
+          <button id="open-players-modal-btn" class="w-full py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-[9px] sm:text-xs font-bold rounded-lg shadow-sm flex items-center justify-center gap-1">
+            <i data-lucide="user-check" class="w-3 h-3"></i> View Players
+          </button>
+        </div>
+
+        <!-- COLUMN 3 (RIGHT SIDE): REGISTRATION HERE CARD -->
+        <div class="glass-card p-2 sm:p-3 text-center space-y-2 border border-amber-300 bg-gradient-to-b from-white to-amber-50">
+          <div class="w-8 h-8 sm:w-10 sm:h-10 rounded-lg bg-amber-500 text-white mx-auto flex items-center justify-center font-black">
+            ✍️
+          </div>
+
+          <div>
+            <div class="text-[9px] sm:text-xs font-black text-slate-900 leading-tight">Team / Player Registration</div>
+            <div class="text-[8px] font-bold text-amber-700">Click Here to Apply</div>
           </div>
 
           <!-- PERSISTENT BLINKING REGISTRATION BUTTON -->
-          <button id="jsl-right-reg-btn" class="btn-blink-always w-full py-2.5 bg-gradient-to-r from-amber-500 to-red-600 text-white font-black text-xs rounded-xl shadow flex items-center justify-center gap-1.5">
-            <i data-lucide="edit-3" class="w-4 h-4"></i> Registration Here
+          <button id="jsl-right-reg-btn" class="btn-blink-always w-full py-1.5 bg-gradient-to-r from-amber-500 to-red-600 text-white font-black text-[9px] sm:text-xs rounded-lg shadow flex items-center justify-center gap-1">
+            <i data-lucide="edit-3" class="w-3 h-3"></i> Registration Here
           </button>
-
-          <!-- NAVI QR CODE IMAGE -->
-          <div class="bg-white p-2.5 rounded-xl border border-slate-200 shadow-sm space-y-1.5">
-            <div class="text-[9px] font-black text-slate-800 uppercase">Scan & Pay ₹ 200 via Any UPI</div>
-            <div class="overflow-hidden rounded-lg border border-slate-900 p-1 inline-block">
-              <img src="assets/navi_qr_code.jpg" alt="Pintu Santra Navi UPI QR Code" class="w-32 h-auto mx-auto object-contain rounded" />
-            </div>
-            <div class="text-[9px] font-bold text-emerald-800 font-mono bg-emerald-50 py-0.5 px-2 rounded border border-emerald-200 inline-block">
-              pintusantra4166@nyes
-            </div>
-          </div>
-
         </div>
 
       </div>
@@ -455,22 +372,112 @@ function renderJSLHub(containerEl) {
   document.getElementById('jsl-poster-reg-btn')?.addEventListener('click', openRegistrationTypeModal);
   document.getElementById('jsl-right-reg-btn')?.addEventListener('click', openRegistrationTypeModal);
 
-  // Accordion Toggle Listeners (Ensure no option opens automatically!)
-  document.getElementById('toggle-teams-btn')?.addEventListener('click', () => {
-    teamsOpen = !teamsOpen;
-    renderJSLHub(containerEl);
-  });
-
-  document.getElementById('toggle-players-btn')?.addEventListener('click', () => {
-    playersOpen = !playersOpen;
-    renderJSLHub(containerEl);
-  });
-
-  attachPlayerProfileModalListeners(containerEl);
+  // Click-to-Open Modal Listeners (Ensure options do not open automatically!)
+  document.getElementById('open-teams-modal-btn')?.addEventListener('click', () => openRegisteredTeamsModal(teams));
+  document.getElementById('open-players-modal-btn')?.addEventListener('click', () => openRegisteredPlayersModal(players));
 }
 
-// --- RENDER PLAYER CARDS (COMPACT 2-COLUMN GRID ON MOBILE) ---
-function renderPlayerCardsWithSerial(playersList, teamMap) {
+// --- REGISTERED TEAMS MODAL (CLICK TO OPEN) ---
+function openRegisteredTeamsModal(teams) {
+  const modalHtml = `
+    <div id="teams-view-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3">
+      <div class="bg-white max-w-md w-full p-4 relative space-y-3 animate-fade-in rounded-2xl shadow-2xl border border-slate-200 modal-content-container">
+        <button id="close-teams-modal" class="absolute top-3 right-3 text-slate-400 hover:text-slate-700 p-1">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+
+        <div>
+          <span class="px-2 py-0.5 bg-sky-100 text-sky-800 text-[9px] font-black rounded uppercase">JSL 2026</span>
+          <h2 class="text-base font-black text-slate-900 mt-0.5">Registered Team List (${teams.length})</h2>
+        </div>
+
+        <div class="space-y-2 max-h-[60vh] overflow-y-auto pr-1">
+          ${teams.length === 0 ? `
+            <div class="p-4 text-center space-y-1 bg-slate-50 rounded-xl border border-slate-200">
+              <i data-lucide="shield-off" class="w-5 h-5 text-slate-400 mx-auto"></i>
+              <div class="text-xs font-bold text-slate-800">No Teams Registered Yet</div>
+              <div class="text-[10px] text-slate-500">Click "Registration Here" to submit your team.</div>
+            </div>
+          ` : teams.map((t, idx) => `
+            <div class="p-2.5 rounded-xl border border-slate-200 bg-white flex items-center gap-2.5 shadow-sm">
+              <img src="${t.logoUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=300'}" class="w-10 h-10 rounded-lg object-cover border border-slate-200" />
+              <div>
+                <div class="text-xs font-black text-slate-900 leading-tight">${t.name}</div>
+                <div class="text-[10px] text-slate-600">Owner: <strong>${t.ownerName}</strong> (${t.ownerPhone})</div>
+                ${t.coOwnerName ? `<div class="text-[9px] text-slate-500">Co-Owner: ${t.coOwnerName} (${t.coOwnerPhone})</div>` : ''}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+
+        <button id="close-teams-modal-bottom" class="w-full py-2 bg-slate-900 text-white font-bold text-xs rounded-xl shadow">
+          Close List
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  if (window.lucide) window.lucide.createIcons();
+
+  const removeModal = () => document.getElementById('teams-view-modal')?.remove();
+  document.getElementById('close-teams-modal')?.addEventListener('click', removeModal);
+  document.getElementById('close-teams-modal-bottom')?.addEventListener('click', removeModal);
+}
+
+// --- REGISTERED PLAYERS MODAL (CLICK TO OPEN) ---
+function openRegisteredPlayersModal(players) {
+  const modalHtml = `
+    <div id="players-view-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3">
+      <div class="bg-white max-w-lg w-full p-4 relative space-y-3 animate-fade-in rounded-2xl shadow-2xl border border-slate-200 modal-content-container">
+        <button id="close-players-modal" class="absolute top-3 right-3 text-slate-400 hover:text-slate-700 p-1">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+
+        <div>
+          <span class="px-2 py-0.5 bg-amber-100 text-amber-800 text-[9px] font-black rounded uppercase">JSL 2026</span>
+          <h2 class="text-base font-black text-slate-900 mt-0.5">Registered Player List (${players.length})</h2>
+        </div>
+
+        <div class="max-h-[65vh] overflow-y-auto pr-1">
+          ${players.length === 0 ? `
+            <div class="p-4 text-center space-y-1 bg-slate-50 rounded-xl border border-slate-200">
+              <i data-lucide="user-x" class="w-5 h-5 text-slate-400 mx-auto"></i>
+              <div class="text-xs font-bold text-slate-800">No Players Registered Yet</div>
+              <div class="text-[10px] text-slate-500">Click "Registration Here" to submit player entry for ₹ 200!</div>
+            </div>
+          ` : `
+            <div class="grid grid-cols-2 gap-2">
+              ${renderPlayerCardsWithSerial(players)}
+            </div>
+          `}
+        </div>
+
+        <button id="close-players-modal-bottom" class="w-full py-2 bg-slate-900 text-white font-bold text-xs rounded-xl shadow">
+          Close List
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  if (window.lucide) window.lucide.createIcons();
+
+  const removeModal = () => document.getElementById('players-view-modal')?.remove();
+  document.getElementById('close-players-modal')?.addEventListener('click', removeModal);
+  document.getElementById('close-players-modal-bottom')?.addEventListener('click', removeModal);
+
+  document.querySelectorAll('.view-profile-modal-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const playerId = e.currentTarget.getAttribute('data-profile-id');
+      const player = store.getPlayerById(playerId);
+      openFullPlayerProfileModal(player);
+    });
+  });
+}
+
+// --- RENDER PLAYER CARDS (2-COLUMN GRID) ---
+function renderPlayerCardsWithSerial(playersList) {
   return playersList.map((p, idx) => {
     const serialNum = p.serialNo || (idx + 1);
     const isApproved = p.paymentStatus === 'APPROVED';
@@ -508,16 +515,6 @@ function renderPlayerCardsWithSerial(playersList, teamMap) {
       </div>
     `;
   }).join('');
-}
-
-function attachPlayerProfileModalListeners(containerEl) {
-  containerEl.querySelectorAll('.view-profile-modal-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const playerId = e.currentTarget.getAttribute('data-profile-id');
-      const player = store.getPlayerById(playerId);
-      openFullPlayerProfileModal(player);
-    });
-  });
 }
 
 // --- FULL PLAYER PROFILE MODAL ---
@@ -939,8 +936,8 @@ function openPlayerRegisterFormModal() {
       store.setUserRole('PLAYER', newPlayer.name, newPlayer);
       removeModal();
       alert(`Register Successful!\n\nPlayer "${newPlayer.name}" registered as Serial ${newPlayer.serialNo}.\nPayment Ref: ${upiRef}\nStatus: Pending Admin Payment Approval (Red Circle 🔴).`);
-      playersOpen = true; // Open players list when new player registers
       navigate('jsl-hub');
+      openRegisteredPlayersModal(store.getPlayers());
     } catch (err) {
       console.error("Player Registration Error:", err);
       alert("Registration Error: " + err.message);

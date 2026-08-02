@@ -1,4 +1,4 @@
-/* Compact 3-Column White Theme Design (Developer: Suman Kolay) */
+/* Ultra-Compact Horizontal White Theme (Developer: Suman Kolay) */
 
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Teko:wght@700&family=JetBrains+Mono:wght@400;600&display=swap');
 
@@ -22,15 +22,15 @@ body {
   font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
   background-color: var(--bg-main);
   background-image: 
-    radial-gradient(at 0% 0%, rgba(245, 158, 11, 0.04) 0px, transparent 50%),
-    radial-gradient(at 100% 0%, rgba(2, 132, 199, 0.04) 0px, transparent 50%),
-    radial-gradient(at 50% 100%, rgba(124, 58, 237, 0.03) 0px, transparent 50%);
+    radial-gradient(at 0% 0%, rgba(245, 158, 11, 0.03) 0px, transparent 50%),
+    radial-gradient(at 100% 0%, rgba(2, 132, 199, 0.03) 0px, transparent 50%),
+    radial-gradient(at 50% 100%, rgba(124, 58, 237, 0.02) 0px, transparent 50%);
   background-attachment: fixed;
   color: var(--text-main);
   min-height: 100vh;
   margin: 0;
   overflow-x: hidden;
-  padding-bottom: 65px;
+  padding-bottom: 60px;
 }
 
 @media (min-width: 768px) {
@@ -39,19 +39,19 @@ body {
   }
 }
 
-/* Glass & Card Utilities */
+/* Glass Card */
 .glass-card {
   background: var(--bg-card);
   border: 1px solid var(--border-light);
-  border-radius: 0.85rem;
-  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.04);
-  transition: all 0.25s ease;
+  border-radius: 0.75rem;
+  box-shadow: 0 2px 8px -1px rgba(0, 0, 0, 0.04);
+  transition: all 0.2s ease;
 }
 
 @media (min-width: 640px) {
   .glass-card {
-    border-radius: 1.15rem;
-    box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.06);
+    border-radius: 1rem;
+    box-shadow: 0 6px 20px -6px rgba(0, 0, 0, 0.05);
   }
 }
 
@@ -64,54 +64,54 @@ body {
   aspect-ratio: 1 / 1 !important;
   background: linear-gradient(145deg, #FFFFFF 0%, #F8FAFC 100%);
   border: 2px solid var(--border-light);
-  border-radius: 0.85rem;
+  border-radius: 0.75rem;
   display: flex !important;
   flex-direction: column !important;
   align-items: center !important;
   justify-content: center !important;
-  padding: 0.4rem;
+  padding: 0.35rem;
   text-align: center;
   position: relative;
   overflow: hidden;
   cursor: pointer;
-  box-shadow: 0 4px 10px rgba(15, 23, 42, 0.04);
+  box-shadow: 0 3px 8px rgba(15, 23, 42, 0.04);
   transition: all 0.25s ease;
 }
 
 @media (min-width: 640px) {
   .square-category-box {
-    border-radius: 1.5rem;
+    border-radius: 1.35rem;
     padding: 1.25rem;
   }
 }
 
 .square-category-box:hover {
   transform: translateY(-3px);
-  box-shadow: 0 10px 20px -4px rgba(15, 23, 42, 0.1);
+  box-shadow: 0 8px 18px -4px rgba(15, 23, 42, 0.1);
   border-color: var(--brand-gold);
 }
 
 .category-logo-badge {
-  width: 40px;
-  height: 40px;
-  border-radius: 0.65rem;
+  width: 38px;
+  height: 38px;
+  border-radius: 0.6rem;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.1rem;
+  font-size: 1rem;
   font-weight: 900;
   letter-spacing: -0.5px;
-  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.1);
-  margin-bottom: 0.3rem;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  margin-bottom: 0.25rem;
   flex-shrink: 0;
 }
 
 @media (min-width: 640px) {
   .category-logo-badge {
-    width: 80px;
-    height: 80px;
-    border-radius: 1.35rem;
-    font-size: 2.1rem;
+    width: 75px;
+    height: 75px;
+    border-radius: 1.25rem;
+    font-size: 2rem;
     margin-bottom: 0.75rem;
   }
 }
@@ -134,26 +134,18 @@ body {
   border: 2px solid #A78BFA;
 }
 
-/* JSL Ultra Compact Poster Banner */
-.jsl-poster-container {
+/* JSL Ultra-Compact Header Strip */
+.jsl-header-strip {
   background: #FFFFFF;
   border: 1.5px solid #0F172A;
-  border-radius: 0.85rem;
-  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.05);
-  overflow: hidden;
-}
-
-@media (min-width: 640px) {
-  .jsl-poster-container {
-    border-width: 2px;
-    border-radius: 1.25rem;
-  }
+  border-radius: 0.75rem;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
 }
 
 .jsl-poster-title-navy {
   font-family: 'Teko', 'Outfit', sans-serif;
   color: #0B192C;
-  font-size: 1.45rem;
+  font-size: 1.35rem;
   line-height: 0.9;
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -163,7 +155,7 @@ body {
 .jsl-poster-title-red {
   font-family: 'Teko', 'Outfit', sans-serif;
   color: #DC2626;
-  font-size: 1.75rem;
+  font-size: 1.6rem;
   line-height: 0.9;
   letter-spacing: 0.5px;
   text-transform: uppercase;
@@ -171,8 +163,8 @@ body {
 }
 
 @media (min-width: 640px) {
-  .jsl-poster-title-navy { font-size: 2.75rem; }
-  .jsl-poster-title-red { font-size: 3.35rem; }
+  .jsl-poster-title-navy { font-size: 2.25rem; }
+  .jsl-poster-title-red { font-size: 2.75rem; }
 }
 
 /* PERSISTENT BLINKING ANIMATION */
@@ -195,40 +187,40 @@ body {
 
 /* STATUS CIRCLES */
 .status-circle-red {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
   background-color: #EF476F;
   border-radius: 50%;
-  border: 1.5px solid #FFFFFF;
+  border: 1px solid #FFFFFF;
   box-shadow: 0 0 4px rgba(239, 71, 111, 0.8);
   display: inline-block;
 }
 
 .status-circle-green {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
   background-color: #10B981;
   border-radius: 50%;
-  border: 1.5px solid #FFFFFF;
+  border: 1px solid #FFFFFF;
   box-shadow: 0 0 4px rgba(16, 185, 129, 0.8);
   display: inline-block;
 }
 
 /* Compact Player Photo */
 .player-square-photo {
-  width: 60px;
-  height: 60px;
-  border-radius: 0.5rem;
+  width: 55px;
+  height: 55px;
+  border-radius: 0.45rem;
   object-fit: cover;
   border: 1.5px solid #E2E8F0;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
 }
 
 @media (min-width: 640px) {
   .player-square-photo {
-    width: 85px;
-    height: 85px;
-    border-radius: 0.85rem;
+    width: 80px;
+    height: 80px;
+    border-radius: 0.75rem;
     border-width: 2px;
   }
 }
@@ -236,8 +228,8 @@ body {
 /* Modal Overlay & Mobile Fit */
 .modal-overlay {
   background: rgba(15, 23, 42, 0.75);
-  backdrop-filter: blur(5px);
-  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
 }
 
 .modal-content-container {
@@ -247,7 +239,7 @@ body {
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(6px); }
+  from { opacity: 0; transform: translateY(5px); }
   to { opacity: 1; transform: translateY(0); }
 }
 
@@ -255,6 +247,6 @@ body {
   animation: fadeIn 0.2s ease-out forwards;
 }
 
-::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: #F1F5F9; }
-::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
+::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 3px; }
