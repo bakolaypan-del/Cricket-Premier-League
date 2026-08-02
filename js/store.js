@@ -1,4 +1,4 @@
-// LocalStorage & Cloud Database Reactive Store (Developer: Suman Kolay - Stable Form & No-Blink Release)
+// LocalStorage & Cloud Database Reactive Store (Developer: Suman Kolay - Sequential Serial & Auto-Reindex Release)
 
 import { INITIAL_LEAGUES, INITIAL_TEAMS, INITIAL_PLAYERS, INITIAL_FIXTURES } from './data.js';
 import { 
@@ -61,8 +61,15 @@ class Store {
 
       // 1. Sync Players ONLY if valid array received from cloud
       if (Array.isArray(cloudData.players)) {
+        // Auto-ensure strictly sequential serial numbers (1, 2, 3...)
+        const reindexedPlayers = cloudData.players.map((p, idx) => ({
+          ...p,
+          serialNo: idx + 1,
+          regNo: p.regNo || `JSL-2026-${String(idx + 1).padStart(3, '0')}`
+        }));
+
         const localPlayersStr = localStorage.getItem(STORAGE_KEYS.PLAYERS) || '[]';
-        const cloudPlayersStr = JSON.stringify(cloudData.players);
+        const cloudPlayersStr = JSON.stringify(reindexedPlayers);
         
         if (localPlayersStr !== cloudPlayersStr) {
           localStorage.setItem(STORAGE_KEYS.PLAYERS, cloudPlayersStr);
@@ -72,8 +79,13 @@ class Store {
 
       // 2. Sync Teams ONLY if valid array received from cloud
       if (Array.isArray(cloudData.teams)) {
+        const reindexedTeams = cloudData.teams.map((t, idx) => ({
+          ...t,
+          serialNo: idx + 1
+        }));
+
         const localTeamsStr = localStorage.getItem(STORAGE_KEYS.TEAMS) || '[]';
-        const cloudTeamsStr = JSON.stringify(cloudData.teams);
+        const cloudTeamsStr = JSON.stringify(reindexedTeams);
         
         if (localTeamsStr !== cloudTeamsStr) {
           localStorage.setItem(STORAGE_KEYS.TEAMS, cloudTeamsStr);
@@ -151,7 +163,12 @@ class Store {
 
   // --- PLAYERS ---
   getPlayers() {
-    return JSON.parse(localStorage.getItem(STORAGE_KEYS.PLAYERS)) || [];
+    const players = JSON.parse(localStorage.getItem(STORAGE_KEYS.PLAYERS)) || [];
+    // Ensure sequential serial numbers 1, 2, 3...
+    return players.map((p, idx) => ({
+      ...p,
+      serialNo: idx + 1
+    }));
   }
 
   getPlayerById(id) {
@@ -176,6 +193,12 @@ class Store {
     };
 
     players.push(newPlayer);
+
+    // Strictly re-index serial numbers
+    players.forEach((p, idx) => {
+      p.serialNo = idx + 1;
+      p.regNo = `JSL-2026-${String(idx + 1).padStart(3, '0')}`;
+    });
     
     try {
       localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
@@ -201,6 +224,12 @@ class Store {
     const idx = players.findIndex(p => p.id === updatedPlayerData.id);
     if (idx !== -1) {
       players[idx] = { ...players[idx], ...updatedPlayerData };
+      
+      // Ensure serial numbers remain 1, 2, 3...
+      players.forEach((p, i) => {
+        p.serialNo = i + 1;
+      });
+
       localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
       saveCloudData(players, this.getTeams());
       syncPlayerToSupabase(players[idx]);
@@ -210,6 +239,7 @@ class Store {
     return null;
   }
 
+  // --- AUTOMATIC RE-INDEXING ON DELETE PLAYER ---
   deletePlayer(playerId) {
     let players = this.getPlayers();
     const playerToDelete = players.find(p => p.id === playerId);
@@ -224,7 +254,15 @@ class Store {
       }
     }
 
+    // Filter out deleted player
     players = players.filter(p => p.id !== playerId);
+
+    // AUTO RE-INDEX REMAINING PLAYERS (1, 2, 3...)
+    players.forEach((p, idx) => {
+      p.serialNo = idx + 1;
+      p.regNo = `JSL-2026-${String(idx + 1).padStart(3, '0')}`;
+    });
+
     localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
     saveCloudData(players, this.getTeams());
     deletePlayerFromSupabase(playerId);
@@ -290,7 +328,11 @@ class Store {
 
   // --- TEAMS ---
   getTeams() {
-    return JSON.parse(localStorage.getItem(STORAGE_KEYS.TEAMS)) || [];
+    const teams = JSON.parse(localStorage.getItem(STORAGE_KEYS.TEAMS)) || [];
+    return teams.map((t, idx) => ({
+      ...t,
+      serialNo: idx + 1
+    }));
   }
 
   getTeamById(id) {
@@ -312,6 +354,10 @@ class Store {
       ...teamData
     };
     teams.push(newTeam);
+
+    teams.forEach((t, idx) => {
+      t.serialNo = idx + 1;
+    });
     
     try {
       localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(teams));
@@ -335,6 +381,9 @@ class Store {
     const idx = teams.findIndex(t => t.id === updatedTeamData.id);
     if (idx !== -1) {
       teams[idx] = { ...teams[idx], ...updatedTeamData };
+      teams.forEach((t, i) => {
+        t.serialNo = i + 1;
+      });
       localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(teams));
       saveCloudData(this.getPlayers(), teams);
       syncTeamToSupabase(teams[idx]);
@@ -344,10 +393,16 @@ class Store {
     return null;
   }
 
+  // --- AUTOMATIC RE-INDEXING ON DELETE TEAM ---
   deleteTeam(teamId) {
     let teams = this.getTeams();
     teams = teams.filter(t => t.id !== teamId);
     
+    // AUTO RE-INDEX REMAINING TEAMS (1, 2, 3...)
+    teams.forEach((t, idx) => {
+      t.serialNo = idx + 1;
+    });
+
     const players = this.getPlayers();
     players.forEach(p => {
       if (p.teamId === teamId) {
