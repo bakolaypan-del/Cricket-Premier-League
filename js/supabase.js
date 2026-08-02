@@ -60,7 +60,6 @@ export async function uploadImageToSupabaseStorage(file, folder = 'documents') {
     }
   }
 
-  // Return null if bucket is unconfigured so caller uses optimized compressed JPEG
   return null;
 }
 
@@ -99,7 +98,7 @@ function sanitizePlayerForRest(p) {
   return pCopy;
 }
 
-// --- INSTANT REALTIME CLOUD DATA SAVE (OFFICIAL GOOGLE FIREBASE REALTIME DATABASE) ---
+// --- INSTANT REALTIME CLOUD DATA SAVE (AWAITED FIREBASE SYNC) ---
 export async function saveCloudData(playersList, teamsList) {
   try {
     const sanitizedPlayers = (playersList || []).map(p => sanitizePlayerForRest(p));
@@ -111,14 +110,18 @@ export async function saveCloudData(playersList, teamsList) {
       lastUpdated: new Date().toISOString()
     };
 
-    // 1. Save to Official Google Firebase Realtime Database
-    fetch(`${FIREBASE_DB_URL}/cpl_master.json`, {
+    // 1. Await Save to Official Google Firebase Realtime Database
+    const res = await fetch(`${FIREBASE_DB_URL}/cpl_master.json`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
-    }).then(res => res.json())
-      .then(d => console.log("Firebase Realtime Database synced successfully!"))
-      .catch(e => console.warn("Firebase save warning:", e));
+    });
+
+    if (res.ok) {
+      console.log("Firebase Realtime Database synced successfully!");
+    } else {
+      console.warn("Firebase sync HTTP status:", res.status);
+    }
 
     // 2. Backup FULL DATA (with complete HD images) to Google Drive Web App (15 GB storage)
     const fullPayload = { players: playersList || [], teams: teamsList || [] };
