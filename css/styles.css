@@ -144,7 +144,47 @@ body {
   box-shadow: 0 0 16px rgba(167, 139, 250, 0.7);
 }
 
-/* JSL Ultra-Compact Header Strip - Night Stadium Glass */
+/* MEDIUM SQUARE FORMAT PHOTO WITH CRISP BORDER (NO NESTED SHAPES) */
+.medium-square-photo {
+  aspect-ratio: 1 / 1 !important;
+  width: 100%;
+  max-width: 120px;
+  height: auto;
+  border-radius: 0.85rem;
+  object-fit: cover;
+  border: 2px solid #F59E0B;
+  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.3);
+  margin: 0 auto;
+}
+
+@media (min-width: 640px) {
+  .medium-square-photo {
+    max-width: 140px;
+    border-radius: 1.1rem;
+    border-width: 2.5px;
+  }
+}
+
+.medium-square-team-logo {
+  aspect-ratio: 1 / 1 !important;
+  width: 100%;
+  max-width: 90px;
+  height: auto;
+  border-radius: 0.85rem;
+  object-fit: cover;
+  border: 2px solid #38BDF8;
+  box-shadow: 0 4px 16px rgba(56, 189, 248, 0.3);
+  margin: 0 auto;
+}
+
+@media (min-width: 640px) {
+  .medium-square-team-logo {
+    max-width: 110px;
+    border-radius: 1rem;
+  }
+}
+
+/* JSL Ultra-Compact Header Strip */
 .jsl-header-strip {
   background: rgba(11, 17, 32, 0.82);
   backdrop-filter: blur(20px);
@@ -218,25 +258,6 @@ body {
   border: 1px solid #FFFFFF;
   box-shadow: 0 0 8px rgba(16, 185, 129, 0.9);
   display: inline-block;
-}
-
-/* Compact Player Photo */
-.player-square-photo {
-  width: 55px;
-  height: 55px;
-  border-radius: 0.45rem;
-  object-fit: cover;
-  border: 1.5px solid rgba(255, 255, 255, 0.25);
-  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.4);
-}
-
-@media (min-width: 640px) {
-  .player-square-photo {
-    width: 80px;
-    height: 80px;
-    border-radius: 0.75rem;
-    border-width: 2px;
-  }
 }
 
 /* Modal Overlay & Mobile Fit */

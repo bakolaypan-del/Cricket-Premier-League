@@ -1,4 +1,4 @@
-// Core Application Router & Registration Portal (Developer: Suman Kolay - Grand Night Stadium Glassmorphism)
+// Core Application Router & Registration Portal (Developer: Suman Kolay - Medium Square Photo Format Release)
 
 import { store } from './store.js';
 import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, printDigitalPass } from './export.js';
@@ -258,7 +258,7 @@ function openComingSoonModal(code, title, logoPath) {
   document.getElementById('ok-cs-btn')?.addEventListener('click', removeModal);
 }
 
-// --- JSL HUB (MATCHES FIRST SCREEN GRAND STADIUM GLASSMORPHISM LOOK 100%) ---
+// --- JSL HUB ---
 function renderJSLHub(containerEl) {
   const teams = store.getTeams();
   const players = store.getPlayers();
@@ -277,7 +277,7 @@ function renderJSLHub(containerEl) {
         </span>
       </div>
 
-      <!-- GRAND STADIUM POSTER STRIP (MATCHES FIRST SCREEN GLOW & TYPOGRAPHY) -->
+      <!-- GRAND STADIUM POSTER STRIP -->
       <div class="jsl-header-strip p-3 sm:p-4 space-y-3 border-2 border-sky-500/50 shadow-2xl">
         <div class="flex items-center gap-3">
           <img src="assets/jsl_logo.jpg" alt="JSL Logo" class="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl object-cover border-2 border-sky-400 shadow-xl flex-shrink-0" />
@@ -289,7 +289,7 @@ function renderJSLHub(containerEl) {
           </div>
         </div>
 
-        <!-- STYLISH GRADIENT PILL BADGES FOR PRIZE MONEY, FEES, RULES & CONTACT -->
+        <!-- STYLISH GRADIENT PILL BADGES -->
         <div class="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-700/60 text-[9px] sm:text-xs font-black">
           <span class="px-2.5 py-1 bg-gradient-to-r from-red-600 to-amber-600 text-white rounded-lg shadow border border-red-400">
             🏆 Winner: 35K | Runners: 25K
@@ -306,7 +306,7 @@ function renderJSLHub(containerEl) {
         </div>
       </div>
 
-      <!-- 3 HORIZONTAL COLUMNS (grid-cols-3 ON ALL DEVICES - MATCHES FIRST SCREEN GLASSMORPHISM CARDS) -->
+      <!-- 3 HORIZONTAL COLUMNS (grid-cols-3 ON ALL DEVICES) -->
       <div class="grid grid-cols-3 gap-2 sm:gap-4 items-stretch">
         
         <!-- COLUMN 1 (LEFT SIDE): REGISTERED TEAMS CARD -->
@@ -377,7 +377,7 @@ function renderJSLHub(containerEl) {
   document.getElementById('open-players-modal-btn')?.addEventListener('click', () => openRegisteredPlayersModal(players));
 }
 
-// --- REGISTERED TEAMS MODAL WITH SEARCH OPTION ---
+// --- REGISTERED TEAMS MODAL WITH MEDIUM SQUARE LOGO CARDS (NO NESTED SHAPES) ---
 function openRegisteredTeamsModal(allTeams) {
   let filteredTeams = [...allTeams];
 
@@ -394,23 +394,29 @@ function openRegisteredTeamsModal(allTeams) {
         </div>
       `;
     } else {
-      container.innerHTML = filteredTeams.map((t, idx) => `
-        <div class="p-2.5 rounded-xl border border-slate-800 bg-slate-900/90 flex items-center gap-2.5 shadow-md">
-          <img src="${t.logoUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=300'}" class="w-10 h-10 rounded-lg object-cover border border-slate-700" />
-          <div>
-            <div class="text-xs font-black text-white leading-tight">${t.name}</div>
-            <div class="text-[10px] text-slate-300">Owner: <strong>${t.ownerName}</strong> (${t.ownerPhone})</div>
-            ${t.coOwnerName ? `<div class="text-[9px] text-slate-400">Co-Owner: ${t.coOwnerName} (${t.coOwnerPhone})</div>` : ''}
-          </div>
+      container.innerHTML = `
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+          ${filteredTeams.map((t) => `
+            <div class="glass-card p-2.5 flex flex-col justify-between items-center text-center border border-sky-500/40 bg-slate-900/90 hover:border-sky-400">
+              <img src="${t.logoUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=300'}" class="medium-square-team-logo mb-1.5" onerror="this.src='https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=300'" />
+              
+              <div class="space-y-0.5 w-full">
+                <h3 class="font-extrabold text-white text-xs truncate leading-tight">${t.name}</h3>
+                <div class="text-[9px] text-sky-300 font-bold truncate">Owner: ${t.ownerName}</div>
+                <div class="text-[8px] text-slate-400 font-mono truncate">📞 ${t.ownerPhone}</div>
+                ${t.coOwnerName ? `<div class="text-[8px] text-slate-400 truncate">Co-Owner: ${t.coOwnerName}</div>` : ''}
+              </div>
+            </div>
+          `).join('')}
         </div>
-      `).join('');
+      `;
     }
     if (window.lucide) window.lucide.createIcons();
   };
 
   const modalHtml = `
     <div id="teams-view-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3">
-      <div class="bg-slate-900/95 backdrop-blur-2xl max-w-md w-full p-4 relative space-y-3 animate-fade-in rounded-2xl shadow-2xl border border-slate-800 modal-content-container">
+      <div class="bg-slate-900/95 backdrop-blur-2xl max-w-lg w-full p-4 relative space-y-3 animate-fade-in rounded-2xl shadow-2xl border border-slate-800 modal-content-container">
         <button id="close-teams-modal" class="absolute top-3 right-3 text-slate-400 hover:text-white p-1">
           <i data-lucide="x" class="w-4 h-4"></i>
         </button>
@@ -425,7 +431,7 @@ function openRegisteredTeamsModal(allTeams) {
           <input type="text" id="team-search-input" placeholder="🔍 Search team by name or owner..." class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-xl p-2.5 pl-3 focus:outline-none focus:border-sky-500 placeholder-slate-500" />
         </div>
 
-        <div id="teams-list-container" class="space-y-2 max-h-[55vh] overflow-y-auto pr-1"></div>
+        <div id="teams-list-container" class="max-h-[60vh] overflow-y-auto pr-1"></div>
 
         <button id="close-teams-modal-bottom" class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl shadow">
           Close List
@@ -455,7 +461,7 @@ function openRegisteredTeamsModal(allTeams) {
   });
 }
 
-// --- REGISTERED PLAYERS MODAL WITH SEARCH OPTION & DOWNLOAD PDF BUTTON ---
+// --- REGISTERED PLAYERS MODAL WITH MEDIUM SQUARE PHOTO CARDS (NO NESTED SHAPES) ---
 function openRegisteredPlayersModal(allPlayers) {
   let filteredPlayers = [...allPlayers];
 
@@ -476,7 +482,7 @@ function openRegisteredPlayersModal(allPlayers) {
       `;
     } else {
       container.innerHTML = `
-        <div class="grid grid-cols-2 gap-2">
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
           ${renderPlayerCardsWithSerial(filteredPlayers)}
         </div>
       `;
@@ -495,7 +501,7 @@ function openRegisteredPlayersModal(allPlayers) {
 
   const modalHtml = `
     <div id="players-view-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3">
-      <div class="bg-slate-900/95 backdrop-blur-2xl max-w-lg w-full p-4 relative space-y-3 animate-fade-in rounded-2xl shadow-2xl border border-slate-800 modal-content-container">
+      <div class="bg-slate-900/95 backdrop-blur-2xl max-w-xl w-full p-4 relative space-y-3 animate-fade-in rounded-2xl shadow-2xl border border-slate-800 modal-content-container">
         <button id="close-players-modal" class="absolute top-3 right-3 text-slate-400 hover:text-white p-1">
           <i data-lucide="x" class="w-4 h-4"></i>
         </button>
@@ -517,7 +523,7 @@ function openRegisteredPlayersModal(allPlayers) {
           <input type="text" id="player-search-input" placeholder="🔍 Search player by name, category, phone, address..." class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-xl p-2.5 pl-3 focus:outline-none focus:border-amber-500 placeholder-slate-500" />
         </div>
 
-        <div id="players-list-container" class="max-h-[58vh] overflow-y-auto pr-1"></div>
+        <div id="players-list-container" class="max-h-[60vh] overflow-y-auto pr-1"></div>
 
         <button id="close-players-modal-bottom" class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl shadow">
           Close List
@@ -553,17 +559,18 @@ function openRegisteredPlayersModal(allPlayers) {
   });
 }
 
-// --- RENDER PLAYER CARDS ---
+// --- RENDER PLAYER CARDS (MEDIUM SQUARE PICTURE FORMAT WITH LOWER NAME - NO NESTED SHAPES) ---
 function renderPlayerCardsWithSerial(playersList) {
   return playersList.map((p, idx) => {
     const serialNum = p.serialNo || (idx + 1);
     const isApproved = p.paymentStatus === 'APPROVED';
 
     return `
-      <div class="glass-card p-2 flex flex-col justify-between items-center text-center relative border border-slate-800 shadow-lg bg-slate-900/90">
+      <div class="glass-card p-2.5 flex flex-col justify-between items-center text-center relative border border-amber-500/40 bg-slate-900/90 hover:border-amber-400">
         
-        <div class="w-full flex justify-between items-center mb-1">
-          <span class="px-1 py-0.5 bg-slate-950 text-white font-mono font-black text-[8px] rounded border border-slate-800">
+        <!-- Serial & Approval Badge Bar -->
+        <div class="w-full flex justify-between items-center mb-1.5">
+          <span class="px-1.5 py-0.5 bg-slate-950 text-amber-400 font-mono font-black text-[9px] rounded border border-amber-500/40 shadow">
             Serial ${serialNum}
           </span>
 
@@ -575,19 +582,19 @@ function renderPlayerCardsWithSerial(playersList) {
           </div>
         </div>
 
-        <div class="relative mb-1">
-          <img src="${p.photoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300'}" class="player-square-photo" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300'" />
-        </div>
+        <!-- MEDIUM SQUARE FORMAT PICTURE WITH BORDER (NO NESTED SHAPE) -->
+        <img src="${p.photoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300'}" class="medium-square-photo mb-1.5" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300'" />
 
-        <div class="space-y-0.5 mb-1.5 w-full">
-          <h3 class="font-extrabold text-white text-[10px] truncate leading-tight">${p.name}</h3>
-          <div class="text-[8px] font-bold text-sky-400 truncate">
+        <!-- LOWER NAME & CATEGORY BELOW PICTURE -->
+        <div class="space-y-0.5 mb-2 w-full">
+          <h3 class="font-black text-white text-xs truncate leading-tight">${p.name}</h3>
+          <div class="text-[9px] font-bold text-sky-400 truncate">
             ${p.category || 'Player'}
           </div>
         </div>
 
-        <button data-profile-id="${p.id}" class="view-profile-modal-btn w-full py-1 bg-slate-950 hover:bg-slate-800 text-white text-[9px] font-bold rounded border border-slate-800 shadow-sm flex items-center justify-center gap-0.5">
-          <i data-lucide="user" class="w-2.5 h-2.5 text-amber-400"></i> Profile
+        <button data-profile-id="${p.id}" class="view-profile-modal-btn w-full py-1.5 bg-slate-950 hover:bg-slate-800 text-white text-[9px] font-extrabold rounded-lg border border-slate-800 shadow-sm flex items-center justify-center gap-1">
+          <i data-lucide="user" class="w-3 h-3 text-amber-400"></i> View Profile
         </button>
       </div>
     `;
