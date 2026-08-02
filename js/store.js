@@ -60,60 +60,40 @@ class Store {
       // If a registration modal or form is open, DO NOT interrupt the user!
       const isUserFillingForm = document.getElementById('player-reg-modal') || document.getElementById('team-reg-modal');
 
-      // 1. SMART NON-DESTRUCTIVE MERGE FOR PLAYERS
+      // 1. PLAYERS SYNC
       const localPlayers = JSON.parse(localStorage.getItem(STORAGE_KEYS.PLAYERS) || '[]');
       const cloudPlayers = Array.isArray(cloudData.players) ? cloudData.players : [];
 
-      const playerMap = new Map();
-      localPlayers.forEach(p => {
-        if (p && p.id) playerMap.set(p.id, p);
-      });
-      cloudPlayers.forEach(cp => {
-        if (cp && cp.id) {
-          const existing = playerMap.get(cp.id);
-          playerMap.set(cp.id, { ...existing, ...cp });
-        }
-      });
+      let mergedPlayers = [];
+      if (cloudPlayers.length > 0 || localPlayers.length === 0) {
+        mergedPlayers = cloudPlayers.map((p, idx) => ({
+          ...p,
+          serialNo: idx + 1,
+          regNo: p.regNo || `JSL-2026-${String(idx + 1).padStart(3, '0')}`
+        }));
+      } else {
+        mergedPlayers = localPlayers;
+      }
 
-      const mergedPlayers = Array.from(playerMap.values()).map((p, idx) => ({
-        ...p,
-        serialNo: idx + 1,
-        regNo: p.regNo || `JSL-2026-${String(idx + 1).padStart(3, '0')}`
-      }));
-
-      // 2. SMART NON-DESTRUCTIVE MERGE FOR TEAMS
+      // 2. TEAMS SYNC
       const localTeams = JSON.parse(localStorage.getItem(STORAGE_KEYS.TEAMS) || '[]');
       const cloudTeams = Array.isArray(cloudData.teams) ? cloudData.teams : [];
 
-      const teamMap = new Map();
-      localTeams.forEach(t => {
-        if (t && t.id) teamMap.set(t.id, t);
-      });
-      cloudTeams.forEach(ct => {
-        if (ct && ct.id) {
-          const existing = teamMap.get(ct.id);
-          teamMap.set(ct.id, { ...existing, ...ct });
-        }
-      });
+      let mergedTeams = [];
+      if (cloudTeams.length > 0 || localTeams.length === 0) {
+        mergedTeams = cloudTeams.map((t, idx) => ({
+          ...t,
+          serialNo: idx + 1
+        }));
+      } else {
+        mergedTeams = localTeams;
+      }
 
-      const mergedTeams = Array.from(teamMap.values()).map((t, idx) => ({
-        ...t,
-        serialNo: idx + 1
-      }));
-
-      // 3. AUTO-PUSH UNPUSHED ENTRIES TO CLOUD DUAL BACKEND
       const localPlayersStr = JSON.stringify(localPlayers);
       const mergedPlayersStr = JSON.stringify(mergedPlayers);
-      const cloudPlayersStr = JSON.stringify(cloudPlayers);
 
       const localTeamsStr = JSON.stringify(localTeams);
       const mergedTeamsStr = JSON.stringify(mergedTeams);
-      const cloudTeamsStr = JSON.stringify(cloudTeams);
-
-      if (mergedPlayers.length > cloudPlayers.length || localPlayersStr !== cloudPlayersStr ||
-          mergedTeams.length > cloudTeams.length || localTeamsStr !== cloudTeamsStr) {
-        saveCloudData(mergedPlayers, mergedTeams);
-      }
 
       if (localPlayersStr !== mergedPlayersStr) {
         localStorage.setItem(STORAGE_KEYS.PLAYERS, mergedPlayersStr);

@@ -123,10 +123,16 @@ export async function fetchCloudData() {
 // --- INSTANT REALTIME CLOUD DATA SAVE ---
 export async function saveCloudData(playersList, teamsList) {
   try {
-    // 1. Sync Players to CRUD REST API
+    // 1. Sync Players to CRUD REST API (Add missing, delete removed)
     if (Array.isArray(playersList)) {
       const existingRes = await fetch(`${CRUD_API_BASE}/players`);
       let existingPlayers = existingRes.ok ? await existingRes.json() : [];
+
+      for (const ep of existingPlayers) {
+        if (!playersList.some(p => p.id === ep.id)) {
+          await fetch(`${CRUD_API_BASE}/players/${ep._id}`, { method: 'DELETE' }).catch(e => {});
+        }
+      }
       
       for (const p of playersList) {
         const found = existingPlayers.find(ep => ep.id === p.id);
@@ -135,15 +141,21 @@ export async function saveCloudData(playersList, teamsList) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(p)
-          });
+          }).catch(e => {});
         }
       }
     }
 
-    // 2. Sync Teams to CRUD REST API
+    // 2. Sync Teams to CRUD REST API (Add missing, delete removed)
     if (Array.isArray(teamsList)) {
       const existingTRes = await fetch(`${CRUD_API_BASE}/teams`);
       let existingTeams = existingTRes.ok ? await existingTRes.json() : [];
+
+      for (const et of existingTeams) {
+        if (!teamsList.some(t => t.id === et.id)) {
+          await fetch(`${CRUD_API_BASE}/teams/${et._id}`, { method: 'DELETE' }).catch(e => {});
+        }
+      }
       
       for (const t of teamsList) {
         const found = existingTeams.find(et => et.id === t.id);
@@ -152,7 +164,7 @@ export async function saveCloudData(playersList, teamsList) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(t)
-          });
+          }).catch(e => {});
         }
       }
     }
