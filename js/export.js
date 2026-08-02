@@ -57,7 +57,7 @@ export function exportTeamsToCSV(teams) {
   document.body.removeChild(link);
 }
 
-// GENERATE PROFESSIONAL PRINTABLE PDF DOCUMENT FOR REGISTERED PLAYERS
+// GENERATE PROFESSIONAL PRINTABLE PDF DOCUMENT FOR REGISTERED PLAYERS WITH HD PHOTOS
 export function exportPlayersToPDF(players) {
   if (!players || players.length === 0) {
     alert('No players found to export.');
@@ -73,8 +73,8 @@ export function exportPlayersToPDF(players) {
   const rowsHtml = players.map((p, idx) => `
     <tr>
       <td style="text-align: center; font-weight: bold;">S-${p.serialNo || (idx + 1)}</td>
-      <td style="text-align: center;">
-        <img src="${p.photoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150'}" style="width: 55px; height: 55px; object-fit: cover; border-radius: 6px; border: 1px solid #ccc;" />
+      <td style="text-align: center; width: 75px;">
+        <img src="${p.photoUrl || 'assets/jsl_logo.jpg'}" style="width: 60px; height: 60px; object-fit: cover; border-radius: 8px; border: 1.5px solid #0F172A; box-shadow: 0 2px 4px rgba(0,0,0,0.15);" />
       </td>
       <td style="font-weight: bold; color: #0F172A;">${p.name}</td>
       <td style="color: #0284C7; font-weight: bold;">${p.category || p.role || 'Player'}</td>
@@ -98,29 +98,29 @@ export function exportPlayersToPDF(players) {
         .subtitle { font-size: 14px; font-weight: bold; color: #DC2626; margin-top: 4px; }
         .meta { font-size: 11px; color: #64748B; margin-top: 6px; }
         table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
-        th, td { border: 1px solid #CBD5E1; padding: 8px; text-align: left; }
-        th { background-color: #0F172A; color: white; font-weight: bold; }
+        th, td { border: 1px solid #CBD5E1; padding: 8px; text-align: left; vertical-align: middle; }
+        th { background-color: #0F172A; color: white; font-weight: bold; text-align: center; }
         tr:nth-child(even) { background-color: #F8FAFC; }
-        .footer { margin-top: 30px; text-align: center; font-size: 10px; color: #94A3B8; border-t: 1px solid #E2E8F0; padding-top: 10px; }
+        .footer { margin-top: 30px; text-align: center; font-size: 10px; color: #94A3B8; border-top: 1px solid #E2E8F0; padding-top: 10px; }
       </style>
     </head>
     <body>
       <div class="header-box">
         <h1 class="title">JHANKRA SUPER LEAGUE (JSL 2026)</h1>
-        <div class="subtitle">Official Registered Players Directory</div>
-        <div class="meta">Total Players: ${players.length} • Generated on: ${new Date().toLocaleString()} • Dev: Suman Kolay</div>
+        <div class="subtitle">Official Registered Players Directory (HD Printable List)</div>
+        <div class="meta">Generated: ${new Date().toLocaleString()} • Total Players: ${players.length}</div>
       </div>
 
       <table>
         <thead>
           <tr>
-            <th style="width: 40px; text-align: center;">Serial</th>
-            <th style="width: 70px; text-align: center;">Photo</th>
+            <th style="width: 50px;">Serial</th>
+            <th style="width: 75px;">Photo</th>
             <th>Player Name</th>
             <th>Category</th>
             <th>Phone</th>
             <th>Address</th>
-            <th style="width: 80px; text-align: center;">Status</th>
+            <th style="width: 80px;">Status</th>
           </tr>
         </thead>
         <tbody>
@@ -129,12 +129,6 @@ export function exportPlayersToPDF(players) {
       </table>
 
       <div class="footer">
-        © 2026 Cricket Premier League Portal • Developer: Suman Kolay • Contact Organizer: Pintu Santra (89722144166)
-      </div>
-
-      <script>
-        window.onload = function() {
-          window.print();
         }
       </script>
     </body>
