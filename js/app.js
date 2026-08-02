@@ -160,16 +160,31 @@ function renderCurrentView() {
   if (window.lucide) window.lucide.createIcons();
 }
 
-// --- FIRST PAGE LANDING (3 CATEGORY SQUARE BOXES IN A HORIZONTAL ROW) ---
+// --- FIRST PAGE LANDING (STYLISH WELCOME NOTE + CRICKET MOTIVATIONAL NOTE + 3 SQUARE CATEGORIES) ---
 function renderFirstPageLanding(containerEl) {
   containerEl.innerHTML = `
-    <div class="min-h-[45vh] flex flex-col items-center justify-center space-y-3 sm:space-y-6 animate-fade-in py-2 sm:py-6">
+    <div class="min-h-[50vh] flex flex-col items-center justify-center space-y-4 sm:space-y-6 animate-fade-in py-2 sm:py-6">
       
-      <div class="text-center space-y-0.5 px-2">
-        <span class="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 text-[9px] sm:text-xs font-extrabold uppercase tracking-widest">
+      <!-- STYLISH WELCOME NOTE & SMART CRICKET MOTIVATIONAL NOTE -->
+      <div class="w-full max-w-2xl text-center space-y-2 px-3">
+        <div class="inline-block px-3 py-1 bg-gradient-to-r from-amber-500 via-red-500 to-amber-500 text-white font-black text-[11px] sm:text-xs rounded-full shadow-md uppercase tracking-wider">
+          ✨ Welcome Champions & Cricket Enthusiasts! ✨
+        </div>
+
+        <h2 class="text-base sm:text-2xl font-black text-slate-900 leading-snug">
+          "Champions aren't made in gymnasiums. Champions are made from a desire, a dream, & a vision. Play with Passion, Rise with Glory!"
+        </h2>
+
+        <p class="text-[10px] sm:text-xs font-bold text-slate-500 italic">
+          🏏 Official Tournament Portal • Step onto the pitch and claim your victory!
+        </p>
+      </div>
+
+      <!-- SELECT PREMIER LEAGUE PILL BADGE (ABOVE CATEGORIES) -->
+      <div class="text-center">
+        <span class="px-3.5 py-1 rounded-full bg-amber-100 text-amber-800 border border-amber-300 text-[10px] sm:text-xs font-extrabold uppercase tracking-widest shadow-sm">
           Select Premier League
         </span>
-        <h2 class="text-base sm:text-2xl md:text-3xl font-black text-slate-900 tracking-tight">Choose Tournament Category</h2>
       </div>
 
       <!-- 3 CATEGORY SQUARE BOXES IN A SINGLE HORIZONTAL ROW (grid-cols-3) -->
@@ -299,7 +314,7 @@ function renderJSLHub(containerEl) {
           </div>
 
           <button id="open-teams-modal-btn" class="w-full py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-[9px] sm:text-xs font-bold rounded-lg shadow-sm flex items-center justify-center gap-1">
-            <i data-lucide="search" class="w-3 h-3"></i> Search / View Teams
+            <i data-lucide="search" class="w-3 h-3"></i> View Teams
           </button>
         </div>
 
@@ -315,7 +330,7 @@ function renderJSLHub(containerEl) {
           </div>
 
           <button id="open-players-modal-btn" class="w-full py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-[9px] sm:text-xs font-bold rounded-lg shadow-sm flex items-center justify-center gap-1">
-            <i data-lucide="search" class="w-3 h-3"></i> Search / View Players
+            <i data-lucide="search" class="w-3 h-3"></i> View Players
           </button>
         </div>
 
