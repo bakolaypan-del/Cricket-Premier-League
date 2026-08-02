@@ -1051,7 +1051,7 @@ function openPlayerRegisterFormModal() {
     const file = e.target.files[0];
     if (file) {
       plyPhotoFileObj = file;
-      plyPhotoDataUrl = await compressImage(file, 600, 600, 0.85);
+      plyPhotoDataUrl = await compressImage(file, 200, 200, 0.75);
       document.getElementById('ply-photo-preview-img').src = plyPhotoDataUrl;
       document.getElementById('ply-photo-preview-box').classList.remove('hidden');
     }
@@ -1061,7 +1061,7 @@ function openPlayerRegisterFormModal() {
     const file = e.target.files[0];
     if (file) {
       plyAadharFileObj = file;
-      plyAadharDataUrl = await compressImage(file, 800, 600, 0.85);
+      plyAadharDataUrl = await compressImage(file, 600, 450, 0.75);
       document.getElementById('ply-aadhar-preview-img').src = plyAadharDataUrl;
       document.getElementById('ply-aadhar-preview-box').classList.remove('hidden');
     }
@@ -1071,7 +1071,7 @@ function openPlayerRegisterFormModal() {
     const file = e.target.files[0];
     if (file) {
       plyProofFileObj = file;
-      plyProofDataUrl = await compressImage(file, 800, 600, 0.85);
+      plyProofDataUrl = await compressImage(file, 600, 450, 0.75);
       document.getElementById('ply-proof-preview-img').src = plyProofDataUrl;
       document.getElementById('ply-proof-preview-box').classList.remove('hidden');
     }
