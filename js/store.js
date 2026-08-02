@@ -1,4 +1,4 @@
-// Single Source of Truth Cloud Database & Reactive Store (Developer: Suman Kolay)
+// LocalStorage & Cloud Database Reactive Store (Developer: Suman Kolay - Stable Form & No-Blink Release)
 
 import { INITIAL_LEAGUES, INITIAL_TEAMS, INITIAL_PLAYERS, INITIAL_FIXTURES } from './data.js';
 import { 
@@ -50,12 +50,16 @@ class Store {
     }
   }
 
-  // --- SINGLE SOURCE OF TRUTH CLOUD SYNC ---
+  // --- STABLE CLOUD SYNC (PREVENTS BLINKING & DOES NOT INTERRUPT ACTIVE REGISTRATION FORMS) ---
   async syncWithCloud() {
     try {
       const cloudData = await fetchCloudData();
       
-      // 1. Sync Players (Cloud replaces Local to keep all devices 100% identical)
+      // If a registration modal or form is open, DO NOT interrupt the user!
+      const isUserFillingForm = document.getElementById('player-reg-modal') || document.getElementById('team-reg-modal');
+      if (isUserFillingForm) return;
+
+      // 1. Sync Players ONLY if valid array received from cloud
       if (Array.isArray(cloudData.players)) {
         const localPlayersStr = localStorage.getItem(STORAGE_KEYS.PLAYERS) || '[]';
         const cloudPlayersStr = JSON.stringify(cloudData.players);
@@ -66,7 +70,7 @@ class Store {
         }
       }
 
-      // 2. Sync Teams (Cloud replaces Local to keep all devices 100% identical)
+      // 2. Sync Teams ONLY if valid array received from cloud
       if (Array.isArray(cloudData.teams)) {
         const localTeamsStr = localStorage.getItem(STORAGE_KEYS.TEAMS) || '[]';
         const cloudTeamsStr = JSON.stringify(cloudData.teams);
@@ -82,10 +86,10 @@ class Store {
   }
 
   startCloudPolling() {
-    // Poll Cloud Database every 2.5 seconds so all phones & laptops stay 100% synchronized
+    // Poll Cloud Database every 5 seconds without interrupting active forms
     setInterval(() => {
       this.syncWithCloud();
-    }, 2500);
+    }, 5000);
   }
 
   setupRealtimeListeners() {
@@ -99,7 +103,10 @@ class Store {
         this.broadcastChannel = new BroadcastChannel('cpl_realtime_sync_channel');
         this.broadcastChannel.onmessage = (event) => {
           if (event.data && event.data.type) {
-            window.dispatchEvent(new CustomEvent(event.data.type));
+            const isUserFillingForm = document.getElementById('player-reg-modal') || document.getElementById('team-reg-modal');
+            if (!isUserFillingForm) {
+              window.dispatchEvent(new CustomEvent(event.data.type));
+            }
           }
         };
       } catch (err) {

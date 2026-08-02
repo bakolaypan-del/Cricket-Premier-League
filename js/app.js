@@ -1,4 +1,4 @@
-// Core Application Router & Registration Portal (Developer: Suman Kolay - Clean Header & JSL Only WhatsApp Prompt)
+// Core Application Router & Registration Portal (Developer: Suman Kolay - Form Protection & No-Blink Release)
 
 import { store } from './store.js';
 import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, printDigitalPass } from './export.js';
@@ -18,13 +18,19 @@ function initApp() {
   renderMobileBottomNav();
   renderCurrentView();
 
-  window.addEventListener('leagues_updated', () => renderCurrentView());
-  window.addEventListener('players_updated', () => renderCurrentView());
-  window.addEventListener('teams_updated', () => renderCurrentView());
+  const safeRenderCurrentView = () => {
+    // PROTECT ACTIVE USER FORMS: If any modal or form is open, DO NOT re-render or reset form data!
+    if (document.querySelector('.modal-overlay')) return;
+    renderCurrentView();
+  };
+
+  window.addEventListener('leagues_updated', safeRenderCurrentView);
+  window.addEventListener('players_updated', safeRenderCurrentView);
+  window.addEventListener('teams_updated', safeRenderCurrentView);
   window.addEventListener('user_updated', () => {
     renderNavbar();
     renderMobileBottomNav();
-    renderCurrentView();
+    safeRenderCurrentView();
   });
 }
 
