@@ -106,7 +106,6 @@ class Store {
       localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
     } catch (err) {
       console.warn("Storage quota limit reached, stripping heavy image buffers:", err);
-      // Fallback: strip heavy data URLs if localStorage quota is tight
       const compactPlayers = players.map(p => ({
         ...p,
         photoUrl: p.photoUrl && p.photoUrl.length > 500000 ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300' : p.photoUrl,
@@ -119,6 +118,38 @@ class Store {
     syncPlayerToSupabase(newPlayer);
     this.notify('players_updated');
     return newPlayer;
+  }
+
+  updatePlayer(updatedPlayerData) {
+    const players = this.getPlayers();
+    const idx = players.findIndex(p => p.id === updatedPlayerData.id);
+    if (idx !== -1) {
+      players[idx] = { ...players[idx], ...updatedPlayerData };
+      localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
+      this.notify('players_updated');
+      return players[idx];
+    }
+    return null;
+  }
+
+  deletePlayer(playerId) {
+    let players = this.getPlayers();
+    const playerToDelete = players.find(p => p.id === playerId);
+    
+    if (playerToDelete && playerToDelete.teamId) {
+      const teams = this.getTeams();
+      const team = teams.find(t => t.id === playerToDelete.teamId);
+      if (team) {
+        team.squadCount = Math.max(0, team.squadCount - 1);
+        team.purseSpent = Math.max(0, team.purseSpent - (playerToDelete.soldPrice || 0));
+        localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(teams));
+        this.notify('teams_updated');
+      }
+    }
+
+    players = players.filter(p => p.id !== playerId);
+    localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
+    this.notify('players_updated');
   }
 
   updatePlayerStatus(playerId, status, notes = '') {
@@ -200,6 +231,37 @@ class Store {
     syncTeamToSupabase(newTeam);
     this.notify('teams_updated');
     return newTeam;
+  }
+
+  updateTeam(updatedTeamData) {
+    const teams = this.getTeams();
+    const idx = teams.findIndex(t => t.id === updatedTeamData.id);
+    if (idx !== -1) {
+      teams[idx] = { ...teams[idx], ...updatedTeamData };
+      localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(teams));
+      this.notify('teams_updated');
+      return teams[idx];
+    }
+    return null;
+  }
+
+  deleteTeam(teamId) {
+    let teams = this.getTeams();
+    teams = teams.filter(t => t.id !== teamId);
+    
+    // Unassign players belonging to this deleted team
+    const players = this.getPlayers();
+    players.forEach(p => {
+      if (p.teamId === teamId) {
+        p.teamId = null;
+        p.soldPrice = 0;
+      }
+    });
+
+    localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(teams));
+    localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
+    this.notify('teams_updated');
+    this.notify('players_updated');
   }
 
   // --- FIXTURES ---
