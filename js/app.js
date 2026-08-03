@@ -1096,33 +1096,30 @@ function openPlayerRegisterFormModal() {
       const category = document.getElementById('ply-category').value;
       const upiRef = document.getElementById('ply-upi-ref').value;
 
-      let finalPhotoUrl = plyPhotoDataUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300';
-      let finalAadharUrl = plyAadharDataUrl || 'Attached Document Proof';
-      let finalProofUrl = plyProofDataUrl || 'Attached Receipt Screenshot';
+      const photoInput = document.getElementById('ply-photo-file');
+      const aadharInput = document.getElementById('ply-aadhar-file');
+      const proofInput = document.getElementById('ply-proof-file');
 
-      if (plyPhotoFileObj) {
-        try {
-          const uploaded = await uploadHDImage(plyPhotoFileObj, 'photos');
-          if (uploaded) finalPhotoUrl = uploaded;
-        } catch (err) {
-          console.warn("Cloud image upload fallback:", err);
-        }
+      let finalPhotoUrl = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300';
+      let finalAadharUrl = 'Attached Document Proof';
+      let finalProofUrl = 'Attached Receipt Screenshot';
+
+      if (photoInput && photoInput.files && photoInput.files[0]) {
+        finalPhotoUrl = await compressImage(photoInput.files[0], 500, 500, 0.85);
+      } else if (plyPhotoDataUrl) {
+        finalPhotoUrl = plyPhotoDataUrl;
       }
-      if (plyAadharFileObj) {
-        try {
-          const uploaded = await uploadHDImage(plyAadharFileObj, 'aadhar');
-          if (uploaded) finalAadharUrl = uploaded;
-        } catch (err) {
-          console.warn("Cloud aadhar upload fallback:", err);
-        }
+
+      if (aadharInput && aadharInput.files && aadharInput.files[0]) {
+        finalAadharUrl = await compressImage(aadharInput.files[0], 900, 700, 0.85);
+      } else if (plyAadharDataUrl) {
+        finalAadharUrl = plyAadharDataUrl;
       }
-      if (plyProofFileObj) {
-        try {
-          const uploaded = await uploadHDImage(plyProofFileObj, 'receipts');
-          if (uploaded) finalProofUrl = uploaded;
-        } catch (err) {
-          console.warn("Cloud receipt upload fallback:", err);
-        }
+
+      if (proofInput && proofInput.files && proofInput.files[0]) {
+        finalProofUrl = await compressImage(proofInput.files[0], 900, 700, 0.85);
+      } else if (plyProofDataUrl) {
+        finalProofUrl = plyProofDataUrl;
       }
 
       const newPlayer = await store.registerPlayer({
