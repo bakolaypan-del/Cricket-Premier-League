@@ -7,7 +7,12 @@ import {
   syncPlayerToSupabase, 
   deletePlayerFromSupabase,
   syncTeamToSupabase, 
-  deleteTeamFromSupabase 
+  deleteTeamFromSupabase,
+  initRealtimePushListener,
+  savePlayerToFirebase,
+  saveTeamToFirebase,
+  deletePlayerFromFirebase,
+  deleteTeamFromFirebase
 } from './supabase.js';
 
 const STORAGE_KEYS = {
@@ -27,6 +32,13 @@ class Store {
     this.setupRealtimeListeners();
     this.syncWithCloud();
     this.startCloudPolling();
+    this.setupFirebasePushListener();
+  }
+
+  setupFirebasePushListener() {
+    initRealtimePushListener(() => {
+      this.syncWithCloud();
+    });
   }
 
   init() {
@@ -227,21 +239,11 @@ class Store {
     try {
       localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
     } catch (err) {
-      console.warn("Storage quota limit reached, trimming local document buffers:", err);
-      const compactPlayers = players.map(p => ({
-        ...p,
-        aadharBackUrl: p.aadharBackUrl && p.aadharBackUrl.length > 50000 ? 'Attached Document Proof' : p.aadharBackUrl,
-        paymentProofUrl: p.paymentProofUrl && p.paymentProofUrl.length > 50000 ? 'Attached Receipt Screenshot' : p.paymentProofUrl
-      }));
-      try {
-        localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(compactPlayers));
-      } catch (e) {
-        console.warn("LocalStorage quota full, saved to cloud and Google Drive");
-      }
+      console.warn("Storage quota limit notice (using cloud master state):", err);
     }
 
-    await saveCloudData(players, this.getTeams());
-    syncPlayerToSupabase(newPlayer);
+    await savePlayerToFirebase(newPlayer);
+    saveCloudData(players, this.getTeams());
     this.notify('players_updated');
     return newPlayer;
   }

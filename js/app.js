@@ -3,7 +3,7 @@
 import { store } from './store.js';
 import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, printDigitalPass, openUserGuidePDF } from './export.js';
 import { renderAdminDashboard } from './admin.js';
-import { uploadImageToSupabaseStorage, uploadImageToGoogleDrive } from './supabase.js';
+import { uploadImageToSupabaseStorage, uploadImageToGoogleDrive, uploadHDImage } from './supabase.js';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
 
@@ -1049,32 +1049,31 @@ function openPlayerRegisterFormModal() {
 
   let plyPhotoHDDataUrl = '';
 
-  document.getElementById('ply-photo-file')?.addEventListener('change', async (e) => {
+  document.getElementById('ply-photo-file')?.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (file) {
       plyPhotoFileObj = file;
-      plyPhotoDataUrl = await compressImage(file, 200, 200, 0.75);
-      plyPhotoHDDataUrl = await compressImage(file, 1000, 1000, 0.90);
+      plyPhotoDataUrl = URL.createObjectURL(file);
       document.getElementById('ply-photo-preview-img').src = plyPhotoDataUrl;
       document.getElementById('ply-photo-preview-box').classList.remove('hidden');
     }
   });
 
-  document.getElementById('ply-aadhar-file')?.addEventListener('change', async (e) => {
+  document.getElementById('ply-aadhar-file')?.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (file) {
       plyAadharFileObj = file;
-      plyAadharDataUrl = await compressImage(file, 600, 450, 0.75);
+      plyAadharDataUrl = URL.createObjectURL(file);
       document.getElementById('ply-aadhar-preview-img').src = plyAadharDataUrl;
       document.getElementById('ply-aadhar-preview-box').classList.remove('hidden');
     }
   });
 
-  document.getElementById('ply-proof-file')?.addEventListener('change', async (e) => {
+  document.getElementById('ply-proof-file')?.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (file) {
       plyProofFileObj = file;
-      plyProofDataUrl = await compressImage(file, 600, 450, 0.75);
+      plyProofDataUrl = URL.createObjectURL(file);
       document.getElementById('ply-proof-preview-img').src = plyProofDataUrl;
       document.getElementById('ply-proof-preview-box').classList.remove('hidden');
     }
@@ -1085,7 +1084,7 @@ function openPlayerRegisterFormModal() {
     const submitBtn = document.getElementById('submit-player-reg-btn');
     if (submitBtn) {
       submitBtn.disabled = true;
-      submitBtn.innerText = "Uploading HD Documents & Submitting...";
+      submitBtn.innerText = "Uploading Full HD Documents & Submitting...";
     }
 
     try {
@@ -1095,21 +1094,24 @@ function openPlayerRegisterFormModal() {
       const category = document.getElementById('ply-category').value;
       const upiRef = document.getElementById('ply-upi-ref').value;
 
-      let finalPhotoUrl = plyPhotoDataUrl;
-      let finalAadharUrl = plyAadharDataUrl;
-      let finalProofUrl = plyProofDataUrl;
+      let finalPhotoUrl = 'assets/jsl_logo.jpg';
+      let finalAadharUrl = 'Attached Document Proof';
+      let finalProofUrl = 'Attached Receipt Screenshot';
 
       if (plyPhotoFileObj) {
-        const uploaded = await uploadImageToGoogleDrive(plyPhotoFileObj, 'photos') || await uploadImageToSupabaseStorage(plyPhotoFileObj, 'photos');
+        const uploaded = await uploadHDImage(plyPhotoFileObj, 'photos');
         if (uploaded) finalPhotoUrl = uploaded;
+        else if (plyPhotoDataUrl && !plyPhotoDataUrl.startsWith('blob:')) finalPhotoUrl = plyPhotoDataUrl;
       }
       if (plyAadharFileObj) {
-        const uploaded = await uploadImageToGoogleDrive(plyAadharFileObj, 'aadhar') || await uploadImageToSupabaseStorage(plyAadharFileObj, 'aadhar');
+        const uploaded = await uploadHDImage(plyAadharFileObj, 'aadhar');
         if (uploaded) finalAadharUrl = uploaded;
+        else if (plyAadharDataUrl && !plyAadharDataUrl.startsWith('blob:')) finalAadharUrl = plyAadharDataUrl;
       }
       if (plyProofFileObj) {
-        const uploaded = await uploadImageToGoogleDrive(plyProofFileObj, 'receipts') || await uploadImageToSupabaseStorage(plyProofFileObj, 'receipts');
+        const uploaded = await uploadHDImage(plyProofFileObj, 'receipts');
         if (uploaded) finalProofUrl = uploaded;
+        else if (plyProofDataUrl && !plyProofDataUrl.startsWith('blob:')) finalProofUrl = plyProofDataUrl;
       }
 
       const newPlayer = await store.registerPlayer({
@@ -1120,7 +1122,7 @@ function openPlayerRegisterFormModal() {
         role: category,
         battingStyle: category.includes('Left') ? 'Left-Hand Bat' : 'Right-Hand Bat',
         photoUrl: finalPhotoUrl,
-        hdPhotoUrl: finalPhotoUrl.startsWith('http') ? finalPhotoUrl : (plyPhotoHDDataUrl || finalPhotoUrl),
+        hdPhotoUrl: finalPhotoUrl,
         aadharBackUrl: finalAadharUrl,
         paymentRef: upiRef,
         paymentProofUrl: finalProofUrl,

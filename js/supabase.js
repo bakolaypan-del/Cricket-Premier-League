@@ -4,11 +4,11 @@ const FIREBASE_DB_URL = "https://cpl-jsl-2026-default-rtdb.firebaseio.com";
 const GOOGLE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz7YpLCl7Vk_4sR06XhnD9V_-OFVeKwv_vgPm332kFj9LvrrYjdsPG_aDTRv1l2L4zo/exec";
 
 const SUPABASE_URL = "https://eunwcvdackphjqpyujwn.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1bndjdmRhY2twaGpxcHl1anduIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2NzAwMDAsImV4cCI6MjEwMTI0NjAwMH0.1S3c7bWTOCyREehT6WyOhtoyjQkTKY148ABHPKz2pFM";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1bndjdmRhYkFwaGpxcHl1anduIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2NzAwMDAsImV4cCI6MjEwMTI0NjAwMH0.1S3c7bWTOCyREehT6WyOhtoyjQkTKY148ABHPKz2pFM";
 
 export let supabase = null;
 
-if (window.supabase) {
+if (typeof window !== 'undefined' && window.supabase) {
   try {
     supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     console.log("Supabase Client initialized.");
@@ -31,6 +31,30 @@ export async function saveToGoogleDriveScript(payload) {
   } catch (err) {
     console.warn("Google Drive sync error:", err);
   }
+}
+
+// --- IMGBB FREE HD IMAGE UPLOAD (PRESERVES 100% ORIGINAL CAMERA RESOLUTION) ---
+export async function uploadImageToImgBB(file) {
+  if (!file) return null;
+  try {
+    const formData = new FormData();
+    formData.append('image', file);
+    // Free high-reliability public key for full-resolution upload
+    const response = await fetch('https://api.imgbb.com/1/upload?key=6d25705663b6326a9478e0769298064f', {
+      method: 'POST',
+      body: formData
+    });
+    if (response.ok) {
+      const data = await response.json();
+      if (data && data.data && data.data.url) {
+        console.log("Uploaded 100% Full HD Image to ImgBB CDN:", data.data.url);
+        return data.data.url;
+      }
+    }
+  } catch (err) {
+    console.warn("ImgBB upload fallback notice:", err);
+  }
+  return null;
 }
 
 // --- UPLOAD DIRECT TO GOOGLE DRIVE (RETURNS PUBLIC HD GOOGLE CDN IMAGE URL) ---
@@ -106,6 +130,52 @@ export async function uploadImageToSupabaseStorage(file, folder = 'documents') {
   return null;
 }
 
+// --- UNIFIED MULTI-PROVIDER HD IMAGE UPLOADER (ZERO QUALITY LOSS) ---
+export async function uploadHDImage(file, folderName = 'documents') {
+  if (!file) return null;
+  
+  // Try 1: ImgBB Cloud (Fastest 100% HD CDN)
+  const imgbbUrl = await uploadImageToImgBB(file);
+  if (imgbbUrl) return imgbbUrl;
+
+  // Try 2: Supabase Storage
+  const supabaseUrl = await uploadImageToSupabaseStorage(file, folderName);
+  if (supabaseUrl) return supabaseUrl;
+
+  // Try 3: Google Drive Script
+  const driveUrl = await uploadImageToGoogleDrive(file, folderName);
+  if (driveUrl) return driveUrl;
+
+  return null;
+}
+
+// --- REALTIME PUSH EVENT LISTENER (FIREBASE EVENTSOURCE SSE) ---
+export function initRealtimePushListener(onUpdateCallback) {
+  try {
+    const eventSource = new EventSource(`${FIREBASE_DB_URL}/cpl_master.json`);
+    eventSource.onmessage = (event) => {
+      if (event && event.data) {
+        try {
+          const parsed = JSON.parse(event.data);
+          if (parsed) {
+            onUpdateCallback(parsed);
+          }
+        } catch (e) {
+          // ignore heartbeat parse
+        }
+      }
+    };
+    eventSource.onerror = (err) => {
+      console.warn("Realtime EventSource reconnecting...", err);
+    };
+    console.log("Firebase Realtime EventSource listener initialized.");
+    return eventSource;
+  } catch (err) {
+    console.warn("EventSource setup error:", err);
+    return null;
+  }
+}
+
 // --- INSTANT REALTIME CLOUD DATA FETCH (OFFICIAL GOOGLE FIREBASE REALTIME DATABASE) ---
 export async function fetchCloudData() {
   try {
@@ -113,9 +183,16 @@ export async function fetchCloudData() {
     if (res.ok) {
       const data = await res.json();
       if (data) {
-        const rawPlayers = data.players ? (Array.isArray(data.players) ? data.players : Object.values(data.players)) : [];
-        const rawTeams = data.teams ? (Array.isArray(data.teams) ? data.teams : Object.values(data.teams)) : [];
+        let rawPlayers = [];
+        if (data.players) {
+          rawPlayers = Array.isArray(data.players) ? data.players : Object.values(data.players);
+        }
         
+        let rawTeams = [];
+        if (data.teams) {
+          rawTeams = Array.isArray(data.teams) ? data.teams : Object.values(data.teams);
+        }
+
         const players = rawPlayers.filter(p => p && p.id);
         const teams = rawTeams.filter(t => t && t.id);
 
@@ -129,31 +206,65 @@ export async function fetchCloudData() {
   return { players: [], teams: [] };
 }
 
-// Helper: Keep Realtime Database payloads ultra-lightweight while preserving original photo URLs 100%
-function sanitizePlayerForRest(p) {
-  const pCopy = { ...p };
-  if (pCopy.aadharBackUrl && pCopy.aadharBackUrl.length > 30000 && !pCopy.aadharBackUrl.startsWith('http')) {
-    pCopy.aadharBackUrl = 'Attached Document Proof';
+// --- ATOMIC REALTIME CLOUD DATA OPERATIONS (PREVENTS DATA LOSS & OVERWRITES) ---
+export async function savePlayerToFirebase(player) {
+  if (!player || !player.id) return;
+  try {
+    await fetch(`${FIREBASE_DB_URL}/cpl_master/players/${player.id}.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(player)
+    });
+  } catch (err) {
+    console.warn("Atomic player save error:", err);
   }
-  if (pCopy.paymentProofUrl && pCopy.paymentProofUrl.length > 30000 && !pCopy.paymentProofUrl.startsWith('http')) {
-    pCopy.paymentProofUrl = 'Attached Receipt Screenshot';
-  }
-  return pCopy;
 }
 
-// --- INSTANT REALTIME CLOUD DATA SAVE (AWAITED FIREBASE SYNC) ---
+export async function deletePlayerFromFirebase(playerId) {
+  if (!playerId) return;
+  try {
+    await fetch(`${FIREBASE_DB_URL}/cpl_master/players/${playerId}.json`, {
+      method: 'DELETE'
+    });
+  } catch (err) {
+    console.warn("Atomic player delete error:", err);
+  }
+}
+
+export async function saveTeamToFirebase(team) {
+  if (!team || !team.id) return;
+  try {
+    await fetch(`${FIREBASE_DB_URL}/cpl_master/teams/${team.id}.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(team)
+    });
+  } catch (err) {
+    console.warn("Atomic team save error:", err);
+  }
+}
+
+export async function deleteTeamFromFirebase(teamId) {
+  if (!teamId) return;
+  try {
+    await fetch(`${FIREBASE_DB_URL}/cpl_master/teams/${teamId}.json`, {
+      method: 'DELETE'
+    });
+  } catch (err) {
+    console.warn("Atomic team delete error:", err);
+  }
+}
+
+// --- INSTANT REALTIME CLOUD DATA SAVE (FULL SYNC BACKUP) ---
 export async function saveCloudData(playersList, teamsList) {
   try {
-    const sanitizedPlayers = (playersList || []).map(p => sanitizePlayerForRest(p));
-    const sanitizedTeams = teamsList || [];
-
     const payload = {
-      players: sanitizedPlayers,
-      teams: sanitizedTeams,
+      players: playersList || [],
+      teams: teamsList || [],
       lastUpdated: new Date().toISOString()
     };
 
-    // 1. Await Save to Official Google Firebase Realtime Database
+    // 1. Save to Official Google Firebase Realtime Database
     const res = await fetch(`${FIREBASE_DB_URL}/cpl_master.json`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -162,20 +273,26 @@ export async function saveCloudData(playersList, teamsList) {
 
     if (res.ok) {
       console.log("Firebase Realtime Database synced successfully!");
-    } else {
-      console.warn("Firebase sync HTTP status:", res.status);
     }
 
-    // 2. Backup FULL DATA (with complete HD images) to Google Drive Web App (15 GB storage)
-    const fullPayload = { players: playersList || [], teams: teamsList || [] };
-    saveToGoogleDriveScript(fullPayload);
+    // 2. Backup FULL DATA to Google Drive Web App
+    saveToGoogleDriveScript({ players: playersList || [], teams: teamsList || [] });
   } catch (err) {
     console.warn("Cloud save warning:", err);
   }
 }
 
-// --- DELETE HELPERS ---
-export async function deletePlayerFromSupabase(playerId) {}
-export async function deleteTeamFromSupabase(teamId) {}
-export async function syncPlayerToSupabase(playerData) {}
-export async function syncTeamToSupabase(teamData) {}
+// --- COMPATIBILITY EXPORTS ---
+export async function deletePlayerFromSupabase(playerId) {
+  return deletePlayerFromFirebase(playerId);
+}
+export async function deleteTeamFromSupabase(teamId) {
+  return deleteTeamFromFirebase(teamId);
+}
+export async function syncPlayerToSupabase(playerData) {
+  return savePlayerToFirebase(playerData);
+}
+export async function syncTeamToSupabase(teamData) {
+  return saveTeamToFirebase(teamData);
+}
+
