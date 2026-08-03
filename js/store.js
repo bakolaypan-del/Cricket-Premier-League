@@ -12,7 +12,9 @@ import {
   savePlayerToFirebase,
   saveTeamToFirebase,
   deletePlayerFromFirebase,
-  deleteTeamFromFirebase
+  deleteTeamFromFirebase,
+  clearAllPlayersFromFirebase,
+  clearAllTeamsFromFirebase
 } from './supabase.js';
 
 const STORAGE_KEYS = {
@@ -243,7 +245,6 @@ class Store {
     }
 
     await savePlayerToFirebase(newPlayer);
-    saveCloudData(players, this.getTeams());
     this.notify('players_updated');
     return newPlayer;
   }
@@ -264,8 +265,7 @@ class Store {
       } catch (e) {
         console.warn("localStorage quota notice:", e);
       }
-      await saveCloudData(players, this.getTeams());
-      syncPlayerToSupabase(players[idx]);
+      await savePlayerToFirebase(players[idx]);
       this.notify('players_updated');
       return players[idx];
     }
@@ -307,37 +307,39 @@ class Store {
     } catch (e) {
       console.warn("localStorage quota notice:", e);
     }
-    await saveCloudData(players, this.getTeams());
-    deletePlayerFromSupabase(playerId);
+    await deletePlayerFromFirebase(playerId);
     this.notify('players_updated');
   }
 
-  clearAllPlayers() {
+  async clearAllPlayers() {
     localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify([]));
-    saveCloudData([], this.getTeams());
+    await clearAllPlayersFromFirebase();
     this.notify('players_updated');
   }
 
-  clearAllTeams() {
+  async clearAllTeams() {
     localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify([]));
-    saveCloudData(this.getPlayers(), []);
+    await clearAllTeamsFromFirebase();
     this.notify('teams_updated');
   }
 
-  updatePlayerStatus(playerId, status, notes = '') {
+  async updatePlayerStatus(playerId, status, notes = '') {
     const players = this.getPlayers();
     const player = players.find(p => p.id === playerId);
     if (player) {
       player.paymentStatus = status;
       player.adminNotes = notes;
-      localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
-      saveCloudData(players, this.getTeams());
-      syncPlayerToSupabase(player);
+      try {
+        localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
+      } catch (e) {
+        console.warn("localStorage quota notice:", e);
+      }
+      await savePlayerToFirebase(player);
       this.notify('players_updated');
     }
   }
 
-  assignPlayerToTeam(playerId, teamId, soldPrice) {
+  async assignPlayerToTeam(playerId, teamId, soldPrice) {
     const players = this.getPlayers();
     const teams = this.getTeams();
     
@@ -350,6 +352,7 @@ class Store {
         if (oldTeam) {
           oldTeam.squadCount = Math.max(0, oldTeam.squadCount - 1);
           oldTeam.purseSpent = Math.max(0, oldTeam.purseSpent - (player.soldPrice || 0));
+          await saveTeamToFirebase(oldTeam);
         }
       }
 
@@ -359,11 +362,14 @@ class Store {
       team.squadCount += 1;
       team.purseSpent += player.soldPrice;
 
-      localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
-      localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(teams));
-      saveCloudData(players, teams);
-      syncPlayerToSupabase(player);
-      syncTeamToSupabase(team);
+      try {
+        localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
+        localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(teams));
+      } catch (e) {
+        console.warn("localStorage quota notice:", e);
+      }
+      await savePlayerToFirebase(player);
+      await saveTeamToFirebase(team);
       this.notify('players_updated');
       this.notify('teams_updated');
     }
@@ -382,7 +388,7 @@ class Store {
     return this.getTeams().find(t => t.id === id);
   }
 
-  registerTeam(teamData) {
+  async registerTeam(teamData) {
     const teams = this.getTeams();
     const serialNo = teams.length + 1;
     const newTeam = {
@@ -413,13 +419,12 @@ class Store {
       localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(compactTeams));
     }
 
-    saveCloudData(this.getPlayers(), teams);
-    syncTeamToSupabase(newTeam);
+    await saveTeamToFirebase(newTeam);
     this.notify('teams_updated');
     return newTeam;
   }
 
-  updateTeam(updatedTeamData) {
+  async updateTeam(updatedTeamData) {
     const teams = this.getTeams();
     const idx = teams.findIndex(t => t.id === updatedTeamData.id);
     if (idx !== -1) {
@@ -427,9 +432,12 @@ class Store {
       teams.forEach((t, i) => {
         t.serialNo = i + 1;
       });
-      localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(teams));
-      saveCloudData(this.getPlayers(), teams);
-      syncTeamToSupabase(teams[idx]);
+      try {
+        localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(teams));
+      } catch (e) {
+        console.warn("localStorage quota notice:", e);
+      }
+      await saveTeamToFirebase(teams[idx]);
       this.notify('teams_updated');
       return teams[idx];
     }
@@ -437,7 +445,7 @@ class Store {
   }
 
   // --- AUTOMATIC RE-INDEXING ON DELETE TEAM ---
-  deleteTeam(teamId) {
+  async deleteTeam(teamId) {
     const deletedTeamIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.DELETED_TEAMS) || '[]');
     if (!deletedTeamIds.includes(teamId)) {
       deletedTeamIds.push(teamId);
@@ -460,10 +468,13 @@ class Store {
       }
     });
 
-    localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(teams));
-    localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
-    saveCloudData(players, teams);
-    deleteTeamFromSupabase(teamId);
+    try {
+      localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(teams));
+      localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
+    } catch (e) {
+      console.warn("localStorage quota notice:", e);
+    }
+    await deleteTeamFromFirebase(teamId);
     this.notify('teams_updated');
     this.notify('players_updated');
   }

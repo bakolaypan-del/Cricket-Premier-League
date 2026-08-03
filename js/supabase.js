@@ -153,18 +153,16 @@ export async function uploadHDImage(file, folderName = 'documents') {
 export function initRealtimePushListener(onUpdateCallback) {
   try {
     const eventSource = new EventSource(`${FIREBASE_DB_URL}/cpl_master.json`);
-    eventSource.onmessage = (event) => {
-      if (event && event.data) {
-        try {
-          const parsed = JSON.parse(event.data);
-          if (parsed) {
-            onUpdateCallback(parsed);
-          }
-        } catch (e) {
-          // ignore heartbeat parse
-        }
-      }
+    
+    const handleUpdate = (event) => {
+      console.log("Firebase Realtime Event received:", event.type);
+      onUpdateCallback();
     };
+
+    eventSource.addEventListener('put', handleUpdate);
+    eventSource.addEventListener('patch', handleUpdate);
+    eventSource.onmessage = handleUpdate;
+
     eventSource.onerror = (err) => {
       console.warn("Realtime EventSource reconnecting...", err);
     };
@@ -215,6 +213,7 @@ export async function savePlayerToFirebase(player) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(player)
     });
+    console.log("Saved player atomically to Firebase:", player.name);
   } catch (err) {
     console.warn("Atomic player save error:", err);
   }
@@ -239,6 +238,7 @@ export async function saveTeamToFirebase(team) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(team)
     });
+    console.log("Saved team atomically to Firebase:", team.name);
   } catch (err) {
     console.warn("Atomic team save error:", err);
   }
@@ -255,27 +255,26 @@ export async function deleteTeamFromFirebase(teamId) {
   }
 }
 
+export async function clearAllPlayersFromFirebase() {
+  try {
+    await fetch(`${FIREBASE_DB_URL}/cpl_master/players.json`, { method: 'DELETE' });
+  } catch (err) {
+    console.warn("Clear players error:", err);
+  }
+}
+
+export async function clearAllTeamsFromFirebase() {
+  try {
+    await fetch(`${FIREBASE_DB_URL}/cpl_master/teams.json`, { method: 'DELETE' });
+  } catch (err) {
+    console.warn("Clear teams error:", err);
+  }
+}
+
 // --- INSTANT REALTIME CLOUD DATA SAVE (FULL SYNC BACKUP) ---
 export async function saveCloudData(playersList, teamsList) {
+  // Safe backup only
   try {
-    const payload = {
-      players: playersList || [],
-      teams: teamsList || [],
-      lastUpdated: new Date().toISOString()
-    };
-
-    // 1. Save to Official Google Firebase Realtime Database
-    const res = await fetch(`${FIREBASE_DB_URL}/cpl_master.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-
-    if (res.ok) {
-      console.log("Firebase Realtime Database synced successfully!");
-    }
-
-    // 2. Backup FULL DATA to Google Drive Web App
     saveToGoogleDriveScript({ players: playersList || [], teams: teamsList || [] });
   } catch (err) {
     console.warn("Cloud save warning:", err);
