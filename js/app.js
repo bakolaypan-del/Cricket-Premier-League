@@ -669,7 +669,7 @@ function renderPlayerCardsWithSerial(playersList) {
         </div>
 
         <!-- MEDIUM SQUARE FORMAT PICTURE WITH BORDER (NO NESTED SHAPE) -->
-        <img src="${p.photoUrl && p.photoUrl !== 'assets/jsl_logo.jpg' ? p.photoUrl : (p.hdPhotoUrl || p.photoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300')}" class="medium-square-photo mb-1.5" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300'" />
+        <img src="${(p.photoUrl && p.photoUrl !== 'assets/jsl_logo.jpg') ? p.photoUrl : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300'}" class="medium-square-photo mb-1.5" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300'" />
 
         <!-- LOWER NAME & CATEGORY BELOW PICTURE -->
         <div class="space-y-0.5 mb-2 w-full">
@@ -1047,13 +1047,15 @@ function openPlayerRegisterFormModal() {
   let plyAadharFileObj = null;
   let plyProofFileObj = null;
 
-  let plyPhotoHDDataUrl = '';
+  let plyPhotoDataUrl = '';
+  let plyAadharDataUrl = '';
+  let plyProofDataUrl = '';
 
   document.getElementById('ply-photo-file')?.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (file) {
       plyPhotoFileObj = file;
-      plyPhotoDataUrl = await compressImage(file, 400, 400, 0.80);
+      plyPhotoDataUrl = await compressImage(file, 400, 400, 0.82);
       document.getElementById('ply-photo-preview-img').src = plyPhotoDataUrl;
       document.getElementById('ply-photo-preview-box').classList.remove('hidden');
     }
@@ -1099,16 +1101,28 @@ function openPlayerRegisterFormModal() {
       let finalProofUrl = plyProofDataUrl || 'Attached Receipt Screenshot';
 
       if (plyPhotoFileObj) {
-        const uploaded = await uploadHDImage(plyPhotoFileObj, 'photos');
-        if (uploaded) finalPhotoUrl = uploaded;
+        try {
+          const uploaded = await uploadHDImage(plyPhotoFileObj, 'photos');
+          if (uploaded) finalPhotoUrl = uploaded;
+        } catch (err) {
+          console.warn("Cloud image upload fallback:", err);
+        }
       }
       if (plyAadharFileObj) {
-        const uploaded = await uploadHDImage(plyAadharFileObj, 'aadhar');
-        if (uploaded) finalAadharUrl = uploaded;
+        try {
+          const uploaded = await uploadHDImage(plyAadharFileObj, 'aadhar');
+          if (uploaded) finalAadharUrl = uploaded;
+        } catch (err) {
+          console.warn("Cloud aadhar upload fallback:", err);
+        }
       }
       if (plyProofFileObj) {
-        const uploaded = await uploadHDImage(plyProofFileObj, 'receipts');
-        if (uploaded) finalProofUrl = uploaded;
+        try {
+          const uploaded = await uploadHDImage(plyProofFileObj, 'receipts');
+          if (uploaded) finalProofUrl = uploaded;
+        } catch (err) {
+          console.warn("Cloud receipt upload fallback:", err);
+        }
       }
 
       const newPlayer = await store.registerPlayer({
