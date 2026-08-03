@@ -669,7 +669,7 @@ function renderPlayerCardsWithSerial(playersList) {
         </div>
 
         <!-- MEDIUM SQUARE FORMAT PICTURE WITH BORDER (NO NESTED SHAPE) -->
-        <img src="${p.photoUrl || 'assets/jsl_logo.jpg'}" class="medium-square-photo mb-1.5" />
+        <img src="${p.photoUrl && p.photoUrl !== 'assets/jsl_logo.jpg' ? p.photoUrl : (p.hdPhotoUrl || p.photoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300')}" class="medium-square-photo mb-1.5" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300'" />
 
         <!-- LOWER NAME & CATEGORY BELOW PICTURE -->
         <div class="space-y-0.5 mb-2 w-full">
@@ -1049,31 +1049,31 @@ function openPlayerRegisterFormModal() {
 
   let plyPhotoHDDataUrl = '';
 
-  document.getElementById('ply-photo-file')?.addEventListener('change', (e) => {
+  document.getElementById('ply-photo-file')?.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (file) {
       plyPhotoFileObj = file;
-      plyPhotoDataUrl = URL.createObjectURL(file);
+      plyPhotoDataUrl = await compressImage(file, 400, 400, 0.80);
       document.getElementById('ply-photo-preview-img').src = plyPhotoDataUrl;
       document.getElementById('ply-photo-preview-box').classList.remove('hidden');
     }
   });
 
-  document.getElementById('ply-aadhar-file')?.addEventListener('change', (e) => {
+  document.getElementById('ply-aadhar-file')?.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (file) {
       plyAadharFileObj = file;
-      plyAadharDataUrl = URL.createObjectURL(file);
+      plyAadharDataUrl = await compressImage(file, 800, 600, 0.85);
       document.getElementById('ply-aadhar-preview-img').src = plyAadharDataUrl;
       document.getElementById('ply-aadhar-preview-box').classList.remove('hidden');
     }
   });
 
-  document.getElementById('ply-proof-file')?.addEventListener('change', (e) => {
+  document.getElementById('ply-proof-file')?.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (file) {
       plyProofFileObj = file;
-      plyProofDataUrl = URL.createObjectURL(file);
+      plyProofDataUrl = await compressImage(file, 800, 600, 0.85);
       document.getElementById('ply-proof-preview-img').src = plyProofDataUrl;
       document.getElementById('ply-proof-preview-box').classList.remove('hidden');
     }
@@ -1094,24 +1094,21 @@ function openPlayerRegisterFormModal() {
       const category = document.getElementById('ply-category').value;
       const upiRef = document.getElementById('ply-upi-ref').value;
 
-      let finalPhotoUrl = 'assets/jsl_logo.jpg';
-      let finalAadharUrl = 'Attached Document Proof';
-      let finalProofUrl = 'Attached Receipt Screenshot';
+      let finalPhotoUrl = plyPhotoDataUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300';
+      let finalAadharUrl = plyAadharDataUrl || 'Attached Document Proof';
+      let finalProofUrl = plyProofDataUrl || 'Attached Receipt Screenshot';
 
       if (plyPhotoFileObj) {
         const uploaded = await uploadHDImage(plyPhotoFileObj, 'photos');
         if (uploaded) finalPhotoUrl = uploaded;
-        else if (plyPhotoDataUrl && !plyPhotoDataUrl.startsWith('blob:')) finalPhotoUrl = plyPhotoDataUrl;
       }
       if (plyAadharFileObj) {
         const uploaded = await uploadHDImage(plyAadharFileObj, 'aadhar');
         if (uploaded) finalAadharUrl = uploaded;
-        else if (plyAadharDataUrl && !plyAadharDataUrl.startsWith('blob:')) finalAadharUrl = plyAadharDataUrl;
       }
       if (plyProofFileObj) {
         const uploaded = await uploadHDImage(plyProofFileObj, 'receipts');
         if (uploaded) finalProofUrl = uploaded;
-        else if (plyProofDataUrl && !plyProofDataUrl.startsWith('blob:')) finalProofUrl = plyProofDataUrl;
       }
 
       const newPlayer = await store.registerPlayer({

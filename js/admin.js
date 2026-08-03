@@ -384,55 +384,43 @@ function openAdminEditPlayerModal(player, containerEl) {
         <!-- ADMIN DOCUMENT & PROOF INSPECTION GALLERY -->
         <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-2">
           <div class="text-[10px] font-black text-amber-400 uppercase tracking-wider flex items-center gap-1 border-b border-slate-800 pb-1">
-            <i data-lucide="eye" class="w-3.5 h-3.5"></i> Uploaded Documents & Payment Receipts
+            <i data-lucide="eye" class="w-3.5 h-3.5"></i> Uploaded Documents & Payment Receipts (Click to Zoom)
           </div>
 
           <div class="grid grid-cols-3 gap-2 text-center">
             <!-- 1. PROFILE PHOTO -->
             <div class="space-y-1">
               <span class="text-[8px] font-extrabold text-slate-300 block uppercase">Profile Photo</span>
-              ${player.photoUrl && player.photoUrl.startsWith('http') ? `
-                <a href="${player.photoUrl}" target="_blank" class="block">
-                  <img src="${player.photoUrl}" class="w-full h-16 rounded-lg object-cover border border-amber-500/50 hover:border-amber-400 shadow cursor-pointer" title="Click to view full HD photo" />
-                </a>
-              ` : `
-                <img src="${player.photoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300'}" class="w-full h-16 rounded-lg object-cover border border-amber-500/50 shadow" />
-              `}
-              <span class="text-[8px] text-slate-400 block truncate">Photo</span>
+              <img src="${player.photoUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300'}" class="doc-zoomable-img w-full h-20 rounded-lg object-cover border border-amber-500/50 hover:border-amber-400 shadow cursor-pointer transition-all" title="Click to view full HD photo" data-zoom-title="${player.name} - Profile Photo" />
+              <span class="text-[8px] text-amber-400 block font-bold cursor-pointer underline">🔍 Zoom Photo</span>
             </div>
 
             <!-- 2. AADHAR CARD BACK -->
             <div class="space-y-1">
               <span class="text-[8px] font-extrabold text-slate-300 block uppercase">Aadhar Card Back</span>
-              ${player.aadharBackUrl && player.aadharBackUrl.startsWith('http') ? `
-                <a href="${player.aadharBackUrl}" target="_blank" class="block">
-                  <img src="${player.aadharBackUrl}" class="w-full h-16 rounded-lg object-cover border border-sky-500/50 hover:border-sky-400 shadow cursor-pointer" title="Click to view full HD Aadhar document" />
-                </a>
-              ` : player.aadharBackUrl && player.aadharBackUrl.startsWith('data:image') ? `
-                <img src="${player.aadharBackUrl}" class="w-full h-16 rounded-lg object-cover border border-sky-500/50 shadow" />
+              ${player.aadharBackUrl && (player.aadharBackUrl.startsWith('http') || player.aadharBackUrl.startsWith('data:image')) ? `
+                <img src="${player.aadharBackUrl}" class="doc-zoomable-img w-full h-20 rounded-lg object-cover border border-sky-500/50 hover:border-sky-400 shadow cursor-pointer transition-all" title="Click to view full HD Aadhar document" data-zoom-title="${player.name} - Aadhar Card Back" />
+                <span class="text-[8px] text-sky-400 block font-bold cursor-pointer underline">🔍 Zoom Aadhar</span>
               ` : `
-                <div class="w-full h-16 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-[8px] font-bold text-sky-400 p-1 leading-tight">
+                <div class="w-full h-20 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-[8px] font-bold text-sky-400 p-1 leading-tight">
                   ${player.aadharBackUrl || 'Attached'}
                 </div>
+                <span class="text-[8px] text-sky-400 block truncate">Aadhar Proof</span>
               `}
-              <span class="text-[8px] text-sky-400 block truncate">Aadhar Proof</span>
             </div>
 
             <!-- 3. PAYMENT RECEIPT SCREENSHOT -->
             <div class="space-y-1">
               <span class="text-[8px] font-extrabold text-slate-300 block uppercase">Payment Receipt</span>
-              ${player.paymentProofUrl && player.paymentProofUrl.startsWith('http') ? `
-                <a href="${player.paymentProofUrl}" target="_blank" class="block">
-                  <img src="${player.paymentProofUrl}" class="w-full h-16 rounded-lg object-cover border border-emerald-500/50 hover:border-emerald-400 shadow cursor-pointer" title="Click to view full HD payment receipt" />
-                </a>
-              ` : player.paymentProofUrl && player.paymentProofUrl.startsWith('data:image') ? `
-                <img src="${player.paymentProofUrl}" class="w-full h-16 rounded-lg object-cover border border-emerald-500/50 shadow" />
+              ${player.paymentProofUrl && (player.paymentProofUrl.startsWith('http') || player.paymentProofUrl.startsWith('data:image')) ? `
+                <img src="${player.paymentProofUrl}" class="doc-zoomable-img w-full h-20 rounded-lg object-cover border border-emerald-500/50 hover:border-emerald-400 shadow cursor-pointer transition-all" title="Click to view full HD payment receipt" data-zoom-title="${player.name} - Payment Receipt Screenshot" />
+                <span class="text-[8px] text-emerald-400 block font-bold cursor-pointer underline">🔍 Zoom Receipt</span>
               ` : `
-                <div class="w-full h-16 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-[8px] font-bold text-emerald-400 p-1 leading-tight">
+                <div class="w-full h-20 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-[8px] font-bold text-emerald-400 p-1 leading-tight">
                   ${player.paymentProofUrl || 'Attached'}
                 </div>
+                <span class="text-[8px] text-emerald-400 block truncate">Receipt Proof</span>
               `}
-              <span class="text-[8px] text-emerald-400 block truncate">Receipt Proof</span>
             </div>
           </div>
         </div>
@@ -499,6 +487,15 @@ function openAdminEditPlayerModal(player, containerEl) {
 
   document.body.insertAdjacentHTML('beforeend', modalHtml);
   if (window.lucide) window.lucide.createIcons();
+
+  const modalContainer = document.getElementById('admin-edit-player-modal');
+  modalContainer?.querySelectorAll('.doc-zoomable-img').forEach(img => {
+    img.addEventListener('click', (e) => {
+      const src = e.currentTarget.getAttribute('src');
+      const title = e.currentTarget.getAttribute('data-zoom-title') || 'Document Verification';
+      if (src) openFullDocumentViewer(src, title);
+    });
+  });
 
   const removeModal = () => document.getElementById('admin-edit-player-modal')?.remove();
   document.getElementById('close-edit-player-modal')?.addEventListener('click', removeModal);
@@ -592,4 +589,32 @@ function openAdminEditTeamModal(team, containerEl) {
     removeModal();
     renderAdminDashboard(containerEl);
   });
+}
+
+function openFullDocumentViewer(imgSrc, title = 'Document Proof Viewer') {
+  const modalHtml = `
+    <div id="full-doc-zoom-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3 bg-slate-950/95 backdrop-blur-2xl">
+      <div class="max-w-4xl w-full p-4 relative space-y-3 animate-fade-in text-center bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl">
+        <button id="close-doc-zoom-btn" class="absolute top-3 right-3 text-slate-400 hover:text-white p-1.5 bg-slate-800 rounded-xl">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+        <div class="text-left border-b border-slate-800 pb-2">
+          <span class="px-2 py-0.5 bg-amber-950 text-amber-400 font-mono text-[9px] font-black rounded border border-amber-800">HD DOCUMENT VERIFICATION</span>
+          <h3 class="text-white font-black text-base mt-0.5">${title}</h3>
+        </div>
+        <div class="max-h-[75vh] overflow-auto flex justify-center p-2 bg-slate-950 rounded-xl border border-slate-800">
+          <img src="${imgSrc}" class="max-w-full max-h-[70vh] object-contain rounded-lg shadow-2xl" />
+        </div>
+        <button id="close-doc-zoom-bottom-btn" class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl shadow">
+          Close Verification Viewer
+        </button>
+      </div>
+    </div>
+  `;
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  if (window.lucide) window.lucide.createIcons();
+
+  const removeZoomModal = () => document.getElementById('full-doc-zoom-modal')?.remove();
+  document.getElementById('close-doc-zoom-btn')?.addEventListener('click', removeZoomModal);
+  document.getElementById('close-doc-zoom-bottom-btn')?.addEventListener('click', removeZoomModal);
 }
