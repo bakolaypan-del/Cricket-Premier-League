@@ -246,7 +246,7 @@ class Store {
       const regId = `JSL2026-${String(displayNo).padStart(4, '0')}`;
 
       let validPhoto = p.photoUrl || p.player_photo_url || '';
-      if (!validPhoto || validPhoto.includes('[Image Stored In Cloud]') || (!validPhoto.startsWith('http') && !validPhoto.startsWith('data:image'))) {
+      if (!validPhoto || validPhoto.includes('[Image Stored In Cloud]') || validPhoto.includes('unsplash.com') || (!validPhoto.startsWith('http') && !validPhoto.startsWith('data:image'))) {
         validPhoto = DEFAULT_AVATAR;
       }
 

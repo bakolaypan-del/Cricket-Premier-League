@@ -194,8 +194,8 @@ function openFirstVisitWelcomeModal() {
   });
 }
 
-// --- FULL HD IMAGE COMPRESSION & QUALITY PRESERVATION ---
-function compressImage(file, maxWidth = 1200, maxHeight = 1200, quality = 0.92) {
+// --- CLIENT-SIDE HD IMAGE COMPRESSION (~150 KB - 280 KB PER IMAGE, NOT LESS THAN 50 KB) ---
+function compressImage(file, maxWidth = 1050, maxHeight = 1050, quality = 0.82) {
   return new Promise((resolve) => {
     if (!file) {
       resolve('');
@@ -233,6 +233,70 @@ function compressImage(file, maxWidth = 1200, maxHeight = 1200, quality = 0.92) 
     reader.onerror = () => resolve('');
     reader.readAsDataURL(file);
   });
+}
+
+// --- BEAUTIFUL REGISTRATION SUCCESS POPUP MODAL ---
+function openRegistrationSuccessModal(details) {
+  const modalHtml = `
+    <div id="registration-success-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3 animate-fade-in">
+      <div class="bg-white max-w-sm sm:max-w-md w-full p-5 relative space-y-4 rounded-2xl shadow-2xl border-2 border-emerald-500 text-center modal-content-container">
+        
+        <div class="w-16 h-16 rounded-full bg-gradient-to-br from-emerald-500 to-teal-700 text-white mx-auto flex items-center justify-center font-black text-3xl shadow-xl border-2 border-emerald-300 animate-bounce">
+          🎉
+        </div>
+
+        <div>
+          <span class="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-full border border-emerald-300 uppercase">JSL 2026 CONFIRMED</span>
+          <h2 class="text-xl font-black text-slate-900 mt-1">Registration Successful!</h2>
+          <p class="text-xs text-slate-600 mt-0.5">Your registration has been submitted successfully.</p>
+        </div>
+
+        <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 text-left space-y-2 text-xs font-semibold text-slate-800">
+          <div class="flex justify-between border-b border-slate-200 pb-1">
+            <span class="text-slate-500">Registration ID:</span>
+            <span class="font-mono font-black text-emerald-700">${details.registrationId || details.regNo || 'JSL2026-0001'}</span>
+          </div>
+          <div class="flex justify-between border-b border-slate-200 pb-1">
+            <span class="text-slate-500">${details.isTeam ? 'Team Name:' : 'Player Name:'}</span>
+            <span class="font-extrabold text-slate-900">${details.name}</span>
+          </div>
+          <div class="flex justify-between border-b border-slate-200 pb-1">
+            <span class="text-slate-500">Serial No:</span>
+            <span class="font-extrabold text-slate-900">#${details.displayRegistrationNumber || details.serialNo || 1}</span>
+          </div>
+          <div class="flex justify-between">
+            <span class="text-slate-500">Status:</span>
+            <span class="px-2 py-0.5 bg-amber-100 text-amber-800 rounded font-bold text-[10px] border border-amber-300 flex items-center gap-1">
+              <span class="w-1.5 h-1.5 rounded-full bg-amber-500 animate-pulse"></span> Pending Admin Verification
+            </span>
+          </div>
+        </div>
+
+        <div class="space-y-2 pt-1">
+          <a href="https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL" target="_blank" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all">
+            💬 Join Official WhatsApp Group
+          </a>
+          <button id="close-reg-success-btn" class="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow">
+            View Registered List
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  
+  const removeModal = () => {
+    document.getElementById('registration-success-modal')?.remove();
+    navigate('jsl-hub');
+    if (details.isTeam) {
+      openRegisteredTeamsModal(store.getTeams());
+    } else {
+      openRegisteredPlayersModal(store.getPlayers());
+    }
+  };
+
+  document.getElementById('close-reg-success-btn')?.addEventListener('click', removeModal);
 }
 
 // --- FULL HD PHOTO ZOOM MODAL ---
@@ -1317,12 +1381,12 @@ function openTeamRegisterFormModal() {
     else fields?.classList.add('hidden');
   });
 
-  // FILE UPLOAD LISTENERS
+  // FILE UPLOAD LISTENERS (Client-Side HD Compression ~150 KB - 280 KB per image)
   document.getElementById('owner-photo-file')?.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (file) {
       ownerPhotoFileObj = file;
-      ownerPhotoDataUrl = await compressImage(file, 1200, 1200, 0.95);
+      ownerPhotoDataUrl = await compressImage(file, 1050, 1050, 0.82);
       document.getElementById('owner-photo-preview-img').src = ownerPhotoDataUrl;
       document.getElementById('owner-photo-preview-box').classList.remove('hidden');
     }
@@ -1332,7 +1396,7 @@ function openTeamRegisterFormModal() {
     const file = e.target.files[0];
     if (file) {
       coOwner1PhotoFileObj = file;
-      coOwner1PhotoDataUrl = await compressImage(file, 1200, 1200, 0.95);
+      coOwner1PhotoDataUrl = await compressImage(file, 1050, 1050, 0.82);
       document.getElementById('co-owner-1-photo-preview-img').src = coOwner1PhotoDataUrl;
       document.getElementById('co-owner-1-photo-preview-box').classList.remove('hidden');
     }
@@ -1342,7 +1406,7 @@ function openTeamRegisterFormModal() {
     const file = e.target.files[0];
     if (file) {
       coOwner2PhotoFileObj = file;
-      coOwner2PhotoDataUrl = await compressImage(file, 1200, 1200, 0.95);
+      coOwner2PhotoDataUrl = await compressImage(file, 1050, 1050, 0.82);
       document.getElementById('co-owner-2-photo-preview-img').src = coOwner2PhotoDataUrl;
       document.getElementById('co-owner-2-photo-preview-box').classList.remove('hidden');
     }
@@ -1352,7 +1416,7 @@ function openTeamRegisterFormModal() {
     const file = e.target.files[0];
     if (file) {
       teamLogoFileObj = file;
-      teamLogoDataUrl = await compressImage(file, 1200, 1200, 0.95);
+      teamLogoDataUrl = await compressImage(file, 1050, 1050, 0.82);
       document.getElementById('team-logo-preview-img').src = teamLogoDataUrl;
       document.getElementById('team-logo-preview-box').classList.remove('hidden');
     }
@@ -1363,7 +1427,12 @@ function openTeamRegisterFormModal() {
     const submitBtn = document.getElementById('submit-team-reg-btn');
     if (submitBtn) {
       submitBtn.disabled = true;
-      submitBtn.innerText = "Uploading Team Details & Submitting...";
+      submitBtn.innerHTML = `
+        <div class="flex items-center justify-center gap-2">
+          <div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+          <span>Please Wait... Submitting Team Registration...</span>
+        </div>
+      `;
     }
 
     try {
@@ -1410,9 +1479,12 @@ function openTeamRegisterFormModal() {
       });
 
       removeModal();
-      alert(`Team Registration Successful! 🎉\n\nTeam Name: ${newTeam.name}\nOwner: ${newTeam.ownerName}\nPhone: ${newTeam.ownerPhone}`);
-      navigate('jsl-hub');
-      openRegisteredTeamsModal(store.getTeams());
+      openRegistrationSuccessModal({
+        name: newTeam.name,
+        registrationId: `TEAM-${newTeam.serialNo}`,
+        displayRegistrationNumber: newTeam.serialNo,
+        isTeam: true
+      });
     } catch (err) {
       console.error("Team Registration Error:", err);
       alert("Registration Error: " + err.message);
@@ -1667,7 +1739,7 @@ function openPlayerRegisterFormModal() {
     const file = e.target.files[0];
     if (file) {
       plyPhotoFileObj = file;
-      plyPhotoDataUrl = await compressImage(file, 1200, 1200, 0.95);
+      plyPhotoDataUrl = await compressImage(file, 1050, 1050, 0.82);
       document.getElementById('ply-photo-preview-img').src = plyPhotoDataUrl;
       document.getElementById('ply-photo-preview-box').classList.remove('hidden');
     }
@@ -1677,7 +1749,7 @@ function openPlayerRegisterFormModal() {
     const file = e.target.files[0];
     if (file) {
       plyAadharFileObj = file;
-      plyAadharDataUrl = await compressImage(file, 1200, 1200, 0.92);
+      plyAadharDataUrl = await compressImage(file, 1050, 1050, 0.82);
       document.getElementById('ply-aadhar-preview-img').src = plyAadharDataUrl;
       document.getElementById('ply-aadhar-preview-box').classList.remove('hidden');
     }
@@ -1687,7 +1759,7 @@ function openPlayerRegisterFormModal() {
     const file = e.target.files[0];
     if (file) {
       plyProofFileObj = file;
-      plyProofDataUrl = await compressImage(file, 1200, 1200, 0.92);
+      plyProofDataUrl = await compressImage(file, 1050, 1050, 0.82);
       document.getElementById('ply-proof-preview-img').src = plyProofDataUrl;
       document.getElementById('ply-proof-preview-box').classList.remove('hidden');
     }
@@ -1698,7 +1770,12 @@ function openPlayerRegisterFormModal() {
     const submitBtn = document.getElementById('submit-player-reg-btn');
     if (submitBtn) {
       submitBtn.disabled = true;
-      submitBtn.innerText = "Uploading Full HD Cloudinary Documents & Submitting...";
+      submitBtn.innerHTML = `
+        <div class="flex items-center justify-center gap-2">
+          <div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+          <span>Please Wait... Submitting Your Registration...</span>
+        </div>
+      `;
     }
 
     try {
@@ -1755,9 +1832,12 @@ function openPlayerRegisterFormModal() {
 
       store.setUserRole('PLAYER', newPlayer.name, newPlayer);
       removeModal();
-      alert(`Registration Successful! 🎉\n\nPlayer Name: ${newPlayer.name}\nRegistration ID: ${newPlayer.registrationId || newPlayer.regNo}\nDisplay Number: #${newPlayer.displayRegistrationNumber || newPlayer.serialNo}\nStatus: Pending Admin Verification (Red Circle 🔴).`);
-      navigate('jsl-hub');
-      openRegisteredPlayersModal(store.getPlayers());
+      openRegistrationSuccessModal({
+        name: newPlayer.name,
+        registrationId: newPlayer.registrationId || newPlayer.regNo,
+        displayRegistrationNumber: newPlayer.displayRegistrationNumber || newPlayer.serialNo,
+        isTeam: false
+      });
     } catch (err) {
       console.error("Player Registration Error:", err);
       alert("Registration Error: " + err.message);

@@ -270,26 +270,11 @@ export async function clearAllTeamsFromFirebase() {
   }
 }
 
-// Helper to sanitize heavy Base64 data URLs before sending payload to Firebase Realtime DB
+// Helper to prepare data URLs before sending payload to Firebase Realtime DB (Preserves exact uploaded photos)
 function sanitizePayloadForCloud(dataList) {
   if (!Array.isArray(dataList)) return [];
   return dataList.map(item => {
     const itemCopy = { ...item };
-    if (itemCopy.photoUrl && itemCopy.photoUrl.length > 2000) {
-      itemCopy.photoUrl = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300';
-    }
-    if (itemCopy.player_photo_url && itemCopy.player_photo_url.length > 2000) {
-      itemCopy.player_photo_url = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300';
-    }
-    if (itemCopy.aadharPhotoUrl && itemCopy.aadharPhotoUrl.length > 2000) {
-      itemCopy.aadharPhotoUrl = 'Attached Aadhaar Proof';
-    }
-    if (itemCopy.paymentReceiptUrl && itemCopy.paymentReceiptUrl.length > 2000) {
-      itemCopy.paymentReceiptUrl = 'Attached Payment Receipt';
-    }
-    if (itemCopy.ownerPhotoUrl && itemCopy.ownerPhotoUrl.length > 2000) {
-      itemCopy.ownerPhotoUrl = 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300';
-    }
     return itemCopy;
   });
 }

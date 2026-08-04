@@ -537,7 +537,7 @@ function openAdminEditPlayerModal(player, containerEl) {
             <!-- 1. PLAYER PHOTO -->
             <div class="space-y-1">
               <span class="text-[8px] font-extrabold text-slate-300 block uppercase">Player Photo</span>
-              <img src="${player.photoUrl || player.player_photo_url}" class="doc-zoomable-img w-full h-20 rounded-lg object-cover border border-amber-500/50 hover:border-amber-400 shadow cursor-pointer transition-all" title="Click to view full HD player photo" data-zoom-title="${player.name} - Player Photo" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300'" />
+              <img src="${player.photoUrl || player.player_photo_url}" class="doc-zoomable-img w-full h-20 rounded-lg object-cover border border-amber-500/50 hover:border-amber-400 shadow cursor-pointer transition-all" title="Click to view full HD player photo" data-zoom-title="${player.name} - Player Photo" onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Crect width=\'100\' height=\'100\' fill=\'%23059669\'/%3E%3Ctext x=\'50\' y=\'62\' font-size=\'45\' text-anchor=\'middle\' fill=\'white\'%3E🏏%3C/text%3E%3C/svg%3E';" />
               <span class="text-[8px] text-amber-400 block font-bold cursor-pointer underline">🔍 Zoom Photo</span>
             </div>
 
