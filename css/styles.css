@@ -157,7 +157,21 @@ body {
   object-fit: contain;
   background-color: transparent;
   border: none !important;
-  box-shadow: none !important;
+  /* Ticker Marquee Animation */
+  @keyframes continuousMarquee {
+    0% { transform: translateX(0%); }
+    100% { transform: translateX(-50%); }
+  }
+
+  .animate-continuous-marquee {
+    display: inline-flex;
+    white-space: nowrap;
+    animation: continuousMarquee 22s linear infinite;
+  }
+
+  .animate-continuous-marquee:hover {
+    animation-play-state: paused;
+  }
   margin-bottom: 0.25rem;
   flex-shrink: 0;
   transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
@@ -324,3 +338,78 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: #F1F5F9; }
 ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
+
+/* ANIMATED CRICKET STADIUM GROUND SIMULATION KEYFRAMES */
+@keyframes ballFlyArc {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 0.9;
+  }
+  45% {
+    transform: translate(110px, -60px) scale(1.4);
+    opacity: 1;
+  }
+  90%, 100% {
+    transform: translate(230px, 15px) scale(0.85);
+    opacity: 0;
+  }
+}
+
+@keyframes fielderRun {
+  0% {
+    transform: translateX(0);
+  }
+  50% {
+    transform: translateX(90px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes batsmanHit {
+  0%, 100% {
+    transform: rotate(0deg);
+  }
+  35% {
+    transform: rotate(-30deg);
+  }
+  45% {
+    transform: rotate(35deg);
+  }
+}
+
+.anim-cricket-ball {
+  animation: ballFlyArc 3.5s cubic-bezier(0.25, 1, 0.5, 1) infinite;
+}
+
+.anim-fielder-run {
+  animation: fielderRun 3.5s ease-in-out infinite;
+}
+
+.anim-batsman-hit {
+  animation: batsmanHit 3.5s ease-in-out infinite;
+  transform-origin: bottom center;
+}
+
+.cricket-ground-blend-bg {
+  background: linear-gradient(180deg, #FFFFFF 0%, rgba(16, 185, 129, 0.1) 15%, #064E3B 60%, #022C22 100%) !important;
+}
+
+/* Ticker Marquee Animation */
+@keyframes continuousMarquee {
+  0% { transform: translateX(0%); }
+  100% { transform: translateX(-50%); }
+}
+
+.animate-continuous-marquee {
+  display: inline-flex;
+  white-space: nowrap;
+  animation: continuousMarquee 25s linear infinite;
+}
+
+.animate-continuous-marquee:hover {
+  animation-play-state: paused;
+}
+
+

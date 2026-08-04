@@ -357,7 +357,7 @@ export async function exportPlayersToPDF(players) {
   }
 }
 
-// PRINT DIGITAL PASS FOR INDIVIDUAL PLAYER
+// PRINT / DOWNLOAD DIGITAL PASS FOR INDIVIDUAL PLAYER (WHITE BACKGROUND & SQUARE SHAPE)
 export function printDigitalPass(player, league, team) {
   if (!player) return;
 
@@ -367,66 +367,149 @@ export function printDigitalPass(player, league, team) {
     return;
   }
 
+  const serialNo = player.registrationId || player.regNo || 'JSL2026-0001';
+  const photoSrc = player.photoUrl || player.player_photo_url || 'assets/jsl_logo_white.jpg';
+
+  const rawDate = player.registeredAt || player.createdAt || player.timestamp || player.date;
+  const regDateTime = rawDate 
+    ? new Date(rawDate).toLocaleString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })
+    : new Date().toLocaleString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true });
+
   const html = `
     <!DOCTYPE html>
     <html>
     <head>
-      <title>JSL 2026 Digital Player Pass - ${player.name}</title>
+      <title>JSL 2026 Player Pass - ${player.name} (${serialNo})</title>
+      <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
       <style>
-        body { font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #0F172A; color: white; display: flex; justify-content: center; items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
-        .pass-card { width: 340px; background: linear-gradient(135deg, #0B192C 0%, #1E3A8A 100%); border: 3px solid #F59E0B; border-radius: 20px; padding: 24px; text-align: center; box-shadow: 0 20px 40px rgba(0,0,0,0.6); position: relative; }
-        .league-title { font-size: 20px; font-weight: 900; color: #F59E0B; margin: 0; letter-spacing: 1px; }
-        .league-sub { font-size: 11px; font-weight: bold; color: #38BDF8; margin-top: 4px; text-transform: uppercase; }
-        .photo-frame { width: 130px; height: 130px; margin: 16px auto; border-radius: 18px; border: 3px solid #F59E0B; overflow: hidden; box-shadow: 0 10px 20px rgba(0,0,0,0.4); background: #FFFFFF; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #F8FAFC; color: #0F172A; display: flex; flex-direction: column; items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+        
+        .action-toolbar { display: flex; gap: 12px; margin-bottom: 20px; }
+        .action-btn { padding: 10px 20px; font-weight: 800; font-size: 13px; border-radius: 12px; border: none; cursor: pointer; display: inline-flex; items-center; gap: 8px; shadow: 0 4px 6px rgba(0,0,0,0.1); transition: all 0.2s; }
+        .btn-png { background: #059669; color: white; }
+        .btn-png:hover { background: #047857; }
+        .btn-pdf { background: #0F172A; color: white; }
+        .btn-pdf:hover { background: #1E293B; }
+
+        /* SQUARE SHAPE CARD DESIGN (WHITE BACKGROUND, 430px x 430px) */
+        .pass-card { width: 430px; height: 430px; background: #FFFFFF; border: 3px solid #10B981; border-radius: 24px; padding: 18px; text-align: center; box-shadow: 0 20px 30px rgba(0,0,0,0.12); position: relative; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; }
+        
+        /* CARD TOP HEADER STRIP */
+        .card-header { background: linear-gradient(135deg, #064E3B 0%, #047857 100%); margin: -18px -18px 12px -18px; padding: 12px 16px; border-bottom: 3px solid #F59E0B; text-align: center; }
+        .league-title { font-size: 18px; font-weight: 900; color: #FFFFFF; letter-spacing: 1px; text-transform: uppercase; }
+        .league-sub { font-size: 10px; font-weight: 800; color: #FDE047; text-transform: uppercase; margin-top: 2px; }
+
+        /* BODY LAYOUT: PHOTO & MAIN INFO */
+        .pass-body { display: flex; gap: 14px; text-align: left; items: center; }
+        .photo-frame { width: 105px; height: 105px; border-radius: 16px; border: 3px solid #10B981; overflow: hidden; background: #F1F5F9; flex-shrink: 0; box-shadow: 0 4px 10px rgba(0,0,0,0.15); }
         .photo-frame img { width: 100%; height: 100%; object-fit: cover; }
-        .player-name { font-size: 22px; font-weight: 900; color: #FFFFFF; margin: 8px 0 2px 0; }
-        .player-reg { display: inline-block; padding: 4px 12px; background: #000000; color: #F59E0B; font-family: monospace; font-weight: 900; font-size: 13px; border-radius: 8px; border: 1px solid #F59E0B; }
-        .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; text-align: left; background: rgba(15, 23, 42, 0.8); padding: 12px; border-radius: 12px; border: 1px solid #334155; }
-        .detail-item { font-size: 10px; color: #94A3B8; font-weight: bold; text-transform: uppercase; }
-        .detail-val { font-size: 12px; color: #FFFFFF; font-weight: 900; margin-top: 2px; }
-        .footer-note { margin-top: 16px; font-size: 9px; color: #94A3B8; border-top: 1px solid #334155; padding-top: 10px; font-weight: bold; }
+        
+        .info-col { flex: 1; }
+        
+        /* HIGHLIGHTED SERIAL NO BADGE (RED / GOLD HIGHLIGHT) */
+        .serial-badge { display: inline-block; background: linear-gradient(135deg, #DC2626 0%, #B91C1C 100%); color: #FFFFFF; font-weight: 900; font-size: 12px; padding: 4px 12px; border-radius: 20px; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 3px 8px rgba(220,38,38,0.3); border: 1.5px solid #FCA5A5; margin-bottom: 4px; }
+        
+        .player-name { font-size: 18px; font-weight: 900; color: #0F172A; margin: 2px 0; leading-tight; }
+        .player-team { font-size: 11px; font-weight: 800; color: #047857; text-transform: uppercase; }
+
+        /* DETAILS GRID */
+        .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; background: #F8FAFC; padding: 10px 12px; border-radius: 14px; border: 1.5px solid #E2E8F0; text-align: left; }
+        .detail-item { font-size: 8.5px; color: #64748B; font-weight: 800; text-transform: uppercase; }
+        .detail-val { font-size: 10.5px; color: #0F172A; font-weight: 900; margin-top: 1px; }
+
+        /* FOOTER STRIP */
+        .card-footer { border-top: 1.5px border-dashed #CBD5E1; padding-top: 8px; font-size: 9px; color: #475569; font-weight: 800; display: flex; justify-content: space-between; items: center; }
+        .official-seal { padding: 3px 8px; background: #FEF3C7; color: #92400E; border: 1px solid #F59E0B; border-radius: 8px; font-weight: 900; }
+
         @media print {
-          body { background: white; padding: 0; }
-          .pass-card { box-shadow: none; border-color: #000; background: #0B192C !important; -webkit-print-color-adjust: exact; }
+          body { background: white; padding: 0; display: block; }
+          .action-toolbar { display: none !important; }
+          .pass-card { box-shadow: none; margin: 0 auto; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         }
       </style>
     </head>
     <body>
-      <div class="pass-card">
-        <div class="league-title">JHANKRA SUPER LEAGUE</div>
-        <div class="league-sub">JSL 2026 • OFFICIAL PLAYER PASS</div>
+      <!-- TOP ACTION BUTTONS BAR -->
+      <div class="action-toolbar">
+        <button class="action-btn btn-png" id="download-png-btn">
+          📥 Download Square PNG Image
+        </button>
+        <button class="action-btn btn-pdf" id="print-pdf-btn">
+          🖨️ Print / Save PDF
+        </button>
+      </div>
 
-        <div class="photo-frame">
-          ${player.photoUrl || player.player_photo_url ? `<img src="${player.photoUrl || player.player_photo_url}" />` : ''}
+      <!-- WHITE BACKGROUND SQUARE PASS CARD (1:1 RATIO) -->
+      <div class="pass-card" id="digital-pass-card">
+        
+        <!-- HEADER -->
+        <div class="card-header">
+          <div class="league-title">JHANKRA SUPER LEAGUE</div>
+          <div class="league-sub">JSL 2026 • OFFICIAL DIGITAL PLAYER PASS</div>
         </div>
 
-        <div class="player-reg">${player.registrationId || player.regNo || 'JSL2026-0001'}</div>
-        <div class="player-name">${player.name}</div>
+        <!-- MAIN BODY SECTION -->
+        <div class="pass-body">
+          <div class="photo-frame">
+            <img src="${photoSrc}" alt="${player.name}" />
+          </div>
+          
+          <div class="info-col">
+            <!-- HIGHLIGHTED SERIAL NUMBER BADGE -->
+            <div class="serial-badge">SERIAL NO: ${serialNo}</div>
+            
+            <div class="player-name">${player.name}</div>
+            <div class="player-team">🏆 ${team ? team.name : 'JSL Registered Player'}</div>
+          </div>
+        </div>
 
+        <!-- DETAILS GRID WITH REGISTRATION DATE & TIME -->
         <div class="details-grid">
           <div>
             <div class="detail-item">Father Name</div>
             <div class="detail-val">${player.fatherName || 'N/A'}</div>
           </div>
           <div>
-            <div class="detail-item">Category</div>
-            <div class="detail-val" style="color: #38BDF8;">${player.category || player.playingType || 'All Rounder'}</div>
+            <div class="detail-item">Playing Category</div>
+            <div class="detail-val" style="color: #059669;">${player.category || player.playingType || 'All Rounder'}</div>
           </div>
           <div>
-            <div class="detail-item">Age</div>
-            <div class="detail-val" style="color: #F59E0B;">${player.age || 24} Yrs</div>
+            <div class="detail-item">Age / Village</div>
+            <div class="detail-val" style="color: #D97706;">${player.age ? player.age + ' Yrs' : ''} ${player.village ? '(' + player.village + ')' : ''}</div>
           </div>
           <div>
-            <div class="detail-item">Phone</div>
-            <div class="detail-val">${player.phone || 'N/A'}</div>
+            <div class="detail-item">Reg Date & Time</div>
+            <div class="detail-val" style="color: #0284C7;">${regDateTime}</div>
           </div>
         </div>
 
-        <div class="footer-note">
-          Official Player Pass • Tournament Dates: 29-31 Aug 2026<br/>
-          Organizer Contact: Pintu Santra (89722144166)
+        <!-- FOOTER -->
+        <div class="card-footer">
+          <div>
+            📍 Jhankra School Ground • 29-31 Aug 2026<br/>
+            Organizer: Pintu Santra (89722144166)
+          </div>
+          <div class="official-seal">
+            ✅ VERIFIED PASS
+          </div>
         </div>
+
       </div>
+
+      <script>
+        document.getElementById('print-pdf-btn').addEventListener('click', () => window.print());
+
+        document.getElementById('download-png-btn').addEventListener('click', () => {
+          const card = document.getElementById('digital-pass-card');
+          html2canvas(card, { scale: 3, useCORS: true, allowTaint: true }).then(canvas => {
+            const link = document.createElement('a');
+            link.download = 'Player_Pass_${serialNo}.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+          });
+        });
+      </script>
     </body>
     </html>
   `;
@@ -434,13 +517,6 @@ export function printDigitalPass(player, league, team) {
   printWindow.document.open();
   printWindow.document.write(html);
   printWindow.document.close();
-
-  printWindow.onload = () => {
-    setTimeout(() => {
-      printWindow.focus();
-      printWindow.print();
-    }, 300);
-  };
 }
 
 export function openUserGuidePDF() {

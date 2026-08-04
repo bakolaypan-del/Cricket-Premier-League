@@ -479,77 +479,110 @@ function openWhatsAppGroupModal() {
   document.getElementById('join-wa-group-confirm-btn')?.addEventListener('click', removeModal);
 }
 
-// --- FIRST PAGE LANDING (HANDWRITTEN 2-LINE QUOTE & BIGGER BORDERLESS WHITE LOGOS) ---
+// --- FRONT PAGE LANDING PAGE (MATCHING UPLOADED REFERENCE DESIGN WITH STYLISH CARTOON CRICKETER AVATARS & RANK CORNERS) ---
 function renderFirstPageLanding(containerEl) {
+  const teams = store.getTeams();
+  const players = store.getPlayers();
+
   containerEl.innerHTML = `
-    <div class="min-h-[50vh] flex flex-col items-center justify-center space-y-4 sm:space-y-6 animate-fade-in py-2 sm:py-6">
+    <div class="w-full max-w-5xl mx-auto space-y-6 sm:space-y-8 animate-fade-in py-2 sm:py-6 text-slate-900">
       
-      <!-- STYLISH WELCOME NOTE & 2-LINE LETTER READING CRICKET MOTIVATIONAL QUOTE -->
-      <div class="w-full max-w-2xl text-center space-y-2 px-3 mx-auto">
-        <div class="inline-block px-3.5 py-1 bg-gradient-to-r from-emerald-600 via-teal-700 to-emerald-600 text-white font-black text-[11px] sm:text-xs rounded-full shadow-md uppercase tracking-wider border border-emerald-400">
-          ✨ Welcome Champions & Cricket Enthusiasts! ✨
+      <!-- HERO WELCOME BANNER & MOTIVATIONAL QUOTE -->
+      <div class="w-full max-w-3xl text-center space-y-3 mx-auto px-3">
+        <div class="inline-block px-4 py-1.5 bg-gradient-to-r from-emerald-600 via-teal-700 to-emerald-600 text-white font-black text-xs sm:text-sm rounded-full shadow-md uppercase tracking-wider border border-emerald-400">
+          ✨ OFFICIAL CRICKET LEAGUE & REGISTRATION PORTAL ✨
         </div>
 
-        <!-- 2-LINE LEFT-TO-RIGHT READING ANIMATED HANDWRITTEN QUOTE -->
-        <div class="handwritten-quote font-black text-slate-900 leading-tight space-y-1 mx-auto max-w-xl">
-          <span class="animate-type-line-1 text-sm sm:text-xl font-black">"Champions aren't made in gymnasiums. Champions are made from a desire, a dream, & a vision.</span>
-          <span class="animate-type-line-2 text-sm sm:text-xl font-black text-emerald-700">Play with Passion, Rise with Glory!"</span>
+        <!-- 2-LINE HANDWRITTEN MOTIVATIONAL QUOTE -->
+        <div class="handwritten-quote font-black text-slate-900 leading-tight space-y-1 mx-auto max-w-2xl">
+          <span class="animate-type-line-1 text-lg sm:text-2xl font-black text-slate-900">"Champions aren't made in gymnasiums. Champions are made from a desire, a dream, & a vision.</span>
+          <span class="animate-type-line-2 text-lg sm:text-2xl font-black text-emerald-700">Play with Passion, Rise with Glory!"</span>
         </div>
 
         <p class="text-xs sm:text-sm font-black red-read-slogan mt-1">
-          🏏 Official Tournament Portal • Step onto the pitch and claim your victory!
+          🏏 Step onto the pitch and claim your victory!
         </p>
-
-        <div class="pt-1">
-          <button id="landing-install-app-btn" class="px-4 py-2 bg-gradient-to-r from-emerald-600 via-teal-700 to-emerald-600 text-white font-black text-xs rounded-xl shadow-md border border-emerald-400 inline-flex items-center gap-2 hover:scale-105 transition-transform">
-            📲 Install Mobile App / Download APK
-          </button>
-        </div>
       </div>
 
-      <!-- SELECT PREMIER LEAGUE PILL BADGE -->
+      <!-- SELECT PREMIER LEAGUE BADGE -->
       <div class="text-center">
-        <span class="px-4 py-1.5 rounded-full bg-white text-emerald-700 border border-slate-300 text-[10px] sm:text-xs font-black uppercase tracking-widest shadow-md">
-          Select Premier League
+        <span class="px-5 py-1.5 rounded-full bg-white text-emerald-800 border-2 border-emerald-300 text-xs sm:text-sm font-black uppercase tracking-widest shadow-sm">
+          Select Premier League Category
         </span>
       </div>
 
-      <!-- 3 CATEGORY SQUARE BOXES WITH BIGGER WHITE-BACKGROUND ISOLATED LOGOS & NO IMAGE BORDER -->
-      <div class="grid grid-cols-3 gap-2.5 sm:gap-6 md:gap-8 w-full max-w-3xl px-2 sm:px-4">
+      <!-- 3 CATEGORY CARDS - CARTOON BOY IMAGE WITH RED COMING SOON BADGES & GOLD JSL BUTTON -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-5 sm:gap-6 w-full max-w-5xl mx-auto px-2">
         
-        <!-- JPL STYLISH SQUARE BOX (AMBER GOLD THEME) -->
-        <div id="btn-click-jpl" class="square-category-box group bg-gradient-to-b from-amber-50 to-white border-2 border-amber-400 hover:border-amber-500 shadow-md">
-          <img src="assets/jpl_logo_white.jpg" alt="JPL Logo" class="category-stylish-logo-img" />
-          <h3 class="text-base sm:text-3xl font-black text-amber-700 group-hover:scale-105 transition-transform">JPL</h3>
-          <p class="text-[9px] sm:text-xs font-black text-slate-600 uppercase tracking-wider hidden sm:block">Jhankra Premier League</p>
+        <!-- CARD 1: JSL (CARTOON BOY IMAGE + GOLD BLINKING VIEW FULL DETAILS BUTTON MATCHING SHAPE COLOR) -->
+        <div id="btn-click-jsl" class="group relative rounded-3xl overflow-hidden shadow-xl hover:shadow-2xl hover:-translate-y-1.5 transition-all cursor-pointer border-2 border-amber-300/80 bg-white flex flex-col justify-between p-3.5 space-y-3 text-center">
+          <img src="assets/card_jsl_cartoon.png" alt="JSL Cartoon Boy Card" class="w-full h-auto object-contain rounded-2xl group-hover:scale-[1.02] transition-transform duration-300 shadow-sm" />
           
-          <!-- BLINKING COMING SOON BADGE -->
-          <div class="mt-1 px-2 py-0.5 bg-amber-100 text-amber-800 border border-amber-300 rounded-full font-black text-[9px] sm:text-xs uppercase tracking-wider animate-pulse flex items-center gap-1 shadow-sm">
-            <span class="w-1.5 h-1.5 rounded-full bg-amber-500 inline-block animate-ping"></span> Coming Soon
+          <div class="space-y-1.5 w-full text-center">
+            <h3 class="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-tight leading-tight">JHANKRA SUPER LEAGUE (JSL)</h3>
+            <div class="flex items-center justify-center gap-1.5 text-[10px] sm:text-xs font-black text-amber-900 uppercase tracking-wider bg-amber-50 py-1 px-2.5 rounded-full border border-amber-200 w-fit mx-auto">
+              <i data-lucide="calendar" class="w-3.5 h-3.5 text-amber-600"></i>
+              <span>8 TEAM | 30/08 - 1/09</span>
+            </div>
           </div>
+
+          <button class="w-full py-2.5 bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black text-xs sm:text-sm rounded-full shadow-lg border border-amber-300 flex items-center justify-center gap-1.5 btn-blink-always uppercase tracking-wider">
+            View Full Details
+          </button>
         </div>
 
-        <!-- JSL STYLISH SQUARE BOX (EMERALD GREEN THEME) -->
-        <div id="btn-click-jsl" class="square-category-box group bg-gradient-to-b from-emerald-50 to-white border-2 border-emerald-500 hover:border-emerald-600 shadow-lg">
-          <img src="assets/jsl_logo_white.jpg" alt="JSL Logo" class="category-stylish-logo-img" />
-          <h3 class="text-base sm:text-3xl font-black text-emerald-700 group-hover:scale-105 transition-transform">JSL</h3>
-          <p class="text-[9px] sm:text-xs font-black text-slate-600 uppercase tracking-wider hidden sm:block">Jhankra Super League</p>
+        <!-- CARD 2: JPL (CARTOON BOY IMAGE + RED COMING SOON + VIEW MORE DETAILS BUTTON) -->
+        <div id="btn-click-jpl" class="group relative rounded-3xl overflow-hidden shadow-xl hover:shadow-2xl hover:-translate-y-1.5 transition-all cursor-pointer border-2 border-emerald-300/80 bg-white flex flex-col justify-between p-3.5 space-y-3 text-center">
+          <img src="assets/card_jpl_cartoon.png" alt="JPL Cartoon Boy Card" class="w-full h-auto object-contain rounded-2xl group-hover:scale-[1.02] transition-transform duration-300 shadow-sm" />
           
-          <!-- BLINKING GREEN LIVE BADGE -->
-          <div class="mt-1 px-2.5 py-0.5 bg-emerald-600 text-white border border-emerald-400 rounded-full font-black text-[9px] sm:text-xs uppercase tracking-wider btn-blink-always flex items-center gap-1 shadow-md">
-            <span class="w-1.5 h-1.5 rounded-full bg-white inline-block animate-ping"></span> 🟢 LIVE
+          <div class="space-y-1.5 w-full text-center">
+            <h3 class="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-tight leading-tight">JHANKRA PREMIER LEAGUE (JPL)</h3>
+            <div class="flex items-center justify-center gap-1.5 text-[10px] sm:text-xs font-black text-red-600 uppercase tracking-wider bg-red-50 py-1 px-2.5 rounded-full border border-red-200 w-fit mx-auto">
+              <i data-lucide="clock" class="w-3.5 h-3.5 text-red-500"></i>
+              <span class="animate-pulse">COMING SOON</span>
+            </div>
           </div>
+
+          <button class="w-full py-2.5 bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-xs sm:text-sm rounded-full shadow-md border border-emerald-400 flex items-center justify-center gap-1.5 uppercase tracking-wider">
+            View More Details
+          </button>
         </div>
 
-        <!-- KPL STYLISH SQUARE BOX (PURPLE THEME) -->
-        <div id="btn-click-kpl" class="square-category-box group bg-gradient-to-b from-purple-50 to-white border-2 border-purple-400 hover:border-purple-500 shadow-md">
-          <img src="assets/kpl_logo_white.jpg" alt="KPL Logo" class="category-stylish-logo-img" />
-          <h3 class="text-base sm:text-3xl font-black text-purple-700 group-hover:scale-105 transition-transform">KPL</h3>
-          <p class="text-[9px] sm:text-xs font-black text-slate-600 uppercase tracking-wider hidden sm:block">Kota Premier League</p>
+        <!-- CARD 3: KPL (CARTOON BOY IMAGE + RED COMING SOON + VIEW MORE DETAILS BUTTON) -->
+        <div id="btn-click-kpl" class="group relative rounded-3xl overflow-hidden shadow-xl hover:shadow-2xl hover:-translate-y-1.5 transition-all cursor-pointer border-2 border-blue-300/80 bg-white flex flex-col justify-between p-3.5 space-y-3 text-center">
+          <img src="assets/card_kpl_cartoon.png" alt="KPL Cartoon Boy Card" class="w-full h-auto object-contain rounded-2xl group-hover:scale-[1.02] transition-transform duration-300 shadow-sm" />
           
-          <!-- BLINKING COMING SOON BADGE -->
-          <div class="mt-1 px-2 py-0.5 bg-purple-100 text-purple-800 border border-purple-300 rounded-full font-black text-[9px] sm:text-xs uppercase tracking-wider animate-pulse flex items-center gap-1 shadow-sm">
-            <span class="w-1.5 h-1.5 rounded-full bg-purple-500 inline-block animate-ping"></span> Coming Soon
+          <div class="space-y-1.5 w-full text-center">
+            <h3 class="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-tight leading-tight">KOTA PREMIER LEAGUE (KPL)</h3>
+            <div class="flex items-center justify-center gap-1.5 text-[10px] sm:text-xs font-black text-red-600 uppercase tracking-wider bg-red-50 py-1 px-2.5 rounded-full border border-red-200 w-fit mx-auto">
+              <i data-lucide="clock" class="w-3.5 h-3.5 text-red-500"></i>
+              <span class="animate-pulse">COMING SOON</span>
+            </div>
+          </div>
+
+          <button class="w-full py-2.5 bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-white font-black text-xs sm:text-sm rounded-full shadow-md border border-blue-400 flex items-center justify-center gap-1.5 uppercase tracking-wider">
+            View More Details
+          </button>
+        </div>
+
+      </div>
+
+      <!-- ANNOUNCEMENT SCROLLING MARQUEE TICKER STRIP -->
+      <div class="w-full max-w-5xl mx-auto bg-slate-900 border-2 border-emerald-500/80 py-2.5 px-3 rounded-2xl flex items-center gap-2.5 sm:gap-3 shadow-xl overflow-hidden text-amber-300">
+        
+        <!-- FIXED ANNOUNCEMENT BADGE -->
+        <span class="px-3 py-1 bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-black text-[10px] sm:text-xs rounded-xl shadow-md uppercase shrink-0 flex items-center gap-1 z-10">
+          <i data-lucide="bell" class="w-3.5 h-3.5 text-amber-300 animate-bounce"></i>
+          <span>NOTICE</span>
+        </span>
+
+        <!-- SCROLLING MARQUEE TEXT -->
+        <div class="overflow-hidden whitespace-nowrap w-full relative">
+          <div class="animate-continuous-marquee text-xs sm:text-sm font-black text-amber-200 tracking-wide">
+            <span class="px-4">📢 Stay Tuned! 🏏 Auction Date and Match Schedule for Jhankra Super League (JSL) will be published from time to time. Stay connected for the latest updates.</span>
+            <span class="text-emerald-400 font-extrabold px-2">•</span>
+            <span class="px-4">📢 Stay Tuned! 🏏 Auction Date and Match Schedule for Jhankra Super League (JSL) will be published from time to time. Stay connected for the latest updates.</span>
+            <span class="text-emerald-400 font-extrabold px-2">•</span>
           </div>
         </div>
 
@@ -558,7 +591,7 @@ function renderFirstPageLanding(containerEl) {
     </div>
   `;
 
-  document.getElementById('landing-install-app-btn')?.addEventListener('click', handleInstallAppClick);
+  // ATTACH CARD CLICK LISTENERS
   document.getElementById('btn-click-jpl')?.addEventListener('click', () => openComingSoonModal('JPL', 'Jhankra Premier League', 'assets/jpl_logo_white.jpg'));
   document.getElementById('btn-click-kpl')?.addEventListener('click', () => openComingSoonModal('KPL', 'Kota Premier League', 'assets/kpl_logo_white.jpg'));
   document.getElementById('btn-click-jsl')?.addEventListener('click', () => navigate('jsl-hub'));
@@ -651,61 +684,72 @@ function renderJSLHub(containerEl) {
         </div>
       </div>
 
-      <!-- 3 HORIZONTAL COLUMNS (grid-cols-3 ON ALL DEVICES) -->
+      <!-- 3 HORIZONTAL COMPACT SQUARE COLUMNS (grid-cols-3 ON ALL DEVICES) -->
       <div class="grid grid-cols-3 gap-2 sm:gap-4 items-stretch">
         
-        <!-- COLUMN 1 (LEFT SIDE): REGISTERED TEAMS CARD -->
-        <div class="glass-card p-3 sm:p-5 text-center space-y-3 border-2 border-sky-200 bg-white flex flex-col justify-between hover:border-sky-500 shadow-md">
-          <div class="space-y-2">
-            <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-sky-500 to-blue-700 text-white mx-auto flex items-center justify-center shadow-md font-black">
-              <i data-lucide="shield" class="w-6 h-6 sm:w-7 sm:h-7"></i>
+        <!-- COLUMN 1 (LEFT SIDE): REGISTERED TEAMS CARD (TOP-RIGHT COUNTER CIRCLE BADGE) -->
+        <div class="relative glass-card p-2.5 sm:p-4 text-center space-y-2 border-2 border-sky-300 bg-white flex flex-col justify-between hover:border-sky-500 shadow-md rounded-2xl overflow-hidden aspect-square sm:aspect-auto sm:min-h-[190px]">
+          <!-- STYLISH TOP-RIGHT CORNER CIRCLE COUNTER BADGE -->
+          <div class="absolute top-2 right-2 w-6 h-6 sm:w-8 sm:h-8 bg-sky-600 text-white text-[10px] sm:text-xs font-black rounded-full flex items-center justify-center border-2 border-white shadow-md" title="Total Teams">
+            ${teams.length}
+          </div>
+
+          <div class="space-y-1.5 pt-1">
+            <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-sky-500 to-blue-700 text-white mx-auto flex items-center justify-center shadow-md font-black">
+              <i data-lucide="shield" class="w-5 h-5 sm:w-6 sm:h-6"></i>
             </div>
 
             <div>
-              <div class="text-xs sm:text-base font-black text-slate-900 uppercase tracking-wide leading-tight">REGISTERED TEAMS</div>
-              <div class="text-3xl sm:text-5xl font-black text-sky-600 mt-1">${teams.length}</div>
+              <div class="text-[10px] sm:text-sm font-black text-slate-900 uppercase tracking-tight leading-tight">REGISTERED TEAMS</div>
+              <div class="text-[9px] sm:text-xs font-extrabold text-sky-700 mt-0.5">Official Squads</div>
             </div>
           </div>
 
-          <button id="open-teams-modal-btn" class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs sm:text-sm font-extrabold rounded-xl shadow-md flex items-center justify-center gap-1.5 transition-all">
-            <i data-lucide="search" class="w-4 h-4 text-amber-400"></i> View Teams
+          <button id="open-teams-modal-btn" class="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white text-[10px] sm:text-xs font-extrabold rounded-xl shadow-md flex items-center justify-center gap-1 transition-all">
+            <i data-lucide="search" class="w-3.5 h-3.5 text-amber-400"></i> View Teams
           </button>
         </div>
 
-        <!-- COLUMN 2 (MIDDLE): REGISTERED PLAYER LIST CARD -->
-        <div class="glass-card p-3 sm:p-5 text-center space-y-3 border-2 border-emerald-200 bg-white flex flex-col justify-between hover:border-emerald-500 shadow-md">
-          <div class="space-y-2">
-            <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 text-white mx-auto flex items-center justify-center shadow-md font-black">
-              <i data-lucide="users" class="w-6 h-6 sm:w-7 sm:h-7"></i>
+        <!-- COLUMN 2 (MIDDLE): REGISTERED PLAYER LIST CARD (TOP-RIGHT COUNTER CIRCLE BADGE) -->
+        <div class="relative glass-card p-2.5 sm:p-4 text-center space-y-2 border-2 border-emerald-300 bg-white flex flex-col justify-between hover:border-emerald-500 shadow-md rounded-2xl overflow-hidden aspect-square sm:aspect-auto sm:min-h-[190px]">
+          <!-- STYLISH TOP-RIGHT CORNER CIRCLE COUNTER BADGE -->
+          <div class="absolute top-2 right-2 w-6 h-6 sm:w-8 sm:h-8 bg-emerald-600 text-white text-[10px] sm:text-xs font-black rounded-full flex items-center justify-center border-2 border-white shadow-md" title="Total Players">
+            ${players.length}
+          </div>
+
+          <div class="space-y-1.5 pt-1">
+            <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 text-white mx-auto flex items-center justify-center shadow-md font-black">
+              <i data-lucide="users" class="w-5 h-5 sm:w-6 sm:h-6"></i>
             </div>
 
             <div>
-              <div class="text-xs sm:text-base font-black text-slate-900 uppercase tracking-wide leading-tight">REGISTERED PLAYERS</div>
-              <div class="text-3xl sm:text-5xl font-black text-emerald-600 mt-1">${players.length}</div>
+              <div class="text-[10px] sm:text-sm font-black text-slate-900 uppercase tracking-tight leading-tight">REGISTERED PLAYERS</div>
+              <div class="text-[9px] sm:text-xs font-extrabold text-emerald-700 mt-0.5">Player Entries</div>
             </div>
           </div>
 
-          <button id="open-players-modal-btn" class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs sm:text-sm font-extrabold rounded-xl shadow-md flex items-center justify-center gap-1.5 transition-all">
-            <i data-lucide="search" class="w-4 h-4 text-amber-400"></i> View Players
+          <button id="open-players-modal-btn" class="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white text-[10px] sm:text-xs font-extrabold rounded-xl shadow-md flex items-center justify-center gap-1 transition-all">
+            <i data-lucide="search" class="w-3.5 h-3.5 text-amber-400"></i> View Players
           </button>
         </div>
 
-        <!-- COLUMN 3 (RIGHT SIDE): REGISTRATION HERE CARD -->
-        <div class="glass-card p-3 sm:p-5 text-center space-y-3 border-2 border-amber-300 bg-white flex flex-col justify-between hover:border-amber-500 shadow-md">
-          <div class="space-y-2">
-            <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-amber-500 to-amber-600 text-slate-950 mx-auto flex items-center justify-center font-black shadow-md border border-amber-300">
+        <!-- COLUMN 3 (RIGHT SIDE): REGISTRATION HERE CARD (RED BUTTON & BLACK SUBTITLE) -->
+        <div class="relative glass-card p-2.5 sm:p-4 text-center space-y-2 border-2 border-red-400 bg-white flex flex-col justify-between hover:border-red-600 shadow-md rounded-2xl overflow-hidden aspect-square sm:aspect-auto sm:min-h-[190px]">
+          
+          <div class="space-y-1.5 pt-1">
+            <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-red-500 to-rose-700 text-white mx-auto flex items-center justify-center font-black shadow-md border border-red-300 text-base sm:text-xl">
               ✍️
             </div>
 
             <div>
-              <div class="text-xs sm:text-base font-black text-slate-900 uppercase tracking-wide leading-tight">REGISTRATION HERE</div>
-              <div class="text-[9px] sm:text-xs font-extrabold text-amber-700 mt-0.5">Team / Player Application</div>
+              <div class="text-[10px] sm:text-sm font-black text-slate-900 uppercase tracking-tight leading-tight">REGISTRATION HERE</div>
+              <div class="text-[9px] sm:text-xs font-black text-black mt-0.5">Team & Player Entry</div>
             </div>
           </div>
 
-          <!-- PERSISTENT BLINKING REGISTRATION BUTTON -->
-          <button id="jsl-right-reg-btn" class="btn-blink-always w-full py-2.5 bg-gradient-to-r from-amber-500 via-emerald-600 to-amber-500 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg flex items-center justify-center gap-1.5">
-            <i data-lucide="edit-3" class="w-4 h-4"></i> Registration Here
+          <!-- PERSISTENT BLINKING REGISTRATION BUTTON (VIBRANT RED BACKGROUND) -->
+          <button id="jsl-right-reg-btn" class="btn-blink-always w-full py-2 bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white font-black text-[10px] sm:text-xs rounded-xl shadow-lg flex items-center justify-center gap-1 border border-red-400">
+            <i data-lucide="edit-3" class="w-3.5 h-3.5 text-amber-300"></i> Register Now
           </button>
         </div>
 
@@ -1006,47 +1050,42 @@ function openRegisteredPlayersModal(allPlayers) {
   }
 }
 
-// --- RENDER PLAYER CARDS (MEDIUM SQUARE PICTURE FORMAT WITH REGISTRATION NUMBER & LOWER NAME) ---
+// --- RENDER PLAYER CARDS (SQUARE PHOTO CARDS WITH TOP SHORT SERIAL, BLINKING STATUS DOT & CLEAN NAME) ---
 function renderPlayerCardsWithSerial(playersList) {
   return playersList.map((p, idx) => {
-    const displayNo = p.displayRegistrationNumber || p.serialNo || (idx + 1);
-    const regId = p.registrationId || `JSL2026-${String(displayNo).padStart(4, '0')}`;
     const isApproved = (p.registrationStatus || p.paymentStatus) === 'APPROVED';
+    const shortSerialNo = String(idx + 1).padStart(2, '0');
+    const photoSrc = p.photoUrl || p.player_photo_url || '';
 
     return `
-      <div class="glass-card p-2.5 flex flex-col justify-between items-center text-center relative border border-emerald-200 bg-white hover:border-emerald-500 shadow-sm">
+      <div class="glass-card p-2 flex flex-col justify-between items-center text-center relative border border-emerald-200 bg-white hover:border-emerald-500 shadow-md rounded-2xl overflow-hidden">
         
-        <!-- Serial & Registration Number Badge -->
-        <div class="w-full flex justify-between items-center mb-1.5">
-          <span class="px-1.5 py-0.5 bg-slate-100 text-slate-800 font-mono font-black text-[9px] rounded border border-slate-300 shadow-sm" title="Dynamic Continuous Number">
-            ${regId}
+        <!-- LARGE SQUARE PICTURE CONTAINER WITH TOP-LEFT SHORT SERIAL & TOP-RIGHT BLINKING STATUS DOT -->
+        <div class="w-full aspect-square rounded-xl bg-slate-100 border-2 border-emerald-500 flex items-center justify-center overflow-hidden shadow-md relative mb-1.5 mx-auto">
+          
+          <!-- PLAYER PHOTO -->
+          <img src="${photoSrc}" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Crect width=\'100\' height=\'100\' fill=\'%23059669\'/%3E%3Ctext x=\'50\' y=\'62\' font-size=\'45\' text-anchor=\'middle\' fill=\'white\'%3E🏏%3C/text%3E%3C/svg%3E';" />
+
+          <!-- SHORT SERIAL NO ON PICTURE TOP-LEFT (E.G. #01, #02) -->
+          <span class="absolute top-1.5 left-1.5 px-2 py-0.5 bg-slate-950/85 backdrop-blur-sm text-amber-300 font-mono font-black text-[10px] rounded-md border border-amber-400/80 shadow-md">
+            #${shortSerialNo}
           </span>
 
-          <div class="flex items-center gap-0.5" title="${isApproved ? 'Approved' : 'Pending Approval'}">
-            <span class="${isApproved ? 'status-circle-green' : 'status-circle-red'}"></span>
-            <span class="text-[8px] font-bold ${isApproved ? 'text-emerald-600' : 'text-red-600'}">
-              ${isApproved ? 'OK' : 'PEND'}
-            </span>
+          <!-- BLINKING GREEN OR RED STATUS CIRCLE ON PICTURE TOP-RIGHT -->
+          <div class="absolute top-1.5 right-1.5 flex h-3.5 w-3.5" title="${isApproved ? 'Approved Player' : 'Pending Player'}">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full ${isApproved ? 'bg-emerald-400' : 'bg-red-400'} opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-3.5 w-3.5 ${isApproved ? 'bg-emerald-500' : 'bg-red-500'} border-2 border-white shadow-md"></span>
           </div>
+
         </div>
 
-        <!-- MEDIUM SQUARE FORMAT HD PHOTO WITH CRISP BORDER -->
-        <div class="w-full max-w-[120px] aspect-square rounded-xl bg-white border-2 border-emerald-500 flex items-center justify-center overflow-hidden shadow-sm mb-1.5 mx-auto">
-          <img src="${p.photoUrl || p.player_photo_url}" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Crect width=\'100\' height=\'100\' fill=\'%23059669\'/%3E%3Ctext x=\'50\' y=\'62\' font-size=\'45\' text-anchor=\'middle\' fill=\'white\'%3E🏏%3C/text%3E%3C/svg%3E';" />
+        <!-- PLAYER NAME ONLY (CATEGORY & DISTRICT REMOVED FOR CLEAN SQUARE CARD) -->
+        <div class="w-full mb-1.5 px-0.5">
+          <h3 class="font-black text-slate-900 text-xs sm:text-sm truncate leading-tight">${p.name}</h3>
         </div>
 
-        <!-- LOWER NAME, CATEGORY & DISTRICT -->
-        <div class="space-y-0.5 mb-2 w-full">
-          <h3 class="font-black text-slate-900 text-xs truncate leading-tight">${p.name}</h3>
-          <div class="text-[9px] font-extrabold text-emerald-700 truncate">
-            ${p.category || p.playingType || 'All Rounder'}
-          </div>
-          <div class="text-[8px] font-semibold text-slate-500 truncate">
-            📍 ${p.district || p.village || 'Paschim Medinipur'}
-          </div>
-        </div>
-
-        <button data-profile-id="${p.id}" class="view-profile-modal-btn w-full py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-[9px] font-extrabold rounded-lg shadow-sm flex items-center justify-center gap-1">
+        <!-- VIEW PROFILE BUTTON -->
+        <button data-profile-id="${p.id}" class="view-profile-modal-btn w-full py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-[9px] sm:text-[10px] font-extrabold rounded-xl shadow-sm flex items-center justify-center gap-1 transition-colors">
           <i data-lucide="user" class="w-3 h-3 text-amber-400"></i> View Profile
         </button>
       </div>
