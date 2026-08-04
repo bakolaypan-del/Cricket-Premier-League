@@ -98,15 +98,51 @@ export async function uploadImageToImgBB(file) {
   return null;
 }
 
+// --- CLOUDINARY DIRECT HD IMAGE UPLOAD (PRIMARY 10GB FREE CDN) ---
+const CLOUDINARY_CLOUD_NAME = "k483yjqc";
+const CLOUDINARY_UPLOAD_PRESET = "cpl_uploads";
+
+export async function uploadImageToCloudinary(file, folderName = 'photos') {
+  if (!file) return null;
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+    formData.append('folder', `jsl_2026/${folderName}`);
+
+    const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
+      method: 'POST',
+      body: formData
+    });
+
+    if (response.ok) {
+      const data = await response.json();
+      if (data && data.secure_url) {
+        console.log("Uploaded image directly to Cloudinary CDN:", data.secure_url);
+        return data.secure_url;
+      }
+    } else {
+      console.warn("Cloudinary upload response notice:", response.statusText);
+    }
+  } catch (err) {
+    console.warn("Cloudinary upload notice:", err);
+  }
+  return null;
+}
+
 // --- UNIFIED MULTI-PROVIDER HD IMAGE UPLOADER (ZERO QUALITY LOSS) ---
 export async function uploadHDImage(file, folderName = 'documents') {
   if (!file) return null;
   
-  // Try 1: ImgBB Cloud (Fastest 100% HD CDN)
+  // Try 1: Cloudinary Cloud CDN (Primary 10GB Free High-Speed Storage)
+  const cloudinaryUrl = await uploadImageToCloudinary(file, folderName);
+  if (cloudinaryUrl) return cloudinaryUrl;
+
+  // Try 2: ImgBB Cloud (Fast HD Fallback)
   const imgbbUrl = await uploadImageToImgBB(file);
   if (imgbbUrl) return imgbbUrl;
 
-  // Try 2: Google Drive Script
+  // Try 3: Google Drive Script
   const driveUrl = await uploadImageToGoogleDrive(file, folderName);
   if (driveUrl) return driveUrl;
 
@@ -138,7 +174,7 @@ export function initRealtimePushListener(onUpdateCallback) {
   }
 }
 
-// --- INSTANT REALTIME CLOUD DATA FETCH WITH CROSS-DEVICE CLEAR SYNC ---
+// --- INSTANT REALTIME CLOUD DATA FETCH WITH CROSS-DEVICE CLEAR & DELETE SYNC ---
 export async function fetchCloudData() {
   try {
     const res = await fetch(`${FIREBASE_DB_URL}/cpl_master.json?_t=${Date.now()}`, { cache: 'no-store' });
@@ -155,26 +191,40 @@ export async function fetchCloudData() {
           rawTeams = Array.isArray(data.teams) ? data.teams : Object.values(data.teams);
         }
 
-        const players = rawPlayers.filter(p => p && p.id).map((p, idx) => ({
-          ...p,
-          serialNo: idx + 1,
-          displayRegistrationNumber: idx + 1,
-          registrationId: p.registrationId || p.regNo || `JSL2026-${String(idx + 1).padStart(4, '0')}`
-        }));
+        const deletedPlayerIds = data.deletedPlayerIds ? Object.keys(data.deletedPlayerIds) : [];
+        const deletedTeamIds = data.deletedTeamIds ? Object.keys(data.deletedTeamIds) : [];
 
-        const teams = rawTeams.filter(t => t && t.id).map((t, idx) => ({
-          ...t,
-          serialNo: idx + 1
-        }));
+        const players = rawPlayers
+          .filter(p => p && p.id && !deletedPlayerIds.includes(p.id))
+          .map((p, idx) => ({
+            ...p,
+            serialNo: idx + 1,
+            displayRegistrationNumber: idx + 1,
+            registrationId: p.registrationId || p.regNo || `JSL2026-${String(idx + 1).padStart(4, '0')}`
+          }));
 
-        return { players, teams, clearedAt: data.clearedAt || 0 };
+        const teams = rawTeams
+          .filter(t => t && t.id && !deletedTeamIds.includes(t.id))
+          .map((t, idx) => ({
+            ...t,
+            serialNo: idx + 1
+          }));
+
+        return { 
+          players, 
+          teams, 
+          clearedAt: data.clearedAt || 0, 
+          teamsClearedAt: data.teamsClearedAt || 0,
+          deletedPlayerIds, 
+          deletedTeamIds 
+        };
       }
     }
   } catch (err) {
     console.warn("Realtime Database fetch notice:", err);
   }
 
-  return { players: [], teams: [], clearedAt: 0 };
+  return { players: [], teams: [], clearedAt: 0, teamsClearedAt: 0, deletedPlayerIds: [], deletedTeamIds: [] };
 }
 
 // --- ATOMIC REALTIME CLOUD DATA OPERATIONS (ATOMIC FULL ARRAY SYNC) ---
@@ -221,9 +271,16 @@ export async function savePlayerToFirebase(player) {
 export async function deletePlayerFromFirebase(playerId) {
   if (!playerId) return;
   try {
+    const timestamp = Date.now();
+    await fetch(`${FIREBASE_DB_URL}/cpl_master/deletedPlayerIds/${playerId}.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(timestamp)
+    });
     await fetch(`${FIREBASE_DB_URL}/cpl_master/players/${playerId}.json`, {
       method: 'DELETE'
     });
+    console.log("Deleted player permanently from Cloud Realtime Database:", playerId);
   } catch (err) {
     console.warn("Atomic player delete notice:", err);
   }
@@ -246,9 +303,16 @@ export async function saveTeamToFirebase(team) {
 export async function deleteTeamFromFirebase(teamId) {
   if (!teamId) return;
   try {
+    const timestamp = Date.now();
+    await fetch(`${FIREBASE_DB_URL}/cpl_master/deletedTeamIds/${teamId}.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(timestamp)
+    });
     await fetch(`${FIREBASE_DB_URL}/cpl_master/teams/${teamId}.json`, {
       method: 'DELETE'
     });
+    console.log("Deleted team permanently from Cloud Realtime Database:", teamId);
   } catch (err) {
     console.warn("Atomic team delete notice:", err);
   }
@@ -271,7 +335,14 @@ export async function clearAllPlayersFromFirebase() {
 
 export async function clearAllTeamsFromFirebase() {
   try {
+    const timestamp = Date.now();
+    await fetch(`${FIREBASE_DB_URL}/cpl_master/teamsClearedAt.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(timestamp)
+    });
     await fetch(`${FIREBASE_DB_URL}/cpl_master/teams.json`, { method: 'DELETE' });
+    console.log("Admin cleared all teams in Realtime Database at timestamp:", timestamp);
   } catch (err) {
     console.warn("Clear teams notice:", err);
   }

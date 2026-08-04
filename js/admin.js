@@ -525,6 +525,8 @@ function renderAdminLoginScreen(containerEl) {
 function openAdminEditPlayerModal(player, containerEl) {
   if (!player) return;
 
+  document.getElementById('admin-edit-player-modal')?.remove();
+
   const modalHtml = `
     <div id="admin-edit-player-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3 overflow-y-auto">
       <div class="bg-slate-900/95 backdrop-blur-2xl max-w-md w-full p-4 relative space-y-3 animate-fade-in rounded-2xl shadow-2xl border border-slate-800 modal-content-container text-left max-h-[90vh] overflow-y-auto">

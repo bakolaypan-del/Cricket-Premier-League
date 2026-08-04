@@ -8,7 +8,10 @@ import {
   deletePlayerFromSupabase,
   syncTeamToSupabase, 
   deleteTeamFromSupabase,
-  uploadHDImage
+  uploadHDImage,
+  initRealtimePushListener,
+  clearAllPlayersFromFirebase,
+  clearAllTeamsFromFirebase
 } from './supabase.js';
 
 const STORAGE_KEYS = {
@@ -130,11 +133,23 @@ class Store {
           return;
         }
 
-        // MERGE LOCAL & CLOUD PLAYERS: Combine any local players that haven't synced yet
+        // MERGE LOCAL & CLOUD PLAYERS: Exclude deleted players permanently
+        const deletedIdsSet = new Set(cloudData.deletedPlayerIds || []);
+        const validLocalPlayers = localPlayers.filter(p => p && p.id && !deletedIdsSet.has(p.id));
+
         const cloudPlayerIds = new Set(cloudData.players.map(p => p.id));
-        const missingLocalPlayers = localPlayers.filter(p => p && p.id && !cloudPlayerIds.has(p.id));
+        const missingLocalPlayers = validLocalPlayers.filter(p => p && p.id && !cloudPlayerIds.has(p.id) && !deletedIdsSet.has(p.id));
 
         let mergedPlayers = [...cloudData.players, ...missingLocalPlayers];
+
+        // Deduplicate merged players by name + phone to prevent double cards
+        const uniqueMergedMap = new Map();
+        for (const p of mergedPlayers) {
+          if (!p || !p.id) continue;
+          const k = `${(p.name || '').trim().toLowerCase()}_${(p.phone || '').trim()}`;
+          uniqueMergedMap.set(k, p);
+        }
+        mergedPlayers = Array.from(uniqueMergedMap.values());
 
         // CONTINUOUS DYNAMIC RE-INDEXING: Ensure registration IDs (JSL2026-0001, JSL2026-0002...) and display numbers (1, 2, 3...) have no gaps
         const reindexedPlayers = mergedPlayers.map((p, idx) => {
@@ -157,22 +172,36 @@ class Store {
           this.notify('players_updated');
         }
 
-        // If local had un-synced players, push merged list back to cloud
+        // If local had un-synced players (and not deleted), push merged list back to cloud
         if (missingLocalPlayers.length > 0) {
           saveCloudData(reindexedPlayers, this.getTeams());
         }
       }
 
       // 2. Sync Teams ONLY if valid array received from cloud
+      const lastLocalTeamsClearedAt = Number(localStorage.getItem('cpl_last_teams_cleared_at') || '0');
+      if (cloudData.teamsClearedAt && cloudData.teamsClearedAt > lastLocalTeamsClearedAt) {
+        localStorage.setItem('cpl_last_teams_cleared_at', String(cloudData.teamsClearedAt));
+        safeSetLocalStorage(STORAGE_KEYS.TEAMS, []);
+        this.notify('teams_updated');
+        return;
+      }
+
       if (Array.isArray(cloudData.teams)) {
         const localTeams = this.getTeams();
-        if (cloudData.teams.length === 0 && localTeams.length > 0) {
-          saveCloudData(this.getPlayers(), localTeams);
+        const deletedTeamIdsSet = new Set(cloudData.deletedTeamIds || []);
+
+        if (cloudData.teams.length === 0 && cloudData.teamsClearedAt > 0) {
+          if (localTeams.length > 0) {
+            safeSetLocalStorage(STORAGE_KEYS.TEAMS, []);
+            this.notify('teams_updated');
+          }
           return;
         }
 
+        const validLocalTeams = localTeams.filter(t => t && t.id && !deletedTeamIdsSet.has(t.id));
         const cloudTeamIds = new Set(cloudData.teams.map(t => t.id));
-        const missingLocalTeams = localTeams.filter(t => t && t.id && !cloudTeamIds.has(t.id));
+        const missingLocalTeams = validLocalTeams.filter(t => t && t.id && !cloudTeamIds.has(t.id) && !deletedTeamIdsSet.has(t.id));
         let mergedTeams = [...cloudData.teams, ...missingLocalTeams];
 
         const reindexedTeams = mergedTeams.map((t, idx) => ({
@@ -220,6 +249,14 @@ class Store {
         console.warn("BroadcastChannel fallback:", err);
       }
     }
+
+    try {
+      initRealtimePushListener(() => {
+        this.syncWithCloud();
+      });
+    } catch (err) {
+      console.warn("Realtime push setup notice:", err);
+    }
   }
 
   // --- ADMIN AUTHENTICATION ---
@@ -259,11 +296,23 @@ class Store {
 
   // --- PLAYERS ---
   getPlayers() {
-    const players = JSON.parse(localStorage.getItem(STORAGE_KEYS.PLAYERS)) || [];
-    // ATOMIC TIMESTAMP SORTING: Ensures zero duplicate IDs when multiple players submit at the exact same millisecond
-    players.sort((a, b) => (a.createdTime || a.regTimestamp || 0) - (b.createdTime || b.regTimestamp || 0));
+    const rawPlayers = JSON.parse(localStorage.getItem(STORAGE_KEYS.PLAYERS)) || [];
+    rawPlayers.sort((a, b) => (a.createdTime || a.regTimestamp || 0) - (b.createdTime || b.regTimestamp || 0));
 
-    return players.map((p, idx) => {
+    // Deduplicate players by Name + Phone to eliminate double entries
+    const uniqueMap = new Map();
+    for (const p of rawPlayers) {
+      if (!p || !p.id) continue;
+      const nameKey = (p.name || '').trim().toLowerCase();
+      const phoneKey = (p.phone || p.mobile || '').trim();
+      const key = (nameKey && phoneKey) ? `${nameKey}_${phoneKey}` : p.id;
+      uniqueMap.set(key, p);
+    }
+
+    const uniquePlayers = Array.from(uniqueMap.values());
+    uniquePlayers.sort((a, b) => (a.createdTime || a.regTimestamp || 0) - (b.createdTime || b.regTimestamp || 0));
+
+    return uniquePlayers.map((p, idx) => {
       const displayNo = idx + 1;
       const regId = `JSL2026-${String(displayNo).padStart(4, '0')}`;
 
@@ -290,7 +339,30 @@ class Store {
 
   // --- REGISTER NEW PLAYER WITH ATOMIC TIMESTAMP QUEUE & ZERO DUPLICATES ---
   registerPlayer(playerData) {
-    const players = this.getPlayers();
+    let players = JSON.parse(localStorage.getItem(STORAGE_KEYS.PLAYERS)) || [];
+    
+    // Check if player with same name + phone already exists
+    const inputName = (playerData.name || playerData.playerName || '').trim().toLowerCase();
+    const inputPhone = (playerData.phone || playerData.mobile || '').trim();
+    const existingIdx = players.findIndex(p => 
+      p && (p.phone || p.mobile || '').trim() === inputPhone && 
+      (p.name || '').trim().toLowerCase() === inputName
+    );
+
+    if (existingIdx !== -1) {
+      // Update existing player record instead of creating a duplicate second record
+      players[existingIdx] = {
+        ...players[existingIdx],
+        ...playerData,
+        photoUrl: playerData.photoUrl || playerData.player_photo_url || players[existingIdx].photoUrl,
+        player_photo_url: playerData.photoUrl || playerData.player_photo_url || players[existingIdx].player_photo_url,
+      };
+      safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
+      saveCloudData(players, this.getTeams());
+      syncPlayerToSupabase(players[existingIdx]);
+      this.notify('players_updated');
+      return players[existingIdx];
+    }
     const createdTime = Date.now() + Math.random();
     const uuid = 'ply-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7);
 
@@ -416,8 +488,10 @@ class Store {
   }
 
   clearAllTeams() {
+    const timestamp = Date.now();
+    localStorage.setItem('cpl_last_teams_cleared_at', String(timestamp));
     safeSetLocalStorage(STORAGE_KEYS.TEAMS, []);
-    saveCloudData(this.getPlayers(), []);
+    clearAllTeamsFromFirebase();
     this.notify('teams_updated');
   }
 

@@ -1448,11 +1448,11 @@ function openTeamRegisterFormModal() {
       const coOwner2Name = hasCoOwner2 ? (document.getElementById('co-owner-2-name').value || '') : '';
       const coOwner2Phone = hasCoOwner2 ? (document.getElementById('co-owner-2-phone').value || '') : '';
 
-      // Parallel concurrent upload racer for INSTANT TEAM SUBMISSION
+      // Parallel concurrent Cloudinary HD upload with 10s safety timeout
       const uploadWithTimeout = async (fileObj, folder, fallbackDataUrl) => {
         if (!fileObj) return fallbackDataUrl;
         try {
-          const timeoutPromise = new Promise(res => setTimeout(() => res(null), 2500));
+          const timeoutPromise = new Promise(res => setTimeout(() => res(null), 10000));
           const result = await Promise.race([
             uploadHDImage(fileObj, folder),
             timeoutPromise
@@ -1813,11 +1813,11 @@ function openPlayerRegisterFormModal() {
       const upiRef = document.getElementById('ply-upi-ref').value;
       const remarks = document.getElementById('ply-remarks').value || upiRef;
 
-      // Parallel concurrent upload racer with 2.5s timeout for INSTANT SUBMISSION (1-2s response time)
+      // Parallel concurrent Cloudinary HD upload with 10s safety timeout
       const uploadWithTimeout = async (fileObj, folder, fallbackDataUrl) => {
         if (!fileObj) return fallbackDataUrl;
         try {
-          const timeoutPromise = new Promise(res => setTimeout(() => res(null), 2500));
+          const timeoutPromise = new Promise(res => setTimeout(() => res(null), 10000));
           const result = await Promise.race([
             uploadHDImage(fileObj, folder),
             timeoutPromise
