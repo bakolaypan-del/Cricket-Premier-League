@@ -1,15 +1,17 @@
 # Lightweight PowerShell HTTP Local Web Server
 $port = 8080
 $listener = New-Object System.Net.HttpListener
-$listener.Prefixes.Add("http://127.0.0.1:$port/")
 $listener.Prefixes.Add("http://localhost:$port/")
-$listener.Start()
 
-Write-Host "==========================================================" -ForegroundColor Green
-Write-Host "Cricket Premier League Web Application is running live at:" -ForegroundColor Yellow
-Write-Host "-> http://localhost:$port/" -ForegroundColor Cyan
-Write-Host "Press Ctrl+C in terminal to stop server." -ForegroundColor Gray
-Write-Host "==========================================================" -ForegroundColor Green
+try {
+    $listener.Start()
+    Write-Host "==========================================================" -ForegroundColor Green
+    Write-Host "Cricket Premier League Web Application is running live at:" -ForegroundColor Yellow
+    Write-Host "-> http://localhost:$port/" -ForegroundColor Cyan
+    Write-Host "==========================================================" -ForegroundColor Green
+} catch {
+    Write-Host "Listener status check on port $port"
+}
 
 $rootPath = $PSScriptRoot
 
@@ -41,17 +43,23 @@ try {
                 default { $response.ContentType = "application/octet-stream" }
             }
 
-            $response.SendChunked = $true
-            $response.OutputStream.Write($bytes, 0, $bytes.Length)
+            try {
+                $response.OutputStream.Write($bytes, 0, $bytes.Length)
+            } catch {}
         } else {
             $response.StatusCode = 404
             $buffer = [System.Text.Encoding]::UTF8.GetBytes("404 Not Found")
-            $response.SendChunked = $true
-            $response.OutputStream.Write($buffer, 0, $buffer.Length)
+            try {
+                $response.OutputStream.Write($buffer, 0, $buffer.Length)
+            } catch {}
         }
 
-        $response.Close()
+        try {
+            $response.Close()
+        } catch {}
     }
 } finally {
-    $listener.Stop()
+    if ($listener.IsListening) {
+        $listener.Stop()
+    }
 }

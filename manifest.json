@@ -1,0 +1,17 @@
+{
+  "short_name": "CPL 2026",
+  "name": "Cricket Premier League (JSL 2026)",
+  "description": "Official Jhankra Super League Tournament & Registration Portal",
+  "icons": [
+    {
+      "src": "assets/jsl_logo_white.jpg",
+      "type": "image/jpeg",
+      "sizes": "192x192 512x512"
+    }
+  ],
+  "start_url": "./",
+  "background_color": "#0F2C59",
+  "theme_color": "#0F2C59",
+  "display": "standalone",
+  "orientation": "portrait"
+}

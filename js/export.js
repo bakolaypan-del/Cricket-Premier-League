@@ -6,16 +6,19 @@ export function exportPlayersToCSV(players) {
     return;
   }
 
-  const headers = ['Serial No', 'Player ID', 'Full Name', 'Phone', 'Address', 'Category', 'Payment Ref', 'Payment Status', 'Reg Date'];
+  const headers = ['Serial No', 'Player ID', 'Full Name', 'Father Name', 'DOB', 'Age', 'Phone', 'Address', 'Category', 'Payment Ref', 'Payment Status', 'Reg Date'];
   const rows = players.map(p => [
-    p.serialNo || '',
-    p.id || '',
+    p.displayRegistrationNumber || p.serialNo || '',
+    p.registrationId || p.regNo || p.id || '',
     `"${(p.name || '').replace(/"/g, '""')}"`,
+    `"${(p.fatherName || '').replace(/"/g, '""')}"`,
+    `"${p.dob || ''}"`,
+    p.age || '',
     `"${p.phone || ''}"`,
-    `"${(p.address || '').replace(/"/g, '""')}"`,
-    `"${p.category || p.role || ''}"`,
+    `"${(p.address || `${p.village || ''}, ${p.district || ''}`).replace(/"/g, '""')}"`,
+    `"${p.category || p.playingType || p.role || ''}"`,
     `"${p.paymentRef || ''}"`,
-    p.paymentStatus || 'PENDING',
+    (p.registrationStatus || p.paymentStatus || 'PENDING').toUpperCase(),
     p.regDate || ''
   ]);
 
@@ -35,15 +38,17 @@ export function exportTeamsToCSV(teams) {
     return;
   }
 
-  const headers = ['Team ID', 'Team Name', 'Short Code', 'Owner Name', 'Owner Phone', 'Co-Owner Name', 'Co-Owner Phone', 'Reg Date'];
+  const headers = ['Team ID', 'Team Name', 'Short Code', 'Owner Name', 'Owner Phone', 'Co-Owner 1 Name', 'Co-Owner 1 Phone', 'Co-Owner 2 Name', 'Co-Owner 2 Phone', 'Reg Date'];
   const rows = teams.map(t => [
     t.id || '',
     `"${(t.name || '').replace(/"/g, '""')}"`,
     t.shortCode || '',
     `"${(t.ownerName || '').replace(/"/g, '""')}"`,
     `"${t.ownerPhone || ''}"`,
-    `"${(t.coOwnerName || '').replace(/"/g, '""')}"`,
-    `"${t.coOwnerPhone || ''}"`,
+    `"${(t.coOwner1Name || t.coOwnerName || '').replace(/"/g, '""')}"`,
+    `"${t.coOwner1Phone || t.coOwnerPhone || ''}"`,
+    `"${(t.coOwner2Name || '').replace(/"/g, '""')}"`,
+    `"${t.coOwner2Phone || ''}"`,
     t.regDate || ''
   ]);
 
@@ -57,7 +62,136 @@ export function exportTeamsToCSV(teams) {
   document.body.removeChild(link);
 }
 
-// GENERATE PROFESSIONAL PRINTABLE PDF DOCUMENT FOR REGISTERED PLAYERS WITH HD GOOGLE DRIVE PHOTOS
+// GENERATE PROFESSIONAL PRINTABLE PDF DOCUMENT FOR REGISTERED TEAMS
+export async function exportTeamsToPDF(teams) {
+  if (!teams || teams.length === 0) {
+    alert('No teams found to export.');
+    return;
+  }
+
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) {
+    alert('Please allow popups in your browser to view and print the PDF.');
+    return;
+  }
+
+  const rowsHtml = teams.map((t, idx) => {
+    const co1Name = t.coOwner1Name || t.coOwnerName || '';
+    const co1Phone = t.coOwner1Phone || t.coOwnerPhone || '';
+    const co1Photo = t.coOwner1PhotoUrl || '';
+
+    const co2Name = t.coOwner2Name || '';
+    const co2Phone = t.coOwner2Phone || '';
+    const co2Photo = t.coOwner2PhotoUrl || '';
+
+    return `
+      <tr>
+        <td style="text-align: center; font-weight: bold; font-family: monospace; font-size: 14px;">#${idx + 1}</td>
+        <td style="text-align: center; width: 100px; padding: 6px;">
+          <div style="width: 85px; height: 85px; background-color: #FFFFFF; border: 2px solid #0F172A; border-radius: 12px; margin: 0 auto; display: flex; align-items: center; justify-content: center; overflow: hidden;">
+            ${t.logoUrl ? `<img src="${t.logoUrl}" style="width: 100%; height: 100%; object-fit: cover;" />` : ''}
+          </div>
+        </td>
+        <td style="font-weight: bold; color: #0F172A; font-size: 15px;">${t.name}</td>
+        
+        <!-- OWNER -->
+        <td style="text-align: center; width: 100px; padding: 6px;">
+          <div style="width: 85px; height: 85px; background-color: #FFFFFF; border: 2px solid #D97706; border-radius: 12px; margin: 0 auto; overflow: hidden;">
+            ${t.ownerPhotoUrl || t.ownerPhoto ? `<img src="${t.ownerPhotoUrl || t.ownerPhoto}" style="width: 100%; height: 100%; object-fit: cover;" />` : ''}
+          </div>
+        </td>
+        <td style="font-size: 12px;">
+          <strong style="color: #0B192C; font-size: 13px;">${t.ownerName}</strong><br/>
+          <span style="font-family: monospace; color: #0284C7; font-weight: bold;">📞 ${t.ownerPhone || 'N/A'}</span>
+        </td>
+
+        <!-- CO-OWNER 1 -->
+        <td style="text-align: center; width: 100px; padding: 6px;">
+          <div style="width: 85px; height: 85px; background-color: #FFFFFF; border: 2px solid #0284C7; border-radius: 12px; margin: 0 auto; overflow: hidden;">
+            ${co1Photo ? `<img src="${co1Photo}" style="width: 100%; height: 100%; object-fit: cover;" />` : ''}
+          </div>
+        </td>
+        <td style="font-size: 12px;">
+          ${co1Name ? `<strong style="color: #0284C7;">${co1Name}</strong><br/><span style="font-family: monospace; color: #475569;">📞 ${co1Phone || 'N/A'}</span>` : '<span style="color: #94A3B8;">N/A</span>'}
+        </td>
+
+        <!-- CO-OWNER 2 -->
+        <td style="text-align: center; width: 100px; padding: 6px;">
+          <div style="width: 85px; height: 85px; background-color: #FFFFFF; border: 2px solid #9333EA; border-radius: 12px; margin: 0 auto; overflow: hidden;">
+            ${co2Photo ? `<img src="${co2Photo}" style="width: 100%; height: 100%; object-fit: cover;" />` : ''}
+          </div>
+        </td>
+        <td style="font-size: 12px;">
+          ${co2Name ? `<strong style="color: #9333EA;">${co2Name}</strong><br/><span style="font-family: monospace; color: #475569;">📞 ${co2Phone || 'N/A'}</span>` : '<span style="color: #94A3B8;">N/A</span>'}
+        </td>
+      </tr>
+    `;
+  }).join('');
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <title>JSL 2026 - Registered Teams Directory PDF</title>
+      <style>
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; padding: 20px; color: #1E293B; }
+        .header-box { text-align: center; border-bottom: 3px solid #0F172A; padding-bottom: 15px; margin-bottom: 20px; }
+        .title { font-size: 26px; font-weight: 900; color: #0B192C; margin: 0; }
+        .subtitle { font-size: 15px; font-weight: bold; color: #0284C7; margin-top: 4px; }
+        .meta { font-size: 11px; color: #64748B; margin-top: 6px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
+        th, td { border: 1.5px solid #CBD5E1; padding: 6px; text-align: left; vertical-align: middle; }
+        th { background-color: #0F172A; color: white; font-weight: bold; text-align: center; text-transform: uppercase; font-size: 11px; }
+        tr:nth-child(even) { background-color: #F8FAFC; }
+        .footer { margin-top: 30px; text-align: center; font-size: 11px; color: #94A3B8; border-top: 1px solid #E2E8F0; padding-top: 10px; font-weight: bold; }
+      </style>
+    </head>
+    <body>
+      <div class="header-box">
+        <h1 class="title">JHANKRA SUPER LEAGUE (JSL 2026)</h1>
+        <div class="subtitle">Official Registered Teams Directory</div>
+        <div class="meta">Generated: ${new Date().toLocaleString()} • Total Registered Teams: ${teams.length}</div>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 35px;">Sl No</th>
+            <th style="width: 95px;">Team Logo</th>
+            <th>Team Name</th>
+            <th style="width: 95px;">Owner Photo</th>
+            <th>Owner Details</th>
+            <th style="width: 95px;">Co-Owner 1 Photo</th>
+            <th>Co-Owner 1 Details</th>
+            <th style="width: 95px;">Co-Owner 2 Photo</th>
+            <th>Co-Owner 2 Details</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rowsHtml}
+        </tbody>
+      </table>
+
+      <div class="footer">
+        Jhankra Super League (JSL 2026) • Official Registration Management System • Developer: Suman Kolay
+      </div>
+    </body>
+    </html>
+  `;
+
+  printWindow.document.open();
+  printWindow.document.write(html);
+  printWindow.document.close();
+
+  printWindow.onload = () => {
+    setTimeout(() => {
+      printWindow.focus();
+      printWindow.print();
+    }, 300);
+  };
+}
+
+// GENERATE PROFESSIONAL PRINTABLE PDF DOCUMENT WITH LARGE 120x120 FULL HD PLAYER PHOTOS
 export async function exportPlayersToPDF(players) {
   if (!players || players.length === 0) {
     alert('No players found to export.');
@@ -70,24 +204,22 @@ export async function exportPlayersToPDF(players) {
       <div class="w-14 h-14 border-4 border-amber-400 border-t-transparent rounded-full animate-spin mx-auto"></div>
       <div class="space-y-1">
         <span class="px-3 py-1 bg-amber-950 text-amber-300 text-[10px] font-black rounded-full border border-amber-800 uppercase tracking-widest">
-          📸 Google Drive HD Photo Sync
+          📸 HD Photo PDF Generator
         </span>
-        <h3 class="text-base sm:text-xl font-black text-white">Fetching HD Photos from Google Drive...</h3>
+        <h3 class="text-base sm:text-xl font-black text-white">Preparing 120x120 HD Player Directory PDF...</h3>
         <p class="text-xs text-slate-300 max-w-xs mx-auto">
-          Replacing reduced website thumbnails with full-resolution HD photos from your Google Drive folder before building the PDF document.
+          Building full printable PDF directory with Sl No, 120x120 HD Player Picture, Name, Phone Number, Age, Category, Address, and Status.
         </p>
         <div id="pdf-fetch-progress" class="text-amber-400 font-mono text-xs font-black pt-2">
-          Initializing Google Drive fetch...
+          Syncing HD photo documents...
         </div>
       </div>
     </div>
   `;
   document.body.insertAdjacentHTML('beforeend', loadingOverlayHtml);
 
-  const GOOGLE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz7YpLCl7Vk_4sR06XhnD9V_-OFVeKwv_vgPm332kFj9LvrrYjdsPG_aDTRv1l2L4zo/exec";
-
   try {
-    // 2. FETCH FULL UNCOMPRESSED HD PHOTOS FROM GOOGLE DRIVE FOR EVERY PLAYER
+    // 2. FETCH FULL UNCOMPRESSED HD PHOTOS FOR EVERY PLAYER
     const playersWithHDPhotos = [];
     const totalPlayers = players.length;
 
@@ -95,10 +227,10 @@ export async function exportPlayersToPDF(players) {
       const p = players[i];
       const progressElem = document.getElementById('pdf-fetch-progress');
       if (progressElem) {
-        progressElem.innerText = `Fetching Google Drive HD photo ${i + 1} of ${totalPlayers}... (${p.name || 'Player'})`;
+        progressElem.innerText = `Processing HD photo ${i + 1} of ${totalPlayers}... (${p.name || 'Player'})`;
       }
 
-      let targetSrc = p.hdPhotoUrl || p.photoUrl || 'assets/jsl_logo.jpg';
+      let targetSrc = p.hdPhotoUrl || p.photoUrl || p.player_photo_url || '';
       let hdPhoto = targetSrc;
 
       if (targetSrc && targetSrc.startsWith('http')) {
@@ -127,61 +259,73 @@ export async function exportPlayersToPDF(players) {
 
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
-      alert('Please allow popups to download the PDF.');
+      alert('Please allow popups in your browser to view and print the PDF.');
       return;
     }
 
-    const rowsHtml = playersWithHDPhotos.map((p, idx) => `
-      <tr>
-        <td style="text-align: center; font-weight: bold;">S-${p.serialNo || (idx + 1)}</td>
-        <td style="text-align: center; width: 75px;">
-          <img src="${p.hdPhoto}" style="width: 65px; height: 65px; object-fit: cover; border-radius: 8px; border: 1.5px solid #0F172A; box-shadow: 0 2px 4px rgba(0,0,0,0.15);" />
-        </td>
-        <td style="font-weight: bold; color: #0F172A; font-size: 13px;">${p.name}</td>
-        <td style="color: #0284C7; font-weight: bold;">${p.category || p.role || 'Player'}</td>
-        <td style="font-family: monospace; font-weight: bold;">${p.phone || 'N/A'}</td>
-        <td style="font-size: 11px;">${p.address || 'Chandrakona Town PS'}</td>
-        <td style="text-align: center; font-weight: bold; color: ${p.paymentStatus === 'APPROVED' ? '#10B981' : '#EF476F'};">
-          ${p.paymentStatus === 'APPROVED' ? 'APPROVED' : 'PENDING'}
-        </td>
-      </tr>
-    `).join('');
+    const rowsHtml = playersWithHDPhotos.map((p, idx) => {
+      const displayNo = p.displayRegistrationNumber || p.serialNo || (idx + 1);
+      const isApproved = (p.registrationStatus || p.paymentStatus) === 'APPROVED';
+      const isRejected = (p.registrationStatus || p.paymentStatus) === 'REJECTED';
+      const statusLabel = isApproved ? '🟢 APPROVED' : isRejected ? '⚪ REJECTED' : '🔴 PENDING';
+      const statusColor = isApproved ? '#059669' : isRejected ? '#475569' : '#DC2626';
+
+      return `
+        <tr>
+          <td style="text-align: center; font-weight: bold; font-family: monospace; font-size: 14px;">#${displayNo}</td>
+          <td style="text-align: center; width: 130px; padding: 6px;">
+            <div style="width: 120px; height: 120px; background-color: #FFFFFF; border: 2.5px solid #0F172A; border-radius: 14px; margin: 0 auto; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+              ${p.hdPhoto ? `<img src="${p.hdPhoto}" style="width: 100%; height: 100%; object-fit: cover;" />` : ''}
+            </div>
+          </td>
+          <td style="font-weight: bold; color: #0F172A; font-size: 15px;">${p.name}</td>
+          <td style="font-family: monospace; font-weight: bold; color: #0284C7; font-size: 13px;">${p.phone || 'N/A'}</td>
+          <td style="text-align: center; font-weight: bold; color: #D97706; font-size: 13px;">${p.age || 24} Yrs</td>
+          <td style="color: #0F172A; font-weight: bold; font-size: 13px;">${p.category || p.playingType || p.role || 'All Rounder'}</td>
+          <td style="font-size: 12px; color: #334155;">${p.village ? `${p.village}, ${p.district || ''}` : p.address || 'Paschim Medinipur'}</td>
+          <td style="text-align: center; font-weight: bold; color: ${statusColor}; font-size: 12px;">
+            ${statusLabel}
+          </td>
+        </tr>
+      `;
+    }).join('');
 
     const html = `
       <!DOCTYPE html>
       <html>
       <head>
-        <title>JSL 2026 - Registered Players List HD PDF</title>
+        <title>JSL 2026 - Registered Players Directory PDF</title>
         <style>
           body { font-family: 'Helvetica Neue', Arial, sans-serif; padding: 20px; color: #1E293B; }
-          .header-box { text-align: center; border-bottom: 2px solid #0F172A; padding-bottom: 15px; margin-bottom: 20px; }
-          .title { font-size: 24px; font-weight: 900; color: #0B192C; margin: 0; }
-          .subtitle { font-size: 14px; font-weight: bold; color: #DC2626; margin-top: 4px; }
+          .header-box { text-align: center; border-bottom: 3px solid #0F172A; padding-bottom: 15px; margin-bottom: 20px; }
+          .title { font-size: 26px; font-weight: 900; color: #0B192C; margin: 0; }
+          .subtitle { font-size: 15px; font-weight: bold; color: #D97706; margin-top: 4px; }
           .meta { font-size: 11px; color: #64748B; margin-top: 6px; }
-          table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 12px; }
-          th, td { border: 1px solid #CBD5E1; padding: 8px; text-align: left; vertical-align: middle; }
-          th { background-color: #0F172A; color: white; font-weight: bold; text-align: center; }
+          table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
+          th, td { border: 1.5px solid #CBD5E1; padding: 8px; text-align: left; vertical-align: middle; }
+          th { background-color: #0F172A; color: white; font-weight: bold; text-align: center; text-transform: uppercase; font-size: 12px; }
           tr:nth-child(even) { background-color: #F8FAFC; }
-          .footer { margin-top: 30px; text-align: center; font-size: 10px; color: #94A3B8; border-top: 1px solid #E2E8F0; padding-top: 10px; }
+          .footer { margin-top: 30px; text-align: center; font-size: 11px; color: #94A3B8; border-top: 1px solid #E2E8F0; padding-top: 10px; font-weight: bold; }
         </style>
       </head>
       <body>
         <div class="header-box">
           <h1 class="title">JHANKRA SUPER LEAGUE (JSL 2026)</h1>
-          <div class="subtitle">Official Registered Players Directory (Google Drive HD Photos)</div>
-          <div class="meta">Generated: ${new Date().toLocaleString()} • Total Players: ${players.length} • HD Photo Document</div>
+          <div class="subtitle">Official Registered Players Directory</div>
+          <div class="meta">Generated: ${new Date().toLocaleString()} • Total Registered Players: ${players.length}</div>
         </div>
 
         <table>
           <thead>
             <tr>
-              <th style="width: 50px;">Serial</th>
-              <th style="width: 75px;">HD Photo</th>
+              <th style="width: 45px;">Sl No</th>
+              <th style="width: 130px;">Player Picture</th>
               <th>Player Name</th>
-              <th>Category</th>
-              <th>Phone</th>
+              <th style="width: 105px;">Phone Number</th>
+              <th style="width: 60px;">Player Age</th>
+              <th>Player Category</th>
               <th>Address</th>
-              <th style="width: 80px;">Status</th>
+              <th style="width: 90px;">Status</th>
             </tr>
           </thead>
           <tbody>
@@ -209,7 +353,7 @@ export async function exportPlayersToPDF(players) {
   } catch (err) {
     document.getElementById('pdf-loading-overlay')?.remove();
     console.error("PDF generation error:", err);
-    alert("An error occurred while fetching HD photos for PDF. Please try again.");
+    alert("An error occurred while generating PDF. Please try again.");
   }
 }
 
@@ -219,334 +363,91 @@ export function printDigitalPass(player, league, team) {
 
   const printWindow = window.open('', '_blank');
   if (!printWindow) {
-    alert('Please allow popups to print pass.');
+    alert('Please allow popups to download your pass.');
     return;
   }
-
-  const isApproved = player.paymentStatus === 'APPROVED';
 
   const html = `
     <!DOCTYPE html>
     <html>
     <head>
-      <title>JSL Digital Pass - ${player.name}</title>
+      <title>JSL 2026 Digital Player Pass - ${player.name}</title>
       <style>
-        body { font-family: 'Helvetica Neue', Arial, sans-serif; background: #020617; color: white; display: flex; justify-content: center; align-items: center; min-height: 100vh; margin: 0; padding: 20px; }
-        .pass-card { width: 340px; background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 100%); border: 2px solid #f59e0b; border-radius: 20px; padding: 20px; text-align: center; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5); position: relative; overflow: hidden; }
-        .pass-card::before { content: ''; position: absolute; top: -50%; left: -50%; width: 200%; height: 200%; background: radial-gradient(circle, rgba(245,158,11,0.1) 0%, transparent 70%); pointer-events: none; }
-        .league-title { font-size: 18px; font-weight: 900; color: #f59e0b; letter-spacing: 1px; margin: 0; text-shadow: 0 2px 4px rgba(0,0,0,0.5); }
-        .league-sub { font-size: 9px; font-weight: bold; color: #38bdf8; text-transform: uppercase; margin-top: 2px; }
-        .serial-badge { display: inline-block; background: #020617; color: #f59e0b; border: 1px solid #f59e0b; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; font-family: monospace; margin: 12px 0 10px 0; }
-        .player-photo { width: 110px; height: 110px; border-radius: 16px; object-fit: cover; border: 3px solid #38bdf8; margin: 0 auto 10px auto; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.5); }
-        .player-name { font-size: 20px; font-weight: 900; color: #ffffff; margin: 0; }
-        .player-cat { font-size: 12px; font-weight: bold; color: #38bdf8; margin-top: 2px; }
-        .info-grid { background: rgba(2, 6, 23, 0.8); border: 1px solid #334155; border-radius: 12px; padding: 10px; margin-top: 12px; text-align: left; font-size: 11px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-        .info-item span { display: block; font-size: 8px; color: #94a3b8; text-transform: uppercase; font-weight: bold; }
-        .info-item div { font-weight: bold; color: #f8fafc; }
-        .status-pill { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 10px; font-weight: 900; margin-top: 12px; text-transform: uppercase; }
-        .status-ok { background: #065f46; color: #6ee7b7; border: 1px solid #10b981; }
-        .status-pend { background: #881337; color: #fca5a5; border: 1px solid #f43f5e; }
-        .footer { margin-top: 12px; font-size: 8px; color: #64748b; font-weight: bold; }
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; background-color: #0F172A; color: white; display: flex; justify-content: center; items: center; min-height: 100vh; margin: 0; padding: 20px; box-sizing: border-box; }
+        .pass-card { width: 340px; background: linear-gradient(135deg, #0B192C 0%, #1E3A8A 100%); border: 3px solid #F59E0B; border-radius: 20px; padding: 24px; text-align: center; box-shadow: 0 20px 40px rgba(0,0,0,0.6); position: relative; }
+        .league-title { font-size: 20px; font-weight: 900; color: #F59E0B; margin: 0; letter-spacing: 1px; }
+        .league-sub { font-size: 11px; font-weight: bold; color: #38BDF8; margin-top: 4px; text-transform: uppercase; }
+        .photo-frame { width: 130px; height: 130px; margin: 16px auto; border-radius: 18px; border: 3px solid #F59E0B; overflow: hidden; box-shadow: 0 10px 20px rgba(0,0,0,0.4); background: #FFFFFF; }
+        .photo-frame img { width: 100%; height: 100%; object-fit: cover; }
+        .player-name { font-size: 22px; font-weight: 900; color: #FFFFFF; margin: 8px 0 2px 0; }
+        .player-reg { display: inline-block; padding: 4px 12px; background: #000000; color: #F59E0B; font-family: monospace; font-weight: 900; font-size: 13px; border-radius: 8px; border: 1px solid #F59E0B; }
+        .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 16px; text-align: left; background: rgba(15, 23, 42, 0.8); padding: 12px; border-radius: 12px; border: 1px solid #334155; }
+        .detail-item { font-size: 10px; color: #94A3B8; font-weight: bold; text-transform: uppercase; }
+        .detail-val { font-size: 12px; color: #FFFFFF; font-weight: 900; margin-top: 2px; }
+        .footer-note { margin-top: 16px; font-size: 9px; color: #94A3B8; border-top: 1px solid #334155; padding-top: 10px; font-weight: bold; }
+        @media print {
+          body { background: white; padding: 0; }
+          .pass-card { box-shadow: none; border-color: #000; background: #0B192C !important; -webkit-print-color-adjust: exact; }
+        }
       </style>
     </head>
     <body>
       <div class="pass-card">
-        <h2 class="league-title">JHANKRA SUPER LEAGUE</h2>
-        <div class="league-sub">Official Player Entry Pass • JSL 2026</div>
-        
-        <div class="serial-badge">SERIAL NO: ${player.serialNo || 1} • ${player.regNo || 'JSL-2026-001'}</div>
-        
-        <img src="${player.photoUrl}" class="player-photo" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300'" />
-        
-        <h3 class="player-name">${player.name}</h3>
-        <div class="player-cat">${player.category || player.role}</div>
+        <div class="league-title">JHANKRA SUPER LEAGUE</div>
+        <div class="league-sub">JSL 2026 • OFFICIAL PLAYER PASS</div>
 
-        <div class="info-grid">
-          <div class="info-item">
-            <span>Mobile Phone</span>
-            <div>${player.phone || 'N/A'}</div>
+        <div class="photo-frame">
+          ${player.photoUrl || player.player_photo_url ? `<img src="${player.photoUrl || player.player_photo_url}" />` : ''}
+        </div>
+
+        <div class="player-reg">${player.registrationId || player.regNo || 'JSL2026-0001'}</div>
+        <div class="player-name">${player.name}</div>
+
+        <div class="details-grid">
+          <div>
+            <div class="detail-item">Father Name</div>
+            <div class="detail-val">${player.fatherName || 'N/A'}</div>
           </div>
-          <div class="info-item">
-            <span>Address</span>
-            <div>${player.address || 'Chandrakona PS'}</div>
+          <div>
+            <div class="detail-item">Category</div>
+            <div class="detail-val" style="color: #38BDF8;">${player.category || player.playingType || 'All Rounder'}</div>
+          </div>
+          <div>
+            <div class="detail-item">Age</div>
+            <div class="detail-val" style="color: #F59E0B;">${player.age || 24} Yrs</div>
+          </div>
+          <div>
+            <div class="detail-item">Phone</div>
+            <div class="detail-val">${player.phone || 'N/A'}</div>
           </div>
         </div>
 
-        <div class="status-pill ${isApproved ? 'status-ok' : 'status-pend'}">
-          ${isApproved ? '✓ VERIFIED & APPROVED' : '⚠ PENDING ADMIN PAYMENT APPROVAL'}
-        </div>
-
-        <div class="footer">
-          Developer: Suman Kolay • Organizer Contact: Pintu Santra (89722144166)
+        <div class="footer-note">
+          Official Player Pass • Tournament Dates: 29-31 Aug 2026<br/>
+          Organizer Contact: Pintu Santra (89722144166)
         </div>
       </div>
-
-      <script>
-        window.onload = function() {
-          window.print();
-        }
-      </script>
     </body>
     </html>
   `;
 
+  printWindow.document.open();
   printWindow.document.write(html);
   printWindow.document.close();
+
+  printWindow.onload = () => {
+    setTimeout(() => {
+      printWindow.focus();
+      printWindow.print();
+    }, 300);
+  };
 }
 
-// --- GENERATE COLOURFUL STYLISH BILINGUAL USER GUIDE PDF (ENGLISH & BENGALI) ---
 export function openUserGuidePDF() {
-  const printWindow = window.open('', '_blank');
-  if (!printWindow) {
-    alert('Please allow popups to open/download the User Guide PDF.');
-    return;
+  const printWindow = window.open('jsl_guide.html', '_blank');
+  if (printWindow) {
+    printWindow.focus();
+  } else {
+    alert("Please allow popups to open the User Guide PDF.");
   }
-
-  const html = `
-    <!DOCTYPE html>
-    <html>
-    <head>
-      <title>JSL 2026 - Registration & System Guide PDF (English & বাংলা)</title>
-      <style>
-        @import url('https://fonts.googleapis.com/css2?family=Hind+Siliguri:wght@400;600;700&family=Inter:wght@400;700;900&display=swap');
-        
-        body { 
-          font-family: 'Inter', 'Hind Siliguri', Arial, sans-serif; 
-          background-color: #f8fafc; 
-          color: #0f172a; 
-          padding: 25px; 
-          margin: 0;
-          line-height: 1.5;
-        }
-
-        .container {
-          max-w: 800px;
-          margin: 0 auto;
-          background: #ffffff;
-          border-radius: 16px;
-          padding: 30px;
-          box-shadow: 0 10px 25px rgba(0,0,0,0.1);
-          border: 2px solid #e2e8f0;
-        }
-
-        .header-box { 
-          text-align: center; 
-          background: linear-gradient(135deg, #0b192c 0%, #1e3a8a 100%); 
-          color: white;
-          padding: 25px;
-          border-radius: 12px;
-          margin-bottom: 25px;
-          border: 2px solid #f59e0b;
-        }
-
-        .title { 
-          font-size: 26px; 
-          font-weight: 900; 
-          color: #f59e0b; 
-          margin: 0;
-          letter-spacing: 0.5px;
-        }
-
-        .subtitle { 
-          font-size: 15px; 
-          font-weight: 700; 
-          color: #38bdf8; 
-          margin-top: 6px; 
-        }
-
-        .meta { 
-          font-size: 12px; 
-          color: #cbd5e1; 
-          margin-top: 8px; 
-          font-weight: 600;
-        }
-
-        .section-card {
-          background: #ffffff;
-          border: 1.5px solid #cbd5e1;
-          border-radius: 12px;
-          padding: 18px;
-          margin-bottom: 20px;
-          box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
-        }
-
-        .section-title {
-          font-size: 16px;
-          font-weight: 900;
-          color: #0f172a;
-          border-left: 5px solid #0284c7;
-          padding-left: 10px;
-          margin-top: 0;
-          margin-bottom: 12px;
-          display: flex;
-          align-items: center;
-          justify-content: space-between;
-        }
-
-        .bengali-title {
-          font-size: 14px;
-          color: #0369a1;
-          font-weight: 700;
-        }
-
-        ol, ul {
-          margin: 0;
-          padding-left: 20px;
-        }
-
-        li {
-          margin-bottom: 8px;
-          font-size: 13px;
-        }
-
-        .highlight-badge {
-          display: inline-block;
-          padding: 2px 8px;
-          border-radius: 6px;
-          font-size: 11px;
-          font-weight: 800;
-        }
-
-        .badge-red { background: #ffe4e6; color: #e11d48; border: 1px solid #fda4af; }
-        .badge-green { background: #dcfce7; color: #15803d; border: 1px solid #86efac; }
-        .badge-blue { background: #e0f2fe; color: #0369a1; border: 1px solid #7dd3fc; }
-
-        .status-box {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 12px;
-          margin-top: 10px;
-        }
-
-        .status-item {
-          padding: 12px;
-          border-radius: 10px;
-          font-size: 12px;
-        }
-
-        .status-item-red {
-          background: #fff1f2;
-          border: 1.5px solid #f43f5e;
-          color: #881337;
-        }
-
-        .status-item-green {
-          background: #f0fdf4;
-          border: 1.5px solid #10b981;
-          color: #064e3b;
-        }
-
-        .footer {
-          margin-top: 30px;
-          text-align: center;
-          font-size: 11px;
-          color: #64748b;
-          border-top: 2px solid #e2e8f0;
-          padding-top: 15px;
-          font-weight: 700;
-        }
-
-        @media print {
-          body { background: white; padding: 0; }
-          .container { box-shadow: none; border: none; }
-        }
-      </style>
-    </head>
-    <body>
-
-      <div class="container">
-        
-        <!-- HEADER BOX -->
-        <div class="header-box">
-          <h1 class="title">JHANKRA SUPER LEAGUE (JSL 2026)</h1>
-          <div class="subtitle">Official User Guide & Registration Manual • সিস্টেম ও রেজিস্ট্রেশন নির্দেশিকা</div>
-          <div class="meta">Tournament Dates: 29, 30 & 31 AUG 2026 @ Jhankra School Ground</div>
-        </div>
-
-        <!-- STEP 1: PLAYER REGISTRATION -->
-        <div class="section-card">
-          <div class="section-title">
-            <span>1. How a Player Can Register • প্লেয়ার রেজিস্ট্রেশনের নিয়ম</span>
-          </div>
-          <ol>
-            <li><strong>Open JSL Hub / JSL পেজে যান:</strong> Click on <strong>JSL</strong> from the main league selector. (হোম পেজ থেকে JSL-এ ক্লিক করুন)।</li>
-            <li><strong>Click "Registration Here" / রেজিস্ট্রেশন বাটনে ক্লিক করুন:</strong> Look at Column 3 (Right side) and click the blinking <strong>"Registration Here"</strong> button. (ডানপাশের কলামে blinking লাল বাটনে ক্লিক করুন)।</li>
-            <li><strong>Select "Part 2: Player Register" / প্লেয়ার রেজিস্ট্রেশন নির্বাচন করুন:</strong> Entry Fee is <strong>₹ 200 Rupees</strong> (এন্ট্রি ফি ২০০ টাকা)।</li>
-            <li><strong>Fill Player Details / তথ্য পূরণ করুন:</strong> Enter Full Name, Phone Number, Full Address, and select Player Category (Right/Left Batsman, Bowler, All Rounder, Wicketkeeper).</li>
-            <li><strong>Upload Photo & Proof / ফটো আপলোড করুন:</strong> Upload player photo and Aadhar Card (Back side proof).</li>
-            <li><strong>Payment & UPI Reference / পেমেন্ট ইউপিআই তথ্য:</strong> Pay ₹200 via PhonePe, GPay, or UPI to <strong>pintusantra4166@nyes</strong>. Enter the UPI Transaction Reference Number and upload payment screenshot. (ইউপিআই নম্বর লিখে স্ক্রিনশট আপলোড করে ফর্ম জমা দিন)।</li>
-          </ol>
-        </div>
-
-        <!-- STEP 2: TEAM OWNER REGISTRATION -->
-        <div class="section-card">
-          <div class="section-title">
-            <span>2. How a Team Owner Can Register • টিম ওনার রেজিস্ট্রেশন নিয়ম</span>
-          </div>
-          <ol>
-            <li><strong>Click "Part 1: Team Register" / টিম রেজিস্টারে ক্লিক করুন:</strong> Select Part 1 Team Register from the menu.</li>
-            <li><strong>Entry Fee / এন্ট্রি ফি:</strong> Total ₹ 15,000 (8K Auction Purse Budget + 7K Entry Fee).</li>
-            <li><strong>Enter Team Details / টিমের তথ্য প্রদান করুন:</strong> Provide Team Name, Owner Name, Owner Phone Number, Co-Owner details, and upload the official Team Logo.</li>
-            <li><strong>Submit / জমা দিন:</strong> Submit team application to list your franchise for auction.</li>
-          </ol>
-        </div>
-
-        <!-- STEP 3: CHECK REGISTERED COUNT -->
-        <div class="section-card">
-          <div class="section-title">
-            <span>3. How to Check Registered Teams & Players Count • প্লেয়ার ও টিম সংখ্যা দেখার নিয়ম</span>
-          </div>
-          <ul>
-            <li><strong>JSL Hub Overview:</strong> In JSL Hub, <strong>Column 1</strong> displays total registered teams, and <strong>Column 2</strong> displays total registered players count in real-time. (JSL Hub-এ রিয়েল টাইম সংখ্যা দেখায়)।</li>
-            <li><strong>View Teams & Players / সম্পূর্ণ লিস্ট দেখুন:</strong> Click <strong>"View Teams"</strong> or <strong>"View Players"</strong> to see team/player photos in medium square format.</li>
-            <li><strong>Real-Time Search / অনুসন্ধান করুন:</strong> Use the top search bar in the modal to search any player by name, phone, category, or address.</li>
-          </ul>
-        </div>
-
-        <!-- STEP 4: MEANING OF RED AND GREEN CIRCLE INDICATORS -->
-        <div class="section-card">
-          <div class="section-title">
-            <span>4. Meaning of Red 🔴 & Green 🟢 Circle Indicators • রেড এবং গ্রীন বিন্দুর অর্থ</span>
-          </div>
-          <div class="status-box">
-            
-            <div class="status-item status-item-red">
-              <strong style="font-size: 14px;">🔴 RED Circle (PENDING / প্যান্ডিং)</strong>
-              <p style="margin: 6px 0 0 0;">
-                <strong>English:</strong> Registration has been submitted successfully, but payment verification is currently <strong>PENDING</strong> approval by Master Admin.<br/>
-                <strong>বাংলা:</strong> আপনার রেজিস্ট্রেশন জমা হয়েছে, কিন্তু ফি পেমেন্ট এখনো মাস্টার অ্যাডমিন দ্বারা ভেরিফাই ও অ্যাপ্রুভ হওয়া বাকি আছে।
-              </p>
-            </div>
-
-            <div class="status-item status-item-green">
-              <strong style="font-size: 14px;">🟢 GREEN Circle (APPROVED / অ্যাপ্রুভড)</strong>
-              <p style="margin: 6px 0 0 0;">
-                <strong>English:</strong> Payment has been verified & approved by Master Admin. Registration is <strong>CONFIRMED</strong>!<br/>
-                <strong>বাংলা:</strong> অ্যাডমিন পেমেন্ট চেক করে কনফার্ম করেছেন। আপনার রেজিস্ট্রেশন সম্পূর্ণ সফল ও অ্যাপ্রুভড!
-              </p>
-            </div>
-
-          </div>
-        </div>
-
-        <!-- FOOTER & CONTACT -->
-        <div class="footer">
-          🏏 <strong>JHANKRA SUPER LEAGUE (JSL 2026) OFFICIAL PORTAL</strong><br/>
-          Organizer Contact: <strong>Pintu Santra (📞 89722144166)</strong> • System Developer: <strong>Suman Kolay</strong><br/>
-          Website: <span style="color: #0284c7;">https://cricket-premier-league.vercel.app</span>
-        </div>
-
-      </div>
-
-      <script>
-        window.onload = function() {
-          window.print();
-        }
-      </script>
-    </body>
-    </html>
-  `;
-
-  printWindow.document.write(html);
-  printWindow.document.close();
 }

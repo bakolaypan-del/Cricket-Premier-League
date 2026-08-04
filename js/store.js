@@ -1,4 +1,4 @@
-// LocalStorage & Cloud Database Reactive Store (Developer: Suman Kolay - Sequential Serial & Auto-Reindex Release)
+// LocalStorage & Cloud Database Reactive Store (Developer: Suman Kolay - Continuous Dynamic Numbering Release)
 
 import { INITIAL_LEAGUES, INITIAL_TEAMS, INITIAL_PLAYERS, INITIAL_FIXTURES } from './data.js';
 import { 
@@ -8,24 +8,16 @@ import {
   deletePlayerFromSupabase,
   syncTeamToSupabase, 
   deleteTeamFromSupabase,
-  initRealtimePushListener,
-  savePlayerToFirebase,
-  saveTeamToFirebase,
-  deletePlayerFromFirebase,
-  deleteTeamFromFirebase,
-  clearAllPlayersFromFirebase,
-  clearAllTeamsFromFirebase
+  uploadHDImage
 } from './supabase.js';
 
 const STORAGE_KEYS = {
-  LEAGUES: 'cpl_leagues_v8',
-  TEAMS: 'cpl_teams_v8',
-  PLAYERS: 'cpl_players_v8',
-  FIXTURES: 'cpl_fixtures_v8',
-  USER: 'cpl_user_v8',
-  ADMIN_AUTH: 'cpl_admin_auth_v8',
-  DELETED_PLAYERS: 'cpl_deleted_players_v8',
-  DELETED_TEAMS: 'cpl_deleted_teams_v8'
+  LEAGUES: 'cpl_leagues_v7',
+  TEAMS: 'cpl_teams_v7',
+  PLAYERS: 'cpl_players_v7',
+  FIXTURES: 'cpl_fixtures_v7',
+  USER: 'cpl_user_v7',
+  ADMIN_AUTH: 'cpl_admin_auth_v7'
 };
 
 class Store {
@@ -34,13 +26,6 @@ class Store {
     this.setupRealtimeListeners();
     this.syncWithCloud();
     this.startCloudPolling();
-    this.setupFirebasePushListener();
-  }
-
-  setupFirebasePushListener() {
-    initRealtimePushListener(() => {
-      this.syncWithCloud();
-    });
   }
 
   init() {
@@ -56,12 +41,6 @@ class Store {
     if (!localStorage.getItem(STORAGE_KEYS.FIXTURES)) {
       localStorage.setItem(STORAGE_KEYS.FIXTURES, JSON.stringify(INITIAL_FIXTURES));
     }
-    if (!localStorage.getItem(STORAGE_KEYS.DELETED_PLAYERS)) {
-      localStorage.setItem(STORAGE_KEYS.DELETED_PLAYERS, JSON.stringify([]));
-    }
-    if (!localStorage.getItem(STORAGE_KEYS.DELETED_TEAMS)) {
-      localStorage.setItem(STORAGE_KEYS.DELETED_TEAMS, JSON.stringify([]));
-    }
     if (!localStorage.getItem(STORAGE_KEYS.USER)) {
       localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify({
         role: 'GUEST',
@@ -72,71 +51,60 @@ class Store {
     }
   }
 
-  // --- STABLE CLOUD SYNC (FIREBASE SINGLE SOURCE OF TRUTH) ---
+  // --- STABLE CLOUD SYNC WITH DYNAMIC CONTINUOUS RE-INDEXING (1, 2, 3...) ---
   async syncWithCloud() {
-    if (this.isSyncing) return;
-    this.isSyncing = true;
     try {
       const cloudData = await fetchCloudData();
       
       // If a registration modal or form is open, DO NOT interrupt the user!
       const isUserFillingForm = document.getElementById('player-reg-modal') || document.getElementById('team-reg-modal');
+      if (isUserFillingForm) return;
 
-      const localPlayers = JSON.parse(localStorage.getItem(STORAGE_KEYS.PLAYERS) || '[]');
-      const cloudPlayers = Array.isArray(cloudData.players) ? cloudData.players : [];
+      // 1. Sync Players ONLY if valid array received from cloud
+      if (Array.isArray(cloudData.players)) {
+        // CONTINUOUS DYNAMIC RE-INDEXING: Ensure registration IDs (JSL2026-0001, JSL2026-0002...) and display numbers (1, 2, 3...) have no gaps
+        const reindexedPlayers = cloudData.players.map((p, idx) => {
+          const displayNo = idx + 1;
+          const regId = `JSL2026-${String(displayNo).padStart(4, '0')}`;
+          return {
+            ...p,
+            serialNo: displayNo,
+            displayRegistrationNumber: displayNo,
+            registrationId: regId,
+            regNo: regId
+          };
+        });
 
-      const localTeams = JSON.parse(localStorage.getItem(STORAGE_KEYS.TEAMS) || '[]');
-      const cloudTeams = Array.isArray(cloudData.teams) ? cloudData.teams : [];
-
-      // 1. PLAYERS DIRECT FIREBASE MASTER SYNC
-      const mergedPlayers = cloudPlayers.map((p, idx) => ({
-        ...p,
-        serialNo: idx + 1,
-        regNo: p.regNo || `JSL-2026-${String(idx + 1).padStart(3, '0')}`
-      }));
-
-      // 2. TEAMS DIRECT FIREBASE MASTER SYNC
-      const mergedTeams = cloudTeams.map((t, idx) => ({
-        ...t,
-        serialNo: idx + 1
-      }));
-
-      const localPlayersStr = JSON.stringify(localPlayers);
-      const mergedPlayersStr = JSON.stringify(mergedPlayers);
-
-      const localTeamsStr = JSON.stringify(localTeams);
-      const mergedTeamsStr = JSON.stringify(mergedTeams);
-
-      if (localPlayersStr !== mergedPlayersStr) {
-        try {
-          localStorage.setItem(STORAGE_KEYS.PLAYERS, mergedPlayersStr);
-        } catch (quotaErr) {
-          console.warn("localStorage quota notice (using memory state):", quotaErr);
-        }
-        if (!isUserFillingForm) {
+        const localPlayersStr = localStorage.getItem(STORAGE_KEYS.PLAYERS) || '[]';
+        const cloudPlayersStr = JSON.stringify(reindexedPlayers);
+        
+        if (localPlayersStr !== cloudPlayersStr) {
+          localStorage.setItem(STORAGE_KEYS.PLAYERS, cloudPlayersStr);
           this.notify('players_updated');
         }
       }
 
-      if (localTeamsStr !== mergedTeamsStr) {
-        try {
-          localStorage.setItem(STORAGE_KEYS.TEAMS, mergedTeamsStr);
-        } catch (quotaErr) {
-          console.warn("localStorage quota notice (using memory state):", quotaErr);
-        }
-        if (!isUserFillingForm) {
+      // 2. Sync Teams ONLY if valid array received from cloud
+      if (Array.isArray(cloudData.teams)) {
+        const reindexedTeams = cloudData.teams.map((t, idx) => ({
+          ...t,
+          serialNo: idx + 1
+        }));
+
+        const localTeamsStr = localStorage.getItem(STORAGE_KEYS.TEAMS) || '[]';
+        const cloudTeamsStr = JSON.stringify(reindexedTeams);
+        
+        if (localTeamsStr !== cloudTeamsStr) {
+          localStorage.setItem(STORAGE_KEYS.TEAMS, cloudTeamsStr);
           this.notify('teams_updated');
         }
       }
     } catch (err) {
-      console.warn("Cloud single source sync error:", err);
-    } finally {
-      this.isSyncing = false;
+      console.warn("Cloud sync error:", err);
     }
   }
 
   startCloudPolling() {
-    // Poll Firebase Realtime Database every 4 seconds safely without interrupting active forms
     setInterval(() => {
       this.syncWithCloud();
     }, 4000);
@@ -165,7 +133,7 @@ class Store {
     }
   }
 
-  // --- ADMIN STRICT AUTHENTICATION (ID: bakolaypan@gmail.com, Password: Suman@1995) ---
+  // --- ADMIN AUTHENTICATION ---
   isAdminAuthenticated() {
     return localStorage.getItem(STORAGE_KEYS.ADMIN_AUTH) === 'true';
   }
@@ -202,84 +170,117 @@ class Store {
   // --- PLAYERS ---
   getPlayers() {
     const players = JSON.parse(localStorage.getItem(STORAGE_KEYS.PLAYERS)) || [];
-    // Ensure sequential serial numbers 1, 2, 3...
-    return players.map((p, idx) => ({
-      ...p,
-      serialNo: idx + 1
-    }));
+    // Ensure continuous dynamic registration numbers without gaps
+    return players.map((p, idx) => {
+      const displayNo = idx + 1;
+      const regId = `JSL2026-${String(displayNo).padStart(4, '0')}`;
+      return {
+        ...p,
+        serialNo: displayNo,
+        displayRegistrationNumber: displayNo,
+        registrationId: regId,
+        regNo: regId
+      };
+    });
   }
 
   getPlayerById(id) {
     return this.getPlayers().find(p => p.id === id);
   }
 
-  async registerPlayer(playerData) {
+  // --- REGISTER NEW PLAYER WITH CLOUDINARY HD STORAGE & FULL FORM FIELDS ---
+  registerPlayer(playerData) {
     const players = this.getPlayers();
-    const serialNo = players.length + 1;
-    const regNo = `JSL-2026-${String(serialNo).padStart(3, '0')}`;
-    
+    const displayNo = players.length + 1;
+    const registrationId = `JSL2026-${String(displayNo).padStart(4, '0')}`;
+    const uuid = 'ply-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7);
+
     const newPlayer = {
-      id: `ply-${Date.now()}`,
-      serialNo,
-      regNo,
+      id: uuid,
+      displayRegistrationNumber: displayNo,
+      registrationId,
+      serialNo: displayNo,
+      regNo: registrationId,
       leagueCategory: 'JSL',
+      name: playerData.name || playerData.playerName,
+      fatherName: playerData.fatherName || 'N/A',
+      dob: playerData.dob || '2000-01-01',
+      age: playerData.age || 24,
+      phone: playerData.phone || playerData.mobile,
+      alternateMobile: playerData.alternateMobile || '',
+      village: playerData.village || playerData.address || 'Jhankra',
+      district: playerData.district || 'Paschim Medinipur',
+      state: playerData.state || 'West Bengal',
+      category: playerData.category || playerData.playingType || 'All Rounder',
+      role: playerData.category || playerData.playingType || 'All Rounder',
+      playingType: playerData.category || playerData.playingType || 'All Rounder',
+      battingStyle: playerData.battingStyle || 'Right Hand Bat',
+      bowlingStyle: playerData.bowlingStyle || 'Right Hand Medium',
+      isWicketKeeper: !!playerData.isWicketKeeper,
+      teamPreference: playerData.teamPreference || playerData.team || 'Any Team',
+      photoUrl: playerData.photoUrl || playerData.player_photo_url,
+      aadharPhotoUrl: playerData.aadharPhotoUrl || playerData.aadhaar_photo_url || 'Attached Proof',
+      paymentReceiptUrl: playerData.paymentReceiptUrl || playerData.payment_receipt_url || 'Attached Receipt',
       paymentStatus: 'PENDING',
+      registrationStatus: 'PENDING',
+      remarks: playerData.remarks || playerData.paymentRef || '',
+      paymentRef: playerData.paymentRef || '',
       teamId: null,
       soldPrice: 0,
-      regDate: new Date().toISOString().split('T')[0],
-      ...playerData
+      basePrice: 200,
+      regDate: new Date().toISOString().split('T')[0]
     };
 
     players.push(newPlayer);
 
-    // Strictly re-index serial numbers
+    // Dynamic Re-indexing (Continuous numbering 1, 2, 3...)
     players.forEach((p, idx) => {
-      p.serialNo = idx + 1;
-      p.regNo = `JSL-2026-${String(idx + 1).padStart(3, '0')}`;
+      const dNo = idx + 1;
+      p.serialNo = dNo;
+      p.displayRegistrationNumber = dNo;
+      p.registrationId = `JSL2026-${String(dNo).padStart(4, '0')}`;
+      p.regNo = p.registrationId;
     });
-    
+
     try {
       localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
     } catch (err) {
-      console.warn("Storage quota limit notice (using cloud master state):", err);
+      console.warn("Storage fallback triggered:", err);
+      localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
     }
 
-    await savePlayerToFirebase(newPlayer);
+    saveCloudData(players, this.getTeams());
+    syncPlayerToSupabase(newPlayer);
     this.notify('players_updated');
     return newPlayer;
   }
 
-  async updatePlayer(updatedPlayerData) {
+  updatePlayer(updatedPlayerData) {
     const players = this.getPlayers();
     const idx = players.findIndex(p => p.id === updatedPlayerData.id);
     if (idx !== -1) {
       players[idx] = { ...players[idx], ...updatedPlayerData };
       
-      // Ensure serial numbers remain 1, 2, 3...
+      // Re-index serials
       players.forEach((p, i) => {
-        p.serialNo = i + 1;
+        const dNo = i + 1;
+        p.serialNo = dNo;
+        p.displayRegistrationNumber = dNo;
+        p.registrationId = `JSL2026-${String(dNo).padStart(4, '0')}`;
+        p.regNo = p.registrationId;
       });
 
-      try {
-        localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
-      } catch (e) {
-        console.warn("localStorage quota notice:", e);
-      }
-      await savePlayerToFirebase(players[idx]);
+      localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
+      saveCloudData(players, this.getTeams());
+      syncPlayerToSupabase(players[idx]);
       this.notify('players_updated');
       return players[idx];
     }
     return null;
   }
 
-  // --- AUTOMATIC RE-INDEXING ON DELETE PLAYER ---
-  async deletePlayer(playerId) {
-    const deletedPlayerIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.DELETED_PLAYERS) || '[]');
-    if (!deletedPlayerIds.includes(playerId)) {
-      deletedPlayerIds.push(playerId);
-      localStorage.setItem(STORAGE_KEYS.DELETED_PLAYERS, JSON.stringify(deletedPlayerIds));
-    }
-
+  // --- AUTOMATIC CONTINUOUS RE-INDEXING ON DELETE PLAYER (NO GAPS IN NUMBERING) ---
+  deletePlayer(playerId) {
     let players = this.getPlayers();
     const playerToDelete = players.find(p => p.id === playerId);
     
@@ -296,50 +297,49 @@ class Store {
     // Filter out deleted player
     players = players.filter(p => p.id !== playerId);
 
-    // AUTO RE-INDEX REMAINING PLAYERS (1, 2, 3...)
+    // CONTINUOUS DYNAMIC RE-INDEXING (1, 2, 3... JSL2026-0001, JSL2026-0002...)
     players.forEach((p, idx) => {
-      p.serialNo = idx + 1;
-      p.regNo = `JSL-2026-${String(idx + 1).padStart(3, '0')}`;
+      const displayNo = idx + 1;
+      p.serialNo = displayNo;
+      p.displayRegistrationNumber = displayNo;
+      p.registrationId = `JSL2026-${String(displayNo).padStart(4, '0')}`;
+      p.regNo = p.registrationId;
     });
 
-    try {
-      localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
-    } catch (e) {
-      console.warn("localStorage quota notice:", e);
-    }
-    await deletePlayerFromFirebase(playerId);
+    localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
+    saveCloudData(players, this.getTeams());
+    deletePlayerFromSupabase(playerId);
     this.notify('players_updated');
   }
 
-  async clearAllPlayers() {
+  clearAllPlayers() {
     localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify([]));
-    await clearAllPlayersFromFirebase();
+    saveCloudData([], this.getTeams());
     this.notify('players_updated');
   }
 
-  async clearAllTeams() {
+  clearAllTeams() {
     localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify([]));
-    await clearAllTeamsFromFirebase();
+    saveCloudData(this.getPlayers(), []);
     this.notify('teams_updated');
   }
 
-  async updatePlayerStatus(playerId, status, notes = '') {
+  updatePlayerStatus(playerId, paymentStatus, registrationStatus, remarks = '') {
     const players = this.getPlayers();
     const player = players.find(p => p.id === playerId);
     if (player) {
-      player.paymentStatus = status;
-      player.adminNotes = notes;
-      try {
-        localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
-      } catch (e) {
-        console.warn("localStorage quota notice:", e);
-      }
-      await savePlayerToFirebase(player);
+      player.paymentStatus = paymentStatus.toUpperCase();
+      player.registrationStatus = (registrationStatus || paymentStatus).toUpperCase();
+      if (remarks) player.remarks = remarks;
+      
+      localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
+      saveCloudData(players, this.getTeams());
+      syncPlayerToSupabase(player);
       this.notify('players_updated');
     }
   }
 
-  async assignPlayerToTeam(playerId, teamId, soldPrice) {
+  assignPlayerToTeam(playerId, teamId, soldPrice) {
     const players = this.getPlayers();
     const teams = this.getTeams();
     
@@ -352,7 +352,6 @@ class Store {
         if (oldTeam) {
           oldTeam.squadCount = Math.max(0, oldTeam.squadCount - 1);
           oldTeam.purseSpent = Math.max(0, oldTeam.purseSpent - (player.soldPrice || 0));
-          await saveTeamToFirebase(oldTeam);
         }
       }
 
@@ -362,14 +361,11 @@ class Store {
       team.squadCount += 1;
       team.purseSpent += player.soldPrice;
 
-      try {
-        localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
-        localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(teams));
-      } catch (e) {
-        console.warn("localStorage quota notice:", e);
-      }
-      await savePlayerToFirebase(player);
-      await saveTeamToFirebase(team);
+      localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
+      localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(teams));
+      saveCloudData(players, teams);
+      syncPlayerToSupabase(player);
+      syncTeamToSupabase(team);
       this.notify('players_updated');
       this.notify('teams_updated');
     }
@@ -388,7 +384,7 @@ class Store {
     return this.getTeams().find(t => t.id === id);
   }
 
-  async registerTeam(teamData) {
+  registerTeam(teamData) {
     const teams = this.getTeams();
     const serialNo = teams.length + 1;
     const newTeam = {
@@ -412,19 +408,16 @@ class Store {
       localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(teams));
     } catch (err) {
       console.warn("Storage quota limit reached for team logo, using fallback:", err);
-      const compactTeams = teams.map(t => ({
-        ...t,
-        logoUrl: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=300'
-      }));
-      localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(compactTeams));
+      localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(teams));
     }
 
-    await saveTeamToFirebase(newTeam);
+    saveCloudData(this.getPlayers(), teams);
+    syncTeamToSupabase(newTeam);
     this.notify('teams_updated');
     return newTeam;
   }
 
-  async updateTeam(updatedTeamData) {
+  updateTeam(updatedTeamData) {
     const teams = this.getTeams();
     const idx = teams.findIndex(t => t.id === updatedTeamData.id);
     if (idx !== -1) {
@@ -432,30 +425,19 @@ class Store {
       teams.forEach((t, i) => {
         t.serialNo = i + 1;
       });
-      try {
-        localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(teams));
-      } catch (e) {
-        console.warn("localStorage quota notice:", e);
-      }
-      await saveTeamToFirebase(teams[idx]);
+      localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(teams));
+      saveCloudData(this.getPlayers(), teams);
+      syncTeamToSupabase(teams[idx]);
       this.notify('teams_updated');
       return teams[idx];
     }
     return null;
   }
 
-  // --- AUTOMATIC RE-INDEXING ON DELETE TEAM ---
-  async deleteTeam(teamId) {
-    const deletedTeamIds = JSON.parse(localStorage.getItem(STORAGE_KEYS.DELETED_TEAMS) || '[]');
-    if (!deletedTeamIds.includes(teamId)) {
-      deletedTeamIds.push(teamId);
-      localStorage.setItem(STORAGE_KEYS.DELETED_TEAMS, JSON.stringify(deletedTeamIds));
-    }
-
+  deleteTeam(teamId) {
     let teams = this.getTeams();
     teams = teams.filter(t => t.id !== teamId);
     
-    // AUTO RE-INDEX REMAINING TEAMS (1, 2, 3...)
     teams.forEach((t, idx) => {
       t.serialNo = idx + 1;
     });
@@ -468,13 +450,10 @@ class Store {
       }
     });
 
-    try {
-      localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(teams));
-      localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
-    } catch (e) {
-      console.warn("localStorage quota notice:", e);
-    }
-    await deleteTeamFromFirebase(teamId);
+    localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(teams));
+    localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
+    saveCloudData(players, teams);
+    deleteTeamFromSupabase(teamId);
     this.notify('teams_updated');
     this.notify('players_updated');
   }
@@ -490,24 +469,8 @@ class Store {
   }
 
   setUserRole(role, name = 'User', playerDetails = null) {
-    let cleanPlayerDetails = playerDetails;
-    if (playerDetails) {
-      cleanPlayerDetails = {
-        id: playerDetails.id,
-        name: playerDetails.name,
-        phone: playerDetails.phone,
-        category: playerDetails.category || playerDetails.role,
-        serialNo: playerDetails.serialNo,
-        regNo: playerDetails.regNo,
-        paymentStatus: playerDetails.paymentStatus
-      };
-    }
-    const user = { role, name, playerDetails: cleanPlayerDetails };
-    try {
-      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
-    } catch (err) {
-      console.warn("User storage quota fallback:", err);
-    }
+    const user = { role, name, playerDetails };
+    localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
     this.notify('user_updated');
     return user;
   }

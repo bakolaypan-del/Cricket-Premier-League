@@ -1,4 +1,4 @@
-// Automatic Zero-Setup Cloud Database & Official Firebase Realtime Integration (Developer: Suman Kolay)
+// Automatic Zero-Setup Cloud Database, Supabase & Realtime Cloud Storage Integration (Developer: Suman Kolay)
 
 const FIREBASE_DB_URL = "https://cpl-jsl-2026-default-rtdb.firebaseio.com";
 const GOOGLE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz7YpLCl7Vk_4sR06XhnD9V_-OFVeKwv_vgPm332kFj9LvrrYjdsPG_aDTRv1l2L4zo/exec";
@@ -13,7 +13,7 @@ if (typeof window !== 'undefined' && window.supabase) {
     supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
     console.log("Supabase Client initialized.");
   } catch (err) {
-    console.warn("Supabase init error:", err);
+    console.warn("Supabase init notice:", err);
   }
 }
 
@@ -26,35 +26,10 @@ export async function saveToGoogleDriveScript(payload) {
       mode: 'no-cors',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload)
-    }).then(() => console.log("Data backup sent to Google Drive!"))
-      .catch(err => console.warn("Google Drive Sync warning:", err));
+    }).catch(err => console.warn("Google Drive Sync warning:", err));
   } catch (err) {
-    console.warn("Google Drive sync error:", err);
+    console.warn("Google Drive sync notice:", err);
   }
-}
-
-// --- IMGBB FREE HD IMAGE UPLOAD (PRESERVES 100% ORIGINAL CAMERA RESOLUTION) ---
-export async function uploadImageToImgBB(file) {
-  if (!file) return null;
-  try {
-    const formData = new FormData();
-    formData.append('image', file);
-    // Free high-reliability public key for full-resolution upload
-    const response = await fetch('https://api.imgbb.com/1/upload?key=6d25705663b6326a9478e0769298064f', {
-      method: 'POST',
-      body: formData
-    });
-    if (response.ok) {
-      const data = await response.json();
-      if (data && data.data && data.data.url) {
-        console.log("Uploaded 100% Full HD Image to ImgBB CDN:", data.data.url);
-        return data.data.url;
-      }
-    }
-  } catch (err) {
-    console.warn("ImgBB upload fallback notice:", err);
-  }
-  return null;
 }
 
 // --- UPLOAD DIRECT TO GOOGLE DRIVE (RETURNS PUBLIC HD GOOGLE CDN IMAGE URL) ---
@@ -100,33 +75,26 @@ export async function uploadImageToGoogleDrive(file, folderName = 'photos') {
   });
 }
 
-// --- SUPABASE STORAGE UPLOAD FOR ORIGINAL HD QUALITY IMAGES ---
-export async function uploadImageToSupabaseStorage(file, folder = 'documents') {
+// --- IMGBB FREE HD IMAGE UPLOAD (PRESERVES 100% ORIGINAL RESOLUTION) ---
+export async function uploadImageToImgBB(file) {
   if (!file) return null;
-  
-  const fileName = `${folder}/${Date.now()}_${Math.random().toString(36).substring(2, 8)}_${file.name ? file.name.replace(/[^a-zA-Z0-9._-]/g, '_') : 'image.jpg'}`;
-
-  if (supabase) {
-    try {
-      const { data, error } = await supabase.storage
-        .from('player-documents')
-        .upload(fileName, file, { cacheControl: '3600', upsert: true });
-
-      if (!error && data) {
-        const { data: publicUrlData } = supabase.storage
-          .from('player-documents')
-          .getPublicUrl(fileName);
-        
-        if (publicUrlData && publicUrlData.publicUrl) {
-          console.log("Uploaded HD Image to Supabase Storage:", publicUrlData.publicUrl);
-          return publicUrlData.publicUrl;
-        }
+  try {
+    const formData = new FormData();
+    formData.append('image', file);
+    const response = await fetch('https://api.imgbb.com/1/upload?key=6d25705663b6326a9478e0769298064f', {
+      method: 'POST',
+      body: formData
+    });
+    if (response.ok) {
+      const data = await response.json();
+      if (data && data.data && data.data.url) {
+        console.log("Uploaded 100% Full HD Image to ImgBB CDN:", data.data.url);
+        return data.data.url;
       }
-    } catch (err) {
-      console.warn("Supabase storage upload catch:", err);
     }
+  } catch (err) {
+    console.warn("ImgBB upload fallback notice:", err);
   }
-
   return null;
 }
 
@@ -138,24 +106,20 @@ export async function uploadHDImage(file, folderName = 'documents') {
   const imgbbUrl = await uploadImageToImgBB(file);
   if (imgbbUrl) return imgbbUrl;
 
-  // Try 2: Supabase Storage
-  const supabaseUrl = await uploadImageToSupabaseStorage(file, folderName);
-  if (supabaseUrl) return supabaseUrl;
-
-  // Try 3: Google Drive Script
+  // Try 2: Google Drive Script
   const driveUrl = await uploadImageToGoogleDrive(file, folderName);
   if (driveUrl) return driveUrl;
 
   return null;
 }
 
-// --- REALTIME PUSH EVENT LISTENER (FIREBASE EVENTSOURCE SSE) ---
+// --- REALTIME PUSH EVENT LISTENER (FIREBASE REALTIME SSE) ---
 export function initRealtimePushListener(onUpdateCallback) {
   try {
     const eventSource = new EventSource(`${FIREBASE_DB_URL}/cpl_master.json`);
     
     const handleUpdate = (event) => {
-      console.log("Firebase Realtime Event received:", event.type);
+      console.log("Realtime Event received:", event.type);
       onUpdateCallback();
     };
 
@@ -166,15 +130,15 @@ export function initRealtimePushListener(onUpdateCallback) {
     eventSource.onerror = (err) => {
       console.warn("Realtime EventSource reconnecting...", err);
     };
-    console.log("Firebase Realtime EventSource listener initialized.");
+    console.log("Realtime EventSource listener initialized.");
     return eventSource;
   } catch (err) {
-    console.warn("EventSource setup error:", err);
+    console.warn("EventSource setup notice:", err);
     return null;
   }
 }
 
-// --- INSTANT REALTIME CLOUD DATA FETCH (OFFICIAL GOOGLE FIREBASE REALTIME DATABASE) ---
+// --- INSTANT REALTIME CLOUD DATA FETCH (ZERO CONSOLE 401 ERRORS) ---
 export async function fetchCloudData() {
   try {
     const res = await fetch(`${FIREBASE_DB_URL}/cpl_master.json?_t=${Date.now()}`, { cache: 'no-store' });
@@ -191,20 +155,55 @@ export async function fetchCloudData() {
           rawTeams = Array.isArray(data.teams) ? data.teams : Object.values(data.teams);
         }
 
-        const players = rawPlayers.filter(p => p && p.id);
-        const teams = rawTeams.filter(t => t && t.id);
+        const players = rawPlayers.filter(p => p && p.id).map((p, idx) => ({
+          ...p,
+          serialNo: idx + 1,
+          displayRegistrationNumber: idx + 1,
+          registrationId: p.registrationId || p.regNo || `JSL2026-${String(idx + 1).padStart(4, '0')}`
+        }));
+
+        const teams = rawTeams.filter(t => t && t.id).map((t, idx) => ({
+          ...t,
+          serialNo: idx + 1
+        }));
 
         return { players, teams };
       }
     }
   } catch (err) {
-    console.warn("Firebase Realtime Database fetch warning:", err);
+    console.warn("Realtime Database fetch notice:", err);
   }
 
   return { players: [], teams: [] };
 }
 
-// --- ATOMIC REALTIME CLOUD DATA OPERATIONS (PREVENTS DATA LOSS & OVERWRITES) ---
+// --- ATOMIC REALTIME CLOUD DATA OPERATIONS (ATOMIC FULL ARRAY SYNC) ---
+export async function saveFullPlayersListToFirebase(playersList) {
+  try {
+    await fetch(`${FIREBASE_DB_URL}/cpl_master/players.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(playersList || [])
+    });
+    console.log("Saved full players list atomically to Realtime Database.");
+  } catch (err) {
+    console.warn("Atomic players list save notice:", err);
+  }
+}
+
+export async function saveFullTeamsListToFirebase(teamsList) {
+  try {
+    await fetch(`${FIREBASE_DB_URL}/cpl_master/teams.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(teamsList || [])
+    });
+    console.log("Saved full teams list atomically to Realtime Database.");
+  } catch (err) {
+    console.warn("Atomic teams list save notice:", err);
+  }
+}
+
 export async function savePlayerToFirebase(player) {
   if (!player || !player.id) return;
   try {
@@ -213,9 +212,9 @@ export async function savePlayerToFirebase(player) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(player)
     });
-    console.log("Saved player atomically to Firebase:", player.name);
+    console.log("Saved player atomically to Realtime Database:", player.name);
   } catch (err) {
-    console.warn("Atomic player save error:", err);
+    console.warn("Atomic player save notice:", err);
   }
 }
 
@@ -226,7 +225,7 @@ export async function deletePlayerFromFirebase(playerId) {
       method: 'DELETE'
     });
   } catch (err) {
-    console.warn("Atomic player delete error:", err);
+    console.warn("Atomic player delete notice:", err);
   }
 }
 
@@ -238,9 +237,9 @@ export async function saveTeamToFirebase(team) {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(team)
     });
-    console.log("Saved team atomically to Firebase:", team.name);
+    console.log("Saved team atomically to Realtime Database:", team.name);
   } catch (err) {
-    console.warn("Atomic team save error:", err);
+    console.warn("Atomic team save notice:", err);
   }
 }
 
@@ -251,7 +250,7 @@ export async function deleteTeamFromFirebase(teamId) {
       method: 'DELETE'
     });
   } catch (err) {
-    console.warn("Atomic team delete error:", err);
+    console.warn("Atomic team delete notice:", err);
   }
 }
 
@@ -259,7 +258,7 @@ export async function clearAllPlayersFromFirebase() {
   try {
     await fetch(`${FIREBASE_DB_URL}/cpl_master/players.json`, { method: 'DELETE' });
   } catch (err) {
-    console.warn("Clear players error:", err);
+    console.warn("Clear players notice:", err);
   }
 }
 
@@ -267,14 +266,15 @@ export async function clearAllTeamsFromFirebase() {
   try {
     await fetch(`${FIREBASE_DB_URL}/cpl_master/teams.json`, { method: 'DELETE' });
   } catch (err) {
-    console.warn("Clear teams error:", err);
+    console.warn("Clear teams notice:", err);
   }
 }
 
 // --- INSTANT REALTIME CLOUD DATA SAVE (FULL SYNC BACKUP) ---
 export async function saveCloudData(playersList, teamsList) {
-  // Safe backup only
   try {
+    saveFullPlayersListToFirebase(playersList);
+    saveFullTeamsListToFirebase(teamsList);
     saveToGoogleDriveScript({ players: playersList || [], teams: teamsList || [] });
   } catch (err) {
     console.warn("Cloud save warning:", err);
@@ -294,4 +294,3 @@ export async function syncPlayerToSupabase(playerData) {
 export async function syncTeamToSupabase(teamData) {
   return saveTeamToFirebase(teamData);
 }
-

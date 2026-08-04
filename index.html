@@ -4,10 +4,21 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   
+  <!-- FAVICON DATA URI (Silences favicon 404 console warning) -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🏏</text></svg>">
+
   <!-- ANTI-CACHING META TAGS (Ensures Mobile & Desktop always load real-time code without old cache) -->
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
+
+  <!-- PWA & Mobile Web App Installation -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="CPL 2026" />
+  <meta name="theme-color" content="#0F2C59" />
 
   <title>Cricket Premier League - Official Tournament & Registration Portal</title>
   
@@ -21,7 +32,7 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   
   <!-- Custom Styles with Version Cache Buster -->
-  <link rel="stylesheet" href="css/styles.css?v=20260803_v8" />
+  <link rel="stylesheet" href="css/styles.css?v=20260804_v9" />
 </head>
 <body class="bg-slate-950 text-white min-h-screen font-sans">
 
@@ -35,6 +46,6 @@
   <nav id="mobile-bottom-nav"></nav>
 
   <!-- Application Main Script with Version Cache Buster -->
-  <script type="module" src="js/app.js?v=20260803_v8"></script>
+  <script type="module" src="js/app.js?v=20260804_v9"></script>
 </body>
 </html>

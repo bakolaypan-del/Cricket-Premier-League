@@ -1,20 +1,18 @@
-/* Concept 4: Real Night Cricket Stadium Glassmorphism Theme (Developer: Suman Kolay) */
+/* Cambria Font & Deep Royal Blue Header Theme (Developer: Suman Kolay) */
 
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800;900&family=Teko:wght@700&family=JetBrains+Mono:wght@400;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Outfit:wght@400;600;700;800;900&family=Teko:wght@700&display=swap');
 
 :root {
-  --bg-main: #060913;
-  --bg-card: rgba(11, 17, 32, 0.72);
-  --bg-card-hover: rgba(20, 30, 50, 0.85);
-  --text-main: #F8FAFC;
-  --text-muted: #94A3B8;
-  --border-light: rgba(255, 255, 255, 0.18);
-  --brand-gold: #F59E0B;
-  --brand-gold-glow: rgba(245, 158, 11, 0.6);
-  --brand-cyan: #38BDF8;
-  --brand-cyan-glow: rgba(56, 189, 248, 0.6);
-  --brand-purple: #A78BFA;
-  --brand-purple-glow: rgba(167, 139, 250, 0.6);
+  --bg-main: #F8FAFC;
+  --bg-card: #FFFFFF;
+  --bg-card-hover: #F1F5F9;
+  --text-main: #0F172A;
+  --text-muted: #475569;
+  --border-light: #CBD5E1;
+  --brand-emerald: #059669;
+  --brand-gold: #D97706;
+  --brand-navy: #0F2C59;
+  --brand-sky: #0284C7;
 }
 
 * {
@@ -22,18 +20,11 @@
   touch-action: manipulation;
 }
 
-/* REAL NIGHT CRICKET STADIUM BACKGROUND IMAGE */
+/* GLOBAL CAMBRIA ENGLISH FONT ACROSS WHOLE PROJECT */
 body {
-  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
-  background-color: var(--bg-main);
-  background-image: 
-    linear-gradient(to bottom, rgba(6, 9, 19, 0.75), rgba(6, 9, 19, 0.88)),
-    url('../assets/night_stadium_bg.jpg');
-  background-size: cover;
-  background-position: center center;
-  background-repeat: no-repeat;
-  background-attachment: fixed;
-  color: var(--text-main);
+  font-family: 'Cambria', Georgia, 'Times New Roman', serif !important;
+  background-color: #F8FAFC !important;
+  color: #0F172A !important;
   min-height: 100vh;
   margin: 0;
   overflow-x: hidden;
@@ -46,105 +37,146 @@ body {
   }
 }
 
-/* Ultra-Sleek Glass Card with Frosted Backdrop Blur */
+/* TOP NAVBAR - DEEP ROYAL BLUE HEADER WITH BRIGHT VISIBLE WHITE TEXT & GOLD ACCENT */
+#app-navbar {
+  background: linear-gradient(135deg, #0F2C59 0%, #1E3A8A 100%) !important;
+  border-bottom: 3.5px solid #F59E0B !important;
+  box-shadow: 0 6px 25px rgba(15, 44, 89, 0.4) !important;
+}
+
+/* HANDWRITTEN QUOTES STYLE */
+.handwritten-quote {
+  font-family: 'Caveat', cursive, serif !important;
+  line-height: 1.25;
+  color: #0F172A;
+}
+
+/* 2-LINE LEFT-TO-RIGHT LETTER READING ANIMATION */
+@keyframes lineRevealLeft {
+  0% {
+    clip-path: inset(0 100% 0 0);
+    opacity: 0.1;
+  }
+  100% {
+    clip-path: inset(0 0 0 0);
+    opacity: 1;
+  }
+}
+
+.animate-type-line-1 {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  animation: lineRevealLeft 3s cubic-bezier(0.4, 0, 0.2, 1) infinite alternate;
+}
+
+.animate-type-line-2 {
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  animation: lineRevealLeft 3s cubic-bezier(0.4, 0, 0.2, 1) 0.6s infinite alternate;
+}
+
+/* RED ANIMATED TICKER / READ STYLE FOR OFFICIAL SLOGAN */
+@keyframes redReadPulse {
+  0%, 100% {
+    color: #DC2626;
+    text-shadow: 0 0 10px rgba(220, 38, 38, 0.3);
+    transform: scale(1);
+  }
+  50% {
+    color: #B91C1C;
+    text-shadow: 0 0 18px rgba(220, 38, 38, 0.6);
+    transform: scale(1.02);
+  }
+}
+
+.red-read-slogan {
+  color: #DC2626 !important;
+  font-weight: 900 !important;
+  font-family: 'Cambria', Georgia, serif !important;
+  animation: redReadPulse 2s infinite ease-in-out;
+  display: inline-block;
+}
+
+/* Ultra-Sleek Crisp White Elevated Cards */
 .glass-card {
-  background: var(--bg-card);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--border-light);
-  border-radius: 0.85rem;
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
+  background: #FFFFFF !important;
+  border: 1.5px solid #CBD5E1 !important;
+  border-radius: 1rem;
+  box-shadow: 0 10px 25px rgba(15, 23, 42, 0.06), 0 2px 6px rgba(15, 23, 42, 0.04) !important;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 @media (min-width: 640px) {
   .glass-card {
-    border-radius: 1.15rem;
-    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.7);
+    border-radius: 1.25rem;
+    box-shadow: 0 16px 35px rgba(15, 23, 42, 0.08) !important;
   }
 }
 
 .glass-card:hover {
-  background: var(--bg-card-hover);
-  border-color: var(--brand-gold);
-  box-shadow: 0 0 25px var(--brand-gold-glow);
+  background: #FFFFFF !important;
+  border-color: #059669 !important;
+  box-shadow: 0 20px 45px rgba(5, 150, 105, 0.15) !important;
 }
 
-/* 3 CATEGORY SQUARE BOXES - REAL NIGHT STADIUM GLASSMORPHISM */
+/* 3 CATEGORY SQUARE BOXES - LUXURY COLOR THEMES */
 .square-category-box {
   aspect-ratio: 1 / 1 !important;
-  background: rgba(11, 17, 32, 0.78);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 2px solid rgba(255, 255, 255, 0.2);
-  border-radius: 0.85rem;
+  border-radius: 1.25rem;
   display: flex !important;
   flex-direction: column !important;
   align-items: center !important;
   justify-content: center !important;
-  padding: 0.35rem;
+  padding: 0.5rem;
   text-align: center;
   position: relative;
   overflow: hidden;
   cursor: pointer;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.08) !important;
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 @media (min-width: 640px) {
   .square-category-box {
-    border-radius: 1.35rem;
+    border-radius: 1.6rem;
     padding: 1.25rem;
   }
 }
 
 .square-category-box:hover {
   transform: translateY(-5px) scale(1.03);
-  box-shadow: 0 0 30px var(--brand-gold-glow);
-  border-color: var(--brand-gold);
 }
 
-/* STYLISH LOGO IMAGES FOR JPL, JSL, KPL */
+/* STYLISH LOGO IMAGES FOR JPL, JSL, KPL - BIGGER SIZE, NO BORDER, PURE WHITE ISOLATED LOGOS */
 .category-stylish-logo-img {
-  width: 42px;
-  height: 42px;
-  border-radius: 0.65rem;
-  object-fit: cover;
-  margin-bottom: 0.3rem;
+  width: 65px;
+  height: 65px;
+  border-radius: 1rem;
+  object-fit: contain;
+  background-color: transparent;
+  border: none !important;
+  box-shadow: none !important;
+  margin-bottom: 0.25rem;
   flex-shrink: 0;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5);
-  transition: transform 0.25s ease;
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 @media (min-width: 640px) {
   .category-stylish-logo-img {
-    width: 75px;
-    height: 75px;
-    border-radius: 1.25rem;
-    margin-bottom: 0.75rem;
+    width: 110px;
+    height: 110px;
+    border-radius: 1.5rem;
+    margin-bottom: 0.5rem;
   }
 }
 
 .square-category-box:hover .category-stylish-logo-img {
-  transform: scale(1.08);
+  transform: scale(1.12);
 }
 
-.logo-border-jpl {
-  border: 2px solid #F59E0B;
-  box-shadow: 0 0 16px rgba(245, 158, 11, 0.7);
-}
-
-.logo-border-jsl {
-  border: 2px solid #38BDF8;
-  box-shadow: 0 0 16px rgba(56, 189, 248, 0.7);
-}
-
-.logo-border-kpl {
-  border: 2px solid #A78BFA;
-  box-shadow: 0 0 16px rgba(167, 139, 250, 0.7);
-}
-
-/* MEDIUM SQUARE FORMAT PHOTO WITH CRISP BORDER (NO NESTED SHAPES) */
+/* MEDIUM SQUARE FORMAT PHOTO WITH CRISP BORDER */
 .medium-square-photo {
   aspect-ratio: 1 / 1 !important;
   width: 100%;
@@ -152,8 +184,8 @@ body {
   height: auto;
   border-radius: 0.85rem;
   object-fit: cover;
-  border: 2px solid #F59E0B;
-  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.3);
+  border: 2px solid #059669;
+  box-shadow: 0 4px 12px rgba(5, 150, 105, 0.2);
   margin: 0 auto;
 }
 
@@ -172,8 +204,8 @@ body {
   height: auto;
   border-radius: 0.85rem;
   object-fit: cover;
-  border: 2px solid #38BDF8;
-  box-shadow: 0 4px 16px rgba(56, 189, 248, 0.3);
+  border: 2px solid #0284C7;
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.2);
   margin: 0 auto;
 }
 
@@ -184,36 +216,32 @@ body {
   }
 }
 
-/* JSL Ultra-Compact Header Strip */
+/* JSL Header Strip */
 .jsl-header-strip {
-  background: rgba(11, 17, 32, 0.82);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
-  border: 1.5px solid rgba(255, 255, 255, 0.2);
-  border-radius: 0.85rem;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6);
+  background: #FFFFFF !important;
+  border: 2px solid #CBD5E1 !important;
+  border-radius: 1rem;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.08) !important;
 }
 
 .jsl-poster-title-navy {
-  font-family: 'Teko', 'Outfit', sans-serif;
-  color: #F8FAFC;
+  font-family: 'Teko', 'Cambria', sans-serif;
+  color: #0F2C59 !important;
   font-size: 1.35rem;
   line-height: 0.9;
   letter-spacing: 0.5px;
   text-transform: uppercase;
   font-weight: 900;
-  text-shadow: 0 0 12px rgba(255, 255, 255, 0.4);
 }
 
 .jsl-poster-title-red {
-  font-family: 'Teko', 'Outfit', sans-serif;
-  color: #EF476F;
+  font-family: 'Teko', 'Cambria', sans-serif;
+  color: #059669 !important;
   font-size: 1.6rem;
   line-height: 0.9;
   letter-spacing: 0.5px;
   text-transform: uppercase;
   font-weight: 900;
-  text-shadow: 0 0 16px rgba(239, 71, 111, 0.8);
 }
 
 @media (min-width: 640px) {
@@ -221,17 +249,17 @@ body {
   .jsl-poster-title-red { font-size: 2.75rem; }
 }
 
-/* PERSISTENT BLINKING ANIMATION WITH NEON GLOW */
+/* PERSISTENT BLINKING ANIMATION */
 @keyframes blinkGlowNeon {
   0%, 100% {
     opacity: 1;
     transform: scale(1);
-    box-shadow: 0 0 15px rgba(245, 158, 11, 0.9), 0 0 30px rgba(245, 158, 11, 0.5);
+    box-shadow: 0 0 15px rgba(5, 150, 105, 0.6), 0 0 25px rgba(5, 150, 105, 0.3);
   }
   50% {
-    opacity: 0.85;
+    opacity: 0.9;
     transform: scale(1.02);
-    box-shadow: 0 0 20px rgba(239, 71, 111, 1), 0 0 40px rgba(239, 71, 111, 0.6);
+    box-shadow: 0 0 20px rgba(217, 119, 6, 0.8), 0 0 35px rgba(217, 119, 6, 0.4);
   }
 }
 
@@ -239,14 +267,14 @@ body {
   animation: blinkGlowNeon 1.2s ease-in-out infinite;
 }
 
-/* STATUS CIRCLES WITH GLOW */
+/* STATUS CIRCLES */
 .status-circle-red {
   width: 9px;
   height: 9px;
   background-color: #EF476F;
   border-radius: 50%;
   border: 1px solid #FFFFFF;
-  box-shadow: 0 0 8px rgba(239, 71, 111, 0.9);
+  box-shadow: 0 0 6px rgba(239, 71, 111, 0.6);
   display: inline-block;
 }
 
@@ -256,15 +284,26 @@ body {
   background-color: #10B981;
   border-radius: 50%;
   border: 1px solid #FFFFFF;
-  box-shadow: 0 0 8px rgba(16, 185, 129, 0.9);
+  box-shadow: 0 0 6px rgba(16, 185, 129, 0.6);
   display: inline-block;
 }
 
-/* Modal Overlay & Mobile Fit */
+/* DATE INPUT CALENDAR PICKER */
+input[type="date"]::-webkit-calendar-picker-indicator {
+  filter: invert(0.2) sepia(1) saturate(5) hue-rotate(90deg);
+  cursor: pointer;
+  padding: 2px;
+  border-radius: 4px;
+}
+input[type="date"]::-webkit-calendar-picker-indicator:hover {
+  background: rgba(5, 150, 105, 0.15);
+}
+
+/* Modal Overlay & Fit */
 .modal-overlay {
-  background: rgba(3, 7, 18, 0.88);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: rgba(15, 23, 42, 0.5) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
 }
 
 .modal-content-container {
@@ -282,6 +321,6 @@ body {
   animation: fadeIn 0.25s ease-out forwards;
 }
 
-::-webkit-scrollbar { width: 5px; height: 5px; }
-::-webkit-scrollbar-track { background: rgba(11, 17, 32, 0.5); }
-::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.4); border-radius: 3px; }
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: #F1F5F9; }
+::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }
