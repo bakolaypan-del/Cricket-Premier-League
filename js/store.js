@@ -20,6 +20,45 @@ const STORAGE_KEYS = {
   ADMIN_AUTH: 'cpl_admin_auth_v7'
 };
 
+const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23059669'/%3E%3Ctext x='50' y='62' font-size='45' text-anchor='middle' fill='white'%3E🏏%3C/text%3E%3C/svg%3E";
+
+// Quota-Safe LocalStorage Helper to prevent QuotaExceededError without corrupting image URLs
+function safeSetLocalStorage(key, data) {
+  try {
+    localStorage.setItem(key, JSON.stringify(data));
+  } catch (err) {
+    if (err.name === 'QuotaExceededError' || err.code === 22 || err.code === 1014) {
+      console.warn(`LocalStorage quota exceeded for ${key}. Using lightweight avatar fallback for local cache...`);
+      if (Array.isArray(data)) {
+        const lightweightData = data.map(item => {
+          const itemCopy = { ...item };
+          if (itemCopy.photoUrl && itemCopy.photoUrl.startsWith('data:image')) {
+            itemCopy.photoUrl = DEFAULT_AVATAR;
+          }
+          if (itemCopy.player_photo_url && itemCopy.player_photo_url.startsWith('data:image')) {
+            itemCopy.player_photo_url = DEFAULT_AVATAR;
+          }
+          if (itemCopy.aadharPhotoUrl && itemCopy.aadharPhotoUrl.startsWith('data:image')) {
+            itemCopy.aadharPhotoUrl = 'Attached Aadhaar Document';
+          }
+          if (itemCopy.paymentReceiptUrl && itemCopy.paymentReceiptUrl.startsWith('data:image')) {
+            itemCopy.paymentReceiptUrl = 'Attached Payment Receipt';
+          }
+          return itemCopy;
+        });
+        try {
+          localStorage.setItem(key, JSON.stringify(lightweightData));
+          console.log(`Saved lightweight copy to LocalStorage for ${key}.`);
+        } catch (e2) {
+          console.error("Critical LocalStorage quota notice:", e2);
+        }
+      }
+    } else {
+      console.error("LocalStorage setItem error:", err);
+    }
+  }
+}
+
 class Store {
   constructor() {
     this.init();
@@ -30,28 +69,28 @@ class Store {
 
   init() {
     if (!localStorage.getItem(STORAGE_KEYS.LEAGUES)) {
-      localStorage.setItem(STORAGE_KEYS.LEAGUES, JSON.stringify(INITIAL_LEAGUES));
+      safeSetLocalStorage(STORAGE_KEYS.LEAGUES, INITIAL_LEAGUES);
     }
     if (!localStorage.getItem(STORAGE_KEYS.TEAMS)) {
-      localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify([]));
+      safeSetLocalStorage(STORAGE_KEYS.TEAMS, []);
     }
     if (!localStorage.getItem(STORAGE_KEYS.PLAYERS)) {
-      localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify([]));
+      safeSetLocalStorage(STORAGE_KEYS.PLAYERS, []);
     }
     if (!localStorage.getItem(STORAGE_KEYS.FIXTURES)) {
-      localStorage.setItem(STORAGE_KEYS.FIXTURES, JSON.stringify(INITIAL_FIXTURES));
+      safeSetLocalStorage(STORAGE_KEYS.FIXTURES, INITIAL_FIXTURES);
     }
     if (!localStorage.getItem(STORAGE_KEYS.USER)) {
-      localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify({
+      safeSetLocalStorage(STORAGE_KEYS.USER, {
         role: 'GUEST',
         name: 'Guest Visitor',
         id: null,
         phone: null
-      }));
+      });
     }
   }
 
-  // --- STABLE CLOUD SYNC WITH DYNAMIC CONTINUOUS RE-INDEXING (1, 2, 3...) ---
+  // --- STABLE CLOUD SYNC WITH DYNAMIC CONTINUOUS RE-INDEXING & ZERO DATA LOSS ---
   async syncWithCloud() {
     try {
       const cloudData = await fetchCloudData();
@@ -60,10 +99,25 @@ class Store {
       const isUserFillingForm = document.getElementById('player-reg-modal') || document.getElementById('team-reg-modal');
       if (isUserFillingForm) return;
 
+      const localPlayers = this.getPlayers();
+
       // 1. Sync Players ONLY if valid array received from cloud
       if (Array.isArray(cloudData.players)) {
+        // DATA LOSS PREVENTION SAFEGUARD: If cloud returns 0 players but local storage has players, RE-UPLOAD local players to cloud!
+        if (cloudData.players.length === 0 && localPlayers.length > 0) {
+          console.warn("Cloud data was empty! Restoring cloud database from local players backup...");
+          saveCloudData(localPlayers, this.getTeams());
+          return;
+        }
+
+        // MERGE LOCAL & CLOUD PLAYERS: Combine any local players that haven't synced yet
+        const cloudPlayerIds = new Set(cloudData.players.map(p => p.id));
+        const missingLocalPlayers = localPlayers.filter(p => p && p.id && !cloudPlayerIds.has(p.id));
+
+        let mergedPlayers = [...cloudData.players, ...missingLocalPlayers];
+
         // CONTINUOUS DYNAMIC RE-INDEXING: Ensure registration IDs (JSL2026-0001, JSL2026-0002...) and display numbers (1, 2, 3...) have no gaps
-        const reindexedPlayers = cloudData.players.map((p, idx) => {
+        const reindexedPlayers = mergedPlayers.map((p, idx) => {
           const displayNo = idx + 1;
           const regId = `JSL2026-${String(displayNo).padStart(4, '0')}`;
           return {
@@ -79,14 +133,29 @@ class Store {
         const cloudPlayersStr = JSON.stringify(reindexedPlayers);
         
         if (localPlayersStr !== cloudPlayersStr) {
-          localStorage.setItem(STORAGE_KEYS.PLAYERS, cloudPlayersStr);
+          safeSetLocalStorage(STORAGE_KEYS.PLAYERS, reindexedPlayers);
           this.notify('players_updated');
+        }
+
+        // If local had un-synced players, push merged list back to cloud
+        if (missingLocalPlayers.length > 0) {
+          saveCloudData(reindexedPlayers, this.getTeams());
         }
       }
 
       // 2. Sync Teams ONLY if valid array received from cloud
       if (Array.isArray(cloudData.teams)) {
-        const reindexedTeams = cloudData.teams.map((t, idx) => ({
+        const localTeams = this.getTeams();
+        if (cloudData.teams.length === 0 && localTeams.length > 0) {
+          saveCloudData(this.getPlayers(), localTeams);
+          return;
+        }
+
+        const cloudTeamIds = new Set(cloudData.teams.map(t => t.id));
+        const missingLocalTeams = localTeams.filter(t => t && t.id && !cloudTeamIds.has(t.id));
+        let mergedTeams = [...cloudData.teams, ...missingLocalTeams];
+
+        const reindexedTeams = mergedTeams.map((t, idx) => ({
           ...t,
           serialNo: idx + 1
         }));
@@ -95,7 +164,7 @@ class Store {
         const cloudTeamsStr = JSON.stringify(reindexedTeams);
         
         if (localTeamsStr !== cloudTeamsStr) {
-          localStorage.setItem(STORAGE_KEYS.TEAMS, cloudTeamsStr);
+          safeSetLocalStorage(STORAGE_KEYS.TEAMS, reindexedTeams);
           this.notify('teams_updated');
         }
       }
@@ -135,7 +204,8 @@ class Store {
 
   // --- ADMIN AUTHENTICATION ---
   isAdminAuthenticated() {
-    return localStorage.getItem(STORAGE_KEYS.ADMIN_AUTH) === 'true';
+    const val = localStorage.getItem(STORAGE_KEYS.ADMIN_AUTH);
+    return val === 'true' || val === '"true"';
   }
 
   authenticateAdmin(email, password) {
@@ -170,12 +240,20 @@ class Store {
   // --- PLAYERS ---
   getPlayers() {
     const players = JSON.parse(localStorage.getItem(STORAGE_KEYS.PLAYERS)) || [];
-    // Ensure continuous dynamic registration numbers without gaps
+    // Ensure continuous dynamic registration numbers without gaps & fix corrupted image strings
     return players.map((p, idx) => {
       const displayNo = idx + 1;
       const regId = `JSL2026-${String(displayNo).padStart(4, '0')}`;
+
+      let validPhoto = p.photoUrl || p.player_photo_url || '';
+      if (!validPhoto || validPhoto.includes('[Image Stored In Cloud]') || (!validPhoto.startsWith('http') && !validPhoto.startsWith('data:image'))) {
+        validPhoto = DEFAULT_AVATAR;
+      }
+
       return {
         ...p,
+        photoUrl: validPhoto,
+        player_photo_url: validPhoto,
         serialNo: displayNo,
         displayRegistrationNumber: displayNo,
         registrationId: regId,
@@ -242,12 +320,7 @@ class Store {
       p.regNo = p.registrationId;
     });
 
-    try {
-      localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
-    } catch (err) {
-      console.warn("Storage fallback triggered:", err);
-      localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
-    }
+    safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
 
     saveCloudData(players, this.getTeams());
     syncPlayerToSupabase(newPlayer);
@@ -270,7 +343,7 @@ class Store {
         p.regNo = p.registrationId;
       });
 
-      localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
+      safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
       saveCloudData(players, this.getTeams());
       syncPlayerToSupabase(players[idx]);
       this.notify('players_updated');
@@ -290,7 +363,7 @@ class Store {
       if (team) {
         team.squadCount = Math.max(0, team.squadCount - 1);
         team.purseSpent = Math.max(0, team.purseSpent - (playerToDelete.soldPrice || 0));
-        localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(teams));
+        safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
       }
     }
 
@@ -306,20 +379,20 @@ class Store {
       p.regNo = p.registrationId;
     });
 
-    localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
+    safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
     saveCloudData(players, this.getTeams());
     deletePlayerFromSupabase(playerId);
     this.notify('players_updated');
   }
 
   clearAllPlayers() {
-    localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify([]));
+    safeSetLocalStorage(STORAGE_KEYS.PLAYERS, []);
     saveCloudData([], this.getTeams());
     this.notify('players_updated');
   }
 
   clearAllTeams() {
-    localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify([]));
+    safeSetLocalStorage(STORAGE_KEYS.TEAMS, []);
     saveCloudData(this.getPlayers(), []);
     this.notify('teams_updated');
   }
@@ -332,7 +405,7 @@ class Store {
       player.registrationStatus = (registrationStatus || paymentStatus).toUpperCase();
       if (remarks) player.remarks = remarks;
       
-      localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
+      safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
       saveCloudData(players, this.getTeams());
       syncPlayerToSupabase(player);
       this.notify('players_updated');
@@ -361,8 +434,8 @@ class Store {
       team.squadCount += 1;
       team.purseSpent += player.soldPrice;
 
-      localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
-      localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(teams));
+      safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
+      safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
       saveCloudData(players, teams);
       syncPlayerToSupabase(player);
       syncTeamToSupabase(team);
@@ -404,12 +477,7 @@ class Store {
       t.serialNo = idx + 1;
     });
     
-    try {
-      localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(teams));
-    } catch (err) {
-      console.warn("Storage quota limit reached for team logo, using fallback:", err);
-      localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(teams));
-    }
+    safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
 
     saveCloudData(this.getPlayers(), teams);
     syncTeamToSupabase(newTeam);

@@ -968,7 +968,7 @@ function renderPlayerCardsWithSerial(playersList) {
 
         <!-- MEDIUM SQUARE FORMAT HD PHOTO WITH CRISP BORDER -->
         <div class="w-full max-w-[120px] aspect-square rounded-xl bg-white border-2 border-emerald-500 flex items-center justify-center overflow-hidden shadow-sm mb-1.5 mx-auto">
-          ${p.photoUrl || p.player_photo_url ? `<img src="${p.photoUrl || p.player_photo_url}" class="w-full h-full object-cover" />` : ''}
+          <img src="${p.photoUrl || p.player_photo_url}" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Crect width=\'100\' height=\'100\' fill=\'%23059669\'/%3E%3Ctext x=\'50\' y=\'62\' font-size=\'45\' text-anchor=\'middle\' fill=\'white\'%3E🏏%3C/text%3E%3C/svg%3E';" />
         </div>
 
         <!-- LOWER NAME, CATEGORY & DISTRICT -->
@@ -1006,7 +1006,7 @@ function openFullPlayerProfileModal(player) {
         <!-- LARGE SIZE HD PICTURE WITH CLICK TO ZOOM -->
         <div class="pt-1 text-center cursor-pointer group" id="profile-photo-zoom-trigger" title="Click to view Full HD photo">
           <div class="w-32 h-32 sm:w-40 sm:h-40 rounded-2xl bg-white border-2 border-emerald-500 shadow-xl mx-auto overflow-hidden flex items-center justify-center group-hover:scale-105 transition-all">
-            ${player.photoUrl || player.player_photo_url ? `<img src="${player.photoUrl || player.player_photo_url}" class="w-full h-full object-cover" />` : ''}
+            <img src="${player.photoUrl || player.player_photo_url}" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Crect width=\'100\' height=\'100\' fill=\'%23059669\'/%3E%3Ctext x=\'50\' y=\'62\' font-size=\'45\' text-anchor=\'middle\' fill=\'white\'%3E🏏%3C/text%3E%3C/svg%3E';" />
           </div>
           <span class="text-[9px] font-extrabold text-emerald-700 block mt-1 hover:underline">🔍 Click picture to view Full HD Photo</span>
         </div>
