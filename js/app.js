@@ -511,56 +511,56 @@ function renderFirstPageLanding(containerEl) {
         </span>
       </div>
 
-      <!-- 3 CATEGORY CARDS - CARTOON BOY IMAGE WITH RED COMING SOON BADGES & GOLD JSL BUTTON -->
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-5 sm:gap-6 w-full max-w-5xl mx-auto px-2">
+      <!-- 3 CATEGORY CARDS - ALL 3 CARDS FIT IN A SINGLE HORIZONTAL ROW ON MOBILE -->
+      <div class="grid grid-cols-3 gap-1.5 sm:gap-6 w-full max-w-5xl mx-auto px-1 sm:px-2">
         
-        <!-- CARD 1: JSL (CARTOON BOY IMAGE + GOLD BLINKING VIEW FULL DETAILS BUTTON MATCHING SHAPE COLOR) -->
-        <div id="btn-click-jsl" class="group relative rounded-3xl overflow-hidden shadow-xl hover:shadow-2xl hover:-translate-y-1.5 transition-all cursor-pointer border-2 border-amber-300/80 bg-white flex flex-col justify-between p-3.5 space-y-3 text-center">
-          <img src="assets/card_jsl_cartoon.png" alt="JSL Cartoon Boy Card" class="w-full h-auto object-contain rounded-2xl group-hover:scale-[1.02] transition-transform duration-300 shadow-sm" />
+        <!-- CARD 1: JSL (GOLD THEME - CARTOON BOY) -->
+        <div id="btn-click-jsl" class="group relative rounded-xl sm:rounded-3xl overflow-hidden shadow-md sm:shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all cursor-pointer border sm:border-2 border-amber-300/80 bg-white flex flex-col justify-between p-1.5 sm:p-3.5 space-y-1 sm:space-y-3 text-center">
+          <img src="assets/card_jsl_cartoon.png" alt="JSL Cartoon Boy Card" class="w-full h-auto object-contain rounded-lg sm:rounded-2xl group-hover:scale-[1.02] transition-transform duration-300 shadow-sm" />
           
-          <div class="space-y-1.5 w-full text-center">
-            <h3 class="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-tight leading-tight">JHANKRA SUPER LEAGUE (JSL)</h3>
-            <div class="flex items-center justify-center gap-1.5 text-[10px] sm:text-xs font-black text-amber-900 uppercase tracking-wider bg-amber-50 py-1 px-2.5 rounded-full border border-amber-200 w-fit mx-auto">
-              <i data-lucide="calendar" class="w-3.5 h-3.5 text-amber-600"></i>
+          <div class="space-y-0.5 sm:space-y-1.5 w-full text-center">
+            <h3 class="text-[9px] min-[380px]:text-[10px] sm:text-sm font-black text-slate-900 uppercase tracking-tight leading-tight">Jhankra Super League (JSL)</h3>
+            <div class="flex items-center justify-center gap-0.5 sm:gap-1.5 text-[7px] min-[380px]:text-[8px] sm:text-xs font-black text-amber-900 uppercase tracking-wider bg-amber-50 py-0.5 px-1 sm:px-2.5 rounded-full border border-amber-200 w-fit mx-auto">
+              <i data-lucide="calendar" class="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-amber-600"></i>
               <span>8 TEAM | 30/08 - 1/09</span>
             </div>
           </div>
 
-          <button class="w-full py-2.5 bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black text-xs sm:text-sm rounded-full shadow-lg border border-amber-300 flex items-center justify-center gap-1.5 btn-blink-always uppercase tracking-wider">
+          <button class="w-full py-1 sm:py-2.5 bg-gradient-to-r from-amber-500 via-yellow-500 to-amber-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black text-[8px] min-[380px]:text-[9px] sm:text-sm rounded-full shadow-md border border-amber-300 flex items-center justify-center gap-1 btn-blink-always uppercase tracking-wider">
             View Full Details
           </button>
         </div>
 
-        <!-- CARD 2: JPL (CARTOON BOY IMAGE + RED COMING SOON + VIEW MORE DETAILS BUTTON) -->
-        <div id="btn-click-jpl" class="group relative rounded-3xl overflow-hidden shadow-xl hover:shadow-2xl hover:-translate-y-1.5 transition-all cursor-pointer border-2 border-emerald-300/80 bg-white flex flex-col justify-between p-3.5 space-y-3 text-center">
-          <img src="assets/card_jpl_cartoon.png" alt="JPL Cartoon Boy Card" class="w-full h-auto object-contain rounded-2xl group-hover:scale-[1.02] transition-transform duration-300 shadow-sm" />
+        <!-- CARD 2: JPL (GREEN THEME - CARTOON BOY) -->
+        <div id="btn-click-jpl" class="group relative rounded-xl sm:rounded-3xl overflow-hidden shadow-md sm:shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all cursor-pointer border sm:border-2 border-emerald-300/80 bg-white flex flex-col justify-between p-1.5 sm:p-3.5 space-y-1 sm:space-y-3 text-center">
+          <img src="assets/card_jpl_cartoon.png" alt="JPL Cartoon Boy Card" class="w-full h-auto object-contain rounded-lg sm:rounded-2xl group-hover:scale-[1.02] transition-transform duration-300 shadow-sm" />
           
-          <div class="space-y-1.5 w-full text-center">
-            <h3 class="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-tight leading-tight">JHANKRA PREMIER LEAGUE (JPL)</h3>
-            <div class="flex items-center justify-center gap-1.5 text-[10px] sm:text-xs font-black text-red-600 uppercase tracking-wider bg-red-50 py-1 px-2.5 rounded-full border border-red-200 w-fit mx-auto">
-              <i data-lucide="clock" class="w-3.5 h-3.5 text-red-500"></i>
+          <div class="space-y-0.5 sm:space-y-1.5 w-full text-center">
+            <h3 class="text-[9px] min-[380px]:text-[10px] sm:text-sm font-black text-slate-900 uppercase tracking-tight leading-tight">Jhankra Premier League (JPL)</h3>
+            <div class="flex items-center justify-center gap-0.5 sm:gap-1.5 text-[7px] min-[380px]:text-[8px] sm:text-xs font-black text-red-600 uppercase tracking-wider bg-red-50 py-0.5 px-1 sm:px-2.5 rounded-full border border-red-200 w-fit mx-auto">
+              <i data-lucide="clock" class="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-red-500"></i>
               <span class="animate-pulse">COMING SOON</span>
             </div>
           </div>
 
-          <button class="w-full py-2.5 bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-xs sm:text-sm rounded-full shadow-md border border-emerald-400 flex items-center justify-center gap-1.5 uppercase tracking-wider">
+          <button class="w-full py-1 sm:py-2.5 bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-[8px] min-[380px]:text-[9px] sm:text-sm rounded-full shadow-md border border-emerald-400 flex items-center justify-center gap-1 uppercase tracking-wider">
             View More Details
           </button>
         </div>
 
-        <!-- CARD 3: KPL (CARTOON BOY IMAGE + RED COMING SOON + VIEW MORE DETAILS BUTTON) -->
-        <div id="btn-click-kpl" class="group relative rounded-3xl overflow-hidden shadow-xl hover:shadow-2xl hover:-translate-y-1.5 transition-all cursor-pointer border-2 border-blue-300/80 bg-white flex flex-col justify-between p-3.5 space-y-3 text-center">
-          <img src="assets/card_kpl_cartoon.png" alt="KPL Cartoon Boy Card" class="w-full h-auto object-contain rounded-2xl group-hover:scale-[1.02] transition-transform duration-300 shadow-sm" />
+        <!-- CARD 3: KPL (BLUE THEME - CARTOON BOY) -->
+        <div id="btn-click-kpl" class="group relative rounded-xl sm:rounded-3xl overflow-hidden shadow-md sm:shadow-xl hover:shadow-2xl hover:-translate-y-1 transition-all cursor-pointer border sm:border-2 border-blue-300/80 bg-white flex flex-col justify-between p-1.5 sm:p-3.5 space-y-1 sm:space-y-3 text-center">
+          <img src="assets/card_kpl_cartoon.png" alt="KPL Cartoon Boy Card" class="w-full h-auto object-contain rounded-lg sm:rounded-2xl group-hover:scale-[1.02] transition-transform duration-300 shadow-sm" />
           
-          <div class="space-y-1.5 w-full text-center">
-            <h3 class="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-tight leading-tight">KOTA PREMIER LEAGUE (KPL)</h3>
-            <div class="flex items-center justify-center gap-1.5 text-[10px] sm:text-xs font-black text-red-600 uppercase tracking-wider bg-red-50 py-1 px-2.5 rounded-full border border-red-200 w-fit mx-auto">
-              <i data-lucide="clock" class="w-3.5 h-3.5 text-red-500"></i>
+          <div class="space-y-0.5 sm:space-y-1.5 w-full text-center">
+            <h3 class="text-[9px] min-[380px]:text-[10px] sm:text-sm font-black text-slate-900 uppercase tracking-tight leading-tight">Kota Premier League (KPL)</h3>
+            <div class="flex items-center justify-center gap-0.5 sm:gap-1.5 text-[7px] min-[380px]:text-[8px] sm:text-xs font-black text-red-600 uppercase tracking-wider bg-red-50 py-0.5 px-1 sm:px-2.5 rounded-full border border-red-200 w-fit mx-auto">
+              <i data-lucide="clock" class="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-red-500"></i>
               <span class="animate-pulse">COMING SOON</span>
             </div>
           </div>
 
-          <button class="w-full py-2.5 bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-white font-black text-xs sm:text-sm rounded-full shadow-md border border-blue-400 flex items-center justify-center gap-1.5 uppercase tracking-wider">
+          <button class="w-full py-1 sm:py-2.5 bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-white font-black text-[8px] min-[380px]:text-[9px] sm:text-sm rounded-full shadow-md border border-blue-400 flex items-center justify-center gap-1 uppercase tracking-wider">
             View More Details
           </button>
         </div>
