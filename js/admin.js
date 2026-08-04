@@ -378,81 +378,89 @@ function renderAdminPlayersRows(playersList) {
 }
 
 function bindAdminTableActions(containerEl) {
-  // Approve Player
-  containerEl.querySelectorAll('.approve-player-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const targetBtn = e.target.closest('.approve-player-btn');
-      const pId = targetBtn ? targetBtn.getAttribute('data-approve-id') : null;
+  // Event Delegation so Delete, Edit, Approve, and Reject buttons work 100% reliably
+  containerEl.onclick = (e) => {
+    // 1. Delete Player
+    const deleteBtn = e.target.closest('.delete-player-btn');
+    if (deleteBtn) {
+      const pId = deleteBtn.getAttribute('data-delete-id');
+      if (pId && confirm("⚠️ Are you sure you want to delete this player registration? Remaining numbers will re-index continuously.")) {
+        store.deletePlayer(pId);
+        renderAdminDashboard(containerEl);
+      }
+      return;
+    }
+
+    // 2. Approve Player
+    const approveBtn = e.target.closest('.approve-player-btn');
+    if (approveBtn) {
+      const pId = approveBtn.getAttribute('data-approve-id');
       if (pId) {
         store.updatePlayerStatus(pId, 'APPROVED', 'APPROVED');
         renderAdminDashboard(containerEl);
       }
-    });
-  });
+      return;
+    }
 
-  // Reject Player
-  containerEl.querySelectorAll('.reject-player-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const targetBtn = e.target.closest('.reject-player-btn');
-      const pId = targetBtn ? targetBtn.getAttribute('data-reject-id') : null;
+    // 3. Reject Player
+    const rejectBtn = e.target.closest('.reject-player-btn');
+    if (rejectBtn) {
+      const pId = rejectBtn.getAttribute('data-reject-id');
       if (pId) {
         store.updatePlayerStatus(pId, 'REJECTED', 'REJECTED');
         renderAdminDashboard(containerEl);
       }
-    });
-  });
+      return;
+    }
 
-  // Edit Player
-  containerEl.querySelectorAll('.edit-player-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const targetBtn = e.target.closest('.edit-player-btn');
-      const pId = targetBtn ? targetBtn.getAttribute('data-edit-id') : null;
+    // 4. Edit Player
+    const editBtn = e.target.closest('.edit-player-btn');
+    if (editBtn) {
+      const pId = editBtn.getAttribute('data-edit-id');
       if (pId) {
         const player = store.getPlayerById(pId);
         openAdminEditPlayerModal(player, containerEl);
       }
-    });
-  });
+      return;
+    }
 
-  // Delete Player (Dynamic Continuous Re-Indexing)
-  containerEl.querySelectorAll('.delete-player-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const targetBtn = e.target.closest('.delete-player-btn');
-      const pId = targetBtn ? targetBtn.getAttribute('data-delete-id') : null;
-      if (pId && confirm("Are you sure you want to delete this player? Remaining serial numbers will re-index continuously.")) {
-        store.deletePlayer(pId);
-        renderAdminDashboard(containerEl);
-      }
-    });
-  });
-
-  // Delete Team
-  containerEl.querySelectorAll('.delete-team-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const targetBtn = e.target.closest('.delete-team-btn');
-      const tId = targetBtn ? targetBtn.getAttribute('data-delete-team-id') : null;
-      if (tId && confirm("Are you sure you want to delete this team?")) {
+    // 5. Delete Team
+    const deleteTeamBtn = e.target.closest('.delete-team-btn');
+    if (deleteTeamBtn) {
+      const tId = deleteTeamBtn.getAttribute('data-delete-team-id');
+      if (tId && confirm("⚠️ Are you sure you want to delete this team?")) {
         store.deleteTeam(tId);
         renderAdminDashboard(containerEl);
       }
-    });
-  });
+      return;
+    }
+  };
 
   // Search filter in Admin Table
-  document.getElementById('admin-player-search')?.addEventListener('input', (e) => {
-    const query = e.target.value.toLowerCase().trim();
-    const allPlayers = store.getPlayers();
-    const filtered = allPlayers.filter(p => 
-      (p.name || '').toLowerCase().includes(query) ||
-      (p.registrationId || p.regNo || '').toLowerCase().includes(query) ||
-      (p.phone || '').toLowerCase().includes(query) ||
-      (p.village || p.district || '').toLowerCase().includes(query)
-    );
-    const tbody = document.getElementById('admin-all-players-table-body');
-    if (tbody) tbody.innerHTML = renderAdminPlayersRows(filtered);
-    if (window.lucide) window.lucide.createIcons();
-    bindAdminTableActions(containerEl);
-  });
+  const adminSearchInput = document.getElementById('admin-player-search');
+  if (adminSearchInput) {
+    const filterAdminPlayers = () => {
+      const query = adminSearchInput.value.toLowerCase().trim();
+      const allP = store.getPlayers();
+      const filtered = query ? allP.filter(p => 
+        (p.name || '').toLowerCase().includes(query) ||
+        (p.registrationId || p.regNo || '').toLowerCase().includes(query) ||
+        String(p.displayRegistrationNumber || p.serialNo || '').includes(query) ||
+        (p.fatherName || '').toLowerCase().includes(query) ||
+        (p.phone || '').toLowerCase().includes(query) ||
+        (p.category || p.playingType || '').toLowerCase().includes(query) ||
+        (p.village || p.district || '').toLowerCase().includes(query)
+      ) : allP;
+
+      const tbody = document.getElementById('admin-all-players-table-body');
+      if (tbody) tbody.innerHTML = renderAdminPlayersRows(filtered);
+      if (window.lucide) window.lucide.createIcons();
+    };
+
+    ['input', 'keyup', 'change', 'paste'].forEach(evt => {
+      adminSearchInput.addEventListener(evt, filterAdminPlayers);
+    });
+  }
 }
 
 // --- ADMIN LOGIN SCREEN (WITH TOP-RIGHT 'X' CROSS CLOSE BUTTON) ---

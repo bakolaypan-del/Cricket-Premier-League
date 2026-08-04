@@ -138,7 +138,7 @@ export function initRealtimePushListener(onUpdateCallback) {
   }
 }
 
-// --- INSTANT REALTIME CLOUD DATA FETCH (ZERO CONSOLE 401 ERRORS) ---
+// --- INSTANT REALTIME CLOUD DATA FETCH WITH CROSS-DEVICE CLEAR SYNC ---
 export async function fetchCloudData() {
   try {
     const res = await fetch(`${FIREBASE_DB_URL}/cpl_master.json?_t=${Date.now()}`, { cache: 'no-store' });
@@ -167,14 +167,14 @@ export async function fetchCloudData() {
           serialNo: idx + 1
         }));
 
-        return { players, teams };
+        return { players, teams, clearedAt: data.clearedAt || 0 };
       }
     }
   } catch (err) {
     console.warn("Realtime Database fetch notice:", err);
   }
 
-  return { players: [], teams: [] };
+  return { players: [], teams: [], clearedAt: 0 };
 }
 
 // --- ATOMIC REALTIME CLOUD DATA OPERATIONS (ATOMIC FULL ARRAY SYNC) ---
@@ -256,7 +256,14 @@ export async function deleteTeamFromFirebase(teamId) {
 
 export async function clearAllPlayersFromFirebase() {
   try {
+    const timestamp = Date.now();
+    await fetch(`${FIREBASE_DB_URL}/cpl_master/clearedAt.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(timestamp)
+    });
     await fetch(`${FIREBASE_DB_URL}/cpl_master/players.json`, { method: 'DELETE' });
+    console.log("Admin cleared all players in Realtime Database at timestamp:", timestamp);
   } catch (err) {
     console.warn("Clear players notice:", err);
   }

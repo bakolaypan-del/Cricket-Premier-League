@@ -90,7 +90,7 @@ class Store {
     }
   }
 
-  // --- STABLE CLOUD SYNC WITH DYNAMIC CONTINUOUS RE-INDEXING & ZERO DATA LOSS ---
+  // --- STABLE CLOUD SYNC WITH DYNAMIC CONTINUOUS RE-INDEXING & CROSS-DEVICE CLEAR SYNC ---
   async syncWithCloud() {
     try {
       const cloudData = await fetchCloudData();
@@ -99,14 +99,34 @@ class Store {
       const isUserFillingForm = document.getElementById('player-reg-modal') || document.getElementById('team-reg-modal');
       if (isUserFillingForm) return;
 
+      const lastLocalClearedAt = Number(localStorage.getItem('cpl_last_cleared_at') || '0');
+
+      // REALTIME CROSS-DEVICE CLEAR ALL SYNC: If Admin issued a Clear All command in cloud, clear local data on all connected phones!
+      if (cloudData.clearedAt && cloudData.clearedAt > lastLocalClearedAt) {
+        console.log("Admin Clear All signal received from Cloud Realtime DB. Clearing local cache on this device...");
+        localStorage.setItem('cpl_last_cleared_at', String(cloudData.clearedAt));
+        safeSetLocalStorage(STORAGE_KEYS.PLAYERS, []);
+        this.notify('players_updated');
+        return;
+      }
+
       const localPlayers = this.getPlayers();
 
       // 1. Sync Players ONLY if valid array received from cloud
       if (Array.isArray(cloudData.players)) {
-        // DATA LOSS PREVENTION SAFEGUARD: If cloud returns 0 players but local storage has players, RE-UPLOAD local players to cloud!
-        if (cloudData.players.length === 0 && localPlayers.length > 0) {
+        // DATA LOSS PREVENTION SAFEGUARD: Only restore cloud if NO admin clear action occurred
+        if (cloudData.players.length === 0 && localPlayers.length > 0 && !cloudData.clearedAt) {
           console.warn("Cloud data was empty! Restoring cloud database from local players backup...");
           saveCloudData(localPlayers, this.getTeams());
+          return;
+        }
+
+        // If admin cleared all in cloud, enforce empty local array
+        if (cloudData.players.length === 0 && cloudData.clearedAt > 0) {
+          if (localPlayers.length > 0) {
+            safeSetLocalStorage(STORAGE_KEYS.PLAYERS, []);
+            this.notify('players_updated');
+          }
           return;
         }
 
@@ -388,8 +408,10 @@ class Store {
   }
 
   clearAllPlayers() {
+    const timestamp = Date.now();
+    localStorage.setItem('cpl_last_cleared_at', String(timestamp));
     safeSetLocalStorage(STORAGE_KEYS.PLAYERS, []);
-    saveCloudData([], this.getTeams());
+    clearAllPlayersFromFirebase();
     this.notify('players_updated');
   }
 
