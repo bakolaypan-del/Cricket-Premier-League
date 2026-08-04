@@ -520,9 +520,12 @@ function renderFirstPageLanding(containerEl) {
           
           <div class="space-y-0.5 sm:space-y-1.5 w-full text-center">
             <h3 class="text-[9px] min-[380px]:text-[10px] sm:text-sm font-black text-slate-900 uppercase tracking-tight leading-tight">Jhankra Super League (JSL)</h3>
-            <div class="flex items-center justify-center gap-0.5 sm:gap-1.5 text-[7px] min-[380px]:text-[8px] sm:text-xs font-black text-amber-900 uppercase tracking-wider bg-amber-50 py-0.5 px-1 sm:px-2.5 rounded-full border border-amber-200 w-fit mx-auto">
-              <i data-lucide="calendar" class="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-amber-600"></i>
-              <span>8 TEAM | 30/08 - 1/09</span>
+            <div class="flex items-center justify-center gap-1.5 text-[8px] min-[380px]:text-[9px] sm:text-xs font-black text-emerald-800 uppercase tracking-wider bg-emerald-50 py-0.5 px-2 sm:px-2.5 rounded-full border border-emerald-200 w-fit mx-auto">
+              <span class="relative flex h-2 w-2">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+              </span>
+              <span>LIVE</span>
             </div>
           </div>
 
@@ -684,72 +687,72 @@ function renderJSLHub(containerEl) {
         </div>
       </div>
 
-      <!-- 3 HORIZONTAL COMPACT COLUMNS (grid-cols-3 ON ALL DEVICES) -->
-      <div class="grid grid-cols-3 gap-1.5 sm:gap-4 items-stretch">
+      <!-- 3 HORIZONTAL COMPACT SQUARE COLUMNS (REDUCED GAP & COMPACT SQUARE SHAPE) -->
+      <div class="grid grid-cols-3 gap-1 sm:gap-3 items-stretch">
         
         <!-- COLUMN 1 (LEFT SIDE): REGISTERED TEAMS CARD -->
-        <div class="relative glass-card p-1.5 sm:p-4 text-center space-y-1.5 border-2 border-sky-300 bg-white flex flex-col justify-between hover:border-sky-500 shadow-md rounded-2xl overflow-hidden min-h-[165px] sm:min-h-[190px]">
+        <div class="relative glass-card aspect-square p-1.5 sm:p-3 text-center border-2 border-sky-300 bg-white flex flex-col justify-between items-center hover:border-sky-500 shadow-md rounded-xl sm:rounded-2xl overflow-hidden">
           <!-- STYLISH TOP-RIGHT CORNER CIRCLE COUNTER BADGE -->
-          <div class="absolute top-1.5 right-1.5 w-5 h-5 sm:w-8 sm:h-8 bg-sky-600 text-white text-[9px] sm:text-xs font-black rounded-full flex items-center justify-center border-2 border-white shadow-md z-10" title="Total Teams">
+          <div class="absolute top-1 right-1 w-5 h-5 sm:w-7 sm:h-7 bg-sky-600 text-white text-[9px] sm:text-xs font-black rounded-full flex items-center justify-center border-2 border-white shadow-md z-10" title="Total Teams">
             ${teams.length}
           </div>
 
-          <div class="space-y-1 pt-0.5">
-            <div class="w-8 h-8 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-sky-500 to-blue-700 text-white mx-auto flex items-center justify-center shadow-md font-black">
-              <i data-lucide="shield" class="w-4 h-4 sm:w-6 sm:h-6"></i>
+          <div class="space-y-0.5 sm:space-y-1.5 pt-0.5 w-full flex flex-col items-center">
+            <div class="w-7 h-7 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-gradient-to-br from-sky-500 to-blue-700 text-white flex items-center justify-center shadow-md font-black">
+              <i data-lucide="shield" class="w-3.5 h-3.5 sm:w-5 sm:h-5"></i>
             </div>
 
-            <div>
-              <div class="text-[9px] min-[380px]:text-[10px] sm:text-sm font-black text-slate-900 uppercase tracking-tight leading-tight">REGISTERED TEAMS</div>
-              <div class="text-[8px] min-[380px]:text-[9px] sm:text-xs font-extrabold text-sky-700 leading-none mt-0.5">Official Squads</div>
+            <div class="w-full">
+              <div class="text-[8px] min-[360px]:text-[9px] sm:text-xs font-black text-slate-900 uppercase tracking-tight leading-none">REGISTERED TEAMS</div>
+              <div class="text-[7px] min-[360px]:text-[8px] sm:text-[10px] font-extrabold text-sky-700 leading-none mt-0.5">Official Squads</div>
             </div>
           </div>
 
-          <button id="open-teams-modal-btn" class="w-full py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-[9px] min-[380px]:text-[10px] sm:text-xs font-extrabold rounded-xl shadow-md flex items-center justify-center gap-1 transition-all">
-            <i data-lucide="search" class="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400"></i> View Teams
+          <button id="open-teams-modal-btn" class="w-full py-1 sm:py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-[8px] min-[360px]:text-[9px] sm:text-xs font-extrabold rounded-lg sm:rounded-xl shadow-md flex items-center justify-center gap-0.5 transition-all">
+            <i data-lucide="search" class="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-amber-400"></i> View Teams
           </button>
         </div>
 
         <!-- COLUMN 2 (MIDDLE): REGISTERED PLAYER LIST CARD -->
-        <div class="relative glass-card p-1.5 sm:p-4 text-center space-y-1.5 border-2 border-emerald-300 bg-white flex flex-col justify-between hover:border-emerald-500 shadow-md rounded-2xl overflow-hidden min-h-[165px] sm:min-h-[190px]">
+        <div class="relative glass-card aspect-square p-1.5 sm:p-3 text-center border-2 border-emerald-300 bg-white flex flex-col justify-between items-center hover:border-emerald-500 shadow-md rounded-xl sm:rounded-2xl overflow-hidden">
           <!-- STYLISH TOP-RIGHT CORNER CIRCLE COUNTER BADGE -->
-          <div class="absolute top-1.5 right-1.5 w-5 h-5 sm:w-8 sm:h-8 bg-emerald-600 text-white text-[9px] sm:text-xs font-black rounded-full flex items-center justify-center border-2 border-white shadow-md z-10" title="Total Players">
+          <div class="absolute top-1 right-1 w-5 h-5 sm:w-7 sm:h-7 bg-emerald-600 text-white text-[9px] sm:text-xs font-black rounded-full flex items-center justify-center border-2 border-white shadow-md z-10" title="Total Players">
             ${players.length}
           </div>
 
-          <div class="space-y-1 pt-0.5">
-            <div class="w-8 h-8 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 text-white mx-auto flex items-center justify-center shadow-md font-black">
-              <i data-lucide="users" class="w-4 h-4 sm:w-6 sm:h-6"></i>
+          <div class="space-y-0.5 sm:space-y-1.5 pt-0.5 w-full flex flex-col items-center">
+            <div class="w-7 h-7 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 text-white flex items-center justify-center shadow-md font-black">
+              <i data-lucide="users" class="w-3.5 h-3.5 sm:w-5 sm:h-5"></i>
             </div>
 
-            <div>
-              <div class="text-[9px] min-[380px]:text-[10px] sm:text-sm font-black text-slate-900 uppercase tracking-tight leading-tight">REGISTERED PLAYERS</div>
-              <div class="text-[8px] min-[380px]:text-[9px] sm:text-xs font-extrabold text-emerald-700 leading-none mt-0.5">Player Entries</div>
+            <div class="w-full">
+              <div class="text-[8px] min-[360px]:text-[9px] sm:text-xs font-black text-slate-900 uppercase tracking-tight leading-none">REGISTERED PLAYERS</div>
+              <div class="text-[7px] min-[360px]:text-[8px] sm:text-[10px] font-extrabold text-emerald-700 leading-none mt-0.5">Player Entries</div>
             </div>
           </div>
 
-          <button id="open-players-modal-btn" class="w-full py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-[9px] min-[380px]:text-[10px] sm:text-xs font-extrabold rounded-xl shadow-md flex items-center justify-center gap-1 transition-all">
-            <i data-lucide="search" class="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400"></i> View Players
+          <button id="open-players-modal-btn" class="w-full py-1 sm:py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-[8px] min-[360px]:text-[9px] sm:text-xs font-extrabold rounded-lg sm:rounded-xl shadow-md flex items-center justify-center gap-0.5 transition-all">
+            <i data-lucide="search" class="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-amber-400"></i> View Players
           </button>
         </div>
 
         <!-- COLUMN 3 (RIGHT SIDE): REGISTRATION HERE CARD -->
-        <div class="relative glass-card p-1.5 sm:p-4 text-center space-y-1.5 border-2 border-red-400 bg-white flex flex-col justify-between hover:border-red-600 shadow-md rounded-2xl overflow-hidden min-h-[165px] sm:min-h-[190px]">
+        <div class="relative glass-card aspect-square p-1.5 sm:p-3 text-center border-2 border-red-400 bg-white flex flex-col justify-between items-center hover:border-red-600 shadow-md rounded-xl sm:rounded-2xl overflow-hidden">
           
-          <div class="space-y-1 pt-0.5">
-            <div class="w-8 h-8 sm:w-12 sm:h-12 rounded-xl sm:rounded-2xl bg-gradient-to-br from-red-500 to-rose-700 text-white mx-auto flex items-center justify-center font-black shadow-md border border-red-300 text-sm sm:text-xl">
+          <div class="space-y-0.5 sm:space-y-1.5 pt-0.5 w-full flex flex-col items-center">
+            <div class="w-7 h-7 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-gradient-to-br from-red-500 to-rose-700 text-white flex items-center justify-center font-black shadow-md border border-red-300 text-xs sm:text-lg">
               ✍️
             </div>
 
-            <div>
-              <div class="text-[9px] min-[380px]:text-[10px] sm:text-sm font-black text-slate-900 uppercase tracking-tight leading-tight">REGISTRATION HERE</div>
-              <div class="text-[8px] min-[380px]:text-[9px] sm:text-xs font-black text-black leading-none mt-0.5">Team & Player Entry</div>
+            <div class="w-full">
+              <div class="text-[8px] min-[360px]:text-[9px] sm:text-xs font-black text-slate-900 uppercase tracking-tight leading-none">REGISTRATION HERE</div>
+              <div class="text-[7px] min-[360px]:text-[8px] sm:text-[10px] font-black text-black leading-none mt-0.5">Team & Player Entry</div>
             </div>
           </div>
 
           <!-- PERSISTENT BLINKING REGISTRATION BUTTON (VIBRANT RED BACKGROUND) -->
-          <button id="jsl-right-reg-btn" class="btn-blink-always w-full py-1.5 bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white font-black text-[9px] min-[380px]:text-[10px] sm:text-xs rounded-xl shadow-lg flex items-center justify-center gap-0.5 border border-red-400">
-            <i data-lucide="edit-3" class="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-300"></i> Register Now
+          <button id="jsl-right-reg-btn" class="btn-blink-always w-full py-1 sm:py-1.5 bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white font-black text-[8px] min-[360px]:text-[9px] sm:text-xs rounded-lg sm:rounded-xl shadow-lg flex items-center justify-center gap-0.5 border border-red-400">
+            <i data-lucide="edit-3" class="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-amber-300"></i> Register Now
           </button>
         </div>
 
