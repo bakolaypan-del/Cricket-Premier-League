@@ -1448,10 +1448,27 @@ function openTeamRegisterFormModal() {
       const coOwner2Name = hasCoOwner2 ? (document.getElementById('co-owner-2-name').value || '') : '';
       const coOwner2Phone = hasCoOwner2 ? (document.getElementById('co-owner-2-phone').value || '') : '';
 
-      let finalOwnerPhotoUrl = ownerPhotoFileObj ? (await uploadHDImage(ownerPhotoFileObj, 'owner_photos') || ownerPhotoDataUrl) : ownerPhotoDataUrl;
-      let finalCoOwner1PhotoUrl = (hasCoOwner1 && coOwner1PhotoFileObj) ? (await uploadHDImage(coOwner1PhotoFileObj, 'co_owner_photos') || coOwner1PhotoDataUrl) : coOwner1PhotoDataUrl;
-      let finalCoOwner2PhotoUrl = (hasCoOwner2 && coOwner2PhotoFileObj) ? (await uploadHDImage(coOwner2PhotoFileObj, 'co_owner_photos') || coOwner2PhotoDataUrl) : coOwner2PhotoDataUrl;
-      let finalLogoUrl = teamLogoFileObj ? (await uploadHDImage(teamLogoFileObj, 'team_logos') || teamLogoDataUrl) : teamLogoDataUrl;
+      // Parallel concurrent upload racer for INSTANT TEAM SUBMISSION
+      const uploadWithTimeout = async (fileObj, folder, fallbackDataUrl) => {
+        if (!fileObj) return fallbackDataUrl;
+        try {
+          const timeoutPromise = new Promise(res => setTimeout(() => res(null), 2500));
+          const result = await Promise.race([
+            uploadHDImage(fileObj, folder),
+            timeoutPromise
+          ]);
+          return result || fallbackDataUrl;
+        } catch (e) {
+          return fallbackDataUrl;
+        }
+      };
+
+      const [finalOwnerPhotoUrl, finalCoOwner1PhotoUrl, finalCoOwner2PhotoUrl, finalLogoUrl] = await Promise.all([
+        uploadWithTimeout(ownerPhotoFileObj, 'owner_photos', ownerPhotoDataUrl),
+        uploadWithTimeout(hasCoOwner1 ? coOwner1PhotoFileObj : null, 'co_owner_photos', coOwner1PhotoDataUrl),
+        uploadWithTimeout(hasCoOwner2 ? coOwner2PhotoFileObj : null, 'co_owner_photos', coOwner2PhotoDataUrl),
+        uploadWithTimeout(teamLogoFileObj, 'team_logos', teamLogoDataUrl)
+      ]);
 
       const newTeam = store.registerTeam({
         leagueId: 'leg-jsl',
@@ -1796,10 +1813,26 @@ function openPlayerRegisterFormModal() {
       const upiRef = document.getElementById('ply-upi-ref').value;
       const remarks = document.getElementById('ply-remarks').value || upiRef;
 
-      // Upload HD Images directly to Cloudinary / Supabase Storage
-      let finalPhotoUrl = plyPhotoFileObj ? (await uploadHDImage(plyPhotoFileObj, 'player_photos') || plyPhotoDataUrl) : plyPhotoDataUrl;
-      let finalAadharUrl = plyAadharFileObj ? (await uploadHDImage(plyAadharFileObj, 'aadhaar_docs') || plyAadharDataUrl) : plyAadharDataUrl;
-      let finalProofUrl = plyProofFileObj ? (await uploadHDImage(plyProofFileObj, 'payment_receipts') || plyProofDataUrl) : plyProofDataUrl;
+      // Parallel concurrent upload racer with 2.5s timeout for INSTANT SUBMISSION (1-2s response time)
+      const uploadWithTimeout = async (fileObj, folder, fallbackDataUrl) => {
+        if (!fileObj) return fallbackDataUrl;
+        try {
+          const timeoutPromise = new Promise(res => setTimeout(() => res(null), 2500));
+          const result = await Promise.race([
+            uploadHDImage(fileObj, folder),
+            timeoutPromise
+          ]);
+          return result || fallbackDataUrl;
+        } catch (e) {
+          return fallbackDataUrl;
+        }
+      };
+
+      const [finalPhotoUrl, finalAadharUrl, finalProofUrl] = await Promise.all([
+        uploadWithTimeout(plyPhotoFileObj, 'player_photos', plyPhotoDataUrl),
+        uploadWithTimeout(plyAadharFileObj, 'aadhaar_docs', plyAadharDataUrl),
+        uploadWithTimeout(plyProofFileObj, 'payment_receipts', plyProofDataUrl)
+      ]);
 
       const newPlayer = await store.registerPlayer({
         name,

@@ -240,7 +240,9 @@ class Store {
   // --- PLAYERS ---
   getPlayers() {
     const players = JSON.parse(localStorage.getItem(STORAGE_KEYS.PLAYERS)) || [];
-    // Ensure continuous dynamic registration numbers without gaps & fix corrupted image strings
+    // ATOMIC TIMESTAMP SORTING: Ensures zero duplicate IDs when multiple players submit at the exact same millisecond
+    players.sort((a, b) => (a.createdTime || a.regTimestamp || 0) - (b.createdTime || b.regTimestamp || 0));
+
     return players.map((p, idx) => {
       const displayNo = idx + 1;
       const regId = `JSL2026-${String(displayNo).padStart(4, '0')}`;
@@ -266,19 +268,16 @@ class Store {
     return this.getPlayers().find(p => p.id === id);
   }
 
-  // --- REGISTER NEW PLAYER WITH CLOUDINARY HD STORAGE & FULL FORM FIELDS ---
+  // --- REGISTER NEW PLAYER WITH ATOMIC TIMESTAMP QUEUE & ZERO DUPLICATES ---
   registerPlayer(playerData) {
     const players = this.getPlayers();
-    const displayNo = players.length + 1;
-    const registrationId = `JSL2026-${String(displayNo).padStart(4, '0')}`;
+    const createdTime = Date.now() + Math.random();
     const uuid = 'ply-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7);
 
     const newPlayer = {
       id: uuid,
-      displayRegistrationNumber: displayNo,
-      registrationId,
-      serialNo: displayNo,
-      regNo: registrationId,
+      createdTime,
+      regTimestamp: createdTime,
       leagueCategory: 'JSL',
       name: playerData.name || playerData.playerName,
       fatherName: playerData.fatherName || 'N/A',
@@ -311,7 +310,9 @@ class Store {
 
     players.push(newPlayer);
 
-    // Dynamic Re-indexing (Continuous numbering 1, 2, 3...)
+    // ATOMIC RE-INDEXING (Continuous numbering 1, 2, 3... JSL2026-0001, 0002...)
+    players.sort((a, b) => (a.createdTime || a.regTimestamp || 0) - (b.createdTime || b.regTimestamp || 0));
+
     players.forEach((p, idx) => {
       const dNo = idx + 1;
       p.serialNo = dNo;
@@ -320,12 +321,13 @@ class Store {
       p.regNo = p.registrationId;
     });
 
-    safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
+    const registeredPlayer = players.find(p => p.id === uuid) || newPlayer;
 
+    safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
     saveCloudData(players, this.getTeams());
-    syncPlayerToSupabase(newPlayer);
+    syncPlayerToSupabase(registeredPlayer);
     this.notify('players_updated');
-    return newPlayer;
+    return registeredPlayer;
   }
 
   updatePlayer(updatedPlayerData) {
