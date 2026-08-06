@@ -195,7 +195,7 @@ function openFirstVisitWelcomeModal() {
 }
 
 // --- CLIENT-SIDE HD IMAGE COMPRESSION (~150 KB - 280 KB PER IMAGE, NOT LESS THAN 50 KB) ---
-function compressImage(file, maxWidth = 1050, maxHeight = 1050, quality = 0.82) {
+export function compressImage(file, maxWidth = 1050, maxHeight = 1050, quality = 0.82) {
   return new Promise((resolve) => {
     if (!file) {
       resolve('');
@@ -232,6 +232,130 @@ function compressImage(file, maxWidth = 1050, maxHeight = 1050, quality = 0.82) 
     };
     reader.onerror = () => resolve('');
     reader.readAsDataURL(file);
+  });
+}
+
+// --- INTERACTIVE SQUARE SHAPE (1:1) IMAGE CROPPER MODAL WITH CAMERA & FILE SUPPORT ---
+export function openSquareImageCropModal(imageSrc, onCropComplete, title = "Crop Player Photo (Square Shape 1:1)") {
+  document.getElementById('square-cropper-modal')?.remove();
+
+  const modalHtml = `
+    <div id="square-cropper-modal" class="fixed inset-0 z-[70] modal-overlay flex items-center justify-center p-3 bg-slate-950/95 backdrop-blur-md">
+      <div class="bg-slate-900 border-2 border-amber-500/80 max-w-md w-full p-4 relative space-y-3 animate-fade-in rounded-2xl shadow-2xl text-white modal-content-container">
+        
+        <div class="flex items-center justify-between border-b border-slate-800 pb-2">
+          <div class="flex items-center gap-2">
+            <span class="p-2 bg-amber-500/20 text-amber-400 rounded-xl border border-amber-500/40">
+              <i data-lucide="crop" class="w-4 h-4"></i>
+            </span>
+            <div>
+              <h3 class="text-sm sm:text-base font-black text-white">${title}</h3>
+              <p class="text-[10px] text-amber-300 font-semibold">Adjust & Crop image into a perfect 1:1 Square</p>
+            </div>
+          </div>
+          <button id="close-cropper-modal-btn" type="button" class="text-slate-400 hover:text-white p-1 rounded-xl bg-slate-800 border border-slate-700">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        </div>
+
+        <!-- CROP CONTAINER -->
+        <div class="relative w-full max-h-[60vh] h-72 sm:h-80 bg-slate-950 rounded-xl overflow-hidden flex items-center justify-center border border-slate-800 p-1">
+          <img id="cropper-target-img" src="${imageSrc}" class="max-w-full max-h-full object-contain block mx-auto" />
+        </div>
+
+        <!-- CROP CONTROLS TOOLBAR -->
+        <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
+          <div class="flex items-center gap-1.5">
+            <button type="button" id="cropper-zoom-in" title="Zoom In" class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl border border-slate-700 text-xs font-bold flex items-center gap-1">
+              <i data-lucide="zoom-in" class="w-3.5 h-3.5"></i>
+            </button>
+            <button type="button" id="cropper-zoom-out" title="Zoom Out" class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl border border-slate-700 text-xs font-bold flex items-center gap-1">
+              <i data-lucide="zoom-out" class="w-3.5 h-3.5"></i>
+            </button>
+            <button type="button" id="cropper-rotate-left" title="Rotate" class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl border border-slate-700 text-xs font-bold flex items-center gap-1">
+              <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+            </button>
+            <button type="button" id="cropper-reset" title="Reset Crop Box" class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl border border-slate-700 text-xs font-bold flex items-center gap-1">
+              <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button type="button" id="cropper-cancel-btn" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl border border-slate-700">
+              Cancel
+            </button>
+            <button type="button" id="cropper-apply-btn" class="px-4 py-2 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs rounded-xl shadow-lg border border-emerald-400 flex items-center gap-1.5">
+              <i data-lucide="check" class="w-4 h-4"></i> Crop Square Photo
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  if (window.lucide) window.lucide.createIcons();
+
+  const imgEl = document.getElementById('cropper-target-img');
+  let cropperInstance = null;
+
+  const initCropper = () => {
+    if (window.Cropper) {
+      cropperInstance = new window.Cropper(imgEl, {
+        aspectRatio: 1, // STRICT SQUARE ASPECT RATIO 1:1
+        viewMode: 1,
+        dragMode: 'move',
+        autoCropArea: 0.9,
+        restore: false,
+        guides: true,
+        center: true,
+        highlight: false,
+        cropBoxMovable: true,
+        cropBoxResizable: true,
+        toggleDragModeOnDblclick: false,
+      });
+    }
+  };
+
+  if (imgEl.complete) {
+    setTimeout(initCropper, 100);
+  } else {
+    imgEl.onload = () => setTimeout(initCropper, 100);
+  }
+
+  // EVENT BUTTON CONTROLS
+  document.getElementById('cropper-zoom-in')?.addEventListener('click', () => cropperInstance?.zoom(0.1));
+  document.getElementById('cropper-zoom-out')?.addEventListener('click', () => cropperInstance?.zoom(-0.1));
+  document.getElementById('cropper-rotate-left')?.addEventListener('click', () => cropperInstance?.rotate(-90));
+  document.getElementById('cropper-reset')?.addEventListener('click', () => cropperInstance?.reset());
+
+  const removeCropperModal = () => {
+    cropperInstance?.destroy();
+    document.getElementById('square-cropper-modal')?.remove();
+  };
+
+  document.getElementById('close-cropper-modal-btn')?.addEventListener('click', removeCropperModal);
+  document.getElementById('cropper-cancel-btn')?.addEventListener('click', removeCropperModal);
+
+  document.getElementById('cropper-apply-btn')?.addEventListener('click', () => {
+    if (cropperInstance) {
+      const croppedCanvas = cropperInstance.getCroppedCanvas({
+        width: 600,
+        height: 600,
+        imageSmoothingEnabled: true,
+        imageSmoothingQuality: 'high'
+      });
+      if (croppedCanvas) {
+        const croppedDataUrl = croppedCanvas.toDataURL('image/jpeg', 0.88);
+        onCropComplete(croppedDataUrl);
+      } else {
+        onCropComplete(imageSrc);
+      }
+    } else {
+      onCropComplete(imageSrc);
+    }
+    removeCropperModal();
   });
 }
 
@@ -591,6 +715,115 @@ function renderFirstPageLanding(containerEl) {
 
       </div>
 
+      <!-- OFFICIAL CONFIRMED FRANCHISE TEAMS CAROUSEL (LOOPING SLIDER FOR MOBILE & DESKTOP) -->
+      <div class="w-full max-w-5xl mx-auto space-y-3 sm:space-y-4 pt-2 sm:pt-4">
+        
+        <!-- SECTION HEADER -->
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-2 px-1 text-center sm:text-left">
+          <div>
+            <div class="flex items-center justify-center sm:justify-start gap-2">
+              <span class="px-2.5 py-0.5 bg-gradient-to-r from-amber-500 via-amber-600 to-red-600 text-slate-950 font-black text-[10px] sm:text-xs rounded-full border border-amber-300 shadow-md uppercase tracking-wider animate-pulse">
+                ⚡ OFFICIAL CONFIRMED FRANCHISES
+              </span>
+              <span class="text-xs text-emerald-600 font-extrabold flex items-center gap-1">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span> Live Loop
+              </span>
+            </div>
+            <h2 class="text-base sm:text-2xl font-black text-slate-900 mt-1 flex items-center justify-center sm:justify-start gap-2">
+              <span>🏆 Official Confirmed Teams</span>
+            </h2>
+            <p class="text-[11px] sm:text-xs text-slate-600 font-semibold">Confirmed Team List for Jhankra Super League (JSL 2026)</p>
+          </div>
+
+          <!-- CAROUSEL CONTROLS (NEXT/PREV BUTTONS) -->
+          <div class="flex items-center gap-2">
+            <button id="confirmed-teams-prev-btn" aria-label="Previous Team" class="p-2 sm:p-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-lg border border-slate-700 transition-all hover:scale-105 active:scale-95 flex items-center justify-center">
+              <i data-lucide="chevron-left" class="w-4 h-4 sm:w-5 sm:h-5"></i>
+            </button>
+            <div id="confirmed-teams-counter" class="text-xs font-mono font-black text-slate-800 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-sm">
+              1 / 3
+            </div>
+            <button id="confirmed-teams-next-btn" aria-label="Next Team" class="p-2 sm:p-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-lg border border-slate-700 transition-all hover:scale-105 active:scale-95 flex items-center justify-center">
+              <i data-lucide="chevron-right" class="w-4 h-4 sm:w-5 sm:h-5"></i>
+            </button>
+          </div>
+        </div>
+
+        <!-- CAROUSEL CARD CONTAINER -->
+        <div id="confirmed-teams-carousel-card" class="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-slate-950 border-2 border-amber-400/80 shadow-2xl group">
+          
+          <!-- SLIDES CONTAINER -->
+          <div id="confirmed-teams-slider" class="flex transition-transform duration-500 ease-out w-full">
+            
+            <!-- SLIDE 1: KHIRPAI HURRICANES -->
+            <div class="w-full flex-shrink-0 relative group/slide cursor-pointer slide-item" data-slide-index="0" data-img-src="assets/team_confirm_1_khirpai_hurricanes.jpg" data-team-name="1st Confirm Team - Khirpai Hurricanes">
+              <div class="relative w-full max-h-[75vh] flex justify-center bg-slate-950 overflow-hidden">
+                <img src="assets/team_confirm_1_khirpai_hurricanes.jpg" alt="1st Confirm Team - Khirpai Hurricanes" class="w-full h-auto max-h-[75vh] object-contain mx-auto shadow-2xl transition-transform duration-300 group-hover/slide:scale-[1.01]" />
+                
+                <!-- TOP CORNER BADGE OVERLAY -->
+                <div class="absolute top-3 left-3 bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 text-slate-950 font-black text-xs sm:text-sm px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-xl shadow-2xl border border-amber-300 flex items-center gap-1.5">
+                  <span>🏆 1ST CONFIRM TEAM</span>
+                </div>
+
+                <!-- BOTTOM CLICK TO ENLARGE HINT -->
+                <div class="absolute bottom-3 right-3 bg-slate-950/85 backdrop-blur-md text-amber-300 font-bold text-[10px] sm:text-xs px-2.5 py-1 rounded-lg border border-amber-500/40 flex items-center gap-1 shadow-lg">
+                  <i data-lucide="maximize-2" class="w-3.5 h-3.5"></i> Tap Fullscreen
+                </div>
+              </div>
+            </div>
+
+            <!-- SLIDE 2: ANIKET XI -->
+            <div class="w-full flex-shrink-0 relative group/slide cursor-pointer slide-item" data-slide-index="1" data-img-src="assets/team_confirm_2_aniket_xi.jpg" data-team-name="2nd Confirm Team - Aniket XI">
+              <div class="relative w-full max-h-[75vh] flex justify-center bg-slate-950 overflow-hidden">
+                <img src="assets/team_confirm_2_aniket_xi.jpg" alt="2nd Confirm Team - Aniket XI" class="w-full h-auto max-h-[75vh] object-contain mx-auto shadow-2xl transition-transform duration-300 group-hover/slide:scale-[1.01]" />
+                
+                <!-- TOP CORNER BADGE OVERLAY -->
+                <div class="absolute top-3 left-3 bg-gradient-to-r from-slate-200 via-slate-300 to-slate-400 text-slate-950 font-black text-xs sm:text-sm px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-xl shadow-2xl border border-white flex items-center gap-1.5">
+                  <span>🥈 2ND CONFIRM TEAM</span>
+                </div>
+
+                <!-- BOTTOM CLICK TO ENLARGE HINT -->
+                <div class="absolute bottom-3 right-3 bg-slate-950/85 backdrop-blur-md text-amber-300 font-bold text-[10px] sm:text-xs px-2.5 py-1 rounded-lg border border-amber-500/40 flex items-center gap-1 shadow-lg">
+                  <i data-lucide="maximize-2" class="w-3.5 h-3.5"></i> Tap Fullscreen
+                </div>
+              </div>
+            </div>
+
+            <!-- SLIDE 3: SRS BROTHER'S -->
+            <div class="w-full flex-shrink-0 relative group/slide cursor-pointer slide-item" data-slide-index="2" data-img-src="assets/team_confirm_3_srs_brothers.jpg" data-team-name="3rd Confirm Team - SRS Brother's">
+              <div class="relative w-full max-h-[75vh] flex justify-center bg-slate-950 overflow-hidden">
+                <img src="assets/team_confirm_3_srs_brothers.jpg" alt="3rd Confirm Team - SRS Brother's" class="w-full h-auto max-h-[75vh] object-contain mx-auto shadow-2xl transition-transform duration-300 group-hover/slide:scale-[1.01]" />
+                
+                <!-- TOP CORNER BADGE OVERLAY -->
+                <div class="absolute top-3 left-3 bg-gradient-to-r from-amber-700 via-amber-800 to-amber-900 text-amber-100 font-black text-xs sm:text-sm px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-xl shadow-2xl border border-amber-600 flex items-center gap-1.5">
+                  <span>🥉 3RD CONFIRM TEAM</span>
+                </div>
+
+                <!-- BOTTOM CLICK TO ENLARGE HINT -->
+                <div class="absolute bottom-3 right-3 bg-slate-950/85 backdrop-blur-md text-amber-300 font-bold text-[10px] sm:text-xs px-2.5 py-1 rounded-lg border border-amber-500/40 flex items-center gap-1 shadow-lg">
+                  <i data-lucide="maximize-2" class="w-3.5 h-3.5"></i> Tap Fullscreen
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- BOTTOM CAPTION & INDICATOR DOTS -->
+          <div class="p-3 bg-slate-950/95 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-2 text-center sm:text-left">
+            <div id="confirmed-team-caption" class="text-xs sm:text-sm font-black text-amber-400 truncate w-full sm:w-auto">
+              🥇 1ST CONFIRM TEAM: KHIRPAI HURRICANES (Owner: MANTU | Icon: BIJAY HALDAR)
+            </div>
+
+            <div class="flex items-center justify-center gap-2 shrink-0" id="confirmed-teams-dots">
+              <button data-dot-index="0" class="w-7 h-2 rounded-full bg-amber-400 transition-all duration-300" aria-label="Go to Slide 1"></button>
+              <button data-dot-index="1" class="w-2.5 h-2 rounded-full bg-slate-700 hover:bg-slate-500 transition-all duration-300" aria-label="Go to Slide 2"></button>
+              <button data-dot-index="2" class="w-2.5 h-2 rounded-full bg-slate-700 hover:bg-slate-500 transition-all duration-300" aria-label="Go to Slide 3"></button>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
     </div>
   `;
 
@@ -598,6 +831,100 @@ function renderFirstPageLanding(containerEl) {
   document.getElementById('btn-click-jpl')?.addEventListener('click', () => openComingSoonModal('JPL', 'Jhankra Premier League', 'assets/jpl_logo_white.jpg'));
   document.getElementById('btn-click-kpl')?.addEventListener('click', () => openComingSoonModal('KPL', 'Kota Premier League', 'assets/kpl_logo_white.jpg'));
   document.getElementById('btn-click-jsl')?.addEventListener('click', () => navigate('jsl-hub'));
+
+  // ATTACH CONFIRMED TEAMS LOOPING CAROUSEL EVENT LISTENERS & AUTO-PLAY
+  const slider = document.getElementById('confirmed-teams-slider');
+  const counter = document.getElementById('confirmed-teams-counter');
+  const captionEl = document.getElementById('confirmed-team-caption');
+  const carouselCard = document.getElementById('confirmed-teams-carousel-card');
+
+  const teamCaptions = [
+    '🥇 1ST CONFIRM TEAM: KHIRPAI HURRICANES (Owner: MANTU | Icon: BIJAY HALDAR)',
+    '🥈 2ND CONFIRM TEAM: ANIKET XI (Owner: UTTAM GHOSH | Icon: RINTU ROY)',
+    '🥉 3RD CONFIRM TEAM: SRS BROTHER\'S (Owner: RAJA | Icon: TAPAS)'
+  ];
+
+  let currentSlide = 0;
+  const totalSlides = 3;
+
+  const updateSlide = (index) => {
+    currentSlide = (index + totalSlides) % totalSlides;
+    if (slider) {
+      slider.style.transform = `translateX(-${currentSlide * 100}%)`;
+    }
+    if (counter) {
+      counter.textContent = `${currentSlide + 1} / ${totalSlides}`;
+    }
+    if (captionEl) {
+      captionEl.textContent = teamCaptions[currentSlide];
+    }
+
+    // Update dot styles
+    const dots = document.querySelectorAll('#confirmed-teams-dots button');
+    dots.forEach((dot, idx) => {
+      if (idx === currentSlide) {
+        dot.className = 'w-7 h-2 rounded-full bg-amber-400 transition-all duration-300';
+      } else {
+        dot.className = 'w-2.5 h-2 rounded-full bg-slate-700 hover:bg-slate-500 transition-all duration-300';
+      }
+    });
+  };
+
+  const nextSlide = () => updateSlide(currentSlide + 1);
+  const prevSlide = () => updateSlide(currentSlide - 1);
+
+  document.getElementById('confirmed-teams-next-btn')?.addEventListener('click', nextSlide);
+  document.getElementById('confirmed-teams-prev-btn')?.addEventListener('click', prevSlide);
+
+  document.querySelectorAll('#confirmed-teams-dots button').forEach(dotBtn => {
+    dotBtn.addEventListener('click', (e) => {
+      const idx = parseInt(e.currentTarget.getAttribute('data-dot-index'), 10);
+      updateSlide(idx);
+    });
+  });
+
+  // Tap on slide image to open HD photo zoom modal
+  document.querySelectorAll('.slide-item').forEach(slide => {
+    slide.addEventListener('click', (e) => {
+      const imgSrc = e.currentTarget.getAttribute('data-img-src');
+      const teamName = e.currentTarget.getAttribute('data-team-name');
+      if (imgSrc) {
+        openHDPhotoZoomModal(imgSrc, teamName);
+      }
+    });
+  });
+
+  // Auto-play loop every 3.5 seconds
+  let autoPlayTimer = setInterval(nextSlide, 3500);
+
+  // Pause autoplay on mouse enter / touch start and resume on leave / end
+  if (carouselCard) {
+    carouselCard.addEventListener('mouseenter', () => clearInterval(autoPlayTimer));
+    carouselCard.addEventListener('mouseleave', () => {
+      clearInterval(autoPlayTimer);
+      autoPlayTimer = setInterval(nextSlide, 3500);
+    });
+
+    // Touch swipe support for mobile phone screens
+    let touchStartX = 0;
+    let touchEndX = 0;
+
+    carouselCard.addEventListener('touchstart', (e) => {
+      touchStartX = e.changedTouches[0].screenX;
+      clearInterval(autoPlayTimer);
+    }, { passive: true });
+
+    carouselCard.addEventListener('touchend', (e) => {
+      touchEndX = e.changedTouches[0].screenX;
+      if (touchStartX - touchEndX > 35) {
+        nextSlide();
+      } else if (touchEndX - touchStartX > 35) {
+        prevSlide();
+      }
+      clearInterval(autoPlayTimer);
+      autoPlayTimer = setInterval(nextSlide, 3500);
+    }, { passive: true });
+  }
 }
 
 // --- COMING SOON MODAL WITH STYLISH LOGOS ---
@@ -1666,26 +1993,77 @@ function openPlayerRegisterFormModal() {
           <!-- 6. Team Preference -->
           <div>
             <label class="block text-[8px] font-bold text-slate-700 uppercase mb-0.5">Team Preference (Optional)</label>
-            <input type="text" id="ply-team-pref" placeholder="Preferred Franchise Team Name (Optional)" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-2 focus:outline-none focus:border-emerald-500" />
-          </div>
+            <input type="text" id="ply-team-pref" placeholder="Preferred Franchise Team Name (Optional)" class="w-full bg-slate-50 border border          <!-- 7. HD Player Photo (Square 1:1 Crop with Camera & Gallery Options) -->
+          <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-2 shadow-sm">
+            <div class="flex items-center justify-between">
+              <label class="block text-[9px] font-black text-slate-800 uppercase">Player Photo (Square Shape 1:1) *</label>
+              <span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[8px] font-black rounded-full border border-emerald-300">1:1 SQUARE FORMAT</span>
+            </div>
 
-          <!-- 7. HD Player Photo (Full HD Crisp Quality Upload) -->
-          <div>
-            <label class="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">Player Photo (FULL HD Crisp Quality) *</label>
-            <input type="file" id="ply-photo-file" accept="image/*" required class="w-full bg-slate-50 border border-slate-300 text-slate-700 text-[10px] rounded-lg p-1 file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:text-[9px] file:font-bold file:bg-emerald-600 file:text-white" />
-            <div id="ply-photo-preview-box" class="hidden mt-1 flex items-center gap-2 bg-white p-1 rounded-lg border border-slate-300">
-              <img id="ply-photo-preview-img" class="w-8 h-8 rounded object-cover" />
-              <span class="text-[9px] text-emerald-600 font-bold">Full HD Photo Selected!</span>
+            <div class="grid grid-cols-2 gap-2">
+              <!-- Gallery Option -->
+              <label class="px-2.5 py-2 bg-white hover:bg-emerald-50 text-slate-800 font-bold text-[10px] rounded-xl border border-slate-300 flex items-center justify-center gap-1.5 cursor-pointer shadow-sm transition-all hover:border-emerald-400">
+                <i data-lucide="image" class="w-4 h-4 text-emerald-600"></i>
+                <span>📁 Select Gallery</span>
+                <input type="file" id="ply-photo-file-gallery" accept="image/*" class="hidden" />
+              </label>
+
+              <!-- Camera Option -->
+              <label class="px-2.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-extrabold text-[10px] rounded-xl border border-emerald-400 flex items-center justify-center gap-1.5 cursor-pointer shadow-md transition-all">
+                <i data-lucide="camera" class="w-4 h-4 text-amber-300 animate-pulse"></i>
+                <span>📷 Take Live Photo</span>
+                <input type="file" id="ply-photo-file-camera" accept="image/*" capture="user" class="hidden" />
+              </label>
+            </div>
+
+            <!-- Preview Box with Square Cropped Photo & Re-Crop Button -->
+            <div id="ply-photo-preview-box" class="hidden p-2 bg-white rounded-xl border border-emerald-300 flex items-center justify-between gap-2 shadow-sm">
+              <div class="flex items-center gap-2.5">
+                <img id="ply-photo-preview-img" class="w-12 h-12 rounded-xl object-cover border-2 border-emerald-500 shadow-sm" />
+                <div>
+                  <div class="text-[10px] text-slate-900 font-black flex items-center gap-1">
+                    <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-600"></i> Square Photo Ready
+                  </div>
+                  <div class="text-[9px] text-slate-500 font-semibold">Cropped 1:1 Format</div>
+                </div>
+              </div>
+              <button type="button" id="re-crop-ply-photo-btn" class="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-amber-300 font-black text-[10px] rounded-lg border border-slate-700 flex items-center gap-1 shadow">
+                <i data-lucide="crop" class="w-3.5 h-3.5"></i> Re-Crop
+              </button>
             </div>
           </div>
 
-          <!-- 8. Aadhaar Card Front -->
-          <div>
-            <label class="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">Aadhaar Card Front / Proof (Full HD) *</label>
-            <input type="file" id="ply-aadhar-file" accept="image/*" required class="w-full bg-slate-50 border border-slate-300 text-slate-700 text-[10px] rounded-lg p-1 file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:text-[9px] file:font-bold file:bg-sky-600 file:text-white" />
-            <div id="ply-aadhar-preview-box" class="hidden mt-1 flex items-center gap-2 bg-white p-1 rounded-lg border border-slate-300">
-              <img id="ply-aadhar-preview-img" class="w-10 h-7 rounded object-cover" />
-              <span class="text-[9px] text-emerald-600 font-bold">Aadhaar Document Selected!</span>
+          <!-- 8. Aadhaar Card Front / Proof -->
+          <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-2 shadow-sm">
+            <div class="flex items-center justify-between">
+              <label class="block text-[9px] font-black text-slate-800 uppercase">Aadhaar Card Front / Proof *</label>
+              <span class="px-2 py-0.5 bg-sky-100 text-sky-800 text-[8px] font-black rounded-full border border-sky-300">DOCUMENT PROOF</span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2">
+              <label class="px-2.5 py-2 bg-white hover:bg-sky-50 text-slate-800 font-bold text-[10px] rounded-xl border border-slate-300 flex items-center justify-center gap-1.5 cursor-pointer shadow-sm transition-all hover:border-sky-400">
+                <i data-lucide="file-text" class="w-4 h-4 text-sky-600"></i>
+                <span>📁 Select File</span>
+                <input type="file" id="ply-aadhar-file-gallery" accept="image/*" class="hidden" />
+              </label>
+
+              <label class="px-2.5 py-2 bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-500 hover:to-blue-600 text-white font-extrabold text-[10px] rounded-xl border border-sky-400 flex items-center justify-center gap-1.5 cursor-pointer shadow-md transition-all">
+                <i data-lucide="camera" class="w-4 h-4 text-white animate-pulse"></i>
+                <span>📷 Capture Camera</span>
+                <input type="file" id="ply-aadhar-file-camera" accept="image/*" capture="environment" class="hidden" />
+              </label>
+            </div>
+
+            <div id="ply-aadhar-preview-box" class="hidden p-2 bg-white rounded-xl border border-sky-300 flex items-center justify-between gap-2 shadow-sm">
+              <div class="flex items-center gap-2.5">
+                <img id="ply-aadhar-preview-img" class="w-12 h-9 rounded-lg object-cover border border-sky-500 shadow-sm" />
+                <div>
+                  <div class="text-[10px] text-slate-900 font-black flex items-center gap-1">
+                    <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-sky-600"></i> Aadhaar Document Selected
+                  </div>
+                  <div class="text-[9px] text-slate-500 font-semibold">HD Proof Ready</div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -1728,12 +2106,30 @@ function openPlayerRegisterFormModal() {
                 <input type="text" id="ply-upi-ref" required placeholder="UPI/9812736451/PINTU" class="w-full bg-white border border-slate-300 text-emerald-700 font-mono text-[11px] rounded p-1.5 focus:outline-none" />
               </div>
 
-              <div>
-                <label class="block text-[8px] font-bold text-slate-700 uppercase mb-0.5">Upload Payment Receipt Screenshot (Full HD) *</label>
-                <input type="file" id="ply-proof-file" accept="image/*" required class="w-full bg-white border border-slate-300 text-slate-700 text-[9px] rounded p-1 file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:text-[8px] file:font-bold file:bg-emerald-600 file:text-white" />
-                <div id="ply-proof-preview-box" class="hidden mt-1 flex items-center gap-2 bg-white p-1 rounded-lg border border-slate-300">
-                  <img id="ply-proof-preview-img" class="w-10 h-7 rounded object-cover" />
-                  <span class="text-[9px] text-emerald-600 font-bold">Receipt Screenshot Selected!</span>
+              <div class="space-y-1">
+                <label class="block text-[8px] font-bold text-slate-700 uppercase mb-0.5">Upload Payment Receipt Screenshot *</label>
+                
+                <div class="grid grid-cols-2 gap-2">
+                  <label class="px-2 py-1.5 bg-white hover:bg-emerald-50 text-slate-800 font-bold text-[9px] rounded-lg border border-slate-300 flex items-center justify-center gap-1 cursor-pointer shadow-sm transition-all">
+                    <i data-lucide="file-image" class="w-3.5 h-3.5 text-emerald-600"></i>
+                    <span>📁 Select File</span>
+                    <input type="file" id="ply-proof-file-gallery" accept="image/*" class="hidden" />
+                  </label>
+
+                  <label class="px-2 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[9px] rounded-lg border border-emerald-400 flex items-center justify-center gap-1 cursor-pointer shadow-sm transition-all">
+                    <i data-lucide="camera" class="w-3.5 h-3.5 text-amber-300"></i>
+                    <span>📷 From Camera</span>
+                    <input type="file" id="ply-proof-file-camera" accept="image/*" capture="environment" class="hidden" />
+                  </label>
+                </div>
+
+                <div id="ply-proof-preview-box" class="hidden p-2 bg-white rounded-xl border border-emerald-300 flex items-center justify-between gap-2 shadow-sm mt-1">
+                  <div class="flex items-center gap-2">
+                    <img id="ply-proof-preview-img" class="w-10 h-7 rounded object-cover border border-emerald-500" />
+                    <span class="text-[9px] text-emerald-700 font-black flex items-center gap-1">
+                      <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-600"></i> Receipt Selected!
+                    </span>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1794,38 +2190,74 @@ function openPlayerRegisterFormModal() {
   let plyAadharDataUrl = '';
   let plyProofDataUrl = '';
 
-  document.getElementById('ply-photo-file')?.addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      plyPhotoFileObj = file;
-      plyPhotoDataUrl = await compressImage(file, 1050, 1050, 0.82);
-      document.getElementById('ply-photo-preview-img').src = plyPhotoDataUrl;
-      document.getElementById('ply-photo-preview-box').classList.remove('hidden');
+  // PROCESS PLAYER PHOTO (TRIGGER SQUARE CROPPER MODAL)
+  const handlePhotoSelection = async (file) => {
+    if (!file) return;
+    plyPhotoFileObj = file;
+    const rawDataUrl = await compressImage(file, 1200, 1200, 0.85);
+    openSquareImageCropModal(rawDataUrl, (croppedSquareDataUrl) => {
+      plyPhotoDataUrl = croppedSquareDataUrl;
+      const imgPreview = document.getElementById('ply-photo-preview-img');
+      if (imgPreview) imgPreview.src = croppedSquareDataUrl;
+      document.getElementById('ply-photo-preview-box')?.classList.remove('hidden');
+    }, 'Crop Player Photo (Square 1:1)');
+  };
+
+  document.getElementById('ply-photo-file-gallery')?.addEventListener('change', (e) => handlePhotoSelection(e.target.files[0]));
+  document.getElementById('ply-photo-file-camera')?.addEventListener('change', (e) => handlePhotoSelection(e.target.files[0]));
+
+  document.getElementById('re-crop-ply-photo-btn')?.addEventListener('click', () => {
+    if (plyPhotoDataUrl) {
+      openSquareImageCropModal(plyPhotoDataUrl, (croppedSquareDataUrl) => {
+        plyPhotoDataUrl = croppedSquareDataUrl;
+        const imgPreview = document.getElementById('ply-photo-preview-img');
+        if (imgPreview) imgPreview.src = croppedSquareDataUrl;
+      }, 'Re-Crop Player Photo (Square 1:1)');
     }
   });
 
-  document.getElementById('ply-aadhar-file')?.addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      plyAadharFileObj = file;
-      plyAadharDataUrl = await compressImage(file, 1050, 1050, 0.82);
-      document.getElementById('ply-aadhar-preview-img').src = plyAadharDataUrl;
-      document.getElementById('ply-aadhar-preview-box').classList.remove('hidden');
-    }
-  });
+  // PROCESS AADHAAR CARD PROOF
+  const handleAadharSelection = async (file) => {
+    if (!file) return;
+    plyAadharFileObj = file;
+    plyAadharDataUrl = await compressImage(file, 1050, 1050, 0.82);
+    const imgPreview = document.getElementById('ply-aadhar-preview-img');
+    if (imgPreview) imgPreview.src = plyAadharDataUrl;
+    document.getElementById('ply-aadhar-preview-box')?.classList.remove('hidden');
+  };
 
-  document.getElementById('ply-proof-file')?.addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      plyProofFileObj = file;
-      plyProofDataUrl = await compressImage(file, 1050, 1050, 0.82);
-      document.getElementById('ply-proof-preview-img').src = plyProofDataUrl;
-      document.getElementById('ply-proof-preview-box').classList.remove('hidden');
-    }
-  });
+  document.getElementById('ply-aadhar-file-gallery')?.addEventListener('change', (e) => handleAadharSelection(e.target.files[0]));
+  document.getElementById('ply-aadhar-file-camera')?.addEventListener('change', (e) => handleAadharSelection(e.target.files[0]));
+
+  // PROCESS PAYMENT RECEIPT SCREENSHOT
+  const handleProofSelection = async (file) => {
+    if (!file) return;
+    plyProofFileObj = file;
+    plyProofDataUrl = await compressImage(file, 1050, 1050, 0.82);
+    const imgPreview = document.getElementById('ply-proof-preview-img');
+    if (imgPreview) imgPreview.src = plyProofDataUrl;
+    document.getElementById('ply-proof-preview-box')?.classList.remove('hidden');
+  };
+
+  document.getElementById('ply-proof-file-gallery')?.addEventListener('change', (e) => handleProofSelection(e.target.files[0]));
+  document.getElementById('ply-proof-file-camera')?.addEventListener('change', (e) => handleProofSelection(e.target.files[0]));
 
   document.getElementById('player-registration-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
+
+    if (!plyPhotoDataUrl) {
+      alert("Please select or capture your Player Photo!");
+      return;
+    }
+    if (!plyAadharDataUrl) {
+      alert("Please upload or capture your Aadhaar Card proof!");
+      return;
+    }
+    if (!plyProofDataUrl) {
+      alert("Please upload or capture your Payment Receipt screenshot!");
+      return;
+    }
+
     const submitBtn = document.getElementById('submit-player-reg-btn');
     if (submitBtn) {
       submitBtn.disabled = true;
@@ -1857,7 +2289,7 @@ function openPlayerRegisterFormModal() {
 
       // Parallel concurrent Cloudinary HD upload with 10s safety timeout
       const uploadWithTimeout = async (fileObj, folder, fallbackDataUrl) => {
-        if (!fileObj) return fallbackDataUrl;
+        if (!fileObj && fallbackDataUrl) return fallbackDataUrl;
         try {
           const timeoutPromise = new Promise(res => setTimeout(() => res(null), 10000));
           const result = await Promise.race([

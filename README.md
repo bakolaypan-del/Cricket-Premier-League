@@ -34,7 +34,7 @@ It features full support for three tournament categories:
   - **Red Circle (`🔴 PENDING`)**: Awaiting payment approval.
   - **Green Circle (`🟢 APPROVED`)**: Approved payment status.
 - **Master Admin Control Panel**:
-  - Locked behind credentials (`bakolaypan@gmail.com` / `Suman@1995`).
+  - Locked behind admin credentials.
   - Approve/Reject payment receipts, view Aadhar proofs, and export master CSV data.
 - **Digital Player Pass Generator**: Download printable digital pass cards for approved players.
 

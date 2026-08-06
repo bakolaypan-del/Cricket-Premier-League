@@ -267,7 +267,7 @@ class Store {
 
   authenticateAdmin(email, password) {
     const validEmail = 'bakolaypan@gmail.com';
-    const validPass = 'Suman@1995';
+    const validPass = 'Suman@2030';
 
     if (email.trim().toLowerCase() === validEmail && password === validPass) {
       localStorage.setItem(STORAGE_KEYS.ADMIN_AUTH, 'true');

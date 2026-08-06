@@ -2,11 +2,12 @@
 
 import { store } from './store.js';
 import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF } from './export.js';
+import { openSquareImageCropModal, compressImage } from './app.js';
 
 let activeAdminTab = 'payments'; // 'payments', 'all-players', 'teams'
 
 export function renderAdminDashboard(containerEl) {
-  // STRICT ADMIN AUTHENTICATION LOCK (bakolaypan@gmail.com / Suman@1995)
+  // STRICT ADMIN AUTHENTICATION LOCK (bakolaypan@gmail.com / Suman@2030)
   if (!store.isAdminAuthenticated()) {
     renderAdminLoginScreen(containerEl);
     return;
@@ -485,12 +486,12 @@ function renderAdminLoginScreen(containerEl) {
       <form id="admin-login-form" class="space-y-3 text-left">
         <div>
           <label class="block text-[10px] font-bold text-slate-300 uppercase mb-1">Admin Email ID *</label>
-          <input type="email" id="admin-email" required value="bakolaypan@gmail.com" class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-xl p-3 focus:outline-none focus:border-amber-500 font-mono" />
+          <input type="email" id="admin-email" required placeholder="Enter Admin Email ID" class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-xl p-3 focus:outline-none focus:border-amber-500 font-mono" />
         </div>
 
         <div>
           <label class="block text-[10px] font-bold text-slate-300 uppercase mb-1">Password *</label>
-          <input type="password" id="admin-password" required value="Suman@1995" class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-xl p-3 focus:outline-none focus:border-amber-500 font-mono" />
+          <input type="password" id="admin-password" required placeholder="Enter Admin Password" class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-xl p-3 focus:outline-none focus:border-amber-500 font-mono" />
         </div>
 
         <button type="submit" class="w-full py-3 bg-gradient-to-r from-amber-500 via-amber-600 to-red-600 hover:from-amber-400 hover:to-red-500 text-slate-950 font-black text-xs rounded-xl shadow-xl transition-all border border-amber-300">
@@ -573,6 +574,32 @@ function openAdminEditPlayerModal(player, containerEl) {
         </div>
 
         <form id="admin-edit-player-form" class="space-y-2.5">
+          <!-- MASTER ADMIN PLAYER PHOTO CHANGE & RE-CROP SECTION (SQUARE 1:1) -->
+          <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800 space-y-2">
+            <div class="flex items-center justify-between">
+              <label class="block text-[9px] font-black text-amber-400 uppercase">Admin Photo Control (Square 1:1)</label>
+              <span class="text-[8px] text-slate-400">Crop or replace photo</span>
+            </div>
+
+            <div class="flex items-center gap-2.5">
+              <img id="admin-edit-photo-preview" src="${player.photoUrl || player.player_photo_url}" class="w-12 h-12 rounded-xl object-cover border-2 border-amber-500 shadow-md" onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Crect width=\'100\' height=\'100\' fill=\'%23059669\'/%3E%3Ctext x=\'50\' y=\'62\' font-size=\'45\' text-anchor=\'middle\' fill=\'white\'%3E🏏%3C/text%3E%3C/svg%3E';" />
+              
+              <div class="flex items-center gap-1.5 flex-1 flex-wrap">
+                <label class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-[9px] rounded-lg border border-slate-700 cursor-pointer flex items-center gap-1">
+                  <i data-lucide="image" class="w-3 h-3 text-emerald-400"></i> Gallery
+                  <input type="file" id="admin-photo-gallery-input" accept="image/*" class="hidden" />
+                </label>
+                <label class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-[9px] rounded-lg border border-slate-700 cursor-pointer flex items-center gap-1">
+                  <i data-lucide="camera" class="w-3 h-3 text-amber-400"></i> Camera
+                  <input type="file" id="admin-photo-camera-input" accept="image/*" capture="user" class="hidden" />
+                </label>
+                <button type="button" id="admin-crop-photo-btn" class="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[9px] rounded-lg border border-amber-400 flex items-center gap-1 shadow">
+                  <i data-lucide="crop" class="w-3 h-3"></i> Crop 1:1
+                </button>
+              </div>
+            </div>
+          </div>
+
           <div class="grid grid-cols-2 gap-2">
             <div>
               <label class="block text-[9px] font-bold text-slate-300 uppercase mb-0.5">Player Name *</label>
@@ -638,6 +665,32 @@ function openAdminEditPlayerModal(player, containerEl) {
   const removeModal = () => document.getElementById('admin-edit-player-modal')?.remove();
   document.getElementById('close-edit-player-modal')?.addEventListener('click', removeModal);
 
+  let updatedPhotoUrl = player.photoUrl || player.player_photo_url || '';
+
+  const processAdminPhotoSelection = async (file) => {
+    if (!file) return;
+    const rawDataUrl = await compressImage(file, 1200, 1200, 0.85);
+    openSquareImageCropModal(rawDataUrl, (croppedUrl) => {
+      updatedPhotoUrl = croppedUrl;
+      const previewImg = document.getElementById('admin-edit-photo-preview');
+      if (previewImg) previewImg.src = croppedUrl;
+    }, `Crop ${player.name}'s Photo (Square 1:1)`);
+  };
+
+  document.getElementById('admin-photo-gallery-input')?.addEventListener('change', (e) => processAdminPhotoSelection(e.target.files[0]));
+  document.getElementById('admin-photo-camera-input')?.addEventListener('change', (e) => processAdminPhotoSelection(e.target.files[0]));
+
+  document.getElementById('admin-crop-photo-btn')?.addEventListener('click', () => {
+    const currentSrc = updatedPhotoUrl || document.getElementById('admin-edit-photo-preview')?.src;
+    if (currentSrc) {
+      openSquareImageCropModal(currentSrc, (croppedUrl) => {
+        updatedPhotoUrl = croppedUrl;
+        const previewImg = document.getElementById('admin-edit-photo-preview');
+        if (previewImg) previewImg.src = croppedUrl;
+      }, `Re-Crop ${player.name}'s Photo (Square 1:1)`);
+    }
+  });
+
   document.getElementById('admin-edit-player-form')?.addEventListener('submit', (e) => {
     e.preventDefault();
     const newStatus = document.getElementById('edit-ply-status').value;
@@ -651,7 +704,9 @@ function openAdminEditPlayerModal(player, containerEl) {
       playingType: document.getElementById('edit-ply-category').value,
       paymentStatus: newStatus,
       registrationStatus: newStatus,
-      paymentRef: document.getElementById('edit-ply-upiref').value
+      paymentRef: document.getElementById('edit-ply-upiref').value,
+      photoUrl: updatedPhotoUrl,
+      player_photo_url: updatedPhotoUrl
     });
 
     removeModal();
