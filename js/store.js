@@ -11,8 +11,15 @@ import {
   uploadHDImage,
   initRealtimePushListener,
   clearAllPlayersFromFirebase,
-  clearAllTeamsFromFirebase
+  clearAllTeamsFromFirebase,
+  saveFixtureToFirebase,
+  deleteFixtureFromFirebase,
+  saveAuctionSettingsToFirebase,
+  saveLiveAuctionToFirebase,
+  saveLiveMatchToFirebase
 } from './supabase.js';
+
+const FIREBASE_DB_URL = "https://cpl-jsl-2026-default-rtdb.firebaseio.com";
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v7',
@@ -20,7 +27,9 @@ const STORAGE_KEYS = {
   PLAYERS: 'cpl_players_v7',
   FIXTURES: 'cpl_fixtures_v7',
   USER: 'cpl_user_v7',
-  ADMIN_AUTH: 'cpl_admin_auth_v7'
+  ADMIN_AUTH: 'cpl_admin_auth_v7',
+  PLAYER_PROFILES: 'cpl_player_profiles_v7',
+  AUCTION_SETTINGS: 'cpl_auction_settings_v7'
 };
 
 const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23059669'/%3E%3Ctext x='50' y='62' font-size='45' text-anchor='middle' fill='white'%3E🏏%3C/text%3E%3C/svg%3E";
@@ -82,6 +91,12 @@ class Store {
     }
     if (!localStorage.getItem(STORAGE_KEYS.FIXTURES)) {
       safeSetLocalStorage(STORAGE_KEYS.FIXTURES, INITIAL_FIXTURES);
+    }
+    if (!localStorage.getItem(STORAGE_KEYS.PLAYER_PROFILES)) {
+      safeSetLocalStorage(STORAGE_KEYS.PLAYER_PROFILES, []);
+    }
+    if (!localStorage.getItem(STORAGE_KEYS.AUCTION_SETTINGS)) {
+      safeSetLocalStorage(STORAGE_KEYS.AUCTION_SETTINGS, { defaultBasePrice: 200, defaultPurseBudget: 8000 });
     }
     if (!localStorage.getItem(STORAGE_KEYS.USER)) {
       safeSetLocalStorage(STORAGE_KEYS.USER, {
@@ -217,6 +232,26 @@ class Store {
           this.notify('teams_updated');
         }
       }
+
+      // 3. Sync Fixtures
+      if (Array.isArray(cloudData.fixtures)) {
+        const localFixturesStr = localStorage.getItem(STORAGE_KEYS.FIXTURES) || '[]';
+        const cloudFixturesStr = JSON.stringify(cloudData.fixtures);
+        if (localFixturesStr !== cloudFixturesStr) {
+          safeSetLocalStorage(STORAGE_KEYS.FIXTURES, cloudData.fixtures);
+          this.notify('fixtures_updated');
+        }
+      }
+
+      // 4. Sync Auction Settings
+      if (cloudData.auctionSettings) {
+        const localSettingsStr = localStorage.getItem(STORAGE_KEYS.AUCTION_SETTINGS) || '{}';
+        const cloudSettingsStr = JSON.stringify(cloudData.auctionSettings);
+        if (localSettingsStr !== cloudSettingsStr) {
+          safeSetLocalStorage(STORAGE_KEYS.AUCTION_SETTINGS, cloudData.auctionSettings);
+          this.notify('auction_settings_updated');
+        }
+      }
     } catch (err) {
       console.warn("Cloud sync error:", err);
     }
@@ -344,6 +379,10 @@ class Store {
     // Check if player with same name + phone already exists
     const inputName = (playerData.name || playerData.playerName || '').trim().toLowerCase();
     const inputPhone = (playerData.phone || playerData.mobile || '').trim();
+    
+    // Ensure we create/update their lifetime profile
+    const profile = this.createOrUpdatePlayerProfile(playerData);
+    
     const existingIdx = players.findIndex(p => 
       p && (p.phone || p.mobile || '').trim() === inputPhone && 
       (p.name || '').trim().toLowerCase() === inputName
@@ -354,11 +393,12 @@ class Store {
       players[existingIdx] = {
         ...players[existingIdx],
         ...playerData,
+        profileId: profile ? profile.id : null,
         photoUrl: playerData.photoUrl || playerData.player_photo_url || players[existingIdx].photoUrl,
         player_photo_url: playerData.photoUrl || playerData.player_photo_url || players[existingIdx].player_photo_url,
       };
       safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
-      saveCloudData(players, this.getTeams());
+      saveCloudData(players, this.getTeams(), this.getFixtures(), this.getAuctionSettings());
       syncPlayerToSupabase(players[existingIdx]);
       this.notify('players_updated');
       return players[existingIdx];
@@ -368,9 +408,10 @@ class Store {
 
     const newPlayer = {
       id: uuid,
+      profileId: profile ? profile.id : null,
       createdTime,
       regTimestamp: createdTime,
-      leagueCategory: 'JSL',
+      leagueCategory: playerData.leagueCategory || 'JSL',
       name: playerData.name || playerData.playerName,
       fatherName: playerData.fatherName || 'N/A',
       dob: playerData.dob || '2000-01-01',
@@ -396,7 +437,7 @@ class Store {
       paymentRef: playerData.paymentRef || '',
       teamId: null,
       soldPrice: 0,
-      basePrice: 200,
+      basePrice: Number(playerData.basePrice) || 200,
       regDate: new Date().toISOString().split('T')[0]
     };
 
@@ -416,7 +457,7 @@ class Store {
     const registeredPlayer = players.find(p => p.id === uuid) || newPlayer;
 
     safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
-    saveCloudData(players, this.getTeams());
+    saveCloudData(players, this.getTeams(), this.getFixtures(), this.getAuctionSettings());
     syncPlayerToSupabase(registeredPlayer);
     this.notify('players_updated');
     return registeredPlayer;
@@ -627,6 +668,129 @@ class Store {
   // --- FIXTURES ---
   getFixtures() {
     return JSON.parse(localStorage.getItem(STORAGE_KEYS.FIXTURES)) || [];
+  }
+
+  registerFixture(fixtureData) {
+    const fixtures = this.getFixtures();
+    const newFixture = {
+      id: 'fix-' + Date.now(),
+      status: 'SCHEDULED',
+      innings: 1,
+      teamAScore: { runs: 0, wickets: 0, overs: 0, balls: 0 },
+      teamBScore: { runs: 0, wickets: 0, overs: 0, balls: 0 },
+      liveMatchState: null,
+      ...fixtureData
+    };
+    fixtures.push(newFixture);
+    safeSetLocalStorage(STORAGE_KEYS.FIXTURES, fixtures);
+    saveFixtureToFirebase(newFixture);
+    this.notify('fixtures_updated');
+    return newFixture;
+  }
+
+  updateFixture(updatedFixture) {
+    const fixtures = this.getFixtures();
+    const idx = fixtures.findIndex(f => f.id === updatedFixture.id);
+    if (idx !== -1) {
+      fixtures[idx] = { ...fixtures[idx], ...updatedFixture };
+      safeSetLocalStorage(STORAGE_KEYS.FIXTURES, fixtures);
+      saveFixtureToFirebase(fixtures[idx]);
+      this.notify('fixtures_updated');
+      return fixtures[idx];
+    }
+    return null;
+  }
+
+  deleteFixture(fixtureId) {
+    let fixtures = this.getFixtures();
+    fixtures = fixtures.filter(f => f.id !== fixtureId);
+    safeSetLocalStorage(STORAGE_KEYS.FIXTURES, fixtures);
+    deleteFixtureFromFirebase(fixtureId);
+    this.notify('fixtures_updated');
+  }
+
+  // --- AUCTION CONFIG ---
+  getAuctionSettings() {
+    const defaultSettings = { defaultBasePrice: 200, defaultPurseBudget: 8000 };
+    try {
+      const s = localStorage.getItem(STORAGE_KEYS.AUCTION_SETTINGS);
+      return s ? { ...defaultSettings, ...JSON.parse(s) } : defaultSettings;
+    } catch (e) {
+      return defaultSettings;
+    }
+  }
+
+  updateAuctionSettings(settings) {
+    safeSetLocalStorage(STORAGE_KEYS.AUCTION_SETTINGS, settings);
+    saveAuctionSettingsToFirebase(settings);
+    this.notify('auction_settings_updated');
+  }
+
+  // --- LIVE AUCTION STATE ---
+  async getLiveAuctionState() {
+    try {
+      const res = await fetch(`${FIREBASE_DB_URL}/cpl_master/liveAuction.json`);
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch (e) {
+      console.warn("Live auction state fetch error:", e);
+    }
+    return null;
+  }
+
+  async updateLiveAuctionState(state) {
+    await saveLiveAuctionToFirebase(state);
+    this.notify('live_auction_updated');
+  }
+
+  // --- PLAYER PROFILES ---
+  getPlayerProfiles() {
+    return JSON.parse(localStorage.getItem(STORAGE_KEYS.PLAYER_PROFILES)) || [];
+  }
+
+  getPlayerProfileByPhone(phone) {
+    const pKey = (phone || '').trim();
+    if (!pKey) return null;
+    return this.getPlayerProfiles().find(pp => (pp.phone || '').trim() === pKey);
+  }
+
+  createOrUpdatePlayerProfile(playerData) {
+    const profiles = this.getPlayerProfiles();
+    const phone = (playerData.phone || playerData.mobile || '').trim();
+    if (!phone) return null;
+
+    let profile = profiles.find(pp => (pp.phone || '').trim() === phone);
+    if (!profile) {
+      profile = {
+        id: 'prof-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
+        phone,
+        name: playerData.name || playerData.playerName,
+        village: playerData.village || playerData.address || 'Jhankra',
+        district: playerData.district || 'Paschim Medinipur',
+        state: playerData.state || 'West Bengal',
+        battingStyle: playerData.battingStyle || 'Right Hand Bat',
+        bowlingStyle: playerData.bowlingStyle || 'Right Hand Medium',
+        photoUrl: playerData.photoUrl || playerData.player_photo_url || '',
+        created_at: new Date().toISOString()
+      };
+      profiles.push(profile);
+    } else {
+      profile.name = playerData.name || playerData.playerName || profile.name;
+      profile.village = playerData.village || playerData.address || profile.village;
+      profile.battingStyle = playerData.battingStyle || profile.battingStyle;
+      profile.bowlingStyle = playerData.bowlingStyle || profile.bowlingStyle;
+      profile.photoUrl = playerData.photoUrl || playerData.player_photo_url || profile.photoUrl;
+    }
+
+    safeSetLocalStorage(STORAGE_KEYS.PLAYER_PROFILES, profiles);
+    fetch(`${FIREBASE_DB_URL}/cpl_master/player_profiles/${profile.id}.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(profile)
+    }).catch(err => console.warn("Player profile sync error:", err));
+
+    return profile;
   }
 
   // --- USER AUTH & ROLE ---

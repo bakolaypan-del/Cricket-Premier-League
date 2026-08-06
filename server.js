@@ -11,6 +11,7 @@ function startServerOnPort(index) {
   }
   const PORT = ports[index];
   const server = http.createServer((req, res) => {
+    console.log(`[Request] ${req.method} ${req.url}`);
     let reqUrl = req.url.split('?')[0];
     let filePath = path.join(__dirname, reqUrl === '/' ? 'index.html' : reqUrl);
 
@@ -43,7 +44,7 @@ function startServerOnPort(index) {
     }
   });
 
-  server.listen(PORT, '0.0.0.0', () => {
+  server.listen(PORT, '127.0.0.1', () => {
     process.stdout.write(`==========================================================\n`);
     process.stdout.write(`Cricket Premier League Web Application is running live at:\n`);
     process.stdout.write(`-> http://localhost:${PORT}/\n`);

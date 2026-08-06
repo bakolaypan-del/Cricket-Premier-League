@@ -474,6 +474,13 @@ function renderNavbar() {
         </div>
       </div>
 
+      <!-- Navigation links (Desktop only) -->
+      <div class="hidden md:flex items-center gap-5 text-xs font-black text-slate-200">
+        <button id="nav-fixtures-btn" class="hover:text-amber-400 transition-colors py-1 ${currentRoute === 'fixtures' ? 'text-amber-400 border-b-2 border-amber-500' : ''}">Match Center</button>
+        <button id="nav-auction-btn" class="hover:text-amber-400 transition-colors py-1 ${currentRoute === 'auction' ? 'text-amber-400 border-b-2 border-amber-500' : ''}">Live Auction</button>
+        <button id="nav-career-btn" class="hover:text-amber-400 transition-colors py-1 ${currentRoute === 'career' ? 'text-amber-400 border-b-2 border-amber-500' : ''}">Career Hub</button>
+      </div>
+
       <!-- Install App & Admin Panel Buttons -->
       <div class="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
         <button id="nav-install-app-btn" class="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] sm:text-xs font-black rounded-xl flex items-center gap-1 transition-all shadow-md border border-emerald-400">
@@ -489,6 +496,9 @@ function renderNavbar() {
   document.getElementById('brand-header-logo')?.addEventListener('click', () => navigate('landing'));
   document.getElementById('nav-install-app-btn')?.addEventListener('click', handleInstallAppClick);
   document.getElementById('admin-panel-nav-btn')?.addEventListener('click', () => navigate('admin'));
+  document.getElementById('nav-fixtures-btn')?.addEventListener('click', () => navigate('fixtures'));
+  document.getElementById('nav-auction-btn')?.addEventListener('click', () => navigate('auction'));
+  document.getElementById('nav-career-btn')?.addEventListener('click', () => navigate('career'));
   if (window.lucide) window.lucide.createIcons();
 }
 
@@ -500,30 +510,36 @@ function renderMobileBottomNav() {
   bottomNavEl.className = "fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-xl border-t border-slate-200 px-4 py-2 sm:hidden shadow-lg flex items-center justify-around";
 
   bottomNavEl.innerHTML = `
-    <button id="mob-nav-home" class="flex flex-col items-center gap-0.5 ${currentRoute === 'landing' ? 'text-emerald-600 font-extrabold' : 'text-slate-500'}">
+    <button id="mob-nav-home" class="flex flex-col items-center gap-0.5 ${currentRoute === 'landing' ? 'text-emerald-650 font-extrabold' : 'text-slate-500'}">
       <i data-lucide="trophy" class="w-4 h-4"></i>
       <span class="text-[9px]">Home</span>
     </button>
 
-    <button id="mob-nav-jsl" class="flex flex-col items-center gap-0.5 ${currentRoute === 'jsl-hub' ? 'text-sky-600 font-extrabold' : 'text-slate-500'}">
-      <i data-lucide="shield" class="w-4 h-4"></i>
-      <span class="text-[9px]">JSL Hub</span>
+    <button id="mob-nav-fixtures" class="flex flex-col items-center gap-0.5 ${currentRoute === 'fixtures' ? 'text-emerald-655 font-extrabold' : 'text-slate-500'}">
+      <i data-lucide="calendar" class="w-4 h-4"></i>
+      <span class="text-[9px]">Matches</span>
     </button>
 
-    <button id="mob-nav-install" class="flex flex-col items-center gap-0.5 text-emerald-600 font-black">
-      <i data-lucide="download" class="w-4 h-4 text-emerald-600"></i>
-      <span class="text-[9px]">Install App</span>
+    <button id="mob-nav-auction" class="flex flex-col items-center gap-0.5 ${currentRoute === 'auction' ? 'text-emerald-655 font-extrabold' : 'text-slate-500'}">
+      <i data-lucide="gavel" class="w-4 h-4"></i>
+      <span class="text-[9px]">Auction</span>
     </button>
 
-    <button id="mob-nav-admin" class="flex flex-col items-center gap-0.5 ${currentRoute === 'admin' ? 'text-emerald-600 font-extrabold' : 'text-slate-500'}">
+    <button id="mob-nav-career" class="flex flex-col items-center gap-0.5 ${currentRoute === 'career' ? 'text-emerald-655 font-extrabold' : 'text-slate-500'}">
+      <i data-lucide="users" class="w-4 h-4"></i>
+      <span class="text-[9px]">Career</span>
+    </button>
+
+    <button id="mob-nav-admin" class="flex flex-col items-center gap-0.5 ${currentRoute === 'admin' ? 'text-emerald-655 font-extrabold' : 'text-slate-500'}">
       <i data-lucide="shield-check" class="w-4 h-4"></i>
       <span class="text-[9px]">Admin</span>
     </button>
   `;
 
   document.getElementById('mob-nav-home')?.addEventListener('click', () => navigate('landing'));
-  document.getElementById('mob-nav-jsl')?.addEventListener('click', () => navigate('jsl-hub'));
-  document.getElementById('mob-nav-install')?.addEventListener('click', handleInstallAppClick);
+  document.getElementById('mob-nav-fixtures')?.addEventListener('click', () => navigate('fixtures'));
+  document.getElementById('mob-nav-auction')?.addEventListener('click', () => navigate('auction'));
+  document.getElementById('mob-nav-career')?.addEventListener('click', () => navigate('career'));
   document.getElementById('mob-nav-admin')?.addEventListener('click', () => navigate('admin'));
   if (window.lucide) window.lucide.createIcons();
 }
@@ -542,6 +558,15 @@ function renderCurrentView() {
       break;
     case 'admin':
       renderAdminDashboard(container);
+      break;
+    case 'fixtures':
+      renderFixturesView(container);
+      break;
+    case 'auction':
+      renderLiveAuctionView(container);
+      break;
+    case 'career':
+      renderCareerHubView(container);
       break;
     default:
       renderFirstPageLanding(container);
@@ -1157,6 +1182,10 @@ function openRegisteredTeamsModal(allTeams) {
                   <div class="text-[10px] text-amber-700 font-extrabold truncate">👑 Owner: ${t.ownerName} (${t.ownerPhone})</div>
                   ${co1Name ? `<div class="text-[9px] text-sky-700 font-bold truncate">🤝 Co-Owner 1: ${co1Name} (${co1Phone || 'N/A'})</div>` : ''}
                   ${co2Name ? `<div class="text-[9px] text-purple-700 font-bold truncate">🤝 Co-Owner 2: ${co2Name} (${co2Phone || 'N/A'})</div>` : ''}
+                  
+                  <button class="view-team-squad-btn mt-3.5 w-full py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 hover:text-sky-800 text-[10px] font-black rounded-lg border border-sky-200 transition-all flex items-center justify-center gap-1 shadow-sm" data-team-id="${t.id}">
+                    🏃‍♂️ View Squad (${store.getPlayers().filter(p => p.teamId === t.id).length} Players)
+                  </button>
                 </div>
               </div>
             `;
@@ -1165,6 +1194,14 @@ function openRegisteredTeamsModal(allTeams) {
       `;
     }
     if (window.lucide) window.lucide.createIcons();
+
+    container.querySelectorAll('.view-team-squad-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const tId = e.currentTarget.getAttribute('data-team-id');
+        const team = allTeams.find(t => t.id === tId);
+        if (team) openTeamSquadModal(team);
+      });
+    });
   };
 
   const modalHtml = `
@@ -2354,4 +2391,882 @@ function openPlayerRegisterFormModal() {
       }
     }
   });
+}
+
+// --- VISITOR VIEWS: MATCH CENTER, LIVE AUCTION & CAREER HUB ---
+let auctionPollInterval = null;
+
+function renderFixturesView(container) {
+  let selectedCategory = 'JSL';
+  let activeSubTab = 'matches'; // 'matches' or 'table'
+  
+  const drawFixtures = () => {
+    const fixtures = store.getFixtures().filter(f => f.leagueCode === selectedCategory);
+    const liveMatches = fixtures.filter(f => f.status === 'LIVE');
+    const scheduledMatches = fixtures.filter(f => f.status === 'SCHEDULED');
+    const completedMatches = fixtures.filter(f => f.status === 'COMPLETED');
+
+    // Standings points compilation (dynamic calculation from matches)
+    const standings = store.getTeams().map(t => {
+      const teamId = t.id;
+      // Get all completed games for this category involving this team
+      const teamFixtures = store.getFixtures().filter(f => f.status === 'COMPLETED' && f.leagueCode === selectedCategory && (f.teamAId === teamId || f.teamBId === teamId));
+      
+      let played = teamFixtures.length;
+      let won = 0;
+      let lost = 0;
+      let nr = 0;
+      let points = 0;
+      let totalRunsScored = 0;
+      let totalOversFaced = 0;
+      let totalRunsConceded = 0;
+      let totalOversBowled = 0;
+
+      teamFixtures.forEach(f => {
+        const isTeamA = f.teamAId === teamId;
+        const myScore = isTeamA ? f.teamAScore : f.teamBScore;
+        const oppScore = isTeamA ? f.teamBScore : f.teamAScore;
+
+        if (f.winnerTeamId === teamId) {
+          won += 1;
+          points += 2;
+        } else if (!f.winnerTeamId) {
+          nr += 1;
+          points += 1;
+        } else {
+          lost += 1;
+        }
+
+        if (myScore && oppScore) {
+          totalRunsScored += myScore.runs || 0;
+          const myOversLimit = f.oversLimit || 16;
+          if (myScore.wickets === 10) {
+            totalOversFaced += myOversLimit;
+          } else {
+            const balls = (myScore.overs || 0) * 6 + (myScore.balls || 0);
+            totalOversFaced += balls / 6;
+          }
+
+          totalRunsConceded += oppScore.runs || 0;
+          if (oppScore.wickets === 10) {
+            totalOversBowled += myOversLimit;
+          } else {
+            const oppBalls = (oppScore.overs || 0) * 6 + (oppScore.balls || 0);
+            totalOversBowled += oppBalls / 6;
+          }
+        }
+      });
+
+      const myRR = totalOversFaced > 0 ? (totalRunsScored / totalOversFaced) : 0;
+      const oppRR = totalOversBowled > 0 ? (totalRunsConceded / totalOversBowled) : 0;
+      const nrrVal = myRR - oppRR;
+
+      return {
+        name: t.name,
+        played,
+        won,
+        lost,
+        nr,
+        points,
+        nrr: nrrVal.toFixed(3)
+      };
+    });
+
+    standings.sort((a, b) => {
+      if (b.points !== a.points) return b.points - a.points;
+      if (parseFloat(b.nrr) !== parseFloat(a.nrr)) return parseFloat(b.nrr) - parseFloat(a.nrr);
+      return b.won - a.won;
+    });
+
+    let mainContentHtml = '';
+
+    if (activeSubTab === 'matches') {
+      mainContentHtml = `
+        <!-- 1. LIVE MATCHES (IF ANY) -->
+        ${liveMatches.length > 0 ? `
+          <div class="space-y-3">
+            <h2 class="text-sm font-black text-emerald-400 uppercase tracking-widest flex items-center gap-1.5">
+              <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span> Live Match Scoreboard
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              ${liveMatches.map(m => {
+                const state = m.liveMatchState || {};
+                const batTeamName = state.innings === 2 ? m.teamBName : m.teamAName;
+                const bowlTeamName = state.innings === 2 ? m.teamAName : m.teamBName;
+                const totalBalls = (state.overs * 6) + state.balls;
+                const rr = totalBalls > 0 ? ((state.runs / totalBalls) * 6).toFixed(2) : '0.00';
+                
+                let secondInningsTarget = '';
+                if (state.innings === 2 && state.target) {
+                  const runsReq = state.target - state.runs;
+                  const remainingBalls = (m.oversLimit * 6) - totalBalls;
+                  secondInningsTarget = `<div class="text-xs font-black text-amber-400 mt-2">Target: ${state.target} | Need ${runsReq} runs off ${remainingBalls} balls</div>`;
+                }
+
+                return `
+                  <div class="glass-card p-5 bg-gradient-to-br from-slate-900 to-emerald-950/20 border-2 border-emerald-500/40 rounded-2xl shadow-xl flex flex-col justify-between">
+                    <div class="flex justify-between items-center pb-2 border-b border-slate-800/80">
+                      <span class="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded font-black uppercase">Live Scoring</span>
+                      <span class="text-[10px] text-slate-400 font-bold">${m.venue}</span>
+                    </div>
+
+                    <div class="py-4 space-y-2">
+                      <div class="flex justify-between items-center">
+                        <span class="font-black text-white text-base">${batTeamName}</span>
+                        <span class="font-black text-2xl text-emerald-400">${state.runs} / ${state.wickets}</span>
+                      </div>
+                      <div class="flex justify-between items-center text-xs text-slate-400">
+                        <span>Overs: ${state.overs}.${state.balls} / ${m.oversLimit}</span>
+                        <span>Run Rate: ${rr}</span>
+                      </div>
+                      ${secondInningsTarget}
+                    </div>
+
+                    <!-- Batter / Bowler partner logs -->
+                    <div class="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/60 space-y-1.5 text-[11px]">
+                      <div class="flex justify-between text-slate-300 font-bold">
+                        <span>Striker: ${store.getPlayerById(state.strikerId)?.name || 'Striking'}</span>
+                        <span>Bowler: ${store.getPlayerById(state.bowlerId)?.name || 'Bowling'}</span>
+                      </div>
+                      <div class="flex items-center gap-2 pt-1.5 border-t border-slate-900 text-[10px]">
+                        <span class="text-slate-500 uppercase font-extrabold">This Over:</span>
+                        <div class="flex gap-1">
+                          ${(state.overBalls || []).map(b => `<span class="px-1.5 py-0.5 bg-slate-900 text-slate-300 rounded font-bold text-[9px]">${b.label}</span>`).join('')}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- 2. UPCOMING MATCH FIXTURES -->
+        <div class="space-y-3">
+          <h2 class="text-sm font-black text-sky-400 uppercase tracking-widest">Scheduled Fixtures</h2>
+          ${scheduledMatches.length === 0 ? `
+            <div class="text-center py-8 text-xs text-slate-500 border border-dashed border-slate-800 rounded-xl bg-slate-950/10">No upcoming fixtures scheduled yet.</div>
+          ` : `
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              ${scheduledMatches.map(m => `
+                <div class="glass-card p-4 bg-slate-900/90 border border-slate-800 rounded-2xl flex flex-col justify-between">
+                  <div class="flex justify-between items-center pb-2 border-b border-slate-800/60 text-[10px] text-slate-400">
+                    <span class="font-bold uppercase tracking-wider text-sky-400">${m.leagueCode} Match</span>
+                    <span class="font-semibold">${m.date} at ${m.time}</span>
+                  </div>
+                  <div class="py-3 flex justify-between items-center font-black text-white text-sm">
+                    <span>${m.teamAName}</span>
+                    <span class="text-xs text-slate-500">VS</span>
+                    <span>${m.teamBName}</span>
+                  </div>
+                  <div class="text-[10px] text-slate-400 pt-2 border-t border-slate-800 flex justify-between">
+                    <span>Overs: ${m.oversLimit} Overs</span>
+                    <span>Venue: ${m.venue}</span>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          `}
+        </div>
+
+        <!-- 3. COMPLETED MATCH RESULTS -->
+        <div class="space-y-3">
+          <h2 class="text-sm font-black text-slate-400 uppercase tracking-widest">Results</h2>
+          ${completedMatches.length === 0 ? `
+            <div class="text-center py-8 text-xs text-slate-500 border border-dashed border-slate-800 rounded-xl bg-slate-950/10">No matches completed yet.</div>
+          ` : `
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+              ${completedMatches.map(m => `
+                <div class="glass-card p-4 bg-slate-900/90 border border-slate-850 rounded-2xl">
+                  <div class="flex justify-between items-center pb-2 border-b border-slate-850 text-[10px] text-slate-400">
+                    <span class="font-bold text-emerald-500 uppercase">Completed</span>
+                    <span>${m.date}</span>
+                  </div>
+                  <div class="py-3 flex justify-between items-center font-black text-white text-xs sm:text-sm">
+                    <div>
+                      <div>${m.teamAName}</div>
+                      <div class="text-[11px] text-slate-400 font-bold">${m.teamAScore ? `${m.teamAScore.runs}/${m.teamAScore.wickets} (${m.teamAScore.overs}.${m.teamAScore.balls})` : ''}</div>
+                    </div>
+                    <span class="text-slate-500 font-semibold">vs</span>
+                    <div class="text-right">
+                      <div>${m.teamBName}</div>
+                      <div class="text-[11px] text-slate-400 font-bold">${m.teamBScore ? `${m.teamBScore.runs}/${m.teamBScore.wickets} (${m.teamBScore.overs}.${m.teamBScore.balls})` : ''}</div>
+                    </div>
+                  </div>
+                  <div class="text-[11px] bg-sky-950/20 border border-sky-500/20 text-sky-300 font-extrabold p-2 rounded-xl text-center mt-2 uppercase tracking-wide">
+                    🏆 ${m.result || 'Match Completed'}
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          `}
+        </div>
+      `;
+    } else {
+      mainContentHtml = `
+        <div class="space-y-4">
+          <div class="flex items-center justify-between">
+            <h2 class="text-sm font-black text-sky-400 uppercase tracking-widest">Franchise Standings (Points Table)</h2>
+            <span class="px-2 py-0.5 bg-emerald-950 text-emerald-400 border border-emerald-800 rounded font-bold text-[10px] uppercase tracking-wide">🏆 Top 4 Qualify for Semifinal</span>
+          </div>
+
+          <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
+            <div class="overflow-x-auto">
+              <table class="w-full text-left text-xs sm:text-sm text-slate-200">
+                <thead class="bg-slate-950 font-black text-[10px] uppercase text-slate-400 border-b border-slate-800">
+                  <tr>
+                    <th class="py-3.5 px-4 text-center w-10">POS</th>
+                    <th class="py-3.5 px-3">TEAM</th>
+                    <th class="py-3.5 px-3 text-center">P</th>
+                    <th class="py-3.5 px-3 text-center text-emerald-400">W</th>
+                    <th class="py-3.5 px-3 text-center text-red-400">L</th>
+                    <th class="py-3.5 px-3 text-center">NR</th>
+                    <th class="py-3.5 px-3 text-center text-amber-400">PTS</th>
+                    <th class="py-3.5 px-4 text-right">NRR</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800/60 font-semibold">
+                  ${standings.map((t, idx) => {
+                    const isSemiSpot = idx < 4;
+                    const rowClass = isSemiSpot ? 'bg-emerald-950/5 hover:bg-emerald-950/10' : 'hover:bg-slate-950/40';
+                    return `
+                      <tr class="${rowClass} transition-colors">
+                        <td class="py-3.5 px-4 text-center font-black">
+                          <span class="inline-flex w-5 h-5 rounded-full ${isSemiSpot ? 'bg-emerald-600 text-slate-950' : 'bg-slate-800 text-slate-400'} items-center justify-center text-[10px] font-black shadow-sm">
+                            ${idx + 1}
+                          </span>
+                        </td>
+                        <td class="py-3.5 px-3 text-xs sm:text-sm font-black text-white flex items-center gap-2">
+                          ${isSemiSpot ? `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" title="In Semifinal Zone"></span>` : ''}
+                          <span>${t.name}</span>
+                        </td>
+                        <td class="py-3.5 px-3 text-center font-mono">${t.played}</td>
+                        <td class="py-3.5 px-3 text-center font-mono text-emerald-400 font-bold">${t.won}</td>
+                        <td class="py-3.5 px-3 text-center font-mono text-red-400 font-bold">${t.lost}</td>
+                        <td class="py-3.5 px-3 text-center font-mono">${t.nr}</td>
+                        <td class="py-3.5 px-3 text-center font-black font-mono text-amber-400 text-sm">${t.points}</td>
+                        <td class="py-3.5 px-4 text-right font-mono text-xs ${parseFloat(t.nrr) >= 0 ? 'text-sky-400' : 'text-slate-400'}">${t.nrr}</td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    container.innerHTML = `
+      <div class="space-y-6 sm:space-y-8 animate-fade-in pb-16">
+        <!-- Banner & Category Selector -->
+        <div class="bg-slate-900/90 border border-slate-800 p-4 sm:p-6 rounded-2xl shadow-2xl backdrop-blur-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+          <div>
+            <h1 class="text-xl sm:text-2xl font-black text-white">🏏 Match Center</h1>
+            <p class="text-xs text-slate-400">View live scores, match standings, and fixtures in real-time.</p>
+          </div>
+          <div class="flex border border-slate-800 rounded-xl overflow-hidden bg-slate-950 p-1">
+            <button data-cat="JSL" class="fixture-cat-btn ${selectedCategory === 'JSL' ? 'bg-sky-600 text-white font-extrabold' : 'text-slate-400 hover:text-white'} px-3 py-1.5 text-xs rounded-lg transition-all">JSL</button>
+            <button data-cat="JPL" class="fixture-cat-btn ${selectedCategory === 'JPL' ? 'bg-sky-600 text-white font-extrabold' : 'text-slate-400 hover:text-white'} px-3 py-1.5 text-xs rounded-lg transition-all">JPL</button>
+            <button data-cat="KPL" class="fixture-cat-btn ${selectedCategory === 'KPL' ? 'bg-sky-600 text-white font-extrabold' : 'text-slate-400 hover:text-white'} px-3 py-1.5 text-xs rounded-lg transition-all">KPL</button>
+          </div>
+        </div>
+
+        <!-- Sub-Tabs Navigation (Matches / Points Table) -->
+        <div class="flex gap-4 border-b border-slate-800/60 pb-2">
+          <button id="fixture-subtab-matches" class="text-xs font-black pb-1.5 border-b-2 transition-all ${activeSubTab === 'matches' ? 'text-sky-400 border-sky-500' : 'text-slate-400 border-transparent hover:text-white'}">
+            Matches
+          </button>
+          <button id="fixture-subtab-table" class="text-xs font-black pb-1.5 border-b-2 transition-all ${activeSubTab === 'table' ? 'text-sky-400 border-sky-500' : 'text-slate-400 border-transparent hover:text-white'}">
+            IPL Standing Table
+          </button>
+        </div>
+
+        <!-- Dynamic Main Content Grid -->
+        <div id="fixture-view-content-area">
+          ${mainContentHtml}
+        </div>
+      </div>
+    `;
+
+    // Bind Category switching buttons
+    container.querySelectorAll('.fixture-cat-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        selectedCategory = e.currentTarget.getAttribute('data-cat');
+        drawFixtures();
+      });
+    });
+
+    // Bind Subtab events
+    document.getElementById('fixture-subtab-matches')?.addEventListener('click', () => {
+      activeSubTab = 'matches';
+      drawFixtures();
+    });
+    document.getElementById('fixture-subtab-table')?.addEventListener('click', () => {
+      activeSubTab = 'table';
+      drawFixtures();
+    });
+
+    if (window.lucide) window.lucide.createIcons();
+  };
+
+  drawFixtures();
+}
+
+function renderLiveAuctionView(container) {
+  if (auctionPollInterval) {
+    clearInterval(auctionPollInterval);
+  }
+
+  const pollActiveAuctionState = async () => {
+    if (currentRoute !== 'auction') {
+      clearInterval(auctionPollInterval);
+      return;
+    }
+
+    const state = await store.getLiveAuctionState();
+    const teams = store.getTeams();
+    
+    let activeBlockHtml = `
+      <div class="text-center py-16 text-slate-500 border border-dashed border-slate-800 rounded-2xl bg-slate-950/30">
+        <i data-lucide="gavel" class="w-12 h-12 text-slate-700 mx-auto mb-3"></i>
+        <h3 class="text-slate-400 font-bold text-sm">Waiting for Auctioneer...</h3>
+        <p class="text-xs text-slate-500 mt-1">The active player will appear here dynamically once bidding starts.</p>
+      </div>
+    `;
+
+    if (state && state.active_player_id) {
+      const bidderTeam = teams.find(t => t.id === state.highest_bidder_team_id);
+      activeBlockHtml = `
+        <div class="bg-gradient-to-br from-slate-900 to-amber-950/10 border-2 border-amber-500/40 p-5 rounded-2xl shadow-2xl space-y-6 animate-fade-in relative overflow-hidden">
+          <div class="absolute -top-16 -right-16 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl"></div>
+
+          <div class="flex justify-between items-center pb-2 border-b border-slate-800/80">
+            <span class="px-2.5 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-black text-[10px] uppercase tracking-wider animate-pulse flex items-center gap-1.5">
+              <span class="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping"></span> Live Bidding Block
+            </span>
+            <span class="text-xs text-slate-400 font-mono font-bold">Category: JSL 2026</span>
+          </div>
+
+          <!-- Active Player Details -->
+          <div class="flex flex-col sm:flex-row gap-5 items-center sm:items-start text-center sm:text-left">
+            <img src="${state.photoUrl || 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Crect width=\'100\' height=\'100\' rx=\'20\' fill=\'%23059669\'/%3E%3Ctext x=\'50\' y=\'62\' font-size=\'45\' text-anchor=\'middle\' fill=\'white\'%3E🏏%3C/text%3E%3C/svg%3E'}" class="w-28 h-28 sm:w-32 sm:h-32 rounded-2xl object-cover border-2 border-amber-500 shadow-xl" />
+            <div class="space-y-2">
+              <h2 class="text-xl sm:text-2xl font-black text-white">${state.name}</h2>
+              <div class="flex flex-wrap gap-1.5 justify-center sm:justify-start">
+                <span class="px-2.5 py-0.5 bg-sky-950 text-sky-400 border border-sky-850 rounded-full font-bold text-[10px]">${state.category}</span>
+                <span class="px-2.5 py-0.5 bg-slate-950 text-slate-350 border border-slate-800 rounded-full font-mono text-[10px]">Base: ₹ ${state.basePrice}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Active Bid Metrics -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-950 p-4 rounded-xl border border-slate-900">
+            <div>
+              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Current High Bid</span>
+              <span class="text-3xl font-black text-amber-400">₹ ${state.current_bid}</span>
+            </div>
+            <div class="text-left sm:text-right border-t sm:border-t-0 sm:border-l border-slate-900 pt-2.5 sm:pt-0 sm:pl-4">
+              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Leading Bidder</span>
+              <span class="text-lg font-black text-white truncate block mt-1">${bidderTeam ? bidderTeam.name : 'No bids yet'}</span>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    container.innerHTML = `
+      <div class="space-y-6 sm:space-y-8 animate-fade-in pb-16">
+        <div class="bg-slate-900/90 border border-slate-800 p-4 sm:p-6 rounded-2xl shadow-2xl backdrop-blur-xl">
+          <h1 class="text-xl sm:text-2xl font-black text-white">🔨 Live Player Auction Hub</h1>
+          <p class="text-xs text-slate-400">Track current bids, player block assignments, and team budgets live.</p>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div class="lg:col-span-2 space-y-4">
+            ${activeBlockHtml}
+          </div>
+
+          <div class="lg:col-span-1 space-y-3">
+            <h3 class="text-sm font-black text-slate-400 uppercase tracking-widest">Franchise Purses</h3>
+            <div class="space-y-2">
+              ${teams.map(t => {
+                const spent = t.purseSpent || 0;
+                const totalPurse = t.purseBudget || 8000;
+                const left = totalPurse - spent;
+                const ratio = Math.min(100, Math.max(0, (left / totalPurse) * 100));
+                return `
+                  <div class="glass-card p-3.5 bg-slate-900/95 border border-slate-800 flex flex-col justify-between">
+                    <div class="flex justify-between items-center mb-1 text-xs">
+                      <span class="font-black text-white">${t.name}</span>
+                      <span class="font-mono text-slate-400">Roster: <strong class="text-white">${t.squadCount || 0} / 13</strong></span>
+                    </div>
+                    <div class="flex justify-between items-center text-xs font-bold text-amber-400">
+                      <span>Purse Remaining:</span>
+                      <span>₹ ${left}</span>
+                    </div>
+                    <div class="w-full bg-slate-950 h-1.5 rounded-full mt-2 overflow-hidden border border-slate-900">
+                      <div class="bg-amber-500 h-full rounded-full" style="width: ${ratio}%"></div>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+
+    if (window.lucide) window.lucide.createIcons();
+  };
+
+  pollActiveAuctionState();
+  auctionPollInterval = setInterval(pollActiveAuctionState, 1500);
+}
+
+function renderCareerHubView(container) {
+  let searchQuery = '';
+
+  const drawCareerHub = () => {
+    const players = store.getPlayers().filter(p => (p.registrationStatus || p.paymentStatus) === 'APPROVED');
+    const fixtures = store.getFixtures();
+    const completedFixtures = fixtures.filter(f => f.status === 'COMPLETED');
+
+    const list = players.map(p => {
+      let runs = 0;
+      let balls = 0;
+      let wickets = 0;
+      let runsConceded = 0;
+      let ballsBowled = 0;
+      let dismissals = 0;
+      let matches = 0;
+      let centuries = 0;
+      let halfCenturies = 0;
+      let fiveWickets = 0;
+
+      completedFixtures.forEach(f => {
+        if (f.liveMatchState && f.liveMatchState.playerStats && f.liveMatchState.playerStats[p.id]) {
+          const ps = f.liveMatchState.playerStats[p.id];
+          const r = ps.runs || 0;
+          const w = ps.wickets || 0;
+          runs += r;
+          balls += ps.balls || 0;
+          wickets += w;
+          runsConceded += ps.runsConceded || 0;
+          ballsBowled += ps.ballsBowled || 0;
+          if (ps.dismissed) dismissals += 1;
+          matches += 1;
+
+          if (r >= 100) centuries += 1;
+          else if (r >= 50) halfCenturies += 1;
+
+          if (w >= 5) fiveWickets += 1;
+        }
+      });
+
+      // Batting Average
+      let battingAvg = '0.00';
+      if (dismissals > 0) {
+        battingAvg = (runs / dismissals).toFixed(2);
+      } else if (runs > 0) {
+        battingAvg = `${runs}*`;
+      }
+
+      // Bowling Economy
+      let economy = '0.00';
+      if (ballsBowled > 0) {
+        economy = ((runsConceded / ballsBowled) * 6).toFixed(2);
+      }
+
+      // Total Performance Points (with milestone bonuses!)
+      let points = runs * 1 + wickets * 25 + matches * 10 + (halfCenturies * 8) + (centuries * 16) + (fiveWickets * 16);
+
+      return {
+        id: p.id,
+        name: p.name,
+        phone: p.phone || '',
+        photoUrl: p.photoUrl || p.player_photo_url || '',
+        category: p.category || p.playingType || 'All Rounder',
+        village: p.village || 'Jhankra',
+        battingStyle: p.battingStyle || 'Right Hand Bat',
+        bowlingStyle: p.bowlingStyle || 'Right Arm Medium',
+        runs,
+        wickets,
+        matches,
+        battingAvg,
+        economy,
+        points,
+        centuries,
+        halfCenturies,
+        fiveWickets
+      };
+    });
+
+    list.sort((a, b) => b.points - a.points);
+
+    const filtered = searchQuery ? list.filter(item => 
+      item.name.toLowerCase().includes(searchQuery) || 
+      item.phone.includes(searchQuery)
+    ) : list;
+
+    container.innerHTML = `
+      <div class="space-y-6 sm:space-y-8 animate-fade-in pb-16">
+        <!-- Header -->
+        <div class="bg-gradient-to-r from-emerald-600 to-teal-700 p-4 sm:p-6 rounded-2xl shadow-xl">
+          <h1 class="text-xl sm:text-2xl font-black text-white">📊 Lifetime Career Hub</h1>
+          <p class="text-xs text-emerald-100 mt-1">View real-time player standings and performance metrics compiled directly from completed matches.</p>
+        </div>
+
+        <!-- Search Bar -->
+        <div class="relative max-w-md mx-auto">
+          <input type="text" id="career-search-query-input" value="${searchQuery}" placeholder="🔍 Search player by name or phone number..." class="w-full bg-white border-2 border-slate-200 text-slate-800 text-xs rounded-xl p-3 pl-4 focus:outline-none focus:border-emerald-500 font-bold placeholder-slate-400 shadow-sm" />
+        </div>
+
+        <!-- White Leaderboard Table -->
+        <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-lg">
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs sm:text-sm text-slate-700">
+              <thead class="bg-slate-50 font-bold text-[10px] uppercase text-slate-500 border-b border-slate-200">
+                <tr>
+                  <th class="py-3.5 px-4 text-center w-12">RANK</th>
+                  <th class="py-3.5 px-3">PLAYER</th>
+                  <th class="py-3.5 px-3">CONTACT</th>
+                  <th class="py-3.5 px-3 text-center">MATCHES</th>
+                  <th class="py-3.5 px-3 text-center text-amber-700">RUNS</th>
+                  <th class="py-3.5 px-3 text-center">BAT AVG</th>
+                  <th class="py-3.5 px-3 text-center text-sky-700">WKTS</th>
+                  <th class="py-3.5 px-3 text-center">ECON</th>
+                  <th class="py-3.5 px-3 text-center text-emerald-600">POINTS</th>
+                  <th class="py-3.5 px-4 text-right">ACTION</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100 font-semibold text-slate-700">
+                ${filtered.length === 0 ? `
+                  <tr>
+                    <td colspan="10" class="py-8 text-center text-slate-400 text-xs">No active players found</td>
+                  </tr>
+                ` : filtered.map((p, idx) => {
+                  const rank = idx + 1;
+                  return `
+                    <tr class="hover:bg-slate-50/50 transition-colors">
+                      <td class="py-3.5 px-4 text-center font-black">
+                        <span class="inline-flex w-5 h-5 rounded-full ${rank === 1 ? 'bg-amber-500 text-slate-950 font-black' : rank === 2 ? 'bg-slate-300 text-slate-900 font-black' : rank === 3 ? 'bg-amber-700 text-white font-black' : 'bg-slate-100 text-slate-500'} items-center justify-center text-[10px] shadow-sm">
+                          ${rank}
+                        </span>
+                      </td>
+                      <td class="py-3.5 px-3">
+                        <div class="flex items-center gap-2.5">
+                          <img src="${p.photoUrl || 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Crect width=\'100\' height=\'100\' rx=\'20\' fill=\'%23059669\'/%3E%3Ctext x=\'50\' y=\'62\' font-size=\'45\' text-anchor=\'middle\' fill=\'white\'%3E🏏%3C/text%3E%3C/svg%3E'}" class="w-8 h-8 rounded-lg object-cover border border-slate-200" />
+                          <div>
+                            <div class="font-black text-slate-900 text-xs sm:text-sm leading-tight">${p.name}</div>
+                            <div class="text-[9px] text-slate-400">${p.category}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td class="py-3.5 px-3 text-slate-500 font-mono text-[11px]">
+                        ${p.phone ? p.phone.substring(0, 3) + '*****' + p.phone.substring(p.phone.length - 3) : 'N/A'}
+                      </td>
+                      <td class="py-3.5 px-3 text-center font-mono">${p.matches}</td>
+                      <td class="py-3.5 px-3 text-center font-black font-mono text-amber-700">${p.runs}</td>
+                      <td class="py-3.5 px-3 text-center font-mono text-slate-600">${p.battingAvg}</td>
+                      <td class="py-3.5 px-3 text-center font-black font-mono text-sky-700">${p.wickets}</td>
+                      <td class="py-3.5 px-3 text-center font-mono text-slate-600">${p.economy}</td>
+                      <td class="py-3.5 px-3 text-center font-black font-mono text-emerald-600 text-sm">${p.points}</td>
+                      <td class="py-3.5 px-4 text-right">
+                        <button class="view-career-detail-btn px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 font-extrabold text-[10px] rounded-lg border border-slate-350 shadow-sm transition-colors" data-id="${p.id}">
+                          Profile
+                        </button>
+                      </td>
+                    </tr>
+                  `;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    `;
+
+    const inputEl = document.getElementById('career-search-query-input');
+    if (inputEl) {
+      inputEl.addEventListener('input', (e) => {
+        searchQuery = e.target.value.toLowerCase().trim();
+        drawCareerHub();
+        const activeInput = document.getElementById('career-search-query-input');
+        if (activeInput) {
+          activeInput.focus();
+          activeInput.setSelectionRange(activeInput.value.length, activeInput.value.length);
+        }
+      });
+    }
+
+    container.querySelectorAll('.view-career-detail-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const playerId = e.currentTarget.getAttribute('data-id');
+        openCareerDetailModal(playerId);
+      });
+    });
+  };
+
+  drawCareerHub();
+}
+
+function openCareerDetailModal(playerId) {
+  const playerReg = store.getPlayers().find(p => p.id === playerId);
+  if (!playerReg) return;
+
+  const phone = (playerReg.phone || '').trim();
+  
+  let profile = store.getPlayerProfiles().find(pp => (pp.phone || '').trim() === phone);
+  if (!profile) {
+    profile = {
+      id: playerReg.id,
+      name: playerReg.name,
+      phone: playerReg.phone,
+      photoUrl: playerReg.photoUrl || playerReg.player_photo_url || '',
+      village: playerReg.village || 'Jhankra',
+      battingStyle: playerReg.battingStyle || 'Right Hand Bat',
+      bowlingStyle: playerReg.bowlingStyle || 'Right Arm Medium',
+      category: playerReg.category || playerReg.playingType || 'All Rounder'
+    };
+  }
+
+  const allRegistrations = store.getPlayers().filter(p => (p.phone || '').trim() === phone);
+  const fixtures = store.getFixtures();
+  const completedFixtures = fixtures.filter(f => f.status === 'COMPLETED');
+  
+  let totalRuns = 0;
+  let totalWickets = 0;
+  let matchesCount = 0;
+  let runsConceded = 0;
+  let ballsBowled = 0;
+  let dismissals = 0;
+  let centuries = 0;
+  let halfCenturies = 0;
+  let fiveWickets = 0;
+
+  completedFixtures.forEach(f => {
+    if (f.liveMatchState && f.liveMatchState.playerStats && f.liveMatchState.playerStats[profile.id]) {
+      const ps = f.liveMatchState.playerStats[profile.id];
+      const r = ps.runs || 0;
+      const w = ps.wickets || 0;
+      totalRuns += r;
+      totalWickets += w;
+      runsConceded += ps.runsConceded || 0;
+      ballsBowled += ps.ballsBowled || 0;
+      if (ps.dismissed) dismissals += 1;
+      matchesCount += 1;
+
+      if (r >= 100) centuries += 1;
+      else if (r >= 50) halfCenturies += 1;
+
+      if (w >= 5) fiveWickets += 1;
+    }
+  });
+
+  // Batting Average
+  let battingAvg = '0.00';
+  if (dismissals > 0) {
+    battingAvg = (totalRuns / dismissals).toFixed(2);
+  } else if (totalRuns > 0) {
+    battingAvg = `${totalRuns}*`;
+  }
+
+  // Bowling Economy
+  let economy = '0.00';
+  if (ballsBowled > 0) {
+    economy = ((runsConceded / ballsBowled) * 6).toFixed(2);
+  }
+
+  const seasonalTimeline = allRegistrations.map(reg => {
+    const teamId = reg.teamId;
+    const team = store.getTeamById(teamId);
+    
+    // Get team matches stats
+    let regRuns = 0;
+    let regWickets = 0;
+    let regMatches = 0;
+
+    if (teamId) {
+      const teamMatches = completedFixtures.filter(f => f.teamAId === teamId || f.teamBId === teamId);
+      teamMatches.forEach(f => {
+        if (f.liveMatchState && f.liveMatchState.playerStats && f.liveMatchState.playerStats[profile.id]) {
+          const ps = f.liveMatchState.playerStats[profile.id];
+          regRuns += ps.runs || 0;
+          regWickets += ps.wickets || 0;
+          regMatches += 1;
+        }
+      });
+    }
+
+    return {
+      leagueCode: reg.leagueCategory || 'JSL',
+      year: 2026,
+      teamName: team ? team.name : 'Unassigned / Free Agent',
+      matches: regMatches,
+      runs: regRuns,
+      wickets: regWickets
+    };
+  });
+
+  document.getElementById('career-detail-modal')?.remove();
+
+  const modalHtml = `
+    <div id="career-detail-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3 bg-slate-950/60 backdrop-blur-sm animate-fade-in">
+      <div class="bg-white border border-slate-200 max-w-sm w-full p-5 relative space-y-4 rounded-2xl shadow-2xl text-slate-800 text-center modal-content-container">
+        <button id="close-career-detail-btn" class="absolute top-3 right-3 text-slate-400 hover:text-slate-700 p-1">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+
+        <div class="flex flex-col items-center space-y-3 pb-4 border-b border-slate-200">
+          <div class="w-28 h-28 sm:w-32 sm:h-32 rounded-2xl overflow-hidden shadow-lg border-2 border-slate-250 bg-slate-50 flex items-center justify-center">
+            <img src="${profile.photoUrl || 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Crect width=\'100\' height=\'100\' rx=\'20\' fill=\'%23059669\'/%3E%3Ctext x=\'50\' y=\'62\' font-size=\'45\' text-anchor=\'middle\' fill=\'white\'%3E🏏%3C/text%3E%3C/svg%3E'}" class="w-full h-full object-cover" />
+          </div>
+          <div>
+            <span class="px-2.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full font-black text-[9px] uppercase tracking-wider">Player Profile</span>
+            <h3 class="text-base sm:text-lg font-black text-slate-900 leading-tight mt-1.5">${profile.name}</h3>
+            <div class="text-xs text-slate-500 font-bold mt-1">📍 Village: ${profile.village || 'Jhankra'}</div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 text-[11px] bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-slate-650">
+          <div><span class="text-slate-400 font-bold">Batting:</span> <span class="text-slate-800 font-black">${profile.battingStyle || 'Right Hand'}</span></div>
+          <div><span class="text-slate-400 font-bold">Bowling:</span> <span class="text-slate-800 font-black">${profile.bowlingStyle || 'Right Arm'}</span></div>
+        </div>
+
+        <div class="space-y-2">
+          <div class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Lifetime Stats</div>
+          <div class="grid grid-cols-5 gap-1.5 text-center">
+            <div class="bg-slate-50 p-2 border border-slate-200 rounded-xl">
+              <span class="text-[8px] text-slate-500 uppercase font-semibold">MAT</span>
+              <div class="text-sm font-black text-slate-900 mt-0.5">${matchesCount}</div>
+            </div>
+            <div class="bg-slate-50 p-2 border border-slate-200 rounded-xl">
+              <span class="text-[8px] text-slate-500 uppercase font-semibold">RUNS</span>
+              <div class="text-sm font-black text-amber-700 mt-0.5">${totalRuns}</div>
+            </div>
+            <div class="bg-slate-50 p-2 border border-slate-200 rounded-xl">
+              <span class="text-[8px] text-slate-500 uppercase font-semibold">AVG</span>
+              <div class="text-sm font-black text-slate-900 mt-0.5">${battingAvg}</div>
+            </div>
+            <div class="bg-slate-50 p-2 border border-slate-200 rounded-xl">
+              <span class="text-[8px] text-slate-500 uppercase font-semibold">WKT</span>
+              <div class="text-sm font-black text-sky-700 mt-0.5">${totalWickets}</div>
+            </div>
+            <div class="bg-slate-50 p-2 border border-slate-200 rounded-xl">
+              <span class="text-[8px] text-slate-500 uppercase font-semibold">ECON</span>
+              <div class="text-sm font-black text-slate-900 mt-0.5">${economy}</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="space-y-2">
+          <div class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Milestones</div>
+          <div class="grid grid-cols-3 gap-2 text-center text-[10px] font-bold text-slate-700">
+            <div class="bg-amber-50/50 p-2 border border-amber-250 rounded-xl">
+              <span class="text-[8px] text-amber-800 uppercase block font-bold">100s</span>
+              <span class="text-sm font-black text-slate-900">${centuries}</span>
+            </div>
+            <div class="bg-amber-50/50 p-2 border border-amber-250 rounded-xl">
+              <span class="text-[8px] text-amber-800 uppercase block font-bold">50s</span>
+              <span class="text-sm font-black text-slate-900">${halfCenturies}</span>
+            </div>
+            <div class="bg-sky-50/50 p-2 border border-sky-250 rounded-xl">
+              <span class="text-[8px] text-sky-850 uppercase block font-bold">5W Hauls</span>
+              <span class="text-sm font-black text-slate-900">${fiveWickets}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="space-y-2">
+          <div class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">League Timeline</div>
+          <div class="relative pl-3 border-l border-slate-200 space-y-3 max-h-[25vh] overflow-y-auto pr-1">
+            ${seasonalTimeline.map(time => `
+              <div class="relative text-xs">
+                <span class="absolute -left-[17px] top-1.5 w-2 h-2 rounded-full bg-emerald-500 border border-white shadow"></span>
+                <div>
+                  <div class="font-black text-slate-800">${time.year} — ${time.leagueCode} (${time.teamName})</div>
+                  <div class="text-[9px] text-slate-550 mt-0.5">
+                    Matches: ${time.matches} • Runs: ${time.runs} • Wickets: ${time.wickets}
+                  </div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <button id="close-career-detail-btn-bottom" class="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow transition-colors">
+          Close Profile
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  if (window.lucide) window.lucide.createIcons();
+
+  const removeModal = () => document.getElementById('career-detail-modal')?.remove();
+  document.getElementById('close-career-detail-btn')?.addEventListener('click', removeModal);
+  document.getElementById('close-career-detail-btn-bottom')?.addEventListener('click', removeModal);
+}
+
+function openTeamSquadModal(team) {
+  const players = store.getPlayers().filter(p => p.teamId === team.id);
+  const totalSpent = players.reduce((sum, p) => sum + (p.soldPrice || 0), 0);
+
+  document.getElementById('team-squad-view-modal')?.remove();
+
+  const modalHtml = `
+    <div id="team-squad-view-modal" class="fixed inset-0 z-[60] modal-overlay flex items-center justify-center p-3 bg-slate-950/80 backdrop-blur-sm">
+      <div class="bg-slate-900 border border-slate-800 max-w-md w-full p-4 relative space-y-4 animate-fade-in rounded-2xl shadow-2xl text-white text-left">
+        <button id="close-squad-modal-btn" class="absolute top-3 right-3 text-slate-400 hover:text-white p-1">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+
+        <div class="flex items-center gap-3 border-b border-slate-800 pb-3">
+          <div class="w-12 h-12 rounded-xl bg-white border border-slate-700 flex items-center justify-center overflow-hidden shadow-md">
+            ${team.logoUrl ? `<img src="${team.logoUrl}" class="w-full h-full object-cover" />` : '🛡️'}
+          </div>
+          <div>
+            <h3 class="text-base font-black text-white leading-tight">${team.name} Squad</h3>
+            <div class="text-[10px] text-amber-400 font-mono mt-0.5">
+              Roster: ${players.length} / 13 | Purse Spent: ₹ ${totalSpent}
+            </div>
+          </div>
+        </div>
+
+        <div class="max-h-[50vh] overflow-y-auto space-y-2 pr-1">
+          ${players.length === 0 ? `
+            <div class="text-center py-8 text-xs text-slate-500 italic">No players purchased yet in this auction.</div>
+          ` : players.map(p => `
+            <div class="flex items-center justify-between p-2.5 bg-slate-950 rounded-xl border border-slate-850">
+              <div class="flex items-center gap-2.5">
+                <img src="${p.photoUrl || 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Crect width=\'100\' height=\'100\' rx=\'20\' fill=\'%23059669\'/%3E%3Ctext x=\'50\' y=\'62\' font-size=\'45\' text-anchor=\'middle\' fill=\'white\'%3E🏏%3C/text%3E%3C/svg%3E'}" class="w-9 h-9 rounded-lg object-cover border border-slate-700" />
+                <div>
+                  <div class="text-xs font-black text-white">${p.name}</div>
+                  <div class="text-[9px] text-slate-400">${p.category || p.playingType}</div>
+                </div>
+              </div>
+              <div class="text-right">
+                <div class="text-xs font-black text-amber-400">₹ ${p.soldPrice}</div>
+                <div class="text-[8px] text-slate-500">Buy Price</div>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+
+        <button id="close-squad-modal-bottom-btn" class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl shadow border border-slate-700">
+          Back to Teams
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  if (window.lucide) window.lucide.createIcons();
+
+  const removeModal = () => document.getElementById('team-squad-view-modal')?.remove();
+  document.getElementById('close-squad-modal-btn')?.addEventListener('click', removeModal);
+  document.getElementById('close-squad-modal-bottom-btn')?.addEventListener('click', removeModal);
 }

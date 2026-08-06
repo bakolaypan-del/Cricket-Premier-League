@@ -191,6 +191,13 @@ export async function fetchCloudData() {
           rawTeams = Array.isArray(data.teams) ? data.teams : Object.values(data.teams);
         }
 
+        let rawFixtures = [];
+        if (data.fixtures) {
+          rawFixtures = Array.isArray(data.fixtures) ? data.fixtures : Object.values(data.fixtures);
+        }
+
+        let auctionSettings = data.auctionSettings || { defaultBasePrice: 200, defaultPurseBudget: 8000 };
+
         const deletedPlayerIds = data.deletedPlayerIds ? Object.keys(data.deletedPlayerIds) : [];
         const deletedTeamIds = data.deletedTeamIds ? Object.keys(data.deletedTeamIds) : [];
 
@@ -210,9 +217,13 @@ export async function fetchCloudData() {
             serialNo: idx + 1
           }));
 
+        const fixtures = rawFixtures.filter(f => f && f.id);
+
         return { 
           players, 
           teams, 
+          fixtures,
+          auctionSettings,
           clearedAt: data.clearedAt || 0, 
           teamsClearedAt: data.teamsClearedAt || 0,
           deletedPlayerIds, 
@@ -224,7 +235,7 @@ export async function fetchCloudData() {
     console.warn("Realtime Database fetch notice:", err);
   }
 
-  return { players: [], teams: [], clearedAt: 0, teamsClearedAt: 0, deletedPlayerIds: [], deletedTeamIds: [] };
+  return { players: [], teams: [], fixtures: [], auctionSettings: { defaultBasePrice: 200, defaultPurseBudget: 8000 }, clearedAt: 0, teamsClearedAt: 0, deletedPlayerIds: [], deletedTeamIds: [] };
 }
 
 // --- ATOMIC REALTIME CLOUD DATA OPERATIONS (ATOMIC FULL ARRAY SYNC) ---
@@ -348,6 +359,79 @@ export async function clearAllTeamsFromFirebase() {
   }
 }
 
+// --- NEW FIXTURES AND STATE SYNCHRONIZATION ---
+export async function saveFixtureToFirebase(fixture) {
+  if (!fixture || !fixture.id) return;
+  try {
+    await fetch(`${FIREBASE_DB_URL}/cpl_master/fixtures/${fixture.id}.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(fixture)
+    });
+  } catch (err) {
+    console.warn("Fixture save error:", err);
+  }
+}
+
+export async function deleteFixtureFromFirebase(fixtureId) {
+  if (!fixtureId) return;
+  try {
+    await fetch(`${FIREBASE_DB_URL}/cpl_master/fixtures/${fixtureId}.json`, {
+      method: 'DELETE'
+    });
+  } catch (err) {
+    console.warn("Fixture delete error:", err);
+  }
+}
+
+export async function saveFullFixturesListToFirebase(fixturesList) {
+  try {
+    await fetch(`${FIREBASE_DB_URL}/cpl_master/fixtures.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(fixturesList || [])
+    });
+  } catch (err) {
+    console.warn("Fixtures list save error:", err);
+  }
+}
+
+export async function saveAuctionSettingsToFirebase(settings) {
+  try {
+    await fetch(`${FIREBASE_DB_URL}/cpl_master/auctionSettings.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings || {})
+    });
+  } catch (err) {
+    console.warn("Auction settings save error:", err);
+  }
+}
+
+export async function saveLiveAuctionToFirebase(state) {
+  try {
+    await fetch(`${FIREBASE_DB_URL}/cpl_master/liveAuction.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(state || null)
+    });
+  } catch (err) {
+    console.warn("Live auction state save error:", err);
+  }
+}
+
+export async function saveLiveMatchToFirebase(matchId, state) {
+  try {
+    await fetch(`${FIREBASE_DB_URL}/cpl_master/liveMatches/${matchId}.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(state || null)
+    });
+  } catch (err) {
+    console.warn("Live match save error:", err);
+  }
+}
+
 // Helper to prepare data URLs before sending payload to Firebase Realtime DB (Preserves exact uploaded photos)
 function sanitizePayloadForCloud(dataList) {
   if (!Array.isArray(dataList)) return [];
@@ -358,13 +442,24 @@ function sanitizePayloadForCloud(dataList) {
 }
 
 // --- INSTANT REALTIME CLOUD DATA SAVE (FULL SYNC BACKUP) ---
-export async function saveCloudData(playersList, teamsList) {
+export async function saveCloudData(playersList, teamsList, fixturesList = [], auctionSettings = null) {
   try {
     const cleanPlayers = sanitizePayloadForCloud(playersList);
     const cleanTeams = sanitizePayloadForCloud(teamsList);
+    const cleanFixtures = sanitizePayloadForCloud(fixturesList);
+    
     saveFullPlayersListToFirebase(cleanPlayers);
     saveFullTeamsListToFirebase(cleanTeams);
-    saveToGoogleDriveScript({ players: cleanPlayers || [], teams: cleanTeams || [] });
+    saveFullFixturesListToFirebase(cleanFixtures);
+    if (auctionSettings) {
+      saveAuctionSettingsToFirebase(auctionSettings);
+    }
+    saveToGoogleDriveScript({ 
+      players: cleanPlayers || [], 
+      teams: cleanTeams || [],
+      fixtures: cleanFixtures || [],
+      auctionSettings: auctionSettings
+    });
   } catch (err) {
     console.warn("Cloud save warning:", err);
   }
