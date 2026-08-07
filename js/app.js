@@ -744,21 +744,21 @@ function renderFirstPageLanding(containerEl) {
       </div>
 
       <!-- ANNOUNCEMENT SCROLLING MARQUEE TICKER STRIP -->
-      <div class="w-full max-w-5xl mx-auto bg-slate-900 border-2 border-emerald-500/80 py-2.5 px-3 rounded-2xl flex items-center gap-2.5 sm:gap-3 shadow-xl overflow-hidden text-amber-300">
+      <div class="w-full max-w-5xl mx-auto bg-red-600 border-2 border-red-500 py-2.5 px-3 rounded-2xl flex items-center gap-2.5 sm:gap-3 shadow-xl overflow-hidden text-white animate-fade-in">
         
         <!-- FIXED ANNOUNCEMENT BADGE -->
-        <span class="px-3 py-1 bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-black text-[10px] sm:text-xs rounded-xl shadow-md uppercase shrink-0 flex items-center gap-1 z-10">
-          <i data-lucide="bell" class="w-3.5 h-3.5 text-amber-300 animate-bounce"></i>
+        <span class="px-3 py-1 bg-white text-red-600 font-black text-[10px] sm:text-xs rounded-xl shadow-md uppercase shrink-0 flex items-center gap-1 z-10 border border-red-100">
+          <i data-lucide="bell" class="w-3.5 h-3.5 text-red-600 animate-bounce"></i>
           <span>NOTICE</span>
         </span>
 
         <!-- SCROLLING MARQUEE TEXT -->
         <div class="overflow-hidden whitespace-nowrap w-full relative">
-          <div class="animate-continuous-marquee text-xs sm:text-sm font-black text-amber-200 tracking-wide">
+          <div class="animate-continuous-marquee text-xs sm:text-sm font-black text-white tracking-wide">
             <span class="px-4">📢 Stay Tuned! 🏏 Auction Date and Match Schedule for Jhankra Super League (JSL) will be published from time to time. Stay connected for the latest updates.</span>
-            <span class="text-emerald-400 font-extrabold px-2">•</span>
+            <span class="text-amber-300 font-extrabold px-2">•</span>
             <span class="px-4">📢 Stay Tuned! 🏏 Auction Date and Match Schedule for Jhankra Super League (JSL) will be published from time to time. Stay connected for the latest updates.</span>
-            <span class="text-emerald-400 font-extrabold px-2">•</span>
+            <span class="text-amber-300 font-extrabold px-2">•</span>
           </div>
         </div>
 
@@ -770,16 +770,8 @@ function renderFirstPageLanding(containerEl) {
         <!-- SECTION HEADER -->
         <div class="flex flex-col sm:flex-row items-center justify-between gap-2 px-1 text-center sm:text-left">
           <div>
-            <div class="flex items-center justify-center sm:justify-start gap-2">
-              <span class="px-2.5 py-0.5 bg-gradient-to-r from-amber-500 via-amber-600 to-red-600 text-slate-950 font-black text-[10px] sm:text-xs rounded-full border border-amber-300 shadow-md uppercase tracking-wider animate-pulse">
-                ⚡ OFFICIAL CONFIRMED FRANCHISES
-              </span>
-              <span class="text-xs text-emerald-600 font-extrabold flex items-center gap-1">
-                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span> Live Loop
-              </span>
-            </div>
             <h2 class="text-base sm:text-2xl font-black text-slate-900 mt-1 flex items-center justify-center sm:justify-start gap-2">
-              <span>🏆 Official Confirmed Teams</span>
+              <span>🏆 Official Confirm Team</span>
             </h2>
             <p class="text-[11px] sm:text-xs text-slate-600 font-semibold">Confirmed Team List for Jhankra Super League (JSL 2026)</p>
           </div>
@@ -806,8 +798,8 @@ function renderFirstPageLanding(containerEl) {
             
             <!-- SLIDE 1: KHIRPAI HURRICANES -->
             <div class="w-full flex-shrink-0 relative group/slide cursor-pointer slide-item" data-slide-index="0" data-img-src="assets/team_confirm_1_khirpai_hurricanes.jpg" data-team-name="1st Confirm Team - Khirpai Hurricanes">
-              <div class="relative w-full max-h-[75vh] flex justify-center bg-slate-950 overflow-hidden">
-                <img src="assets/team_confirm_1_khirpai_hurricanes.jpg" alt="1st Confirm Team - Khirpai Hurricanes" class="w-full h-auto max-h-[75vh] object-contain mx-auto shadow-2xl transition-transform duration-300 group-hover/slide:scale-[1.01]" />
+              <div class="relative w-full max-h-[42vh] flex justify-center bg-slate-950 overflow-hidden">
+                <img src="assets/team_confirm_1_khirpai_hurricanes.jpg" alt="1st Confirm Team - Khirpai Hurricanes" class="w-full h-auto max-h-[42vh] object-contain mx-auto shadow-2xl transition-transform duration-300 group-hover/slide:scale-[1.01]" />
                 
                 <!-- TOP CORNER BADGE OVERLAY -->
                 <div class="absolute top-3 left-3 bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 text-slate-950 font-black text-xs sm:text-sm px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-xl shadow-2xl border border-amber-300 flex items-center gap-1.5">
@@ -823,8 +815,8 @@ function renderFirstPageLanding(containerEl) {
 
             <!-- SLIDE 2: ANIKET XI -->
             <div class="w-full flex-shrink-0 relative group/slide cursor-pointer slide-item" data-slide-index="1" data-img-src="assets/team_confirm_2_aniket_xi.jpg" data-team-name="2nd Confirm Team - Aniket XI">
-              <div class="relative w-full max-h-[75vh] flex justify-center bg-slate-950 overflow-hidden">
-                <img src="assets/team_confirm_2_aniket_xi.jpg" alt="2nd Confirm Team - Aniket XI" class="w-full h-auto max-h-[75vh] object-contain mx-auto shadow-2xl transition-transform duration-300 group-hover/slide:scale-[1.01]" />
+              <div class="relative w-full max-h-[42vh] flex justify-center bg-slate-950 overflow-hidden">
+                <img src="assets/team_confirm_2_aniket_xi.jpg" alt="2nd Confirm Team - Aniket XI" class="w-full h-auto max-h-[42vh] object-contain mx-auto shadow-2xl transition-transform duration-300 group-hover/slide:scale-[1.01]" />
                 
                 <!-- TOP CORNER BADGE OVERLAY -->
                 <div class="absolute top-3 left-3 bg-gradient-to-r from-slate-200 via-slate-300 to-slate-400 text-slate-950 font-black text-xs sm:text-sm px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-xl shadow-2xl border border-white flex items-center gap-1.5">
@@ -840,8 +832,8 @@ function renderFirstPageLanding(containerEl) {
 
             <!-- SLIDE 3: SRS BROTHER'S -->
             <div class="w-full flex-shrink-0 relative group/slide cursor-pointer slide-item" data-slide-index="2" data-img-src="assets/team_confirm_3_srs_brothers.jpg" data-team-name="3rd Confirm Team - SRS Brother's">
-              <div class="relative w-full max-h-[75vh] flex justify-center bg-slate-950 overflow-hidden">
-                <img src="assets/team_confirm_3_srs_brothers.jpg" alt="3rd Confirm Team - SRS Brother's" class="w-full h-auto max-h-[75vh] object-contain mx-auto shadow-2xl transition-transform duration-300 group-hover/slide:scale-[1.01]" />
+              <div class="relative w-full max-h-[42vh] flex justify-center bg-slate-950 overflow-hidden">
+                <img src="assets/team_confirm_3_srs_brothers.jpg" alt="3rd Confirm Team - SRS Brother's" class="w-full h-auto max-h-[42vh] object-contain mx-auto shadow-2xl transition-transform duration-300 group-hover/slide:scale-[1.01]" />
                 
                 <!-- TOP CORNER BADGE OVERLAY -->
                 <div class="absolute top-3 left-3 bg-gradient-to-r from-amber-700 via-amber-800 to-amber-900 text-amber-100 font-black text-xs sm:text-sm px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-xl shadow-2xl border border-amber-600 flex items-center gap-1.5">
