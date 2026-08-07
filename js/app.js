@@ -687,6 +687,19 @@ function renderFirstPageLanding(containerEl) {
         </span>
       </div>
 
+      <!-- ANIMATED RED ARROW INDICATORS -->
+      <div class="grid grid-cols-3 gap-1.5 sm:gap-6 w-full max-w-5xl mx-auto px-1 sm:px-2 py-1">
+        <div class="flex justify-center items-center">
+          <i data-lucide="chevrons-down" class="w-6 h-6 sm:w-10 sm:h-10 text-red-600 drop-shadow-sm animate-bounce"></i>
+        </div>
+        <div class="flex justify-center items-center">
+          <i data-lucide="chevrons-down" class="w-6 h-6 sm:w-10 sm:h-10 text-red-600 drop-shadow-sm animate-bounce [animation-delay:0.2s]"></i>
+        </div>
+        <div class="flex justify-center items-center">
+          <i data-lucide="chevrons-down" class="w-6 h-6 sm:w-10 sm:h-10 text-red-600 drop-shadow-sm animate-bounce [animation-delay:0.4s]"></i>
+        </div>
+      </div>
+
       <!-- 3 CATEGORY CARDS - ALL 3 CARDS FIT IN A SINGLE HORIZONTAL ROW ON MOBILE -->
       <div class="grid grid-cols-3 gap-1.5 sm:gap-6 w-full max-w-5xl mx-auto px-1 sm:px-2">
         
