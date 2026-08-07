@@ -1920,7 +1920,7 @@ export async function renderAdminShopAdsPanel() {
               <select id="admin-ad-shop-select" class="w-full bg-slate-900 border border-slate-800 text-white text-xs rounded-xl p-3 focus:border-amber-500 focus:outline-none font-bold">
                 ${shops.map(shop => `
                   <option value="${shop.id}" ${settings.promotedShopId === shop.id ? 'selected' : ''}>
-                    ${shop.name} (${shop.type === 'restaurant' ? 'Food/Kitchen' : 'Hardware & Sanitation'})
+                    ${shop.name} (${shop.type === 'restaurant' ? 'Food/Kitchen' : shop.type === 'rice' ? 'Rice Bhandar' : 'Hardware & Sanitation'})
                   </option>
                 `).join('')}
               </select>

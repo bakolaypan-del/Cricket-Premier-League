@@ -3369,7 +3369,7 @@ function showAutoAdPopup(shopId) {
             <h3 class="text-lg sm:text-2xl font-black text-white leading-tight">${shop.name}</h3>
             <p class="text-[9px] sm:text-[10px] text-amber-400 font-bold uppercase tracking-wider mt-0.5 flex items-center gap-1">
               <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
-              ${shop.type === 'restaurant' ? '🍴 Restaurant / Home Delivery' : '🛠️ Hardware & Sanitation'}
+              ${shop.type === 'restaurant' ? '🍴 Restaurant / Home Delivery' : shop.type === 'rice' ? '🌾 Rice Mill & Wholesale' : '🛠️ Hardware & Sanitation'}
             </p>
           </div>
 
@@ -3463,6 +3463,35 @@ function renderShopDetailsView(containerEl) {
         }).join('')}
       </div>
     `;
+  } else if (shop.type === 'rice') {
+    rightColumnHtml = `
+      <div class="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 space-y-5 sm:space-y-6 shadow-sm">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3 flex-wrap gap-2">
+          <div class="flex items-center space-x-2">
+            <i data-lucide="leaf" class="text-emerald-600 w-5 h-5 animate-pulse"></i>
+            <h3 class="font-black text-slate-900 text-base sm:text-xl">🌾 উপলব্ধ চালের বৈচিত্র্যসমূহ (Available Rice Varieties)</h3>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 gap-3">
+          ${shop.riceTypes.map(item => `
+            <div class="flex items-center gap-3 bg-slate-50 hover:bg-slate-100/80 p-2 sm:p-3 rounded-xl sm:rounded-2xl border border-slate-150 transition-all duration-200">
+              <img src="${item.img}" class="w-12 h-12 sm:w-16 sm:h-16 object-cover rounded-lg sm:rounded-xl border border-slate-200 flex-shrink-0 shadow-sm" alt="${item.name}">
+              <div class="flex-grow min-w-0">
+                <p class="font-extrabold text-slate-900 text-xs sm:text-sm truncate">${item.name}</p>
+                <p class="text-[9px] sm:text-[10px] text-slate-500 leading-tight mt-0.5 line-clamp-2">${item.desc || ''}</p>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+
+        <!-- Order Note -->
+        <div class="p-3.5 bg-emerald-50/50 rounded-xl border border-emerald-200/50 text-emerald-800 text-xs font-semibold leading-relaxed flex items-start gap-2">
+          <i data-lucide="info" class="w-4 h-4 text-emerald-605 shrink-0 mt-0.5 animate-bounce"></i>
+          <span>বাজারের দর পরিবর্তনশীল হওয়ায় এখানে মূল্যতালিকা দেওয়া হয়নি। বর্তমান বাজার মূল্য জানতে ও অর্ডার করতে অনুগ্রহ করে পাশের দেওয়া <strong>যোগাযোগ নম্বরসমূহে কল করুন</strong>।</span>
+        </div>
+      </div>
+    `;
   } else {
     // Hardware products
     rightColumnHtml = `
@@ -3509,7 +3538,7 @@ function renderShopDetailsView(containerEl) {
         
         <div class="absolute bottom-3 left-4 right-4 sm:bottom-6 sm:left-6 sm:right-6 space-y-1 text-white">
           <span class="inline-block px-2 py-0.5 rounded-full text-[9px] sm:text-xs font-bold tracking-wide uppercase bg-amber-500 text-slate-950 shadow-md">
-            ${shop.type === 'restaurant' ? '🍴 রেস্তোরাঁ পার্টনার' : '🛠️ হার্ডওয়্যার পার্টনার'}
+            ${shop.type === 'restaurant' ? '🍴 রেস্তোরাঁ পার্টনার' : shop.type === 'rice' ? '🌾 চালের আড়ত পার্টনার' : '🛠️ হার্ডওয়্যার পার্টনার'}
           </span>
           <h1 class="text-lg sm:text-3xl font-black drop-shadow-md text-white">${shop.name}</h1>
           <p class="text-slate-200 max-w-3xl text-[10px] sm:text-sm leading-relaxed drop-shadow-sm line-clamp-2 sm:line-clamp-none">${shop.description}</p>

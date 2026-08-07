@@ -1,4 +1,4 @@
-// Local Shops Data for Maa Laxmi Kitchen & Maa Laxmi Hardware & Sanitation
+// Local Shops Data for Maa Laxmi Kitchen, Maa Laxmi Hardware & Sanitation, and Maa Annapurna Bhandar
 
 export const shops = [
   {
@@ -80,6 +80,31 @@ export const shops = [
       { name: "Designer Bathroom Mirrors", category: "Sanitary", spec: "LED and plain high definition glass", type: "Multiple shapes" },
       { name: "Sanitary Commode & Wash Basins", category: "Sanitary", spec: "Ceramic high glaze wash basins", type: "Standard sizes" },
       { name: "Complete Bathroom Fitting Set", category: "Fittings", spec: "Shower, wall mixers, and connection pipes", type: "Full Pack combo" }
+    ]
+  },
+  {
+    id: "maa-annapurna-bhandar",
+    name: "Maa Annapurna Bhandar (মা অন্নপূর্ণা ভাণ্ডার)",
+    type: "rice",
+    shortDesc: "✨ সমস্ত প্রকার মিলের ও দেশি চালের নির্ভরযোগ্য প্রতিষ্ঠান! খুচরা ও পাইকারী সুলভ মূল্যে। 🌾🍚",
+    owner: "মা অন্নপূর্ণা ভাণ্ডার টিম (Maa Annapurna Bhandar)",
+    phones: ["8145313902"],
+    address: "ঝাঁকরা স্কুল গ্রাউন্ড, ঝাঁকরা, পশ্চিম মেদিনীপুর (Jhankra School Ground, Jhankra)",
+    image: "assets/maa_annapurna_bhandar.jpg",
+    description: "ঝাঁকরা স্কুল গ্রাউন্ডে অবস্থিত মা অন্নপূর্ণা ভাণ্ডারে আপনাকে স্বাগত। আমরা দীর্ঘদিনের সুনামের সাথে সমস্ত প্রকারের উন্নত মানের দেশি ও মিলের চালের খুচরা ও পাইকারী বিক্রেতা। বিশ্বাসের সাথে ও সুলভ মূল্যে সঠিক ওজন ও উন্নত গুণমানের চাল সরবরাহ করাই আমাদের মূল লক্ষ্য।",
+    features: [
+      "সেরা মানের বাছাই করা দেশি ও মিলের চাল",
+      "সুলভ মূল্যে খুচরা ও পাইকারী বিক্রয়ের বিশ্বস্ত প্রতিষ্ঠান",
+      "সঠিক ওজন ও বিশ্বস্ততার মেলবন্ধন",
+      "পরিষ্কার-পরিচ্ছন্ন ও উন্নত পরিবেশ"
+    ],
+    riceTypes: [
+      { name: "বাঁশকাঠি চাল (Banskati Premium Rice)", img: "https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=400&q=80", desc: "অত্যন্ত জনপ্রিয়, ঝরঝরে ও লম্বাদানা প্রিমিয়াম চাল—দৈনন্দিন খাবারের জন্য সেরা।" },
+      { name: "মিনিকিট চাল (Minikit Standard Rice)", img: "https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=400&q=80", desc: "হালকা ও সুস্বাদু মাঝারি দানার চাল—সবচেয়ে বেশি ব্যবহৃত ও পুষ্টিকর।" },
+      { name: "গোবিন্দভোগ চাল (Gobindobhog Aromatic Rice)", img: "https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=400&q=80", desc: "ছোট দানা চাল, যা সুগন্ধের জন্য বিখ্যাত—পায়েস, খিচুড়ি ও পুজোর ভোগের জন্য সেরা।" },
+      { name: "দেরাদুন বাসমতি চাল (Dehradun Basmati Rice)", img: "https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=400&q=80", desc: "অতিরিক্ত লম্বাদানা অত্যন্ত সুগন্ধি বাসমতি চাল—পোলাও ও স্পেশাল বিরিয়ানির জন্য আদর্শ।" },
+      { name: "দুধেশ্বর চাল (Dudheswar Soft Rice)", img: "https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=400&q=80", desc: "নরম সুস্বাদু ও সহজে হজমযোগ্য ঐতিহ্যবাহী চাল।" },
+      { name: "স্বর্ণ চাল (Swarna Daily Rice)", img: "https://images.unsplash.com/photo-1586201375761-83865001e31c?auto=format&fit=crop&w=400&q=80", desc: "সাশ্রয়ী মূল্যে পুষ্টিকর ও সুস্বাদু দৈনন্দিন ব্যবহারের উপযোগী চাল।" }
     ]
   }
 ];
