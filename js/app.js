@@ -3406,7 +3406,7 @@ function showAutoAdPopup(shopIds) {
     </button>
     <!-- Dots indicator -->
     <div class="absolute bottom-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-20" id="ad-carousel-dots">
-      ${activeShops.map((_, i) => `<span class="ad-dot w-2 h-2 rounded-full ${i === 0 ? 'bg-amber-400' : 'bg-slate-300'}" data-slide-index="${i}"></span>`).join('')}
+      ${activeShops.map((_, i) => `<span class="ad-dot w-2 h-2 rounded-full cursor-pointer transition-all ${i === 0 ? 'bg-amber-400' : 'bg-slate-300'}" data-slide-index="${i}"></span>`).join('')}
     </div>
   ` : '';
 
@@ -3440,6 +3440,17 @@ function showAutoAdPopup(shopIds) {
     const totalSlides = activeShops.length;
     const slider = document.getElementById('ad-slider');
 
+    let autoRotate = setInterval(() => {
+      updateSlide(currentSlide + 1);
+    }, 4000);
+
+    const clearAutoRotate = () => {
+      if (autoRotate) {
+        clearInterval(autoRotate);
+        autoRotate = null;
+      }
+    };
+
     const updateSlide = (idx) => {
       currentSlide = (idx + totalSlides) % totalSlides;
       if (slider) {
@@ -3449,31 +3460,32 @@ function showAutoAdPopup(shopIds) {
       const dots = document.querySelectorAll('.ad-dot');
       dots.forEach((dot, dIdx) => {
         if (dIdx === currentSlide) {
-          dot.className = 'ad-dot w-2 h-2 rounded-full bg-amber-400';
+          dot.className = 'ad-dot w-2 h-2 rounded-full cursor-pointer transition-all bg-amber-400';
         } else {
-          dot.className = 'ad-dot w-2 h-2 rounded-full bg-slate-300';
+          dot.className = 'ad-dot w-2 h-2 rounded-full cursor-pointer transition-all bg-slate-300';
         }
       });
     };
 
     document.getElementById('ad-prev-btn')?.addEventListener('click', (e) => {
       e.stopPropagation();
+      clearAutoRotate();
       updateSlide(currentSlide - 1);
     });
 
     document.getElementById('ad-next-btn')?.addEventListener('click', (e) => {
       e.stopPropagation();
+      clearAutoRotate();
       updateSlide(currentSlide + 1);
     });
 
-    // Auto rotate every 6 seconds
-    let autoRotate = setInterval(() => {
-      updateSlide(currentSlide + 1);
-    }, 6000);
-
-    // Stop rotation when clicked anywhere in the modal
-    document.getElementById('ad-popup-modal')?.addEventListener('click', () => {
-      clearInterval(autoRotate);
+    document.querySelectorAll('.ad-dot').forEach(dot => {
+      dot.addEventListener('click', (e) => {
+        e.stopPropagation();
+        clearAutoRotate();
+        const idx = parseInt(e.currentTarget.getAttribute('data-slide-index'), 10);
+        updateSlide(idx);
+      });
     });
   }
 }
