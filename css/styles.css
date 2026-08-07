@@ -412,4 +412,32 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   animation-play-state: paused;
 }
 
+/* LOOPING BORDER COLOR ANIMATIONS FOR HOME CATEGORY LEAGUE SHAPES */
+@keyframes borderLoopJsl {
+  0%, 100% { border-color: rgba(245, 158, 11, 0.35); box-shadow: 0 4px 12px rgba(245, 158, 11, 0.05); }
+  50% { border-color: rgba(251, 191, 36, 0.95); box-shadow: 0 4px 20px rgba(251, 191, 36, 0.25); }
+}
+
+@keyframes borderLoopJpl {
+  0%, 100% { border-color: rgba(16, 185, 129, 0.35); box-shadow: 0 4px 12px rgba(16, 185, 129, 0.05); }
+  50% { border-color: rgba(52, 211, 153, 0.95); box-shadow: 0 4px 20px rgba(52, 211, 153, 0.25); }
+}
+
+@keyframes borderLoopKpl {
+  0%, 100% { border-color: rgba(59, 130, 246, 0.35); box-shadow: 0 4px 12px rgba(59, 130, 246, 0.05); }
+  50% { border-color: rgba(96, 165, 250, 0.95); box-shadow: 0 4px 20px rgba(96, 165, 250, 0.25); }
+}
+
+.border-loop-jsl {
+  animation: borderLoopJsl 2s infinite ease-in-out;
+}
+
+.border-loop-jpl {
+  animation: borderLoopJpl 2s infinite ease-in-out;
+}
+
+.border-loop-kpl {
+  animation: borderLoopKpl 2s infinite ease-in-out;
+}
+
 

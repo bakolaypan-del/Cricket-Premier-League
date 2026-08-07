@@ -691,7 +691,7 @@ function renderFirstPageLanding(containerEl) {
       <div class="grid grid-cols-3 gap-1.5 sm:gap-6 w-full max-w-5xl mx-auto px-1 sm:px-2">
         
         <!-- CARD 1: JSL (GOLD THEME - CARTOON BOY) -->
-        <div id="btn-click-jsl" class="group relative rounded-xl sm:rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer border border-amber-250 bg-amber-50/5 flex flex-col justify-between p-1 sm:p-2 space-y-1.5 text-center">
+        <div id="btn-click-jsl" class="group relative rounded-xl sm:rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer border-2 border-loop-jsl bg-amber-50/5 flex flex-col justify-between p-1 sm:p-2 space-y-1.5 text-center">
           <img src="assets/card_jsl_cartoon.png" alt="JSL" class="w-full h-auto object-contain rounded-lg sm:rounded-xl group-hover:scale-[1.01] transition-transform duration-300 shadow-sm" />
           
           <div class="w-full text-center">
@@ -710,7 +710,7 @@ function renderFirstPageLanding(containerEl) {
         </div>
 
         <!-- CARD 2: JPL (GREEN THEME - CARTOON BOY) -->
-        <div id="btn-click-jpl" class="group relative rounded-xl sm:rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer border border-emerald-250 bg-emerald-50/5 flex flex-col justify-between p-1 sm:p-2 space-y-1.5 text-center">
+        <div id="btn-click-jpl" class="group relative rounded-xl sm:rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer border-2 border-loop-jpl bg-emerald-50/5 flex flex-col justify-between p-1 sm:p-2 space-y-1.5 text-center">
           <img src="assets/card_jpl_cartoon.png" alt="JPL" class="w-full h-auto object-contain rounded-lg sm:rounded-xl group-hover:scale-[1.01] transition-transform duration-300 shadow-sm" />
           
           <div class="w-full text-center">
@@ -726,7 +726,7 @@ function renderFirstPageLanding(containerEl) {
         </div>
 
         <!-- CARD 3: KPL (BLUE THEME - CARTOON BOY) -->
-        <div id="btn-click-kpl" class="group relative rounded-xl sm:rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer border border-blue-250 bg-blue-50/5 flex flex-col justify-between p-1 sm:p-2 space-y-1.5 text-center">
+        <div id="btn-click-kpl" class="group relative rounded-xl sm:rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer border-2 border-loop-kpl bg-blue-50/5 flex flex-col justify-between p-1 sm:p-2 space-y-1.5 text-center">
           <img src="assets/card_kpl_cartoon.png" alt="KPL" class="w-full h-auto object-contain rounded-lg sm:rounded-xl group-hover:scale-[1.01] transition-transform duration-300 shadow-sm" />
           
           <div class="w-full text-center">
