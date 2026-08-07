@@ -3,7 +3,8 @@
 import { store } from './store.js';
 import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, printDigitalPass, openUserGuidePDF } from './export.js';
 import { renderAdminDashboard } from './admin.js';
-import { uploadHDImage } from './supabase.js';
+import { uploadHDImage, fetchAdSettingsFromFirebase } from './supabase.js';
+import { shops } from './shopsData.js';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
 
@@ -16,7 +17,8 @@ window.addEventListener('beforeinstallprompt', (e) => {
 });
 
 // ALWAYS default to landing page (No category opens automatically!)
-let currentRoute = 'landing'; // landing, jsl-hub, admin
+let currentRoute = 'landing'; // landing, jsl-hub, admin, shop-detail
+let selectedShopId = '';
 
 document.addEventListener('DOMContentLoaded', () => {
   initApp();
@@ -29,6 +31,11 @@ function initApp() {
 
   // First Visit Welcome & App Install Popup Prompt
   checkAndPromptFirstVisitPopup();
+
+  // Dynamic Partner Advertisement Popup
+  setTimeout(() => {
+    checkAndShowAdvertisementPopup();
+  }, 1000);
 
   const safeRenderCurrentView = () => {
     // PROTECT ACTIVE USER FORMS: If any modal or form is open, DO NOT re-render or reset form data!
@@ -567,6 +574,9 @@ function renderCurrentView() {
       break;
     case 'career':
       renderCareerHubView(container);
+      break;
+    case 'shop-detail':
+      renderShopDetailsView(container);
       break;
     default:
       renderFirstPageLanding(container);
@@ -3269,4 +3279,300 @@ function openTeamSquadModal(team) {
   const removeModal = () => document.getElementById('team-squad-view-modal')?.remove();
   document.getElementById('close-squad-modal-btn')?.addEventListener('click', removeModal);
   document.getElementById('close-squad-modal-bottom-btn')?.addEventListener('click', removeModal);
+}
+
+// --- DYNAMIC ADVERTISEMENT POPUP & SHOP DETAIL VIEWS ---
+
+window.closeAdPopupDirect = function() {
+  const modal = document.getElementById('ad-popup-modal');
+  if (modal) modal.remove();
+};
+
+window.closeAdPopup = function(event) {
+  if (event.target.id === 'ad-popup-modal') {
+    window.closeAdPopupDirect();
+  }
+};
+
+window.viewAdDetails = function(shopId) {
+  window.closeAdPopupDirect();
+  selectedShopId = shopId;
+  navigate('shop-detail');
+};
+
+window.navigateBackToHome = function() {
+  navigate('landing');
+};
+
+async function checkAndShowAdvertisementPopup() {
+  try {
+    const settings = await fetchAdSettingsFromFirebase();
+    if (!settings || !settings.isEnabled) return;
+
+    // Check expiry for snooze
+    if (settings.expiryTime && Date.now() < settings.expiryTime) {
+      console.log("Ad popup is currently paused/snoozed by admin.");
+      return;
+    }
+
+    showAutoAdPopup(settings.shopId);
+  } catch (err) {
+    console.warn("Failed to trigger ad popup:", err);
+  }
+}
+
+function showAutoAdPopup(shopId) {
+  const shop = shops.find(s => s.id === shopId);
+  if (!shop) return;
+
+  // Prevent multiple ads overlapping
+  if (document.getElementById('ad-popup-modal')) return;
+
+  const modalHtml = `
+    <div id="ad-popup-modal" onclick="window.closeAdPopup(event)" class="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-950/85 backdrop-blur-sm animate-in fade-in duration-300">
+      <div class="relative w-full max-w-[92%] sm:max-w-md md:max-w-lg overflow-hidden rounded-3xl border border-amber-500/35 bg-slate-900 shadow-2xl animate-in zoom-in-95 duration-200">
+        
+        <!-- Close 'X' Button -->
+        <button onclick="window.closeAdPopupDirect()" class="absolute top-3 right-3 z-10 p-1.5 bg-slate-950/80 hover:bg-slate-950 text-slate-400 hover:text-white rounded-full transition-colors border border-slate-800">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+
+        <!-- Dynamic Header Image -->
+        <div class="relative h-32 sm:h-44 overflow-hidden">
+          <img src="${shop.image}" class="w-full h-full object-cover opacity-85" alt="${shop.name}">
+          <div class="absolute inset-0 bg-gradient-to-t from-slate-900 to-transparent"></div>
+          <span class="absolute top-3 left-3 inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase bg-amber-500 text-slate-950 shadow-md">
+            🔥 Partner Spot
+          </span>
+        </div>
+
+        <!-- Details -->
+        <div class="p-4 sm:p-6 space-y-3 sm:space-y-4">
+          <div>
+            <h3 class="text-lg sm:text-2xl font-black text-white leading-tight">${shop.name}</h3>
+            <p class="text-[9px] sm:text-[10px] text-amber-400 font-bold uppercase tracking-wider mt-0.5 flex items-center gap-1">
+              <i data-lucide="sparkles" class="w-3.5 h-3.5"></i>
+              ${shop.type === 'restaurant' ? '🍴 Restaurant / Home Delivery' : '🛠️ Hardware & Sanitation'}
+            </p>
+          </div>
+
+          <p class="text-xs sm:text-sm text-slate-300 leading-relaxed">${shop.shortDesc}</p>
+
+          <div class="flex space-x-3 pt-1">
+            <!-- Cancel / Dismiss -->
+            <button onclick="window.closeAdPopupDirect()" class="flex-1 py-2.5 px-3 rounded-xl border border-slate-700 hover:bg-slate-800 text-slate-300 font-bold text-xs sm:text-sm transition-all">
+              Maybe Later
+            </button>
+            <!-- View Details Page -->
+            <button onclick="window.viewAdDetails('${shop.id}')" class="flex-1 py-2.5 px-3 rounded-xl bg-gradient-to-r from-amber-400 to-orange-500 hover:from-amber-500 hover:to-orange-600 text-slate-950 font-black text-xs sm:text-sm transition-all shadow-lg shadow-amber-500/25 flex items-center justify-center space-x-2">
+              <span>View Details</span>
+              <i data-lucide="external-link" class="w-4 h-4 text-slate-950"></i>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  if (window.lucide) window.lucide.createIcons();
+}
+
+function renderShopDetailsView(containerEl) {
+  const shop = shops.find(s => s.id === selectedShopId);
+  if (!shop) {
+    containerEl.innerHTML = `
+      <style>
+        @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800;900&family=Hind+Siliguri:wght@400;600;700&display=swap');
+        .bengali-stylish {
+          font-family: 'Sabir Samira Unicode', 'Hind Siliguri', 'SolaimanLipi', 'Siyam Rupali', sans-serif;
+        }
+      </style>
+      <div class="text-center py-12 text-slate-500 text-sm bg-white rounded-3xl border border-slate-200 bengali-stylish">
+        দোকানের তথ্য পাওয়া যায়নি। (Shop details not found)
+      </div>
+    `;
+    return;
+  }
+
+  // Generate Detail Page
+  let rightColumnHtml = '';
+  if (shop.type === 'restaurant') {
+    const categories = [
+      { key: 'biryani', title: '🍗 বিরিয়ানি কালেকশন (Biryani Selection)' },
+      { key: 'rolls', title: '🌯 ক্রিসপি রোলস (Crispy Rolls)' },
+      { key: 'chowmin', title: '🍜 স্পেশাল চাউমিন (Chowmein)' },
+      { key: 'moglai', title: '🥞 মোগলাই পরোটা (Moglai Special)' },
+      { key: 'momos', title: '🥟 স্টিমড ও ফ্রাইড মোমো (Momos)' },
+      { key: 'chickenSpecials', title: '🐔 চিকেন স্পেশাল প্রিপারেশন' },
+      { key: 'tarka', title: '🍳 মুখরোচক ডাল তরকা (Tarka)' },
+      { key: 'breads', title: '🫓 গরম গরম রুটি ও পরোটা (Breads)' }
+    ];
+
+    rightColumnHtml = `
+      <div class="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 space-y-5 sm:space-y-6 shadow-sm">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3 flex-wrap gap-2">
+          <div class="flex items-center space-x-2">
+            <i data-lucide="book-open" class="text-amber-600 w-5 h-5"></i>
+            <h3 class="font-black text-slate-900 text-base sm:text-xl">🍽️ মা লক্ষ্মী স্পেশাল মেনু কার্ড</h3>
+          </div>
+          ${shop.menuImage ? `
+            <a href="${shop.menuImage}" target="_blank" class="inline-flex items-center text-xs font-black text-amber-600 hover:text-amber-700 transition-colors border border-amber-500/20 px-3 py-1.5 rounded-lg bg-amber-500/5 shadow-sm no-underline">
+              📄 আসল মেনু কার্ড দেখুন <i data-lucide="external-link" class="w-3.5 h-3.5 ml-1"></i>
+            </a>
+          ` : ''}
+        </div>
+
+        ${categories.map(cat => {
+          const items = shop.menu[cat.key];
+          if (!items || items.length === 0) return '';
+          return `
+            <div class="space-y-3">
+              <h4 class="text-xs font-black uppercase tracking-wider text-amber-600 border-l-2 border-amber-600 pl-2 mt-4 flex items-center gap-1">${cat.title}</h4>
+              <div class="grid grid-cols-1 gap-2.5">
+                ${items.map(item => `
+                  <div class="flex items-center gap-3 bg-slate-50 hover:bg-slate-100/80 p-2 sm:p-3 rounded-xl sm:rounded-2xl border border-slate-150 transition-all duration-200">
+                    <img src="${item.img}" class="w-12 h-12 sm:w-16 sm:h-16 object-cover rounded-lg sm:rounded-xl border border-slate-200 flex-shrink-0 shadow-sm" alt="${item.name}">
+                    <div class="flex-grow min-w-0">
+                      <p class="font-extrabold text-slate-900 text-xs sm:text-sm truncate">${item.name}</p>
+                      <p class="text-[9px] sm:text-[10px] text-slate-500 leading-tight mt-0.5 line-clamp-2">${item.desc || ''}</p>
+                    </div>
+                    <span class="text-amber-600 font-extrabold text-[10px] sm:text-xs bg-amber-500/10 px-2 sm:px-3 py-1 rounded-lg border border-amber-500/25 whitespace-nowrap">${item.price}</span>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  } else {
+    // Hardware products
+    rightColumnHtml = `
+      <div class="rounded-2xl border border-slate-200 bg-white p-4 sm:p-6 space-y-6 shadow-sm">
+        <div class="flex items-center space-x-2 border-b border-slate-100 pb-3">
+          <i data-lucide="shopping-bag" class="text-amber-600 w-5 h-5"></i>
+          <h3 class="font-black text-slate-900 text-base sm:text-xl">🛠️ উপলব্ধ প্রোডাক্ট ও সুবিধাসমূহ</h3>
+        </div>
+
+        <div class="grid grid-cols-1 gap-2.5">
+          ${shop.products.map(item => `
+            <div class="flex justify-between items-center bg-slate-50 hover:bg-slate-100/80 p-3 rounded-xl sm:rounded-2xl border border-slate-150 transition-all duration-200">
+              <div class="space-y-1">
+                <span class="px-2 py-0.5 rounded bg-slate-200 text-slate-700 font-bold text-[8px] sm:text-[9px] uppercase tracking-wider">${item.category}</span>
+                <p class="font-extrabold text-slate-900 text-xs sm:text-sm mt-1">${item.name}</p>
+                <p class="text-[9px] sm:text-[10px] text-slate-500">${item.spec}</p>
+              </div>
+              <span class="text-emerald-600 font-extrabold text-[9px] sm:text-[10px] bg-emerald-500/10 px-2 py-0.5 rounded-lg border border-emerald-500/25">${item.type}</span>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }
+
+  containerEl.innerHTML = `
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800;900&family=Hind+Siliguri:wght@400;600;700&display=swap');
+      .bengali-stylish {
+        font-family: 'Sabir Samira Unicode', 'Hind Siliguri', 'SolaimanLipi', 'Siyam Rupali', sans-serif;
+      }
+    </style>
+    <div class="w-full max-w-5xl mx-auto space-y-5 sm:space-y-8 animate-fade-in py-3 sm:py-6 px-2 sm:px-4 bg-slate-50 text-slate-900 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-xl bengali-stylish">
+      
+      <!-- Back navigation button -->
+      <button onclick="window.navigateBackToHome()" class="inline-flex items-center text-xs sm:text-sm font-bold text-slate-700 hover:text-slate-900 transition-colors bg-white hover:bg-slate-100 border border-slate-300 px-3.5 py-1.5 sm:px-4 sm:py-2 rounded-xl shadow-sm">
+        <i data-lucide="arrow-left" class="w-4 h-4 mr-2"></i> 🏠 হোমপেজে ফিরে যান
+      </button>
+
+      <!-- Shop Cover & Header -->
+      <div class="relative rounded-2xl overflow-hidden border border-slate-200 bg-slate-100 shadow-md">
+        <img src="${shop.image}" class="w-full h-36 sm:h-56 md:h-72 object-cover opacity-90" alt="${shop.name}">
+        <div class="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent"></div>
+        
+        <div class="absolute bottom-3 left-4 right-4 sm:bottom-6 sm:left-6 sm:right-6 space-y-1 text-white">
+          <span class="inline-block px-2 py-0.5 rounded-full text-[9px] sm:text-xs font-bold tracking-wide uppercase bg-amber-500 text-slate-950 shadow-md">
+            ${shop.type === 'restaurant' ? '🍴 রেস্তোরাঁ পার্টনার' : '🛠️ হার্ডওয়্যার পার্টনার'}
+          </span>
+          <h1 class="text-lg sm:text-3xl font-black drop-shadow-md text-white">${shop.name}</h1>
+          <p class="text-slate-200 max-w-3xl text-[10px] sm:text-sm leading-relaxed drop-shadow-sm line-clamp-2 sm:line-clamp-none">${shop.description}</p>
+        </div>
+      </div>
+
+      <!-- Layout Grid (Stacks on mobile, displays side-by-side on sm tablet/landscape mobile screens >= 640px) -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
+        
+        <!-- Info Column -->
+        <div class="sm:col-span-1 space-y-4">
+          
+          <!-- Contact details (Leaf shape border, light amber background) -->
+          <div class="rounded-tr-[35px] rounded-bl-[35px] sm:rounded-tr-[45px] sm:rounded-bl-[45px] rounded-tl-xl rounded-br-xl border-2 border-dashed border-amber-400/50 bg-amber-50/70 p-4 sm:p-6 space-y-4 shadow-md transition-all duration-300 hover:shadow-lg">
+            <h3 class="font-black text-amber-900 text-sm sm:text-base border-b border-amber-200/60 pb-2 flex items-center gap-1.5">
+              <i data-lucide="info" class="text-amber-700 w-4 h-4"></i> 📋 দোকানের তথ্যাবলী
+            </h3>
+            
+            <div class="space-y-3 sm:space-y-4">
+              <div class="flex items-start space-x-2.5">
+                <div class="p-1 bg-white rounded-lg text-amber-700 border border-amber-200 flex-shrink-0"><i data-lucide="user" class="w-3.5 h-3.5"></i></div>
+                <div>
+                  <p class="text-[8px] sm:text-[9px] text-slate-500 uppercase font-black tracking-wider">👤 স্বত্বাধিকারী / প্রোপ্রাইটর</p>
+                  <p class="text-xs sm:text-sm font-extrabold text-slate-800 mt-0.5">${shop.owner}</p>
+                </div>
+              </div>
+
+              <div class="flex items-start space-x-2.5">
+                <div class="p-1 bg-white rounded-lg text-amber-700 border border-amber-200 flex-shrink-0"><i data-lucide="map-pin" class="w-3.5 h-3.5"></i></div>
+                <div>
+                  <p class="text-[8px] sm:text-[9px] text-slate-500 uppercase font-black tracking-wider">📍 ঠিকানা</p>
+                  <p class="text-xs sm:text-sm font-extrabold text-slate-800 mt-0.5 leading-relaxed">${shop.address}</p>
+                </div>
+              </div>
+
+              <div class="flex items-start space-x-2.5">
+                <div class="p-1 bg-white rounded-lg text-amber-700 border border-amber-200 flex-shrink-0"><i data-lucide="phone-call" class="w-3.5 h-3.5"></i></div>
+                <div class="w-full">
+                  <p class="text-[8px] sm:text-[9px] text-slate-500 uppercase font-black tracking-wider mb-1">📞 অর্ডার ও যোগাযোগের নম্বর</p>
+                  <div class="flex flex-col gap-1.5">
+                    ${shop.phones.map(phone => `
+                      <a href="tel:${phone}" class="group flex items-center justify-between px-2.5 py-1.5 bg-white text-amber-700 hover:bg-amber-600 hover:text-white rounded-lg border border-amber-200/80 shadow-sm font-black text-xs sm:text-sm transition-all duration-300 hover:scale-[1.02] active:scale-95 no-underline">
+                        <span class="flex items-center gap-1">
+                          <i data-lucide="phone" class="w-3 h-3 text-amber-600 group-hover:text-white animate-pulse"></i>
+                          <span>${phone}</span>
+                        </span>
+                        <i data-lucide="chevron-right" class="w-3 h-3 text-amber-500 group-hover:text-white opacity-85"></i>
+                      </a>
+                    `).join('')}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Highlight Badges -->
+          <div class="rounded-tl-[35px] rounded-br-[35px] sm:rounded-tl-[45px] sm:rounded-br-[45px] rounded-tr-xl rounded-bl-xl border-2 border-double border-emerald-400/50 bg-emerald-50/50 p-4 sm:p-6 space-y-4 shadow-md transition-all duration-300 hover:shadow-lg">
+            <h4 class="font-black text-emerald-900 text-[11px] sm:text-xs uppercase tracking-wider flex items-center gap-1.5">
+              <i data-lucide="sparkles" class="text-emerald-700 w-3.5 h-3.5 animate-spin"></i> ⭐ বিশেষ সুবিধা ও অফার
+            </h4>
+            <div class="flex flex-col gap-2">
+              ${shop.features.map(f => `
+                <div class="text-xs bg-white text-slate-800 p-2.5 rounded-lg border border-emerald-100 flex items-start shadow-sm">
+                  <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-600 mr-1.5 mt-0.5 flex-shrink-0"></i>
+                  <span class="leading-tight font-extrabold text-slate-700 text-xs">${f}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Dynamic Detailed Content -->
+        <div class="sm:col-span-2">
+          ${rightColumnHtml}
+        </div>
+      </div>
+
+    </div>
+  `;
+
+  if (window.lucide) window.lucide.createIcons();
 }

@@ -3,6 +3,8 @@
 import { store } from './store.js';
 import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF } from './export.js';
 import { openSquareImageCropModal, compressImage } from './app.js';
+import { saveAdSettingsToFirebase, fetchAdSettingsFromFirebase } from './supabase.js';
+import { shops } from './shopsData.js';
 
 let activeAdminTab = 'payments'; // 'payments', 'all-players', 'teams'
 
@@ -40,6 +42,9 @@ export function renderAdminDashboard(containerEl) {
         </div>
 
         <div class="flex flex-wrap items-center gap-2.5">
+          <a href="cpl_project_handbook.html" target="_blank" class="px-3.5 py-2 bg-emerald-950 hover:bg-emerald-900 text-emerald-300 text-xs font-bold rounded-xl border border-emerald-800 flex items-center gap-1.5 transition-colors shadow no-underline">
+            <i data-lucide="book-open" class="w-4 h-4 text-emerald-400"></i> Handbook
+          </a>
           <button id="export-master-csv-btn" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl border border-slate-700 flex items-center gap-2 transition-all shadow">
             <i data-lucide="download" class="w-4 h-4 text-emerald-400"></i> Export CSV
           </button>
@@ -103,6 +108,9 @@ export function renderAdminDashboard(containerEl) {
         </button>
         <button data-tab="scorer" class="admin-tab-btn ${activeAdminTab === 'scorer' ? 'active border-amber-400 text-amber-400 bg-slate-900/90' : 'border-transparent text-slate-400 hover:text-white'} px-4 sm:px-5 py-2.5 rounded-t-xl text-xs sm:text-sm font-black flex items-center gap-2 border-b-2">
           <i data-lucide="gamepad-2" class="w-4 h-4"></i> Match Scorer
+        </button>
+        <button data-tab="shop-ads" class="admin-tab-btn ${activeAdminTab === 'shop-ads' ? 'active border-amber-400 text-amber-400 bg-slate-900/90' : 'border-transparent text-slate-400 hover:text-white'} px-4 sm:px-5 py-2.5 rounded-t-xl text-xs sm:text-sm font-black flex items-center gap-2 border-b-2">
+          <i data-lucide="megaphone" class="w-4 h-4"></i> 📢 Shop Ads
         </button>
       </div>
 
@@ -491,6 +499,28 @@ export function renderAdminDashboard(containerEl) {
           </div>
         </div>
 
+        <!-- 7. Partner Shop Advertisement Tab -->
+        <div id="tab-shop-ads-view" class="${activeAdminTab === 'shop-ads' ? '' : 'hidden'} space-y-6 animate-fade-in">
+          <div class="glass-card p-4 sm:p-6 bg-slate-900/90 border border-slate-800 space-y-6">
+            <div class="flex items-center gap-3 pb-4 border-b border-slate-800">
+              <span class="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl border border-amber-500/40">
+                <i data-lucide="megaphone" class="w-6 h-6"></i>
+              </span>
+              <div>
+                <h3 class="text-base sm:text-lg font-black text-white">Partner Ad Popup Controller</h3>
+                <p class="text-xs text-slate-400">Configure whether an advertisement popup shows up when visitors open your website.</p>
+              </div>
+            </div>
+
+            <div id="admin-ads-panel-container" class="space-y-4">
+              <div class="text-center py-6 text-slate-400 text-xs">
+                <i data-lucide="loader" class="w-6 h-6 animate-spin mx-auto mb-2 text-amber-500"></i>
+                Loading Advertisement Settings...
+              </div>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   `;
@@ -515,6 +545,7 @@ export function renderAdminDashboard(containerEl) {
       document.getElementById('tab-auction-view')?.classList.add('hidden');
       document.getElementById('tab-fixtures-view')?.classList.add('hidden');
       document.getElementById('tab-scorer-view')?.classList.add('hidden');
+      document.getElementById('tab-shop-ads-view')?.classList.add('hidden');
 
       if (activeAdminTab === 'payments') document.getElementById('tab-payments-view').classList.remove('hidden');
       if (activeAdminTab === 'all-players') document.getElementById('tab-all-players-view').classList.remove('hidden');
@@ -531,6 +562,10 @@ export function renderAdminDashboard(containerEl) {
       if (activeAdminTab === 'scorer') {
         document.getElementById('tab-scorer-view')?.classList.remove('hidden');
         renderScorerMatchesList();
+      }
+      if (activeAdminTab === 'shop-ads') {
+        document.getElementById('tab-shop-ads-view')?.classList.remove('hidden');
+        renderAdminShopAdsPanel();
       }
     });
   });
@@ -1797,3 +1832,166 @@ function openTossSelectionModal(fixture, onComplete) {
     onComplete();
   });
 }
+
+// --- DYNAMIC PARTNER ADVERTISEMENT ADMIN CONTROLLER PANEL ---
+export async function renderAdminShopAdsPanel() {
+  const container = document.getElementById('admin-ads-panel-container');
+  if (!container) return;
+
+  // 1. Fetch current settings from database
+  container.innerHTML = `
+    <div class="text-center py-6 text-slate-400 text-xs">
+      <i data-lucide="loader" class="w-6 h-6 animate-spin mx-auto mb-2 text-amber-500"></i>
+      Loading Advertisement Settings from Cloud...
+    </div>
+  `;
+  if (window.lucide) window.lucide.createIcons();
+
+  const settings = await fetchAdSettingsFromFirebase();
+
+  // 2. Render control options
+  const isSnoozed = settings.expiryTime && Date.now() < settings.expiryTime;
+  const statusBadge = settings.isEnabled 
+    ? (isSnoozed 
+        ? `<span class="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase bg-amber-500/10 text-amber-400 border border-amber-500/20">Paused (Snoozed)</span>` 
+        : `<span class="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">🟢 Active (Showing)</span>`)
+    : `<span class="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase bg-slate-800 text-slate-400 border border-slate-700/50">🔴 Inactive (Off)</span>`;
+
+  let snoozeStatusInfo = '';
+  if (isSnoozed) {
+    const expiryDate = new Date(settings.expiryTime).toLocaleString();
+    snoozeStatusInfo = `<p class="text-[11px] text-amber-400 font-semibold mt-1">Snoozed until: ${expiryDate}</p>`;
+  }
+
+  container.innerHTML = `
+    <div class="space-y-6">
+      
+      <!-- Current Status Card -->
+      <div class="flex items-center justify-between p-4 bg-slate-950/80 rounded-2xl border border-slate-800">
+        <div>
+          <p class="text-xs text-slate-400 uppercase tracking-wider font-bold">Current Ad Status</p>
+          <div class="flex items-center gap-2 mt-1">
+            <h4 class="text-base font-bold text-white">Homepage Popup</h4>
+            ${statusBadge}
+          </div>
+          ${snoozeStatusInfo}
+        </div>
+      </div>
+
+      <!-- Action Panel Form -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-950/50 p-5 rounded-2xl border border-slate-800/60">
+        
+        <!-- Dropdown & Toggle Form -->
+        <div class="space-y-4">
+          <div>
+            <label class="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">Select Partner Shop to Promote</label>
+            <select id="admin-ad-shop-select" class="w-full bg-slate-905 border border-slate-800 text-white text-xs rounded-xl p-3 focus:border-amber-500 focus:outline-none">
+              ${shops.map(shop => `
+                <option value="${shop.id}" ${settings.shopId === shop.id ? 'selected' : ''}>
+                  ${shop.name} (${shop.type === 'restaurant' ? 'Food/Kitchen' : 'Hardware & Sanitation'})
+                </option>
+              `).join('')}
+            </select>
+          </div>
+
+          <div class="flex items-center justify-between p-3.5 bg-slate-900/80 rounded-xl border border-slate-800/80">
+            <div>
+              <p class="text-xs font-bold text-white">Enable Auto-Popup on Load</p>
+              <p class="text-[10px] text-slate-400 mt-0.5">Toggle whether any user landing on your site sees this popup.</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="admin-ad-toggle" class="sr-only peer" ${settings.isEnabled && !isSnoozed ? 'checked' : ''}>
+              <div class="w-10 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+            </label>
+          </div>
+        </div>
+
+        <!-- Duration Controls -->
+        <div class="space-y-3 justify-center flex flex-col">
+          <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">Quick Actions</label>
+          <div class="grid grid-cols-1 gap-2">
+            <button id="admin-ad-turn-on-btn" class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-slate-950 font-black text-xs rounded-xl transition-all shadow-lg flex items-center justify-center gap-1.5">
+              <i data-lucide="play-circle" class="w-4 h-4 text-slate-950"></i> Save & Turn On Now
+            </button>
+            <button id="admin-ad-turn-off-btn" class="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl border border-slate-700 transition-all flex items-center justify-center gap-1.5">
+              <i data-lucide="stop-circle" class="w-4 h-4"></i> Turn Off Completely
+            </button>
+            <button id="admin-ad-pause-month-btn" class="w-full py-2.5 bg-red-950/40 hover:bg-red-950 text-red-400 font-bold text-xs rounded-xl border border-red-900/35 transition-all flex items-center justify-center gap-1.5">
+              <i data-lucide="clock" class="w-4 h-4"></i> Pause for 1 Month
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
+  `;
+
+  if (window.lucide) window.lucide.createIcons();
+
+  // BIND BUTTON LISTENERS
+  document.getElementById('admin-ad-turn-on-btn').addEventListener('click', async () => {
+    const shopId = document.getElementById('admin-ad-shop-select').value;
+    const ok = await saveAdSettingsToFirebase({
+      isEnabled: true,
+      shopId: shopId,
+      expiryTime: 0
+    });
+    if (ok) {
+      alert("Advertisement settings saved successfully! The popup will now show for all visitors.");
+      renderAdminShopAdsPanel();
+    } else {
+      alert("Failed to save settings. Please try again.");
+    }
+  });
+
+  document.getElementById('admin-ad-turn-off-btn').addEventListener('click', async () => {
+    const shopId = document.getElementById('admin-ad-shop-select').value;
+    const ok = await saveAdSettingsToFirebase({
+      isEnabled: false,
+      shopId: shopId,
+      expiryTime: 0
+    });
+    if (ok) {
+      alert("Advertisement is now completely turned off.");
+      renderAdminShopAdsPanel();
+    } else {
+      alert("Failed to turn off advertisement settings.");
+    }
+  });
+
+  document.getElementById('admin-ad-pause-month-btn').addEventListener('click', async () => {
+    const shopId = document.getElementById('admin-ad-shop-select').value;
+    const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
+    const ok = await saveAdSettingsToFirebase({
+      isEnabled: true,
+      shopId: shopId,
+      expiryTime: Date.now() + ONE_MONTH_MS
+    });
+    if (ok) {
+      alert("Advertisement paused successfully! It will not show up for the next 30 days.");
+      renderAdminShopAdsPanel();
+    } else {
+      alert("Failed to snooze advertisement settings.");
+    }
+  });
+
+  // Bind checkbox change
+  document.getElementById('admin-ad-toggle').addEventListener('change', async (e) => {
+    const isChecked = e.target.checked;
+    const shopId = document.getElementById('admin-ad-shop-select').value;
+    const ok = await saveAdSettingsToFirebase({
+      isEnabled: isChecked,
+      shopId: shopId,
+      expiryTime: 0
+    });
+    if (ok) {
+      alert(`Popup advertisement has been turned ${isChecked ? 'ON' : 'OFF'}.`);
+      renderAdminShopAdsPanel();
+    } else {
+      alert("Failed to update status.");
+      e.target.checked = !isChecked; // revert
+    }
+  });
+}
+

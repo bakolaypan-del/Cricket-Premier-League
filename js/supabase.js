@@ -478,3 +478,34 @@ export async function syncPlayerToSupabase(playerData) {
 export async function syncTeamToSupabase(teamData) {
   return saveTeamToFirebase(teamData);
 }
+
+// --- ADVERTISEMENT CONTROLLER DATABASE OPERATIONS ---
+export async function saveAdSettingsToFirebase(settings) {
+  try {
+    const response = await fetch(`${FIREBASE_DB_URL}/cpl_master/advertisementSettings.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings)
+    });
+    if (response.ok) {
+      console.log("Advertisement settings saved to Firebase.");
+      return true;
+    }
+  } catch (err) {
+    console.warn("Failed to save ad settings to Firebase:", err);
+  }
+  return false;
+}
+
+export async function fetchAdSettingsFromFirebase() {
+  try {
+    const response = await fetch(`${FIREBASE_DB_URL}/cpl_master/advertisementSettings.json?_t=${Date.now()}`, { cache: 'no-store' });
+    if (response.ok) {
+      const data = await response.json();
+      return data || { isEnabled: false, shopId: 'maa-laxmi-kitchen', expiryTime: 0 };
+    }
+  } catch (err) {
+    console.warn("Failed to fetch ad settings from Firebase:", err);
+  }
+  return { isEnabled: false, shopId: 'maa-laxmi-kitchen', expiryTime: 0 };
+}
