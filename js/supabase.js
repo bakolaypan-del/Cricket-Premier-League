@@ -479,33 +479,62 @@ export async function syncTeamToSupabase(teamData) {
   return saveTeamToFirebase(teamData);
 }
 
-// --- ADVERTISEMENT CONTROLLER DATABASE OPERATIONS ---
-export async function saveAdSettingsToFirebase(settings) {
+// --- ADVERTISEMENT & POPUP CONTROLLER DATABASE OPERATIONS ---
+export async function savePopupSettingsToFirebase(settings) {
   try {
-    const response = await fetch(`${FIREBASE_DB_URL}/cpl_master/advertisementSettings.json`, {
+    const response = await fetch(`${FIREBASE_DB_URL}/cpl_master/popupSettings.json`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(settings)
     });
     if (response.ok) {
-      console.log("Advertisement settings saved to Firebase.");
+      console.log("Popup settings saved to Firebase.");
       return true;
     }
   } catch (err) {
-    console.warn("Failed to save ad settings to Firebase:", err);
+    console.warn("Failed to save popup settings to Firebase:", err);
   }
   return false;
 }
 
-export async function fetchAdSettingsFromFirebase() {
+export async function fetchPopupSettingsFromFirebase() {
   try {
-    const response = await fetch(`${FIREBASE_DB_URL}/cpl_master/advertisementSettings.json?_t=${Date.now()}`, { cache: 'no-store' });
+    const response = await fetch(`${FIREBASE_DB_URL}/cpl_master/popupSettings.json?_t=${Date.now()}`, { cache: 'no-store' });
     if (response.ok) {
       const data = await response.json();
-      return data || { isEnabled: false, shopId: 'maa-laxmi-kitchen', expiryTime: 0 };
+      return data || {
+        isAdPopupEnabled: false,
+        isWhatsAppPopupEnabled: true,
+        isWelcomePopupEnabled: true,
+        promotedShopId: 'maa-laxmi-kitchen',
+        adExpiryTime: 0
+      };
     }
   } catch (err) {
-    console.warn("Failed to fetch ad settings from Firebase:", err);
+    console.warn("Failed to fetch popup settings from Firebase:", err);
   }
-  return { isEnabled: false, shopId: 'maa-laxmi-kitchen', expiryTime: 0 };
+  return {
+    isAdPopupEnabled: false,
+    isWhatsAppPopupEnabled: true,
+    isWelcomePopupEnabled: true,
+    promotedShopId: 'maa-laxmi-kitchen',
+    adExpiryTime: 0
+  };
+}
+
+export async function saveAdSettingsToFirebase(settings) {
+  const pSettings = await fetchPopupSettingsFromFirebase();
+  pSettings.isAdPopupEnabled = settings.isEnabled;
+  pSettings.promotedShopId = settings.shopId;
+  pSettings.adExpiryTime = settings.expiryTime;
+  return savePopupSettingsToFirebase(pSettings);
+}
+
+export async function fetchAdSettingsFromFirebase() {
+  const pSettings = await fetchPopupSettingsFromFirebase();
+  return {
+    isEnabled: pSettings.isAdPopupEnabled,
+    shopId: pSettings.promotedShopId,
+    expiryTime: pSettings.adExpiryTime
+  };
 }

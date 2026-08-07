@@ -3,7 +3,7 @@
 import { store } from './store.js';
 import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF } from './export.js';
 import { openSquareImageCropModal, compressImage } from './app.js';
-import { saveAdSettingsToFirebase, fetchAdSettingsFromFirebase } from './supabase.js';
+import { saveAdSettingsToFirebase, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, savePopupSettingsToFirebase } from './supabase.js';
 import { shops } from './shopsData.js';
 
 let activeAdminTab = 'payments'; // 'payments', 'all-players', 'teams'
@@ -507,8 +507,8 @@ export function renderAdminDashboard(containerEl) {
                 <i data-lucide="megaphone" class="w-6 h-6"></i>
               </span>
               <div>
-                <h3 class="text-base sm:text-lg font-black text-white">Partner Ad Popup Controller</h3>
-                <p class="text-xs text-slate-400">Configure whether an advertisement popup shows up when visitors open your website.</p>
+                <h3 class="text-base sm:text-lg font-black text-white">Site-Wide Popup & Ad Controller</h3>
+                <p class="text-xs text-slate-400">Configure whether advertisement, welcome, or WhatsApp join popups show up on the website.</p>
               </div>
             </div>
 
@@ -1842,16 +1842,16 @@ export async function renderAdminShopAdsPanel() {
   container.innerHTML = `
     <div class="text-center py-6 text-slate-400 text-xs">
       <i data-lucide="loader" class="w-6 h-6 animate-spin mx-auto mb-2 text-amber-500"></i>
-      Loading Advertisement Settings from Cloud...
+      Loading Popup Settings from Cloud...
     </div>
   `;
   if (window.lucide) window.lucide.createIcons();
 
-  const settings = await fetchAdSettingsFromFirebase();
+  const settings = await fetchPopupSettingsFromFirebase();
 
   // 2. Render control options
-  const isSnoozed = settings.expiryTime && Date.now() < settings.expiryTime;
-  const statusBadge = settings.isEnabled 
+  const isSnoozed = settings.adExpiryTime && Date.now() < settings.adExpiryTime;
+  const statusBadge = settings.isAdPopupEnabled 
     ? (isSnoozed 
         ? `<span class="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase bg-amber-500/10 text-amber-400 border border-amber-500/20">Paused (Snoozed)</span>` 
         : `<span class="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">🟢 Active (Showing)</span>`)
@@ -1859,7 +1859,7 @@ export async function renderAdminShopAdsPanel() {
 
   let snoozeStatusInfo = '';
   if (isSnoozed) {
-    const expiryDate = new Date(settings.expiryTime).toLocaleString();
+    const expiryDate = new Date(settings.adExpiryTime).toLocaleString();
     snoozeStatusInfo = `<p class="text-[11px] text-amber-400 font-semibold mt-1">Snoozed until: ${expiryDate}</p>`;
   }
 
@@ -1869,57 +1869,90 @@ export async function renderAdminShopAdsPanel() {
       <!-- Current Status Card -->
       <div class="flex items-center justify-between p-4 bg-slate-950/80 rounded-2xl border border-slate-800">
         <div>
-          <p class="text-xs text-slate-400 uppercase tracking-wider font-bold">Current Ad Status</p>
+          <p class="text-xs text-slate-400 uppercase tracking-wider font-bold">Ad Status</p>
           <div class="flex items-center gap-2 mt-1">
-            <h4 class="text-base font-bold text-white">Homepage Popup</h4>
+            <h4 class="text-base font-bold text-white">Homepage Shop Ad Popup</h4>
             ${statusBadge}
           </div>
           ${snoozeStatusInfo}
         </div>
       </div>
 
-      <!-- Action Panel Form -->
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-950/50 p-5 rounded-2xl border border-slate-800/60">
+      <div class="space-y-6">
         
-        <!-- Dropdown & Toggle Form -->
-        <div class="space-y-4">
-          <div>
-            <label class="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">Select Partner Shop to Promote</label>
-            <select id="admin-ad-shop-select" class="w-full bg-slate-905 border border-slate-800 text-white text-xs rounded-xl p-3 focus:border-amber-500 focus:outline-none">
-              ${shops.map(shop => `
-                <option value="${shop.id}" ${settings.shopId === shop.id ? 'selected' : ''}>
-                  ${shop.name} (${shop.type === 'restaurant' ? 'Food/Kitchen' : 'Hardware & Sanitation'})
-                </option>
-              `).join('')}
-            </select>
-          </div>
-
+        <!-- SECTION 1: GLOBAL POPUP SWITCHES -->
+        <div class="bg-slate-950/50 p-5 rounded-2xl border border-slate-800/60 space-y-4">
+          <h4 class="text-xs font-black text-slate-400 uppercase tracking-widest border-b border-slate-850 pb-2">🌐 Site-Wide Popup Toggles</h4>
+          
+          <!-- Welcome Popup Toggle -->
           <div class="flex items-center justify-between p-3.5 bg-slate-900/80 rounded-xl border border-slate-800/80">
             <div>
-              <p class="text-xs font-bold text-white">Enable Auto-Popup on Load</p>
-              <p class="text-[10px] text-slate-400 mt-0.5">Toggle whether any user landing on your site sees this popup.</p>
+              <p class="text-xs font-bold text-white">🏠 First-Visit Welcome & App Install Modal</p>
+              <p class="text-[10px] text-slate-400 mt-0.5">Show a registration welcome & app install instruction prompt to first-time visitors.</p>
             </div>
             <label class="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" id="admin-ad-toggle" class="sr-only peer" ${settings.isEnabled && !isSnoozed ? 'checked' : ''}>
+              <input type="checkbox" id="admin-welcome-popup-toggle" class="sr-only peer" ${settings.isWelcomePopupEnabled ? 'checked' : ''}>
+              <div class="w-10 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+            </label>
+          </div>
+
+          <!-- WhatsApp Popup Toggle -->
+          <div class="flex items-center justify-between p-3.5 bg-slate-900/80 rounded-xl border border-slate-800/80">
+            <div>
+              <p class="text-xs font-bold text-white">💬 JSL WhatsApp Group Join Invitation</p>
+              <p class="text-[10px] text-slate-400 mt-0.5">Prompt users to join the official WhatsApp group when they open the JSL Hub page.</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="admin-whatsapp-popup-toggle" class="sr-only peer" ${settings.isWhatsAppPopupEnabled ? 'checked' : ''}>
               <div class="w-10 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
             </label>
           </div>
         </div>
 
-        <!-- Duration Controls -->
-        <div class="space-y-3 justify-center flex flex-col">
-          <label class="block text-xs font-bold text-slate-400 uppercase tracking-wider">Quick Actions</label>
-          <div class="grid grid-cols-1 gap-2">
-            <button id="admin-ad-turn-on-btn" class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-slate-950 font-black text-xs rounded-xl transition-all shadow-lg flex items-center justify-center gap-1.5">
-              <i data-lucide="play-circle" class="w-4 h-4 text-slate-950"></i> Save & Turn On Now
-            </button>
-            <button id="admin-ad-turn-off-btn" class="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl border border-slate-700 transition-all flex items-center justify-center gap-1.5">
-              <i data-lucide="stop-circle" class="w-4 h-4"></i> Turn Off Completely
-            </button>
-            <button id="admin-ad-pause-month-btn" class="w-full py-2.5 bg-red-950/40 hover:bg-red-950 text-red-400 font-bold text-xs rounded-xl border border-red-900/35 transition-all flex items-center justify-center gap-1.5">
-              <i data-lucide="clock" class="w-4 h-4"></i> Pause for 1 Month
-            </button>
+        <!-- SECTION 2: ADVERTISEMENT POPUP CONFIGURATION -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-950/50 p-5 rounded-2xl border border-slate-800/60">
+          
+          <div class="space-y-4">
+            <h4 class="text-xs font-black text-slate-400 uppercase tracking-widest border-b border-slate-850 pb-2">📢 Shop Ad Configuration</h4>
+            
+            <div>
+              <label class="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">Select Partner Shop to Promote</label>
+              <select id="admin-ad-shop-select" class="w-full bg-slate-900 border border-slate-800 text-white text-xs rounded-xl p-3 focus:border-amber-500 focus:outline-none font-bold">
+                ${shops.map(shop => `
+                  <option value="${shop.id}" ${settings.promotedShopId === shop.id ? 'selected' : ''}>
+                    ${shop.name} (${shop.type === 'restaurant' ? 'Food/Kitchen' : 'Hardware & Sanitation'})
+                  </option>
+                `).join('')}
+              </select>
+            </div>
+
+            <div class="flex items-center justify-between p-3.5 bg-slate-900/80 rounded-xl border border-slate-800/80">
+              <div>
+                <p class="text-xs font-bold text-white">Enable Ad Auto-Popup on Load</p>
+                <p class="text-[10px] text-slate-400 mt-0.5">Toggle whether users landing on your site see this ad popup.</p>
+              </div>
+              <label class="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" id="admin-ad-toggle" class="sr-only peer" ${settings.isAdPopupEnabled && !isSnoozed ? 'checked' : ''}>
+                <div class="w-10 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+              </label>
+            </div>
           </div>
+
+          <div class="space-y-3 justify-center flex flex-col">
+            <h4 class="text-xs font-black text-slate-400 uppercase tracking-widest border-b border-slate-850 pb-2 mb-2">Quick Ad Actions</h4>
+            <div class="grid grid-cols-1 gap-2">
+              <button id="admin-ad-turn-on-btn" class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-slate-950 font-black text-xs rounded-xl transition-all shadow-lg flex items-center justify-center gap-1.5 border border-amber-400">
+                <i data-lucide="play-circle" class="w-4 h-4 text-slate-950"></i> Save & Turn Ad On Now
+              </button>
+              <button id="admin-ad-turn-off-btn" class="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl border border-slate-700 transition-all flex items-center justify-center gap-1.5">
+                <i data-lucide="stop-circle" class="w-4 h-4"></i> Turn Ad Off Completely
+              </button>
+              <button id="admin-ad-pause-month-btn" class="w-full py-2.5 bg-red-950/40 hover:bg-red-950 text-red-400 font-bold text-xs rounded-xl border border-red-900/35 transition-all flex items-center justify-center gap-1.5">
+                <i data-lucide="clock" class="w-4 h-4"></i> Pause Ad for 1 Month
+              </button>
+            </div>
+          </div>
+
         </div>
 
       </div>
@@ -1932,13 +1965,15 @@ export async function renderAdminShopAdsPanel() {
   // BIND BUTTON LISTENERS
   document.getElementById('admin-ad-turn-on-btn').addEventListener('click', async () => {
     const shopId = document.getElementById('admin-ad-shop-select').value;
-    const ok = await saveAdSettingsToFirebase({
-      isEnabled: true,
-      shopId: shopId,
-      expiryTime: 0
+    const ok = await savePopupSettingsToFirebase({
+      isWelcomePopupEnabled: document.getElementById('admin-welcome-popup-toggle').checked,
+      isWhatsAppPopupEnabled: document.getElementById('admin-whatsapp-popup-toggle').checked,
+      isAdPopupEnabled: true,
+      promotedShopId: shopId,
+      adExpiryTime: 0
     });
     if (ok) {
-      alert("Advertisement settings saved successfully! The popup will now show for all visitors.");
+      alert("Settings saved successfully! Advertisement popup is now active.");
       renderAdminShopAdsPanel();
     } else {
       alert("Failed to save settings. Please try again.");
@@ -1947,10 +1982,12 @@ export async function renderAdminShopAdsPanel() {
 
   document.getElementById('admin-ad-turn-off-btn').addEventListener('click', async () => {
     const shopId = document.getElementById('admin-ad-shop-select').value;
-    const ok = await saveAdSettingsToFirebase({
-      isEnabled: false,
-      shopId: shopId,
-      expiryTime: 0
+    const ok = await savePopupSettingsToFirebase({
+      isWelcomePopupEnabled: document.getElementById('admin-welcome-popup-toggle').checked,
+      isWhatsAppPopupEnabled: document.getElementById('admin-whatsapp-popup-toggle').checked,
+      isAdPopupEnabled: false,
+      promotedShopId: shopId,
+      adExpiryTime: 0
     });
     if (ok) {
       alert("Advertisement is now completely turned off.");
@@ -1963,10 +2000,12 @@ export async function renderAdminShopAdsPanel() {
   document.getElementById('admin-ad-pause-month-btn').addEventListener('click', async () => {
     const shopId = document.getElementById('admin-ad-shop-select').value;
     const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
-    const ok = await saveAdSettingsToFirebase({
-      isEnabled: true,
-      shopId: shopId,
-      expiryTime: Date.now() + ONE_MONTH_MS
+    const ok = await savePopupSettingsToFirebase({
+      isWelcomePopupEnabled: document.getElementById('admin-welcome-popup-toggle').checked,
+      isWhatsAppPopupEnabled: document.getElementById('admin-whatsapp-popup-toggle').checked,
+      isAdPopupEnabled: true,
+      promotedShopId: shopId,
+      adExpiryTime: Date.now() + ONE_MONTH_MS
     });
     if (ok) {
       alert("Advertisement paused successfully! It will not show up for the next 30 days.");
@@ -1980,16 +2019,58 @@ export async function renderAdminShopAdsPanel() {
   document.getElementById('admin-ad-toggle').addEventListener('change', async (e) => {
     const isChecked = e.target.checked;
     const shopId = document.getElementById('admin-ad-shop-select').value;
-    const ok = await saveAdSettingsToFirebase({
-      isEnabled: isChecked,
-      shopId: shopId,
-      expiryTime: 0
+    const ok = await savePopupSettingsToFirebase({
+      isWelcomePopupEnabled: document.getElementById('admin-welcome-popup-toggle').checked,
+      isWhatsAppPopupEnabled: document.getElementById('admin-whatsapp-popup-toggle').checked,
+      isAdPopupEnabled: isChecked,
+      promotedShopId: shopId,
+      adExpiryTime: 0
     });
     if (ok) {
       alert(`Popup advertisement has been turned ${isChecked ? 'ON' : 'OFF'}.`);
       renderAdminShopAdsPanel();
     } else {
       alert("Failed to update status.");
+      e.target.checked = !isChecked; // revert
+    }
+  });
+
+  // Bind welcome popup change
+  document.getElementById('admin-welcome-popup-toggle').addEventListener('change', async (e) => {
+    const isChecked = e.target.checked;
+    const shopId = document.getElementById('admin-ad-shop-select').value;
+    const ok = await savePopupSettingsToFirebase({
+      isWelcomePopupEnabled: isChecked,
+      isWhatsAppPopupEnabled: document.getElementById('admin-whatsapp-popup-toggle').checked,
+      isAdPopupEnabled: document.getElementById('admin-ad-toggle').checked,
+      promotedShopId: shopId,
+      adExpiryTime: settings.adExpiryTime || 0
+    });
+    if (ok) {
+      alert(`Welcome & Install popup has been turned ${isChecked ? 'ON' : 'OFF'}.`);
+      renderAdminShopAdsPanel();
+    } else {
+      alert("Failed to update welcome popup settings.");
+      e.target.checked = !isChecked; // revert
+    }
+  });
+
+  // Bind whatsapp popup change
+  document.getElementById('admin-whatsapp-popup-toggle').addEventListener('change', async (e) => {
+    const isChecked = e.target.checked;
+    const shopId = document.getElementById('admin-ad-shop-select').value;
+    const ok = await savePopupSettingsToFirebase({
+      isWelcomePopupEnabled: document.getElementById('admin-welcome-popup-toggle').checked,
+      isWhatsAppPopupEnabled: isChecked,
+      isAdPopupEnabled: document.getElementById('admin-ad-toggle').checked,
+      promotedShopId: shopId,
+      adExpiryTime: settings.adExpiryTime || 0
+    });
+    if (ok) {
+      alert(`WhatsApp Group Join popup has been turned ${isChecked ? 'ON' : 'OFF'}.`);
+      renderAdminShopAdsPanel();
+    } else {
+      alert("Failed to update WhatsApp popup settings.");
       e.target.checked = !isChecked; // revert
     }
   });

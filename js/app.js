@@ -3,7 +3,7 @@
 import { store } from './store.js';
 import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, printDigitalPass, openUserGuidePDF } from './export.js';
 import { renderAdminDashboard } from './admin.js';
-import { uploadHDImage, fetchAdSettingsFromFirebase } from './supabase.js';
+import { uploadHDImage, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase } from './supabase.js';
 import { shops } from './shopsData.js';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
@@ -134,13 +134,21 @@ function openAppInstallInstructionModal() {
   document.getElementById('close-install-modal-confirm-btn')?.addEventListener('click', removeModal);
 }
 
-// --- FIRST VISIT WELCOME & APP INSTALL POPUP PROMPT ---
-function checkAndPromptFirstVisitPopup() {
-  if (!sessionStorage.getItem('cpl_first_visit_popup_shown_v2')) {
-    sessionStorage.setItem('cpl_first_visit_popup_shown_v2', 'true');
-    setTimeout(() => {
-      openFirstVisitWelcomeModal();
-    }, 600);
+async function checkAndPromptFirstVisitPopup() {
+  try {
+    const settings = await fetchPopupSettingsFromFirebase();
+    if (!settings || !settings.isWelcomePopupEnabled) {
+      console.log("Welcome popup is disabled by admin.");
+      return;
+    }
+    if (!sessionStorage.getItem('cpl_first_visit_popup_shown_v2')) {
+      sessionStorage.setItem('cpl_first_visit_popup_shown_v2', 'true');
+      setTimeout(() => {
+        openFirstVisitWelcomeModal();
+      }, 600);
+    }
+  } catch (err) {
+    console.warn("Failed to check first visit popup status:", err);
   }
 }
 
@@ -586,12 +594,21 @@ function renderCurrentView() {
 }
 
 // --- WHATSAPP GROUP POPUP PROMPT ---
-function checkAndPromptWhatsAppGroup() {
-  if (!sessionStorage.getItem('jsl_wa_group_prompted')) {
-    sessionStorage.setItem('jsl_wa_group_prompted', 'true');
-    setTimeout(() => {
-      openWhatsAppGroupModal();
-    }, 400);
+async function checkAndPromptWhatsAppGroup() {
+  try {
+    const settings = await fetchPopupSettingsFromFirebase();
+    if (!settings || !settings.isWhatsAppPopupEnabled) {
+      console.log("WhatsApp group popup is disabled by admin.");
+      return;
+    }
+    if (!sessionStorage.getItem('jsl_wa_group_prompted')) {
+      sessionStorage.setItem('jsl_wa_group_prompted', 'true');
+      setTimeout(() => {
+        openWhatsAppGroupModal();
+      }, 400);
+    }
+  } catch (err) {
+    console.warn("Failed to check WhatsApp popup settings:", err);
   }
 }
 
