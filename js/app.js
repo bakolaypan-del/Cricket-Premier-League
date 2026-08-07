@@ -847,6 +847,40 @@ function renderFirstPageLanding(containerEl) {
               </div>
             </div>
 
+            <!-- SLIDE 4: SHIV SHAKTI EKADASH -->
+            <div class="w-full flex-shrink-0 relative group/slide cursor-pointer slide-item" data-slide-index="3" data-img-src="assets/team_confirm_4_shiv_shakti_ekadash.jpg" data-team-name="4th Confirm Team - Shiv Shakti Ekadash">
+              <div class="relative w-full max-h-[42vh] flex justify-center bg-slate-950 overflow-hidden">
+                <img src="assets/team_confirm_4_shiv_shakti_ekadash.jpg" alt="4th Confirm Team - Shiv Shakti Ekadash" class="w-full h-auto max-h-[42vh] object-contain mx-auto shadow-2xl transition-transform duration-300 group-hover/slide:scale-[1.01]" />
+                
+                <!-- TOP CORNER BADGE OVERLAY -->
+                <div class="absolute top-3 left-3 bg-gradient-to-r from-red-500 via-orange-600 to-amber-500 text-white font-black text-xs sm:text-sm px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-xl shadow-2xl border border-red-400 flex items-center gap-1.5">
+                  <span>🏆 4TH CONFIRM TEAM</span>
+                </div>
+
+                <!-- BOTTOM CLICK TO ENLARGE HINT -->
+                <div class="absolute bottom-3 right-3 bg-slate-950/85 backdrop-blur-md text-amber-300 font-bold text-[10px] sm:text-xs px-2.5 py-1 rounded-lg border border-amber-500/40 flex items-center gap-1 shadow-lg">
+                  <i data-lucide="maximize-2" class="w-3.5 h-3.5"></i> Tap Fullscreen
+                </div>
+              </div>
+            </div>
+
+            <!-- SLIDE 5: AVD ELEVEN -->
+            <div class="w-full flex-shrink-0 relative group/slide cursor-pointer slide-item" data-slide-index="4" data-img-src="assets/team_confirm_5_avd_eleven.jpg" data-team-name="5th Confirm Team - AVD Eleven">
+              <div class="relative w-full max-h-[42vh] flex justify-center bg-slate-950 overflow-hidden">
+                <img src="assets/team_confirm_5_avd_eleven.jpg" alt="5th Confirm Team - AVD Eleven" class="w-full h-auto max-h-[42vh] object-contain mx-auto shadow-2xl transition-transform duration-300 group-hover/slide:scale-[1.01]" />
+                
+                <!-- TOP CORNER BADGE OVERLAY -->
+                <div class="absolute top-3 left-3 bg-gradient-to-r from-teal-500 via-emerald-600 to-indigo-600 text-white font-black text-xs sm:text-sm px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-xl shadow-2xl border border-emerald-450 flex items-center gap-1.5">
+                  <span>🏆 5TH CONFIRM TEAM</span>
+                </div>
+
+                <!-- BOTTOM CLICK TO ENLARGE HINT -->
+                <div class="absolute bottom-3 right-3 bg-slate-950/85 backdrop-blur-md text-amber-300 font-bold text-[10px] sm:text-xs px-2.5 py-1 rounded-lg border border-amber-500/40 flex items-center gap-1 shadow-lg">
+                  <i data-lucide="maximize-2" class="w-3.5 h-3.5"></i> Tap Fullscreen
+                </div>
+              </div>
+            </div>
+
           </div>
 
           <!-- BOTTOM CAPTION & INDICATOR DOTS -->
@@ -859,6 +893,8 @@ function renderFirstPageLanding(containerEl) {
               <button data-dot-index="0" class="w-7 h-2 rounded-full bg-amber-400 transition-all duration-300" aria-label="Go to Slide 1"></button>
               <button data-dot-index="1" class="w-2.5 h-2 rounded-full bg-slate-700 hover:bg-slate-500 transition-all duration-300" aria-label="Go to Slide 2"></button>
               <button data-dot-index="2" class="w-2.5 h-2 rounded-full bg-slate-700 hover:bg-slate-500 transition-all duration-300" aria-label="Go to Slide 3"></button>
+              <button data-dot-index="3" class="w-2.5 h-2 rounded-full bg-slate-700 hover:bg-slate-500 transition-all duration-300" aria-label="Go to Slide 4"></button>
+              <button data-dot-index="4" class="w-2.5 h-2 rounded-full bg-slate-700 hover:bg-slate-500 transition-all duration-300" aria-label="Go to Slide 5"></button>
             </div>
           </div>
 
@@ -882,11 +918,13 @@ function renderFirstPageLanding(containerEl) {
   const teamCaptions = [
     '🥇 1ST CONFIRM TEAM: KHIRPAI HURRICANES (Owner: MANTU | Icon: BIJAY HALDAR)',
     '🥈 2ND CONFIRM TEAM: ANIKET XI (Owner: UTTAM GHOSH | Icon: RINTU ROY)',
-    '🥉 3RD CONFIRM TEAM: SRS BROTHER\'S (Owner: RAJA | Icon: TAPAS)'
+    '🥉 3RD CONFIRM TEAM: SRS BROTHER\'S (Owner: RAJA | Icon: TAPAS)',
+    '🏆 4TH CONFIRM TEAM: SHIV SHAKTI EKADASH (Owner: DEBIPRASAD PRAMANIK | Icon: SUBHAM SIR)',
+    '🏆 5TH CONFIRM TEAM: AVD ELEVEN (Owner: APU GHOSH | Icon: ROHIT PRAMANIK)'
   ];
 
   let currentSlide = 0;
-  const totalSlides = 3;
+  const totalSlides = 5;
 
   const updateSlide = (index) => {
     currentSlide = (index + totalSlides) % totalSlides;
