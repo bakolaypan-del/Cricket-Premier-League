@@ -3303,6 +3303,13 @@ function openTeamSquadModal(team) {
 window.closeAdPopupDirect = function() {
   const modal = document.getElementById('ad-popup-modal');
   if (modal) modal.remove();
+
+  // Show the next pending ad popup if any remain in queue
+  if (window.pendingAdShopIds && window.pendingAdShopIds.length > 0) {
+    setTimeout(() => {
+      showNextAdPopup();
+    }, 600);
+  }
 };
 
 window.closeAdPopup = function(event) {
@@ -3338,37 +3345,43 @@ async function checkAndShowAdvertisementPopup() {
       shopIds = [settings.promotedShopId || 'maa-laxmi-kitchen'];
     }
 
-    showAutoAdPopup(shopIds);
+    // Load sequential queue
+    window.pendingAdShopIds = [...shopIds];
+    showNextAdPopup();
   } catch (err) {
     console.warn("Failed to trigger ad popup:", err);
   }
 }
 
-function showAutoAdPopup(shopIds) {
-  const ids = Array.isArray(shopIds) ? shopIds : [shopIds];
-  const activeShops = ids.map(id => shops.find(s => s.id === id)).filter(Boolean);
-  if (activeShops.length === 0) return;
+function showNextAdPopup() {
+  if (!window.pendingAdShopIds || window.pendingAdShopIds.length === 0) return;
+  const nextShopId = window.pendingAdShopIds.shift();
+  showAutoAdPopupSingle(nextShopId);
+}
+
+function showAutoAdPopupSingle(shopId) {
+  const shop = shops.find(s => s.id === shopId);
+  if (!shop) return;
 
   // Prevent multiple ads overlapping
   if (document.getElementById('ad-popup-modal')) return;
 
-  const isMulti = activeShops.length > 1;
+  const modalHtml = `
+    <div id="ad-popup-modal" onclick="window.closeAdPopup(event)" class="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-950/85 backdrop-blur-sm animate-in fade-in duration-300">
+      <div class="relative w-full max-w-[92%] sm:max-w-md md:max-w-lg overflow-hidden rounded-3xl border-2 border-amber-400 bg-white shadow-2xl animate-in zoom-in-95 duration-200">
+        
+        <!-- Close 'X' Button -->
+        <button onclick="window.closeAdPopupDirect()" class="absolute top-3 right-3 z-30 p-1.5 bg-white/90 hover:bg-white text-slate-500 hover:text-slate-800 rounded-full transition-colors border border-slate-200">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
 
-  let slidesHtml = '';
-  activeShops.forEach((shop, index) => {
-    slidesHtml += `
-      <div class="w-full flex-shrink-0 space-y-3 sm:space-y-4">
-        <!-- Dynamic Header Image -->
-        <div class="relative h-32 sm:h-44 overflow-hidden rounded-t-3xl">
-          <img src="${shop.image}" class="w-full h-full object-cover opacity-90" alt="${shop.name}">
-          <div class="absolute inset-0 bg-gradient-to-t from-white to-transparent"></div>
-          <span class="absolute top-3 left-3 inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold tracking-wide uppercase bg-amber-500 text-slate-950 shadow-md z-20">
-            🔥 Partner Spot ${isMulti ? `(${index + 1}/${activeShops.length})` : ''}
-          </span>
+        <!-- Dynamic Header Image - Fully visible container with object-contain to show all text -->
+        <div class="relative w-full bg-white border-b border-slate-100 flex items-center justify-center overflow-hidden">
+          <img src="${shop.image}" class="w-full h-auto object-contain mx-auto max-h-[42vh]" alt="${shop.name}">
         </div>
 
         <!-- Details -->
-        <div class="p-4 sm:p-6 pt-1 sm:pt-1 space-y-3 sm:space-y-4">
+        <div class="p-4 sm:p-6 space-y-3 sm:space-y-4 bg-white">
           <div>
             <h3 class="text-lg sm:text-2xl font-black text-slate-900 leading-tight">${shop.name}</h3>
             <p class="text-[9px] sm:text-[10px] text-amber-700 font-bold uppercase tracking-wider mt-0.5 flex items-center gap-1">
@@ -3377,7 +3390,7 @@ function showAutoAdPopup(shopIds) {
             </p>
           </div>
 
-          <p class="text-xs sm:text-sm text-slate-600 leading-relaxed line-clamp-2">${shop.shortDesc}</p>
+          <p class="text-xs sm:text-sm text-slate-600 leading-relaxed">${shop.shortDesc}</p>
 
           <div class="flex space-x-3 pt-1">
             <!-- Cancel / Dismiss -->
@@ -3392,102 +3405,11 @@ function showAutoAdPopup(shopIds) {
           </div>
         </div>
       </div>
-    `;
-  });
-
-  const controlsHtml = isMulti ? `
-    <!-- Prev Button -->
-    <button id="ad-prev-btn" class="absolute left-2.5 top-[25%] sm:top-[30%] z-20 p-1.5 bg-white/90 hover:bg-white text-slate-800 rounded-full border border-slate-200 shadow-md">
-      <i data-lucide="chevron-left" class="w-4 h-4"></i>
-    </button>
-    <!-- Next Button -->
-    <button id="ad-next-btn" class="absolute right-2.5 top-[25%] sm:top-[30%] z-20 p-1.5 bg-white/90 hover:bg-white text-slate-800 rounded-full border border-slate-200 shadow-md">
-      <i data-lucide="chevron-right" class="w-4 h-4"></i>
-    </button>
-    <!-- Dots indicator -->
-    <div class="absolute bottom-2.5 left-1/2 -translate-x-1/2 flex items-center gap-1.5 z-20" id="ad-carousel-dots">
-      ${activeShops.map((_, i) => `<span class="ad-dot w-2 h-2 rounded-full cursor-pointer transition-all ${i === 0 ? 'bg-amber-400' : 'bg-slate-300'}" data-slide-index="${i}"></span>`).join('')}
-    </div>
-  ` : '';
-
-  const modalHtml = `
-    <div id="ad-popup-modal" onclick="window.closeAdPopup(event)" class="fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-950/85 backdrop-blur-sm animate-in fade-in duration-300">
-      <div class="relative w-full max-w-[92%] sm:max-w-md md:max-w-lg overflow-hidden rounded-3xl border-2 border-amber-400 bg-white shadow-2xl animate-in zoom-in-95 duration-200">
-        
-        <!-- Close 'X' Button -->
-        <button onclick="window.closeAdPopupDirect()" class="absolute top-3 right-3 z-30 p-1.5 bg-white/90 hover:bg-white text-slate-500 hover:text-slate-800 rounded-full transition-colors border border-slate-200">
-          <i data-lucide="x" class="w-4 h-4"></i>
-        </button>
-
-        ${controlsHtml}
-
-        <!-- Carousel Container wrapper -->
-        <div class="w-full overflow-hidden rounded-3xl">
-          <div id="ad-slider" class="flex transition-transform duration-500 ease-out w-full" style="transform: translateX(0%);">
-            ${slidesHtml}
-          </div>
-        </div>
-
-      </div>
     </div>
   `;
 
   document.body.insertAdjacentHTML('beforeend', modalHtml);
   if (window.lucide) window.lucide.createIcons();
-
-  if (isMulti) {
-    let currentSlide = 0;
-    const totalSlides = activeShops.length;
-    const slider = document.getElementById('ad-slider');
-
-    let autoRotate = setInterval(() => {
-      updateSlide(currentSlide + 1);
-    }, 4000);
-
-    const clearAutoRotate = () => {
-      if (autoRotate) {
-        clearInterval(autoRotate);
-        autoRotate = null;
-      }
-    };
-
-    const updateSlide = (idx) => {
-      currentSlide = (idx + totalSlides) % totalSlides;
-      if (slider) {
-        slider.style.transform = `translateX(-${currentSlide * 100}%)`;
-      }
-      // update dots
-      const dots = document.querySelectorAll('.ad-dot');
-      dots.forEach((dot, dIdx) => {
-        if (dIdx === currentSlide) {
-          dot.className = 'ad-dot w-2 h-2 rounded-full cursor-pointer transition-all bg-amber-400';
-        } else {
-          dot.className = 'ad-dot w-2 h-2 rounded-full cursor-pointer transition-all bg-slate-300';
-        }
-      });
-    };
-
-    document.getElementById('ad-prev-btn')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      clearAutoRotate();
-      updateSlide(currentSlide - 1);
-    });
-
-    document.getElementById('ad-next-btn')?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      clearAutoRotate();
-      updateSlide(currentSlide + 1);
-    });
-
-    document.querySelectorAll('.ad-dot').forEach(dot => {
-      dot.addEventListener('click', (e) => {
-        e.stopPropagation();
-        clearAutoRotate();
-        const idx = parseInt(e.currentTarget.getAttribute('data-slide-index'), 10);
-        updateSlide(idx);
-      });
-    });
-  }
 }
 
 function renderShopDetailsView(containerEl) {
