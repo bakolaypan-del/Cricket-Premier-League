@@ -1916,14 +1916,19 @@ export async function renderAdminShopAdsPanel() {
             <h4 class="text-xs font-black text-slate-400 uppercase tracking-widest border-b border-slate-850 pb-2">📢 Shop Ad Configuration</h4>
             
             <div>
-              <label class="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">Select Partner Shop to Promote</label>
-              <select id="admin-ad-shop-select" class="w-full bg-slate-900 border border-slate-800 text-white text-xs rounded-xl p-3 focus:border-amber-500 focus:outline-none font-bold">
-                ${shops.map(shop => `
-                  <option value="${shop.id}" ${settings.promotedShopId === shop.id ? 'selected' : ''}>
-                    ${shop.name} (${shop.type === 'restaurant' ? 'Food/Kitchen' : shop.type === 'rice' ? 'Rice Bhandar' : 'Hardware & Sanitation'})
-                  </option>
-                `).join('')}
-              </select>
+              <label class="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">Select Partner Shops to Promote (Select multiple to show in carousel)</label>
+              <div class="space-y-2 bg-slate-900/60 p-3.5 rounded-xl border border-slate-800 max-h-48 overflow-y-auto">
+                ${shops.map(shop => {
+                  const isChecked = (settings.promotedShopIds && settings.promotedShopIds.includes(shop.id)) 
+                    || (!settings.promotedShopIds && settings.promotedShopId === shop.id);
+                  return `
+                    <label class="flex items-center space-x-3 text-white text-xs font-bold cursor-pointer hover:text-amber-400 transition-colors py-1">
+                      <input type="checkbox" name="promoted-shop-checkbox" value="${shop.id}" ${isChecked ? 'checked' : ''} class="w-4 h-4 rounded text-amber-500 focus:ring-amber-500 focus:ring-offset-slate-900 border-slate-800 bg-slate-950">
+                      <span>${shop.name} (${shop.type === 'restaurant' ? 'Food/Kitchen' : shop.type === 'rice' ? 'Rice Bhandar' : 'Hardware & Sanitation'})</span>
+                    </label>
+                  `;
+                }).join('')}
+              </div>
             </div>
 
             <div class="flex items-center justify-between p-3.5 bg-slate-900/80 rounded-xl border border-slate-800/80">
@@ -1962,18 +1967,28 @@ export async function renderAdminShopAdsPanel() {
 
   if (window.lucide) window.lucide.createIcons();
 
+  const getCheckedShopIds = () => {
+    const checked = document.querySelectorAll('input[name="promoted-shop-checkbox"]:checked');
+    return Array.from(checked).map(cb => cb.value);
+  };
+
   // BIND BUTTON LISTENERS
   document.getElementById('admin-ad-turn-on-btn').addEventListener('click', async () => {
-    const shopId = document.getElementById('admin-ad-shop-select').value;
+    const shopIds = getCheckedShopIds();
+    if (shopIds.length === 0) {
+      alert("Please select at least one shop to promote.");
+      return;
+    }
     const ok = await savePopupSettingsToFirebase({
       isWelcomePopupEnabled: document.getElementById('admin-welcome-popup-toggle').checked,
       isWhatsAppPopupEnabled: document.getElementById('admin-whatsapp-popup-toggle').checked,
       isAdPopupEnabled: true,
-      promotedShopId: shopId,
+      promotedShopIds: shopIds,
+      promotedShopId: shopIds[0] || 'maa-laxmi-kitchen',
       adExpiryTime: 0
     });
     if (ok) {
-      alert("Settings saved successfully! Advertisement popup is now active.");
+      alert("Settings saved successfully! Selected advertisements are now active.");
       renderAdminShopAdsPanel();
     } else {
       alert("Failed to save settings. Please try again.");
@@ -1981,16 +1996,17 @@ export async function renderAdminShopAdsPanel() {
   });
 
   document.getElementById('admin-ad-turn-off-btn').addEventListener('click', async () => {
-    const shopId = document.getElementById('admin-ad-shop-select').value;
+    const shopIds = getCheckedShopIds();
     const ok = await savePopupSettingsToFirebase({
       isWelcomePopupEnabled: document.getElementById('admin-welcome-popup-toggle').checked,
       isWhatsAppPopupEnabled: document.getElementById('admin-whatsapp-popup-toggle').checked,
       isAdPopupEnabled: false,
-      promotedShopId: shopId,
+      promotedShopIds: shopIds,
+      promotedShopId: shopIds[0] || 'maa-laxmi-kitchen',
       adExpiryTime: 0
     });
     if (ok) {
-      alert("Advertisement is now completely turned off.");
+      alert("Advertisements are now completely turned off.");
       renderAdminShopAdsPanel();
     } else {
       alert("Failed to turn off advertisement settings.");
@@ -1998,17 +2014,18 @@ export async function renderAdminShopAdsPanel() {
   });
 
   document.getElementById('admin-ad-pause-month-btn').addEventListener('click', async () => {
-    const shopId = document.getElementById('admin-ad-shop-select').value;
+    const shopIds = getCheckedShopIds();
     const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
     const ok = await savePopupSettingsToFirebase({
       isWelcomePopupEnabled: document.getElementById('admin-welcome-popup-toggle').checked,
       isWhatsAppPopupEnabled: document.getElementById('admin-whatsapp-popup-toggle').checked,
       isAdPopupEnabled: true,
-      promotedShopId: shopId,
+      promotedShopIds: shopIds,
+      promotedShopId: shopIds[0] || 'maa-laxmi-kitchen',
       adExpiryTime: Date.now() + ONE_MONTH_MS
     });
     if (ok) {
-      alert("Advertisement paused successfully! It will not show up for the next 30 days.");
+      alert("Advertisements paused successfully! They will not show up for the next 30 days.");
       renderAdminShopAdsPanel();
     } else {
       alert("Failed to snooze advertisement settings.");
@@ -2018,12 +2035,13 @@ export async function renderAdminShopAdsPanel() {
   // Bind checkbox change
   document.getElementById('admin-ad-toggle').addEventListener('change', async (e) => {
     const isChecked = e.target.checked;
-    const shopId = document.getElementById('admin-ad-shop-select').value;
+    const shopIds = getCheckedShopIds();
     const ok = await savePopupSettingsToFirebase({
       isWelcomePopupEnabled: document.getElementById('admin-welcome-popup-toggle').checked,
       isWhatsAppPopupEnabled: document.getElementById('admin-whatsapp-popup-toggle').checked,
       isAdPopupEnabled: isChecked,
-      promotedShopId: shopId,
+      promotedShopIds: shopIds,
+      promotedShopId: shopIds[0] || 'maa-laxmi-kitchen',
       adExpiryTime: 0
     });
     if (ok) {
@@ -2038,12 +2056,13 @@ export async function renderAdminShopAdsPanel() {
   // Bind welcome popup change
   document.getElementById('admin-welcome-popup-toggle').addEventListener('change', async (e) => {
     const isChecked = e.target.checked;
-    const shopId = document.getElementById('admin-ad-shop-select').value;
+    const shopIds = getCheckedShopIds();
     const ok = await savePopupSettingsToFirebase({
       isWelcomePopupEnabled: isChecked,
       isWhatsAppPopupEnabled: document.getElementById('admin-whatsapp-popup-toggle').checked,
       isAdPopupEnabled: document.getElementById('admin-ad-toggle').checked,
-      promotedShopId: shopId,
+      promotedShopIds: shopIds,
+      promotedShopId: shopIds[0] || 'maa-laxmi-kitchen',
       adExpiryTime: settings.adExpiryTime || 0
     });
     if (ok) {
@@ -2058,12 +2077,13 @@ export async function renderAdminShopAdsPanel() {
   // Bind whatsapp popup change
   document.getElementById('admin-whatsapp-popup-toggle').addEventListener('change', async (e) => {
     const isChecked = e.target.checked;
-    const shopId = document.getElementById('admin-ad-shop-select').value;
+    const shopIds = getCheckedShopIds();
     const ok = await savePopupSettingsToFirebase({
       isWelcomePopupEnabled: document.getElementById('admin-welcome-popup-toggle').checked,
       isWhatsAppPopupEnabled: isChecked,
       isAdPopupEnabled: document.getElementById('admin-ad-toggle').checked,
-      promotedShopId: shopId,
+      promotedShopIds: shopIds,
+      promotedShopId: shopIds[0] || 'maa-laxmi-kitchen',
       adExpiryTime: settings.adExpiryTime || 0
     });
     if (ok) {
