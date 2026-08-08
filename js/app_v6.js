@@ -1093,9 +1093,13 @@ function renderJSLHub(containerEl) {
     <div class="space-y-4 animate-fade-in max-w-4xl mx-auto py-2">
       
       <!-- Back Button & Header Bar -->
-      <div class="flex items-center gap-2">
-        <button id="back-to-landing-btn" class="px-3.5 py-1.5 bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white text-xs font-black rounded-xl border border-red-400 flex items-center gap-1.5 shadow-md transition-all">
-          <i data-lucide="corner-up-left" class="w-3.5 h-3.5 text-white"></i> Back
+      <div class="flex items-center justify-between gap-2">
+        <button id="back-to-landing-btn" class="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-800 text-xs font-extrabold rounded-xl border border-slate-300 flex items-center gap-1.5 shadow-sm">
+          <i data-lucide="arrow-left" class="w-3.5 h-3.5 text-emerald-600"></i> Category Selector
+        </button>
+
+        <button id="open-user-guide-pdf-btn" class="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-extrabold text-[10px] sm:text-xs rounded-xl border border-emerald-400 shadow-md flex items-center gap-1.5 transition-all">
+          <i data-lucide="book-open" class="w-3.5 h-3.5 text-amber-300"></i> 📖 User Guide PDF (English & বাংলা)
         </button>
       </div>
 

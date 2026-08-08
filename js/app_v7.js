@@ -1093,9 +1093,13 @@ function renderJSLHub(containerEl) {
     <div class="space-y-4 animate-fade-in max-w-4xl mx-auto py-2">
       
       <!-- Back Button & Header Bar -->
-      <div class="flex items-center gap-2">
-        <button id="back-to-landing-btn" class="px-3.5 py-1.5 bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white text-xs font-black rounded-xl border border-red-400 flex items-center gap-1.5 shadow-md transition-all">
-          <i data-lucide="corner-up-left" class="w-3.5 h-3.5 text-white"></i> Back
+      <div class="flex items-center justify-between gap-2">
+        <button id="back-to-landing-btn" class="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-800 text-xs font-extrabold rounded-xl border border-slate-300 flex items-center gap-1.5 shadow-sm">
+          <i data-lucide="arrow-left" class="w-3.5 h-3.5 text-emerald-600"></i> Category Selector
+        </button>
+
+        <button id="open-user-guide-pdf-btn" class="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-extrabold text-[10px] sm:text-xs rounded-xl border border-emerald-400 shadow-md flex items-center gap-1.5 transition-all">
+          <i data-lucide="book-open" class="w-3.5 h-3.5 text-amber-300"></i> 📖 User Guide PDF (English & বাংলা)
         </button>
       </div>
 
@@ -1138,14 +1142,13 @@ function renderJSLHub(containerEl) {
             ${teams.length}
           </div>
 
-          <div class="space-y-1 sm:space-y-2 pt-0.5 w-full flex flex-col items-center mb-2.5 sm:mb-4">
+          <div class="space-y-1.5 sm:space-y-3 pt-0.5 w-full flex flex-col items-center mb-2.5 sm:mb-4">
             <div class="w-7 h-7 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-gradient-to-br from-sky-500 to-blue-700 text-white flex items-center justify-center shadow-md font-black">
               <i data-lucide="shield" class="w-3.5 h-3.5 sm:w-5 sm:h-5"></i>
             </div>
 
             <div class="w-full">
-              <div class="text-[8px] min-[360px]:text-[9px] sm:text-xs font-black text-slate-900 uppercase tracking-tight leading-none">REGISTERED TEAMS</div>
-              <div class="text-[7px] min-[360px]:text-[8px] sm:text-[10px] font-extrabold text-sky-700 leading-none mt-0.5">Official Squads</div>
+              <div class="text-[9.5px] min-[360px]:text-[11.5px] sm:text-xs md:text-sm font-black text-slate-900 uppercase tracking-tight leading-tight">REGISTERED TEAMS</div>
             </div>
           </div>
 
@@ -1161,14 +1164,13 @@ function renderJSLHub(containerEl) {
             ${players.length}
           </div>
 
-          <div class="space-y-1 sm:space-y-2 pt-0.5 w-full flex flex-col items-center mb-2.5 sm:mb-4">
+          <div class="space-y-1.5 sm:space-y-3 pt-0.5 w-full flex flex-col items-center mb-2.5 sm:mb-4">
             <div class="w-7 h-7 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 text-white flex items-center justify-center shadow-md font-black">
               <i data-lucide="users" class="w-3.5 h-3.5 sm:w-5 sm:h-5"></i>
             </div>
 
             <div class="w-full">
-              <div class="text-[8px] min-[360px]:text-[9px] sm:text-xs font-black text-slate-900 uppercase tracking-tight leading-none">REGISTERED PLAYERS</div>
-              <div class="text-[7px] min-[360px]:text-[8px] sm:text-[10px] font-extrabold text-emerald-700 leading-none mt-0.5">Player Entries</div>
+              <div class="text-[9.5px] min-[360px]:text-[11.5px] sm:text-xs md:text-sm font-black text-slate-900 uppercase tracking-tight leading-tight">REGISTERED PLAYERS</div>
             </div>
           </div>
 
@@ -1180,14 +1182,13 @@ function renderJSLHub(containerEl) {
         <!-- COLUMN 3 (RIGHT SIDE): REGISTRATION HERE CARD -->
         <div class="relative glass-card p-2 sm:p-4 text-center border-2 border-red-400 bg-white flex flex-col justify-between items-center hover:border-red-600 shadow-md rounded-xl sm:rounded-2xl overflow-hidden">
           
-          <div class="space-y-1 sm:space-y-2 pt-0.5 w-full flex flex-col items-center mb-2.5 sm:mb-4">
+          <div class="space-y-1.5 sm:space-y-3 pt-0.5 w-full flex flex-col items-center mb-2.5 sm:mb-4">
             <div class="w-7 h-7 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-gradient-to-br from-red-500 to-rose-700 text-white flex items-center justify-center font-black shadow-md border border-red-300 text-xs sm:text-lg">
               ✍️
             </div>
 
             <div class="w-full">
-              <div class="text-[8px] min-[360px]:text-[9px] sm:text-xs font-black text-slate-900 uppercase tracking-tight leading-none">REGISTRATION HERE</div>
-              <div class="text-[7px] min-[360px]:text-[8px] sm:text-[10px] font-black text-black leading-none mt-0.5">Team & Player Entry</div>
+              <div class="text-[9.5px] min-[360px]:text-[11.5px] sm:text-xs md:text-sm font-black text-slate-900 uppercase tracking-tight leading-tight">REGISTRATION HERE</div>
             </div>
           </div>
 
