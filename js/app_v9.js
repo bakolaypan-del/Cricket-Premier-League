@@ -21,8 +21,89 @@ let currentRoute = 'landing'; // landing, jsl-hub, admin, shop-detail
 let selectedShopId = '';
 
 document.addEventListener('DOMContentLoaded', () => {
+  initIntroLoadingScreen();
   initApp();
 });
+
+function initIntroLoadingScreen() {
+  const introScreen = document.getElementById('intro-loading-screen');
+  if (!introScreen) return;
+
+  const typewriterEl = document.getElementById('typewriter-text');
+  const targetText = "Developer - Suman Kolay";
+  let typeIndex = 0;
+  let typeInterval = null;
+
+  // Web Audio API Keypress Click Generator
+  const playKeyPressSound = () => {
+    try {
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      if (!AudioCtx) return;
+      const ctx = new AudioCtx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      // Sharp mechanical typewriter key click sound
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(550 + Math.random() * 250, ctx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.035);
+
+      gain.gain.setValueAtTime(0.2, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.035);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start();
+      osc.stop(ctx.currentTime + 0.035);
+    } catch (err) {
+      // Audio autoplay fallback
+    }
+  };
+
+  const dismissIntro = () => {
+    if (introScreen.classList.contains('fade-out')) return;
+    if (typeInterval) clearInterval(typeInterval);
+    introScreen.classList.add('fade-out');
+    setTimeout(() => {
+      if (introScreen.parentNode) {
+        introScreen.parentNode.removeChild(introScreen);
+      }
+    }, 800);
+  };
+
+  const startTypewriter = () => {
+    if (!typewriterEl) return;
+    typewriterEl.textContent = "";
+    typeIndex = 0;
+
+    typeInterval = setInterval(() => {
+      if (typeIndex < targetText.length) {
+        typewriterEl.textContent += targetText.charAt(typeIndex);
+        playKeyPressSound();
+        typeIndex++;
+      } else {
+        clearInterval(typeInterval);
+        // Pause briefly after typing finishes, then dismiss intro screen to show home page
+        setTimeout(dismissIntro, 1200);
+      }
+    }, 90); // 90ms per letter typing speed
+  };
+
+  // Start typewriter effect immediately as hero picture opens
+  const typewriterTimer = setTimeout(startTypewriter, 400);
+
+  // Safety fallback timer
+  const fallbackTimer = setTimeout(dismissIntro, 5000);
+
+  // Click anywhere to skip
+  introScreen.addEventListener('click', () => {
+    clearTimeout(typewriterTimer);
+    clearTimeout(fallbackTimer);
+    if (typeInterval) clearInterval(typeInterval);
+    dismissIntro();
+  });
+}
 
 function initApp() {
   renderNavbar();

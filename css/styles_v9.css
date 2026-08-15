@@ -549,5 +549,104 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   100% { transform: translate(120px, -5px) scale(0.85); opacity: 0.5; }
 }
 
+/* ==========================================================================
+   CLEAN WHITE BACKGROUND HERO INTRO (DEVELOPER: SUMAN KOLAY)
+   ========================================================================== */
+
+#intro-loading-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 999999;
+  background: #FFFFFF !important;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 24px 16px;
+  overflow: hidden;
+  color: #0F172A;
+  user-select: none;
+  opacity: 1;
+  transition: opacity 0.8s ease-out, visibility 0.8s ease-out;
+}
+
+#intro-loading-screen.fade-out {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* CENTER STAGE HERO POSTER (NO BORDER, NO SHADOW, NO FRAME) */
+.intro-stage-clean {
+  width: 100%;
+  max-width: 580px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 15px;
+}
+
+.intro-hero-poster-wrapper {
+  position: relative;
+  width: 100%;
+  max-height: 65vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: heroImageFadeIn 1s ease-out forwards;
+}
+
+.intro-hero-poster-img {
+  max-width: 100%;
+  max-height: 62vh;
+  object-fit: contain;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  filter: none !important;
+  background: transparent !important;
+}
+
+@keyframes heroImageFadeIn {
+  0% { opacity: 0; transform: scale(0.96); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+/* LOWER PORTION: SIMPLE HANDWRITTEN TEXT DIRECTLY BELOW IMAGE (NO SHAPE, NO BOX, NO BORDER) */
+.intro-developer-simple {
+  text-align: center;
+  z-index: 10;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 8px 0;
+  margin-top: 8px;
+}
+
+.typewriter-handwritten {
+  font-family: 'Caveat', cursive, serif !important;
+  font-size: 36px !important;
+  font-weight: 700 !important;
+  color: #0F294A !important; /* Deep Navy */
+  letter-spacing: 1px;
+  white-space: pre;
+  display: inline-block;
+  text-shadow: none !important;
+}
+
+.typewriter-cursor-simple {
+  display: inline-block;
+  color: #059669;
+  font-weight: 900;
+  font-size: 32px;
+  margin-left: 2px;
+  animation: cursorBlink 0.6s infinite;
+}
+
+@keyframes cursorBlink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
 
 
