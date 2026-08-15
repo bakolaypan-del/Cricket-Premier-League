@@ -2,8 +2,8 @@
 
 import { store } from './store.js';
 import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF } from './export.js';
-import { openSquareImageCropModal, compressImage } from './app.js';
-import { saveAdSettingsToFirebase, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, savePopupSettingsToFirebase } from './supabase.js';
+import { openSquareImageCropModal, compressImage } from './app_v9.js';
+import { saveAdSettingsToFirebase, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, savePopupSettingsToFirebase, uploadHDImage } from './supabase.js';
 import { shops } from './shopsData.js';
 
 let activeAdminTab = 'payments'; // 'payments', 'all-players', 'teams'
@@ -150,7 +150,7 @@ export function renderAdminDashboard(containerEl) {
                       <tr class="hover:bg-slate-950/60">
                         <td class="py-3 px-3">
                           <div class="flex items-center gap-2.5">
-                            <img src="${p.photoUrl || p.player_photo_url}" class="w-10 h-10 rounded-xl object-cover border border-slate-700" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300'"/>
+                            <img src="${p.photoUrl || p.player_photo_url}" loading="lazy" decoding="async" class="w-10 h-10 rounded-xl object-cover border border-slate-700" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300'"/>
                             <div>
                               <div class="font-bold text-white text-xs sm:text-sm">${p.name}</div>
                               <span class="px-1.5 py-0.5 bg-slate-950 text-amber-400 font-mono text-[9px] font-black rounded border border-amber-500/40">${p.registrationId || p.regNo || 'JSL2026-0001'} (#${p.displayRegistrationNumber || p.serialNo})</span>
@@ -799,7 +799,7 @@ function renderAdminPlayersRows(playersList) {
         </td>
         <td class="py-3 px-3 font-bold text-white text-xs">
           <div class="flex items-center gap-2">
-            <img src="${p.photoUrl || p.player_photo_url}" class="w-8 h-8 rounded-lg object-cover border border-slate-700" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300'"/>
+            <img src="${p.photoUrl || p.player_photo_url}" loading="lazy" decoding="async" class="w-8 h-8 rounded-lg object-cover border border-slate-700" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300'"/>
             <div>
               <div>${p.name}</div>
               <div class="text-[9px] text-slate-400 font-normal">Age: ${p.age || 24} Yrs</div>
@@ -1126,10 +1126,10 @@ function openAdminEditPlayerModal(player, containerEl) {
 
   let updatedPhotoUrl = player.photoUrl || player.player_photo_url || '';
 
-  const processAdminPhotoSelection = async (file) => {
+  const processAdminPhotoSelection = (file) => {
     if (!file) return;
-    const rawDataUrl = await compressImage(file, 1200, 1200, 0.85);
-    openSquareImageCropModal(rawDataUrl, (croppedUrl) => {
+    const objectUrl = URL.createObjectURL(file);
+    openSquareImageCropModal(objectUrl, (croppedUrl) => {
       updatedPhotoUrl = croppedUrl;
       const previewImg = document.getElementById('admin-edit-photo-preview');
       if (previewImg) previewImg.src = croppedUrl;
@@ -1150,26 +1150,68 @@ function openAdminEditPlayerModal(player, containerEl) {
     }
   });
 
-  document.getElementById('admin-edit-player-form')?.addEventListener('submit', (e) => {
+  document.getElementById('admin-edit-player-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const newStatus = document.getElementById('edit-ply-status').value;
-    store.updatePlayer({
-      id: player.id,
-      name: document.getElementById('edit-ply-name').value,
-      fatherName: document.getElementById('edit-ply-father-name').value,
-      phone: document.getElementById('edit-ply-phone').value,
-      category: document.getElementById('edit-ply-category').value,
-      role: document.getElementById('edit-ply-category').value,
-      playingType: document.getElementById('edit-ply-category').value,
-      paymentStatus: newStatus,
-      registrationStatus: newStatus,
-      paymentRef: document.getElementById('edit-ply-upiref').value,
-      photoUrl: updatedPhotoUrl,
-      player_photo_url: updatedPhotoUrl
-    });
+    const saveBtn = e.target.querySelector('button[type="submit"]');
+    const originalText = saveBtn ? saveBtn.innerText : "Save Changes";
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = `
+        <div class="flex items-center justify-center gap-2">
+          <div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+          <span>Saving & Uploading Photo...</span>
+        </div>
+      `;
+    }
 
-    removeModal();
-    renderAdminDashboard(containerEl);
+    try {
+      let finalPhotoUrl = updatedPhotoUrl;
+
+      if (updatedPhotoUrl && updatedPhotoUrl.startsWith('data:image')) {
+        const timeoutPromise = new Promise(res => setTimeout(() => res(null), 12000));
+        const uploadedUrl = await Promise.race([
+          uploadHDImage(updatedPhotoUrl, 'player_photos'),
+          timeoutPromise
+        ]);
+
+        if (uploadedUrl && (uploadedUrl.startsWith('http://') || uploadedUrl.startsWith('https://'))) {
+          finalPhotoUrl = uploadedUrl;
+        } else {
+          if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.innerText = originalText;
+          }
+          alert("⚠️ Photo Upload Failed!\n\nUnable to upload photo to Cloudinary CDN. Please check your internet connection and try again.");
+          return;
+        }
+      }
+
+      const newStatus = document.getElementById('edit-ply-status').value;
+      store.updatePlayer({
+        id: player.id,
+        name: document.getElementById('edit-ply-name').value,
+        fatherName: document.getElementById('edit-ply-father-name').value,
+        phone: document.getElementById('edit-ply-phone').value,
+        category: document.getElementById('edit-ply-category').value,
+        role: document.getElementById('edit-ply-category').value,
+        playingType: document.getElementById('edit-ply-category').value,
+        paymentStatus: newStatus,
+        registrationStatus: newStatus,
+        paymentRef: document.getElementById('edit-ply-upiref').value,
+        photoUrl: finalPhotoUrl,
+        player_photo_url: finalPhotoUrl
+      });
+
+      removeModal();
+      renderAdminDashboard(containerEl);
+    } catch (err) {
+      console.error("Admin player update error:", err);
+      if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.innerText = originalText;
+      }
+      alert("⚠️ Update error: " + err.message);
+    }
   });
 }
 
@@ -1907,6 +1949,18 @@ export async function renderAdminShopAdsPanel() {
               <div class="w-10 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
             </label>
           </div>
+
+          <!-- Real-time Registered Player Toast Toggle -->
+          <div class="flex items-center justify-between p-3.5 bg-slate-900/80 rounded-xl border border-emerald-900/40">
+            <div>
+              <p class="text-xs font-bold text-white flex items-center gap-1.5">⚡ Real-Time Registered Player Toast Pop-Up <span class="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 font-mono text-[9px] rounded-full">NEW</span></p>
+              <p class="text-[10px] text-slate-400 mt-0.5">SHOW or HOLD/PAUSE the live floating popup displaying the last 5 registered players on the website.</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="admin-realtime-toast-toggle" class="sr-only peer" ${settings.isRealtimePlayerToastEnabled !== false ? 'checked' : ''}>
+              <div class="w-10 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+            </label>
+          </div>
         </div>
 
         <!-- SECTION 2: ADVERTISEMENT POPUP CONFIGURATION -->
@@ -2091,6 +2145,28 @@ export async function renderAdminShopAdsPanel() {
       renderAdminShopAdsPanel();
     } else {
       alert("Failed to update WhatsApp popup settings.");
+      e.target.checked = !isChecked; // revert
+    }
+  });
+
+  // Bind real-time player toast toggle
+  document.getElementById('admin-realtime-toast-toggle').addEventListener('change', async (e) => {
+    const isChecked = e.target.checked;
+    const shopIds = getCheckedShopIds();
+    const ok = await savePopupSettingsToFirebase({
+      isWelcomePopupEnabled: document.getElementById('admin-welcome-popup-toggle').checked,
+      isWhatsAppPopupEnabled: document.getElementById('admin-whatsapp-popup-toggle').checked,
+      isRealtimePlayerToastEnabled: isChecked,
+      isAdPopupEnabled: document.getElementById('admin-ad-toggle').checked,
+      promotedShopIds: shopIds,
+      promotedShopId: shopIds[0] || 'maa-laxmi-kitchen',
+      adExpiryTime: settings.adExpiryTime || 0
+    });
+    if (ok) {
+      alert(`Real-Time Registered Player Toast has been ${isChecked ? 'ACTIVATED (Showing Live)' : 'PAUSED / HELD (Hidden)'}.`);
+      renderAdminShopAdsPanel();
+    } else {
+      alert("Failed to update real-time player toast settings.");
       e.target.checked = !isChecked; // revert
     }
   });

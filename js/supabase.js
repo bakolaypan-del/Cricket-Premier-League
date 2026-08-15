@@ -98,22 +98,50 @@ export async function uploadImageToImgBB(file) {
   return null;
 }
 
+// Helper to ensure input is a valid File or Blob object for FormData upload
+function ensureFileObject(fileInput, defaultName = 'upload.jpg') {
+  if (!fileInput) return null;
+  if (typeof fileInput === 'string' && fileInput.startsWith('data:image')) {
+    try {
+      const arr = fileInput.split(',');
+      const mimeMatch = arr[0].match(/:(.*?);/);
+      const mime = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+      const bstr = atob(arr[1]);
+      let n = bstr.length;
+      const u8arr = new Uint8Array(n);
+      while (n--) {
+        u8arr[n] = bstr.charCodeAt(n);
+      }
+      return new File([u8arr], defaultName, { type: mime });
+    } catch (e) {
+      return fileInput;
+    }
+  }
+  return fileInput;
+}
+
 // --- CLOUDINARY DIRECT HD IMAGE UPLOAD (PRIMARY 10GB FREE CDN) ---
 const CLOUDINARY_CLOUD_NAME = "k483yjqc";
 const CLOUDINARY_UPLOAD_PRESET = "cpl_uploads";
 
-export async function uploadImageToCloudinary(file, folderName = 'photos') {
-  if (!file) return null;
+export async function uploadImageToCloudinary(fileInput, folderName = 'photos') {
+  if (!fileInput) return null;
   try {
+    const file = ensureFileObject(fileInput, `${folderName}_${Date.now()}.jpg`);
     const formData = new FormData();
     formData.append('file', file);
     formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
     formData.append('folder', `jsl_2026/${folderName}`);
 
+    const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timeoutId = controller ? setTimeout(() => controller.abort(), 10000) : null;
+
     const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
       method: 'POST',
-      body: formData
+      body: formData,
+      signal: controller ? controller.signal : undefined
     });
+    if (timeoutId) clearTimeout(timeoutId);
 
     if (response.ok) {
       const data = await response.json();
@@ -122,7 +150,8 @@ export async function uploadImageToCloudinary(file, folderName = 'photos') {
         return data.secure_url;
       }
     } else {
-      console.warn("Cloudinary upload response notice:", response.statusText);
+      const errTxt = await response.text();
+      console.warn("Cloudinary upload response notice:", response.status, errTxt);
     }
   } catch (err) {
     console.warn("Cloudinary upload notice:", err);
@@ -131,9 +160,11 @@ export async function uploadImageToCloudinary(file, folderName = 'photos') {
 }
 
 // --- UNIFIED MULTI-PROVIDER HD IMAGE UPLOADER (ZERO QUALITY LOSS) ---
-export async function uploadHDImage(file, folderName = 'documents') {
-  if (!file) return null;
+export async function uploadHDImage(fileInput, folderName = 'documents') {
+  if (!fileInput) return null;
   
+  const file = ensureFileObject(fileInput, `${folderName}_${Date.now()}.jpg`);
+
   // Try 1: Cloudinary Cloud CDN (Primary 10GB Free High-Speed Storage)
   const cloudinaryUrl = await uploadImageToCloudinary(file, folderName);
   if (cloudinaryUrl) return cloudinaryUrl;
@@ -502,12 +533,14 @@ export async function fetchPopupSettingsFromFirebase() {
     const response = await fetch(`${FIREBASE_DB_URL}/cpl_master/popupSettings.json?_t=${Date.now()}`, { cache: 'no-store' });
     if (response.ok) {
       const data = await response.json();
-      return data || {
+      return {
         isAdPopupEnabled: false,
         isWhatsAppPopupEnabled: true,
         isWelcomePopupEnabled: true,
+        isRealtimePlayerToastEnabled: true,
         promotedShopId: 'maa-laxmi-kitchen',
-        adExpiryTime: 0
+        adExpiryTime: 0,
+        ...(data || {})
       };
     }
   } catch (err) {
@@ -517,6 +550,7 @@ export async function fetchPopupSettingsFromFirebase() {
     isAdPopupEnabled: false,
     isWhatsAppPopupEnabled: true,
     isWelcomePopupEnabled: true,
+    isRealtimePlayerToastEnabled: true,
     promotedShopId: 'maa-laxmi-kitchen',
     adExpiryTime: 0
   };

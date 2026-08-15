@@ -118,6 +118,9 @@ function initApp() {
     checkAndShowAdvertisementPopup();
   }, 1000);
 
+  // Initialize Real-time Registered Player Toast Widget
+  initRealtimePlayerToast();
+
   const safeRenderCurrentView = () => {
     // PROTECT ACTIVE USER FORMS: If any modal or form is open, DO NOT re-render or reset form data!
     if (document.querySelector('.modal-overlay')) return;
@@ -134,12 +137,28 @@ function initApp() {
   });
 }
 
-function navigate(route) {
+function navigate(route, pushState = true) {
   currentRoute = route;
+  if (pushState && history.pushState) {
+    history.pushState({ route }, '', `#${route}`);
+  }
   renderNavbar();
   renderMobileBottomNav();
   renderCurrentView();
 }
+
+window.addEventListener('popstate', (e) => {
+  const modalOpen = document.querySelector('.modal-overlay');
+  if (modalOpen) {
+    modalOpen.remove();
+    return;
+  }
+  if (e.state && e.state.route) {
+    navigate(e.state.route, false);
+  } else {
+    navigate('landing', false);
+  }
+});
 
 // --- PWA MOBILE APP INSTALLATION HANDLER ---
 function handleInstallAppClick() {
@@ -356,7 +375,7 @@ export function openSquareImageCropModal(imageSrc, onCropComplete, title = "Crop
 
         <!-- CROP CONTAINER -->
         <div class="relative w-full max-h-[60vh] h-72 sm:h-80 bg-slate-950 rounded-xl overflow-hidden flex items-center justify-center border border-slate-800 p-1">
-          <img id="cropper-target-img" src="${imageSrc}" class="max-w-full max-h-full object-contain block mx-auto" />
+          <img id="cropper-target-img" src="${imageSrc}" crossorigin="anonymous" class="max-w-full max-h-full object-contain block mx-auto" />
         </div>
 
         <!-- CROP CONTROLS TOOLBAR -->
@@ -437,13 +456,13 @@ export function openSquareImageCropModal(imageSrc, onCropComplete, title = "Crop
   document.getElementById('cropper-apply-btn')?.addEventListener('click', () => {
     if (cropperInstance) {
       const croppedCanvas = cropperInstance.getCroppedCanvas({
-        width: 600,
-        height: 600,
+        width: 750,
+        height: 750,
         imageSmoothingEnabled: true,
         imageSmoothingQuality: 'high'
       });
       if (croppedCanvas) {
-        const croppedDataUrl = croppedCanvas.toDataURL('image/jpeg', 0.88);
+        const croppedDataUrl = croppedCanvas.toDataURL('image/jpeg', 0.86);
         onCropComplete(croppedDataUrl);
       } else {
         onCropComplete(imageSrc);
@@ -554,6 +573,12 @@ function renderNavbar() {
   const navbarEl = document.getElementById('app-navbar');
   if (!navbarEl) return;
 
+  if (currentRoute === 'landing' || currentRoute === 'jsl-hub') {
+    navbarEl.classList.add('hidden');
+    return;
+  }
+  navbarEl.classList.remove('hidden');
+
   navbarEl.classList.add('relative', 'overflow-hidden');
 
   navbarEl.innerHTML = `
@@ -598,15 +623,27 @@ function renderNavbar() {
 
       <!-- Navigation links matching Mockup Option A (Desktop only) -->
       <div class="hidden md:flex items-center gap-5 text-[10.5px] font-bold tracking-widest text-slate-700">
-        <button id="nav-home-btn" class="hover:text-emerald-600 transition-colors py-1 ${currentRoute === 'landing' ? 'text-emerald-650 border-b-2 border-emerald-500' : ''}">HOME</button>
+        <button id="nav-home-btn" class="hover:text-emerald-600 transition-colors py-1 ${currentRoute === 'landing' ? 'text-emerald-600 border-b-2 border-emerald-500' : ''}">HOME</button>
         <button id="nav-tournaments-btn" class="hover:text-emerald-600 transition-colors py-1">TOURNAMENTS</button>
         <button id="nav-schedule-btn" class="hover:text-emerald-600 transition-colors py-1 ${currentRoute === 'fixtures' ? 'text-emerald-600 border-b-2 border-emerald-500' : ''}">SCHEDULE</button>
         <button id="nav-teams-btn" class="hover:text-emerald-600 transition-colors py-1">TEAMS</button>
+        <button id="nav-admin-link" class="hover:text-amber-600 font-extrabold transition-colors py-1 flex items-center gap-1 ${currentRoute === 'admin' ? 'text-amber-600 border-b-2 border-amber-500' : 'text-slate-900'}">
+          🔐 ADMIN LOGIN
+        </button>
         <button id="nav-support-btn" class="hover:text-emerald-600 transition-colors py-1">SUPPORT</button>
       </div>
 
-      <!-- Download App Button matching Mockup Option A -->
-      <div class="flex items-center flex-shrink-0">
+      <!-- Action Buttons (Admin Login & Download App) -->
+      <div class="flex items-center gap-2 flex-shrink-0">
+        <button id="nav-admin-btn" class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-amber-300 text-[9.5px] sm:text-xs font-black rounded-full transition-all shadow-md border border-amber-500 flex items-center gap-1 uppercase tracking-wider">
+          <svg class="w-3.5 h-3.5 stroke-amber-400 fill-none" viewBox="0 0 24 24" stroke-width="2">
+            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+          </svg>
+          <span class="hidden sm:inline">ADMIN LOGIN</span>
+          <span class="sm:hidden">ADMIN</span>
+        </button>
+
         <button id="nav-install-app-btn" class="px-3.5 py-1.5 bg-[#059669] hover:bg-[#047857] text-white text-[9.5px] sm:text-xs font-black rounded-full transition-all shadow-sm border border-emerald-400 flex items-center gap-1 uppercase tracking-widest">
           <svg class="w-3 h-3 stroke-white fill-none" viewBox="0 0 24 24" stroke-width="2.5">
             <path d="M12 5 v11 M7 11 l5 5 l5-5 M5 19 h14" />
@@ -619,6 +656,8 @@ function renderNavbar() {
 
   document.getElementById('brand-header-logo')?.addEventListener('click', () => navigate('landing'));
   document.getElementById('nav-install-app-btn')?.addEventListener('click', handleInstallAppClick);
+  document.getElementById('nav-admin-btn')?.addEventListener('click', () => navigate('admin'));
+  document.getElementById('nav-admin-link')?.addEventListener('click', () => navigate('admin'));
   document.getElementById('nav-home-btn')?.addEventListener('click', () => navigate('landing'));
   document.getElementById('nav-tournaments-btn')?.addEventListener('click', () => {
     navigate('landing');
@@ -785,86 +824,119 @@ function renderFirstPageLanding(containerEl) {
   const players = store.getPlayers();
 
   containerEl.innerHTML = `
-    <div class="w-full max-w-5xl mx-auto space-y-4 sm:space-y-8 animate-fade-in py-2 sm:py-6 text-slate-900">
+    <div class="w-full max-w-5xl mx-auto space-y-4 sm:space-y-6 animate-fade-in py-2 sm:py-4 text-slate-900">
       
-      <!-- HERO WELCOME BANNER & MOTIVATIONAL QUOTE -->
-      <div class="w-full max-w-3xl text-center space-y-1.5 sm:space-y-3 mx-auto px-3">
-        <!-- 2-LINE HANDWRITTEN MOTIVATIONAL QUOTE -->
-        <div class="handwritten-quote font-black text-slate-900 leading-snug space-y-0.5 sm:space-y-1 mx-auto max-w-2xl">
-          <span class="animate-type-line-1 text-[13px] sm:text-2xl font-black text-slate-900">"Champions aren't made in gymnasiums. Champions are made from a desire, a dream, & a vision.</span>
-          <span class="animate-type-line-2 text-[13px] sm:text-2xl font-black text-emerald-700">Play with Passion, Rise with Glory!"</span>
-        </div>
-
-        <p class="text-[10px] sm:text-sm font-black red-read-slogan mt-0.5 sm:mt-1">
-          🏏 Step onto the pitch and claim your victory!
-        </p>
-      </div>
-
       <!-- SELECT PREMIER LEAGUE BADGE -->
       <div class="text-center">
-        <span class="px-5 py-1.5 rounded-full bg-white text-emerald-800 border-2 border-emerald-300 text-xs sm:text-sm font-black uppercase tracking-widest shadow-sm">
+        <span class="px-5 py-2 rounded-full bg-white text-emerald-800 border-2 border-emerald-300 text-xs sm:text-base font-black uppercase tracking-widest shadow-md">
           Select Premier League Category
         </span>
       </div>
 
-      <!-- 3 CATEGORY CARDS - ALL 3 CARDS FIT IN A SINGLE HORIZONTAL ROW ON MOBILE -->
-      <div class="grid grid-cols-3 gap-1.5 sm:gap-6 w-full max-w-5xl mx-auto px-1 sm:px-2">
+      <!-- 3 CATEGORY CARDS - TWO CATEGORIES IN A SINGLE ROW (SAME EQUAL SIZE) -->
+      <div class="grid grid-cols-2 gap-3 sm:gap-6 w-full max-w-4xl mx-auto px-2">
         
-        <!-- CARD 1: JSL (GOLD THEME - CARTOON BOY) -->
-        <div id="btn-click-jsl" class="group relative rounded-xl sm:rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer border-2 border-loop-jsl bg-amber-50/5 flex flex-col justify-between p-1 sm:p-2 space-y-1.5 text-center">
-          <img src="assets/card_jsl_cartoon.png" alt="JSL" class="w-full h-auto object-contain rounded-lg sm:rounded-xl group-hover:scale-[1.01] transition-transform duration-300 shadow-sm" />
+        <!-- CARD 1: JSL (GOLD THEME - LIVE) -->
+        <div id="btn-click-jsl" class="group relative rounded-2xl sm:rounded-3xl overflow-hidden shadow-md hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer border-2 border-loop-jsl bg-white flex flex-col justify-between p-3 sm:p-5 space-y-2 text-center">
+          <img src="assets/card_jsl_cartoon.png" alt="JSL" class="w-full h-auto object-contain rounded-xl sm:rounded-2xl group-hover:scale-[1.02] transition-transform duration-300 shadow-sm max-h-48 sm:max-h-64 mx-auto" />
           
           <div class="w-full text-center">
-            <div class="flex items-center justify-center gap-1 text-[7px] min-[360px]:text-[8px] sm:text-[10px] font-black text-amber-800 uppercase tracking-wider bg-amber-550/10 py-0.5 px-2 rounded-full border border-amber-300 w-fit mx-auto">
-              <span class="relative flex h-1.5 w-1.5 animate-pulse">
+            <div class="flex items-center justify-center gap-1 text-[9px] sm:text-xs font-black text-amber-800 uppercase tracking-wider bg-amber-500/10 py-1 px-3 rounded-full border border-amber-300 w-fit mx-auto">
+              <span class="relative flex h-2 w-2 animate-pulse">
                 <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span class="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
               <span>LIVE</span>
             </div>
           </div>
 
-          <button class="w-full py-1 sm:py-2 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-400 hover:from-amber-500 hover:to-yellow-500 text-slate-950 font-black text-[7px] min-[360px]:text-[8px] sm:text-xs rounded-lg shadow-sm border border-amber-300 flex items-center justify-center gap-0.5 btn-blink-always uppercase tracking-wider shimmer-btn-1">
+          <button class="w-full py-2 sm:py-2.5 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-500 hover:to-yellow-500 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-md border border-amber-300 flex items-center justify-center gap-1 btn-blink-always uppercase tracking-wider shimmer-btn-1">
             View Details
           </button>
         </div>
 
-        <!-- CARD 2: JPL (GREEN THEME - CARTOON BOY) -->
-        <div id="btn-click-jpl" class="group relative rounded-xl sm:rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer border-2 border-loop-jpl bg-emerald-50/5 flex flex-col justify-between p-1 sm:p-2 space-y-1.5 text-center">
-          <img src="assets/card_jpl_cartoon.png" alt="JPL" class="w-full h-auto object-contain rounded-lg sm:rounded-xl group-hover:scale-[1.01] transition-transform duration-300 shadow-sm" />
+        <!-- CARD 2: JPL (GREEN THEME - COMING SOON) -->
+        <div id="btn-click-jpl" class="group relative rounded-2xl sm:rounded-3xl overflow-hidden shadow-md hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer border-2 border-loop-jpl bg-white flex flex-col justify-between p-3 sm:p-5 space-y-2 text-center">
+          <img src="assets/card_jpl_cartoon.png" alt="JPL" class="w-full h-auto object-contain rounded-xl sm:rounded-2xl group-hover:scale-[1.02] transition-transform duration-300 shadow-sm max-h-48 sm:max-h-64 mx-auto" />
           
           <div class="w-full text-center">
-            <div class="flex items-center justify-center gap-0.5 sm:gap-1 text-[6.5px] min-[360px]:text-[7.5px] sm:text-[9.5px] font-black text-red-650 uppercase tracking-wider bg-red-500/10 py-0.5 px-1.5 rounded-full border border-red-300 w-fit mx-auto">
-              <i data-lucide="clock" class="w-2 h-2 sm:w-3 sm:h-3 text-red-500"></i>
-              <span class="animate-pulse">SOON</span>
+            <div class="flex items-center justify-center gap-1 text-[9px] sm:text-xs font-black text-red-600 uppercase tracking-wider bg-red-500/10 py-1 px-3 rounded-full border border-red-300 w-fit mx-auto">
+              <i data-lucide="clock" class="w-3 h-3 text-red-500"></i>
+              <span class="animate-pulse">COMING SOON</span>
             </div>
           </div>
 
-          <button class="w-full py-1 sm:py-2 bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-[7px] min-[360px]:text-[8px] sm:text-xs rounded-lg shadow-sm border border-emerald-400 flex items-center justify-center gap-0.5 uppercase tracking-wider shimmer-btn-2">
+          <button class="w-full py-2 sm:py-2.5 bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-xs sm:text-sm rounded-xl shadow-md border border-emerald-400 flex items-center justify-center gap-1 uppercase tracking-wider shimmer-btn-2">
             View Details
           </button>
         </div>
 
-        <!-- CARD 3: KPL (BLUE THEME - CARTOON BOY) -->
-        <div id="btn-click-kpl" class="group relative rounded-xl sm:rounded-2xl overflow-hidden shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all cursor-pointer border-2 border-loop-kpl bg-blue-50/5 flex flex-col justify-between p-1 sm:p-2 space-y-1.5 text-center">
-          <img src="assets/card_kpl_cartoon.png" alt="KPL" class="w-full h-auto object-contain rounded-lg sm:rounded-xl group-hover:scale-[1.01] transition-transform duration-300 shadow-sm" />
+        <!-- CARD 3: KPL (BLUE THEME - COMING SOON) -->
+        <div id="btn-click-kpl" class="group relative rounded-2xl sm:rounded-3xl overflow-hidden shadow-md hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer border-2 border-loop-kpl bg-white flex flex-col justify-between p-3 sm:p-5 space-y-2 text-center">
+          <img src="assets/card_kpl_cartoon.png" alt="KPL" class="w-full h-auto object-contain rounded-xl sm:rounded-2xl group-hover:scale-[1.02] transition-transform duration-300 shadow-sm max-h-48 sm:max-h-64 mx-auto" />
           
           <div class="w-full text-center">
-            <div class="flex items-center justify-center gap-0.5 sm:gap-1 text-[6.5px] min-[360px]:text-[7.5px] sm:text-[9.5px] font-black text-red-650 uppercase tracking-wider bg-red-500/10 py-0.5 px-1.5 rounded-full border border-red-300 w-fit mx-auto">
-              <i data-lucide="clock" class="w-2 h-2 sm:w-3 sm:h-3 text-red-500"></i>
-              <span class="animate-pulse">SOON</span>
+            <div class="flex items-center justify-center gap-1 text-[9px] sm:text-xs font-black text-red-600 uppercase tracking-wider bg-red-500/10 py-1 px-3 rounded-full border border-red-300 w-fit mx-auto">
+              <i data-lucide="clock" class="w-3 h-3 text-red-500"></i>
+              <span class="animate-pulse">COMING SOON</span>
             </div>
           </div>
 
-          <button class="w-full py-1 sm:py-2 bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-white font-black text-[7px] min-[360px]:text-[8px] sm:text-xs rounded-lg shadow-sm border border-blue-400 flex items-center justify-center gap-0.5 uppercase tracking-wider shimmer-btn-3">
+          <button class="w-full py-2 sm:py-2.5 bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-white font-black text-xs sm:text-sm rounded-xl shadow-md border border-blue-400 flex items-center justify-center gap-1 uppercase tracking-wider shimmer-btn-3">
             View Details
           </button>
         </div>
 
       </div>
 
-      <!-- ANNOUNCEMENT SCROLLING MARQUEE TICKER STRIP -->
-      <div class="w-full max-w-5xl mx-auto bg-red-600 border-2 border-red-500 py-2.5 px-3 rounded-2xl flex items-center gap-2.5 sm:gap-3 shadow-xl overflow-hidden text-white animate-fade-in">
+      <!-- LOWER PORTION: JSL CONFIRM TEAMS -->
+      <div class="w-full max-w-4xl mx-auto space-y-2 pt-2">
+        
+        <!-- CENTERED TITLE ONLY -->
+        <div class="text-center py-1">
+          <h2 class="text-base sm:text-xl font-black text-slate-900 tracking-wide uppercase">
+            JSL Confirm Teams
+          </h2>
+        </div>
+
+        <!-- CAROUSEL SLIDER CONTAINER (TRANSPARENT WRAPPER - WHITE BORDER IS DIRECTLY TIGHT ON THE PICTURE) -->
+        <div id="confirmed-teams-carousel-card" class="relative overflow-hidden w-full max-w-md sm:max-w-lg mx-auto py-1">
+          
+          <!-- SLIDES CONTAINER (ONLY SHOWING TEAM IMAGES WITH TIGHT WHITE BORDER) -->
+          <div id="confirmed-teams-slider" class="flex transition-transform duration-500 ease-out w-full">
+            
+            <!-- SLIDE 1: KHIRPAI HURRICANES -->
+            <div class="w-full flex-shrink-0 relative cursor-pointer slide-item px-1" data-slide-index="0">
+              <img src="assets/team_confirm_1_khirpai_hurricanes.jpg" alt="1st Confirm Team - Khirpai Hurricanes" class="w-full h-auto max-h-72 sm:max-h-96 object-contain mx-auto rounded-2xl border-4 border-white shadow-xl" />
+            </div>
+
+            <!-- SLIDE 2: ANIKET XI -->
+            <div class="w-full flex-shrink-0 relative cursor-pointer slide-item px-1" data-slide-index="1">
+              <img src="assets/team_confirm_2_aniket_xi.jpg" alt="2nd Confirm Team - Aniket XI" class="w-full h-auto max-h-72 sm:max-h-96 object-contain mx-auto rounded-2xl border-4 border-white shadow-xl" />
+            </div>
+
+            <!-- SLIDE 3: SRS BROTHER'S -->
+            <div class="w-full flex-shrink-0 relative cursor-pointer slide-item px-1" data-slide-index="2">
+              <img src="assets/team_confirm_3_srs_brothers.jpg" alt="3rd Confirm Team - SRS Brother's" class="w-full h-auto max-h-72 sm:max-h-96 object-contain mx-auto rounded-2xl border-4 border-white shadow-xl" />
+            </div>
+
+            <!-- SLIDE 4: SHIV SHAKTI EKADASH -->
+            <div class="w-full flex-shrink-0 relative cursor-pointer slide-item px-1" data-slide-index="3">
+              <img src="assets/team_confirm_4_shiv_shakti_ekadash.jpg" alt="4th Confirm Team - Shiv Shakti Ekadash" class="w-full h-auto max-h-72 sm:max-h-96 object-contain mx-auto rounded-2xl border-4 border-white shadow-xl" />
+            </div>
+
+            <!-- SLIDE 5: AVD ELEVEN -->
+            <div class="w-full flex-shrink-0 relative cursor-pointer slide-item px-1" data-slide-index="4">
+              <img src="assets/team_confirm_5_avd_eleven.jpg" alt="5th Confirm Team - AVD Eleven" class="w-full h-auto max-h-72 sm:max-h-96 object-contain mx-auto rounded-2xl border-4 border-white shadow-xl" />
+            </div>
+
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ANNOUNCEMENT SCROLLING MARQUEE TICKER STRIP (LOCATED AT THE VERY BOTTOM BELOW TEAM PICTURES) -->
+      <div class="w-full max-w-4xl mx-auto bg-red-600 border-2 border-red-500 py-2 px-3 rounded-2xl flex items-center gap-2.5 sm:gap-3 shadow-lg overflow-hidden text-white animate-fade-in">
         
         <!-- FIXED ANNOUNCEMENT BADGE -->
         <span class="px-3 py-1 bg-white text-red-600 font-black text-[10px] sm:text-xs rounded-xl shadow-md uppercase shrink-0 flex items-center gap-1 z-10 border border-red-100">
@@ -884,142 +956,7 @@ function renderFirstPageLanding(containerEl) {
 
       </div>
 
-      <!-- OFFICIAL CONFIRMED FRANCHISE TEAMS CAROUSEL (LOOPING SLIDER FOR MOBILE & DESKTOP) -->
-      <div class="w-full max-w-5xl mx-auto space-y-3 sm:space-y-4 pt-2 sm:pt-4">
-        
-        <!-- SECTION HEADER -->
-        <div class="flex flex-col sm:flex-row items-center justify-between gap-2 px-1 text-center sm:text-left">
-          <div>
-            <h2 class="text-base sm:text-2xl font-black text-slate-900 mt-1 flex items-center justify-center sm:justify-start gap-2">
-              <span>🏆 Official Confirm Team</span>
-            </h2>
-            <p class="text-[11px] sm:text-xs text-slate-600 font-semibold">Confirmed Team List for Jhankra Super League (JSL 2026)</p>
-          </div>
-
-          <!-- CAROUSEL CONTROLS (NEXT/PREV BUTTONS) -->
-          <div class="flex items-center gap-2">
-            <button id="confirmed-teams-prev-btn" aria-label="Previous Team" class="p-2 sm:p-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-lg border border-slate-700 transition-all hover:scale-105 active:scale-95 flex items-center justify-center">
-              <i data-lucide="chevron-left" class="w-4 h-4 sm:w-5 sm:h-5"></i>
-            </button>
-            <div id="confirmed-teams-counter" class="text-xs font-mono font-black text-slate-800 bg-white px-3 py-1.5 rounded-xl border border-slate-200 shadow-sm">
-              1 / 3
-            </div>
-            <button id="confirmed-teams-next-btn" aria-label="Next Team" class="p-2 sm:p-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl shadow-lg border border-slate-700 transition-all hover:scale-105 active:scale-95 flex items-center justify-center">
-              <i data-lucide="chevron-right" class="w-4 h-4 sm:w-5 sm:h-5"></i>
-            </button>
-          </div>
-        </div>
-
-        <!-- CAROUSEL CARD CONTAINER -->
-        <div id="confirmed-teams-carousel-card" class="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-slate-950 border-2 border-amber-400/80 shadow-2xl group">
-          
-          <!-- SLIDES CONTAINER -->
-          <div id="confirmed-teams-slider" class="flex transition-transform duration-500 ease-out w-full">
-            
-            <!-- SLIDE 1: KHIRPAI HURRICANES -->
-            <div class="w-full flex-shrink-0 relative group/slide cursor-pointer slide-item" data-slide-index="0" data-img-src="assets/team_confirm_1_khirpai_hurricanes.jpg" data-team-name="1st Confirm Team - Khirpai Hurricanes">
-              <div class="relative w-full max-h-[42vh] flex justify-center bg-slate-950 overflow-hidden">
-                <img src="assets/team_confirm_1_khirpai_hurricanes.jpg" alt="1st Confirm Team - Khirpai Hurricanes" class="w-full h-auto max-h-[42vh] object-contain mx-auto shadow-2xl transition-transform duration-300 group-hover/slide:scale-[1.01]" />
-                
-                <!-- TOP CORNER BADGE OVERLAY -->
-                <div class="absolute top-3 left-3 bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 text-slate-950 font-black text-xs sm:text-sm px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-xl shadow-2xl border border-amber-300 flex items-center gap-1.5">
-                  <span>🏆 1ST CONFIRM TEAM</span>
-                </div>
-
-                <!-- BOTTOM CLICK TO ENLARGE HINT -->
-                <div class="absolute bottom-3 right-3 bg-slate-950/85 backdrop-blur-md text-amber-300 font-bold text-[10px] sm:text-xs px-2.5 py-1 rounded-lg border border-amber-500/40 flex items-center gap-1 shadow-lg">
-                  <i data-lucide="maximize-2" class="w-3.5 h-3.5"></i> Tap Fullscreen
-                </div>
-              </div>
-            </div>
-
-            <!-- SLIDE 2: ANIKET XI -->
-            <div class="w-full flex-shrink-0 relative group/slide cursor-pointer slide-item" data-slide-index="1" data-img-src="assets/team_confirm_2_aniket_xi.jpg" data-team-name="2nd Confirm Team - Aniket XI">
-              <div class="relative w-full max-h-[42vh] flex justify-center bg-slate-950 overflow-hidden">
-                <img src="assets/team_confirm_2_aniket_xi.jpg" alt="2nd Confirm Team - Aniket XI" class="w-full h-auto max-h-[42vh] object-contain mx-auto shadow-2xl transition-transform duration-300 group-hover/slide:scale-[1.01]" />
-                
-                <!-- TOP CORNER BADGE OVERLAY -->
-                <div class="absolute top-3 left-3 bg-gradient-to-r from-slate-200 via-slate-300 to-slate-400 text-slate-950 font-black text-xs sm:text-sm px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-xl shadow-2xl border border-white flex items-center gap-1.5">
-                  <span>🥈 2ND CONFIRM TEAM</span>
-                </div>
-
-                <!-- BOTTOM CLICK TO ENLARGE HINT -->
-                <div class="absolute bottom-3 right-3 bg-slate-950/85 backdrop-blur-md text-amber-300 font-bold text-[10px] sm:text-xs px-2.5 py-1 rounded-lg border border-amber-500/40 flex items-center gap-1 shadow-lg">
-                  <i data-lucide="maximize-2" class="w-3.5 h-3.5"></i> Tap Fullscreen
-                </div>
-              </div>
-            </div>
-
-            <!-- SLIDE 3: SRS BROTHER'S -->
-            <div class="w-full flex-shrink-0 relative group/slide cursor-pointer slide-item" data-slide-index="2" data-img-src="assets/team_confirm_3_srs_brothers.jpg" data-team-name="3rd Confirm Team - SRS Brother's">
-              <div class="relative w-full max-h-[42vh] flex justify-center bg-slate-950 overflow-hidden">
-                <img src="assets/team_confirm_3_srs_brothers.jpg" alt="3rd Confirm Team - SRS Brother's" class="w-full h-auto max-h-[42vh] object-contain mx-auto shadow-2xl transition-transform duration-300 group-hover/slide:scale-[1.01]" />
-                
-                <!-- TOP CORNER BADGE OVERLAY -->
-                <div class="absolute top-3 left-3 bg-gradient-to-r from-amber-700 via-amber-800 to-amber-900 text-amber-100 font-black text-xs sm:text-sm px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-xl shadow-2xl border border-amber-600 flex items-center gap-1.5">
-                  <span>🥉 3RD CONFIRM TEAM</span>
-                </div>
-
-                <!-- BOTTOM CLICK TO ENLARGE HINT -->
-                <div class="absolute bottom-3 right-3 bg-slate-950/85 backdrop-blur-md text-amber-300 font-bold text-[10px] sm:text-xs px-2.5 py-1 rounded-lg border border-amber-500/40 flex items-center gap-1 shadow-lg">
-                  <i data-lucide="maximize-2" class="w-3.5 h-3.5"></i> Tap Fullscreen
-                </div>
-              </div>
-            </div>
-
-            <!-- SLIDE 4: SHIV SHAKTI EKADASH -->
-            <div class="w-full flex-shrink-0 relative group/slide cursor-pointer slide-item" data-slide-index="3" data-img-src="assets/team_confirm_4_shiv_shakti_ekadash.jpg" data-team-name="4th Confirm Team - Shiv Shakti Ekadash">
-              <div class="relative w-full max-h-[42vh] flex justify-center bg-slate-950 overflow-hidden">
-                <img src="assets/team_confirm_4_shiv_shakti_ekadash.jpg" alt="4th Confirm Team - Shiv Shakti Ekadash" class="w-full h-auto max-h-[42vh] object-contain mx-auto shadow-2xl transition-transform duration-300 group-hover/slide:scale-[1.01]" />
-                
-                <!-- TOP CORNER BADGE OVERLAY -->
-                <div class="absolute top-3 left-3 bg-gradient-to-r from-red-500 via-orange-600 to-amber-500 text-white font-black text-xs sm:text-sm px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-xl shadow-2xl border border-red-400 flex items-center gap-1.5">
-                  <span>🏆 4TH CONFIRM TEAM</span>
-                </div>
-
-                <!-- BOTTOM CLICK TO ENLARGE HINT -->
-                <div class="absolute bottom-3 right-3 bg-slate-950/85 backdrop-blur-md text-amber-300 font-bold text-[10px] sm:text-xs px-2.5 py-1 rounded-lg border border-amber-500/40 flex items-center gap-1 shadow-lg">
-                  <i data-lucide="maximize-2" class="w-3.5 h-3.5"></i> Tap Fullscreen
-                </div>
-              </div>
-            </div>
-
-            <!-- SLIDE 5: AVD ELEVEN -->
-            <div class="w-full flex-shrink-0 relative group/slide cursor-pointer slide-item" data-slide-index="4" data-img-src="assets/team_confirm_5_avd_eleven.jpg" data-team-name="5th Confirm Team - AVD Eleven">
-              <div class="relative w-full max-h-[42vh] flex justify-center bg-slate-950 overflow-hidden">
-                <img src="assets/team_confirm_5_avd_eleven.jpg" alt="5th Confirm Team - AVD Eleven" class="w-full h-auto max-h-[42vh] object-contain mx-auto shadow-2xl transition-transform duration-300 group-hover/slide:scale-[1.01]" />
-                
-                <!-- TOP CORNER BADGE OVERLAY -->
-                <div class="absolute top-3 left-3 bg-gradient-to-r from-teal-500 via-emerald-600 to-indigo-600 text-white font-black text-xs sm:text-sm px-3 py-1 sm:px-3.5 sm:py-1.5 rounded-xl shadow-2xl border border-emerald-450 flex items-center gap-1.5">
-                  <span>🏆 5TH CONFIRM TEAM</span>
-                </div>
-
-                <!-- BOTTOM CLICK TO ENLARGE HINT -->
-                <div class="absolute bottom-3 right-3 bg-slate-950/85 backdrop-blur-md text-amber-300 font-bold text-[10px] sm:text-xs px-2.5 py-1 rounded-lg border border-amber-500/40 flex items-center gap-1 shadow-lg">
-                  <i data-lucide="maximize-2" class="w-3.5 h-3.5"></i> Tap Fullscreen
-                </div>
-              </div>
-            </div>
-
-          </div>
-
-          <!-- BOTTOM CAPTION & INDICATOR DOTS -->
-          <div class="p-3 bg-slate-950/95 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-2 text-center sm:text-left">
-            <div id="confirmed-team-caption" class="text-xs sm:text-sm font-black text-amber-400 truncate w-full sm:w-auto">
-              🥇 1ST CONFIRM TEAM: KHIRPAI HURRICANES (Owner: MANTU | Icon: BIJAY HALDAR)
-            </div>
-
-            <div class="flex items-center justify-center gap-2 shrink-0" id="confirmed-teams-dots">
-              <button data-dot-index="0" class="w-7 h-2 rounded-full bg-amber-400 transition-all duration-300" aria-label="Go to Slide 1"></button>
-              <button data-dot-index="1" class="w-2.5 h-2 rounded-full bg-slate-700 hover:bg-slate-500 transition-all duration-300" aria-label="Go to Slide 2"></button>
-              <button data-dot-index="2" class="w-2.5 h-2 rounded-full bg-slate-700 hover:bg-slate-500 transition-all duration-300" aria-label="Go to Slide 3"></button>
-              <button data-dot-index="3" class="w-2.5 h-2 rounded-full bg-slate-700 hover:bg-slate-500 transition-all duration-300" aria-label="Go to Slide 4"></button>
-              <button data-dot-index="4" class="w-2.5 h-2 rounded-full bg-slate-700 hover:bg-slate-500 transition-all duration-300" aria-label="Go to Slide 5"></button>
-            </div>
-          </div>
-
-        </div>
-      </div>
+    </div>
 
     </div>
   `;
@@ -1167,124 +1104,125 @@ function openComingSoonModal(code, title, logoPath) {
 function renderJSLHub(containerEl) {
   const teams = store.getTeams();
   const players = store.getPlayers();
-  const approvedPlayers = players.filter(p => (p.registrationStatus || p.paymentStatus) === 'APPROVED');
-  const pendingPlayers = players.filter(p => (p.registrationStatus || p.paymentStatus) === 'PENDING');
 
   containerEl.innerHTML = `
-    <div class="space-y-4 animate-fade-in max-w-4xl mx-auto py-2">
+    <div class="space-y-3 sm:space-y-4 animate-fade-in max-w-4xl mx-auto py-1 sm:py-2">
       
-      <!-- Back Button & Header Bar -->
-      <div class="flex items-center gap-2">
-        <button id="back-to-landing-btn" class="px-3.5 py-1.5 bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white text-xs font-black rounded-xl border border-red-400 flex items-center gap-1.5 shadow-md transition-all">
-          <i data-lucide="corner-up-left" class="w-3.5 h-3.5 text-white"></i> Back
-        </button>
-      </div>
-
-      <!-- GRAND STADIUM POSTER STRIP (PURE WHITE LIGHT THEME) -->
-      <div class="jsl-header-strip p-3 sm:p-4 space-y-3 bg-white border-2 border-slate-200 rounded-2xl shadow-lg">
-        <div class="flex items-center gap-3">
-          <img src="assets/jsl_logo_white.jpg" alt="JSL Logo" class="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl object-contain border-0 shadow-md flex-shrink-0" />
+      <!-- GRAND STADIUM POSTER STRIP (PURE WHITE LIGHT THEME - LARGER TITLE & STYLISH BADGES) -->
+      <div class="jsl-header-strip p-3.5 sm:p-5 space-y-3.5 bg-white border-2 border-slate-200 rounded-2xl shadow-md">
+        
+        <!-- TITLE AT THE TOP (INCREASED SIZE & IMPACT) -->
+        <div class="flex items-center gap-3 sm:gap-4">
+          <img src="assets/jsl_logo_white.jpg" alt="JSL Logo" class="w-14 h-14 sm:w-20 sm:h-20 rounded-2xl object-contain border-0 shadow-md flex-shrink-0" />
           <div>
-            <div class="jsl-poster-title-navy text-slate-900">JHANKRA <span class="text-emerald-600 font-black">SUPER LEAGUE</span></div>
-            <div class="text-[9px] sm:text-xs font-extrabold text-sky-700 uppercase tracking-wide mt-0.5">
+            <div class="jsl-poster-title-navy text-slate-900 font-black text-lg sm:text-2xl md:text-3xl tracking-tight leading-tight">
+              JHANKRA <span class="text-emerald-600 font-black">SUPER LEAGUE 2026</span>
+            </div>
+            <div class="text-[10px] sm:text-xs font-black text-sky-700 uppercase tracking-wide mt-1">
               8 TEAM TOURNAMENT • 29, 30 & 31 AUG 2026 @ JHANKRA SCHOOL GROUND
             </div>
           </div>
         </div>
 
-        <!-- STYLISH GRADIENT PILL BADGES & STATS SUMMARY -->
-        <div class="flex flex-wrap items-center gap-1.5 pt-2 border-t border-slate-200 text-[9px] sm:text-xs font-black">
-          <span class="px-2.5 py-1 bg-amber-500 text-slate-950 font-black rounded-lg shadow border border-amber-400">
-            🏆 Winner: 35K | Runners: 25K
-          </span>
-          <span class="px-2.5 py-1 bg-emerald-100 text-emerald-800 font-extrabold rounded-lg border border-emerald-300 shadow-sm">
-            🟢 Approved: ${approvedPlayers.length}
-          </span>
-          <span class="px-2.5 py-1 bg-amber-100 text-amber-900 font-extrabold rounded-lg border border-amber-300 shadow-sm">
-            🔴 Pending: ${pendingPlayers.length}
-          </span>
-          <span class="px-2.5 py-1 bg-sky-100 text-sky-900 font-extrabold rounded-lg border border-sky-300 shadow-sm">
-            📞 Contact: Pintu Santra (89722144166)
-          </span>
+        <!-- SUMMARY STRIP (TWO DISTINCT COLORED WINNER & RUNNER BADGES + STYLISH GLOWING CONTACT LINK) -->
+        <div class="flex flex-wrap items-center justify-between gap-2.5 pt-3 border-t border-slate-200">
+          
+          <!-- TWO SEPARATE COLORED BADGES: WINNER (GOLD) & RUNNER (SKY BLUE) -->
+          <div class="flex items-center gap-2">
+            <!-- WINNER BADGE (GOLD / AMBER) -->
+            <span class="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-sm border border-amber-400 flex items-center gap-1.5">
+              <svg class="w-4 h-4 sm:w-4.5 sm:h-4.5 fill-current text-slate-950 flex-shrink-0" viewBox="0 0 24 24">
+                <path d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94A5.01 5.01 0 0011 15.9V18H9v2h6v-2h-2v-2.1c2.12-.39 3.79-2.02 4.39-4.14C19.89 11.53 21 9.47 21 7V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z"/>
+              </svg>
+              <span>🏆 WINNER: 35K</span>
+            </span>
+
+            <!-- RUNNER BADGE (SKY / BLUE) -->
+            <span class="px-3 py-1.5 bg-gradient-to-r from-sky-500 to-blue-600 text-white font-black text-xs sm:text-sm rounded-xl shadow-sm border border-sky-400 flex items-center gap-1.5">
+              <svg class="w-4 h-4 sm:w-4.5 sm:h-4.5 fill-current text-white flex-shrink-0" viewBox="0 0 24 24">
+                <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
+              </svg>
+              <span>🥈 RUNNER: 25K</span>
+            </span>
+          </div>
+
+          <!-- STYLISH GLOWING CALL BUTTON CONTACT LINK -->
+          <a href="tel:89722144166" class="px-3.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-xs sm:text-sm rounded-xl border border-emerald-400 shadow-md flex items-center gap-2 transition-all cursor-pointer group" title="Click to call Pintu Santra">
+            <div class="relative flex h-3.5 w-3.5 flex-shrink-0">
+              <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75"></span>
+              <span class="relative inline-flex rounded-full h-3.5 w-3.5 bg-white flex items-center justify-center">
+                <svg class="w-2.5 h-2.5 text-emerald-700 fill-current" viewBox="0 0 24 24">
+                  <path d="M6.62 10.79c1.44 2.83 3.76 5.14 6.59 6.59l2.2-2.2c.27-.27.67-.36 1.02-.24 1.12.37 2.33.57 3.57.57.55 0 1 .45 1 1V20c0 .55-.45 1-1 1-9.39 0-17-7.61-17-17 0-.55.45-1 1-1h3.5c.55 0 1 .45 1 1 0 1.25.2 2.45.57 3.57.11.35.03.74-.25 1.02l-2.2 2.2z"/>
+                </svg>
+              </span>
+            </div>
+            <span class="tracking-wide">📞 Contact: Pintu Santra (89722144166)</span>
+          </a>
+
         </div>
+
       </div>
 
-      <!-- 3 HORIZONTAL COMPACT SQUARE COLUMNS (REDUCED GAP & COMPACT SQUARE SHAPE) -->
-      <div class="grid grid-cols-3 gap-1 sm:gap-3 items-stretch">
+      <!-- 2 CATEGORIES IN A ROW (MOBILE FRIENDLY & LARGER SIZE) -->
+      <div class="grid grid-cols-2 gap-2.5 sm:gap-4 items-stretch">
         
-        <!-- COLUMN 1 (LEFT SIDE): REGISTERED TEAMS CARD -->
-        <div class="relative glass-card p-2 sm:p-4 text-center border-2 border-sky-300 bg-white flex flex-col justify-between items-center hover:border-sky-500 shadow-md rounded-xl sm:rounded-2xl overflow-hidden">
-          <!-- STYLISH TOP-RIGHT CORNER CIRCLE COUNTER BADGE -->
-          <div class="absolute top-1 right-1 w-5 h-5 sm:w-7 sm:h-7 bg-sky-600 text-white text-[9px] sm:text-xs font-black rounded-full flex items-center justify-center border-2 border-white shadow-md z-10" title="Total Teams">
+        <!-- CARD 1: REGISTERED TEAMS -->
+        <div class="relative glass-card p-3 sm:p-5 text-center border-2 border-sky-300 bg-white flex flex-col justify-between items-center hover:border-sky-500 shadow-md rounded-2xl overflow-hidden">
+          <!-- TOP-RIGHT CORNER COUNTER BADGE -->
+          <div class="absolute top-1.5 right-1.5 w-6 h-6 sm:w-8 sm:h-8 bg-sky-600 text-white text-xs sm:text-sm font-black rounded-full flex items-center justify-center border-2 border-white shadow-md z-10" title="Total Teams">
             ${teams.length}
           </div>
 
-          <div class="space-y-1.5 sm:space-y-3 pt-0.5 w-full flex flex-col items-center mb-2.5 sm:mb-4">
-            <div class="w-7 h-7 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-gradient-to-br from-sky-500 to-blue-700 text-white flex items-center justify-center shadow-md font-black">
-              <i data-lucide="shield" class="w-3.5 h-3.5 sm:w-5 sm:h-5"></i>
+          <div class="space-y-2 sm:space-y-3 pt-1 w-full flex flex-col items-center mb-3">
+            <div class="w-10 h-10 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-sky-500 to-blue-700 text-white flex items-center justify-center shadow-md font-black">
+              <i data-lucide="shield" class="w-5 h-5 sm:w-7 sm:h-7"></i>
             </div>
 
             <div class="w-full">
-              <div class="text-[9.5px] min-[360px]:text-[11.5px] sm:text-xs md:text-sm font-black text-slate-900 uppercase tracking-tight leading-tight">REGISTERED TEAMS</div>
+              <div class="text-xs sm:text-base font-black text-slate-900 uppercase tracking-tight leading-tight">REGISTERED TEAMS</div>
             </div>
           </div>
 
-          <button id="open-teams-modal-btn" class="w-full py-1 sm:py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-[8px] min-[360px]:text-[9px] sm:text-xs font-extrabold rounded-lg sm:rounded-xl shadow-md flex items-center justify-center gap-0.5 transition-all">
-            <i data-lucide="search" class="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-amber-400"></i> View Teams
+          <button id="open-teams-modal-btn" class="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs sm:text-sm font-extrabold rounded-xl shadow-md flex items-center justify-center gap-1 transition-all">
+            <i data-lucide="search" class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400"></i> View Teams
           </button>
         </div>
 
-        <!-- COLUMN 2 (MIDDLE): REGISTERED PLAYER LIST CARD -->
-        <div class="relative glass-card p-2 sm:p-4 text-center border-2 border-emerald-300 bg-white flex flex-col justify-between items-center hover:border-emerald-500 shadow-md rounded-xl sm:rounded-2xl overflow-hidden">
-          <!-- STYLISH TOP-RIGHT CORNER CIRCLE COUNTER BADGE -->
-          <div class="absolute top-1 right-1 w-5 h-5 sm:w-7 sm:h-7 bg-emerald-600 text-white text-[9px] sm:text-xs font-black rounded-full flex items-center justify-center border-2 border-white shadow-md z-10" title="Total Players">
+        <!-- CARD 2: REGISTERED PLAYERS -->
+        <div class="relative glass-card p-3 sm:p-5 text-center border-2 border-emerald-300 bg-white flex flex-col justify-between items-center hover:border-emerald-500 shadow-md rounded-2xl overflow-hidden">
+          <!-- TOP-RIGHT CORNER COUNTER BADGE -->
+          <div class="absolute top-1.5 right-1.5 w-6 h-6 sm:w-8 sm:h-8 bg-emerald-600 text-white text-xs sm:text-sm font-black rounded-full flex items-center justify-center border-2 border-white shadow-md z-10" title="Total Players">
             ${players.length}
           </div>
 
-          <div class="space-y-1.5 sm:space-y-3 pt-0.5 w-full flex flex-col items-center mb-2.5 sm:mb-4">
-            <div class="w-7 h-7 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-gradient-to-br from-emerald-500 to-teal-700 text-white flex items-center justify-center shadow-md font-black">
-              <i data-lucide="users" class="w-3.5 h-3.5 sm:w-5 sm:h-5"></i>
+          <div class="space-y-2 sm:space-y-3 pt-1 w-full flex flex-col items-center mb-3">
+            <div class="w-10 h-10 sm:w-14 sm:h-14 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-700 text-white flex items-center justify-center shadow-md font-black">
+              <i data-lucide="users" class="w-5 h-5 sm:w-7 sm:h-7"></i>
             </div>
 
             <div class="w-full">
-              <div class="text-[9.5px] min-[360px]:text-[11.5px] sm:text-xs md:text-sm font-black text-slate-900 uppercase tracking-tight leading-tight">REGISTERED PLAYERS</div>
+              <div class="text-xs sm:text-base font-black text-slate-900 uppercase tracking-tight leading-tight">REGISTERED PLAYERS</div>
             </div>
           </div>
 
-          <button id="open-players-modal-btn" class="w-full py-1 sm:py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-[8px] min-[360px]:text-[9px] sm:text-xs font-extrabold rounded-lg sm:rounded-xl shadow-md flex items-center justify-center gap-0.5 transition-all">
-            <i data-lucide="search" class="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-amber-400"></i> View Players
+          <button id="open-players-modal-btn" class="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white text-xs sm:text-sm font-extrabold rounded-xl shadow-md flex items-center justify-center gap-1 transition-all">
+            <i data-lucide="search" class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400"></i> View Players
           </button>
         </div>
 
-        <!-- COLUMN 3 (RIGHT SIDE): REGISTRATION HERE CARD -->
-        <div class="relative glass-card p-2 sm:p-4 text-center border-2 border-red-400 bg-white flex flex-col justify-between items-center hover:border-red-600 shadow-md rounded-xl sm:rounded-2xl overflow-hidden">
-          
-          <div class="space-y-1.5 sm:space-y-3 pt-0.5 w-full flex flex-col items-center mb-2.5 sm:mb-4">
-            <div class="w-7 h-7 sm:w-11 sm:h-11 rounded-lg sm:rounded-xl bg-gradient-to-br from-red-500 to-rose-700 text-white flex items-center justify-center font-black shadow-md border border-red-300 text-xs sm:text-lg">
-              ✍️
-            </div>
+      </div>
 
-            <div class="w-full">
-              <div class="text-[9.5px] min-[360px]:text-[11.5px] sm:text-xs md:text-sm font-black text-slate-900 uppercase tracking-tight leading-tight">REGISTRATION HERE</div>
-            </div>
-          </div>
-
-          <!-- PERSISTENT BLINKING REGISTRATION BUTTON (VIBRANT RED BACKGROUND) -->
-          <button id="jsl-right-reg-btn" class="btn-blink-always w-full py-1 sm:py-1.5 bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white font-black text-[8px] min-[360px]:text-[9px] sm:text-xs rounded-lg sm:rounded-xl shadow-lg flex items-center justify-center gap-0.5 border border-red-400">
-            <i data-lucide="edit-3" class="w-2.5 h-2.5 sm:w-3.5 sm:h-3.5 text-amber-300"></i> Register Now
-          </button>
-        </div>
-
+      <!-- LOWER PORTION: COMPACT RED COLOUR REGISTER NOW BUTTON -->
+      <div class="flex items-center justify-center pt-2 sm:pt-3">
+        <button id="jsl-right-reg-btn" class="btn-blink-always px-6 sm:px-8 py-2.5 bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg flex items-center justify-center gap-2 border border-red-400 transition-all">
+          <i data-lucide="edit-3" class="w-4 h-4 text-amber-300"></i> Register Now
+        </button>
       </div>
 
     </div>
   `;
 
-  document.getElementById('back-to-landing-btn')?.addEventListener('click', () => navigate('landing'));
-  document.getElementById('open-user-guide-pdf-btn')?.addEventListener('click', openUserGuidePDF);
   document.getElementById('jsl-right-reg-btn')?.addEventListener('click', openRegistrationTypeModal);
-
-  // Click-to-Open Modal Listeners
   document.getElementById('open-teams-modal-btn')?.addEventListener('click', () => openRegisteredTeamsModal(teams));
   document.getElementById('open-players-modal-btn')?.addEventListener('click', () => openRegisteredPlayersModal(players));
 }
@@ -1384,9 +1322,11 @@ function openRegisteredTeamsModal(allTeams) {
             <h2 class="text-base font-black text-slate-900 mt-0.5">Registered Team List (${allTeams.length})</h2>
           </div>
 
-          <button id="download-teams-pdf-btn" class="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-xs rounded-xl shadow-md flex items-center gap-1.5 transition-colors">
-            <i data-lucide="file-text" class="w-3.5 h-3.5"></i> Download PDF List
-          </button>
+          ${store.isAdminAuthenticated() ? `
+            <button id="download-teams-pdf-btn" class="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-xs rounded-xl shadow-md flex items-center gap-1.5 transition-colors">
+              <i data-lucide="file-text" class="w-3.5 h-3.5"></i> Download PDF List
+            </button>
+          ` : ''}
         </div>
 
         <div class="relative">
@@ -1503,9 +1443,11 @@ function openRegisteredPlayersModal(allPlayers) {
             <h2 class="text-base font-black text-slate-900 mt-0.5">Registered Player List <span id="player-count-display">(${allPlayers.length})</span></h2>
           </div>
 
-          <button id="download-players-pdf-btn" class="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs rounded-xl shadow-md flex items-center gap-1.5 transition-colors">
-            <i data-lucide="file-text" class="w-3.5 h-3.5"></i> Download PDF List
-          </button>
+          ${store.isAdminAuthenticated() ? `
+            <button id="download-players-pdf-btn" class="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs rounded-xl shadow-md flex items-center gap-1.5 transition-colors">
+              <i data-lucide="file-text" class="w-3.5 h-3.5"></i> Download PDF List
+            </button>
+          ` : ''}
         </div>
 
         <div class="relative">
@@ -1578,8 +1520,10 @@ function openRegisteredPlayersModal(allPlayers) {
 
   const playerInput = document.getElementById('player-search-input');
   if (playerInput) {
-    ['input', 'keyup', 'change', 'paste'].forEach(evt => {
-      playerInput.addEventListener(evt, handlePlayerSearch);
+    let debounceTimer = null;
+    playerInput.addEventListener('input', () => {
+      clearTimeout(debounceTimer);
+      debounceTimer = setTimeout(handlePlayerSearch, 200);
     });
   }
 }
@@ -1597,8 +1541,8 @@ function renderPlayerCardsWithSerial(playersList) {
         <!-- LARGE SQUARE PICTURE CONTAINER WITH TOP-LEFT SHORT SERIAL & TOP-RIGHT BLINKING STATUS DOT -->
         <div class="w-full aspect-square rounded-xl bg-slate-100 border-2 border-emerald-500 flex items-center justify-center overflow-hidden shadow-md relative mb-1.5 mx-auto">
           
-          <!-- PLAYER PHOTO -->
-          <img src="${photoSrc}" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Crect width=\'100\' height=\'100\' fill=\'%23059669\'/%3E%3Ctext x=\'50\' y=\'62\' font-size=\'45\' text-anchor=\'middle\' fill=\'white\'%3E🏏%3C/text%3E%3C/svg%3E';" />
+          <!-- PLAYER PHOTO WITH LAZY LOADING & ASYNC DECODING -->
+          <img src="${photoSrc}" loading="lazy" decoding="async" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Crect width=\'100\' height=\'100\' fill=\'%23059669\'/%3E%3Ctext x=\'50\' y=\'62\' font-size=\'45\' text-anchor=\'middle\' fill=\'white\'%3E🏏%3C/text%3E%3C/svg%3E';" />
 
           <!-- SHORT SERIAL NO ON PICTURE TOP-LEFT (E.G. #01, #02) -->
           <span class="absolute top-1.5 left-1.5 px-2 py-0.5 bg-slate-950/85 backdrop-blur-sm text-amber-300 font-mono font-black text-[10px] rounded-md border border-amber-400/80 shadow-md">
@@ -1640,12 +1584,11 @@ function openFullPlayerProfileModal(player) {
           <i data-lucide="x" class="w-4 h-4"></i>
         </button>
 
-        <!-- LARGE SIZE HD PICTURE WITH CLICK TO ZOOM -->
-        <div class="pt-1 text-center cursor-pointer group" id="profile-photo-zoom-trigger" title="Click to view Full HD photo">
-          <div class="w-32 h-32 sm:w-40 sm:h-40 rounded-2xl bg-white border-2 border-emerald-500 shadow-xl mx-auto overflow-hidden flex items-center justify-center group-hover:scale-105 transition-all">
+        <!-- SQUARE 200 KB CROPPED PLAYER PHOTO DISPLAY -->
+        <div class="pt-1 text-center">
+          <div class="w-32 h-32 sm:w-40 sm:h-40 rounded-2xl bg-white border-2 border-emerald-500 shadow-xl mx-auto overflow-hidden flex items-center justify-center">
             <img src="${player.photoUrl || player.player_photo_url}" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Crect width=\'100\' height=\'100\' fill=\'%23059669\'/%3E%3Ctext x=\'50\' y=\'62\' font-size=\'45\' text-anchor=\'middle\' fill=\'white\'%3E🏏%3C/text%3E%3C/svg%3E';" />
           </div>
-          <span class="text-[9px] font-extrabold text-emerald-700 block mt-1 hover:underline">🔍 Click picture to view Full HD Photo</span>
         </div>
 
         <!-- PLAYER NAME, REG ID & STATUS BADGE -->
@@ -1729,11 +1672,6 @@ function openFullPlayerProfileModal(player) {
   document.getElementById('close-profile-btn')?.addEventListener('click', removeModal);
   document.getElementById('close-profile-bottom-btn')?.addEventListener('click', removeModal);
   
-  // CLICKABLE PHOTO ZOOM EVENT LISTENER
-  document.getElementById('profile-photo-zoom-trigger')?.addEventListener('click', () => {
-    const imgSrc = player.photoUrl || player.player_photo_url || '';
-    if (imgSrc) openHDPhotoZoomModal(imgSrc, `${player.name} - Full HD Player Photo`);
-  });
 
   document.getElementById('print-pass-btn')?.addEventListener('click', () => {
     printDigitalPass(player, store.getLeagueById('leg-jsl'), store.getTeamById(player.teamId));
@@ -2395,11 +2333,11 @@ function openPlayerRegisterFormModal() {
   let plyProofDataUrl = '';
 
   // PROCESS PLAYER PHOTO (TRIGGER SQUARE CROPPER MODAL)
-  const handlePhotoSelection = async (file) => {
+  const handlePhotoSelection = (file) => {
     if (!file) return;
     plyPhotoFileObj = file;
-    const rawDataUrl = await compressImage(file, 1200, 1200, 0.85);
-    openSquareImageCropModal(rawDataUrl, (croppedSquareDataUrl) => {
+    const objectUrl = URL.createObjectURL(file);
+    openSquareImageCropModal(objectUrl, (croppedSquareDataUrl) => {
       plyPhotoDataUrl = croppedSquareDataUrl;
       const imgPreview = document.getElementById('ply-photo-preview-img');
       if (imgPreview) imgPreview.src = croppedSquareDataUrl;
@@ -2491,26 +2429,35 @@ function openPlayerRegisterFormModal() {
       const upiRef = document.getElementById('ply-upi-ref').value;
       const remarks = document.getElementById('ply-remarks').value || upiRef;
 
-      // Parallel concurrent Cloudinary HD upload with 10s safety timeout
-      const uploadWithTimeout = async (fileObj, folder, fallbackDataUrl) => {
-        if (!fileObj && fallbackDataUrl) return fallbackDataUrl;
-        try {
-          const timeoutPromise = new Promise(res => setTimeout(() => res(null), 10000));
-          const result = await Promise.race([
-            uploadHDImage(fileObj, folder),
-            timeoutPromise
-          ]);
-          return result || fallbackDataUrl;
-        } catch (e) {
-          return fallbackDataUrl;
-        }
-      };
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = `
+          <div class="flex items-center justify-center gap-2">
+            <div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+            <span>Compressing & Uploading Photo to Cloud...</span>
+          </div>
+        `;
+      }
+
+      const photoInput = plyPhotoDataUrl || plyPhotoFileObj;
+      const aadharInput = plyAadharDataUrl || plyAadharFileObj;
+      const proofInput = plyProofDataUrl || plyProofFileObj;
 
       const [finalPhotoUrl, finalAadharUrl, finalProofUrl] = await Promise.all([
-        uploadWithTimeout(plyPhotoFileObj, 'player_photos', plyPhotoDataUrl),
-        uploadWithTimeout(plyAadharFileObj, 'aadhaar_docs', plyAadharDataUrl),
-        uploadWithTimeout(plyProofFileObj, 'payment_receipts', plyProofDataUrl)
+        uploadHDImage(photoInput, 'player_photos'),
+        uploadHDImage(aadharInput, 'aadhaar_docs'),
+        uploadHDImage(proofInput, 'payment_receipts')
       ]);
+
+      // STRICT VALIDATION: Photo upload MUST succeed with a valid Cloudinary/CDN URL (http/https)
+      if (!finalPhotoUrl || (!finalPhotoUrl.startsWith('http://') && !finalPhotoUrl.startsWith('https://'))) {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerText = "Submit Player Registration";
+        }
+        alert("⚠️ Photo Upload Failed!\n\nUnable to upload player photo to Cloudinary CDN. Please check your internet connection and try submitting again.\n\n(Registration was stopped to prevent corrupted/missing pictures).");
+        return;
+      }
 
       const newPlayer = await store.registerPlayer({
         name,
@@ -3779,3 +3726,135 @@ function renderShopDetailsView(containerEl) {
 
   if (window.lucide) window.lucide.createIcons();
 }
+
+// --- REAL-TIME REGISTERED PLAYER TOAST POP-UP WIDGET ---
+function initRealtimePlayerToast() {
+  let toastContainer = document.getElementById('realtime-player-toast-widget');
+  if (!toastContainer) {
+    toastContainer = document.createElement('div');
+    toastContainer.id = 'realtime-player-toast-widget';
+    toastContainer.className = 'fixed bottom-16 sm:bottom-6 left-3 sm:left-6 z-50 transition-all duration-500 transform translate-y-10 opacity-0 pointer-events-none';
+    document.body.appendChild(toastContainer);
+  }
+
+  let toastTimer = null;
+  let autoRotateInterval = null;
+  let currentIndex = 0;
+  let isUserClosed = false;
+
+  const showToastForPlayer = (player, badgeText = '⚡ JUST REGISTERED') => {
+    if (!player || isUserClosed) return;
+
+    const photoUrl = player.photoUrl || player.player_photo_url || player.photo_url || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23059669'/%3E%3Ctext x='50' y='62' font-size='45' text-anchor='middle' fill='white'%3E🏏%3C/text%3E%3C/svg%3E";
+    const playerName = player.playerName || player.name || 'Anonymous Player';
+    const playerRole = player.playerRole || player.role || player.category || 'All Rounder';
+    const playerVillage = player.village || player.address || player.teamName || 'Jhankra';
+
+    toastContainer.innerHTML = `
+      <div class="relative bg-white/95 backdrop-blur-md border-2 border-emerald-400 rounded-2xl p-2.5 shadow-2xl flex items-center gap-2.5 max-w-[280px] sm:max-w-xs cursor-pointer group hover:scale-[1.02] transition-transform" id="toast-card-inner">
+        <!-- PLAYER PHOTO (SQUARE 1:1 WITH CROPPED BORDER) -->
+        <div class="relative shrink-0">
+          <img src="${photoUrl}" alt="${playerName}" class="w-11 h-11 sm:w-13 sm:h-13 rounded-xl object-cover border-2 border-emerald-500 shadow-md" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(playerName)}&background=059669&color=fff'" />
+          <span class="absolute -top-1 -right-1 flex h-2.5 w-2.5">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+          </span>
+        </div>
+
+        <!-- PLAYER DETAILS -->
+        <div class="flex-1 min-w-0 pr-4">
+          <div class="flex items-center gap-1 text-[8px] sm:text-[9px] font-black text-emerald-700 uppercase tracking-wider">
+            <span>${badgeText}</span>
+          </div>
+          <h4 class="text-xs sm:text-sm font-black text-slate-900 truncate leading-tight mt-0.5">
+            ${playerName}
+          </h4>
+          <p class="text-[10px] sm:text-xs font-semibold text-slate-500 truncate mt-0.5">
+            📍 ${playerVillage} • <span class="text-emerald-600 font-bold">${playerRole}</span>
+          </p>
+        </div>
+
+        <!-- CLOSE BUTTON -->
+        <button id="toast-close-btn" class="absolute top-1.5 right-1.5 p-1 text-slate-400 hover:text-slate-700 rounded-full hover:bg-slate-100 transition-colors" aria-label="Close">
+          <i data-lucide="x" class="w-3.5 h-3.5"></i>
+        </button>
+      </div>
+    `;
+
+    if (window.lucide) window.lucide.createIcons();
+
+    // Show animation
+    toastContainer.classList.remove('translate-y-10', 'opacity-0', 'pointer-events-none');
+    toastContainer.classList.add('translate-y-0', 'opacity-100', 'pointer-events-auto');
+
+    // Click card opens registered players view
+    document.getElementById('toast-card-inner')?.addEventListener('click', (e) => {
+      if (e.target.closest('#toast-close-btn')) return;
+      openRegisteredPlayersModal();
+    });
+
+    // Close button handler
+    document.getElementById('toast-close-btn')?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      isUserClosed = true;
+      hideToast();
+    });
+
+    // Auto-hide after 6 seconds
+    if (toastTimer) clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => {
+      hideToast();
+    }, 6000);
+  };
+
+  const hideToast = () => {
+    toastContainer.classList.remove('translate-y-0', 'opacity-100', 'pointer-events-auto');
+    toastContainer.classList.add('translate-y-10', 'opacity-0', 'pointer-events-none');
+  };
+
+  // Function to show ONLY THE LAST REGISTERED PLAYER (ONE TIME, 6 SECONDS DURATION)
+  const triggerLatestPlayerToast = async (isNewEvent = false) => {
+    // Check if Admin has paused/held the toast popup
+    try {
+      const popupSettings = await fetchPopupSettingsFromFirebase();
+      if (popupSettings && popupSettings.isRealtimePlayerToastEnabled === false) {
+        hideToast();
+        return;
+      }
+    } catch (e) {
+      // fallback continue
+    }
+
+    const players = store.getPlayers();
+    if (!players || players.length === 0) return;
+
+    // Sort descending by registration order / serial number / creation time to get strictly the LAST REGISTERED PLAYER
+    const sortedDesc = [...players].sort((a, b) => {
+      const timeA = new Date(a.created_at || a.registrationDate || 0).getTime() || (parseInt(a.id) || 0);
+      const timeB = new Date(b.created_at || b.registrationDate || 0).getTime() || (parseInt(b.id) || 0);
+      return timeB - timeA; // Most recent first (Index 0 is latest registered player)
+    });
+
+    const lastRegisteredPlayer = sortedDesc[0];
+    if (!lastRegisteredPlayer) return;
+
+    const totalCount = players.length;
+    const serialNum = lastRegisteredPlayer.displayRegistrationNumber || lastRegisteredPlayer.serialNo || totalCount;
+
+    if (isNewEvent) {
+      isUserClosed = false;
+    }
+
+    showToastForPlayer(lastRegisteredPlayer, `🔥 LATEST REGISTERED PLAYER #${serialNum}`);
+  };
+
+  // Listen for real-time new player registrations
+  window.addEventListener('players_updated', () => triggerLatestPlayerToast(true));
+  window.addEventListener('players_synced', () => triggerLatestPlayerToast(true));
+
+  // Trigger ONE TIME pop-up 2.5s after page load
+  setTimeout(() => {
+    triggerLatestPlayerToast(false);
+  }, 2500);
+}
+
