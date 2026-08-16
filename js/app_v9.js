@@ -309,8 +309,8 @@ function openFirstVisitWelcomeModal() {
   });
 }
 
-// --- CLIENT-SIDE HD IMAGE COMPRESSION (~150 KB - 280 KB PER IMAGE, NOT LESS THAN 50 KB) ---
-export function compressImage(file, maxWidth = 1050, maxHeight = 1050, quality = 0.82) {
+// --- CLIENT-SIDE HD IMAGE COMPRESSION (GUARANTEED STRICTLY UNDER 200 KB PER IMAGE) ---
+export function compressImage(file, maxWidth = 1000, maxHeight = 1000, quality = 0.80) {
   return new Promise((resolve) => {
     if (!file) {
       resolve('');
@@ -340,7 +340,21 @@ export function compressImage(file, maxWidth = 1050, maxHeight = 1050, quality =
         canvas.height = height;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(img, 0, 0, width, height);
-        resolve(canvas.toDataURL('image/jpeg', quality));
+
+        let currentQuality = quality;
+        let dataUrl = canvas.toDataURL('image/jpeg', currentQuality);
+
+        // Strict size guarantee: <= 200 KB (~204,800 bytes)
+        const targetSizeBytes = 200 * 1024;
+        let estSize = Math.round((dataUrl.length - 22) * 0.75);
+
+        while (estSize > targetSizeBytes && currentQuality > 0.35) {
+          currentQuality -= 0.08;
+          dataUrl = canvas.toDataURL('image/jpeg', currentQuality);
+          estSize = Math.round((dataUrl.length - 22) * 0.75);
+        }
+
+        resolve(dataUrl);
       };
       img.onerror = () => resolve(e.target.result);
       img.src = e.target.result;
@@ -829,7 +843,7 @@ function renderFirstPageLanding(containerEl) {
       <!-- SELECT PREMIER LEAGUE BADGE -->
       <div class="text-center">
         <span class="px-5 py-2 rounded-full bg-white text-emerald-800 border-2 border-emerald-300 text-xs sm:text-base font-black uppercase tracking-widest shadow-md">
-          Select Premier League Category
+          Select Premier League
         </span>
       </div>
 
@@ -906,28 +920,38 @@ function renderFirstPageLanding(containerEl) {
           <div id="confirmed-teams-slider" class="flex transition-transform duration-500 ease-out w-full">
             
             <!-- SLIDE 1: KHIRPAI HURRICANES -->
-            <div class="w-full flex-shrink-0 relative cursor-pointer slide-item px-1" data-slide-index="0">
+            <div class="w-full flex-shrink-0 relative cursor-pointer slide-item px-1" data-slide-index="0" data-img-src="assets/team_confirm_1_khirpai_hurricanes.jpg" data-team-name="1ST CONFIRM TEAM - KHIRPAI HURRICANES">
               <img src="assets/team_confirm_1_khirpai_hurricanes.jpg" alt="1st Confirm Team - Khirpai Hurricanes" class="w-full h-auto max-h-72 sm:max-h-96 object-contain mx-auto rounded-2xl border-4 border-white shadow-xl" />
             </div>
 
             <!-- SLIDE 2: ANIKET XI -->
-            <div class="w-full flex-shrink-0 relative cursor-pointer slide-item px-1" data-slide-index="1">
+            <div class="w-full flex-shrink-0 relative cursor-pointer slide-item px-1" data-slide-index="1" data-img-src="assets/team_confirm_2_aniket_xi.jpg" data-team-name="2ND CONFIRM TEAM - ANIKET XI">
               <img src="assets/team_confirm_2_aniket_xi.jpg" alt="2nd Confirm Team - Aniket XI" class="w-full h-auto max-h-72 sm:max-h-96 object-contain mx-auto rounded-2xl border-4 border-white shadow-xl" />
             </div>
 
             <!-- SLIDE 3: SRS BROTHER'S -->
-            <div class="w-full flex-shrink-0 relative cursor-pointer slide-item px-1" data-slide-index="2">
+            <div class="w-full flex-shrink-0 relative cursor-pointer slide-item px-1" data-slide-index="2" data-img-src="assets/team_confirm_3_srs_brothers.jpg" data-team-name="3RD CONFIRM TEAM - SRS BROTHERS">
               <img src="assets/team_confirm_3_srs_brothers.jpg" alt="3rd Confirm Team - SRS Brother's" class="w-full h-auto max-h-72 sm:max-h-96 object-contain mx-auto rounded-2xl border-4 border-white shadow-xl" />
             </div>
 
             <!-- SLIDE 4: SHIV SHAKTI EKADASH -->
-            <div class="w-full flex-shrink-0 relative cursor-pointer slide-item px-1" data-slide-index="3">
+            <div class="w-full flex-shrink-0 relative cursor-pointer slide-item px-1" data-slide-index="3" data-img-src="assets/team_confirm_4_shiv_shakti_ekadash.jpg" data-team-name="4TH CONFIRM TEAM - SHIV SHAKTI EKADASH">
               <img src="assets/team_confirm_4_shiv_shakti_ekadash.jpg" alt="4th Confirm Team - Shiv Shakti Ekadash" class="w-full h-auto max-h-72 sm:max-h-96 object-contain mx-auto rounded-2xl border-4 border-white shadow-xl" />
             </div>
 
             <!-- SLIDE 5: AVD ELEVEN -->
-            <div class="w-full flex-shrink-0 relative cursor-pointer slide-item px-1" data-slide-index="4">
+            <div class="w-full flex-shrink-0 relative cursor-pointer slide-item px-1" data-slide-index="4" data-img-src="assets/team_confirm_5_avd_eleven.jpg" data-team-name="5TH CONFIRM TEAM - AVD ELEVEN">
               <img src="assets/team_confirm_5_avd_eleven.jpg" alt="5th Confirm Team - AVD Eleven" class="w-full h-auto max-h-72 sm:max-h-96 object-contain mx-auto rounded-2xl border-4 border-white shadow-xl" />
+            </div>
+
+            <!-- SLIDE 6: CCC (6TH CONFIRM TEAM) -->
+            <div class="w-full flex-shrink-0 relative cursor-pointer slide-item px-1" data-slide-index="5" data-img-src="assets/team_confirm_6_ccc.jpg" data-team-name="6TH CONFIRM TEAM - CCC">
+              <img src="assets/team_confirm_6_ccc.jpg" alt="6th Confirm Team - CCC" class="w-full h-auto max-h-72 sm:max-h-96 object-contain mx-auto rounded-2xl border-4 border-white shadow-xl" />
+            </div>
+
+            <!-- SLIDE 7: ATRIKA & FRIEND X1 (7TH CONFIRM TEAM) -->
+            <div class="w-full flex-shrink-0 relative cursor-pointer slide-item px-1" data-slide-index="6" data-img-src="assets/team_confirm_7_atrika_friend_xi.jpg" data-team-name="7TH CONFIRM TEAM - ATRIKA & FRIEND X1">
+              <img src="assets/team_confirm_7_atrika_friend_xi.jpg" alt="7th Confirm Team - ATRIKA & FRIEND X1" class="w-full h-auto max-h-72 sm:max-h-96 object-contain mx-auto rounded-2xl border-4 border-white shadow-xl" />
             </div>
 
           </div>
@@ -977,11 +1001,13 @@ function renderFirstPageLanding(containerEl) {
     '🥈 2ND CONFIRM TEAM: ANIKET XI (Owner: UTTAM GHOSH | Icon: RINTU ROY)',
     '🥉 3RD CONFIRM TEAM: SRS BROTHER\'S (Owner: RAJA | Icon: TAPAS)',
     '🏆 4TH CONFIRM TEAM: SHIV SHAKTI EKADASH (Owner: DEBIPRASAD PRAMANIK | Icon: SUBHAM SIR)',
-    '🏆 5TH CONFIRM TEAM: AVD ELEVEN (Owner: APU GHOSH | Icon: ROHIT PRAMANIK)'
+    '🏆 5TH CONFIRM TEAM: AVD ELEVEN (Owner: APU GHOSH | Icon: ROHIT PRAMANIK)',
+    '🏆 6TH CONFIRM TEAM: CCC (Owner: SOURABH DE | Icon: SANTANU SARKAR | Mentor: MINTU MONDAL)',
+    '🏆 7TH CONFIRM TEAM: ATRIKA & FRIEND X1 (Owner: KARTICK MAITY | Icon: SUSHANTA MALLIK)'
   ];
 
   let currentSlide = 0;
-  const totalSlides = 5;
+  const totalSlides = 7;
 
   const updateSlide = (index) => {
     currentSlide = (index + totalSlides) % totalSlides;
@@ -1108,46 +1134,17 @@ function renderJSLHub(containerEl) {
   containerEl.innerHTML = `
     <div class="space-y-3 sm:space-y-4 animate-fade-in max-w-4xl mx-auto py-1 sm:py-2">
       
-      <!-- GRAND STADIUM POSTER STRIP (PURE WHITE LIGHT THEME - LARGER TITLE & STYLISH BADGES) -->
-      <div class="jsl-header-strip p-3.5 sm:p-5 space-y-3.5 bg-white border-2 border-slate-200 rounded-2xl shadow-md">
+      <!-- GRAND STADIUM POSTER STRIP (PURE WHITE BACKGROUND - POSTER PICTURE & CONTACT INFO) -->
+      <div class="jsl-header-strip p-2 sm:p-3 bg-white border-2 border-slate-200 rounded-2xl shadow-md space-y-2">
         
-        <!-- TITLE AT THE TOP (INCREASED SIZE & IMPACT) -->
-        <div class="flex items-center gap-3 sm:gap-4">
-          <img src="assets/jsl_logo_white.jpg" alt="JSL Logo" class="w-14 h-14 sm:w-20 sm:h-20 rounded-2xl object-contain border-0 shadow-md flex-shrink-0" />
-          <div>
-            <div class="jsl-poster-title-navy text-slate-900 font-black text-lg sm:text-2xl md:text-3xl tracking-tight leading-tight">
-              JHANKRA <span class="text-emerald-600 font-black">SUPER LEAGUE 2026</span>
-            </div>
-            <div class="text-[10px] sm:text-xs font-black text-sky-700 uppercase tracking-wide mt-1">
-              8 TEAM TOURNAMENT • 29, 30 & 31 AUG 2026 @ JHANKRA SCHOOL GROUND
-            </div>
-          </div>
+        <!-- POSTER PICTURE ON WHITE BACKGROUND (JHANKRA SUPER LEAGUE, 8 TEAMS, PRIZE MONEY, ENTRY & RULES) -->
+        <div class="overflow-hidden rounded-xl bg-white border border-slate-200 shadow-sm max-w-4xl mx-auto">
+          <img src="assets/jsl_poster_top_rules.jpg" alt="JSL Official Tournament Poster" class="w-full h-auto object-contain mx-auto rounded-xl" />
         </div>
 
-        <!-- SUMMARY STRIP (TWO DISTINCT COLORED WINNER & RUNNER BADGES + STYLISH GLOWING CONTACT LINK) -->
-        <div class="flex flex-wrap items-center justify-between gap-2.5 pt-3 border-t border-slate-200">
-          
-          <!-- TWO SEPARATE COLORED BADGES: WINNER (GOLD) & RUNNER (SKY BLUE) -->
-          <div class="flex items-center gap-2">
-            <!-- WINNER BADGE (GOLD / AMBER) -->
-            <span class="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-yellow-500 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-sm border border-amber-400 flex items-center gap-1.5">
-              <svg class="w-4 h-4 sm:w-4.5 sm:h-4.5 fill-current text-slate-950 flex-shrink-0" viewBox="0 0 24 24">
-                <path d="M19 5h-2V3H7v2H5c-1.1 0-2 .9-2 2v1c0 2.55 1.92 4.63 4.39 4.94A5.01 5.01 0 0011 15.9V18H9v2h6v-2h-2v-2.1c2.12-.39 3.79-2.02 4.39-4.14C19.89 11.53 21 9.47 21 7V7c0-1.1-.9-2-2-2zM5 8V7h2v3.82C5.84 10.4 5 9.3 5 8zm14 0c0 1.3-.84 2.4-2 2.82V7h2v1z"/>
-              </svg>
-              <span>🏆 WINNER: 35K</span>
-            </span>
-
-            <!-- RUNNER BADGE (SKY / BLUE) -->
-            <span class="px-3 py-1.5 bg-gradient-to-r from-sky-500 to-blue-600 text-white font-black text-xs sm:text-sm rounded-xl shadow-sm border border-sky-400 flex items-center gap-1.5">
-              <svg class="w-4 h-4 sm:w-4.5 sm:h-4.5 fill-current text-white flex-shrink-0" viewBox="0 0 24 24">
-                <path d="M12 2L15.09 8.26L22 9.27L17 14.14L18.18 21.02L12 17.77L5.82 21.02L7 14.14L2 9.27L8.91 8.26L12 2Z"/>
-              </svg>
-              <span>🥈 RUNNER: 25K</span>
-            </span>
-          </div>
-
-          <!-- STYLISH GLOWING CALL BUTTON CONTACT LINK -->
-          <a href="tel:89722144166" class="px-3.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-xs sm:text-sm rounded-xl border border-emerald-400 shadow-md flex items-center gap-2 transition-all cursor-pointer group" title="Click to call Pintu Santra">
+        <!-- CLICKABLE CALL CONTACT BUTTON BELOW PICTURE -->
+        <div class="flex justify-center pt-1">
+          <a href="tel:89722144166" class="px-5 py-2 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-xs sm:text-sm rounded-xl border border-emerald-400 shadow-md flex items-center justify-center gap-2 transition-all cursor-pointer group" title="Click to call Pintu Santra for Team Entry">
             <div class="relative flex h-3.5 w-3.5 flex-shrink-0">
               <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-300 opacity-75"></span>
               <span class="relative inline-flex rounded-full h-3.5 w-3.5 bg-white flex items-center justify-center">
@@ -1156,9 +1153,8 @@ function renderJSLHub(containerEl) {
                 </svg>
               </span>
             </div>
-            <span class="tracking-wide">📞 Contact: Pintu Santra (89722144166)</span>
+            <span class="tracking-wide">📞 Contact - Pintu Santra (89722144166)</span>
           </a>
-
         </div>
 
       </div>
@@ -1246,13 +1242,16 @@ function openRegisteredTeamsModal(allTeams) {
       container.innerHTML = `
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           ${filteredTeams.map((t) => {
-            const co1Name = t.coOwner1Name || t.coOwnerName || '';
-            const co1Phone = t.coOwner1Phone || t.coOwnerPhone || '';
-            const co1Photo = t.coOwner1PhotoUrl || '';
+            const coOwnerName = t.coOwnerName || t.coOwner1Name || '';
+            const coOwnerPhone = t.coOwnerPhone || t.coOwner1Phone || '';
+            const coOwnerPhoto = t.coOwnerPhotoUrl || t.coOwner1PhotoUrl || '';
 
-            const co2Name = t.coOwner2Name || '';
-            const co2Phone = t.coOwner2Phone || '';
-            const co2Photo = t.coOwner2PhotoUrl || '';
+            const mentorName = t.mentorName || t.coOwner2Name || '';
+            const mentorPhone = t.mentorPhone || t.coOwner2Phone || '';
+            const mentorPhoto = t.mentorPhotoUrl || t.coOwner2PhotoUrl || '';
+
+            const iconPlayerName = t.iconPlayerName || t.iconName || '';
+            const iconPlayerPhoto = t.iconPlayerPhotoUrl || t.iconPhotoUrl || t.iconPhoto || '';
 
             return `
               <div class="glass-card p-3 flex flex-col justify-between items-center text-center border border-sky-300 bg-white hover:border-sky-500 shadow-md">
@@ -1267,17 +1266,24 @@ function openRegisteredTeamsModal(allTeams) {
                     ${t.ownerPhotoUrl || t.ownerPhoto ? `<img src="${t.ownerPhotoUrl || t.ownerPhoto}" class="w-full h-full object-cover" />` : ''}
                   </div>
 
-                  <!-- CO-OWNER 1 PHOTO -->
-                  ${co1Name ? `
-                    <div class="w-11 h-11 rounded-xl bg-white border-2 border-sky-500 flex items-center justify-center overflow-hidden shadow-sm flex-shrink-0" title="Co-Owner 1: ${co1Name}">
-                      ${co1Photo ? `<img src="${co1Photo}" class="w-full h-full object-cover" />` : ''}
+                  <!-- ICON PLAYER PHOTO -->
+                  ${iconPlayerName || iconPlayerPhoto ? `
+                    <div class="w-11 h-11 rounded-xl bg-white border-2 border-emerald-500 flex items-center justify-center overflow-hidden shadow-sm flex-shrink-0" title="Icon Player: ${iconPlayerName}">
+                      ${iconPlayerPhoto ? `<img src="${iconPlayerPhoto}" class="w-full h-full object-cover" />` : ''}
                     </div>
                   ` : ''}
 
-                  <!-- CO-OWNER 2 PHOTO -->
-                  ${co2Name ? `
-                    <div class="w-11 h-11 rounded-xl bg-white border-2 border-purple-500 flex items-center justify-center overflow-hidden shadow-sm flex-shrink-0" title="Co-Owner 2: ${co2Name}">
-                      ${co2Photo ? `<img src="${co2Photo}" class="w-full h-full object-cover" />` : ''}
+                  <!-- CO-OWNER PHOTO -->
+                  ${coOwnerName ? `
+                    <div class="w-11 h-11 rounded-xl bg-white border-2 border-sky-500 flex items-center justify-center overflow-hidden shadow-sm flex-shrink-0" title="Co-Owner: ${coOwnerName}">
+                      ${coOwnerPhoto ? `<img src="${coOwnerPhoto}" class="w-full h-full object-cover" />` : ''}
+                    </div>
+                  ` : ''}
+
+                  <!-- MENTOR PHOTO -->
+                  ${mentorName ? `
+                    <div class="w-11 h-11 rounded-xl bg-white border-2 border-purple-500 flex items-center justify-center overflow-hidden shadow-sm flex-shrink-0" title="Mentor: ${mentorName}">
+                      ${mentorPhoto ? `<img src="${mentorPhoto}" class="w-full h-full object-cover" />` : ''}
                     </div>
                   ` : ''}
                 </div>
@@ -1285,8 +1291,9 @@ function openRegisteredTeamsModal(allTeams) {
                 <div class="space-y-0.5 w-full text-center">
                   <h3 class="font-black text-slate-900 text-sm truncate leading-tight">${t.name}</h3>
                   <div class="text-[10px] text-amber-700 font-extrabold truncate">👑 Owner: ${t.ownerName} (${t.ownerPhone})</div>
-                  ${co1Name ? `<div class="text-[9px] text-sky-700 font-bold truncate">🤝 Co-Owner 1: ${co1Name} (${co1Phone || 'N/A'})</div>` : ''}
-                  ${co2Name ? `<div class="text-[9px] text-purple-700 font-bold truncate">🤝 Co-Owner 2: ${co2Name} (${co2Phone || 'N/A'})</div>` : ''}
+                  ${iconPlayerName ? `<div class="text-[9px] text-emerald-700 font-bold truncate">🌟 Icon: ${iconPlayerName}</div>` : ''}
+                  ${coOwnerName ? `<div class="text-[9px] text-sky-700 font-bold truncate">🤝 Co-Owner: ${coOwnerName} (${coOwnerPhone || 'N/A'})</div>` : ''}
+                  ${mentorName ? `<div class="text-[9px] text-purple-700 font-bold truncate">🧠 Mentor: ${mentorName} (${mentorPhone || 'N/A'})</div>` : ''}
                   
                   <button class="view-team-squad-btn mt-3.5 w-full py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 hover:text-sky-800 text-[10px] font-black rounded-lg border border-sky-200 transition-all flex items-center justify-center gap-1 shadow-sm" data-team-id="${t.id}">
                     🏃‍♂️ View Squad (${store.getPlayers().filter(p => p.teamId === t.id).length} Players)
@@ -1743,27 +1750,30 @@ function openRegistrationTypeModal() {
   });
 }
 
-// --- TEAM REGISTER FORM MODAL (WITH CO-OWNER 1 & CO-OWNER 2 MARK OPTIONS) ---
+// --- TEAM REGISTER FORM MODAL ---
 function openTeamRegisterFormModal() {
-  let ownerPhotoFileObj = null;
-  let coOwner1PhotoFileObj = null;
-  let coOwner2PhotoFileObj = null;
-  let teamLogoFileObj = null;
+  document.getElementById('team-reg-modal')?.remove();
 
+  let ownerPhotoFileObj = null;
   let ownerPhotoDataUrl = '';
-  let coOwner1PhotoDataUrl = '';
-  let coOwner2PhotoDataUrl = '';
+  let coOwnerPhotoFileObj = null;
+  let coOwnerPhotoDataUrl = '';
+  let mentorPhotoFileObj = null;
+  let mentorPhotoDataUrl = '';
+  let iconPlayerPhotoFileObj = null;
+  let iconPlayerPhotoDataUrl = '';
+  let teamLogoFileObj = null;
   let teamLogoDataUrl = '';
 
   const modalHtml = `
-    <div id="team-reg-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3 overflow-y-auto">
+    <div id="team-reg-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3">
       <div class="bg-white max-w-md w-full p-4 relative space-y-3 animate-fade-in rounded-2xl shadow-2xl border border-slate-200 modal-content-container max-h-[92vh] overflow-y-auto text-slate-900">
         <button id="close-team-modal-btn" class="absolute top-3 right-3 text-slate-400 hover:text-slate-800 p-1">
           <i data-lucide="x" class="w-4 h-4"></i>
         </button>
 
         <div>
-          <span class="px-2 py-0.5 bg-sky-100 text-sky-800 text-[9px] font-black rounded border border-sky-300">TEAM REGISTER</span>
+          <span class="px-2 py-0.5 bg-sky-100 text-sky-800 text-[9px] font-black rounded border border-sky-300 uppercase">TEAM REGISTER</span>
           <h2 class="text-base font-black text-slate-900 mt-0.5">Register New Franchise Team</h2>
         </div>
 
@@ -1788,74 +1798,91 @@ function openTeamRegisterFormModal() {
               </div>
             </div>
             <div>
-              <label class="block text-[9px] font-bold text-amber-700 uppercase mb-0.5">Owner HD Photo *</label>
+              <label class="block text-[9px] font-bold text-amber-700 uppercase mb-0.5">Owner HD Photo * (Compressed &lt; 200KB)</label>
               <input type="file" id="owner-photo-file" accept="image/*" required class="w-full bg-white border border-slate-300 text-slate-700 text-[10px] rounded-lg p-1 file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:text-[9px] file:font-bold file:bg-amber-500 file:text-slate-950" />
               <div id="owner-photo-preview-box" class="hidden mt-1 flex items-center gap-2 bg-white p-1 rounded-lg border border-slate-300">
                 <img id="owner-photo-preview-img" class="w-8 h-8 rounded object-cover" />
-                <span class="text-[9px] text-emerald-600 font-bold">Owner Photo Selected!</span>
+                <span class="text-[9px] text-emerald-600 font-bold">Owner Photo Selected (&lt; 200KB)</span>
               </div>
             </div>
           </div>
 
-          <!-- 3. Co-Owner 1 Option -->
-          <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-2">
+          <!-- 3. Icon Player Details -->
+          <div class="bg-emerald-50 p-2.5 rounded-xl border border-emerald-200 space-y-2">
+            <span class="text-[10px] font-black text-emerald-800 uppercase tracking-wider block">🌟 Icon Player Details (Optional)</span>
+            <div>
+              <label class="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">Icon Player Name</label>
+              <input type="text" id="icon-player-name" placeholder="e.g. Bijay Haldar" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-lg p-1.5 focus:outline-none focus:border-emerald-500" />
+            </div>
+            <div>
+              <label class="block text-[9px] font-bold text-emerald-800 uppercase mb-0.5">Icon Player HD Photo (Compressed &lt; 200KB)</label>
+              <input type="file" id="icon-player-photo-file" accept="image/*" class="w-full bg-white border border-slate-300 text-slate-700 text-[10px] rounded-lg p-1 file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:text-[9px] file:font-bold file:bg-emerald-600 file:text-white" />
+              <div id="icon-player-photo-preview-box" class="hidden mt-1 flex items-center gap-2 bg-white p-1 rounded-lg border border-slate-300">
+                <img id="icon-player-photo-preview-img" class="w-8 h-8 rounded object-cover" />
+                <span class="text-[9px] text-emerald-600 font-bold">Icon Player Photo Selected (&lt; 200KB)</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- 4. Co-Owner Option (Single Co-Owner) -->
+          <div class="bg-sky-50 p-2.5 rounded-xl border border-sky-200 space-y-2">
             <label class="flex items-center gap-2 cursor-pointer select-none">
-              <input type="checkbox" id="enable-co-owner-1" class="w-4 h-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500 bg-white" />
-              <span class="text-[10px] font-black text-sky-700 uppercase">🤝 Mark Co-Owner 1 (Optional)</span>
+              <input type="checkbox" id="enable-co-owner" class="w-4 h-4 rounded border-slate-300 text-sky-600 focus:ring-sky-500 bg-white" />
+              <span class="text-[10px] font-black text-sky-700 uppercase">🤝 Mark Co-Owner (Optional)</span>
             </label>
 
-            <div id="co-owner-1-fields" class="hidden space-y-2 pt-1 border-t border-slate-200">
+            <div id="co-owner-fields" class="hidden space-y-2 pt-1 border-t border-sky-200">
               <div class="grid grid-cols-2 gap-2">
                 <div>
-                  <label class="block text-[8px] font-bold text-slate-700 uppercase mb-0.5">Co-Owner 1 Name</label>
-                  <input type="text" id="co-owner-1-name" placeholder="Rohit Verma" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-lg p-1.5 focus:outline-none focus:border-sky-500" />
+                  <label class="block text-[8px] font-bold text-slate-700 uppercase mb-0.5">Co-Owner Name</label>
+                  <input type="text" id="co-owner-name" placeholder="Rohit Verma" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-lg p-1.5 focus:outline-none focus:border-sky-500" />
                 </div>
                 <div>
-                  <label class="block text-[8px] font-bold text-slate-700 uppercase mb-0.5">Co-Owner 1 Phone</label>
-                  <input type="tel" id="co-owner-1-phone" placeholder="+91 9812345678" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-lg p-1.5 focus:outline-none focus:border-sky-500" />
+                  <label class="block text-[8px] font-bold text-slate-700 uppercase mb-0.5">Co-Owner Phone</label>
+                  <input type="tel" id="co-owner-phone" placeholder="+91 9812345678" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-lg p-1.5 focus:outline-none focus:border-sky-500" />
                 </div>
               </div>
               <div>
-                <label class="block text-[8px] font-bold text-sky-700 uppercase mb-0.5">Co-Owner 1 HD Photo</label>
-                <input type="file" id="co-owner-1-photo-file" accept="image/*" class="w-full bg-white border border-slate-300 text-slate-700 text-[10px] rounded-lg p-1 file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:text-[9px] file:font-bold file:bg-sky-600 file:text-white" />
-                <div id="co-owner-1-photo-preview-box" class="hidden mt-1 flex items-center gap-2 bg-white p-1 rounded-lg border border-slate-300">
-                  <img id="co-owner-1-photo-preview-img" class="w-8 h-8 rounded object-cover" />
-                  <span class="text-[9px] text-emerald-600 font-bold">Co-Owner 1 Photo Selected!</span>
+                <label class="block text-[8px] font-bold text-sky-700 uppercase mb-0.5">Co-Owner HD Photo</label>
+                <input type="file" id="co-owner-photo-file" accept="image/*" class="w-full bg-white border border-slate-300 text-slate-700 text-[10px] rounded-lg p-1 file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:text-[9px] file:font-bold file:bg-sky-600 file:text-white" />
+                <div id="co-owner-photo-preview-box" class="hidden mt-1 flex items-center gap-2 bg-white p-1 rounded-lg border border-slate-300">
+                  <img id="co-owner-photo-preview-img" class="w-8 h-8 rounded object-cover" />
+                  <span class="text-[9px] text-emerald-600 font-bold">Co-Owner Photo Selected!</span>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- 4. Co-Owner 2 Option -->
-          <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-2">
+          <!-- 5. Mentor Option -->
+          <div class="bg-purple-50 p-2.5 rounded-xl border border-purple-200 space-y-2">
             <label class="flex items-center gap-2 cursor-pointer select-none">
-              <input type="checkbox" id="enable-co-owner-2" class="w-4 h-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500 bg-white" />
-              <span class="text-[10px] font-black text-purple-700 uppercase">🤝 Mark Co-Owner 2 (Optional)</span>
+              <input type="checkbox" id="enable-mentor" class="w-4 h-4 rounded border-slate-300 text-purple-600 focus:ring-purple-500 bg-white" />
+              <span class="text-[10px] font-black text-purple-700 uppercase">🧠 Mark Mentor (Optional)</span>
             </label>
 
-            <div id="co-owner-2-fields" class="hidden space-y-2 pt-1 border-t border-slate-200">
+            <div id="mentor-fields" class="hidden space-y-2 pt-1 border-t border-purple-200">
               <div class="grid grid-cols-2 gap-2">
                 <div>
-                  <label class="block text-[8px] font-bold text-slate-700 uppercase mb-0.5">Co-Owner 2 Name</label>
-                  <input type="text" id="co-owner-2-name" placeholder="Aman Gupta" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-lg p-1.5 focus:outline-none focus:border-purple-500" />
+                  <label class="block text-[8px] font-bold text-slate-700 uppercase mb-0.5">Mentor Name</label>
+                  <input type="text" id="mentor-name" placeholder="Aman Gupta" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-lg p-1.5 focus:outline-none focus:border-purple-500" />
                 </div>
                 <div>
-                  <label class="block text-[8px] font-bold text-slate-700 uppercase mb-0.5">Co-Owner 2 Phone</label>
-                  <input type="tel" id="co-owner-2-phone" placeholder="+91 9765432109" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-lg p-1.5 focus:outline-none focus:border-purple-500" />
+                  <label class="block text-[8px] font-bold text-slate-700 uppercase mb-0.5">Mentor Phone</label>
+                  <input type="tel" id="mentor-phone" placeholder="+91 9765432109" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-lg p-1.5 focus:outline-none focus:border-purple-500" />
                 </div>
               </div>
               <div>
-                <label class="block text-[8px] font-bold text-purple-700 uppercase mb-0.5">Co-Owner 2 HD Photo</label>
-                <input type="file" id="co-owner-2-photo-file" accept="image/*" class="w-full bg-white border border-slate-300 text-slate-700 text-[10px] rounded-lg p-1 file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:text-[9px] file:font-bold file:bg-purple-600 file:text-white" />
-                <div id="co-owner-2-photo-preview-box" class="hidden mt-1 flex items-center gap-2 bg-white p-1 rounded-lg border border-slate-300">
-                  <img id="co-owner-2-photo-preview-img" class="w-8 h-8 rounded object-cover" />
-                  <span class="text-[9px] text-emerald-600 font-bold">Co-Owner 2 Photo Selected!</span>
+                <label class="block text-[8px] font-bold text-purple-700 uppercase mb-0.5">Mentor HD Photo</label>
+                <input type="file" id="mentor-photo-file" accept="image/*" class="w-full bg-white border border-slate-300 text-slate-700 text-[10px] rounded-lg p-1 file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:text-[9px] file:font-bold file:bg-purple-600 file:text-white" />
+                <div id="mentor-photo-preview-box" class="hidden mt-1 flex items-center gap-2 bg-white p-1 rounded-lg border border-slate-300">
+                  <img id="mentor-photo-preview-img" class="w-8 h-8 rounded object-cover" />
+                  <span class="text-[9px] text-emerald-600 font-bold">Mentor Photo Selected!</span>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- 5. Team Logo -->
+          <!-- 6. Team Logo -->
           <div>
             <label class="block text-[9px] font-bold text-sky-700 uppercase mb-0.5">Upload Team Logo (Optional)</label>
             <input type="file" id="team-logo-file" accept="image/*" class="w-full bg-slate-50 border border-slate-300 text-slate-700 text-[10px] rounded-lg p-1 file:mr-2 file:py-0.5 file:px-2 file:rounded file:border-0 file:text-[9px] file:font-bold file:bg-sky-600 file:text-white" />
@@ -1879,47 +1906,57 @@ function openTeamRegisterFormModal() {
   const removeModal = () => document.getElementById('team-reg-modal')?.remove();
   document.getElementById('close-team-modal-btn')?.addEventListener('click', removeModal);
 
-  // CO-OWNER TOGGLES
-  document.getElementById('enable-co-owner-1')?.addEventListener('change', (e) => {
-    const fields = document.getElementById('co-owner-1-fields');
+  // TOGGLES FOR CO-OWNER & MENTOR
+  document.getElementById('enable-co-owner')?.addEventListener('change', (e) => {
+    const fields = document.getElementById('co-owner-fields');
     if (e.target.checked) fields?.classList.remove('hidden');
     else fields?.classList.add('hidden');
   });
 
-  document.getElementById('enable-co-owner-2')?.addEventListener('change', (e) => {
-    const fields = document.getElementById('co-owner-2-fields');
+  document.getElementById('enable-mentor')?.addEventListener('change', (e) => {
+    const fields = document.getElementById('mentor-fields');
     if (e.target.checked) fields?.classList.remove('hidden');
     else fields?.classList.add('hidden');
   });
 
-  // FILE UPLOAD LISTENERS (Client-Side HD Compression ~150 KB - 280 KB per image)
+  // FILE UPLOAD LISTENERS (Client-Side HD Compression guaranteed strictly < 200 KB per image)
   document.getElementById('owner-photo-file')?.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (file) {
       ownerPhotoFileObj = file;
-      ownerPhotoDataUrl = await compressImage(file, 1050, 1050, 0.82);
+      ownerPhotoDataUrl = await compressImage(file, 1000, 1000, 0.80);
       document.getElementById('owner-photo-preview-img').src = ownerPhotoDataUrl;
       document.getElementById('owner-photo-preview-box').classList.remove('hidden');
     }
   });
 
-  document.getElementById('co-owner-1-photo-file')?.addEventListener('change', async (e) => {
+  document.getElementById('icon-player-photo-file')?.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (file) {
-      coOwner1PhotoFileObj = file;
-      coOwner1PhotoDataUrl = await compressImage(file, 1050, 1050, 0.82);
-      document.getElementById('co-owner-1-photo-preview-img').src = coOwner1PhotoDataUrl;
-      document.getElementById('co-owner-1-photo-preview-box').classList.remove('hidden');
+      iconPlayerPhotoFileObj = file;
+      iconPlayerPhotoDataUrl = await compressImage(file, 1000, 1000, 0.80);
+      document.getElementById('icon-player-photo-preview-img').src = iconPlayerPhotoDataUrl;
+      document.getElementById('icon-player-photo-preview-box').classList.remove('hidden');
     }
   });
 
-  document.getElementById('co-owner-2-photo-file')?.addEventListener('change', async (e) => {
+  document.getElementById('co-owner-photo-file')?.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (file) {
-      coOwner2PhotoFileObj = file;
-      coOwner2PhotoDataUrl = await compressImage(file, 1050, 1050, 0.82);
-      document.getElementById('co-owner-2-photo-preview-img').src = coOwner2PhotoDataUrl;
-      document.getElementById('co-owner-2-photo-preview-box').classList.remove('hidden');
+      coOwnerPhotoFileObj = file;
+      coOwnerPhotoDataUrl = await compressImage(file, 1000, 1000, 0.80);
+      document.getElementById('co-owner-photo-preview-img').src = coOwnerPhotoDataUrl;
+      document.getElementById('co-owner-photo-preview-box').classList.remove('hidden');
+    }
+  });
+
+  document.getElementById('mentor-photo-file')?.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      mentorPhotoFileObj = file;
+      mentorPhotoDataUrl = await compressImage(file, 1000, 1000, 0.80);
+      document.getElementById('mentor-photo-preview-img').src = mentorPhotoDataUrl;
+      document.getElementById('mentor-photo-preview-box').classList.remove('hidden');
     }
   });
 
@@ -1927,7 +1964,7 @@ function openTeamRegisterFormModal() {
     const file = e.target.files[0];
     if (file) {
       teamLogoFileObj = file;
-      teamLogoDataUrl = await compressImage(file, 1050, 1050, 0.82);
+      teamLogoDataUrl = await compressImage(file, 1000, 1000, 0.80);
       document.getElementById('team-logo-preview-img').src = teamLogoDataUrl;
       document.getElementById('team-logo-preview-box').classList.remove('hidden');
     }
@@ -1950,16 +1987,17 @@ function openTeamRegisterFormModal() {
       const name = document.getElementById('team-name').value;
       const ownerName = document.getElementById('owner-name').value;
       const ownerPhone = document.getElementById('owner-phone').value;
+      const iconPlayerName = document.getElementById('icon-player-name')?.value || '';
 
-      const hasCoOwner1 = document.getElementById('enable-co-owner-1').checked;
-      const coOwner1Name = hasCoOwner1 ? (document.getElementById('co-owner-1-name').value || '') : '';
-      const coOwner1Phone = hasCoOwner1 ? (document.getElementById('co-owner-1-phone').value || '') : '';
+      const hasCoOwner = document.getElementById('enable-co-owner').checked;
+      const coOwnerName = hasCoOwner ? (document.getElementById('co-owner-name').value || '') : '';
+      const coOwnerPhone = hasCoOwner ? (document.getElementById('co-owner-phone').value || '') : '';
 
-      const hasCoOwner2 = document.getElementById('enable-co-owner-2').checked;
-      const coOwner2Name = hasCoOwner2 ? (document.getElementById('co-owner-2-name').value || '') : '';
-      const coOwner2Phone = hasCoOwner2 ? (document.getElementById('co-owner-2-phone').value || '') : '';
+      const hasMentor = document.getElementById('enable-mentor').checked;
+      const mentorName = hasMentor ? (document.getElementById('mentor-name').value || '') : '';
+      const mentorPhone = hasMentor ? (document.getElementById('mentor-phone').value || '') : '';
 
-      // Parallel concurrent Cloudinary HD upload with 10s safety timeout
+      // Parallel concurrent HD upload with 10s safety timeout
       const uploadWithTimeout = async (fileObj, folder, fallbackDataUrl) => {
         if (!fileObj) return fallbackDataUrl;
         try {
@@ -1974,10 +2012,11 @@ function openTeamRegisterFormModal() {
         }
       };
 
-      const [finalOwnerPhotoUrl, finalCoOwner1PhotoUrl, finalCoOwner2PhotoUrl, finalLogoUrl] = await Promise.all([
+      const [finalOwnerPhotoUrl, finalCoOwnerPhotoUrl, finalMentorPhotoUrl, finalIconPhotoUrl, finalLogoUrl] = await Promise.all([
         uploadWithTimeout(ownerPhotoFileObj, 'owner_photos', ownerPhotoDataUrl),
-        uploadWithTimeout(hasCoOwner1 ? coOwner1PhotoFileObj : null, 'co_owner_photos', coOwner1PhotoDataUrl),
-        uploadWithTimeout(hasCoOwner2 ? coOwner2PhotoFileObj : null, 'co_owner_photos', coOwner2PhotoDataUrl),
+        uploadWithTimeout(hasCoOwner ? coOwnerPhotoFileObj : null, 'co_owner_photos', coOwnerPhotoDataUrl),
+        uploadWithTimeout(hasMentor ? mentorPhotoFileObj : null, 'mentor_photos', mentorPhotoDataUrl),
+        uploadWithTimeout(iconPlayerPhotoFileObj, 'icon_player_photos', iconPlayerPhotoDataUrl),
         uploadWithTimeout(teamLogoFileObj, 'team_logos', teamLogoDataUrl)
       ]);
 
@@ -1991,17 +2030,22 @@ function openTeamRegisterFormModal() {
         ownerPhoto: finalOwnerPhotoUrl || '',
         captainName: ownerName,
 
-        coOwner1Name,
-        coOwner1Phone,
-        coOwner1PhotoUrl: finalCoOwner1PhotoUrl || '',
+        iconPlayerName,
+        iconName: iconPlayerName,
+        iconPlayerPhotoUrl: finalIconPhotoUrl || '',
+        iconPhotoUrl: finalIconPhotoUrl || '',
+        iconPhoto: finalIconPhotoUrl || '',
 
-        coOwner2Name,
-        coOwner2Phone,
-        coOwner2PhotoUrl: finalCoOwner2PhotoUrl || '',
+        coOwnerName,
+        coOwnerPhone,
+        coOwnerPhotoUrl: finalCoOwnerPhotoUrl || '',
+        coOwner1Name: coOwnerName,
+        coOwner1Phone: coOwnerPhone,
+        coOwner1PhotoUrl: finalCoOwnerPhotoUrl || '',
 
-        // Fallback backward compatibility
-        coOwnerName: coOwner1Name,
-        coOwnerPhone: coOwner1Phone,
+        mentorName,
+        mentorPhone,
+        mentorPhotoUrl: finalMentorPhotoUrl || '',
 
         logoUrl: finalLogoUrl || ''
       });
