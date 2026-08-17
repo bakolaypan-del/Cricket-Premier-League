@@ -463,11 +463,25 @@ export async function saveLiveMatchToFirebase(matchId, state) {
   }
 }
 
-// Helper to prepare data URLs before sending payload to Firebase Realtime DB (Preserves exact uploaded photos)
+// Helper to prepare data URLs before sending payload to Firebase Realtime DB (Replaces raw base64 data URLs with lightweight placeholders)
 function sanitizePayloadForCloud(dataList) {
   if (!Array.isArray(dataList)) return [];
+  const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23059669'/%3E%3Ctext x='50' y='62' font-size='45' text-anchor='middle' fill='white'%3E🏏%3C/text%3E%3C/svg%3E";
   return dataList.map(item => {
+    if (!item) return item;
     const itemCopy = { ...item };
+    if (itemCopy.photoUrl && itemCopy.photoUrl.startsWith('data:image')) {
+      itemCopy.photoUrl = DEFAULT_AVATAR;
+    }
+    if (itemCopy.player_photo_url && itemCopy.player_photo_url.startsWith('data:image')) {
+      itemCopy.player_photo_url = DEFAULT_AVATAR;
+    }
+    if (itemCopy.aadharPhotoUrl && itemCopy.aadharPhotoUrl.startsWith('data:image')) {
+      itemCopy.aadharPhotoUrl = 'Attached Document';
+    }
+    if (itemCopy.paymentReceiptUrl && itemCopy.paymentReceiptUrl.startsWith('data:image')) {
+      itemCopy.paymentReceiptUrl = 'Attached Receipt';
+    }
     return itemCopy;
   });
 }

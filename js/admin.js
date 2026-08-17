@@ -19,10 +19,9 @@ export function renderAdminDashboard(containerEl) {
   const players = store.getPlayers();
   const teams = store.getTeams();
 
-  const todayStr = new Date().toISOString().split('T')[0];
-  const pendingPlayers = players.filter(p => (p.registrationStatus || p.paymentStatus) === 'PENDING');
-  const approvedPlayers = players.filter(p => (p.registrationStatus || p.paymentStatus) === 'APPROVED');
-  const rejectedPlayers = players.filter(p => (p.registrationStatus || p.paymentStatus) === 'REJECTED');
+  const approvedPlayers = players.filter(p => p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED');
+  const rejectedPlayers = players.filter(p => p.registrationStatus === 'REJECTED' || p.paymentStatus === 'REJECTED');
+  const pendingPlayers = players.filter(p => !approvedPlayers.includes(p) && !rejectedPlayers.includes(p));
   const todayPlayers = players.filter(p => p.regDate === todayStr || (p.created_at && p.created_at.startsWith(todayStr)));
 
   containerEl.innerHTML = `

@@ -1401,8 +1401,9 @@ function openRegisteredTeamsModal(allTeams) {
 }
 
 // --- REGISTERED PLAYERS MODAL WITH MEDIUM SQUARE PHOTO CARDS ---
-function openRegisteredPlayersModal(allPlayers) {
-  let filteredPlayers = [...allPlayers];
+function openRegisteredPlayersModal(allPlayers = store.getPlayers()) {
+  const playersList = Array.isArray(allPlayers) ? allPlayers : store.getPlayers();
+  let filteredPlayers = [...playersList];
 
   const renderPlayerListContent = () => {
     const container = document.getElementById('players-list-container');
@@ -3834,7 +3835,7 @@ function initRealtimePlayerToast() {
     // Click card opens registered players view
     document.getElementById('toast-card-inner')?.addEventListener('click', (e) => {
       if (e.target.closest('#toast-close-btn')) return;
-      openRegisteredPlayersModal();
+      openRegisteredPlayersModal(store.getPlayers());
     });
 
     // Close button handler

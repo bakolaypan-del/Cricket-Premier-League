@@ -37,7 +37,27 @@ const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/
 // Quota-Safe LocalStorage Helper to prevent QuotaExceededError without corrupting image URLs
 function safeSetLocalStorage(key, data) {
   try {
-    localStorage.setItem(key, JSON.stringify(data));
+    let cleanData = data;
+    if (key === STORAGE_KEYS.PLAYERS && Array.isArray(data)) {
+      cleanData = data.map(item => {
+        if (!item) return item;
+        const itemCopy = { ...item };
+        if (itemCopy.photoUrl && itemCopy.photoUrl.startsWith('data:image')) {
+          itemCopy.photoUrl = DEFAULT_AVATAR;
+        }
+        if (itemCopy.player_photo_url && itemCopy.player_photo_url.startsWith('data:image')) {
+          itemCopy.player_photo_url = DEFAULT_AVATAR;
+        }
+        if (itemCopy.aadharPhotoUrl && itemCopy.aadharPhotoUrl.startsWith('data:image')) {
+          itemCopy.aadharPhotoUrl = 'Attached Document';
+        }
+        if (itemCopy.paymentReceiptUrl && itemCopy.paymentReceiptUrl.startsWith('data:image')) {
+          itemCopy.paymentReceiptUrl = 'Attached Receipt';
+        }
+        return itemCopy;
+      });
+    }
+    localStorage.setItem(key, JSON.stringify(cleanData));
   } catch (err) {
     if (err.name === 'QuotaExceededError' || err.code === 22 || err.code === 1014) {
       console.warn(`LocalStorage quota exceeded for ${key}. Using lightweight avatar fallback for local cache...`);
@@ -51,10 +71,10 @@ function safeSetLocalStorage(key, data) {
             itemCopy.player_photo_url = DEFAULT_AVATAR;
           }
           if (itemCopy.aadharPhotoUrl && itemCopy.aadharPhotoUrl.startsWith('data:image')) {
-            itemCopy.aadharPhotoUrl = 'Attached Aadhaar Document';
+            itemCopy.aadharPhotoUrl = 'Attached Document';
           }
           if (itemCopy.paymentReceiptUrl && itemCopy.paymentReceiptUrl.startsWith('data:image')) {
-            itemCopy.paymentReceiptUrl = 'Attached Payment Receipt';
+            itemCopy.paymentReceiptUrl = 'Attached Receipt';
           }
           return itemCopy;
         });
@@ -157,12 +177,11 @@ class Store {
 
         let mergedPlayers = [...cloudData.players, ...missingLocalPlayers];
 
-        // Deduplicate merged players by name + phone to prevent double cards
+        // Deduplicate merged players by unique ID to preserve all distinct player entries
         const uniqueMergedMap = new Map();
         for (const p of mergedPlayers) {
           if (!p || !p.id) continue;
-          const k = `${(p.name || '').trim().toLowerCase()}_${(p.phone || '').trim()}`;
-          uniqueMergedMap.set(k, p);
+          uniqueMergedMap.set(p.id, p);
         }
         mergedPlayers = Array.from(uniqueMergedMap.values());
 
@@ -334,14 +353,11 @@ class Store {
     const rawPlayers = JSON.parse(localStorage.getItem(STORAGE_KEYS.PLAYERS)) || [];
     rawPlayers.sort((a, b) => (a.createdTime || a.regTimestamp || 0) - (b.createdTime || b.regTimestamp || 0));
 
-    // Deduplicate players by Name + Phone to eliminate double entries
+    // Deduplicate players by unique ID to preserve all distinct registrations
     const uniqueMap = new Map();
     for (const p of rawPlayers) {
       if (!p || !p.id) continue;
-      const nameKey = (p.name || '').trim().toLowerCase();
-      const phoneKey = (p.phone || p.mobile || '').trim();
-      const key = (nameKey && phoneKey) ? `${nameKey}_${phoneKey}` : p.id;
-      uniqueMap.set(key, p);
+      uniqueMap.set(p.id, p);
     }
 
     const uniquePlayers = Array.from(uniqueMap.values());
@@ -376,16 +392,23 @@ class Store {
   registerPlayer(playerData) {
     let players = JSON.parse(localStorage.getItem(STORAGE_KEYS.PLAYERS)) || [];
     
-    // Check if player with same name + phone already exists
     const inputName = (playerData.name || playerData.playerName || '').trim().toLowerCase();
     const inputPhone = (playerData.phone || playerData.mobile || '').trim();
+    const inputFather = (playerData.fatherName || '').trim().toLowerCase();
     
     // Ensure we create/update their lifetime profile
     const profile = this.createOrUpdatePlayerProfile(playerData);
     
     const existingIdx = players.findIndex(p => 
-      p && (p.phone || p.mobile || '').trim() === inputPhone && 
-      (p.name || '').trim().toLowerCase() === inputName
+      p && (
+        (playerData.id && p.id === playerData.id) ||
+        (
+          inputName && inputPhone && inputFather &&
+          (p.phone || p.mobile || '').trim() === inputPhone && 
+          (p.name || '').trim().toLowerCase() === inputName &&
+          (p.fatherName || '').trim().toLowerCase() === inputFather
+        )
+      )
     );
 
     if (existingIdx !== -1) {
