@@ -205,15 +205,30 @@ class Store {
         const localPlayerMap = new Map(validLocalPlayers.map(p => [p.id, p]));
         const mergedMap = new Map();
 
-        // 1. Process cloud players & compare modification timestamps
+        // 1. Process cloud players & compare modification timestamps + approval locks
         for (const cloudP of cloudData.players) {
           if (!cloudP || !cloudP.id || deletedIdsSet.has(cloudP.id)) continue;
           const localP = localPlayerMap.get(cloudP.id);
           if (localP) {
             const cloudTime = Number(cloudP.updated_at || cloudP.created_at || cloudP.timestamp || 0);
             const localTime = Number(localP.updated_at || localP.created_at || localP.timestamp || 0);
-            if (localTime > cloudTime) {
-              // Local record has newer admin edits or approvals -> preserve local fields
+
+            const isLocalApproved = (localP.registrationStatus === 'APPROVED' || localP.paymentStatus === 'APPROVED');
+            const isCloudApproved = (cloudP.registrationStatus === 'APPROVED' || cloudP.paymentStatus === 'APPROVED');
+
+            if (isLocalApproved && !isCloudApproved) {
+              // Local is approved, cloud is not yet approved -> KEEP LOCAL APPROVED STATUS & push back to cloud!
+              const approvedMerged = {
+                ...cloudP,
+                ...localP,
+                paymentStatus: 'APPROVED',
+                registrationStatus: 'APPROVED',
+                updated_at: Math.max(localTime, Date.now())
+              };
+              mergedMap.set(cloudP.id, approvedMerged);
+              syncPlayerToSupabase(approvedMerged);
+            } else if (localTime > cloudTime) {
+              // Local record has newer admin edits -> preserve local fields
               mergedMap.set(cloudP.id, { ...cloudP, ...localP });
             } else {
               mergedMap.set(cloudP.id, { ...localP, ...cloudP });

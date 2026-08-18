@@ -214,12 +214,34 @@ export async function fetchCloudData() {
       if (data) {
         let rawPlayers = [];
         if (data.players) {
-          rawPlayers = Array.isArray(data.players) ? data.players : Object.values(data.players);
+          const playerValues = Array.isArray(data.players) ? data.players : Object.values(data.players);
+          // Deduplicate by player.id to ensure no legacy array vs object key duplicates exist
+          const uniquePlayerMap = new Map();
+          for (const p of playerValues) {
+            if (p && p.id) {
+              const existing = uniquePlayerMap.get(p.id);
+              if (existing) {
+                const pTime = Number(p.updated_at || p.created_at || p.timestamp || 0);
+                const existingTime = Number(existing.updated_at || existing.created_at || existing.timestamp || 0);
+                if (pTime >= existingTime) {
+                  uniquePlayerMap.set(p.id, p);
+                }
+              } else {
+                uniquePlayerMap.set(p.id, p);
+              }
+            }
+          }
+          rawPlayers = Array.from(uniquePlayerMap.values());
         }
         
         let rawTeams = [];
         if (data.teams) {
-          rawTeams = Array.isArray(data.teams) ? data.teams : Object.values(data.teams);
+          const teamValues = Array.isArray(data.teams) ? data.teams : Object.values(data.teams);
+          const uniqueTeamMap = new Map();
+          for (const t of teamValues) {
+            if (t && t.id) uniqueTeamMap.set(t.id, t);
+          }
+          rawTeams = Array.from(uniqueTeamMap.values());
         }
 
         let rawFixtures = [];
@@ -269,15 +291,22 @@ export async function fetchCloudData() {
   return { players: [], teams: [], fixtures: [], auctionSettings: { defaultBasePrice: 200, defaultPurseBudget: 8000 }, clearedAt: 0, teamsClearedAt: 0, deletedPlayerIds: [], deletedTeamIds: [] };
 }
 
-// --- ATOMIC REALTIME CLOUD DATA OPERATIONS (ATOMIC FULL ARRAY SYNC) ---
+// --- ATOMIC REALTIME CLOUD DATA OPERATIONS (KEY-VALUE OBJECT MAP SYNC) ---
 export async function saveFullPlayersListToFirebase(playersList) {
   try {
+    if (!Array.isArray(playersList)) return;
+    const playersMap = {};
+    for (const p of playersList) {
+      if (p && p.id) {
+        playersMap[p.id] = p;
+      }
+    }
     await fetch(`${FIREBASE_DB_URL}/cpl_master/players.json`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(playersList || [])
+      body: JSON.stringify(playersMap)
     });
-    console.log("Saved full players list atomically to Realtime Database.");
+    console.log("Saved full players list as key-value map to Realtime Database.");
   } catch (err) {
     console.warn("Atomic players list save notice:", err);
   }
@@ -285,12 +314,19 @@ export async function saveFullPlayersListToFirebase(playersList) {
 
 export async function saveFullTeamsListToFirebase(teamsList) {
   try {
+    if (!Array.isArray(teamsList)) return;
+    const teamsMap = {};
+    for (const t of teamsList) {
+      if (t && t.id) {
+        teamsMap[t.id] = t;
+      }
+    }
     await fetch(`${FIREBASE_DB_URL}/cpl_master/teams.json`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(teamsList || [])
+      body: JSON.stringify(teamsMap)
     });
-    console.log("Saved full teams list atomically to Realtime Database.");
+    console.log("Saved full teams list as key-value map to Realtime Database.");
   } catch (err) {
     console.warn("Atomic teams list save notice:", err);
   }
