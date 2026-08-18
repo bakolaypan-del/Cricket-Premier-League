@@ -198,22 +198,46 @@ class Store {
           return;
         }
 
-        // MERGE LOCAL & CLOUD PLAYERS: Exclude deleted players permanently
+        // MERGE LOCAL & CLOUD PLAYERS: Compare modification timestamps to preserve admin edits/approvals
         const deletedIdsSet = new Set(cloudData.deletedPlayerIds || []);
         const validLocalPlayers = localPlayers.filter(p => p && p.id && !deletedIdsSet.has(p.id));
 
-        const cloudPlayerIds = new Set(cloudData.players.map(p => p.id));
-        const missingLocalPlayers = validLocalPlayers.filter(p => p && p.id && !cloudPlayerIds.has(p.id) && !deletedIdsSet.has(p.id));
+        const localPlayerMap = new Map(validLocalPlayers.map(p => [p.id, p]));
+        const mergedMap = new Map();
 
-        let mergedPlayers = [...cloudData.players, ...missingLocalPlayers];
-
-        // Deduplicate merged players by unique ID to preserve all distinct player entries
-        const uniqueMergedMap = new Map();
-        for (const p of mergedPlayers) {
-          if (!p || !p.id) continue;
-          uniqueMergedMap.set(p.id, p);
+        // 1. Process cloud players & compare modification timestamps
+        for (const cloudP of cloudData.players) {
+          if (!cloudP || !cloudP.id || deletedIdsSet.has(cloudP.id)) continue;
+          const localP = localPlayerMap.get(cloudP.id);
+          if (localP) {
+            const cloudTime = Number(cloudP.updated_at || cloudP.created_at || cloudP.timestamp || 0);
+            const localTime = Number(localP.updated_at || localP.created_at || localP.timestamp || 0);
+            if (localTime > cloudTime) {
+              // Local record has newer admin edits or approvals -> preserve local fields
+              mergedMap.set(cloudP.id, { ...cloudP, ...localP });
+            } else {
+              mergedMap.set(cloudP.id, { ...localP, ...cloudP });
+            }
+          } else {
+            mergedMap.set(cloudP.id, cloudP);
+          }
         }
-        mergedPlayers = Array.from(uniqueMergedMap.values());
+
+        // 2. Add any local players not yet in cloud
+        for (const localP of validLocalPlayers) {
+          if (localP && localP.id && !mergedMap.has(localP.id)) {
+            mergedMap.set(localP.id, localP);
+          }
+        }
+
+        let mergedPlayers = Array.from(mergedMap.values());
+
+        // 3. Sort chronologically by registration timestamp
+        mergedPlayers.sort((a, b) => {
+          const tA = Number(a.created_at || a.timestamp || a.regTimestamp || 0);
+          const tB = Number(b.created_at || b.timestamp || b.regTimestamp || 0);
+          return tA - tB;
+        });
 
         // CONTINUOUS DYNAMIC RE-INDEXING: Ensure registration IDs (JSL2026-0001, JSL2026-0002...) and display numbers (1, 2, 3...) have no gaps
         const reindexedPlayers = mergedPlayers.map((p, idx) => {
@@ -519,7 +543,12 @@ class Store {
     const players = this.getPlayers();
     const idx = players.findIndex(p => p.id === updatedPlayerData.id);
     if (idx !== -1) {
-      players[idx] = { ...players[idx], ...updatedPlayerData };
+      const now = Date.now();
+      players[idx] = { 
+        ...players[idx], 
+        ...updatedPlayerData,
+        updated_at: now
+      };
       
       // Re-index serials
       players.forEach((p, i) => {
@@ -592,8 +621,10 @@ class Store {
     const players = this.getPlayers();
     const player = players.find(p => p.id === playerId);
     if (player) {
+      const now = Date.now();
       player.paymentStatus = paymentStatus.toUpperCase();
       player.registrationStatus = (registrationStatus || paymentStatus).toUpperCase();
+      player.updated_at = now;
       if (remarks) player.remarks = remarks;
       
       safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
