@@ -597,29 +597,40 @@ function openHDPhotoZoomModal(imgSrc, title = 'Player Full HD Photo') {
   document.getElementById('close-hd-zoom-bottom-btn')?.addEventListener('click', removeZoomModal);
 }
 
-// --- UPPER HEADER (OPTION 3 VIBRANT SPORTY EMERALD GRADIENT) ---
+// --- UPPER HEADER: RICH GREEN WITH BATSMAN SVG, CRICKET PREMIER LEAGUE TITLE & DOWNLOAD ICON ---
 function renderNavbar() {
   const navbarEl = document.getElementById('app-navbar');
   if (!navbarEl) return;
 
   navbarEl.classList.remove('hidden');
-  navbarEl.className = "sticky top-0 z-40 bg-gradient-to-r from-emerald-800 via-teal-900 to-emerald-950 text-white rounded-b-2xl sm:rounded-b-3xl shadow-2xl border-b-2 border-emerald-400/40 px-2 sm:px-4";
+  navbarEl.className = "sticky top-0 z-40 bg-gradient-to-r from-emerald-800 via-emerald-900 to-teal-950 text-white rounded-b-2xl sm:rounded-b-3xl shadow-2xl border-b-2 border-emerald-400/40 px-2 sm:px-4";
 
   navbarEl.innerHTML = `
     <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between gap-2 relative z-10">
-      <!-- Option 3 Logo & Branding (Left Side) -->
-      <div class="flex items-center gap-2 cursor-pointer flex-shrink-0" id="brand-header-logo" title="Cricket Premier League Home">
-        <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/10 border border-white/30 flex items-center justify-center text-xl shadow-md">
-          🏏
-        </div>
-        <div class="flex flex-col leading-none">
-          <span class="font-black text-white text-xs sm:text-sm tracking-wider uppercase">JHANKRA SUPER LEAGUE</span>
-          <span class="text-[8px] sm:text-[9.5px] text-emerald-200 font-bold tracking-wide mt-0.5">JSL 2026</span>
+      
+      <!-- Left Side: Uploaded White Batsman Picture SVG Only -->
+      <div class="flex items-center cursor-pointer flex-shrink-0" id="brand-header-logo" title="Cricket Premier League Home">
+        <div class="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-white/10 border border-white/30 flex items-center justify-center shadow-lg transition-transform hover:scale-105">
+          <!-- Sleek White Batsman SVG Silhouette -->
+          <svg class="w-7 h-7 sm:w-8 sm:h-8 flex-shrink-0" viewBox="0 0 100 100" fill="none">
+            <circle cx="42" cy="22" r="8" fill="#FFFFFF"/>
+            <path d="M46 20 H54" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"/>
+            <path d="M36 32 L56 32 L48 54 L32 54 Z" fill="#FFFFFF"/>
+            <path d="M48 34 L64 42 L72 36" stroke="#FFFFFF" stroke-width="4.5" stroke-linecap="round"/>
+            <path d="M36 54 L28 78 L22 94" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round"/>
+            <path d="M48 54 L64 78 L74 92" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round"/>
+            <path d="M68 34 L92 10 L98 16 L74 40 Z" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1.5"/>
+          </svg>
         </div>
       </div>
 
-      <!-- Navigation links (Desktop only) -->
-      <div class="hidden md:flex items-center gap-6 text-xs font-bold tracking-widest text-emerald-100">
+      <!-- Middle Portion: Written CRICKET PREMIER LEAGUE -->
+      <div class="flex flex-col items-center justify-center text-center cursor-pointer flex-1 px-2" id="brand-header-title">
+        <h1 class="font-black text-white text-sm sm:text-base md:text-xl tracking-wider uppercase drop-shadow-md">CRICKET PREMIER LEAGUE</h1>
+      </div>
+
+      <!-- Desktop Navigation links -->
+      <div class="hidden lg:flex items-center gap-6 text-xs font-bold tracking-widest text-emerald-100">
         <button id="nav-home-btn" class="hover:text-white transition-colors py-1 ${currentRoute === 'landing' ? 'text-white border-b-2 border-emerald-300 font-black' : ''}">HOME</button>
         <button id="nav-tournaments-btn" class="hover:text-white transition-colors py-1">TOURNAMENTS</button>
         <button id="nav-schedule-btn" class="hover:text-white transition-colors py-1 ${currentRoute === 'fixtures' ? 'text-white border-b-2 border-emerald-300 font-black' : ''}">SCHEDULE</button>
@@ -627,23 +638,18 @@ function renderNavbar() {
         <button id="nav-admin-link" class="hover:text-amber-300 font-black transition-colors py-1 flex items-center gap-1 ${currentRoute === 'admin' ? 'text-amber-300 border-b-2 border-amber-300' : 'text-emerald-100'}">
           🔐 ADMIN LOGIN
         </button>
-        <button id="nav-support-btn" class="hover:text-white transition-colors py-1">SUPPORT</button>
       </div>
 
-      <!-- Option 3 Action Pill Buttons on Right -->
+      <!-- Right Side: Download Option Button Only -->
       <div class="flex items-center gap-2 flex-shrink-0">
-        <button id="nav-install-app-btn" title="Download App" class="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-black rounded-full transition-all border border-white/40 shadow-sm flex items-center gap-1.5 cursor-pointer">
-          <svg class="w-3.5 h-3.5 stroke-white fill-none" viewBox="0 0 24 24" stroke-width="2.5">
-            <path d="M12 5 v11 M7 11 l5 5 l5-5 M5 19 h14" />
+        <!-- Apps Download Option (ICON SVG ONLY - NO TEXT) -->
+        <button id="nav-install-app-btn" title="Download Web App (PWA)" class="p-2 sm:p-2.5 bg-gradient-to-r from-amber-400 via-emerald-500 to-teal-500 hover:scale-105 transition-all rounded-full shadow-xl border border-white/60 flex items-center justify-center cursor-pointer">
+          <svg class="w-5 h-5 text-slate-950 flex-shrink-0" viewBox="0 0 24 24" fill="none">
+            <path d="M12 3v11m0 0l-5-5m5 5l5-5M4 19h16" stroke="#0F172A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
-          <span class="text-[10px] uppercase font-black tracking-wider">Download App</span>
         </button>
 
-        <button id="nav-admin-btn" title="Admin Login" class="hidden md:flex px-3.5 py-1.5 bg-white hover:bg-slate-100 text-emerald-950 text-xs font-black rounded-full transition-all shadow-lg flex items-center gap-1.5 cursor-pointer">
-          <svg class="w-3.5 h-3.5 stroke-emerald-900 fill-none" viewBox="0 0 24 24" stroke-width="2.2">
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-            <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-          </svg>
+        <button id="nav-admin-btn" title="Admin Login" class="hidden lg:flex px-3.5 py-1.5 bg-white hover:bg-slate-100 text-emerald-950 text-xs font-black rounded-full transition-all shadow-lg flex items-center gap-1.5 cursor-pointer">
           <span class="text-[10px] uppercase font-black tracking-wider">Admin</span>
         </button>
       </div>
@@ -651,6 +657,7 @@ function renderNavbar() {
   `;
 
   document.getElementById('brand-header-logo')?.addEventListener('click', () => navigate('landing'));
+  document.getElementById('brand-header-title')?.addEventListener('click', () => navigate('landing'));
   document.getElementById('nav-install-app-btn')?.addEventListener('click', handleInstallAppClick);
   document.getElementById('nav-admin-btn')?.addEventListener('click', () => navigate('admin'));
   document.getElementById('nav-admin-link')?.addEventListener('click', () => navigate('admin'));
@@ -676,38 +683,104 @@ function renderNavbar() {
   if (window.lucide) window.lucide.createIcons();
 }
 
-// --- OPTION 3 FLOATING MOBILE STICKY BOTTOM BAR ---
+// --- FULL-WIDTH FLUSH ZERO-GAP MOBILE STICKY BOTTOM BAR ---
 function renderMobileBottomNav() {
   const bottomNavEl = document.getElementById('mobile-bottom-nav');
   if (!bottomNavEl) return;
 
-  bottomNavEl.className = "fixed bottom-2 left-3 right-3 z-40 bg-white/95 backdrop-blur-xl border border-slate-200 rounded-full shadow-2xl px-3 py-1.5 sm:hidden flex items-center justify-around";
+  bottomNavEl.className = "fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200/90 shadow-[0_-6px_25px_rgba(0,0,0,0.12)] px-1 pt-1.5 pb-2 sm:hidden flex items-center justify-around w-full mb-0";
+
+  const getSvgIcon = (type, isActive) => {
+    const opacity = isActive ? 'opacity-100 scale-110' : 'opacity-65 grayscale-[30%]';
+    switch (type) {
+      case 'home':
+        return `
+          <svg class="w-6 h-6 flex-shrink-0 transition-transform ${opacity}" viewBox="0 0 24 24" fill="none">
+            <defs>
+              <linearGradient id="homeSvgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#10B981"/>
+                <stop offset="100%" stop-color="#047857"/>
+              </linearGradient>
+            </defs>
+            <path d="M3 10.5L12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1v-9.5z" fill="url(#homeSvgGrad)"/>
+          </svg>
+        `;
+      case 'fixtures':
+        return `
+          <svg class="w-6 h-6 flex-shrink-0 transition-transform ${opacity}" viewBox="0 0 24 24" fill="none">
+            <defs>
+              <linearGradient id="matchSvgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#F59E0B"/>
+                <stop offset="100%" stop-color="#D97706"/>
+              </linearGradient>
+            </defs>
+            <rect x="3" y="4" width="18" height="17" rx="3" fill="url(#matchSvgGrad)"/>
+            <path d="M16 2v4M8 2v4M3 9h18" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"/>
+            <circle cx="12" cy="15" r="2" fill="#FFFFFF"/>
+          </svg>
+        `;
+      case 'auction':
+        return `
+          <svg class="w-6 h-6 flex-shrink-0 transition-transform ${opacity}" viewBox="0 0 24 24" fill="none">
+            <defs>
+              <linearGradient id="auctionSvgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#FBBF24"/>
+                <stop offset="100%" stop-color="#B45309"/>
+              </linearGradient>
+            </defs>
+            <path d="M14 3l7 7-2 2-7-7 2-2zM3 21l8-8 2 2-8 8H3v-2z" fill="url(#auctionSvgGrad)"/>
+            <circle cx="18" cy="6" r="3" fill="#F59E0B"/>
+          </svg>
+        `;
+      case 'career':
+        return `
+          <svg class="w-6 h-6 flex-shrink-0 transition-transform ${opacity}" viewBox="0 0 24 24" fill="none">
+            <defs>
+              <linearGradient id="careerSvgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#38BDF8"/>
+                <stop offset="100%" stop-color="#0284C7"/>
+              </linearGradient>
+            </defs>
+            <circle cx="9" cy="7" r="4" fill="url(#careerSvgGrad)"/>
+            <path d="M2 20c0-3.5 3-6 7-6s7 2.5 7 6" fill="url(#careerSvgGrad)"/>
+            <circle cx="17" cy="8" r="3" fill="#0284C7"/>
+            <path d="M15 19c.5-2 2-3.5 4.5-3.5 1.5 0 2.8.5 3.5 1.5" stroke="#0284C7" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        `;
+      case 'admin':
+        return `
+          <svg class="w-6 h-6 flex-shrink-0 transition-transform ${opacity}" viewBox="0 0 24 24" fill="none">
+            <defs>
+              <linearGradient id="adminSvgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#10B981"/>
+                <stop offset="100%" stop-color="#059669"/>
+              </linearGradient>
+            </defs>
+            <path d="M12 2L4 5v6c0 5.55 3.84 10.74 8 12 4.16-1.26 8-6.45 8-12V5l-8-3z" fill="url(#adminSvgGrad)"/>
+            <path d="M9 12l2 2 4-4" stroke="#F59E0B" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        `;
+      default:
+        return '';
+    }
+  };
+
+  const getTabItem = (id, type, label, routeName) => {
+    const isActive = currentRoute === routeName;
+    return `
+      <button id="${id}" class="flex flex-col items-center justify-center flex-1 py-1 px-1 transition-all cursor-pointer ${isActive ? 'bg-slate-100/90 rounded-2xl' : ''}">
+        ${getSvgIcon(type, isActive)}
+        <span class="text-[9.5px] ${isActive ? 'font-black text-slate-900' : 'font-semibold text-slate-500'} mt-0.5">${label}</span>
+      </button>
+    `;
+  };
 
   bottomNavEl.innerHTML = `
-    <button id="mob-nav-home" class="flex flex-col items-center gap-0.5 ${currentRoute === 'landing' ? 'text-emerald-700 font-black' : 'text-slate-500'}">
-      <i data-lucide="trophy" class="w-4 h-4"></i>
-      <span class="text-[9px] font-extrabold">Home</span>
-    </button>
-
-    <button id="mob-nav-fixtures" class="flex flex-col items-center gap-0.5 ${currentRoute === 'fixtures' ? 'text-emerald-700 font-black' : 'text-slate-500'}">
-      <i data-lucide="calendar" class="w-4 h-4"></i>
-      <span class="text-[9px] font-extrabold">Matches</span>
-    </button>
-
-    <button id="mob-nav-auction" class="flex flex-col items-center gap-0.5 ${currentRoute === 'auction' ? 'text-emerald-700 font-black' : 'text-slate-500'}">
-      <i data-lucide="gavel" class="w-4 h-4"></i>
-      <span class="text-[9px] font-extrabold">Auction</span>
-    </button>
-
-    <button id="mob-nav-career" class="flex flex-col items-center gap-0.5 ${currentRoute === 'career' ? 'text-emerald-700 font-black' : 'text-slate-500'}">
-      <i data-lucide="users" class="w-4 h-4"></i>
-      <span class="text-[9px] font-extrabold">Career</span>
-    </button>
-
-    <button id="mob-nav-admin" class="flex flex-col items-center gap-0.5 ${currentRoute === 'admin' ? 'text-emerald-700 font-black' : 'text-slate-500'}">
-      <i data-lucide="shield-check" class="w-4 h-4"></i>
-      <span class="text-[9px] font-extrabold">Admin</span>
-    </button>
+    ${getTabItem('mob-nav-home', 'home', 'Home', 'landing')}
+    ${getTabItem('mob-nav-fixtures', 'fixtures', 'Matches', 'fixtures')}
+    ${getTabItem('mob-nav-auction', 'auction', 'Auction', 'auction')}
+    ${getTabItem('mob-nav-career', 'career', 'Career', 'career')}
+    ${getTabItem('mob-nav-admin', 'admin', 'Admin', 'admin')}
   `;
 
   document.getElementById('mob-nav-home')?.addEventListener('click', () => navigate('landing'));
@@ -715,7 +788,6 @@ function renderMobileBottomNav() {
   document.getElementById('mob-nav-auction')?.addEventListener('click', () => navigate('auction'));
   document.getElementById('mob-nav-career')?.addEventListener('click', () => navigate('career'));
   document.getElementById('mob-nav-admin')?.addEventListener('click', () => navigate('admin'));
-  if (window.lucide) window.lucide.createIcons();
 }
 
 // --- REMOVE FOOTER PORTION COMPLETELY ---

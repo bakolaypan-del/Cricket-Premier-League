@@ -37,26 +37,17 @@ body {
   }
 }
 
-/* TOP NAVBAR - WHITE HEADER WITH SHADOW & EMERALD ACCENT */
+/* TOP NAVBAR - VIBRANT EMERALD GREEN HEADER */
 #app-navbar {
-  background: #FFFFFF !important;
-  border-bottom: 3.5px solid #059669 !important;
-  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06) !important;
+  background: linear-gradient(135deg, #047857 0%, #065F46 50%, #022C22 100%) !important;
+  border-bottom: 3.5px solid #10B981 !important;
+  box-shadow: 0 8px 30px rgba(4, 120, 87, 0.35) !important;
   position: relative;
   overflow: hidden;
 }
 
 #app-navbar::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background-image: url('../assets/cricket_lines_bg.jpg?v=20260808_v5') !important;
-  background-size: cover;
-  background-position: center;
-  opacity: 0.22;
-  mix-blend-mode: multiply;
-  pointer-events: none;
-  z-index: 0;
+  display: none !important;
 }
 
 /* HANDWRITTEN QUOTES STYLE */
