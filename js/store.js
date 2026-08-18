@@ -34,56 +34,66 @@ const STORAGE_KEYS = {
 
 const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23059669'/%3E%3Ctext x='50' y='62' font-size='45' text-anchor='middle' fill='white'%3E🏏%3C/text%3E%3C/svg%3E";
 
-// Quota-Safe LocalStorage Helper to prevent QuotaExceededError without corrupting image URLs
+// Purge legacy version keys (cpl_players_v1..v6, etc.) to free up 5MB browser storage quota
+function clearOldStorageQuota() {
+  try {
+    const activeKeys = new Set(Object.values(STORAGE_KEYS));
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith('cpl_') && !activeKeys.has(k) && !k.startsWith('cpl_last_')) {
+        keysToRemove.push(k);
+      }
+    }
+    keysToRemove.forEach(k => {
+      localStorage.removeItem(k);
+      console.log(`Cleared legacy storage key: ${k}`);
+    });
+  } catch (err) {
+    console.warn("Storage cleanup notice:", err);
+  }
+}
+
+// Sanitize player/team records so heavy base64 images never bloat localStorage
+export function sanitizeForStorage(data) {
+  if (!data) return data;
+  if (Array.isArray(data)) {
+    return data.map(item => sanitizeForStorage(item));
+  }
+  if (typeof data === 'object') {
+    const itemCopy = { ...data };
+    if (itemCopy.photoUrl && typeof itemCopy.photoUrl === 'string' && itemCopy.photoUrl.startsWith('data:image')) {
+      itemCopy.photoUrl = DEFAULT_AVATAR;
+    }
+    if (itemCopy.player_photo_url && typeof itemCopy.player_photo_url === 'string' && itemCopy.player_photo_url.startsWith('data:image')) {
+      itemCopy.player_photo_url = DEFAULT_AVATAR;
+    }
+    if (itemCopy.aadharPhotoUrl && typeof itemCopy.aadharPhotoUrl === 'string' && itemCopy.aadharPhotoUrl.startsWith('data:image')) {
+      itemCopy.aadharPhotoUrl = 'Attached Document';
+    }
+    if (itemCopy.paymentReceiptUrl && typeof itemCopy.paymentReceiptUrl === 'string' && itemCopy.paymentReceiptUrl.startsWith('data:image')) {
+      itemCopy.paymentReceiptUrl = 'Attached Receipt';
+    }
+    return itemCopy;
+  }
+  return data;
+}
+
+// Quota-Safe LocalStorage Helper to prevent QuotaExceededError
 function safeSetLocalStorage(key, data) {
   try {
-    let cleanData = data;
-    if (key === STORAGE_KEYS.PLAYERS && Array.isArray(data)) {
-      cleanData = data.map(item => {
-        if (!item) return item;
-        const itemCopy = { ...item };
-        if (itemCopy.photoUrl && itemCopy.photoUrl.startsWith('data:image')) {
-          itemCopy.photoUrl = DEFAULT_AVATAR;
-        }
-        if (itemCopy.player_photo_url && itemCopy.player_photo_url.startsWith('data:image')) {
-          itemCopy.player_photo_url = DEFAULT_AVATAR;
-        }
-        if (itemCopy.aadharPhotoUrl && itemCopy.aadharPhotoUrl.startsWith('data:image')) {
-          itemCopy.aadharPhotoUrl = 'Attached Document';
-        }
-        if (itemCopy.paymentReceiptUrl && itemCopy.paymentReceiptUrl.startsWith('data:image')) {
-          itemCopy.paymentReceiptUrl = 'Attached Receipt';
-        }
-        return itemCopy;
-      });
-    }
+    const cleanData = sanitizeForStorage(data);
     localStorage.setItem(key, JSON.stringify(cleanData));
   } catch (err) {
     if (err.name === 'QuotaExceededError' || err.code === 22 || err.code === 1014) {
-      console.warn(`LocalStorage quota exceeded for ${key}. Using lightweight avatar fallback for local cache...`);
-      if (Array.isArray(data)) {
-        const lightweightData = data.map(item => {
-          const itemCopy = { ...item };
-          if (itemCopy.photoUrl && itemCopy.photoUrl.startsWith('data:image')) {
-            itemCopy.photoUrl = DEFAULT_AVATAR;
-          }
-          if (itemCopy.player_photo_url && itemCopy.player_photo_url.startsWith('data:image')) {
-            itemCopy.player_photo_url = DEFAULT_AVATAR;
-          }
-          if (itemCopy.aadharPhotoUrl && itemCopy.aadharPhotoUrl.startsWith('data:image')) {
-            itemCopy.aadharPhotoUrl = 'Attached Document';
-          }
-          if (itemCopy.paymentReceiptUrl && itemCopy.paymentReceiptUrl.startsWith('data:image')) {
-            itemCopy.paymentReceiptUrl = 'Attached Receipt';
-          }
-          return itemCopy;
-        });
-        try {
-          localStorage.setItem(key, JSON.stringify(lightweightData));
-          console.log(`Saved lightweight copy to LocalStorage for ${key}.`);
-        } catch (e2) {
-          console.error("Critical LocalStorage quota notice:", e2);
-        }
+      console.warn(`LocalStorage quota exceeded for ${key}. Clearing legacy keys and retrying...`);
+      clearOldStorageQuota();
+      try {
+        const lightweightData = sanitizeForStorage(data);
+        localStorage.setItem(key, JSON.stringify(lightweightData));
+        console.log(`Successfully saved quota-safe copy to LocalStorage for ${key}.`);
+      } catch (e2) {
+        console.error("Critical LocalStorage quota notice:", e2);
       }
     } else {
       console.error("LocalStorage setItem error:", err);
@@ -93,6 +103,7 @@ function safeSetLocalStorage(key, data) {
 
 class Store {
   constructor() {
+    clearOldStorageQuota();
     this.init();
     this.setupRealtimeListeners();
     this.syncWithCloud();
@@ -100,6 +111,7 @@ class Store {
   }
 
   init() {
+    clearOldStorageQuota();
     if (!localStorage.getItem(STORAGE_KEYS.LEAGUES)) {
       safeSetLocalStorage(STORAGE_KEYS.LEAGUES, INITIAL_LEAGUES);
     }
@@ -125,6 +137,24 @@ class Store {
         id: null,
         phone: null
       });
+    }
+    this.restoreAllRejectedPlayers();
+  }
+
+  restoreAllRejectedPlayers() {
+    const players = this.getPlayers();
+    let updated = false;
+    players.forEach(p => {
+      if (p && (p.registrationStatus === 'REJECTED' || p.paymentStatus === 'REJECTED')) {
+        p.registrationStatus = 'PENDING';
+        p.paymentStatus = 'PENDING';
+        updated = true;
+      }
+    });
+    if (updated) {
+      safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
+      saveCloudData(players, this.getTeams());
+      this.notify('players_updated');
     }
   }
 
@@ -199,9 +229,9 @@ class Store {
         });
 
         const localPlayersStr = localStorage.getItem(STORAGE_KEYS.PLAYERS) || '[]';
-        const cloudPlayersStr = JSON.stringify(reindexedPlayers);
+        const cleanCloudPlayersStr = JSON.stringify(sanitizeForStorage(reindexedPlayers));
         
-        if (localPlayersStr !== cloudPlayersStr) {
+        if (localPlayersStr !== cleanCloudPlayersStr) {
           safeSetLocalStorage(STORAGE_KEYS.PLAYERS, reindexedPlayers);
           this.notify('players_updated');
         }
@@ -244,9 +274,9 @@ class Store {
         }));
 
         const localTeamsStr = localStorage.getItem(STORAGE_KEYS.TEAMS) || '[]';
-        const cloudTeamsStr = JSON.stringify(reindexedTeams);
+        const cleanCloudTeamsStr = JSON.stringify(sanitizeForStorage(reindexedTeams));
         
-        if (localTeamsStr !== cloudTeamsStr) {
+        if (localTeamsStr !== cleanCloudTeamsStr) {
           safeSetLocalStorage(STORAGE_KEYS.TEAMS, reindexedTeams);
           this.notify('teams_updated');
         }
@@ -277,9 +307,8 @@ class Store {
   }
 
   startCloudPolling() {
-    setInterval(() => {
-      this.syncWithCloud();
-    }, 4000);
+    // Option 02: On-Demand Fetch enabled - background polling disabled to prevent UI re-render lag
+    console.log("On-Demand Cloud Sync active (Background 4s polling disabled).");
   }
 
   setupRealtimeListeners() {
@@ -574,6 +603,44 @@ class Store {
     }
   }
 
+  purgePlayerSensitiveDocs(playerId) {
+    const players = this.getPlayers();
+    const player = players.find(p => p.id === playerId);
+    if (player) {
+      player.aadharPhotoUrl = '';
+      player.aadhaar_photo_url = '';
+      player.paymentReceiptUrl = '';
+      player.payment_receipt_url = '';
+      player.docsPurged = true;
+
+      safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
+      saveCloudData(players, this.getTeams());
+      syncPlayerToSupabase(player);
+      this.notify('players_updated');
+    }
+  }
+
+  purgeAllVerifiedDocs() {
+    const players = this.getPlayers();
+    let count = 0;
+    players.forEach(p => {
+      if (p && (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED') && !p.docsPurged) {
+        p.aadharPhotoUrl = '';
+        p.aadhaar_photo_url = '';
+        p.paymentReceiptUrl = '';
+        p.payment_receipt_url = '';
+        p.docsPurged = true;
+        count++;
+      }
+    });
+    if (count > 0) {
+      safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
+      saveCloudData(players, this.getTeams());
+      this.notify('players_updated');
+    }
+    return count;
+  }
+
   assignPlayerToTeam(playerId, teamId, soldPrice) {
     const players = this.getPlayers();
     const teams = this.getTeams();
@@ -655,7 +722,7 @@ class Store {
       teams.forEach((t, i) => {
         t.serialNo = i + 1;
       });
-      localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(teams));
+      safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
       saveCloudData(this.getPlayers(), teams);
       syncTeamToSupabase(teams[idx]);
       this.notify('teams_updated');
@@ -680,8 +747,8 @@ class Store {
       }
     });
 
-    localStorage.setItem(STORAGE_KEYS.TEAMS, JSON.stringify(teams));
-    localStorage.setItem(STORAGE_KEYS.PLAYERS, JSON.stringify(players));
+    safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
+    safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
     saveCloudData(players, teams);
     deleteTeamFromSupabase(teamId);
     this.notify('teams_updated');
@@ -823,7 +890,7 @@ class Store {
 
   setUserRole(role, name = 'User', playerDetails = null) {
     const user = { role, name, playerDetails };
-    localStorage.setItem(STORAGE_KEYS.USER, JSON.stringify(user));
+    safeSetLocalStorage(STORAGE_KEYS.USER, user);
     this.notify('user_updated');
     return user;
   }

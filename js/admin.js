@@ -7,6 +7,7 @@ import { saveAdSettingsToFirebase, fetchAdSettingsFromFirebase, fetchPopupSettin
 import { shops } from './shopsData.js';
 
 let activeAdminTab = 'payments'; // 'payments', 'all-players', 'teams'
+const todayStr = new Date().toISOString().split('T')[0];
 
 export function renderAdminDashboard(containerEl) {
   // STRICT ADMIN AUTHENTICATION LOCK (bakolaypan@gmail.com / Suman@2030)
@@ -49,6 +50,9 @@ export function renderAdminDashboard(containerEl) {
           </button>
           <button id="export-master-pdf-btn" class="px-3.5 py-2 bg-red-950 hover:bg-red-900 text-red-300 text-xs font-bold rounded-xl border border-red-800 flex items-center gap-2 transition-all shadow">
             <i data-lucide="file-text" class="w-4 h-4 text-red-400"></i> Export PDF
+          </button>
+          <button id="purge-verified-docs-btn" class="px-3.5 py-2 bg-sky-950 hover:bg-sky-900 text-sky-300 text-xs font-bold rounded-xl border border-sky-800 flex items-center gap-1.5 transition-all shadow" title="Delete Aadhaar & Payment Receipts for Approved Players to save cloud memory">
+            <i data-lucide="shield-check" class="w-4 h-4 text-sky-400"></i> Purge Docs
           </button>
           <button id="clear-all-players-btn" class="px-3 py-2 bg-red-950/60 hover:bg-red-900 text-red-300 text-xs font-bold rounded-xl border border-red-800 flex items-center gap-1.5 transition-colors">
             <i data-lucide="trash-2" class="w-4 h-4 text-red-400"></i> Clear All
@@ -744,6 +748,14 @@ export function renderAdminDashboard(containerEl) {
     renderAdminDashboard(containerEl);
   });
 
+  document.getElementById('purge-verified-docs-btn')?.addEventListener('click', () => {
+    if (confirm("🧹 Clean Storage: Delete Aadhaar & Payment Receipts for all Verified/Approved players to save cloud memory?\n\n(Player Photos, Reg IDs, and Profiles will remain 100% SAFE for future leagues).")) {
+      const purgedCount = store.purgeAllVerifiedDocs();
+      alert(`✅ Memory Cleaned! Successfully purged document proofs for ${purgedCount} approved player(s). Player photos and profiles are preserved.`);
+      renderAdminDashboard(containerEl);
+    }
+  });
+
   document.getElementById('clear-all-players-btn')?.addEventListener('click', () => {
     if (confirm("⚠️ WARNING: Are you sure you want to delete ALL player registrations?")) {
       store.clearAllPlayers();
@@ -816,13 +828,39 @@ function renderAdminPlayersRows(playersList) {
         <td class="py-3 px-3 font-mono text-xs text-amber-300">
           📞 ${p.phone || 'N/A'}
         </td>
-        <td class="py-3 px-3">
+        <td class="py-3 px-3 font-mono font-bold text-xs">
           <span class="px-2 py-0.5 text-[9px] font-black rounded-full border ${isApproved ? 'bg-emerald-950 text-emerald-300 border-emerald-800' : isRejected ? 'bg-red-950 text-red-300 border-red-800' : 'bg-amber-950 text-amber-300 border-amber-800'}">
             ${isApproved ? '🟢 APPROVED' : isRejected ? '⚪ REJECTED' : '🔴 PENDING'}
           </span>
         </td>
         <td class="py-3 px-3 text-right">
           <div class="flex items-center justify-end gap-1">
+            ${p.aadharPhotoUrl || p.paymentReceiptUrl ? `
+              <button data-purge-docs-id="${p.id}" title="Purge Aadhaar & Receipt images to save storage memory" class="purge-player-docs-btn px-2 py-1 bg-amber-950 hover:bg-amber-900 text-amber-300 font-bold text-[9px] rounded-lg border border-amber-800 shadow">
+                🧹 Purge Docs
+              </button>
+            ` : p.docsPurged ? `
+              <span class="text-[9px] text-emerald-400 font-bold">✅ Docs Purged</span>
+            ` : ''}
+            ${isRejected ? `
+              <button data-approve-id="${p.id}" title="Approve Player" class="approve-player-btn px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[9px] rounded-lg shadow">
+                Approve
+              </button>
+              <button data-restore-id="${p.id}" title="Reset to Pending" class="restore-player-btn px-2 py-1 bg-sky-700 hover:bg-sky-600 text-white font-black text-[9px] rounded-lg shadow">
+                Reset
+              </button>
+            ` : !isApproved ? `
+              <button data-approve-id="${p.id}" title="Approve Player" class="approve-player-btn px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[9px] rounded-lg shadow">
+                Approve
+              </button>
+              <button data-reject-id="${p.id}" title="Reject Player" class="reject-player-btn px-2 py-1 bg-red-950 hover:bg-red-900 text-red-300 font-black text-[9px] rounded-lg border border-red-800">
+                Reject
+              </button>
+            ` : `
+              <button data-restore-id="${p.id}" title="Reset to Pending" class="restore-player-btn px-1.5 py-1 bg-amber-950 hover:bg-amber-900 text-amber-300 font-extrabold text-[9px] rounded-lg border border-amber-800">
+                Reset
+              </button>
+            `}
             <button data-edit-id="${p.id}" class="edit-player-btn p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700">
               <i data-lucide="edit-2" class="w-3.5 h-3.5 pointer-events-none"></i>
             </button>
@@ -837,7 +875,7 @@ function renderAdminPlayersRows(playersList) {
 }
 
 function bindAdminTableActions(containerEl) {
-  // Event Delegation so Delete, Edit, Approve, and Reject buttons work 100% reliably
+  // Event Delegation so Delete, Edit, Approve, Reject, and Restore buttons work 100% reliably
   containerEl.onclick = (e) => {
     // 1. Delete Player
     const deleteBtn = e.target.closest('.delete-player-btn');
@@ -867,6 +905,28 @@ function bindAdminTableActions(containerEl) {
       const pId = rejectBtn.getAttribute('data-reject-id');
       if (pId) {
         store.updatePlayerStatus(pId, 'REJECTED', 'REJECTED');
+        renderAdminDashboard(containerEl);
+      }
+      return;
+    }
+
+    // 4. Restore / Reset Player Status to Pending
+    const restoreBtn = e.target.closest('.restore-player-btn');
+    if (restoreBtn) {
+      const pId = restoreBtn.getAttribute('data-restore-id');
+      if (pId) {
+        store.updatePlayerStatus(pId, 'PENDING', 'PENDING');
+        renderAdminDashboard(containerEl);
+      }
+      return;
+    }
+
+    // 5. Purge Player Heavy Document Proofs (Aadhaar & Payment Receipt)
+    const purgeDocsBtn = e.target.closest('.purge-player-docs-btn');
+    if (purgeDocsBtn) {
+      const pId = purgeDocsBtn.getAttribute('data-purge-docs-id');
+      if (pId && confirm("🧹 Clean Memory: Delete Aadhaar & Payment receipt screenshots for this player?\n\n(Player Photo & profile will remain 100% preserved for future leagues).")) {
+        store.purgePlayerSensitiveDocs(pId);
         renderAdminDashboard(containerEl);
       }
       return;
@@ -963,7 +1023,8 @@ function renderAdminLoginScreen(containerEl) {
 
   // CLOSE 'X' BUTTON CLICK -> RETURN HOME / LANDING
   document.getElementById('close-admin-login-btn')?.addEventListener('click', () => {
-    window.dispatchEvent(new CustomEvent('user_updated'));
+    window.location.hash = 'landing';
+    window.dispatchEvent(new CustomEvent('popstate'));
   });
 
   document.getElementById('admin-login-form')?.addEventListener('submit', (e) => {

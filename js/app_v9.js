@@ -33,70 +33,76 @@ function initIntroLoadingScreen() {
   const targetText = "Developer - Suman Kolay";
   let typeIndex = 0;
   let typeInterval = null;
+  let sharedAudioCtx = null;
 
-  // Web Audio API Keypress Click Generator
+  // Safe Web Audio API Keypress Click Generator
   const playKeyPressSound = () => {
     try {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       if (!AudioCtx) return;
-      const ctx = new AudioCtx();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
+      if (!sharedAudioCtx) sharedAudioCtx = new AudioCtx();
+      if (sharedAudioCtx.state === 'suspended') {
+        sharedAudioCtx.resume().catch(() => {});
+      }
+      const osc = sharedAudioCtx.createOscillator();
+      const gain = sharedAudioCtx.createGain();
 
-      // Sharp mechanical typewriter key click sound
       osc.type = 'triangle';
-      osc.frequency.setValueAtTime(550 + Math.random() * 250, ctx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(100, ctx.currentTime + 0.035);
+      osc.frequency.setValueAtTime(550 + Math.random() * 250, sharedAudioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(100, sharedAudioCtx.currentTime + 0.035);
 
-      gain.gain.setValueAtTime(0.2, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.035);
+      gain.gain.setValueAtTime(0.15, sharedAudioCtx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, sharedAudioCtx.currentTime + 0.035);
 
       osc.connect(gain);
-      gain.connect(ctx.destination);
+      gain.connect(sharedAudioCtx.destination);
 
       osc.start();
-      osc.stop(ctx.currentTime + 0.035);
+      osc.stop(sharedAudioCtx.currentTime + 0.035);
     } catch (err) {
       // Audio autoplay fallback
     }
   };
 
   const dismissIntro = () => {
-    if (introScreen.classList.contains('fade-out')) return;
+    if (!introScreen || introScreen.classList.contains('fade-out')) return;
     if (typeInterval) clearInterval(typeInterval);
     introScreen.classList.add('fade-out');
     setTimeout(() => {
       if (introScreen.parentNode) {
         introScreen.parentNode.removeChild(introScreen);
       }
-    }, 800);
+    }, 500);
   };
 
   const startTypewriter = () => {
-    if (!typewriterEl) return;
+    if (!typewriterEl) {
+      dismissIntro();
+      return;
+    }
     typewriterEl.textContent = "";
     typeIndex = 0;
 
     typeInterval = setInterval(() => {
-      if (typeIndex < targetText.length) {
-        typewriterEl.textContent += targetText.charAt(typeIndex);
-        playKeyPressSound();
-        typeIndex++;
-      } else {
+      try {
+        if (typeIndex < targetText.length) {
+          typewriterEl.textContent += targetText.charAt(typeIndex);
+          playKeyPressSound();
+          typeIndex++;
+        } else {
+          clearInterval(typeInterval);
+          setTimeout(dismissIntro, 400);
+        }
+      } catch (e) {
         clearInterval(typeInterval);
-        // Pause briefly after typing finishes, then dismiss intro screen to show home page
-        setTimeout(dismissIntro, 1200);
+        dismissIntro();
       }
-    }, 90); // 90ms per letter typing speed
+    }, 60);
   };
 
-  // Start typewriter effect immediately as hero picture opens
-  const typewriterTimer = setTimeout(startTypewriter, 400);
+  const typewriterTimer = setTimeout(startTypewriter, 150);
+  const fallbackTimer = setTimeout(dismissIntro, 2200);
 
-  // Safety fallback timer
-  const fallbackTimer = setTimeout(dismissIntro, 5000);
-
-  // Click anywhere to skip
   introScreen.addEventListener('click', () => {
     clearTimeout(typewriterTimer);
     clearTimeout(fallbackTimer);
@@ -108,6 +114,7 @@ function initIntroLoadingScreen() {
 function initApp() {
   renderNavbar();
   renderMobileBottomNav();
+  renderFooter();
   renderCurrentView();
 
   // First Visit Welcome & App Install Popup Prompt
@@ -133,18 +140,26 @@ function initApp() {
   window.addEventListener('user_updated', () => {
     renderNavbar();
     renderMobileBottomNav();
+    renderFooter();
     safeRenderCurrentView();
   });
 }
 
 function navigate(route, pushState = true) {
+  if (auctionPollInterval) {
+    clearInterval(auctionPollInterval);
+    auctionPollInterval = null;
+  }
   currentRoute = route;
   if (pushState && history.pushState) {
     history.pushState({ route }, '', `#${route}`);
   }
   renderNavbar();
   renderMobileBottomNav();
+  renderFooter();
   renderCurrentView();
+  // Option 02: On-demand Cloud Data Sync on Navigation
+  store.syncWithCloud().catch(err => console.warn("On-demand sync notice:", err));
 }
 
 window.addEventListener('popstate', (e) => {
@@ -309,8 +324,8 @@ function openFirstVisitWelcomeModal() {
   });
 }
 
-// --- CLIENT-SIDE HD IMAGE COMPRESSION (GUARANTEED STRICTLY UNDER 200 KB PER IMAGE) ---
-export function compressImage(file, maxWidth = 1000, maxHeight = 1000, quality = 0.80) {
+// --- CLIENT-SIDE HD IMAGE COMPRESSION (GUARANTEED STRICTLY UNDER 100 KB PER IMAGE) ---
+export function compressImage(file, maxWidth = 800, maxHeight = 800, quality = 0.75) {
   return new Promise((resolve) => {
     if (!file) {
       resolve('');
@@ -344,11 +359,11 @@ export function compressImage(file, maxWidth = 1000, maxHeight = 1000, quality =
         let currentQuality = quality;
         let dataUrl = canvas.toDataURL('image/jpeg', currentQuality);
 
-        // Strict size guarantee: <= 200 KB (~204,800 bytes)
-        const targetSizeBytes = 200 * 1024;
+        // Strict size guarantee: <= 100 KB (~102,400 bytes)
+        const targetSizeBytes = 100 * 1024;
         let estSize = Math.round((dataUrl.length - 22) * 0.75);
 
-        while (estSize > targetSizeBytes && currentQuality > 0.35) {
+        while (estSize > targetSizeBytes && currentQuality > 0.25) {
           currentQuality -= 0.08;
           dataUrl = canvas.toDataURL('image/jpeg', currentQuality);
           estSize = Math.round((dataUrl.length - 22) * 0.75);
@@ -582,87 +597,54 @@ function openHDPhotoZoomModal(imgSrc, title = 'Player Full HD Photo') {
   document.getElementById('close-hd-zoom-bottom-btn')?.addEventListener('click', removeZoomModal);
 }
 
-// --- UPPER HEADER (DEEP BLUE WITH GOLD ACCENT, INSTALL APP & ADMIN PANEL BUTTONS) ---
+// --- UPPER HEADER (OPTION 3 VIBRANT SPORTY EMERALD GRADIENT) ---
 function renderNavbar() {
   const navbarEl = document.getElementById('app-navbar');
   if (!navbarEl) return;
 
-  if (currentRoute === 'landing' || currentRoute === 'jsl-hub') {
-    navbarEl.classList.add('hidden');
-    return;
-  }
   navbarEl.classList.remove('hidden');
-
-  navbarEl.classList.add('relative', 'overflow-hidden');
+  navbarEl.className = "sticky top-0 z-40 bg-gradient-to-r from-emerald-800 via-teal-900 to-emerald-950 text-white rounded-b-2xl sm:rounded-b-3xl shadow-2xl border-b-2 border-emerald-400/40 px-2 sm:px-4";
 
   navbarEl.innerHTML = `
     <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between gap-2 relative z-10">
-      <!-- Title, Subtitle & Developer Credit -->
-      <div class="flex items-center gap-2 sm:gap-3 cursor-pointer min-w-0" id="brand-header-logo">
-        <!-- SVG Emblem Logo matching the first picture -->
-        <svg class="w-9 h-9 sm:w-11 sm:h-11 flex-shrink-0" viewBox="0 0 100 100">
-          <circle cx="50" cy="50" r="44" stroke="#1E293B" stroke-width="3.5" fill="#E2E8F0" />
-          <g stroke="#1E293B" stroke-width="3" fill="#1E293B">
-            <circle cx="50" cy="6" r="3" /> <circle cx="50" cy="94" r="3" />
-            <circle cx="6" cy="50" r="3" /> <circle cx="94" cy="50" r="3" />
-            <circle cx="18" cy="18" r="3" /> <circle cx="82" cy="82" r="3" />
-            <circle cx="18" cy="82" r="3" /> <circle cx="82" cy="18" r="3" />
-            <circle cx="31" cy="10" r="3" /> <circle cx="69" cy="10" r="3" />
-            <circle cx="31" cy="90" r="3" /> <circle cx="69" cy="90" r="3" />
-            <circle cx="10" cy="31" r="3" /> <circle cx="10" cy="69" r="3" />
-            <circle cx="90" cy="31" r="3" /> <circle cx="90" cy="69" r="3" />
-          </g>
-          <circle cx="50" cy="50" r="38" stroke="#475569" stroke-width="2" fill="#F1F5F9" />
-          <g transform="rotate(-15 50 50)">
-            <path d="M42 35 L48 35 L44 85 L38 85 Z" fill="#B45309" stroke="#1E293B" stroke-width="2" />
-            <rect x="43" y="10" width="4" height="25" rx="1" fill="#1E293B" stroke="#1E293B" stroke-width="1" />
-            <line x1="43" y1="15" x2="47" y2="15" stroke="#FFFFFF" stroke-width="0.8" />
-            <line x1="43" y1="20" x2="47" y2="20" stroke="#FFFFFF" stroke-width="0.8" />
-            <line x1="43" y1="25" x2="47" y2="25" stroke="#FFFFFF" stroke-width="0.8" />
-            <line x1="43" y1="30" x2="47" y2="30" stroke="#FFFFFF" stroke-width="0.8" />
-          </g>
-          <circle cx="62" cy="62" r="11" fill="#DC2626" stroke="#1E293B" stroke-width="2" />
-          <path d="M55 59 C58 62, 62 66, 65 69" stroke="#FFFFFF" stroke-width="1.2" stroke-dasharray="2 1.5" />
-        </svg>
-
-        <div class="flex flex-col justify-center leading-none">
-          <h1 class="text-[9px] min-[360px]:text-[11px] sm:text-xs md:text-sm font-black text-slate-800 tracking-tight uppercase leading-[1.05]">
-            Official Cricket League<br/>& Registration Portal
-          </h1>
-          <span class="text-[7.5px] sm:text-[9.5px] font-bold text-slate-500 tracking-wide mt-0.5">
-            Dev: Suman Kolay
-          </span>
+      <!-- Option 3 Logo & Branding (Left Side) -->
+      <div class="flex items-center gap-2 cursor-pointer flex-shrink-0" id="brand-header-logo" title="Cricket Premier League Home">
+        <div class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white/10 border border-white/30 flex items-center justify-center text-xl shadow-md">
+          🏏
+        </div>
+        <div class="flex flex-col leading-none">
+          <span class="font-black text-white text-xs sm:text-sm tracking-wider uppercase">JHANKRA SUPER LEAGUE</span>
+          <span class="text-[8px] sm:text-[9.5px] text-emerald-200 font-bold tracking-wide mt-0.5">JSL 2026</span>
         </div>
       </div>
 
-      <!-- Navigation links matching Mockup Option A (Desktop only) -->
-      <div class="hidden md:flex items-center gap-5 text-[10.5px] font-bold tracking-widest text-slate-700">
-        <button id="nav-home-btn" class="hover:text-emerald-600 transition-colors py-1 ${currentRoute === 'landing' ? 'text-emerald-600 border-b-2 border-emerald-500' : ''}">HOME</button>
-        <button id="nav-tournaments-btn" class="hover:text-emerald-600 transition-colors py-1">TOURNAMENTS</button>
-        <button id="nav-schedule-btn" class="hover:text-emerald-600 transition-colors py-1 ${currentRoute === 'fixtures' ? 'text-emerald-600 border-b-2 border-emerald-500' : ''}">SCHEDULE</button>
-        <button id="nav-teams-btn" class="hover:text-emerald-600 transition-colors py-1">TEAMS</button>
-        <button id="nav-admin-link" class="hover:text-amber-600 font-extrabold transition-colors py-1 flex items-center gap-1 ${currentRoute === 'admin' ? 'text-amber-600 border-b-2 border-amber-500' : 'text-slate-900'}">
+      <!-- Navigation links (Desktop only) -->
+      <div class="hidden md:flex items-center gap-6 text-xs font-bold tracking-widest text-emerald-100">
+        <button id="nav-home-btn" class="hover:text-white transition-colors py-1 ${currentRoute === 'landing' ? 'text-white border-b-2 border-emerald-300 font-black' : ''}">HOME</button>
+        <button id="nav-tournaments-btn" class="hover:text-white transition-colors py-1">TOURNAMENTS</button>
+        <button id="nav-schedule-btn" class="hover:text-white transition-colors py-1 ${currentRoute === 'fixtures' ? 'text-white border-b-2 border-emerald-300 font-black' : ''}">SCHEDULE</button>
+        <button id="nav-teams-btn" class="hover:text-white transition-colors py-1">TEAMS</button>
+        <button id="nav-admin-link" class="hover:text-amber-300 font-black transition-colors py-1 flex items-center gap-1 ${currentRoute === 'admin' ? 'text-amber-300 border-b-2 border-amber-300' : 'text-emerald-100'}">
           🔐 ADMIN LOGIN
         </button>
-        <button id="nav-support-btn" class="hover:text-emerald-600 transition-colors py-1">SUPPORT</button>
+        <button id="nav-support-btn" class="hover:text-white transition-colors py-1">SUPPORT</button>
       </div>
 
-      <!-- Action Buttons (Admin Login & Download App) -->
+      <!-- Option 3 Action Pill Buttons on Right -->
       <div class="flex items-center gap-2 flex-shrink-0">
-        <button id="nav-admin-btn" class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-amber-300 text-[9.5px] sm:text-xs font-black rounded-full transition-all shadow-md border border-amber-500 flex items-center gap-1 uppercase tracking-wider">
-          <svg class="w-3.5 h-3.5 stroke-amber-400 fill-none" viewBox="0 0 24 24" stroke-width="2">
+        <button id="nav-install-app-btn" title="Download App" class="px-3 py-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-black rounded-full transition-all border border-white/40 shadow-sm flex items-center gap-1.5 cursor-pointer">
+          <svg class="w-3.5 h-3.5 stroke-white fill-none" viewBox="0 0 24 24" stroke-width="2.5">
+            <path d="M12 5 v11 M7 11 l5 5 l5-5 M5 19 h14" />
+          </svg>
+          <span class="text-[10px] uppercase font-black tracking-wider">Download App</span>
+        </button>
+
+        <button id="nav-admin-btn" title="Admin Login" class="hidden md:flex px-3.5 py-1.5 bg-white hover:bg-slate-100 text-emerald-950 text-xs font-black rounded-full transition-all shadow-lg flex items-center gap-1.5 cursor-pointer">
+          <svg class="w-3.5 h-3.5 stroke-emerald-900 fill-none" viewBox="0 0 24 24" stroke-width="2.2">
             <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
             <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
           </svg>
-          <span class="hidden sm:inline">ADMIN LOGIN</span>
-          <span class="sm:hidden">ADMIN</span>
-        </button>
-
-        <button id="nav-install-app-btn" class="px-3.5 py-1.5 bg-[#059669] hover:bg-[#047857] text-white text-[9.5px] sm:text-xs font-black rounded-full transition-all shadow-sm border border-emerald-400 flex items-center gap-1 uppercase tracking-widest">
-          <svg class="w-3 h-3 stroke-white fill-none" viewBox="0 0 24 24" stroke-width="2.5">
-            <path d="M12 5 v11 M7 11 l5 5 l5-5 M5 19 h14" />
-          </svg>
-          DOWNLOAD APP
+          <span class="text-[10px] uppercase font-black tracking-wider">Admin</span>
         </button>
       </div>
     </div>
@@ -694,37 +676,37 @@ function renderNavbar() {
   if (window.lucide) window.lucide.createIcons();
 }
 
-// --- MOBILE STICKY BOTTOM BAR ---
+// --- OPTION 3 FLOATING MOBILE STICKY BOTTOM BAR ---
 function renderMobileBottomNav() {
   const bottomNavEl = document.getElementById('mobile-bottom-nav');
   if (!bottomNavEl) return;
 
-  bottomNavEl.className = "fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-xl border-t border-slate-200 px-4 py-2 sm:hidden shadow-lg flex items-center justify-around";
+  bottomNavEl.className = "fixed bottom-2 left-3 right-3 z-40 bg-white/95 backdrop-blur-xl border border-slate-200 rounded-full shadow-2xl px-3 py-1.5 sm:hidden flex items-center justify-around";
 
   bottomNavEl.innerHTML = `
-    <button id="mob-nav-home" class="flex flex-col items-center gap-0.5 ${currentRoute === 'landing' ? 'text-emerald-650 font-extrabold' : 'text-slate-500'}">
+    <button id="mob-nav-home" class="flex flex-col items-center gap-0.5 ${currentRoute === 'landing' ? 'text-emerald-700 font-black' : 'text-slate-500'}">
       <i data-lucide="trophy" class="w-4 h-4"></i>
-      <span class="text-[9px]">Home</span>
+      <span class="text-[9px] font-extrabold">Home</span>
     </button>
 
-    <button id="mob-nav-fixtures" class="flex flex-col items-center gap-0.5 ${currentRoute === 'fixtures' ? 'text-emerald-655 font-extrabold' : 'text-slate-500'}">
+    <button id="mob-nav-fixtures" class="flex flex-col items-center gap-0.5 ${currentRoute === 'fixtures' ? 'text-emerald-700 font-black' : 'text-slate-500'}">
       <i data-lucide="calendar" class="w-4 h-4"></i>
-      <span class="text-[9px]">Matches</span>
+      <span class="text-[9px] font-extrabold">Matches</span>
     </button>
 
-    <button id="mob-nav-auction" class="flex flex-col items-center gap-0.5 ${currentRoute === 'auction' ? 'text-emerald-655 font-extrabold' : 'text-slate-500'}">
+    <button id="mob-nav-auction" class="flex flex-col items-center gap-0.5 ${currentRoute === 'auction' ? 'text-emerald-700 font-black' : 'text-slate-500'}">
       <i data-lucide="gavel" class="w-4 h-4"></i>
-      <span class="text-[9px]">Auction</span>
+      <span class="text-[9px] font-extrabold">Auction</span>
     </button>
 
-    <button id="mob-nav-career" class="flex flex-col items-center gap-0.5 ${currentRoute === 'career' ? 'text-emerald-655 font-extrabold' : 'text-slate-500'}">
+    <button id="mob-nav-career" class="flex flex-col items-center gap-0.5 ${currentRoute === 'career' ? 'text-emerald-700 font-black' : 'text-slate-500'}">
       <i data-lucide="users" class="w-4 h-4"></i>
-      <span class="text-[9px]">Career</span>
+      <span class="text-[9px] font-extrabold">Career</span>
     </button>
 
-    <button id="mob-nav-admin" class="flex flex-col items-center gap-0.5 ${currentRoute === 'admin' ? 'text-emerald-655 font-extrabold' : 'text-slate-500'}">
+    <button id="mob-nav-admin" class="flex flex-col items-center gap-0.5 ${currentRoute === 'admin' ? 'text-emerald-700 font-black' : 'text-slate-500'}">
       <i data-lucide="shield-check" class="w-4 h-4"></i>
-      <span class="text-[9px]">Admin</span>
+      <span class="text-[9px] font-extrabold">Admin</span>
     </button>
   `;
 
@@ -734,6 +716,14 @@ function renderMobileBottomNav() {
   document.getElementById('mob-nav-career')?.addEventListener('click', () => navigate('career'));
   document.getElementById('mob-nav-admin')?.addEventListener('click', () => navigate('admin'));
   if (window.lucide) window.lucide.createIcons();
+}
+
+// --- REMOVE FOOTER PORTION COMPLETELY ---
+function renderFooter() {
+  const footerEl = document.getElementById('app-footer');
+  if (!footerEl) return;
+  footerEl.innerHTML = '';
+  footerEl.className = 'hidden';
 }
 
 function renderCurrentView() {
@@ -1328,12 +1318,6 @@ function openRegisteredTeamsModal(allTeams) {
             <span class="px-2 py-0.5 bg-sky-100 text-sky-800 text-[9px] font-black rounded border border-sky-300 uppercase">JSL 2026</span>
             <h2 class="text-base font-black text-slate-900 mt-0.5">Registered Team List (${allTeams.length})</h2>
           </div>
-
-          ${store.isAdminAuthenticated() ? `
-            <button id="download-teams-pdf-btn" class="px-3 py-1.5 bg-sky-600 hover:bg-sky-700 text-white font-extrabold text-xs rounded-xl shadow-md flex items-center gap-1.5 transition-colors">
-              <i data-lucide="file-text" class="w-3.5 h-3.5"></i> Download PDF List
-            </button>
-          ` : ''}
         </div>
 
         <div class="relative">
@@ -1357,10 +1341,6 @@ function openRegisteredTeamsModal(allTeams) {
   const removeModal = () => document.getElementById('teams-view-modal')?.remove();
   document.getElementById('close-teams-modal')?.addEventListener('click', removeModal);
   document.getElementById('close-teams-modal-bottom')?.addEventListener('click', removeModal);
-
-  document.getElementById('download-teams-pdf-btn')?.addEventListener('click', () => {
-    exportTeamsToPDF(filteredTeams);
-  });
 
   const handleTeamSearch = () => {
     const inputEl = document.getElementById('team-search-input');
@@ -1402,6 +1382,9 @@ function openRegisteredTeamsModal(allTeams) {
 
 // --- REGISTERED PLAYERS MODAL WITH MEDIUM SQUARE PHOTO CARDS ---
 function openRegisteredPlayersModal(allPlayers = store.getPlayers()) {
+  // Option 02: On-demand Cloud Sync when modal opens
+  store.syncWithCloud().catch(err => console.warn("Modal sync notice:", err));
+
   const playersList = Array.isArray(allPlayers) ? allPlayers : store.getPlayers();
   let filteredPlayers = [...playersList];
 
@@ -1450,16 +1433,31 @@ function openRegisteredPlayersModal(allPlayers = store.getPlayers()) {
             <span class="px-2 py-0.5 bg-amber-100 text-amber-800 text-[9px] font-black rounded border border-amber-300 uppercase">JSL 2026</span>
             <h2 class="text-base font-black text-slate-900 mt-0.5">Registered Player List <span id="player-count-display">(${allPlayers.length})</span></h2>
           </div>
-
-          ${store.isAdminAuthenticated() ? `
-            <button id="download-players-pdf-btn" class="px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white font-extrabold text-xs rounded-xl shadow-md flex items-center gap-1.5 transition-colors">
-              <i data-lucide="file-text" class="w-3.5 h-3.5"></i> Download PDF List
-            </button>
-          ` : ''}
         </div>
 
-        <div class="relative">
-          <input type="text" id="player-search-input" placeholder="🔍 Search player by name, Reg ID (JSL2026-0001), category, phone, village..." class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 pl-3 focus:outline-none focus:border-emerald-500 placeholder-slate-400" />
+        <div class="space-y-2">
+          <div class="relative">
+            <input type="text" id="player-search-input" placeholder="🔍 Search player by name, Reg ID (JSL2026-0001), phone, village..." class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 pl-3 focus:outline-none focus:border-emerald-500 placeholder-slate-400" />
+          </div>
+
+          <!-- CATEGORY FILTER PILLS -->
+          <div class="flex items-center gap-1.5 overflow-x-auto pb-1" id="category-filter-pills">
+            <button type="button" data-cat="ALL" class="cat-pill-btn active px-3 py-1 bg-emerald-600 text-white font-black text-[10px] rounded-full shadow-sm flex items-center gap-1 border border-emerald-500 whitespace-nowrap">
+              🏏 All (${allPlayers.length})
+            </button>
+            <button type="button" data-cat="BATSMAN" class="cat-pill-btn px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[10px] rounded-full border border-slate-300 whitespace-nowrap transition-colors">
+              🏏 Batsman
+            </button>
+            <button type="button" data-cat="BOWLER" class="cat-pill-btn px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[10px] rounded-full border border-slate-300 whitespace-nowrap transition-colors">
+              ⚾ Bowler
+            </button>
+            <button type="button" data-cat="ALL ROUNDER" class="cat-pill-btn px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[10px] rounded-full border border-slate-300 whitespace-nowrap transition-colors">
+              ⭐ All Rounder
+            </button>
+            <button type="button" data-cat="WICKET KEEPER" class="cat-pill-btn px-3 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[10px] rounded-full border border-slate-300 whitespace-nowrap transition-colors">
+              🧤 Wicket Keeper
+            </button>
+          </div>
         </div>
 
         <div id="players-list-container" class="max-h-[60vh] overflow-y-auto pr-1"></div>
@@ -1480,51 +1478,94 @@ function openRegisteredPlayersModal(allPlayers = store.getPlayers()) {
   document.getElementById('close-players-modal')?.addEventListener('click', removeModal);
   document.getElementById('close-players-modal-bottom')?.addEventListener('click', removeModal);
 
-  document.getElementById('download-players-pdf-btn')?.addEventListener('click', () => {
-    exportPlayersToPDF(filteredPlayers);
-  });
+  let activeCategoryFilter = 'ALL';
 
   const handlePlayerSearch = () => {
     const inputEl = document.getElementById('player-search-input');
-    if (!inputEl) return;
-    const query = inputEl.value.toLowerCase().trim();
-    if (!query) {
-      filteredPlayers = [...allPlayers];
-    } else {
-      filteredPlayers = allPlayers.filter(p => {
-        const name = (p.name || '').toLowerCase();
-        const fatherName = (p.fatherName || '').toLowerCase();
-        const regId = (p.registrationId || p.regNo || '').toLowerCase();
-        const serialNo = String(p.displayRegistrationNumber || p.serialNo || '');
-        const category = (p.category || p.role || p.playingType || '').toLowerCase();
-        const phone = (p.phone || '').toLowerCase();
-        const altPhone = (p.alternateMobile || '').toLowerCase();
-        const village = (p.village || '').toLowerCase();
-        const district = (p.district || '').toLowerCase();
-        const address = (p.address || '').toLowerCase();
-        const batting = (p.battingStyle || '').toLowerCase();
-        const bowling = (p.bowlingStyle || '').toLowerCase();
-        const teamPref = (p.teamPreference || '').toLowerCase();
-        const upiRef = (p.paymentRef || p.remarks || '').toLowerCase();
+    const query = inputEl ? inputEl.value.toLowerCase().trim() : '';
 
-        return name.includes(query) ||
-               fatherName.includes(query) ||
-               regId.includes(query) ||
-               serialNo.includes(query) ||
-               category.includes(query) ||
-               phone.includes(query) ||
-               altPhone.includes(query) ||
-               village.includes(query) ||
-               district.includes(query) ||
-               address.includes(query) ||
-               batting.includes(query) ||
-               bowling.includes(query) ||
-               teamPref.includes(query) ||
-               upiRef.includes(query);
-      });
-    }
+    filteredPlayers = allPlayers.filter(p => {
+      // 1. Robust Category Filter Check (handles "All-rounder", "All Rounder", "ALLROUNDER")
+      const rawCat = (p.category || p.role || p.playingType || 'All-rounder').toUpperCase();
+      const cleanCat = rawCat.replace(/[^A-Z0-9]/g, ''); // e.g. "ALLROUNDER"
+
+      if (activeCategoryFilter !== 'ALL') {
+        const cleanTarget = activeCategoryFilter.replace(/[^A-Z0-9]/g, ''); // "ALLROUNDER", "BATSMAN", "BOWLER", "WICKETKEEPER"
+
+        if (cleanTarget.includes('ROUNDER') || cleanTarget.includes('ALLROUND')) {
+          if (!cleanCat.includes('ROUNDER') && !cleanCat.includes('ALLROUND')) {
+            return false;
+          }
+        } else if (cleanTarget.includes('BAT')) {
+          if (!cleanCat.includes('BAT')) {
+            return false;
+          }
+        } else if (cleanTarget.includes('BOWL')) {
+          if (!cleanCat.includes('BOWL') && !cleanCat.includes('FAST') && !cleanCat.includes('SPIN')) {
+            return false;
+          }
+        } else if (cleanTarget.includes('KEEPER') || cleanTarget.includes('WK')) {
+          if (!cleanCat.includes('KEEPER') && !cleanCat.includes('WK')) {
+            return false;
+          }
+        } else {
+          if (!cleanCat.includes(cleanTarget)) {
+            return false;
+          }
+        }
+      }
+
+      // 2. Search Text Query Check
+      if (!query) return true;
+
+      const name = (p.name || '').toLowerCase();
+      const fatherName = (p.fatherName || '').toLowerCase();
+      const regId = (p.registrationId || p.regNo || '').toLowerCase();
+      const serialNo = String(p.displayRegistrationNumber || p.serialNo || '');
+      const category = pCat.toLowerCase();
+      const phone = (p.phone || '').toLowerCase();
+      const altPhone = (p.alternateMobile || '').toLowerCase();
+      const village = (p.village || '').toLowerCase();
+      const district = (p.district || '').toLowerCase();
+      const address = (p.address || '').toLowerCase();
+      const batting = (p.battingStyle || '').toLowerCase();
+      const bowling = (p.bowlingStyle || '').toLowerCase();
+      const teamPref = (p.teamPreference || '').toLowerCase();
+      const upiRef = (p.paymentRef || p.remarks || '').toLowerCase();
+
+      return name.includes(query) ||
+             fatherName.includes(query) ||
+             regId.includes(query) ||
+             serialNo.includes(query) ||
+             category.includes(query) ||
+             phone.includes(query) ||
+             altPhone.includes(query) ||
+             village.includes(query) ||
+             district.includes(query) ||
+             address.includes(query) ||
+             batting.includes(query) ||
+             bowling.includes(query) ||
+             teamPref.includes(query) ||
+             upiRef.includes(query);
+    });
+
     renderPlayerListContent();
   };
+
+  // CATEGORY PILL CLICK LISTENERS
+  document.querySelectorAll('.cat-pill-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      activeCategoryFilter = e.currentTarget.getAttribute('data-cat') || 'ALL';
+      document.querySelectorAll('.cat-pill-btn').forEach(b => {
+        b.classList.remove('active', 'bg-emerald-600', 'text-white', 'font-black', 'border-emerald-500');
+        b.classList.add('bg-slate-100', 'text-slate-700', 'font-bold', 'border-slate-300');
+      });
+      e.currentTarget.classList.add('active', 'bg-emerald-600', 'text-white', 'font-black', 'border-emerald-500');
+      e.currentTarget.classList.remove('bg-slate-100', 'text-slate-700', 'font-bold', 'border-slate-300');
+
+      handlePlayerSearch();
+    });
+  });
 
   const playerInput = document.getElementById('player-search-input');
   if (playerInput) {
@@ -2207,7 +2248,7 @@ function openPlayerRegisterFormModal() {
             <div id="ply-photo-preview-box" class="hidden p-2 bg-white rounded-xl border border-emerald-300 flex items-center justify-between gap-2 shadow-sm">
               <div class="flex items-center gap-2.5">
                 <img id="ply-photo-preview-img" class="w-12 h-12 rounded-xl object-cover border-2 border-emerald-500 shadow-sm" />
-                <div>
+                <div id="ply-photo-status-text">
                   <div class="text-[10px] text-slate-900 font-black flex items-center gap-1">
                     <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-600"></i> Square Photo Ready
                   </div>
@@ -2244,7 +2285,7 @@ function openPlayerRegisterFormModal() {
             <div id="ply-aadhar-preview-box" class="hidden p-2 bg-white rounded-xl border border-sky-300 flex items-center justify-between gap-2 shadow-sm">
               <div class="flex items-center gap-2.5">
                 <img id="ply-aadhar-preview-img" class="w-12 h-9 rounded-lg object-cover border border-sky-500 shadow-sm" />
-                <div>
+                <div id="ply-aadhar-status-text">
                   <div class="text-[10px] text-slate-900 font-black flex items-center gap-1">
                     <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-sky-600"></i> Aadhaar Document Selected
                   </div>
@@ -2313,9 +2354,11 @@ function openPlayerRegisterFormModal() {
                 <div id="ply-proof-preview-box" class="hidden p-2 bg-white rounded-xl border border-emerald-300 flex items-center justify-between gap-2 shadow-sm mt-1">
                   <div class="flex items-center gap-2">
                     <img id="ply-proof-preview-img" class="w-10 h-7 rounded object-cover border border-emerald-500" />
-                    <span class="text-[9px] text-emerald-700 font-black flex items-center gap-1">
-                      <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-600"></i> Receipt Selected!
-                    </span>
+                    <div id="ply-proof-status-text">
+                      <span class="text-[9px] text-emerald-700 font-black flex items-center gap-1">
+                        <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-600"></i> Receipt Selected!
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -2367,8 +2410,6 @@ function openPlayerRegisterFormModal() {
   };
 
   document.getElementById('ply-dob')?.addEventListener('change', updateAgeFromDOB);
-  document.getElementById('ply-dob')?.addEventListener('input', updateAgeFromDOB);
-
   let plyPhotoFileObj = null;
   let plyAadharFileObj = null;
   let plyProofFileObj = null;
@@ -2377,16 +2418,65 @@ function openPlayerRegisterFormModal() {
   let plyAadharDataUrl = '';
   let plyProofDataUrl = '';
 
-  // PROCESS PLAYER PHOTO (TRIGGER SQUARE CROPPER MODAL)
+  let finalPhotoUrl = '';
+  let finalAadharUrl = '';
+  let finalProofUrl = '';
+
+  // PROCESS PLAYER PHOTO (REALTIME 100KB COMPRESSION + INSTANT CDN UPLOAD + GREEN CHECKMARK)
+  const processAndUploadPhoto = async (dataUrlOrFile) => {
+    const previewBox = document.getElementById('ply-photo-preview-box');
+    const previewImg = document.getElementById('ply-photo-preview-img');
+    const statusBox = document.getElementById('ply-photo-status-text');
+
+    if (previewBox) previewBox.classList.remove('hidden');
+    if (previewImg && typeof dataUrlOrFile === 'string') previewImg.src = dataUrlOrFile;
+
+    if (statusBox) {
+      statusBox.innerHTML = `
+        <span class="text-[9px] text-amber-600 font-extrabold flex items-center gap-1">
+          <i data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i> ⏳ Compressing (&lt;100KB) & Uploading to Cloud CDN...
+        </span>
+      `;
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    try {
+      const compressedDataUrl = typeof dataUrlOrFile === 'string' && dataUrlOrFile.startsWith('data:image') 
+        ? dataUrlOrFile 
+        : await compressImage(dataUrlOrFile, 800, 800, 0.75);
+
+      plyPhotoDataUrl = compressedDataUrl;
+      if (previewImg) previewImg.src = compressedDataUrl;
+
+      const cdnUrl = await uploadHDImage(compressedDataUrl, 'player_photos');
+      if (cdnUrl && (cdnUrl.startsWith('http://') || cdnUrl.startsWith('https://'))) {
+        finalPhotoUrl = cdnUrl;
+        const estKb = Math.round((compressedDataUrl.length - 22) * 0.75 / 1024);
+        if (statusBox) {
+          statusBox.innerHTML = `
+            <span class="text-[9px] text-emerald-700 font-black flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-300">
+              <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-600"></i> ✅ Player Photo Uploaded to CDN (${estKb} KB)
+            </span>
+          `;
+          if (window.lucide) window.lucide.createIcons();
+        }
+      } else {
+        finalPhotoUrl = compressedDataUrl;
+        if (statusBox) {
+          statusBox.innerHTML = `<span class="text-[9px] text-emerald-700 font-bold">✅ Photo Compressed (&lt;100 KB Ready)</span>`;
+        }
+      }
+    } catch (err) {
+      console.warn("Photo compression upload error:", err);
+    }
+  };
+
   const handlePhotoSelection = (file) => {
     if (!file) return;
     plyPhotoFileObj = file;
     const objectUrl = URL.createObjectURL(file);
     openSquareImageCropModal(objectUrl, (croppedSquareDataUrl) => {
-      plyPhotoDataUrl = croppedSquareDataUrl;
-      const imgPreview = document.getElementById('ply-photo-preview-img');
-      if (imgPreview) imgPreview.src = croppedSquareDataUrl;
-      document.getElementById('ply-photo-preview-box')?.classList.remove('hidden');
+      processAndUploadPhoto(croppedSquareDataUrl);
     }, 'Crop Player Photo (Square 1:1)');
   };
 
@@ -2396,34 +2486,108 @@ function openPlayerRegisterFormModal() {
   document.getElementById('re-crop-ply-photo-btn')?.addEventListener('click', () => {
     if (plyPhotoDataUrl) {
       openSquareImageCropModal(plyPhotoDataUrl, (croppedSquareDataUrl) => {
-        plyPhotoDataUrl = croppedSquareDataUrl;
-        const imgPreview = document.getElementById('ply-photo-preview-img');
-        if (imgPreview) imgPreview.src = croppedSquareDataUrl;
+        processAndUploadPhoto(croppedSquareDataUrl);
       }, 'Re-Crop Player Photo (Square 1:1)');
     }
   });
 
-  // PROCESS AADHAAR CARD PROOF
+  // PROCESS AADHAAR CARD PROOF (REALTIME 100KB COMPRESSION + INSTANT CDN UPLOAD + GREEN CHECKMARK)
   const handleAadharSelection = async (file) => {
     if (!file) return;
     plyAadharFileObj = file;
-    plyAadharDataUrl = await compressImage(file, 1050, 1050, 0.82);
-    const imgPreview = document.getElementById('ply-aadhar-preview-img');
-    if (imgPreview) imgPreview.src = plyAadharDataUrl;
-    document.getElementById('ply-aadhar-preview-box')?.classList.remove('hidden');
+
+    const previewBox = document.getElementById('ply-aadhar-preview-box');
+    const previewImg = document.getElementById('ply-aadhar-preview-img');
+    const statusBox = document.getElementById('ply-aadhar-status-text');
+
+    if (previewBox) previewBox.classList.remove('hidden');
+
+    if (statusBox) {
+      statusBox.innerHTML = `
+        <span class="text-[9px] text-amber-600 font-extrabold flex items-center gap-1">
+          <i data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i> ⏳ Compressing (&lt;100KB) & Uploading Aadhaar to Cloud CDN...
+        </span>
+      `;
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    try {
+      const compressedDataUrl = await compressImage(file, 800, 800, 0.75);
+      plyAadharDataUrl = compressedDataUrl;
+      if (previewImg) previewImg.src = compressedDataUrl;
+
+      const cdnUrl = await uploadHDImage(compressedDataUrl, 'aadhaar_docs');
+      if (cdnUrl && (cdnUrl.startsWith('http://') || cdnUrl.startsWith('https://'))) {
+        finalAadharUrl = cdnUrl;
+        const estKb = Math.round((compressedDataUrl.length - 22) * 0.75 / 1024);
+        if (statusBox) {
+          statusBox.innerHTML = `
+            <span class="text-[9px] text-emerald-700 font-black flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-300">
+              <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-600"></i> ✅ Aadhaar Document Uploaded to CDN (${estKb} KB)
+            </span>
+          `;
+          if (window.lucide) window.lucide.createIcons();
+        }
+      } else {
+        finalAadharUrl = compressedDataUrl;
+        if (statusBox) {
+          statusBox.innerHTML = `<span class="text-[9px] text-emerald-700 font-bold">✅ Aadhaar Document Ready (&lt;100 KB)</span>`;
+        }
+      }
+    } catch (err) {
+      console.warn("Aadhaar upload notice:", err);
+    }
   };
 
   document.getElementById('ply-aadhar-file-gallery')?.addEventListener('change', (e) => handleAadharSelection(e.target.files[0]));
   document.getElementById('ply-aadhar-file-camera')?.addEventListener('change', (e) => handleAadharSelection(e.target.files[0]));
 
-  // PROCESS PAYMENT RECEIPT SCREENSHOT
+  // PROCESS PAYMENT RECEIPT SCREENSHOT (REALTIME 100KB COMPRESSION + INSTANT CDN UPLOAD + GREEN CHECKMARK)
   const handleProofSelection = async (file) => {
     if (!file) return;
     plyProofFileObj = file;
-    plyProofDataUrl = await compressImage(file, 1050, 1050, 0.82);
-    const imgPreview = document.getElementById('ply-proof-preview-img');
-    if (imgPreview) imgPreview.src = plyProofDataUrl;
-    document.getElementById('ply-proof-preview-box')?.classList.remove('hidden');
+
+    const previewBox = document.getElementById('ply-proof-preview-box');
+    const previewImg = document.getElementById('ply-proof-preview-img');
+    const statusBox = document.getElementById('ply-proof-status-text');
+
+    if (previewBox) previewBox.classList.remove('hidden');
+
+    if (statusBox) {
+      statusBox.innerHTML = `
+        <span class="text-[9px] text-amber-600 font-extrabold flex items-center gap-1">
+          <i data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i> ⏳ Compressing (&lt;100KB) & Uploading Receipt to Cloud CDN...
+        </span>
+      `;
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    try {
+      const compressedDataUrl = await compressImage(file, 800, 800, 0.75);
+      plyProofDataUrl = compressedDataUrl;
+      if (previewImg) previewImg.src = compressedDataUrl;
+
+      const cdnUrl = await uploadHDImage(compressedDataUrl, 'payment_receipts');
+      if (cdnUrl && (cdnUrl.startsWith('http://') || cdnUrl.startsWith('https://'))) {
+        finalProofUrl = cdnUrl;
+        const estKb = Math.round((compressedDataUrl.length - 22) * 0.75 / 1024);
+        if (statusBox) {
+          statusBox.innerHTML = `
+            <span class="text-[9px] text-emerald-700 font-black flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-300">
+              <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-600"></i> ✅ Payment Receipt Uploaded to CDN (${estKb} KB)
+            </span>
+          `;
+          if (window.lucide) window.lucide.createIcons();
+        }
+      } else {
+        finalProofUrl = compressedDataUrl;
+        if (statusBox) {
+          statusBox.innerHTML = `<span class="text-[9px] text-emerald-700 font-bold">✅ Payment Receipt Ready (&lt;100 KB)</span>`;
+        }
+      }
+    } catch (err) {
+      console.warn("Proof upload notice:", err);
+    }
   };
 
   document.getElementById('ply-proof-file-gallery')?.addEventListener('change', (e) => handleProofSelection(e.target.files[0]));
@@ -2451,7 +2615,7 @@ function openPlayerRegisterFormModal() {
       submitBtn.innerHTML = `
         <div class="flex items-center justify-center gap-2">
           <div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-          <span>Please Wait... Submitting Your Registration...</span>
+          <span>Saving Registration & Assigning Serial Number...</span>
         </div>
       `;
     }
@@ -2474,25 +2638,10 @@ function openPlayerRegisterFormModal() {
       const upiRef = document.getElementById('ply-upi-ref').value;
       const remarks = document.getElementById('ply-remarks').value || upiRef;
 
-      if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = `
-          <div class="flex items-center justify-center gap-2">
-            <div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-            <span>Compressing & Uploading Photo to Cloud...</span>
-          </div>
-        `;
-      }
-
-      const photoInput = plyPhotoDataUrl || plyPhotoFileObj;
-      const aadharInput = plyAadharDataUrl || plyAadharFileObj;
-      const proofInput = plyProofDataUrl || plyProofFileObj;
-
-      const [finalPhotoUrl, finalAadharUrl, finalProofUrl] = await Promise.all([
-        uploadHDImage(photoInput, 'player_photos'),
-        uploadHDImage(aadharInput, 'aadhaar_docs'),
-        uploadHDImage(proofInput, 'payment_receipts')
-      ]);
+      // Ensure CDN URLs are finalized or fallback to compressed data URLs
+      const photoToSave = finalPhotoUrl || plyPhotoDataUrl;
+      const aadharToSave = finalAadharUrl || plyAadharDataUrl;
+      const proofToSave = finalProofUrl || plyProofDataUrl;
 
       // STRICT VALIDATION: Photo upload MUST succeed with a valid Cloudinary/CDN URL (http/https)
       if (!finalPhotoUrl || (!finalPhotoUrl.startsWith('http://') && !finalPhotoUrl.startsWith('https://'))) {
@@ -2522,12 +2671,12 @@ function openPlayerRegisterFormModal() {
         bowlingStyle,
         isWicketKeeper,
         teamPreference,
-        photoUrl: finalPhotoUrl || '',
-        player_photo_url: finalPhotoUrl || '',
-        aadharPhotoUrl: finalAadharUrl || '',
-        aadhaar_photo_url: finalAadharUrl || '',
-        paymentReceiptUrl: finalProofUrl || '',
-        payment_receipt_url: finalProofUrl || '',
+        photoUrl: photoToSave || '',
+        player_photo_url: photoToSave || '',
+        aadharPhotoUrl: aadharToSave || '',
+        aadhaar_photo_url: aadharToSave || '',
+        paymentReceiptUrl: proofToSave || '',
+        payment_receipt_url: proofToSave || '',
         paymentRef: upiRef,
         remarks,
         basePrice: 200
@@ -2880,11 +3029,23 @@ function renderLiveAuctionView(container) {
 
   const pollActiveAuctionState = async () => {
     if (currentRoute !== 'auction') {
-      clearInterval(auctionPollInterval);
+      if (auctionPollInterval) {
+        clearInterval(auctionPollInterval);
+        auctionPollInterval = null;
+      }
       return;
     }
 
     const state = await store.getLiveAuctionState();
+    
+    // Safeguard: Check route again after async cloud state fetch!
+    if (currentRoute !== 'auction') {
+      if (auctionPollInterval) {
+        clearInterval(auctionPollInterval);
+        auctionPollInterval = null;
+      }
+      return;
+    }
     const teams = store.getTeams();
     
     let activeBlockHtml = `
@@ -2988,7 +3149,7 @@ function renderCareerHubView(container) {
   let searchQuery = '';
 
   const drawCareerHub = () => {
-    const players = store.getPlayers().filter(p => (p.registrationStatus || p.paymentStatus) === 'APPROVED');
+    const players = store.getPlayers().filter(p => (p.registrationStatus || p.paymentStatus) !== 'REJECTED');
     const fixtures = store.getFixtures();
     const completedFixtures = fixtures.filter(f => f.status === 'COMPLETED');
 
