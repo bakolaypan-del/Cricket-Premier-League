@@ -2382,6 +2382,23 @@ function openPDFExportFilterModal() {
   statusSelect?.addEventListener('change', updateCountDisplay);
   updateCountDisplay();
 
+  document.getElementById('admin-pdf-filter-form')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const filteredList = getFilteredList();
+    if (filteredList.length === 0) {
+      alert("No players match the selected filters.");
+      return;
+    }
+
+    const catText = categorySelect.options[categorySelect.selectedIndex].text.replace(/^[^\w\s]+/, '').trim();
+    const statusText = statusSelect.value === 'ALL' ? '' : ` [${statusSelect.value}]`;
+    const label = `${catText}${statusText}`;
+
+    removeModal();
+    exportPlayersToPDF(filteredList, label);
+  });
+}
+
 // --- EDIT TEAM MODAL WITH <100KB COMPRESSION & CDN UPLOAD ---
 export function openEditTeamModal(team, onSaved) {
   document.getElementById('edit-team-modal')?.remove();
