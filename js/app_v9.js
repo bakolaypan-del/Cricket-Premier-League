@@ -1041,7 +1041,6 @@ function openWhatsAppGroupModal() {
   document.getElementById('join-wa-group-confirm-btn')?.addEventListener('click', removeModal);
 }
 
-// --- FRONT PAGE LANDING PAGE (MATCHING UPLOADED REFERENCE DESIGN WITH STYLISH CARTOON CRICKETER AVATARS & RANK CORNERS) ---
 function renderFirstPageLanding(containerEl) {
   const teams = store.getTeams();
   const players = store.getPlayers();
@@ -1049,6 +1048,51 @@ function renderFirstPageLanding(containerEl) {
   containerEl.innerHTML = `
     <div class="w-full max-w-5xl mx-auto space-y-4 sm:space-y-6 animate-fade-in py-2 sm:py-4 text-slate-900">
       
+      <!-- ⏳ LIVE TOURNAMENT COUNTDOWN TIMER (UPPER PORTION - WHITE BACKGROUND & STYLISH COLOURFUL) -->
+      <div id="tournament-countdown-card" class="w-full max-w-4xl mx-auto bg-white border-2 border-amber-400 p-3.5 sm:p-5 rounded-3xl shadow-xl text-slate-900 animate-fade-in relative overflow-hidden">
+        <div class="absolute -right-10 -bottom-10 w-32 h-32 bg-amber-400/10 rounded-full blur-xl pointer-events-none"></div>
+        <div class="absolute -left-10 -top-10 w-32 h-32 bg-blue-500/10 rounded-full blur-xl pointer-events-none"></div>
+        
+        <div class="flex flex-col md:flex-row items-center justify-between gap-3.5 sm:gap-4 relative z-10">
+          <div class="text-center md:text-left space-y-1">
+            <div class="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-full text-[10px] sm:text-xs font-black tracking-widest uppercase shadow-xs">
+              <span class="w-2 h-2 rounded-full bg-red-600 animate-ping"></span>
+              <span>🏆 MEGA TOURNAMENT KICKOFF</span>
+            </div>
+            <h3 class="text-base sm:text-xl font-black text-slate-900 tracking-tight">30 AUGUST 2026 • 9:00 AM IST</h3>
+            <p class="text-[11px] sm:text-xs text-emerald-700 font-bold flex items-center justify-center md:justify-start gap-1">
+              <span>📍 Jhankra School Stadium Ground</span>
+              <span>•</span>
+              <span>JSL 2026</span>
+            </p>
+          </div>
+
+          <!-- 4-Unit Colourful Vibrant Countdown Clock Grid -->
+          <div class="grid grid-cols-4 gap-1.5 sm:gap-3 text-center">
+            <!-- Days: Blue -->
+            <div class="bg-gradient-to-b from-blue-50 to-blue-100/90 border-2 border-blue-200 rounded-2xl p-2 sm:p-2.5 min-w-[58px] sm:min-w-[72px] shadow-sm">
+              <div id="cd-days" class="text-xl sm:text-3xl font-black text-blue-700 font-mono">00</div>
+              <div class="text-[9px] sm:text-[10px] font-black text-blue-600 uppercase tracking-wider mt-0.5">Days</div>
+            </div>
+            <!-- Hours: Purple -->
+            <div class="bg-gradient-to-b from-purple-50 to-purple-100/90 border-2 border-purple-200 rounded-2xl p-2 sm:p-2.5 min-w-[58px] sm:min-w-[72px] shadow-sm">
+              <div id="cd-hours" class="text-xl sm:text-3xl font-black text-purple-700 font-mono">00</div>
+              <div class="text-[9px] sm:text-[10px] font-black text-purple-600 uppercase tracking-wider mt-0.5">Hours</div>
+            </div>
+            <!-- Mins: Emerald -->
+            <div class="bg-gradient-to-b from-emerald-50 to-emerald-100/90 border-2 border-emerald-200 rounded-2xl p-2 sm:p-2.5 min-w-[58px] sm:min-w-[72px] shadow-sm">
+              <div id="cd-mins" class="text-xl sm:text-3xl font-black text-emerald-700 font-mono">00</div>
+              <div class="text-[9px] sm:text-[10px] font-black text-emerald-600 uppercase tracking-wider mt-0.5">Mins</div>
+            </div>
+            <!-- Secs: Rose Pulse -->
+            <div class="bg-gradient-to-b from-rose-50 to-rose-100/90 border-2 border-rose-200 rounded-2xl p-2 sm:p-2.5 min-w-[58px] sm:min-w-[72px] shadow-sm">
+              <div id="cd-secs" class="text-xl sm:text-3xl font-black text-rose-600 font-mono animate-pulse">00</div>
+              <div class="text-[9px] sm:text-[10px] font-black text-rose-600 uppercase tracking-wider mt-0.5">Secs</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- SELECT PREMIER LEAGUE BADGE -->
       <div class="text-center">
         <span class="px-5 py-2 rounded-full bg-white text-emerald-800 border-2 border-emerald-300 text-xs sm:text-base font-black uppercase tracking-widest shadow-md">
@@ -1118,39 +1162,42 @@ function renderFirstPageLanding(containerEl) {
         <!-- CENTERED TITLE ONLY -->
         <div class="text-center py-1">
           <h2 class="text-base sm:text-xl font-black text-slate-900 tracking-wide uppercase">
-            JSL Confirm Teams
+            Registered Team List (<span id="confirmed-teams-total-count">7</span>)
           </h2>
+          <p id="confirmed-team-caption" class="text-xs sm:text-sm font-black text-amber-800 transition-all duration-300 min-h-[20px]">
+            🥇 1ST CONFIRM TEAM: KHIRPAI HURRICANES (Owner: MANTU | Icon: BIJAY HALDAR)
+          </p>
         </div>
 
-        <!-- CAROUSEL SLIDER CONTAINER (TRANSPARENT WRAPPER - WHITE BORDER IS DIRECTLY TIGHT ON THE PICTURE) -->
-        <div id="confirmed-teams-carousel-card" class="relative overflow-hidden w-full max-w-md sm:max-w-lg mx-auto py-1">
+        <!-- STYLISH CAROUSEL CARD -->
+        <div id="confirmed-teams-carousel-card" class="relative bg-white rounded-3xl p-2 sm:p-4 shadow-xl border border-slate-200 overflow-hidden">
           
-          <!-- SLIDES CONTAINER (ONLY SHOWING TEAM IMAGES WITH TIGHT WHITE BORDER) -->
+          <!-- SLIDER TRACK -->
           <div id="confirmed-teams-slider" class="flex transition-transform duration-500 ease-out w-full">
             
-            <!-- SLIDE 1: KHIRPAI HURRICANES -->
+            <!-- SLIDE 1: KHIRPAI HURRICANES (1ST CONFIRM TEAM) -->
             <div class="w-full flex-shrink-0 relative cursor-pointer slide-item px-1" data-slide-index="0" data-img-src="assets/team_confirm_1_khirpai_hurricanes.jpg" data-team-name="1ST CONFIRM TEAM - KHIRPAI HURRICANES">
-              <img src="assets/team_confirm_1_khirpai_hurricanes.jpg" alt="1st Confirm Team - Khirpai Hurricanes" class="w-full h-auto max-h-72 sm:max-h-96 object-contain mx-auto rounded-2xl border-4 border-white shadow-xl" />
+              <img src="assets/team_confirm_1_khirpai_hurricanes.jpg" alt="1st Confirm Team - KHIRPAI HURRICANES" class="w-full h-auto max-h-72 sm:max-h-96 object-contain mx-auto rounded-2xl border-4 border-white shadow-xl" />
             </div>
 
-            <!-- SLIDE 2: ANIKET XI -->
+            <!-- SLIDE 2: ANIKET XI (2ND CONFIRM TEAM) -->
             <div class="w-full flex-shrink-0 relative cursor-pointer slide-item px-1" data-slide-index="1" data-img-src="assets/team_confirm_2_aniket_xi.jpg" data-team-name="2ND CONFIRM TEAM - ANIKET XI">
-              <img src="assets/team_confirm_2_aniket_xi.jpg" alt="2nd Confirm Team - Aniket XI" class="w-full h-auto max-h-72 sm:max-h-96 object-contain mx-auto rounded-2xl border-4 border-white shadow-xl" />
+              <img src="assets/team_confirm_2_aniket_xi.jpg" alt="2nd Confirm Team - ANIKET XI" class="w-full h-auto max-h-72 sm:max-h-96 object-contain mx-auto rounded-2xl border-4 border-white shadow-xl" />
             </div>
 
-            <!-- SLIDE 3: SRS BROTHER'S -->
-            <div class="w-full flex-shrink-0 relative cursor-pointer slide-item px-1" data-slide-index="2" data-img-src="assets/team_confirm_3_srs_brothers.jpg" data-team-name="3RD CONFIRM TEAM - SRS BROTHERS">
-              <img src="assets/team_confirm_3_srs_brothers.jpg" alt="3rd Confirm Team - SRS Brother's" class="w-full h-auto max-h-72 sm:max-h-96 object-contain mx-auto rounded-2xl border-4 border-white shadow-xl" />
+            <!-- SLIDE 3: SRS BROTHERS (3RD CONFIRM TEAM) -->
+            <div class="w-full flex-shrink-0 relative cursor-pointer slide-item px-1" data-slide-index="2" data-img-src="assets/team_confirm_3_srs_brothers.jpg" data-team-name="3RD CONFIRM TEAM - SRS BROTHER'S">
+              <img src="assets/team_confirm_3_srs_brothers.jpg" alt="3rd Confirm Team - SRS BROTHER'S" class="w-full h-auto max-h-72 sm:max-h-96 object-contain mx-auto rounded-2xl border-4 border-white shadow-xl" />
             </div>
 
-            <!-- SLIDE 4: SHIV SHAKTI EKADASH -->
-            <div class="w-full flex-shrink-0 relative cursor-pointer slide-item px-1" data-slide-index="3" data-img-src="assets/team_confirm_4_shiv_shakti_ekadash.jpg" data-team-name="4TH CONFIRM TEAM - SHIV SHAKTI EKADASH">
-              <img src="assets/team_confirm_4_shiv_shakti_ekadash.jpg" alt="4th Confirm Team - Shiv Shakti Ekadash" class="w-full h-auto max-h-72 sm:max-h-96 object-contain mx-auto rounded-2xl border-4 border-white shadow-xl" />
+            <!-- SLIDE 4: SHIV SHAKTI EKADASH (4TH CONFIRM TEAM) -->
+            <div class="w-full flex-shrink-0 relative cursor-pointer slide-item px-1" data-slide-index="3" data-img-src="assets/team_confirm_4_shiv_shakti.jpg" data-team-name="4TH CONFIRM TEAM - SHIV SHAKTI EKADASH">
+              <img src="assets/team_confirm_4_shiv_shakti.jpg" alt="4th Confirm Team - SHIV SHAKTI EKADASH" class="w-full h-auto max-h-72 sm:max-h-96 object-contain mx-auto rounded-2xl border-4 border-white shadow-xl" />
             </div>
 
-            <!-- SLIDE 5: AVD ELEVEN -->
+            <!-- SLIDE 5: AVD ELEVEN (5TH CONFIRM TEAM) -->
             <div class="w-full flex-shrink-0 relative cursor-pointer slide-item px-1" data-slide-index="4" data-img-src="assets/team_confirm_5_avd_eleven.jpg" data-team-name="5TH CONFIRM TEAM - AVD ELEVEN">
-              <img src="assets/team_confirm_5_avd_eleven.jpg" alt="5th Confirm Team - AVD Eleven" class="w-full h-auto max-h-72 sm:max-h-96 object-contain mx-auto rounded-2xl border-4 border-white shadow-xl" />
+              <img src="assets/team_confirm_5_avd_eleven.jpg" alt="5th Confirm Team - AVD ELEVEN" class="w-full h-auto max-h-72 sm:max-h-96 object-contain mx-auto rounded-2xl border-4 border-white shadow-xl" />
             </div>
 
             <!-- SLIDE 6: CCC (6TH CONFIRM TEAM) -->
@@ -1165,43 +1212,6 @@ function renderFirstPageLanding(containerEl) {
 
           </div>
 
-        </div>
-      </div>
-
-      <!-- ⏳ LIVE TOURNAMENT COUNTDOWN TIMER (30 AUGUST 2026, 9:00 AM IST) -->
-      <div id="tournament-countdown-card" class="w-full max-w-4xl mx-auto bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-2 border-amber-500/80 p-3.5 sm:p-4 rounded-3xl shadow-2xl text-white animate-fade-in relative overflow-hidden">
-        <div class="absolute -right-12 -bottom-12 w-36 h-36 bg-amber-500/15 rounded-full blur-2xl pointer-events-none"></div>
-        <div class="absolute -left-12 -top-12 w-36 h-36 bg-emerald-500/15 rounded-full blur-2xl pointer-events-none"></div>
-        
-        <div class="flex flex-col sm:flex-row items-center justify-between gap-3 relative z-10">
-          <div class="text-center sm:text-left">
-            <div class="flex items-center justify-center sm:justify-start gap-2">
-              <span class="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping"></span>
-              <span class="text-[10px] sm:text-xs font-black tracking-widest text-amber-400 uppercase">🏆 MEGA TOURNAMENT KICKOFF</span>
-            </div>
-            <h3 class="text-sm sm:text-base font-black text-white mt-0.5">30 AUGUST 2026 • 9:00 AM IST</h3>
-            <p class="text-[10px] text-emerald-300 font-bold">Jhankra School Stadium Ground • JSL 2026</p>
-          </div>
-
-          <!-- 4-Unit Live Countdown Clock Grid -->
-          <div class="grid grid-cols-4 gap-1.5 sm:gap-2 text-center">
-            <div class="bg-black/70 border border-amber-500/40 rounded-2xl px-2.5 py-1.5 min-w-[56px] sm:min-w-[64px] shadow-inner">
-              <div id="cd-days" class="text-lg sm:text-2xl font-black text-amber-400 font-mono">00</div>
-              <div class="text-[8px] sm:text-[9px] font-bold text-slate-400 uppercase tracking-wider">Days</div>
-            </div>
-            <div class="bg-black/70 border border-amber-500/40 rounded-2xl px-2.5 py-1.5 min-w-[56px] sm:min-w-[64px] shadow-inner">
-              <div id="cd-hours" class="text-lg sm:text-2xl font-black text-amber-400 font-mono">00</div>
-              <div class="text-[8px] sm:text-[9px] font-bold text-slate-400 uppercase tracking-wider">Hours</div>
-            </div>
-            <div class="bg-black/70 border border-amber-500/40 rounded-2xl px-2.5 py-1.5 min-w-[56px] sm:min-w-[64px] shadow-inner">
-              <div id="cd-mins" class="text-lg sm:text-2xl font-black text-amber-400 font-mono">00</div>
-              <div class="text-[8px] sm:text-[9px] font-bold text-slate-400 uppercase tracking-wider">Mins</div>
-            </div>
-            <div class="bg-black/70 border border-amber-500/40 rounded-2xl px-2.5 py-1.5 min-w-[56px] sm:min-w-[64px] shadow-inner">
-              <div id="cd-secs" class="text-lg sm:text-2xl font-black text-rose-400 font-mono animate-pulse">00</div>
-              <div class="text-[8px] sm:text-[9px] font-bold text-slate-400 uppercase tracking-wider">Secs</div>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -1339,7 +1349,23 @@ function renderFirstPageLanding(containerEl) {
 }
 
 // --- LIVE TOURNAMENT COUNTDOWN CLOCK (30 AUGUST 2026, 9:00 AM IST) ---
-export function initTournamentCountdown() {
+export async function initTournamentCountdown() {
+  const card = document.getElementById('tournament-countdown-card');
+  if (!card) return;
+
+  // Check admin settings from Firebase
+  try {
+    const settings = await fetchPopupSettingsFromFirebase();
+    if (settings && settings.isCountdownEnabled === false) {
+      card.classList.add('hidden');
+      return;
+    } else {
+      card.classList.remove('hidden');
+    }
+  } catch (err) {
+    console.warn('Countdown settings fetch fallback:', err);
+  }
+
   const targetDate = new Date("2026-08-30T09:00:00+05:30").getTime();
 
   const update = () => {

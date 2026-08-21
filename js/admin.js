@@ -2433,6 +2433,22 @@ export async function renderAdminShopAdsPanel() {
             </label>
           </div>
 
+          <!-- Live Tournament Countdown Banner Toggle -->
+          <div class="flex items-center justify-between p-3.5 bg-slate-900/80 rounded-xl border border-amber-500/40">
+            <div>
+              <p class="text-xs font-bold text-white flex items-center gap-1.5">
+                <span class="p-1 rounded bg-amber-500 text-slate-950"><i data-lucide="clock" class="w-3.5 h-3.5"></i></span>
+                <span>Live Tournament Countdown Banner (Homepage Top)</span>
+                <span class="px-2 py-0.5 bg-amber-500/20 text-amber-400 font-mono text-[9px] rounded-full">TOP BANNER</span>
+              </p>
+              <p class="text-[10px] text-slate-400 mt-0.5">SHOW or HIDE the 30 August 2026 Tournament Countdown Clock at the top of the homepage.</p>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="admin-countdown-banner-toggle" class="sr-only peer" ${settings.isCountdownEnabled !== false ? 'checked' : ''}>
+              <div class="w-10 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+            </label>
+          </div>
+
           <!-- YouTube Digital Class Channel Promo Popup Controller -->
           <div class="flex items-center justify-between p-3.5 bg-slate-900/80 rounded-xl border border-red-900/40">
             <div>
@@ -2663,6 +2679,30 @@ export async function renderAdminShopAdsPanel() {
     }
   });
 
+  // Bind Countdown Banner toggle
+  document.getElementById('admin-countdown-banner-toggle')?.addEventListener('change', async (e) => {
+    const isChecked = e.target.checked;
+    const shopIds = getCheckedShopIds();
+    const ok = await savePopupSettingsToFirebase({
+      isWelcomePopupEnabled: document.getElementById('admin-welcome-popup-toggle')?.checked ?? true,
+      isWhatsAppPopupEnabled: document.getElementById('admin-whatsapp-popup-toggle')?.checked ?? true,
+      isRealtimePlayerToastEnabled: document.getElementById('admin-realtime-toast-toggle')?.checked ?? true,
+      isCountdownEnabled: isChecked,
+      isYouTubePromoEnabled: document.getElementById('admin-youtube-popup-toggle')?.checked ?? true,
+      isAdPopupEnabled: document.getElementById('admin-ad-toggle')?.checked ?? true,
+      promotedShopIds: shopIds,
+      promotedShopId: shopIds[0] || 'maa-laxmi-kitchen',
+      adExpiryTime: settings.adExpiryTime || 0
+    });
+    if (ok) {
+      alert(`Live Tournament Countdown Banner has been ${isChecked ? 'SHOWN (Visible at Top)' : 'HIDDEN (Turned Off)'}.`);
+      renderAdminShopAdsPanel();
+    } else {
+      alert("Failed to update countdown banner settings.");
+      e.target.checked = !isChecked;
+    }
+  });
+
   // Bind YouTube promo preview button
   document.getElementById('admin-preview-youtube-promo-btn')?.addEventListener('click', () => {
     openYouTubePromoModal(true);
@@ -2676,6 +2716,7 @@ export async function renderAdminShopAdsPanel() {
       isWelcomePopupEnabled: document.getElementById('admin-welcome-popup-toggle')?.checked ?? true,
       isWhatsAppPopupEnabled: document.getElementById('admin-whatsapp-popup-toggle')?.checked ?? true,
       isRealtimePlayerToastEnabled: document.getElementById('admin-realtime-toast-toggle')?.checked ?? true,
+      isCountdownEnabled: document.getElementById('admin-countdown-banner-toggle')?.checked ?? true,
       isYouTubePromoEnabled: isChecked,
       isAdPopupEnabled: document.getElementById('admin-ad-toggle')?.checked ?? true,
       promotedShopIds: shopIds,
