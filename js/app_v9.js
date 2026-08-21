@@ -341,8 +341,9 @@ async function checkAndPromptYouTubePromoPopup() {
   }
 }
 
-function openYouTubePromoModal() {
-  if (document.querySelector('.modal-overlay')) return;
+export function openYouTubePromoModal(forceOpen = false) {
+  if (!forceOpen && document.querySelector('.modal-overlay')) return;
+  document.getElementById('youtube-promo-modal')?.remove();
 
   const YOUTUBE_CHANNEL_URL = "https://www.youtube.com/channel/UC9P-iK1S-6mv4GDnenZtjWg";
 

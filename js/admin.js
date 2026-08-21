@@ -2,7 +2,7 @@
 
 import { store } from './store.js';
 import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF } from './export.js';
-import { openSquareImageCropModal, compressImage } from './app_v9.js';
+import { openSquareImageCropModal, compressImage, openYouTubePromoModal } from './app_v9.js';
 import { saveAdSettingsToFirebase, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, savePopupSettingsToFirebase, uploadHDImage, getOptimizedImageUrl } from './supabase.js';
 import { shops } from './shopsData.js';
 
@@ -2055,6 +2055,27 @@ export async function renderAdminShopAdsPanel() {
               <div class="w-10 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
             </label>
           </div>
+
+          <!-- YouTube Digital Class Channel Promo Popup Controller -->
+          <div class="flex items-center justify-between p-3.5 bg-slate-900/80 rounded-xl border border-red-900/40">
+            <div>
+              <p class="text-xs font-bold text-white flex items-center gap-1.5">
+                <span class="p-1 rounded bg-red-600 text-white"><i data-lucide="youtube" class="w-3.5 h-3.5"></i></span>
+                <span>YouTube Digital Class Channel Promotional Pop-Up</span>
+                <span class="px-2 py-0.5 bg-red-500/20 text-red-400 font-mono text-[9px] rounded-full">POPUP BANNER</span>
+              </p>
+              <p class="text-[10px] text-slate-400 mt-0.5">Toggle auto-popup for competitive exams coaching channel on visitor page load.</p>
+              <div class="mt-2.5">
+                <button type="button" id="admin-preview-youtube-promo-btn" class="px-3 py-1.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-black text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer">
+                  <i data-lucide="eye" class="w-3.5 h-3.5"></i> Preview / Test YouTube Popup Now
+                </button>
+              </div>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="admin-youtube-popup-toggle" class="sr-only peer" ${settings.isYouTubePromoEnabled !== false ? 'checked' : ''}>
+              <div class="w-10 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-red-600"></div>
+            </label>
+          </div>
         </div>
 
         <!-- SECTION 2: ADVERTISEMENT POPUP CONFIGURATION -->
@@ -2264,6 +2285,34 @@ export async function renderAdminShopAdsPanel() {
       e.target.checked = !isChecked; // revert
     }
   });
+
+  // Bind YouTube promo preview button
+  document.getElementById('admin-preview-youtube-promo-btn')?.addEventListener('click', () => {
+    openYouTubePromoModal(true);
+  });
+
+  // Bind YouTube promo toggle
+  document.getElementById('admin-youtube-popup-toggle')?.addEventListener('change', async (e) => {
+    const isChecked = e.target.checked;
+    const shopIds = getCheckedShopIds();
+    const ok = await savePopupSettingsToFirebase({
+      isWelcomePopupEnabled: document.getElementById('admin-welcome-popup-toggle')?.checked ?? true,
+      isWhatsAppPopupEnabled: document.getElementById('admin-whatsapp-popup-toggle')?.checked ?? true,
+      isRealtimePlayerToastEnabled: document.getElementById('admin-realtime-toast-toggle')?.checked ?? true,
+      isYouTubePromoEnabled: isChecked,
+      isAdPopupEnabled: document.getElementById('admin-ad-toggle')?.checked ?? true,
+      promotedShopIds: shopIds,
+      promotedShopId: shopIds[0] || 'maa-laxmi-kitchen',
+      adExpiryTime: settings.adExpiryTime || 0
+    });
+    if (ok) {
+      alert(`YouTube Promotional Popup has been turned ${isChecked ? 'ON (Active for all visitors)' : 'OFF (Disabled)'}.`);
+      renderAdminShopAdsPanel();
+    } else {
+      alert("Failed to update YouTube popup settings.");
+      e.target.checked = !isChecked;
+    }
+  });
 }
 
 // --- INTERACTIVE PDF EXPORT & CATEGORY FILTER MODAL ---
@@ -2458,9 +2507,12 @@ export function openEditTeamModal(team, onSaved) {
                 <label class="block text-[10px] font-bold text-blue-800 uppercase">Team Logo (Optional • Compressed &lt; 100KB)</label>
                 <div id="logo-upload-status" class="text-[10px] font-bold"></div>
               </div>
-              <div class="flex items-center gap-3">
+              <div class="flex items-center gap-2.5">
                 <img id="edit-logo-preview" src="${teamLogoData || 'assets/jsl_logo.jpg'}" class="w-12 h-12 rounded-xl object-cover border-2 border-blue-300 shadow shrink-0 bg-white" onerror="this.src='assets/jsl_logo.jpg'" />
                 <input type="file" id="edit-logo-file" accept="image/*" class="w-full bg-white border border-slate-300 text-slate-700 text-[11px] rounded-xl p-2 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-blue-600 file:text-white cursor-pointer shadow-sm" />
+                <button type="button" id="remove-logo-btn" class="px-2.5 py-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl font-bold text-[10px] flex items-center gap-1 cursor-pointer shrink-0 transition-colors shadow-xs" title="Remove current logo">
+                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Remove
+                </button>
               </div>
             </div>
           </div>
@@ -2485,9 +2537,12 @@ export function openEditTeamModal(team, onSaved) {
                 <label class="block text-[10px] font-bold text-amber-800 uppercase">Owner HD Photo (Compressed &lt; 100KB)</label>
                 <div id="owner-photo-upload-status" class="text-[10px] font-bold"></div>
               </div>
-              <div class="flex items-center gap-3">
+              <div class="flex items-center gap-2.5">
                 <img id="edit-owner-photo-preview" src="${ownerPhotoData || 'assets/card_jsl_user.png'}" class="w-12 h-12 rounded-xl object-cover border-2 border-amber-400 shadow shrink-0 bg-white" onerror="this.src='assets/card_jsl_user.png'" />
                 <input type="file" id="edit-owner-photo-file" accept="image/*" class="w-full bg-white border border-slate-300 text-slate-700 text-[11px] rounded-xl p-2 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-amber-600 file:text-white cursor-pointer shadow-sm" />
+                <button type="button" id="remove-owner-photo-btn" class="px-2.5 py-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl font-bold text-[10px] flex items-center gap-1 cursor-pointer shrink-0 transition-colors shadow-xs" title="Remove owner photo">
+                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Remove
+                </button>
               </div>
             </div>
           </div>
@@ -2506,9 +2561,12 @@ export function openEditTeamModal(team, onSaved) {
                 <label class="block text-[10px] font-bold text-emerald-800 uppercase">Icon Player Photo (Compressed &lt; 100KB)</label>
                 <div id="icon-photo-upload-status" class="text-[10px] font-bold"></div>
               </div>
-              <div class="flex items-center gap-3">
+              <div class="flex items-center gap-2.5">
                 <img id="edit-icon-photo-preview" src="${iconPhotoData || 'assets/player_jsl_hd.jpg'}" class="w-12 h-12 rounded-xl object-cover border-2 border-emerald-400 shadow shrink-0 bg-white" onerror="this.src='assets/player_jsl_hd.jpg'" />
                 <input type="file" id="edit-icon-photo-file" accept="image/*" class="w-full bg-white border border-slate-300 text-slate-700 text-[11px] rounded-xl p-2 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-emerald-600 file:text-white cursor-pointer shadow-sm" />
+                <button type="button" id="remove-icon-photo-btn" class="px-2.5 py-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl font-bold text-[10px] flex items-center gap-1 cursor-pointer shrink-0 transition-colors shadow-xs" title="Remove icon photo">
+                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Remove
+                </button>
               </div>
             </div>
           </div>
@@ -2676,6 +2734,37 @@ export function openEditTeamModal(team, onSaved) {
       'icon_player_photos',
       (url) => { iconPhotoData = url; }
     );
+  });
+
+  // Photo Remove Buttons
+  document.getElementById('remove-logo-btn')?.addEventListener('click', () => {
+    teamLogoData = '';
+    const preview = document.getElementById('edit-logo-preview');
+    if (preview) preview.src = 'assets/jsl_logo.jpg';
+    const fileInp = document.getElementById('edit-logo-file');
+    if (fileInp) fileInp.value = '';
+    const status = document.getElementById('logo-upload-status');
+    if (status) status.innerHTML = '<span class="text-[10px] text-red-600 font-bold">🗑️ Logo Removed</span>';
+  });
+
+  document.getElementById('remove-owner-photo-btn')?.addEventListener('click', () => {
+    ownerPhotoData = '';
+    const preview = document.getElementById('edit-owner-photo-preview');
+    if (preview) preview.src = 'assets/card_jsl_user.png';
+    const fileInp = document.getElementById('edit-owner-photo-file');
+    if (fileInp) fileInp.value = '';
+    const status = document.getElementById('owner-photo-upload-status');
+    if (status) status.innerHTML = '<span class="text-[10px] text-red-600 font-bold">🗑️ Photo Removed</span>';
+  });
+
+  document.getElementById('remove-icon-photo-btn')?.addEventListener('click', () => {
+    iconPhotoData = '';
+    const preview = document.getElementById('edit-icon-photo-preview');
+    if (preview) preview.src = 'assets/player_jsl_hd.jpg';
+    const fileInp = document.getElementById('edit-icon-photo-file');
+    if (fileInp) fileInp.value = '';
+    const status = document.getElementById('icon-photo-upload-status');
+    if (status) status.innerHTML = '<span class="text-[10px] text-red-600 font-bold">🗑️ Photo Removed</span>';
   });
 
   // Submit Handler: Save Team & Sync Cloud
