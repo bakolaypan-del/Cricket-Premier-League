@@ -1048,46 +1048,46 @@ function renderFirstPageLanding(containerEl) {
   containerEl.innerHTML = `
     <div class="w-full max-w-5xl mx-auto space-y-4 sm:space-y-6 animate-fade-in py-2 sm:py-4 text-slate-900">
       
-      <!-- ⏳ LIVE TOURNAMENT COUNTDOWN TIMER (UPPER PORTION - WHITE BACKGROUND & STYLISH COLOURFUL) -->
-      <div id="tournament-countdown-card" class="w-full max-w-4xl mx-auto bg-white border-2 border-amber-400 p-3.5 sm:p-5 rounded-3xl shadow-xl text-slate-900 animate-fade-in relative overflow-hidden">
-        <div class="absolute -right-10 -bottom-10 w-32 h-32 bg-amber-400/10 rounded-full blur-xl pointer-events-none"></div>
-        <div class="absolute -left-10 -top-10 w-32 h-32 bg-blue-500/10 rounded-full blur-xl pointer-events-none"></div>
+      <!-- ⏳ LIVE TOURNAMENT COUNTDOWN TIMER (COMPACT & MOBILE-OPTIMIZED) -->
+      <div id="tournament-countdown-card" class="w-full max-w-3xl mx-auto bg-white border border-amber-400/90 p-2.5 sm:p-3.5 rounded-2xl sm:rounded-3xl shadow-lg text-slate-900 animate-fade-in relative overflow-hidden">
+        <div class="absolute -right-8 -bottom-8 w-24 h-24 bg-amber-400/10 rounded-full blur-lg pointer-events-none"></div>
+        <div class="absolute -left-8 -top-8 w-24 h-24 bg-blue-500/10 rounded-full blur-lg pointer-events-none"></div>
         
-        <div class="flex flex-col md:flex-row items-center justify-between gap-3.5 sm:gap-4 relative z-10">
-          <div class="text-center md:text-left space-y-1">
-            <div class="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-full text-[10px] sm:text-xs font-black tracking-widest uppercase shadow-xs">
-              <span class="w-2 h-2 rounded-full bg-red-600 animate-ping"></span>
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-2.5 sm:gap-3 relative z-10">
+          <div class="text-center sm:text-left space-y-0.5">
+            <div class="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded-full text-[9px] sm:text-[10px] font-black tracking-wider uppercase shadow-2xs">
+              <span class="w-1.5 h-1.5 rounded-full bg-red-600 animate-ping"></span>
               <span>🏆 MEGA TOURNAMENT KICKOFF</span>
             </div>
-            <h3 class="text-base sm:text-xl font-black text-slate-900 tracking-tight">30 AUGUST 2026 • 9:00 AM IST</h3>
-            <p class="text-[11px] sm:text-xs text-emerald-700 font-bold flex items-center justify-center md:justify-start gap-1">
+            <h3 class="text-xs sm:text-base font-black text-slate-900 tracking-tight leading-tight">30 AUGUST 2026 • 9:00 AM IST</h3>
+            <p class="text-[10px] sm:text-[11px] text-emerald-700 font-bold flex items-center justify-center sm:justify-start gap-1">
               <span>📍 Jhankra School Stadium Ground</span>
               <span>•</span>
               <span>JSL 2026</span>
             </p>
           </div>
 
-          <!-- 4-Unit Colourful Vibrant Countdown Clock Grid -->
-          <div class="grid grid-cols-4 gap-1.5 sm:gap-3 text-center">
+          <!-- 4-Unit Colourful Vibrant Countdown Clock Grid (Compact on Mobile) -->
+          <div class="grid grid-cols-4 gap-1.5 sm:gap-2 text-center">
             <!-- Days: Blue -->
-            <div class="bg-gradient-to-b from-blue-50 to-blue-100/90 border-2 border-blue-200 rounded-2xl p-2 sm:p-2.5 min-w-[58px] sm:min-w-[72px] shadow-sm">
-              <div id="cd-days" class="text-xl sm:text-3xl font-black text-blue-700 font-mono">00</div>
-              <div class="text-[9px] sm:text-[10px] font-black text-blue-600 uppercase tracking-wider mt-0.5">Days</div>
+            <div class="bg-gradient-to-b from-blue-50 to-blue-100/80 border border-blue-200 rounded-xl p-1.5 sm:p-2 min-w-[48px] sm:min-w-[60px] shadow-2xs">
+              <div id="cd-days" class="text-base sm:text-2xl font-black text-blue-700 font-mono leading-none">00</div>
+              <div class="text-[8px] sm:text-[9px] font-black text-blue-600 uppercase tracking-wider mt-0.5">Days</div>
             </div>
             <!-- Hours: Purple -->
-            <div class="bg-gradient-to-b from-purple-50 to-purple-100/90 border-2 border-purple-200 rounded-2xl p-2 sm:p-2.5 min-w-[58px] sm:min-w-[72px] shadow-sm">
-              <div id="cd-hours" class="text-xl sm:text-3xl font-black text-purple-700 font-mono">00</div>
-              <div class="text-[9px] sm:text-[10px] font-black text-purple-600 uppercase tracking-wider mt-0.5">Hours</div>
+            <div class="bg-gradient-to-b from-purple-50 to-purple-100/80 border border-purple-200 rounded-xl p-1.5 sm:p-2 min-w-[48px] sm:min-w-[60px] shadow-2xs">
+              <div id="cd-hours" class="text-base sm:text-2xl font-black text-purple-700 font-mono leading-none">00</div>
+              <div class="text-[8px] sm:text-[9px] font-black text-purple-600 uppercase tracking-wider mt-0.5">Hours</div>
             </div>
             <!-- Mins: Emerald -->
-            <div class="bg-gradient-to-b from-emerald-50 to-emerald-100/90 border-2 border-emerald-200 rounded-2xl p-2 sm:p-2.5 min-w-[58px] sm:min-w-[72px] shadow-sm">
-              <div id="cd-mins" class="text-xl sm:text-3xl font-black text-emerald-700 font-mono">00</div>
-              <div class="text-[9px] sm:text-[10px] font-black text-emerald-600 uppercase tracking-wider mt-0.5">Mins</div>
+            <div class="bg-gradient-to-b from-emerald-50 to-emerald-100/80 border border-emerald-200 rounded-xl p-1.5 sm:p-2 min-w-[48px] sm:min-w-[60px] shadow-2xs">
+              <div id="cd-mins" class="text-base sm:text-2xl font-black text-emerald-700 font-mono leading-none">00</div>
+              <div class="text-[8px] sm:text-[9px] font-black text-emerald-600 uppercase tracking-wider mt-0.5">Mins</div>
             </div>
             <!-- Secs: Rose Pulse -->
-            <div class="bg-gradient-to-b from-rose-50 to-rose-100/90 border-2 border-rose-200 rounded-2xl p-2 sm:p-2.5 min-w-[58px] sm:min-w-[72px] shadow-sm">
-              <div id="cd-secs" class="text-xl sm:text-3xl font-black text-rose-600 font-mono animate-pulse">00</div>
-              <div class="text-[9px] sm:text-[10px] font-black text-rose-600 uppercase tracking-wider mt-0.5">Secs</div>
+            <div class="bg-gradient-to-b from-rose-50 to-rose-100/80 border border-rose-200 rounded-xl p-1.5 sm:p-2 min-w-[48px] sm:min-w-[60px] shadow-2xs">
+              <div id="cd-secs" class="text-base sm:text-2xl font-black text-rose-600 font-mono leading-none animate-pulse">00</div>
+              <div class="text-[8px] sm:text-[9px] font-black text-rose-600 uppercase tracking-wider mt-0.5">Secs</div>
             </div>
           </div>
         </div>
@@ -1162,10 +1162,10 @@ function renderFirstPageLanding(containerEl) {
         <!-- CENTERED TITLE ONLY -->
         <div class="text-center py-1">
           <h2 class="text-base sm:text-xl font-black text-slate-900 tracking-wide uppercase">
-            Registered Team List (<span id="confirmed-teams-total-count">7</span>)
+            JSL Registered Team List (<span id="confirmed-teams-total-count">7</span>)
           </h2>
           <p id="confirmed-team-caption" class="text-xs sm:text-sm font-black text-amber-800 transition-all duration-300 min-h-[20px]">
-            🥇 1ST CONFIRM TEAM: KHIRPAI HURRICANES (Owner: MANTU | Icon: BIJAY HALDAR)
+            🥇 1ST CONFIRMED TEAM: KHIRPAI HURRICANES
           </p>
         </div>
 
@@ -1256,13 +1256,13 @@ function renderFirstPageLanding(containerEl) {
   const carouselCard = document.getElementById('confirmed-teams-carousel-card');
 
   const teamCaptions = [
-    '🥇 1ST CONFIRM TEAM: KHIRPAI HURRICANES (Owner: MANTU | Icon: BIJAY HALDAR)',
-    '🥈 2ND CONFIRM TEAM: ANIKET XI (Owner: UTTAM GHOSH | Icon: RINTU ROY)',
-    '🥉 3RD CONFIRM TEAM: SRS BROTHER\'S (Owner: RAJA | Icon: TAPAS)',
-    '🏆 4TH CONFIRM TEAM: SHIV SHAKTI EKADASH (Owner: DEBIPRASAD PRAMANIK | Icon: SUBHAM SIR)',
-    '🏆 5TH CONFIRM TEAM: AVD ELEVEN (Owner: APU GHOSH | Icon: ROHIT PRAMANIK)',
-    '🏆 6TH CONFIRM TEAM: CCC (Owner: SOURABH DE | Icon: SANTANU SARKAR | Mentor: MINTU MONDAL)',
-    '🏆 7TH CONFIRM TEAM: ATRIKA & FRIEND X1 (Owner: KARTICK MAITY | Icon: SUSHANTA MALLIK)'
+    '🥇 1ST CONFIRMED TEAM: KHIRPAI HURRICANES',
+    '🥈 2ND CONFIRMED TEAM: ANIKET XI',
+    '🥉 3RD CONFIRMED TEAM: SRS BROTHER\'S',
+    '🏆 4TH CONFIRMED TEAM: SHIV SHAKTI EKADASH',
+    '🏆 5TH CONFIRMED TEAM: AVD ELEVEN',
+    '🏆 6TH CONFIRMED TEAM: CCC',
+    '🏆 7TH CONFIRMED TEAM: ATRIKA & FRIEND X1'
   ];
 
   let currentSlide = 0;
