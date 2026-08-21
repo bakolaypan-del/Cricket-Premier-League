@@ -3,7 +3,7 @@
 import { store } from './store.js';
 import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF } from './export.js';
 import { openSquareImageCropModal, compressImage } from './app_v9.js';
-import { saveAdSettingsToFirebase, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, savePopupSettingsToFirebase, uploadHDImage } from './supabase.js';
+import { saveAdSettingsToFirebase, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, savePopupSettingsToFirebase, uploadHDImage, getOptimizedImageUrl } from './supabase.js';
 import { shops } from './shopsData.js';
 
 let activeAdminTab = 'payments'; // 'payments', 'all-players', 'teams'
@@ -742,7 +742,7 @@ export function renderAdminDashboard(containerEl) {
 
   // Export & Action Listeners
   document.getElementById('export-master-csv-btn')?.addEventListener('click', () => exportPlayersToCSV(store.getPlayers()));
-  document.getElementById('export-master-pdf-btn')?.addEventListener('click', () => exportPlayersToPDF(store.getPlayers()));
+  document.getElementById('export-master-pdf-btn')?.addEventListener('click', () => openPDFExportFilterModal());
   document.getElementById('admin-logout-btn')?.addEventListener('click', () => {
     store.logoutAdmin();
     renderAdminDashboard(containerEl);
@@ -810,7 +810,7 @@ function renderAdminPlayersRows(playersList) {
         </td>
         <td class="py-3 px-3 font-bold text-white text-xs">
           <div class="flex items-center gap-2">
-            <img src="${p.photoUrl || p.player_photo_url}" loading="lazy" decoding="async" class="w-8 h-8 rounded-lg object-cover border border-slate-700" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300'"/>
+            <img src="${getOptimizedImageUrl(p.photoUrl || p.player_photo_url, 80, 80)}" loading="lazy" decoding="async" class="w-8 h-8 rounded-lg object-cover border border-slate-700" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300'"/>
             <div>
               <div>${p.name}</div>
               <div class="text-[9px] text-slate-400 font-normal">Age: ${p.age || 24} Yrs</div>
@@ -2229,6 +2229,139 @@ export async function renderAdminShopAdsPanel() {
       alert("Failed to update real-time player toast settings.");
       e.target.checked = !isChecked; // revert
     }
+  });
+}
+
+// --- INTERACTIVE PDF EXPORT & CATEGORY FILTER MODAL ---
+function openPDFExportFilterModal() {
+  if (document.getElementById('admin-pdf-export-modal')) return;
+
+  const allPlayers = store.getPlayers();
+
+  const modalHtml = `
+    <div id="admin-pdf-export-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+      <div class="bg-slate-900 border-2 border-red-500 max-w-sm sm:max-w-md w-full p-4 sm:p-5 relative space-y-4 rounded-2xl shadow-2xl text-white modal-content-container">
+        
+        <button id="close-pdf-modal-btn" class="absolute top-3 right-3 text-slate-400 hover:text-white p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+
+        <div class="flex items-center gap-2.5 border-b border-slate-800 pb-3">
+          <div class="p-2.5 bg-red-950/80 rounded-xl border border-red-800 text-red-400">
+            <i data-lucide="file-text" class="w-6 h-6"></i>
+          </div>
+          <div>
+            <h3 class="text-base sm:text-lg font-black text-white">Export Registered Players PDF</h3>
+            <p class="text-xs text-slate-400">Apply category filters & include Download Timestamp</p>
+          </div>
+        </div>
+
+        <form id="admin-pdf-filter-form" class="space-y-3">
+          <!-- 1. CATEGORY FILTER -->
+          <div class="space-y-1.5">
+            <label class="block text-xs font-bold text-amber-400 uppercase tracking-wide">Select Player Category</label>
+            <select id="pdf-category-select" class="w-full bg-slate-950 border border-slate-700 text-white text-xs sm:text-sm rounded-xl p-2.5 focus:outline-none focus:border-red-500 font-bold">
+              <option value="ALL">🏏 All Categories (All Players)</option>
+              <option value="BATSMAN">🏏 Batsman Only</option>
+              <option value="BOWLER">⚾ Bowler Only</option>
+              <option value="ALL ROUNDER">⭐ All Rounder Only</option>
+              <option value="WICKET KEEPER">🧤 Wicket Keeper Only</option>
+            </select>
+          </div>
+
+          <!-- 2. PAYMENT / REGISTRATION STATUS FILTER -->
+          <div class="space-y-1.5">
+            <label class="block text-xs font-bold text-amber-400 uppercase tracking-wide">Select Registration Status</label>
+            <select id="pdf-status-select" class="w-full bg-slate-950 border border-slate-700 text-white text-xs sm:text-sm rounded-xl p-2.5 focus:outline-none focus:border-red-500 font-bold">
+              <option value="ALL">🌐 All Statuses (Approved, Pending & Rejected)</option>
+              <option value="APPROVED">🟢 Approved Players Only</option>
+              <option value="PENDING">🔴 Pending Players Only</option>
+            </select>
+          </div>
+
+          <!-- LIVE MATCHING COUNT DISPLAY -->
+          <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 flex items-center justify-between text-xs">
+            <span class="text-slate-400 font-medium">Matching Players To Export:</span>
+            <span id="pdf-matching-count" class="font-mono font-black text-emerald-400 text-sm">0 Players</span>
+          </div>
+
+          <!-- GENERATE BUTTON -->
+          <button type="submit" class="w-full py-3 bg-gradient-to-r from-red-600 to-red-700 hover:from-red-500 hover:to-red-600 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg flex items-center justify-center gap-2 border border-red-500 transition-all">
+            <i data-lucide="printer" class="w-4 h-4"></i> Generate & Download PDF
+          </button>
+        </form>
+
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  if (window.lucide) window.lucide.createIcons();
+
+  const removeModal = () => document.getElementById('admin-pdf-export-modal')?.remove();
+  document.getElementById('close-pdf-modal-btn')?.addEventListener('click', removeModal);
+
+  const categorySelect = document.getElementById('pdf-category-select');
+  const statusSelect = document.getElementById('pdf-status-select');
+  const countEl = document.getElementById('pdf-matching-count');
+
+  const getFilteredList = () => {
+    const catVal = categorySelect ? categorySelect.value : 'ALL';
+    const statusVal = statusSelect ? statusSelect.value : 'ALL';
+
+    return allPlayers.filter(p => {
+      // Category Check
+      const rawCat = (p.category || p.role || p.playingType || 'All Rounder').toUpperCase();
+      const cleanCat = rawCat.replace(/[^A-Z0-9]/g, '');
+
+      if (catVal !== 'ALL') {
+        const cleanTarget = catVal.replace(/[^A-Z0-9]/g, '');
+        if (cleanTarget.includes('ROUNDER') || cleanTarget.includes('ALLROUND')) {
+          if (!cleanCat.includes('ROUNDER') && !cleanCat.includes('ALLROUND')) return false;
+        } else if (cleanTarget.includes('BAT')) {
+          if (!cleanCat.includes('BAT')) return false;
+        } else if (cleanTarget.includes('BOWL')) {
+          if (!cleanCat.includes('BOWL') && !cleanCat.includes('FAST') && !cleanCat.includes('SPIN')) return false;
+        } else if (cleanTarget.includes('KEEPER') || cleanTarget.includes('WK')) {
+          if (!cleanCat.includes('KEEPER') && !cleanCat.includes('WK')) return false;
+        } else if (!cleanCat.includes(cleanTarget)) {
+          return false;
+        }
+      }
+
+      // Status Check
+      if (statusVal !== 'ALL') {
+        const pStatus = p.registrationStatus || p.paymentStatus || 'PENDING';
+        if (pStatus !== statusVal) return false;
+      }
+
+      return true;
+    });
+  };
+
+  const updateCountDisplay = () => {
+    const list = getFilteredList();
+    if (countEl) countEl.innerText = `${list.length} Player(s)`;
+  };
+
+  categorySelect?.addEventListener('change', updateCountDisplay);
+  statusSelect?.addEventListener('change', updateCountDisplay);
+  updateCountDisplay();
+
+  document.getElementById('admin-pdf-filter-form')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const filteredList = getFilteredList();
+    if (filteredList.length === 0) {
+      alert("No players match the selected filters.");
+      return;
+    }
+
+    const catText = categorySelect.options[categorySelect.selectedIndex].text.replace(/^[^\w\s]+/, '').trim();
+    const statusText = statusSelect.value === 'ALL' ? '' : ` [${statusSelect.value}]`;
+    const label = `${catText}${statusText}`;
+
+    removeModal();
+    exportPlayersToPDF(filteredList, label);
   });
 }
 

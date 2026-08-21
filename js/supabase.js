@@ -159,21 +159,43 @@ export async function uploadImageToCloudinary(fileInput, folderName = 'photos') 
   return null;
 }
 
-// --- UNIFIED MULTI-PROVIDER HD IMAGE UPLOADER (ZERO QUALITY LOSS) ---
+// --- CLOUDINARY DYNAMIC AUTO-FORMAT & RESIZE OPTIMIZER (85%+ BANDWIDTH SAVER) ---
+export function getOptimizedImageUrl(url, width = 300, height = 300, mode = 'fill') {
+  if (!url || typeof url !== 'string') return url || '';
+  if (url.includes('cloudinary.com') && url.includes('/upload/')) {
+    if (url.includes('/f_auto,q_auto')) return url;
+    const transform = `f_auto,q_auto,w_${width},h_${height},c_${mode}`;
+    return url.replace('/upload/', `/upload/${transform}/`);
+  }
+  return url;
+}
+
+// --- UNIFIED MULTI-PROVIDER HD IMAGE UPLOADER (ZERO QUALITY LOSS & BANDWIDTH SAFE) ---
 export async function uploadHDImage(fileInput, folderName = 'documents') {
   if (!fileInput) return null;
   
   const file = ensureFileObject(fileInput, `${folderName}_${Date.now()}.jpg`);
 
-  // Try 1: Cloudinary Cloud CDN (Primary 10GB Free High-Speed Storage)
+  // If uploading sensitive documents/receipts, prioritize Google Drive to protect Cloudinary bandwidth
+  if (folderName === 'aadhaar_docs' || folderName === 'payment_receipts' || folderName === 'documents') {
+    const driveUrl = await uploadImageToGoogleDrive(file, folderName);
+    if (driveUrl) return driveUrl;
+
+    const imgbbUrl = await uploadImageToImgBB(file);
+    if (imgbbUrl) return imgbbUrl;
+
+    const cloudinaryUrl = await uploadImageToCloudinary(file, folderName);
+    if (cloudinaryUrl) return cloudinaryUrl;
+    return null;
+  }
+
+  // For Player Photos: Prioritize Cloudinary HD CDN with instant auto-optimization
   const cloudinaryUrl = await uploadImageToCloudinary(file, folderName);
   if (cloudinaryUrl) return cloudinaryUrl;
 
-  // Try 2: ImgBB Cloud (Fast HD Fallback)
   const imgbbUrl = await uploadImageToImgBB(file);
   if (imgbbUrl) return imgbbUrl;
 
-  // Try 3: Google Drive Script
   const driveUrl = await uploadImageToGoogleDrive(file, folderName);
   if (driveUrl) return driveUrl;
 
@@ -499,19 +521,12 @@ export async function saveLiveMatchToFirebase(matchId, state) {
   }
 }
 
-// Helper to prepare data URLs before sending payload to Firebase Realtime DB (Replaces raw base64 data URLs with lightweight placeholders)
+// Helper to prepare data URLs before sending payload to Firebase Realtime DB (Preserves player photos, sanitizes document proofs)
 function sanitizePayloadForCloud(dataList) {
   if (!Array.isArray(dataList)) return [];
-  const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23059669'/%3E%3Ctext x='50' y='62' font-size='45' text-anchor='middle' fill='white'%3E🏏%3C/text%3E%3C/svg%3E";
   return dataList.map(item => {
     if (!item) return item;
     const itemCopy = { ...item };
-    if (itemCopy.photoUrl && itemCopy.photoUrl.startsWith('data:image')) {
-      itemCopy.photoUrl = DEFAULT_AVATAR;
-    }
-    if (itemCopy.player_photo_url && itemCopy.player_photo_url.startsWith('data:image')) {
-      itemCopy.player_photo_url = DEFAULT_AVATAR;
-    }
     if (itemCopy.aadharPhotoUrl && itemCopy.aadharPhotoUrl.startsWith('data:image')) {
       itemCopy.aadharPhotoUrl = 'Attached Document';
     }
@@ -622,3 +637,49 @@ export async function fetchAdSettingsFromFirebase() {
     expiryTime: pSettings.adExpiryTime
   };
 }
+
+// --- PUBLIC COMMUNITY QUERIES & REPLIES REALTIME DATABASE OPERATIONS ---
+export async function saveCommunityQueryToFirebase(queryData) {
+  if (!queryData || !queryData.id) return false;
+  try {
+    const response = await fetch(`${FIREBASE_DB_URL}/cpl_master/communityQueries/${queryData.id}.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(queryData)
+    });
+    return response.ok;
+  } catch (err) {
+    console.warn("Failed to save community query to Firebase:", err);
+    return false;
+  }
+}
+
+export async function deleteCommunityQueryFromFirebase(queryId) {
+  if (!queryId) return false;
+  try {
+    const response = await fetch(`${FIREBASE_DB_URL}/cpl_master/communityQueries/${queryId}.json`, {
+      method: 'DELETE'
+    });
+    return response.ok;
+  } catch (err) {
+    console.warn("Failed to delete community query from Firebase:", err);
+    return false;
+  }
+}
+
+export async function fetchCommunityQueriesFromFirebase() {
+  try {
+    const response = await fetch(`${FIREBASE_DB_URL}/cpl_master/communityQueries.json?_t=${Date.now()}`, { cache: 'no-store' });
+    if (response.ok) {
+      const data = await response.json();
+      if (data) {
+        const list = Array.isArray(data) ? data : Object.values(data);
+        return list.filter(q => q && q.id);
+      }
+    }
+  } catch (err) {
+    console.warn("Failed to fetch community queries from Firebase:", err);
+  }
+  return [];
+}
+

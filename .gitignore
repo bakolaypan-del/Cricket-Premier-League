@@ -7,5 +7,7 @@ Thumbs.db
 .vs/
 .idea/
 *.tmp
+node_modules/
+scratch/
 
 .vercel

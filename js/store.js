@@ -16,7 +16,10 @@ import {
   deleteFixtureFromFirebase,
   saveAuctionSettingsToFirebase,
   saveLiveAuctionToFirebase,
-  saveLiveMatchToFirebase
+  saveLiveMatchToFirebase,
+  saveCommunityQueryToFirebase,
+  deleteCommunityQueryFromFirebase,
+  fetchCommunityQueriesFromFirebase
 } from './supabase.js';
 
 const FIREBASE_DB_URL = "https://cpl-jsl-2026-default-rtdb.firebaseio.com";
@@ -29,7 +32,8 @@ const STORAGE_KEYS = {
   USER: 'cpl_user_v7',
   ADMIN_AUTH: 'cpl_admin_auth_v7',
   PLAYER_PROFILES: 'cpl_player_profiles_v7',
-  AUCTION_SETTINGS: 'cpl_auction_settings_v7'
+  AUCTION_SETTINGS: 'cpl_auction_settings_v7',
+  COMMUNITY_QUERIES: 'cpl_community_queries_v7'
 };
 
 const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23059669'/%3E%3Ctext x='50' y='62' font-size='45' text-anchor='middle' fill='white'%3E🏏%3C/text%3E%3C/svg%3E";
@@ -138,24 +142,11 @@ class Store {
         phone: null
       });
     }
-    this.restoreAllRejectedPlayers();
+    // Cloud sync will populate players authoritative list
   }
 
   restoreAllRejectedPlayers() {
-    const players = this.getPlayers();
-    let updated = false;
-    players.forEach(p => {
-      if (p && (p.registrationStatus === 'REJECTED' || p.paymentStatus === 'REJECTED')) {
-        p.registrationStatus = 'PENDING';
-        p.paymentStatus = 'PENDING';
-        updated = true;
-      }
-    });
-    if (updated) {
-      safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
-      saveCloudData(players, this.getTeams());
-      this.notify('players_updated');
-    }
+    // No-op to prevent overwriting cloud data on startup
   }
 
   // --- STABLE CLOUD SYNC WITH DYNAMIC CONTINUOUS RE-INDEXING & CROSS-DEVICE CLEAR SYNC ---
@@ -213,39 +204,58 @@ class Store {
             const cloudTime = Number(cloudP.updated_at || cloudP.created_at || cloudP.timestamp || 0);
             const localTime = Number(localP.updated_at || localP.created_at || localP.timestamp || 0);
 
-            const isLocalApproved = (localP.registrationStatus === 'APPROVED' || localP.paymentStatus === 'APPROVED');
-            const isCloudApproved = (cloudP.registrationStatus === 'APPROVED' || cloudP.paymentStatus === 'APPROVED');
+            const isLocalApproved = localP.registrationStatus === 'APPROVED' || localP.paymentStatus === 'APPROVED';
+            const isCloudApproved = cloudP.registrationStatus === 'APPROVED' || cloudP.paymentStatus === 'APPROVED';
 
+            const isPurged = localP.docsPurged || cloudP.docsPurged;
+
+            let mergedRecord;
             if (isLocalApproved && !isCloudApproved) {
               // Local is approved, cloud is not yet approved -> KEEP LOCAL APPROVED STATUS & push back to cloud!
-              const approvedMerged = {
+              mergedRecord = {
                 ...cloudP,
                 ...localP,
                 paymentStatus: 'APPROVED',
                 registrationStatus: 'APPROVED',
                 updated_at: Math.max(localTime, Date.now())
               };
-              mergedMap.set(cloudP.id, approvedMerged);
-              syncPlayerToSupabase(approvedMerged);
+              syncPlayerToSupabase(mergedRecord);
             } else if (localTime > cloudTime) {
               // Local record has newer admin edits -> preserve local fields
-              mergedMap.set(cloudP.id, { ...cloudP, ...localP });
+              mergedRecord = { ...cloudP, ...localP };
             } else {
-              mergedMap.set(cloudP.id, { ...localP, ...cloudP });
+              mergedRecord = { ...localP, ...cloudP };
             }
+
+            if (isPurged) {
+              mergedRecord.aadharPhotoUrl = '';
+              mergedRecord.aadhaar_photo_url = '';
+              mergedRecord.aadharBackUrl = '';
+              mergedRecord.aadhaar_back_url = '';
+              mergedRecord.aadhar_photo = '';
+              mergedRecord.aadhaar_photo = '';
+              mergedRecord.paymentReceiptUrl = '';
+              mergedRecord.payment_receipt_url = '';
+              mergedRecord.paymentProofUrl = '';
+              mergedRecord.payment_proof_url = '';
+              mergedRecord.payment_receipt = '';
+              mergedRecord.paymentProof = '';
+              mergedRecord.docsPurged = true;
+            }
+
+            mergedMap.set(cloudP.id, mergedRecord);
           } else {
             mergedMap.set(cloudP.id, cloudP);
           }
         }
 
-        // 2. Add any local players not yet in cloud
-        for (const localP of validLocalPlayers) {
-          if (localP && localP.id && !mergedMap.has(localP.id)) {
-            mergedMap.set(localP.id, localP);
-          }
-        }
-
+        // 2. Only retain cloud players as authoritative when cloudData has players
         let mergedPlayers = Array.from(mergedMap.values());
+
+        // If cloud database is empty, fallback to valid local players
+        if (mergedPlayers.length === 0 && validLocalPlayers.length > 0) {
+          mergedPlayers = validLocalPlayers;
+        }
 
         // 3. Sort chronologically by registration timestamp
         mergedPlayers.sort((a, b) => {
@@ -273,11 +283,6 @@ class Store {
         if (localPlayersStr !== cleanCloudPlayersStr) {
           safeSetLocalStorage(STORAGE_KEYS.PLAYERS, reindexedPlayers);
           this.notify('players_updated');
-        }
-
-        // If local had un-synced players (and not deleted), push merged list back to cloud
-        if (missingLocalPlayers.length > 0) {
-          saveCloudData(reindexedPlayers, this.getTeams());
         }
       }
 
@@ -489,7 +494,6 @@ class Store {
         player_photo_url: playerData.photoUrl || playerData.player_photo_url || players[existingIdx].player_photo_url,
       };
       safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
-      saveCloudData(players, this.getTeams(), this.getFixtures(), this.getAuctionSettings());
       syncPlayerToSupabase(players[existingIdx]);
       this.notify('players_updated');
       return players[existingIdx];
@@ -524,6 +528,7 @@ class Store {
       paymentReceiptUrl: playerData.paymentReceiptUrl || playerData.payment_receipt_url || 'Attached Receipt',
       paymentStatus: 'PENDING',
       registrationStatus: 'PENDING',
+      phoneVerified: playerData.phoneVerified !== false,
       remarks: playerData.remarks || playerData.paymentRef || '',
       paymentRef: playerData.paymentRef || '',
       teamId: null,
@@ -548,7 +553,6 @@ class Store {
     const registeredPlayer = players.find(p => p.id === uuid) || newPlayer;
 
     safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
-    saveCloudData(players, this.getTeams(), this.getFixtures(), this.getAuctionSettings());
     syncPlayerToSupabase(registeredPlayer);
     this.notify('players_updated');
     return registeredPlayer;
@@ -575,7 +579,6 @@ class Store {
       });
 
       safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
-      saveCloudData(players, this.getTeams());
       syncPlayerToSupabase(players[idx]);
       this.notify('players_updated');
       return players[idx];
@@ -611,7 +614,6 @@ class Store {
     });
 
     safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
-    saveCloudData(players, this.getTeams());
     deletePlayerFromSupabase(playerId);
     this.notify('players_updated');
   }
@@ -643,7 +645,6 @@ class Store {
       if (remarks) player.remarks = remarks;
       
       safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
-      saveCloudData(players, this.getTeams());
       syncPlayerToSupabase(player);
       this.notify('players_updated');
     }
@@ -653,11 +654,21 @@ class Store {
     const players = this.getPlayers();
     const player = players.find(p => p.id === playerId);
     if (player) {
+      const now = Date.now();
       player.aadharPhotoUrl = '';
       player.aadhaar_photo_url = '';
+      player.aadharBackUrl = '';
+      player.aadhaar_back_url = '';
+      player.aadhar_photo = '';
+      player.aadhaar_photo = '';
       player.paymentReceiptUrl = '';
       player.payment_receipt_url = '';
+      player.paymentProofUrl = '';
+      player.payment_proof_url = '';
+      player.payment_receipt = '';
+      player.paymentProof = '';
       player.docsPurged = true;
+      player.updated_at = now;
 
       safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
       saveCloudData(players, this.getTeams());
@@ -669,13 +680,23 @@ class Store {
   purgeAllVerifiedDocs() {
     const players = this.getPlayers();
     let count = 0;
+    const now = Date.now();
     players.forEach(p => {
-      if (p && (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED') && !p.docsPurged) {
+      if (p) {
         p.aadharPhotoUrl = '';
         p.aadhaar_photo_url = '';
+        p.aadharBackUrl = '';
+        p.aadhaar_back_url = '';
+        p.aadhar_photo = '';
+        p.aadhaar_photo = '';
         p.paymentReceiptUrl = '';
         p.payment_receipt_url = '';
+        p.paymentProofUrl = '';
+        p.payment_proof_url = '';
+        p.payment_receipt = '';
+        p.paymentProof = '';
         p.docsPurged = true;
+        p.updated_at = now;
         count++;
       }
     });
@@ -929,6 +950,84 @@ class Store {
     return profile;
   }
 
+  // --- VERIFY PLAYER PHONE NUMBER VIA OTP ---
+  verifyPlayerPhone(phone, playerId = null) {
+    if (!phone) return false;
+    const cleanPhone = phone.replace(/[^0-9]/g, '');
+    const players = this.getPlayers();
+    let updatedPlayer = null;
+
+    players.forEach(p => {
+      const pPhone = (p.phone || p.mobile || '').replace(/[^0-9]/g, '');
+      if ((playerId && p.id === playerId) || (cleanPhone && pPhone === cleanPhone)) {
+        p.phoneVerified = true;
+        p.updated_at = Date.now();
+        updatedPlayer = p;
+        syncPlayerToSupabase(p);
+      }
+    });
+
+    if (updatedPlayer) {
+      safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
+      this.notify('players_updated');
+    }
+
+    // Update profile
+    const profiles = this.getPlayerProfiles();
+    const profile = profiles.find(pp => (pp.phone || '').replace(/[^0-9]/g, '') === cleanPhone);
+    if (profile) {
+      profile.phoneVerified = true;
+      safeSetLocalStorage(STORAGE_KEYS.PLAYER_PROFILES, profiles);
+      fetch(`${FIREBASE_DB_URL}/cpl_master/player_profiles/${profile.id}.json`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(profile)
+      }).catch(err => console.warn("Profile verify sync error:", err));
+    }
+
+    return true;
+  }
+
+  // --- UPDATE PLAYER PROFILE PHOTO & SYNC ACROSS LEAGUE RECORDS ---
+  updatePlayerProfilePhoto(phone, newPhotoUrl, playerId = null) {
+    if (!newPhotoUrl) return false;
+    const cleanPhone = (phone || '').replace(/[^0-9]/g, '');
+    const players = this.getPlayers();
+    let updated = false;
+
+    players.forEach(p => {
+      const pPhone = (p.phone || p.mobile || '').replace(/[^0-9]/g, '');
+      if ((playerId && p.id === playerId) || (cleanPhone && pPhone === cleanPhone)) {
+        p.photoUrl = newPhotoUrl;
+        p.player_photo_url = newPhotoUrl;
+        p.updated_at = Date.now();
+        syncPlayerToSupabase(p);
+        updated = true;
+      }
+    });
+
+    if (updated) {
+      safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
+      this.notify('players_updated');
+    }
+
+    // Update profile
+    const profiles = this.getPlayerProfiles();
+    const profile = profiles.find(pp => (pp.phone || '').replace(/[^0-9]/g, '') === cleanPhone);
+    if (profile) {
+      profile.photoUrl = newPhotoUrl;
+      profile.player_photo_url = newPhotoUrl;
+      safeSetLocalStorage(STORAGE_KEYS.PLAYER_PROFILES, profiles);
+      fetch(`${FIREBASE_DB_URL}/cpl_master/player_profiles/${profile.id}.json`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(profile)
+      }).catch(err => console.warn("Profile photo sync error:", err));
+    }
+
+    return true;
+  }
+
   // --- USER AUTH & ROLE ---
   getUser() {
     return JSON.parse(localStorage.getItem(STORAGE_KEYS.USER)) || { role: 'GUEST', name: 'Guest Visitor' };
@@ -950,6 +1049,73 @@ class Store {
         // ignore fallback
       }
     }
+  }
+
+  // --- PUBLIC COMMUNITY QUERIES & DISCUSSION BOARD ---
+  getCommunityQueries() {
+    return JSON.parse(localStorage.getItem(STORAGE_KEYS.COMMUNITY_QUERIES)) || [];
+  }
+
+  async syncCommunityQueriesFromCloud() {
+    try {
+      const cloudQueries = await fetchCommunityQueriesFromFirebase();
+      if (Array.isArray(cloudQueries) && cloudQueries.length > 0) {
+        safeSetLocalStorage(STORAGE_KEYS.COMMUNITY_QUERIES, cloudQueries);
+        this.notify('queries_updated');
+      }
+    } catch (err) {
+      console.warn("Failed to sync community queries from cloud:", err);
+    }
+  }
+
+  async addCommunityQuery(userName, userRole, message) {
+    if (!message || !message.trim()) return null;
+    const queries = this.getCommunityQueries();
+    const newQuery = {
+      id: 'q-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+      userName: (userName || 'Anonymous Visitor').trim(),
+      userRole: userRole || 'VISITOR',
+      message: message.trim(),
+      timestamp: Date.now(),
+      replies: []
+    };
+    queries.unshift(newQuery);
+    safeSetLocalStorage(STORAGE_KEYS.COMMUNITY_QUERIES, queries);
+    saveCommunityQueryToFirebase(newQuery);
+    this.notify('queries_updated');
+    return newQuery;
+  }
+
+  async addReplyToCommunityQuery(queryId, userName, userRole, message) {
+    if (!queryId || !message || !message.trim()) return null;
+    const queries = this.getCommunityQueries();
+    const query = queries.find(q => q && q.id === queryId);
+    if (!query) return null;
+
+    if (!Array.isArray(query.replies)) query.replies = [];
+    const newReply = {
+      id: 'rep-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+      userName: (userName || 'Anonymous Visitor').trim(),
+      userRole: userRole || 'VISITOR',
+      message: message.trim(),
+      timestamp: Date.now()
+    };
+    query.replies.push(newReply);
+
+    safeSetLocalStorage(STORAGE_KEYS.COMMUNITY_QUERIES, queries);
+    saveCommunityQueryToFirebase(query);
+    this.notify('queries_updated');
+    return newReply;
+  }
+
+  async deleteCommunityQuery(queryId) {
+    if (!queryId) return false;
+    let queries = this.getCommunityQueries();
+    queries = queries.filter(q => q && q.id !== queryId);
+    safeSetLocalStorage(STORAGE_KEYS.COMMUNITY_QUERIES, queries);
+    deleteCommunityQueryFromFirebase(queryId);
+    this.notify('queries_updated');
+    return true;
   }
 }
 

@@ -192,11 +192,23 @@ export async function exportTeamsToPDF(teams) {
 }
 
 // GENERATE PROFESSIONAL PRINTABLE PDF DOCUMENT WITH LARGE 120x120 FULL HD PLAYER PHOTOS
-export async function exportPlayersToPDF(players) {
+export async function exportPlayersToPDF(players, filterLabel = 'All Registered Players') {
   if (!players || players.length === 0) {
     alert('No players found to export.');
     return;
   }
+
+  const now = new Date();
+  const formattedTimestamp = now.toLocaleString('en-IN', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: true
+  });
 
   // 1. SHOW INTERACTIVE GOOGLE DRIVE HD PHOTO FETCHING POPUP
   const loadingOverlayHtml = `
@@ -208,7 +220,7 @@ export async function exportPlayersToPDF(players) {
         </span>
         <h3 class="text-base sm:text-xl font-black text-white">Preparing 120x120 HD Player Directory PDF...</h3>
         <p class="text-xs text-slate-300 max-w-xs mx-auto">
-          Building full printable PDF directory with Sl No, 120x120 HD Player Picture, Name, Phone Number, Age, Category, Address, and Status.
+          Building printable PDF for <strong>${filterLabel}</strong> (${players.length} players) with Sl No, 120x120 HD Pictures, & Download Timestamp.
         </p>
         <div id="pdf-fetch-progress" class="text-amber-400 font-mono text-xs font-black pt-2">
           Syncing HD photo documents...
@@ -294,13 +306,14 @@ export async function exportPlayersToPDF(players) {
       <!DOCTYPE html>
       <html>
       <head>
-        <title>JSL 2026 - Registered Players Directory PDF</title>
+        <title>JSL 2026 - Registered Players Directory (${filterLabel})</title>
         <style>
           body { font-family: 'Helvetica Neue', Arial, sans-serif; padding: 20px; color: #1E293B; }
           .header-box { text-align: center; border-bottom: 3px solid #0F172A; padding-bottom: 15px; margin-bottom: 20px; }
           .title { font-size: 26px; font-weight: 900; color: #0B192C; margin: 0; }
           .subtitle { font-size: 15px; font-weight: bold; color: #D97706; margin-top: 4px; }
-          .meta { font-size: 11px; color: #64748B; margin-top: 6px; }
+          .meta { font-size: 11px; color: #475569; margin-top: 8px; font-family: sans-serif; }
+          .timestamp-badge { background-color: #F1F5F9; border: 1px solid #CBD5E1; padding: 3px 8px; border-radius: 6px; font-weight: bold; color: #0F172A; }
           table { width: 100%; border-collapse: collapse; margin-top: 10px; font-size: 13px; }
           th, td { border: 1.5px solid #CBD5E1; padding: 8px; text-align: left; vertical-align: middle; }
           th { background-color: #0F172A; color: white; font-weight: bold; text-align: center; text-transform: uppercase; font-size: 12px; }
@@ -311,8 +324,11 @@ export async function exportPlayersToPDF(players) {
       <body>
         <div class="header-box">
           <h1 class="title">JHANKRA SUPER LEAGUE (JSL 2026)</h1>
-          <div class="subtitle">Official Registered Players Directory</div>
-          <div class="meta">Generated: ${new Date().toLocaleString()} • Total Registered Players: ${players.length}</div>
+          <div class="subtitle">Official Registered Players Directory — ${filterLabel}</div>
+          <div class="meta">
+            <span class="timestamp-badge">📅 Download Date & Time: ${formattedTimestamp}</span>
+            <span style="margin-left: 10px;">📊 Total Players: <strong>${players.length}</strong></span>
+          </div>
         </div>
 
         <table>

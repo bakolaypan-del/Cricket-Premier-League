@@ -639,5 +639,10 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   50% { opacity: 0; }
 }
 
+/* YOUTUBE PROMOTIONAL BANNER POPUP - STYLISH BENGALI TYPOGRAPHY */
+#youtube-promo-modal, #youtube-promo-modal * {
+  font-family: 'Anek Bangla', 'Hind Siliguri', 'Segoe UI', sans-serif !important;
+}
+
 
 

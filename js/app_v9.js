@@ -3,7 +3,7 @@
 import { store } from './store.js';
 import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, printDigitalPass, openUserGuidePDF } from './export.js';
 import { renderAdminDashboard } from './admin.js';
-import { uploadHDImage, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase } from './supabase.js';
+import { uploadHDImage, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, getOptimizedImageUrl } from './supabase.js';
 import { shops } from './shopsData.js';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
@@ -120,10 +120,15 @@ function initApp() {
   // First Visit Welcome & App Install Popup Prompt
   checkAndPromptFirstVisitPopup();
 
+  // YouTube Channel Promotional Popup Banner (Bengali)
+  setTimeout(() => {
+    checkAndPromptYouTubePromoPopup();
+  }, 1000);
+
   // Dynamic Partner Advertisement Popup
   setTimeout(() => {
     checkAndShowAdvertisementPopup();
-  }, 1000);
+  }, 2200);
 
   // Initialize Real-time Registered Player Toast Widget
   initRealtimePlayerToast();
@@ -322,6 +327,147 @@ function openFirstVisitWelcomeModal() {
     removeModal();
     handleInstallAppClick();
   });
+}
+
+// --- YOUTUBE CHANNEL PROMOTIONAL POPUP BANNER (BENGALI) ---
+async function checkAndPromptYouTubePromoPopup() {
+  try {
+    if (!sessionStorage.getItem('cpl_yt_promo_shown_v1')) {
+      sessionStorage.setItem('cpl_yt_promo_shown_v1', 'true');
+      openYouTubePromoModal();
+    }
+  } catch (err) {
+    console.warn("Failed to check YouTube promo popup status:", err);
+  }
+}
+
+function openYouTubePromoModal() {
+  if (document.querySelector('.modal-overlay')) return;
+
+  const YOUTUBE_CHANNEL_URL = "https://www.youtube.com/channel/UC9P-iK1S-6mv4GDnenZtjWg";
+
+  const modalHtml = `
+    <div id="youtube-promo-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-sm animate-fade-in" style="font-family: 'Anek Bangla', 'Hind Siliguri', sans-serif;">
+      <div class="relative w-full max-w-[360px] sm:max-w-[390px] bg-white text-slate-900 rounded-3xl shadow-2xl border-2 border-red-500/80 p-4 sm:p-5 overflow-hidden modal-content-container">
+        
+        <!-- VISIBLE POLICE & OFFICIAL VEHICLE WATERMARK BACKGROUND -->
+        <div class="absolute inset-0 z-0 overflow-hidden pointer-events-none rounded-3xl">
+          <img src="assets/police_car.jpg" class="w-full h-full object-cover opacity-35 filter blur-[0.8px] scale-105" alt="Police & Official Vehicle Background" />
+          <div class="absolute inset-0 bg-gradient-to-b from-white/75 via-white/60 to-white/85"></div>
+        </div>
+
+        <!-- TOP RUBY ACCENT STRIP WITH RED & BLUE POLICE EMERGENCY LIGHT BAR -->
+        <div class="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-red-600 via-blue-600 to-red-600 z-10 animate-pulse"></div>
+
+        <!-- CLOSE BUTTON -->
+        <button id="close-yt-promo-btn" class="absolute top-2.5 right-2.5 text-slate-600 hover:text-slate-900 p-1.5 rounded-full bg-white/70 hover:bg-slate-200 shadow-sm transition-all z-20">
+          <i data-lucide="x" class="w-4 h-4"></i>
+        </button>
+
+        <!-- STYLISH HERO BANNER -->
+        <div class="text-center space-y-1.5 pt-1 relative z-10">
+          <!-- POLICE / GOVT SIREN INDICATOR -->
+          <div class="flex items-center justify-center gap-2 mb-1">
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-slate-950/85 text-white border border-slate-700 shadow-md">
+              <span class="w-2 h-2 rounded-full bg-red-500 animate-ping"></span>
+              <span class="w-2 h-2 rounded-full bg-blue-400 animate-pulse"></span>
+              <span class="text-[9px] font-black tracking-wider text-amber-300 uppercase">🚨 WBP • KP • GOVT JOBS</span>
+            </span>
+          </div>
+
+          <!-- 3D YOUTUBE ICON WITH GLOW -->
+          <div class="inline-flex items-center justify-center w-11 h-11 rounded-2xl bg-gradient-to-tr from-red-700 via-red-600 to-rose-500 text-white shadow-md shadow-red-500/30 border border-red-400">
+            <svg class="w-6 h-6 fill-current" viewBox="0 0 24 24">
+              <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+            </svg>
+          </div>
+
+          <!-- BADGE -->
+          <div>
+            <span class="inline-flex items-center gap-1 px-2.5 py-0.5 bg-red-50/90 text-red-700 font-extrabold text-[10px] rounded-full border border-red-200 uppercase tracking-wide shadow-sm">
+              <span class="w-1.5 h-1.5 rounded-full bg-red-600 animate-ping"></span> 📚 ফ্রি YouTube ডিজিটাল ক্লাস
+            </span>
+          </div>
+
+          <!-- HEADLINE IN STYLISH BENGALI FONT -->
+          <h2 class="text-base sm:text-lg font-black text-slate-900 leading-tight">
+            🎯 সরকারি চাকরির সেরা প্রস্তুতি <br>
+            <span class="text-red-600 font-black">শুরু হোক আজ থেকেই!</span>
+          </h2>
+        </div>
+
+        <!-- COMPACT EYE-CATCHING FEATURE GRID -->
+        <div class="mt-2.5 space-y-1.5 relative z-10">
+          <div class="grid grid-cols-2 gap-1.5">
+            <div class="p-2 rounded-xl bg-white/90 backdrop-blur-sm border border-slate-200/80 hover:border-red-400 hover:bg-red-50/50 transition-colors flex items-center gap-2 shadow-xs">
+              <span class="text-base">📐</span>
+              <div class="text-left">
+                <div class="text-[11px] font-black text-slate-900">Math Tricks</div>
+                <div class="text-[9px] text-slate-500 font-medium leading-tight">সহজ শর্টকাট ট্রিকস</div>
+              </div>
+            </div>
+
+            <div class="p-2 rounded-xl bg-white/90 backdrop-blur-sm border border-slate-200/80 hover:border-red-400 hover:bg-red-50/50 transition-colors flex items-center gap-2 shadow-xs">
+              <span class="text-base">🧠</span>
+              <div class="text-left">
+                <div class="text-[11px] font-black text-slate-900">Reasoning</div>
+                <div class="text-[9px] text-slate-500 font-medium leading-tight">Concept + Practice</div>
+              </div>
+            </div>
+
+            <div class="p-2 rounded-xl bg-white/90 backdrop-blur-sm border border-slate-200/80 hover:border-red-400 hover:bg-red-50/50 transition-colors flex items-center gap-2 shadow-xs">
+              <span class="text-base">📰</span>
+              <div class="text-left">
+                <div class="text-[11px] font-black text-slate-900">Current Affairs</div>
+                <div class="text-[9px] text-slate-500 font-medium leading-tight">সাম্প্রতিক তথ্য</div>
+              </div>
+            </div>
+
+            <div class="p-2 rounded-xl bg-white/90 backdrop-blur-sm border border-slate-200/80 hover:border-red-400 hover:bg-red-50/50 transition-colors flex items-center gap-2 shadow-xs">
+              <span class="text-base">🌍</span>
+              <div class="text-left">
+                <div class="text-[11px] font-black text-slate-900">GK & GS</div>
+                <div class="text-[9px] text-slate-500 font-medium leading-tight">Static GK স্পেশাল</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- TARGET EXAMS STRIP -->
+          <div class="p-2 rounded-xl bg-gradient-to-r from-red-50/95 via-amber-50/95 to-red-50/95 backdrop-blur-sm border border-red-200/90 text-center space-y-0.5 shadow-xs">
+            <div class="text-[9px] font-black text-red-800 uppercase tracking-wider">🏆 টার্গেট পরীক্ষা সমূহ</div>
+            <div class="text-[10px] font-extrabold text-slate-800">WBP • KP • SSC GD • WBPSC • Railway • SSC</div>
+          </div>
+        </div>
+
+        <!-- HIGH CONVERSION CTA BUTTONS -->
+        <div class="mt-3 space-y-1.5 relative z-10">
+          <a href="${YOUTUBE_CHANNEL_URL}" target="_blank" id="yt-subscribe-btn" class="w-full py-2.5 px-3 bg-gradient-to-r from-red-600 via-rose-600 to-red-600 hover:from-red-700 hover:to-rose-700 text-white font-black text-xs sm:text-sm rounded-xl shadow-md shadow-red-500/30 flex items-center justify-center gap-2 border border-red-500 transition-all transform hover:scale-[1.01] active:scale-[0.99]">
+            <svg class="w-4 h-4 fill-current" viewBox="0 0 24 24">
+              <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+            </svg>
+            <span>👉 YouTube Channel-এ Join করুন</span>
+          </a>
+
+          <p class="text-[9px] text-center text-slate-500 font-bold leading-tight">
+            🔔 Subscribe করে Bell Icon অন রাখুন, যাতে কোনো ক্লাস মিস না হয়!
+          </p>
+
+          <button id="close-yt-promo-bottom-btn" class="w-full py-1 text-[10px] text-slate-500 hover:text-slate-800 font-bold transition-colors">
+            পরে দেখুন (Dismiss)
+          </button>
+        </div>
+
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  if (window.lucide) window.lucide.createIcons();
+
+  const removeModal = () => document.getElementById('youtube-promo-modal')?.remove();
+  document.getElementById('close-yt-promo-btn')?.addEventListener('click', removeModal);
+  document.getElementById('close-yt-promo-bottom-btn')?.addEventListener('click', removeModal);
+  document.getElementById('yt-subscribe-btn')?.addEventListener('click', removeModal);
 }
 
 // --- CLIENT-SIDE HD IMAGE COMPRESSION (GUARANTEED STRICTLY UNDER 100 KB PER IMAGE) ---
@@ -1654,7 +1800,7 @@ function renderPlayerCardsWithSerial(playersList) {
   return playersList.map((p, idx) => {
     const isApproved = (p.registrationStatus || p.paymentStatus) === 'APPROVED';
     const shortSerialNo = String(idx + 1).padStart(2, '0');
-    const photoSrc = p.photoUrl || p.player_photo_url || '';
+    const photoSrc = getOptimizedImageUrl(p.photoUrl || p.player_photo_url || '', 280, 280);
 
     return `
       <div class="glass-card p-2 flex flex-col justify-between items-center text-center relative border border-emerald-200 bg-white hover:border-emerald-500 shadow-md rounded-2xl overflow-hidden">
@@ -1708,7 +1854,7 @@ function openFullPlayerProfileModal(player) {
         <!-- SQUARE 200 KB CROPPED PLAYER PHOTO DISPLAY -->
         <div class="pt-1 text-center">
           <div class="w-32 h-32 sm:w-40 sm:h-40 rounded-2xl bg-white border-2 border-emerald-500 shadow-xl mx-auto overflow-hidden flex items-center justify-center">
-            <img src="${player.photoUrl || player.player_photo_url}" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Crect width=\'100\' height=\'100\' fill=\'%23059669\'/%3E%3Ctext x=\'50\' y=\'62\' font-size=\'45\' text-anchor=\'middle\' fill=\'white\'%3E🏏%3C/text%3E%3C/svg%3E';" />
+            <img src="${getOptimizedImageUrl(player.photoUrl || player.player_photo_url, 400, 400)}" loading="lazy" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Crect width=\'100\' height=\'100\' fill=\'%23059669\'/%3E%3Ctext x=\'50\' y=\'62\' font-size=\'45\' text-anchor=\'middle\' fill=\'white\'%3E🏏%3C/text%3E%3C/svg%3E';" />
           </div>
         </div>
 
@@ -1772,6 +1918,18 @@ function openFullPlayerProfileModal(player) {
           </div>
         </div>
 
+        <!-- PHOTO UPDATE OPTION -->
+        <div class="flex items-center justify-between p-2 bg-slate-50 border border-slate-200 rounded-xl text-left">
+          <div class="space-y-0.5">
+            <span class="text-[9px] text-slate-500 uppercase font-bold block">Profile Management</span>
+            <span class="text-[10px] text-slate-700 font-bold">Update your HD profile photo</span>
+          </div>
+          <label class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-[10px] rounded-lg shadow flex items-center gap-1 cursor-pointer transition-all">
+            <i data-lucide="camera" class="w-3.5 h-3.5 text-amber-400"></i> Change Photo
+            <input type="file" id="profile-photo-change-input" accept="image/*" class="hidden" />
+          </label>
+        </div>
+
         <!-- PRINT DIGITAL PASS & CLOSE BUTTONS -->
         <div class="flex gap-2 pt-1">
           <button id="print-pass-btn" class="flex-1 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1">
@@ -1792,10 +1950,242 @@ function openFullPlayerProfileModal(player) {
   const removeModal = () => document.getElementById('player-profile-modal')?.remove();
   document.getElementById('close-profile-btn')?.addEventListener('click', removeModal);
   document.getElementById('close-profile-bottom-btn')?.addEventListener('click', removeModal);
-  
+
+  document.getElementById('profile-photo-change-input')?.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const objectUrl = URL.createObjectURL(file);
+    openSquareImageCropModal(objectUrl, async (croppedDataUrl) => {
+      const cdnUrl = await uploadHDImage(croppedDataUrl, 'player_photos');
+      const photoToSave = cdnUrl || croppedDataUrl;
+      store.updatePlayerProfilePhoto(player.phone, photoToSave, player.id);
+      removeModal();
+      const updatedP = store.getPlayerById(player.id) || { ...player, photoUrl: photoToSave, player_photo_url: photoToSave };
+      openFullPlayerProfileModal(updatedP);
+    }, 'Crop New Profile Photo (1:1)');
+  });
 
   document.getElementById('print-pass-btn')?.addEventListener('click', () => {
     printDigitalPass(player, store.getLeagueById('leg-jsl'), store.getTeamById(player.teamId));
+  });
+}
+
+// --- FIREBASE LIVE AUTH INITIALIZATION ---
+const firebaseConfig = {
+  apiKey: "AIzaSyCtyOlUuFX6Io2ZDcYlt2xLB3ADkeQH0Ns",
+  authDomain: "cricket-league-794da.firebaseapp.com",
+  projectId: "cricket-league-794da",
+  storageBucket: "cricket-league-794da.firebasestorage.app",
+  messagingSenderId: "481137863760",
+  appId: "1:481137863760:web:a315b609cca5cf36af3555",
+  measurementId: "G-F180JQGSHP"
+};
+
+try {
+  if (window.firebase && !window.firebase.apps.length) {
+    window.firebase.initializeApp(firebaseConfig);
+    console.log("Firebase App & Phone Auth initialized with live config.");
+  }
+} catch (e) {
+  console.warn("Firebase Auth init notice:", e);
+}
+
+// --- UNIVERSAL PHONE OTP VERIFICATION MODAL WITH LIVE FIREBASE SMS DELIVERY ---
+export function openPhoneOtpModal({ title = 'Mobile Number Verification', subtitle = 'Verify your 10-digit mobile number via SMS OTP', prefilledPhone = '', onSuccess }) {
+  document.getElementById('phone-otp-modal')?.remove();
+
+  let confirmationResult = null;
+  let recaptchaVerifier = null;
+  let countdown = 60;
+  let timerInterval = null;
+  let currentPhone = prefilledPhone ? prefilledPhone.replace(/[^0-9]/g, '').slice(-10) : '';
+
+  const modalHtml = `
+    <div id="phone-otp-modal" class="fixed inset-0 z-[60] modal-overlay flex items-center justify-center p-3 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+      <div class="bg-white max-w-sm sm:max-w-md w-full p-5 relative space-y-4 rounded-2xl shadow-2xl border-2 border-emerald-500 text-slate-900 modal-content-container">
+        <button id="close-otp-modal-btn" class="absolute top-3 right-3 text-slate-400 hover:text-slate-900 p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+
+        <div class="text-center space-y-1">
+          <div class="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 mx-auto flex items-center justify-center font-black text-xl border border-emerald-300 mb-2">
+            <i data-lucide="message-square" class="w-6 h-6"></i>
+          </div>
+          <h2 class="text-lg font-black text-slate-900 leading-tight">${title}</h2>
+          <p class="text-xs text-slate-500 font-medium">${subtitle}</p>
+        </div>
+
+        <!-- INVISIBLE RECAPTCHA CONTAINER -->
+        <div id="recaptcha-container"></div>
+
+        <!-- STEP 1: PHONE INPUT -->
+        <div id="otp-phone-step" class="space-y-3">
+          <div>
+            <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">10-Digit Mobile Number *</label>
+            <div class="flex items-center gap-2">
+              <span class="px-2.5 py-2 bg-slate-100 border border-slate-300 rounded-xl text-xs font-black text-slate-700">+91</span>
+              <input type="tel" id="otp-phone-input" maxlength="10" value="${currentPhone}" placeholder="9876543210" class="flex-1 bg-slate-50 border border-slate-300 text-slate-900 font-mono font-bold text-sm rounded-xl p-2 focus:outline-none focus:border-emerald-500 focus:bg-white" />
+            </div>
+            <p class="text-[9px] text-slate-500 mt-1">A real 6-digit SMS verification code will be sent to your mobile phone.</p>
+          </div>
+
+          <button type="button" id="send-otp-btn" class="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 transition-all">
+            <i data-lucide="send" class="w-4 h-4"></i> Send SMS OTP Code
+          </button>
+        </div>
+
+        <!-- STEP 2: OTP INPUT -->
+        <div id="otp-verify-step" class="hidden space-y-3">
+          <!-- LIVE SMS NOTIFICATION BANNER -->
+          <div id="otp-banner" class="p-3 bg-emerald-50 border border-emerald-300 rounded-xl text-center space-y-1">
+            <div class="text-[10px] font-extrabold text-emerald-800 uppercase tracking-wider">📩 SMS Verification Code Sent</div>
+            <div id="otp-phone-display" class="text-xs font-mono font-bold text-emerald-700">+91 ${currentPhone}</div>
+            <div class="text-[9px] text-slate-600">Please check your SMS inbox and enter the 6-digit OTP code below.</div>
+          </div>
+
+          <div>
+            <div class="flex justify-between items-center mb-1">
+              <label class="block text-[10px] font-bold text-slate-700 uppercase">Enter 6-Digit SMS Code *</label>
+              <span id="otp-timer-text" class="text-[10px] font-mono font-bold text-amber-600">Resend in 60s</span>
+            </div>
+            <input type="text" id="otp-input" maxlength="6" placeholder="123456" class="w-full text-center tracking-[0.5em] font-mono font-black text-xl bg-slate-50 border-2 border-slate-300 rounded-xl p-2 text-slate-900 focus:outline-none focus:border-emerald-500 focus:bg-white" />
+          </div>
+
+          <button type="button" id="verify-otp-btn" class="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 transition-all">
+            <i data-lucide="check-circle" class="w-4 h-4"></i> Verify SMS Code & Continue
+          </button>
+
+          <button type="button" id="resend-otp-btn" class="hidden w-full py-1.5 text-xs text-emerald-700 hover:text-emerald-900 font-bold underline text-center">
+            Resend SMS OTP Code
+          </button>
+        </div>
+
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  if (window.lucide) window.lucide.createIcons();
+
+  const removeModal = () => {
+    if (timerInterval) clearInterval(timerInterval);
+    if (recaptchaVerifier) {
+      try { recaptchaVerifier.clear(); } catch (e) {}
+    }
+    document.getElementById('phone-otp-modal')?.remove();
+  };
+
+  document.getElementById('close-otp-modal-btn')?.addEventListener('click', removeModal);
+
+  const phoneInput = document.getElementById('otp-phone-input');
+  const sendBtn = document.getElementById('send-otp-btn');
+  const phoneStep = document.getElementById('otp-phone-step');
+  const verifyStep = document.getElementById('otp-verify-step');
+  const phoneDisplay = document.getElementById('otp-phone-display');
+  const otpInput = document.getElementById('otp-input');
+  const verifyBtn = document.getElementById('verify-otp-btn');
+  const timerText = document.getElementById('otp-timer-text');
+  const resendBtn = document.getElementById('resend-otp-btn');
+
+  const startTimer = () => {
+    countdown = 60;
+    if (timerInterval) clearInterval(timerInterval);
+    if (timerText) timerText.innerText = `Resend in ${countdown}s`;
+    if (resendBtn) resendBtn.classList.add('hidden');
+
+    timerInterval = setInterval(() => {
+      countdown--;
+      if (timerText) timerText.innerText = `Resend in ${countdown}s`;
+      if (countdown <= 0) {
+        clearInterval(timerInterval);
+        if (timerText) timerText.innerText = 'Code expired';
+        if (resendBtn) resendBtn.classList.remove('hidden');
+      }
+    }, 1000);
+  };
+
+  const generateAndSendOtp = async () => {
+    const rawVal = (phoneInput?.value || '').replace(/[^0-9]/g, '');
+    if (rawVal.length < 10) {
+      alert("Please enter a valid 10-digit mobile number!");
+      return;
+    }
+
+    currentPhone = rawVal.slice(-10);
+    const fullPhoneNumber = `+91${currentPhone}`;
+
+    if (sendBtn) {
+      sendBtn.disabled = true;
+      sendBtn.innerHTML = `<span class="flex items-center justify-center gap-1.5"><i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Sending SMS OTP...</span>`;
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    try {
+      if (window.firebase && window.firebase.auth) {
+        if (!recaptchaVerifier) {
+          recaptchaVerifier = new window.firebase.auth.RecaptchaVerifier('recaptcha-container', {
+            size: 'invisible'
+          });
+        }
+        confirmationResult = await window.firebase.auth().signInWithPhoneNumber(fullPhoneNumber, recaptchaVerifier);
+        console.log("Firebase SMS OTP sent to:", fullPhoneNumber);
+      } else {
+        throw new Error("Firebase Auth SDK not ready");
+      }
+
+      phoneStep?.classList.add('hidden');
+      verifyStep?.classList.remove('hidden');
+      if (phoneDisplay) phoneDisplay.innerText = fullPhoneNumber;
+
+      startTimer();
+      setTimeout(() => otpInput?.focus(), 100);
+    } catch (err) {
+      console.error("SMS OTP Send Error:", err);
+      if (sendBtn) {
+        sendBtn.disabled = false;
+        sendBtn.innerHTML = `<i data-lucide="send" class="w-4 h-4"></i> Send SMS OTP Code`;
+        if (window.lucide) window.lucide.createIcons();
+      }
+      alert(`⚠️ SMS Delivery Notice:\n\n${err.message || 'Unable to send SMS code'}\n\n(Ensure Phone provider is enabled in Firebase Console & localhost is in Authorized Domains).`);
+    }
+  };
+
+  sendBtn?.addEventListener('click', generateAndSendOtp);
+  resendBtn?.addEventListener('click', generateAndSendOtp);
+
+  verifyBtn?.addEventListener('click', async () => {
+    const entered = (otpInput?.value || '').trim();
+    if (!entered || entered.length !== 6) {
+      alert("Please enter the 6-digit SMS verification code!");
+      return;
+    }
+
+    if (verifyBtn) {
+      verifyBtn.disabled = true;
+      verifyBtn.innerHTML = `<span class="flex items-center justify-center gap-1.5"><i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Verifying Code...</span>`;
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    try {
+      if (confirmationResult) {
+        const userCredential = await confirmationResult.confirm(entered);
+        console.log("Phone OTP verified successfully:", userCredential.user);
+      }
+
+      const profile = store.getPlayerProfileByPhone(currentPhone);
+      removeModal();
+      if (onSuccess) {
+        onSuccess(currentPhone, profile);
+      }
+    } catch (err) {
+      console.error("OTP verification error:", err);
+      if (verifyBtn) {
+        verifyBtn.disabled = false;
+        verifyBtn.innerHTML = `<i data-lucide="check-circle" class="w-4 h-4"></i> Verify SMS Code & Continue`;
+        if (window.lucide) window.lucide.createIcons();
+      }
+      alert("⚠️ Invalid or expired SMS verification code! Please check the code received on your phone.");
+    }
   });
 }
 
@@ -1865,7 +2255,7 @@ function openRegistrationTypeModal() {
 }
 
 // --- TEAM REGISTER FORM MODAL ---
-function openTeamRegisterFormModal() {
+function openTeamRegisterFormModal(initialData = null, verifiedPhone = null) {
   document.getElementById('team-reg-modal')?.remove();
 
   let ownerPhotoFileObj = null;
@@ -1878,6 +2268,8 @@ function openTeamRegisterFormModal() {
   let iconPlayerPhotoDataUrl = '';
   let teamLogoFileObj = null;
   let teamLogoDataUrl = '';
+
+  const prefilledOwnerPhone = verifiedPhone || (initialData ? initialData.phone : '') || '';
 
   const modalHtml = `
     <div id="team-reg-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3">
@@ -1908,7 +2300,7 @@ function openTeamRegisterFormModal() {
               </div>
               <div>
                 <label class="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">Owner Phone *</label>
-                <input type="tel" id="owner-phone" required placeholder="+91 9876543210" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-lg p-1.5 focus:outline-none focus:border-amber-500" />
+                <input type="tel" id="owner-phone" required value="${prefilledOwnerPhone}" placeholder="+91 9876543210" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-lg p-1.5 focus:outline-none focus:border-amber-500" />
               </div>
             </div>
             <div>
@@ -2183,11 +2575,13 @@ function openTeamRegisterFormModal() {
 }
 
 // --- FULL PROFESSIONAL PLAYER REGISTER FORM MODAL ---
-function openPlayerRegisterFormModal() {
+function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
   const upiId = "pintusantra4166@nyes";
   const payeeName = "Pintu Santra";
   const amount = 200;
   const note = "JSL2026PlayerReg";
+
+  const prefilledPhone = verifiedPhone || (initialData ? initialData.phone : '') || '';
 
   const phonepeUrl = `phonepe://pay?pa=${upiId}&pn=${encodeURIComponent(payeeName)}&am=${amount}&cu=INR&tn=${note}`;
   const gpayUrl = `tez://upi/pay?pa=${upiId}&pn=${encodeURIComponent(payeeName)}&am=${amount}&cu=INR&tn=${note}`;
@@ -2236,7 +2630,7 @@ function openPlayerRegisterFormModal() {
           <div class="grid grid-cols-2 gap-2">
             <div>
               <label class="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">Mobile Number *</label>
-              <input type="tel" id="ply-phone" required placeholder="+91 9876543210" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-2 focus:outline-none focus:border-emerald-500" />
+              <input type="tel" id="ply-phone" required value="${prefilledPhone}" placeholder="+91 9876543210" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-2 focus:outline-none focus:border-emerald-500" />
             </div>
             <div>
               <label class="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">Alternate Mobile</label>
@@ -2482,17 +2876,47 @@ function openPlayerRegisterFormModal() {
   };
 
   document.getElementById('ply-dob')?.addEventListener('change', updateAgeFromDOB);
+
+  // AUTO-POPULATE RETURNING PLAYER DETAILS FROM LIFETIME PROFILE
+  if (initialData) {
+    if (initialData.name) document.getElementById('ply-name').value = initialData.name;
+    if (initialData.fatherName && initialData.fatherName !== 'N/A') document.getElementById('ply-father-name').value = initialData.fatherName;
+    if (initialData.dob) {
+      document.getElementById('ply-dob').value = initialData.dob;
+      updateAgeFromDOB();
+    }
+    if (initialData.village) document.getElementById('ply-village').value = initialData.village;
+    if (initialData.district) document.getElementById('ply-district').value = initialData.district;
+    if (initialData.category || initialData.playingType) document.getElementById('ply-category').value = initialData.category || initialData.playingType;
+    if (initialData.battingStyle) document.getElementById('ply-batting-style').value = initialData.battingStyle;
+    if (initialData.bowlingStyle) document.getElementById('ply-bowling-style').value = initialData.bowlingStyle;
+  }
+
   let plyPhotoFileObj = null;
   let plyAadharFileObj = null;
   let plyProofFileObj = null;
 
-  let plyPhotoDataUrl = '';
+  let plyPhotoDataUrl = (initialData && initialData.photoUrl) ? initialData.photoUrl : '';
   let plyAadharDataUrl = '';
   let plyProofDataUrl = '';
 
-  let finalPhotoUrl = '';
+  let finalPhotoUrl = (initialData && initialData.photoUrl) ? initialData.photoUrl : '';
   let finalAadharUrl = '';
   let finalProofUrl = '';
+
+  if (initialData && initialData.photoUrl) {
+    setTimeout(() => {
+      const previewBox = document.getElementById('ply-photo-preview-box');
+      const previewImg = document.getElementById('ply-photo-preview-img');
+      const statusBox = document.getElementById('ply-photo-status-text');
+      if (previewBox) previewBox.classList.remove('hidden');
+      if (previewImg) previewImg.src = initialData.photoUrl;
+      if (statusBox) {
+        statusBox.innerHTML = `<span class="text-[9px] text-emerald-700 font-black flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-300"><i data-lucide="check-circle" class="w-3.5 h-3.5 text-emerald-600"></i> ✅ Photo Auto-Loaded from Lifetime Profile</span>`;
+        if (window.lucide) window.lucide.createIcons();
+      }
+    }, 50);
+  }
 
   // PROCESS PLAYER PHOTO (REALTIME 100KB COMPRESSION + INSTANT CDN UPLOAD + GREEN CHECKMARK)
   const processAndUploadPhoto = async (dataUrlOrFile) => {
@@ -2751,6 +3175,7 @@ function openPlayerRegisterFormModal() {
         payment_receipt_url: proofToSave || '',
         paymentRef: upiRef,
         remarks,
+        phoneVerified: true,
         basePrice: 200
       });
 
@@ -3143,7 +3568,7 @@ function renderLiveAuctionView(container) {
 
           <!-- Active Player Details -->
           <div class="flex flex-col sm:flex-row gap-5 items-center sm:items-start text-center sm:text-left">
-            <img src="${state.photoUrl || 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Crect width=\'100\' height=\'100\' rx=\'20\' fill=\'%23059669\'/%3E%3Ctext x=\'50\' y=\'62\' font-size=\'45\' text-anchor=\'middle\' fill=\'white\'%3E🏏%3C/text%3E%3C/svg%3E'}" class="w-28 h-28 sm:w-32 sm:h-32 rounded-2xl object-cover border-2 border-amber-500 shadow-xl" />
+            <img src="${getOptimizedImageUrl(state.photoUrl, 300, 300) || 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Crect width=\'100\' height=\'100\' rx=\'20\' fill=\'%23059669\'/%3E%3Ctext x=\'50\' y=\'62\' font-size=\'45\' text-anchor=\'middle\' fill=\'white\'%3E🏏%3C/text%3E%3C/svg%3E'}" loading="lazy" class="w-28 h-28 sm:w-32 sm:h-32 rounded-2xl object-cover border-2 border-amber-500 shadow-xl" />
             <div class="space-y-2">
               <h2 class="text-xl sm:text-2xl font-black text-white">${state.name}</h2>
               <div class="flex flex-wrap gap-1.5 justify-center sm:justify-start">
@@ -3634,7 +4059,7 @@ function openTeamSquadModal(team) {
           ` : players.map(p => `
             <div class="flex items-center justify-between p-2.5 bg-slate-950 rounded-xl border border-slate-850">
               <div class="flex items-center gap-2.5">
-                <img src="${p.photoUrl || 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Crect width=\'100\' height=\'100\' rx=\'20\' fill=\'%23059669\'/%3E%3Ctext x=\'50\' y=\'62\' font-size=\'45\' text-anchor=\'middle\' fill=\'white\'%3E🏏%3C/text%3E%3C/svg%3E'}" class="w-9 h-9 rounded-lg object-cover border border-slate-700" />
+                <img src="${getOptimizedImageUrl(p.photoUrl, 100, 100) || 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Crect width=\'100\' height=\'100\' rx=\'20\' fill=\'%23059669\'/%3E%3Ctext x=\'50\' y=\'62\' font-size=\'45\' text-anchor=\'middle\' fill=\'white\'%3E🏏%3C/text%3E%3C/svg%3E'}" loading="lazy" class="w-9 h-9 rounded-lg object-cover border border-slate-700" />
                 <div>
                   <div class="text-xs font-black text-white">${p.name}</div>
                   <div class="text-[9px] text-slate-400">${p.category || p.playingType}</div>
@@ -4032,7 +4457,7 @@ function initRealtimePlayerToast() {
       <div class="relative bg-white/95 backdrop-blur-md border-2 border-emerald-400 rounded-2xl p-2.5 shadow-2xl flex items-center gap-2.5 max-w-[280px] sm:max-w-xs cursor-pointer group hover:scale-[1.02] transition-transform" id="toast-card-inner">
         <!-- PLAYER PHOTO (SQUARE 1:1 WITH CROPPED BORDER) -->
         <div class="relative shrink-0">
-          <img src="${photoUrl}" alt="${playerName}" class="w-11 h-11 sm:w-13 sm:h-13 rounded-xl object-cover border-2 border-emerald-500 shadow-md" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(playerName)}&background=059669&color=fff'" />
+          <img src="${getOptimizedImageUrl(photoUrl, 100, 100)}" loading="lazy" alt="${playerName}" class="w-11 h-11 sm:w-13 sm:h-13 rounded-xl object-cover border-2 border-emerald-500 shadow-md" onerror="this.src='https://ui-avatars.com/api/?name=${encodeURIComponent(playerName)}&background=059669&color=fff'" />
           <span class="absolute -top-1 -right-1 flex h-2.5 w-2.5">
             <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
             <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>

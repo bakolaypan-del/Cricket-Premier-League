@@ -1,0 +1,97 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 800" width="600" height="800">
+  <defs>
+    <!-- Background Gradients -->
+    <linearGradient id="cardBg" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" />
+      <stop offset="100%" stop-color="#F8FAFC" />
+    </linearGradient>
+
+    <linearGradient id="headerGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#047857" />
+      <stop offset="50%" stop-color="#065F46" />
+      <stop offset="100%" stop-color="#022C22" />
+    </linearGradient>
+
+    <linearGradient id="goldRibbon" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#F59E0B" />
+      <stop offset="50%" stop-color="#FBBF24" />
+      <stop offset="100%" stop-color="#D97706" />
+    </linearGradient>
+
+    <linearGradient id="photoBorder" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#10B981" />
+      <stop offset="50%" stop-color="#F59E0B" />
+      <stop offset="100%" stop-color="#047857" />
+    </linearGradient>
+
+    <!-- Shadow Filters -->
+    <filter id="cardShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#0F172A" flood-opacity="0.15" />
+    </filter>
+    <filter id="photoShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000000" flood-opacity="0.2" />
+    </filter>
+  </defs>
+
+  <!-- CARD BASE WITH ROUNDED CORNERS & SHADOW -->
+  <rect x="25" y="25" width="550" height="750" rx="28" fill="url(#cardBg)" stroke="#E2E8F0" stroke-width="3" filter="url(#cardShadow)" />
+
+  <!-- TOP HEADER STRIP -->
+  <path d="M 25 53 Q 25 25 53 25 L 547 25 Q 575 25 575 53 L 575 105 L 25 105 Z" fill="url(#headerGrad)" />
+  <rect x="25" y="105" width="550" height="4" fill="url(#goldRibbon)" />
+
+  <!-- LEAGUE TITLE & BADGE -->
+  <text x="50" y="62" font-family="'Segoe UI', Roboto, sans-serif" font-weight="900" font-size="22" fill="#FBBF24" letter-spacing="1">🏆 JHANKRA SUPER LEAGUE 2026</text>
+  <text x="50" y="88" font-family="'Segoe UI', Roboto, sans-serif" font-weight="700" font-size="13" fill="#A7F3D0" letter-spacing="2">OFFICIAL PLAYER AUCTION ROSTER</text>
+
+  <!-- SERIAL NUMBER BADGE (TOP RIGHT) -->
+  <rect x="475" y="45" width="75" height="42" rx="10" fill="#0F172A" stroke="#F59E0B" stroke-width="2" />
+  <text x="512" y="73" font-family="monospace" font-weight="900" font-size="20" fill="#FBBF24" text-anchor="middle">#01</text>
+
+  <!-- MIDDLE PHOTO CONTAINER -->
+  <rect x="140" y="135" width="320" height="320" rx="24" fill="#FFFFFF" stroke="url(#photoBorder)" stroke-width="5" filter="url(#photoShadow)" />
+  
+  <!-- INNER PHOTO CLIP & PLACEHOLDER CRICKETER ART -->
+  <rect x="148" y="143" width="304" height="304" rx="18" fill="#ECFDF5" />
+  <circle cx="300" cy="250" r="65" fill="#10B981" opacity="0.15" />
+  <text x="300" y="275" font-family="'Segoe UI', Roboto, sans-serif" font-size="95" text-anchor="middle">🏏</text>
+  <text x="300" y="380" font-family="'Segoe UI', Roboto, sans-serif" font-weight="800" font-size="14" fill="#065F46" text-anchor="middle">[ HD PLAYER PHOTO ]</text>
+
+  <!-- PLAYER NAME BANNER -->
+  <rect x="60" y="475" width="480" height="60" rx="16" fill="#0F172A" stroke="#1E293B" stroke-width="1.5" />
+  <text x="300" y="514" font-family="'Segoe UI', Roboto, sans-serif" font-weight="900" font-size="28" fill="#FFFFFF" text-anchor="middle" letter-spacing="1">GOURAV PAL</text>
+
+  <!-- CATEGORY PILL BADGE -->
+  <rect x="210" y="548" width="180" height="32" rx="16" fill="#DCFCE7" stroke="#86EFAC" stroke-width="1.5" />
+  <text x="300" y="569" font-family="'Segoe UI', Roboto, sans-serif" font-weight="800" font-size="13" fill="#15803D" text-anchor="middle">⭐ ALL-ROUNDER</text>
+
+  <!-- PLAYER DETAILS GRID -->
+  <g transform="translate(60, 595)">
+    <!-- Address Box -->
+    <rect x="0" y="0" width="480" height="42" rx="10" fill="#F1F5F9" stroke="#CBD5E1" stroke-width="1" />
+    <text x="15" y="26" font-family="'Segoe UI', Roboto, sans-serif" font-weight="700" font-size="13" fill="#334155">📍 ADDRESS:</text>
+    <text x="110" y="26" font-family="'Segoe UI', Roboto, sans-serif" font-weight="800" font-size="13" fill="#0F172A">Jhankra, Paschim Medinipur, WB</text>
+
+    <!-- Batting & Bowling Row -->
+    <rect x="0" y="48" width="235" height="38" rx="10" fill="#F8FAFC" stroke="#E2E8F0" stroke-width="1" />
+    <text x="12" y="72" font-family="'Segoe UI', Roboto, sans-serif" font-weight="600" font-size="11" fill="#64748B">BATTING:</text>
+    <text x="80" y="72" font-family="'Segoe UI', Roboto, sans-serif" font-weight="800" font-size="12" fill="#0F172A">Right Hand Bat</text>
+
+    <rect x="245" y="48" width="235" height="38" rx="10" fill="#F8FAFC" stroke="#E2E8F0" stroke-width="1" />
+    <text x="257" y="72" font-family="'Segoe UI', Roboto, sans-serif" font-weight="600" font-size="11" fill="#64748B">BOWLING:</text>
+    <text x="330" y="72" font-family="'Segoe UI', Roboto, sans-serif" font-weight="800" font-size="12" fill="#0F172A">Right Arm Medium</text>
+  </g>
+
+  <!-- BOTTOM AUCTION BASE PRICE FOOTER BANNER -->
+  <g transform="translate(60, 695)">
+    <!-- Base Price Gold Box -->
+    <rect x="0" y="0" width="280" height="52" rx="14" fill="url(#goldRibbon)" filter="url(#photoShadow)" />
+    <text x="20" y="22" font-family="'Segoe UI', Roboto, sans-serif" font-weight="900" font-size="10" fill="#78350F" letter-spacing="1">AUCTION BASE PRICE</text>
+    <text x="20" y="44" font-family="'Segoe UI', Roboto, sans-serif" font-weight="900" font-size="22" fill="#451A03">₹ 200 RUPEES</text>
+
+    <!-- Reg ID Dark Box -->
+    <rect x="290" y="0" width="190" height="52" rx="14" fill="#047857" stroke="#10B981" stroke-width="2" />
+    <text x="385" y="22" font-family="'Segoe UI', Roboto, sans-serif" font-weight="800" font-size="10" fill="#A7F3D0" text-anchor="middle" letter-spacing="1">REGISTRATION ID</text>
+    <text x="385" y="43" font-family="monospace" font-weight="900" font-size="15" fill="#FFFFFF" text-anchor="middle">JSL2026-0001</text>
+  </g>
+</svg>
