@@ -1168,6 +1168,43 @@ function renderFirstPageLanding(containerEl) {
         </div>
       </div>
 
+      <!-- ⏳ LIVE TOURNAMENT COUNTDOWN TIMER (30 AUGUST 2026, 9:00 AM IST) -->
+      <div id="tournament-countdown-card" class="w-full max-w-4xl mx-auto bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 border-2 border-amber-500/80 p-3.5 sm:p-4 rounded-3xl shadow-2xl text-white animate-fade-in relative overflow-hidden">
+        <div class="absolute -right-12 -bottom-12 w-36 h-36 bg-amber-500/15 rounded-full blur-2xl pointer-events-none"></div>
+        <div class="absolute -left-12 -top-12 w-36 h-36 bg-emerald-500/15 rounded-full blur-2xl pointer-events-none"></div>
+        
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-3 relative z-10">
+          <div class="text-center sm:text-left">
+            <div class="flex items-center justify-center sm:justify-start gap-2">
+              <span class="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping"></span>
+              <span class="text-[10px] sm:text-xs font-black tracking-widest text-amber-400 uppercase">🏆 MEGA TOURNAMENT KICKOFF</span>
+            </div>
+            <h3 class="text-sm sm:text-base font-black text-white mt-0.5">30 AUGUST 2026 • 9:00 AM IST</h3>
+            <p class="text-[10px] text-emerald-300 font-bold">Jhankra School Stadium Ground • JSL 2026</p>
+          </div>
+
+          <!-- 4-Unit Live Countdown Clock Grid -->
+          <div class="grid grid-cols-4 gap-1.5 sm:gap-2 text-center">
+            <div class="bg-black/70 border border-amber-500/40 rounded-2xl px-2.5 py-1.5 min-w-[56px] sm:min-w-[64px] shadow-inner">
+              <div id="cd-days" class="text-lg sm:text-2xl font-black text-amber-400 font-mono">00</div>
+              <div class="text-[8px] sm:text-[9px] font-bold text-slate-400 uppercase tracking-wider">Days</div>
+            </div>
+            <div class="bg-black/70 border border-amber-500/40 rounded-2xl px-2.5 py-1.5 min-w-[56px] sm:min-w-[64px] shadow-inner">
+              <div id="cd-hours" class="text-lg sm:text-2xl font-black text-amber-400 font-mono">00</div>
+              <div class="text-[8px] sm:text-[9px] font-bold text-slate-400 uppercase tracking-wider">Hours</div>
+            </div>
+            <div class="bg-black/70 border border-amber-500/40 rounded-2xl px-2.5 py-1.5 min-w-[56px] sm:min-w-[64px] shadow-inner">
+              <div id="cd-mins" class="text-lg sm:text-2xl font-black text-amber-400 font-mono">00</div>
+              <div class="text-[8px] sm:text-[9px] font-bold text-slate-400 uppercase tracking-wider">Mins</div>
+            </div>
+            <div class="bg-black/70 border border-amber-500/40 rounded-2xl px-2.5 py-1.5 min-w-[56px] sm:min-w-[64px] shadow-inner">
+              <div id="cd-secs" class="text-lg sm:text-2xl font-black text-rose-400 font-mono animate-pulse">00</div>
+              <div class="text-[8px] sm:text-[9px] font-bold text-slate-400 uppercase tracking-wider">Secs</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- ANNOUNCEMENT SCROLLING MARQUEE TICKER STRIP (LOCATED AT THE VERY BOTTOM BELOW TEAM PICTURES) -->
       <div class="w-full max-w-4xl mx-auto bg-red-600 border-2 border-red-500 py-2 px-3 rounded-2xl flex items-center gap-2.5 sm:gap-3 shadow-lg overflow-hidden text-white animate-fade-in">
         
@@ -1180,9 +1217,9 @@ function renderFirstPageLanding(containerEl) {
         <!-- SCROLLING MARQUEE TEXT -->
         <div class="overflow-hidden whitespace-nowrap w-full relative">
           <div class="animate-continuous-marquee text-xs sm:text-sm font-black text-white tracking-wide">
-            <span class="px-4">📢 Stay Tuned! 🏏 Auction Date and Match Schedule for Jhankra Super League (JSL) will be published from time to time. Stay connected for the latest updates.</span>
+            <span class="px-4">📢 Stay Tuned! 🏏 Grand Tournament starts on 30 August 2026 at 9:00 AM! Player Auction & Match Fixtures will be published live on this website.</span>
             <span class="text-amber-300 font-extrabold px-2">•</span>
-            <span class="px-4">📢 Stay Tuned! 🏏 Auction Date and Match Schedule for Jhankra Super League (JSL) will be published from time to time. Stay connected for the latest updates.</span>
+            <span class="px-4">📢 Stay Tuned! 🏏 Grand Tournament starts on 30 August 2026 at 9:00 AM! Player Auction & Match Fixtures will be published live on this website.</span>
             <span class="text-amber-300 font-extrabold px-2">•</span>
           </div>
         </div>
@@ -1193,6 +1230,9 @@ function renderFirstPageLanding(containerEl) {
 
     </div>
   `;
+
+  // START COUNTDOWN TIMER
+  initTournamentCountdown();
 
   // ATTACH CARD CLICK LISTENERS
   document.getElementById('btn-click-jpl')?.addEventListener('click', () => openComingSoonModal('JPL', 'Jhankra Premier League', 'assets/jpl_logo_white.jpg'));
@@ -1296,6 +1336,49 @@ function renderFirstPageLanding(containerEl) {
       autoPlayTimer = setInterval(nextSlide, 3500);
     }, { passive: true });
   }
+}
+
+// --- LIVE TOURNAMENT COUNTDOWN CLOCK (30 AUGUST 2026, 9:00 AM IST) ---
+export function initTournamentCountdown() {
+  const targetDate = new Date("2026-08-30T09:00:00+05:30").getTime();
+
+  const update = () => {
+    const now = Date.now();
+    const diff = targetDate - now;
+
+    const dEl = document.getElementById('cd-days');
+    const hEl = document.getElementById('cd-hours');
+    const mEl = document.getElementById('cd-mins');
+    const sEl = document.getElementById('cd-secs');
+
+    if (!dEl || !hEl || !mEl || !sEl) return;
+
+    if (diff <= 0) {
+      dEl.textContent = "00";
+      hEl.textContent = "00";
+      mEl.textContent = "00";
+      sEl.textContent = "00";
+      return;
+    }
+
+    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
+    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+    const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const secs = Math.floor((diff % (1000 * 60)) / 1000);
+
+    const pad = (n) => String(n).padStart(2, '0');
+
+    dEl.textContent = pad(days);
+    hEl.textContent = pad(hours);
+    mEl.textContent = pad(mins);
+    sEl.textContent = pad(secs);
+  };
+
+  update();
+  if (window._tournamentCountdownInterval) {
+    clearInterval(window._tournamentCountdownInterval);
+  }
+  window._tournamentCountdownInterval = setInterval(update, 1000);
 }
 
 // --- COMING SOON MODAL WITH STYLISH LOGOS ---

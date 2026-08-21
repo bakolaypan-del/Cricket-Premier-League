@@ -593,22 +593,41 @@ export function renderAdminDashboard(containerEl) {
   });
 
   // Bind Put Player on block btn
-  document.getElementById('auction-start-bid-btn')?.addEventListener('click', async () => {
-    const pId = document.getElementById('auction-select-player').value;
-    if (!pId) return alert("Select a player first!");
+  document.getElementById('auction-start-bid-btn')?.addEventListener('click', () => {
+    const pId = document.getElementById('auction-select-player')?.value;
+    if (!pId) return alert("Please select an approved player from the dropdown first!");
     const p = store.getPlayerById(pId);
     if (p) {
-      await store.updateLiveAuctionState({
-        active_player_id: p.id,
-        name: p.name,
-        photoUrl: p.photoUrl || p.player_photo_url || '',
-        category: p.category || p.playingType || 'All Rounder',
-        basePrice: p.basePrice || 200,
-        current_bid: p.basePrice || 200,
-        highest_bidder_team_id: null,
-        timer_left: 30,
-        status: 'BIDDING'
-      });
+      if (activeAuction.timerInterval) clearInterval(activeAuction.timerInterval);
+      activeAuction = {
+        player: p,
+        currentBid: Number(p.basePrice) || 200,
+        leadingTeam: null,
+        timerSecs: 30,
+        timerInterval: null,
+        isSold: false,
+        isUnsold: false
+      };
+      // Start 1-second countdown
+      activeAuction.timerInterval = setInterval(() => {
+        if (activeAuction.timerSecs > 0) {
+          activeAuction.timerSecs--;
+          if (activeAuction.timerSecs <= 5 && activeAuction.timerSecs > 0) {
+            playAuctionAudio('tick');
+          }
+          updateProjectorModalView();
+          const timerBox = document.querySelector('#admin-active-auction-block .text-center .border');
+          if (timerBox) {
+            timerBox.textContent = `⏱️ ${String(activeAuction.timerSecs).padStart(2, '0')}s`;
+            if (activeAuction.timerSecs <= 5) {
+              timerBox.className = 'px-3 py-1.5 rounded-xl border font-mono font-black text-lg text-rose-400 animate-pulse border-rose-500 bg-rose-950/50';
+            } else if (activeAuction.timerSecs <= 10) {
+              timerBox.className = 'px-3 py-1.5 rounded-xl border font-mono font-black text-lg text-amber-400 border-amber-500 bg-amber-950/50';
+            }
+          }
+        }
+      }, 1000);
+
       renderActiveAuctionBlock();
     }
   });
@@ -868,7 +887,11 @@ function renderAdminPlayersRows(playersList) {
           </span>
         </td>
         <td class="py-3 px-3 text-right">
-          <div class="flex items-center justify-end gap-1">
+            ${isApproved ? `
+              <button data-whatsapp-notify-id="${p.id}" title="Send Official Approval on WhatsApp" class="whatsapp-notify-btn px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[9px] rounded-lg shadow flex items-center gap-1 cursor-pointer">
+                <span>💬 WhatsApp</span>
+              </button>
+            ` : ''}
             ${p.aadharPhotoUrl || p.paymentReceiptUrl ? `
               <button data-purge-docs-id="${p.id}" title="Purge Aadhaar & Receipt images to save storage memory" class="purge-player-docs-btn px-2 py-1 bg-amber-950 hover:bg-amber-900 text-amber-300 font-bold text-[9px] rounded-lg border border-amber-800 shadow">
                 🧹 Purge Docs
@@ -908,9 +931,54 @@ function renderAdminPlayersRows(playersList) {
   }).join('');
 }
 
+// --- AUTOMATED WHATSAPP NOTIFICATION ENGINE ---
+export function sendWhatsAppPlayerApproval(player) {
+  if (!player || !player.phone) {
+    alert("Player phone number not found!");
+    return;
+  }
+  const cleanPhone = String(player.phone).replace(/\D/g, '').slice(-10);
+  if (cleanPhone.length < 10) {
+    alert("Invalid phone number: " + player.phone);
+    return;
+  }
+
+  const messageText = 
+`🎉 *JHANKRA SUPER LEAGUE (JSL) 2026* 🎉
+
+নমস্কার *${player.name}*,
+আপনার JSL 2026 টুর্নামেন্টের প্লেয়ার রেজিস্ট্রেশন সফলভাবে *APPROVED* (অনুমোদিত) হয়েছে! ✅
+
+🆔 *Registration ID:* ${player.registrationId || 'JSL2026-0001'}
+🏏 *Category:* ${player.category || 'All Rounder'}
+📍 *Location:* ${player.village || ''}, ${player.district || 'Paschim Medinipur'}
+💰 *Base Price:* ₹${player.basePrice || 200}
+
+🏆 *Grand Tournament Starts:* 30 August 2026, 9:00 AM IST
+📍 *Venue:* Jhankra School Stadium Ground
+
+🌐 *Live Portal:* https://cricket-league.vercel.app
+
+ধন্যবাদ ও শুভকামনা,
+*JSL 2026 Management Committee*`;
+
+  const encodedMsg = encodeURIComponent(messageText);
+  const waUrl = `https://wa.me/91${cleanPhone}?text=${encodedMsg}`;
+  window.open(waUrl, '_blank');
+}
+
 function bindAdminTableActions(containerEl) {
-  // Event Delegation so Delete, Edit, Approve, Reject, and Restore buttons work 100% reliably
+  // Event Delegation so Delete, Edit, Approve, Reject, Restore & WhatsApp buttons work 100% reliably
   containerEl.onclick = (e) => {
+    // 0. WhatsApp Notify
+    const waBtn = e.target.closest('.whatsapp-notify-btn');
+    if (waBtn) {
+      const pId = waBtn.getAttribute('data-whatsapp-notify-id');
+      const p = store.getPlayerById(pId);
+      if (p) sendWhatsAppPlayerApproval(p);
+      return;
+    }
+
     // 1. Delete Player
     const deleteBtn = e.target.closest('.delete-player-btn');
     if (deleteBtn) {
@@ -929,6 +997,10 @@ function bindAdminTableActions(containerEl) {
       if (pId) {
         store.updatePlayerStatus(pId, 'APPROVED', 'APPROVED');
         renderAdminDashboard(containerEl);
+        const p = store.getPlayerById(pId);
+        if (p && confirm(`✅ Player "${p.name}" APPROVED!\n\nDo you want to send the official Approval Confirmation to ${p.name} on WhatsApp now?`)) {
+          sendWhatsAppPlayerApproval(p);
+        }
       }
       return;
     }
@@ -1342,168 +1414,7 @@ const FIREBASE_DB_URL = "https://cpl-jsl-2026-default-rtdb.firebaseio.com";
 let activeScoringMatchId = null;
 let currentScoringState = null;
 
-async function renderActiveAuctionBlock() {
-  const container = document.getElementById('admin-active-auction-block');
-  if (!container) return;
-  
-  const state = await store.getLiveAuctionState();
-  if (!state || !state.active_player_id) {
-    container.innerHTML = `
-      <div class="text-center py-10 text-xs text-slate-500 border border-dashed border-slate-800 rounded-xl bg-slate-950/30">
-        No player currently on the bidding block. Select a player on the left to start.
-      </div>
-    `;
-    return;
-  }
 
-  const teams = store.getTeams();
-  const player = store.getPlayerById(state.active_player_id);
-  const bidderTeam = teams.find(t => t.id === state.highest_bidder_team_id);
-
-  container.innerHTML = `
-    <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 space-y-4">
-      <div class="flex items-center gap-3">
-        <img src="${state.photoUrl || 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Crect width=\'100\' height=\'100\' rx=\'20\' fill=\'%23059669\'/%3E%3Ctext x=\'50\' y=\'62\' font-size=\'45\' text-anchor=\'middle\' fill=\'white\'%3E🏏%3C/text%3E%3C/svg%3E'}" class="w-16 h-16 rounded-xl object-cover border border-amber-500" />
-        <div>
-          <h4 class="font-black text-white text-base">${state.name}</h4>
-          <div class="text-xs text-slate-400">Category: <span class="text-sky-400 font-bold">${state.category}</span></div>
-          <div class="text-xs text-slate-400">Base Price: <span class="text-amber-400 font-bold">₹ ${state.basePrice}</span></div>
-        </div>
-      </div>
-
-      <div class="bg-slate-900 p-3 rounded-lg border border-slate-800 flex justify-between items-center">
-        <div>
-          <div class="text-[10px] font-bold text-slate-400 uppercase">CURRENT HIGH BID</div>
-          <div class="text-2xl font-black text-amber-400">₹ ${state.current_bid}</div>
-        </div>
-        <div class="text-right">
-          <div class="text-[10px] font-bold text-slate-400 uppercase">HIGHEST BIDDER</div>
-          <div class="text-sm font-black text-white">${bidderTeam ? bidderTeam.name : 'No bids yet'}</div>
-        </div>
-      </div>
-
-      <!-- Quick Bids & Manual Bid Entry -->
-      <div class="space-y-2">
-        <label class="block text-[10px] font-bold text-slate-400">INCREMENT BID FOR TEAM</label>
-        <div class="grid grid-cols-2 gap-2">
-          <select id="auction-bid-team-select" class="bg-slate-900 border border-slate-800 text-white text-xs rounded-xl p-2">
-            <option value="">-- Choose Bidding Team --</option>
-            ${teams.map(t => `<option value="${t.id}">${t.name} (Purse: ₹${t.purseBudget - t.purseSpent})</option>`).join('')}
-          </select>
-          <div class="flex gap-1">
-            <input type="number" id="auction-bid-amount-input" value="${state.current_bid + 50}" class="w-20 bg-slate-900 border border-slate-800 text-white text-xs rounded-xl p-2 text-center" />
-            <button id="auction-place-manual-bid-btn" class="flex-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl border border-amber-300">
-              Bid
-            </button>
-          </div>
-        </div>
-        
-        <div class="grid grid-cols-3 gap-1.5 pt-1">
-          <button class="auction-quick-inc-btn py-1.5 bg-slate-850 hover:bg-slate-800 text-slate-205 text-xs font-bold rounded-lg border border-slate-850" data-inc="50">+50</button>
-          <button class="auction-quick-inc-btn py-1.5 bg-slate-850 hover:bg-slate-800 text-slate-205 text-xs font-bold rounded-lg border border-slate-850" data-inc="100">+100</button>
-          <button class="auction-quick-inc-btn py-1.5 bg-slate-850 hover:bg-slate-800 text-slate-205 text-xs font-bold rounded-lg border border-slate-850" data-inc="200">+200</button>
-        </div>
-      </div>
-
-      <!-- SOLD / UNSOLD / CANCEL Controls -->
-      <div class="space-y-2 pt-2 border-t border-slate-900">
-        <div class="grid grid-cols-2 gap-2">
-          <button id="auction-mark-unsold-btn" class="py-2.5 bg-red-950/60 hover:bg-red-900 text-red-300 font-extrabold text-xs rounded-xl border border-red-900">
-            Unsold
-          </button>
-          <button id="auction-mark-sold-btn" class="py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl border border-emerald-400 shadow">
-            Sold
-          </button>
-        </div>
-        <button id="auction-pullback-btn" class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold text-xs rounded-xl border border-slate-700 shadow-md">
-          ↩️ Pull Back Player (Cancel Bidding)
-        </button>
-      </div>
-    </div>
-  `;
-
-  if (window.lucide) window.lucide.createIcons();
-
-  // Bind manual bid
-  document.getElementById('auction-place-manual-bid-btn')?.addEventListener('click', () => {
-    const teamId = document.getElementById('auction-bid-team-select').value;
-    const amount = Number(document.getElementById('auction-bid-amount-input').value) || 0;
-    if (!teamId) return alert("Select a bidding team!");
-    if (amount <= state.current_bid) return alert(`Bid must be higher than current bid (₹${state.current_bid})!`);
-    
-    const team = teams.find(t => t.id === teamId);
-    if (team) {
-      const remainingPurse = team.purseBudget - team.purseSpent;
-      const slotsLeft = 13 - (team.squadCount || 0);
-      const reservedAmount = (slotsLeft - 1) * (state.basePrice || 200);
-      const maxAllowed = remainingPurse - reservedAmount;
-      if (amount > maxAllowed) {
-        return alert(`Safeguard Warning: Team ${team.name} cannot bid more than ₹${maxAllowed}. Must reserve ₹${reservedAmount} for remaining empty slots!`);
-      }
-    }
-
-    state.current_bid = amount;
-    state.highest_bidder_team_id = teamId;
-    store.updateLiveAuctionState(state);
-    renderActiveAuctionBlock();
-  });
-
-  // Bind quick increments
-  document.querySelectorAll('.auction-quick-inc-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const inc = Number(e.currentTarget.getAttribute('data-inc')) || 50;
-      const teamId = document.getElementById('auction-bid-team-select').value;
-      if (!teamId) return alert("Select a bidding team to place increment!");
-      
-      const newBid = state.current_bid + inc;
-      const team = teams.find(t => t.id === teamId);
-      if (team) {
-        const remainingPurse = team.purseBudget - team.purseSpent;
-        const slotsLeft = 13 - (team.squadCount || 0);
-        const reservedAmount = (slotsLeft - 1) * (state.basePrice || 200);
-        const maxAllowed = remainingPurse - reservedAmount;
-        if (newBid > maxAllowed) {
-          return alert(`Safeguard Warning: Team ${team.name} cannot bid more than ₹${maxAllowed}. Must reserve ₹${reservedAmount} for remaining empty slots!`);
-        }
-      }
-
-      state.current_bid = newBid;
-      state.highest_bidder_team_id = teamId;
-      store.updateLiveAuctionState(state);
-      renderActiveAuctionBlock();
-    });
-  });
-
-  // Bind Unsold
-  document.getElementById('auction-mark-unsold-btn')?.addEventListener('click', async () => {
-    if (confirm("Mark this player as UNSOLD?")) {
-      await store.updateLiveAuctionState(null);
-      alert("Player marked unsold. Bidding block cleared.");
-      window.dispatchEvent(new CustomEvent('players_updated'));
-    }
-  });
-
-  // Bind Pull Back Player (Cancel Bidding Block)
-  document.getElementById('auction-pullback-btn')?.addEventListener('click', async () => {
-    if (confirm(`Pull back ${state.name} from the auction block?`)) {
-      await store.updateLiveAuctionState(null);
-      alert("Player pulled back. Auction block cleared.");
-      window.dispatchEvent(new CustomEvent('players_updated'));
-    }
-  });
-
-  // Bind Sold
-  document.getElementById('auction-mark-sold-btn')?.addEventListener('click', async () => {
-    if (!state.highest_bidder_team_id) return alert("Cannot mark sold: No team has bid yet!");
-    const t = teams.find(team => team.id === state.highest_bidder_team_id);
-    if (confirm(`Confirm sale of ${state.name} to ${t ? t.name : 'Team'} for ₹${state.current_bid}?`)) {
-      store.assignPlayerToTeam(state.active_player_id, state.highest_bidder_team_id, state.current_bid);
-      await store.updateLiveAuctionState(null);
-      alert("Player sold successfully!");
-      window.dispatchEvent(new CustomEvent('players_updated'));
-    }
-  });
-}
 
 function renderAdminFixturesList() {
   const tbody = document.getElementById('admin-fixtures-list');
@@ -1966,6 +1877,472 @@ function openTossSelectionModal(fixture, onComplete) {
     store.updateFixture(fixture);
     removeModal();
     onComplete();
+  });
+}
+
+// ============================================================================
+// --- 🔨 LIVE AUCTION ARENA, PROJECTOR FULLSCREEN MODE & AUDIO SYNTHESIZER ---
+// ============================================================================
+
+// 1. Web Audio Immersion Synthesizer
+export function playAuctionAudio(type) {
+  try {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return;
+    const ctx = new AudioCtx();
+
+    if (type === 'bid') {
+      // Ascending Chime
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sine';
+      const now = ctx.currentTime;
+      osc.frequency.setValueAtTime(587.33, now); // D5
+      osc.frequency.exponentialRampToValueAtTime(880, now + 0.12); // A5
+      gain.gain.setValueAtTime(0.25, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+      osc.start(now);
+      osc.stop(now + 0.3);
+    } else if (type === 'tick') {
+      // Wood Clock Tick
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'triangle';
+      const now = ctx.currentTime;
+      osc.frequency.setValueAtTime(1100, now);
+      gain.gain.setValueAtTime(0.2, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
+      osc.start(now);
+      osc.stop(now + 0.05);
+    } else if (type === 'sold') {
+      // Resonant Wooden Gavel Strike
+      const osc1 = ctx.createOscillator();
+      const gain1 = ctx.createGain();
+      osc1.connect(gain1);
+      gain1.connect(ctx.destination);
+      osc1.type = 'triangle';
+      const now = ctx.currentTime;
+      osc1.frequency.setValueAtTime(180, now);
+      osc1.frequency.exponentialRampToValueAtTime(35, now + 0.35);
+      gain1.gain.setValueAtTime(0.7, now);
+      gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.45);
+      osc1.start(now);
+      osc1.stop(now + 0.45);
+
+      // Second Gavel Impact after 180ms
+      setTimeout(() => {
+        try {
+          const osc2 = ctx.createOscillator();
+          const gain2 = ctx.createGain();
+          osc2.connect(gain2);
+          gain2.connect(ctx.destination);
+          osc2.type = 'triangle';
+          const t = ctx.currentTime;
+          osc2.frequency.setValueAtTime(160, t);
+          osc2.frequency.exponentialRampToValueAtTime(30, t + 0.3);
+          gain2.gain.setValueAtTime(0.5, t);
+          gain2.gain.exponentialRampToValueAtTime(0.01, t + 0.35);
+          osc2.start(t);
+          osc2.stop(t + 0.35);
+        } catch (e) {}
+      }, 180);
+    }
+  } catch (e) {
+    console.warn('Audio synthesis fallback:', e);
+  }
+}
+
+let activeAuction = {
+  player: null,
+  currentBid: 0,
+  leadingTeam: null,
+  timerSecs: 30,
+  timerInterval: null,
+  isSold: false,
+  isUnsold: false
+};
+
+export function renderActiveAuctionBlock() {
+  const container = document.getElementById('admin-active-auction-block');
+  if (!container) return;
+
+  const allTeams = store.getTeams();
+
+  if (!activeAuction.player) {
+    container.innerHTML = `
+      <div class="p-6 bg-slate-950/70 rounded-2xl border border-slate-800 text-center space-y-3">
+        <div class="w-12 h-12 rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/30 flex items-center justify-center mx-auto">
+          <i data-lucide="gavel" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <h4 class="text-sm font-bold text-white">Auction Block is Idle</h4>
+          <p class="text-xs text-slate-400">Select an approved player from the left panel and click "Put Player on Auction Block" to begin.</p>
+        </div>
+      </div>
+    `;
+    if (window.lucide) window.lucide.createIcons();
+    return;
+  }
+
+  const p = activeAuction.player;
+  const timerClass = activeAuction.timerSecs <= 5 ? 'text-rose-400 animate-pulse border-rose-500 bg-rose-950/50' : activeAuction.timerSecs <= 10 ? 'text-amber-400 border-amber-500 bg-amber-950/50' : 'text-emerald-400 border-emerald-500 bg-emerald-950/50';
+
+  container.innerHTML = `
+    <div class="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-4">
+      
+      <!-- Top Bar: Player Info & Big Timer -->
+      <div class="flex items-center justify-between gap-3 border-b border-slate-800 pb-3">
+        <div class="flex items-center gap-3">
+          <img src="${getOptimizedImageUrl(p.photoUrl || p.player_photo_url, 120, 120)}" class="w-12 h-12 rounded-xl object-cover border border-amber-500/50 shadow" onerror="this.src='assets/card_jsl_user.png'" />
+          <div>
+            <h4 class="text-sm sm:text-base font-black text-white">${p.name}</h4>
+            <div class="text-[10px] text-amber-400 font-bold flex items-center gap-1.5">
+              <span>🏏 ${p.category || 'All Rounder'}</span>
+              <span>•</span>
+              <span>📍 ${p.village || 'Paschim Medinipur'}</span>
+              <span>•</span>
+              <span>Base: ₹${p.basePrice || 200}</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="text-center">
+          <div class="px-3 py-1.5 rounded-xl border font-mono font-black text-lg ${timerClass}">
+            ⏱️ ${String(activeAuction.timerSecs).padStart(2, '0')}s
+          </div>
+        </div>
+      </div>
+
+      <!-- Current Bid & Leading Team -->
+      <div class="grid grid-cols-2 gap-3">
+        <div class="p-3 bg-slate-900/90 rounded-xl border border-amber-500/40 text-center">
+          <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">CURRENT LIVE BID</span>
+          <div class="text-xl sm:text-2xl font-black text-amber-400 font-mono mt-0.5">
+            ₹ ${activeAuction.currentBid.toLocaleString('en-IN')}
+          </div>
+        </div>
+        <div class="p-3 bg-slate-900/90 rounded-xl border border-slate-800 text-center">
+          <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">LEADING BIDDER TEAM</span>
+          <div class="text-xs sm:text-sm font-black text-white truncate mt-1">
+            ${activeAuction.leadingTeam ? `🛡️ ${activeAuction.leadingTeam.name}` : '<span class="text-slate-500 italic">No Bids Yet</span>'}
+          </div>
+        </div>
+      </div>
+
+      <!-- Quick Bid Increment Buttons -->
+      <div>
+        <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">Select Team & Place Bid Increment</label>
+        <div class="flex gap-2 mb-2">
+          <select id="auction-bidding-team-select" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl p-2.5 focus:border-amber-400 focus:outline-none">
+            <option value="">-- Choose Bidding Franchise --</option>
+            ${allTeams.map(t => {
+              const rem = t.remainingPurse !== undefined ? t.remainingPurse : (t.purse || 8000);
+              return `<option value="${t.id}">${t.name} (Rem Purse: ₹${rem})</option>`;
+            }).join('')}
+          </select>
+        </div>
+        <div class="grid grid-cols-4 gap-1.5">
+          <button data-inc="50" class="auction-bid-inc-btn py-2 bg-slate-800 hover:bg-slate-700 text-amber-400 font-black text-xs rounded-xl border border-slate-700 transition-all cursor-pointer">
+            +₹50
+          </button>
+          <button data-inc="100" class="auction-bid-inc-btn py-2 bg-slate-800 hover:bg-slate-700 text-amber-400 font-black text-xs rounded-xl border border-slate-700 transition-all cursor-pointer">
+            +₹100
+          </button>
+          <button data-inc="200" class="auction-bid-inc-btn py-2 bg-slate-800 hover:bg-slate-700 text-amber-400 font-black text-xs rounded-xl border border-slate-700 transition-all cursor-pointer">
+            +₹200
+          </button>
+          <button data-inc="500" class="auction-bid-inc-btn py-2 bg-slate-800 hover:bg-slate-700 text-amber-400 font-black text-xs rounded-xl border border-slate-700 transition-all cursor-pointer">
+            +₹500
+          </button>
+        </div>
+      </div>
+
+      <!-- Auctioneer Action Controls -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t border-slate-800">
+        <button id="auction-mark-sold-btn" class="py-2.5 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-black text-xs rounded-xl shadow-lg flex items-center justify-center gap-1.5 cursor-pointer">
+          <i data-lucide="check-circle-2" class="w-4 h-4"></i> 🔨 Mark SOLD
+        </button>
+        <button id="auction-mark-unsold-btn" class="py-2.5 bg-slate-800 hover:bg-slate-700 text-rose-400 font-black text-xs rounded-xl border border-slate-700 flex items-center justify-center gap-1.5 cursor-pointer">
+          <i data-lucide="x-circle" class="w-4 h-4"></i> ❌ UNSOLD
+        </button>
+        <button id="auction-open-projector-btn" class="py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs rounded-xl shadow-lg flex items-center justify-center gap-1.5 cursor-pointer">
+          <i data-lucide="tv" class="w-4 h-4"></i> 📽️ Projector View
+        </button>
+      </div>
+
+    </div>
+  `;
+
+  if (window.lucide) window.lucide.createIcons();
+
+  // Attach Bid Increment Listeners
+  container.querySelectorAll('.auction-bid-inc-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const inc = Number(e.currentTarget.getAttribute('data-inc')) || 100;
+      const teamSelect = document.getElementById('auction-bidding-team-select');
+      const teamId = teamSelect?.value;
+      if (!teamId) {
+        alert("Please select a bidding franchise team first!");
+        return;
+      }
+      const team = store.getTeamById(teamId);
+      if (!team) return;
+
+      activeAuction.currentBid += inc;
+      activeAuction.leadingTeam = team;
+      activeAuction.timerSecs = 30; // Reset timer on bid
+
+      playAuctionAudio('bid');
+      renderActiveAuctionBlock();
+      updateProjectorModalView();
+    });
+  });
+
+  // Attach Mark SOLD
+  document.getElementById('auction-mark-sold-btn')?.addEventListener('click', async () => {
+    if (!activeAuction.leadingTeam) {
+      alert("No team has placed a bid yet! Mark as Unsold or place a bid.");
+      return;
+    }
+    const team = activeAuction.leadingTeam;
+    const price = activeAuction.currentBid;
+
+    // Deduct purse
+    const updatedPurseSpent = (Number(team.purseSpent) || 0) + price;
+    const maxPurse = Number(team.purse || team.purseBudget || 8000);
+    const updatedRemPurse = maxPurse - updatedPurseSpent;
+
+    const updatedTeam = {
+      ...team,
+      purseSpent: updatedPurseSpent,
+      remainingPurse: updatedRemPurse
+    };
+    store.updateTeam(updatedTeam);
+
+    // Assign player
+    const updatedPlayer = {
+      ...p,
+      teamId: team.id,
+      teamName: team.name,
+      soldPrice: price,
+      auctionStatus: 'SOLD'
+    };
+    store.updatePlayer(updatedPlayer);
+
+    // Stop timer
+    if (activeAuction.timerInterval) clearInterval(activeAuction.timerInterval);
+
+    playAuctionAudio('sold');
+    alert(`🎉 SOLD! Player "${p.name}" sold to "${team.name}" for ₹${price.toLocaleString('en-IN')}!`);
+
+    activeAuction = { player: null, currentBid: 0, leadingTeam: null, timerSecs: 30, timerInterval: null, isSold: false, isUnsold: false };
+    renderActiveAuctionBlock();
+    updateProjectorModalView();
+  });
+
+  // Attach Mark UNSOLD
+  document.getElementById('auction-mark-unsold-btn')?.addEventListener('click', () => {
+    if (confirm(`Mark "${p.name}" as UNSOLD for this round?`)) {
+      const updatedPlayer = { ...p, auctionStatus: 'UNSOLD' };
+      store.updatePlayer(updatedPlayer);
+
+      if (activeAuction.timerInterval) clearInterval(activeAuction.timerInterval);
+      alert(`Player "${p.name}" marked as UNSOLD.`);
+
+      activeAuction = { player: null, currentBid: 0, leadingTeam: null, timerSecs: 30, timerInterval: null, isSold: false, isUnsold: false };
+      renderActiveAuctionBlock();
+      updateProjectorModalView();
+    }
+  });
+
+  // Attach Projector View Button
+  document.getElementById('auction-open-projector-btn')?.addEventListener('click', () => {
+    openAuctionProjectorModal();
+  });
+}
+
+// 2. Fullscreen Big Screen / Projector Modal
+export function openAuctionProjectorModal() {
+  document.getElementById('auction-projector-modal')?.remove();
+
+  const p = activeAuction.player;
+  const pName = p ? p.name : 'Waiting for Player...';
+  const pPhoto = p ? getOptimizedImageUrl(p.photoUrl || p.player_photo_url, 400, 400) : 'assets/card_jsl_user.png';
+  const pCat = p ? (p.category || 'All Rounder') : 'JSL 2026';
+  const pVillage = p ? (p.village || 'Paschim Medinipur') : 'Cricket Ground';
+  const pBase = p ? (p.basePrice || 200) : 200;
+
+  const modalHtml = `
+    <div id="auction-projector-modal" class="fixed inset-0 z-[100] bg-slate-950 text-white flex flex-col justify-between p-4 sm:p-8 animate-fade-in select-none">
+      
+      <!-- Top Broadcast Header -->
+      <div class="flex items-center justify-between border-b border-slate-800/80 pb-4">
+        <div class="flex items-center gap-3">
+          <img src="assets/jsl_logo.jpg" class="w-12 h-12 rounded-2xl object-cover border-2 border-amber-400 shadow" />
+          <div>
+            <span class="text-[10px] sm:text-xs font-black tracking-widest text-amber-400 uppercase">JHANKRA SUPER LEAGUE (JSL) 2026</span>
+            <h2 class="text-base sm:text-2xl font-black text-white uppercase tracking-wide">GRAND PLAYER AUCTION ARENA</h2>
+          </div>
+        </div>
+
+        <div class="flex items-center gap-2">
+          <button id="projector-fullscreen-toggle-btn" class="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-xs rounded-xl border border-slate-700 flex items-center gap-1.5 cursor-pointer">
+            <i data-lucide="maximize" class="w-4 h-4"></i> <span>Fullscreen (F11)</span>
+          </button>
+          <button id="projector-close-btn" class="p-2 bg-red-950 hover:bg-red-900 text-red-400 rounded-xl border border-red-800 cursor-pointer">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+      </div>
+
+      <!-- Main Stage -->
+      <div class="grid grid-cols-1 md:grid-cols-12 gap-6 my-auto items-center">
+        
+        <!-- Left: Player HD Portrait Card (5 Cols) -->
+        <div class="md:col-span-5 flex flex-col items-center justify-center text-center p-6 bg-gradient-to-b from-slate-900 via-slate-900/90 to-slate-950 rounded-3xl border-2 border-amber-500/60 shadow-2xl relative overflow-hidden">
+          <div class="absolute top-3 left-3 px-3 py-1 bg-amber-500 text-slate-950 font-black text-xs rounded-full uppercase">
+            ${p ? p.registrationId || 'LOT #1' : 'READY'}
+          </div>
+          <img id="proj-player-img" src="${pPhoto}" class="w-48 h-48 sm:w-64 sm:h-64 object-cover rounded-3xl border-4 border-white shadow-2xl my-3" onerror="this.src='assets/card_jsl_user.png'" />
+          <h1 id="proj-player-name" class="text-2xl sm:text-4xl font-black text-white tracking-wide">${pName}</h1>
+          <div class="flex items-center justify-center gap-2 mt-2">
+            <span id="proj-player-cat" class="px-3 py-1 bg-sky-500/20 text-sky-400 font-bold text-xs sm:text-sm rounded-xl border border-sky-500/40">🏏 ${pCat}</span>
+            <span id="proj-player-village" class="px-3 py-1 bg-slate-800 text-slate-300 font-bold text-xs sm:text-sm rounded-xl border border-slate-700">📍 ${pVillage}</span>
+          </div>
+          <div class="mt-3 text-xs text-amber-400 font-bold">
+            Base Price: ₹<span id="proj-player-base">${pBase}</span>
+          </div>
+        </div>
+
+        <!-- Right: Live Bid & Countdown Timer Stage (7 Cols) -->
+        <div class="md:col-span-7 flex flex-col justify-center space-y-6">
+          
+          <!-- Massive Live Bid Display -->
+          <div class="p-6 sm:p-8 bg-gradient-to-r from-amber-500/20 via-orange-500/20 to-amber-500/20 rounded-3xl border-2 border-amber-400/80 shadow-2xl text-center backdrop-blur-md">
+            <span class="text-xs sm:text-sm font-black text-amber-300 uppercase tracking-widest">CURRENT HIGHEST BID</span>
+            <div id="proj-current-bid" class="text-4xl sm:text-7xl font-black text-amber-400 font-mono tracking-tight my-2 drop-shadow-md">
+              ₹ ${activeAuction.currentBid.toLocaleString('en-IN')}
+            </div>
+            
+            <!-- Leading Team Pill -->
+            <div class="inline-flex items-center gap-2 px-4 py-2 bg-slate-950/80 rounded-2xl border border-amber-400/50 shadow mt-1">
+              <span class="text-xs text-slate-400 font-bold uppercase">Leading Franchise:</span>
+              <span id="proj-leading-team" class="text-sm sm:text-base font-black text-white">
+                ${activeAuction.leadingTeam ? `🛡️ ${activeAuction.leadingTeam.name}` : 'Waiting for Opening Bid...'}
+              </span>
+            </div>
+          </div>
+
+          <!-- Bottom: 30s Big Clock -->
+          <div class="flex items-center justify-between p-4 sm:p-6 bg-slate-900/80 rounded-3xl border border-slate-800">
+            <div>
+              <span class="text-xs font-black text-slate-400 uppercase tracking-wider block">AUCTION COUNTDOWN</span>
+              <p class="text-[11px] text-slate-500">Hammer falls at 0 seconds</p>
+            </div>
+            <div id="proj-timer-box" class="px-6 py-2 bg-black/80 rounded-2xl border-2 border-emerald-400 text-3xl sm:text-5xl font-mono font-black text-emerald-400 shadow-inner">
+              ${String(activeAuction.timerSecs).padStart(2, '0')}s
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- Footer Info -->
+      <div class="text-center text-xs text-slate-500 border-t border-slate-900 pt-3">
+        Official Tournament Ground: Jhankra School Stadium Ground • Live Stream Powered by JSL 2026
+      </div>
+
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  if (window.lucide) window.lucide.createIcons();
+
+  const removeProjModal = () => document.getElementById('auction-projector-modal')?.remove();
+  document.getElementById('projector-close-btn')?.addEventListener('click', removeProjModal);
+
+  document.getElementById('projector-fullscreen-toggle-btn')?.addEventListener('click', () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen().catch(err => console.warn(err));
+    } else {
+      document.exitFullscreen().catch(err => console.warn(err));
+    }
+  });
+}
+
+function updateProjectorModalView() {
+  const modal = document.getElementById('auction-projector-modal');
+  if (!modal) return;
+
+  const p = activeAuction.player;
+  const bidEl = document.getElementById('proj-current-bid');
+  const teamEl = document.getElementById('proj-leading-team');
+  const timerEl = document.getElementById('proj-timer-box');
+
+  if (bidEl) bidEl.textContent = `₹ ${activeAuction.currentBid.toLocaleString('en-IN')}`;
+  if (teamEl) teamEl.textContent = activeAuction.leadingTeam ? `🛡️ ${activeAuction.leadingTeam.name}` : 'Waiting for Opening Bid...';
+  if (timerEl) {
+    timerEl.textContent = `${String(activeAuction.timerSecs).padStart(2, '0')}s`;
+    if (activeAuction.timerSecs <= 5) {
+      timerEl.className = 'px-6 py-2 bg-rose-950/80 rounded-2xl border-2 border-rose-500 text-3xl sm:text-5xl font-mono font-black text-rose-400 shadow-inner animate-pulse';
+    } else if (activeAuction.timerSecs <= 10) {
+      timerEl.className = 'px-6 py-2 bg-amber-950/80 rounded-2xl border-2 border-amber-500 text-3xl sm:text-5xl font-mono font-black text-amber-400 shadow-inner';
+    } else {
+      timerEl.className = 'px-6 py-2 bg-black/80 rounded-2xl border-2 border-emerald-400 text-3xl sm:text-5xl font-mono font-black text-emerald-400 shadow-inner';
+    }
+  }
+}
+
+// Attach Put Player on Block Listener in Dashboard Setup
+export function initAuctionStartListener() {
+  document.getElementById('auction-start-bid-btn')?.addEventListener('click', () => {
+    const selectEl = document.getElementById('auction-select-player');
+    const pId = selectEl?.value;
+    if (!pId) {
+      alert("Please select an approved player from the dropdown first!");
+      return;
+    }
+    const player = store.getPlayerById(pId);
+    if (!player) return;
+
+    if (activeAuction.timerInterval) clearInterval(activeAuction.timerInterval);
+
+    activeAuction = {
+      player: player,
+      currentBid: Number(player.basePrice) || 200,
+      leadingTeam: null,
+      timerSecs: 30,
+      timerInterval: null,
+      isSold: false,
+      isUnsold: false
+    };
+
+    // Start 1-second countdown
+    activeAuction.timerInterval = setInterval(() => {
+      if (activeAuction.timerSecs > 0) {
+        activeAuction.timerSecs--;
+        if (activeAuction.timerSecs <= 5 && activeAuction.timerSecs > 0) {
+          playAuctionAudio('tick');
+        }
+        updateProjectorModalView();
+        const timerBox = document.querySelector('#admin-active-auction-block .text-center .border');
+        if (timerBox) {
+          timerBox.textContent = `⏱️ ${String(activeAuction.timerSecs).padStart(2, '0')}s`;
+          if (activeAuction.timerSecs <= 5) {
+            timerBox.className = 'px-3 py-1.5 rounded-xl border font-mono font-black text-lg text-rose-400 animate-pulse border-rose-500 bg-rose-950/50';
+          } else if (activeAuction.timerSecs <= 10) {
+            timerBox.className = 'px-3 py-1.5 rounded-xl border font-mono font-black text-lg text-amber-400 border-amber-500 bg-amber-950/50';
+          }
+        }
+      }
+    }, 1000);
+
+    renderActiveAuctionBlock();
   });
 }
 
