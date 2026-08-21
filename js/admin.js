@@ -249,23 +249,32 @@ export function renderAdminDashboard(containerEl) {
                 <p class="text-white font-bold text-xs">No teams registered yet!</p>
               </div>
             ` : `
-              <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-                ${teams.map(t => `
-                  <div class="glass-card p-3 flex flex-col justify-between border border-slate-800 bg-slate-950/90">
-                    <div class="flex items-center gap-3 mb-2">
-                      <img src="${t.logoUrl || 'assets/jsl_logo.jpg'}" class="w-10 h-10 rounded-xl object-cover border border-sky-500/50" />
-                      <div>
-                        <div class="font-black text-white text-sm">${t.name}</div>
-                        <div class="text-[10px] text-sky-400 font-bold">Owner: ${t.ownerName} (${t.ownerPhone})</div>
-                        <div class="text-[9px] text-slate-400 font-bold">Purse: ₹${t.purseBudget - t.purseSpent} / ₹${t.purseBudget}</div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
+                ${teams.map(t => {
+                  const maxPurse = Number(t.purse || t.purseBudget || 8000);
+                  const spent = Number(t.purseSpent || 0);
+                  const remPurse = (t.remainingPurse !== undefined) ? Number(t.remainingPurse) : (maxPurse - spent);
+                  return `
+                  <div class="glass-card p-3.5 flex flex-col justify-between border border-slate-800 bg-slate-950/90 rounded-2xl hover:border-sky-500/50 transition-all shadow-md">
+                    <div class="flex items-start gap-3 mb-2.5">
+                      <img src="${t.logoUrl || t.teamLogoUrl || 'assets/jsl_logo.jpg'}" class="w-12 h-12 rounded-xl object-cover border-2 border-sky-500/60 shadow-md shrink-0" onerror="this.src='assets/jsl_logo.jpg'" />
+                      <div class="flex-1 min-w-0">
+                        <div class="font-black text-white text-sm truncate">${t.name}</div>
+                        <div class="text-[11px] text-sky-400 font-bold">Owner: ${t.ownerName || 'N/A'} <span class="text-slate-400">(${t.ownerPhone || 'N/A'})</span></div>
+                        ${t.iconPlayerName || t.iconName ? `<div class="text-[10px] text-amber-300 font-extrabold truncate">⭐ Icon: ${t.iconPlayerName || t.iconName}</div>` : ''}
+                        <div class="text-[10px] text-slate-300 font-bold mt-0.5">Purse: <span class="text-emerald-400 font-extrabold">₹${remPurse}</span> / ₹${maxPurse}</div>
                       </div>
                     </div>
-                    <div class="flex justify-between items-center pt-2 border-t border-slate-800">
-                      <button data-edit-team-id="${t.id}" class="edit-team-btn px-2.5 py-1 bg-slate-800 text-sky-300 font-bold text-[10px] rounded-lg">Edit Team</button>
-                      <button data-delete-team-id="${t.id}" class="delete-team-btn px-2 py-1 bg-red-950 text-red-300 font-bold text-[10px] rounded-lg">Delete</button>
+                    <div class="flex justify-between items-center pt-2.5 border-t border-slate-800/80 gap-2">
+                      <button data-edit-team-id="${t.id}" class="edit-team-btn flex-1 py-1.5 px-3 bg-sky-600/90 hover:bg-sky-500 text-white font-black text-xs rounded-xl shadow transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+                        <i data-lucide="edit-3" class="w-3.5 h-3.5"></i> Edit Team
+                      </button>
+                      <button data-delete-team-id="${t.id}" class="delete-team-btn py-1.5 px-3 bg-red-950/80 hover:bg-red-900 text-red-300 font-bold text-xs rounded-xl border border-red-800/80 transition-all flex items-center gap-1 cursor-pointer">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Delete
+                      </button>
                     </div>
                   </div>
-                `).join('')}
+                `;}).join('')}
               </div>
             `}
           </div>
@@ -787,6 +796,31 @@ export function renderAdminDashboard(containerEl) {
       adminSearchInput.addEventListener(evt, filterAdminPlayers);
     });
   }
+
+  // --- TEAM EDIT & DELETE LISTENERS ---
+  containerEl.querySelectorAll('.edit-team-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const teamId = e.currentTarget.getAttribute('data-edit-team-id');
+      const team = store.getTeamById(teamId);
+      if (team) {
+        openEditTeamModal(team, () => renderAdminDashboard(containerEl));
+      } else {
+        alert("Team not found!");
+      }
+    });
+  });
+
+  containerEl.querySelectorAll('.delete-team-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const teamId = e.currentTarget.getAttribute('data-delete-team-id');
+      const team = store.getTeamById(teamId);
+      if (team && confirm(`Are you sure you want to delete "${team.name}"?`)) {
+        store.deleteTeam(teamId);
+        alert(`Team "${team.name}" deleted successfully!`);
+        renderAdminDashboard(containerEl);
+      }
+    });
+  });
 
   // Action Listeners on Tables
   bindAdminTableActions(containerEl);
@@ -2348,20 +2382,296 @@ function openPDFExportFilterModal() {
   statusSelect?.addEventListener('change', updateCountDisplay);
   updateCountDisplay();
 
-  document.getElementById('admin-pdf-filter-form')?.addEventListener('submit', (e) => {
+// --- EDIT TEAM MODAL WITH <100KB COMPRESSION & CDN UPLOAD ---
+export function openEditTeamModal(team, onSaved) {
+  document.getElementById('edit-team-modal')?.remove();
+
+  const maxPurse = Number(team.purse || team.purseBudget || 8000);
+  const spent = Number(team.purseSpent || 0);
+  const remPurse = (team.remainingPurse !== undefined) ? Number(team.remainingPurse) : (maxPurse - spent);
+
+  let ownerPhotoData = team.ownerPhotoUrl || team.ownerPhoto || '';
+  let iconPhotoData = team.iconPlayerPhotoUrl || team.iconPhotoUrl || team.iconPhoto || '';
+  let teamLogoData = team.logoUrl || team.teamLogoUrl || '';
+  let coOwnerPhotoData = team.coOwnerPhotoUrl || team.coOwner1PhotoUrl || '';
+  let mentorPhotoData = team.mentorPhotoUrl || '';
+
+  const modalHtml = `
+    <div id="edit-team-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-fade-in">
+      <div class="relative w-full max-w-2xl bg-slate-900 text-white rounded-3xl shadow-2xl border border-slate-700 p-4 sm:p-6 max-h-[92vh] overflow-y-auto modal-content-container">
+        
+        <!-- Header -->
+        <div class="flex justify-between items-center pb-3 border-b border-slate-800 mb-4">
+          <div class="flex items-center gap-3">
+            <span class="p-2.5 bg-sky-500/20 text-sky-400 rounded-2xl border border-sky-500/40">
+              <i data-lucide="shield-check" class="w-5 h-5"></i>
+            </span>
+            <div>
+              <h3 class="text-base sm:text-lg font-black text-white">Edit Team: ${team.name}</h3>
+              <p class="text-xs text-slate-400">Update franchise details, icon player, logos & purse budget</p>
+            </div>
+          </div>
+          <button id="close-edit-team-modal-btn" class="p-2 text-slate-400 hover:text-white hover:bg-slate-800 rounded-xl transition-colors">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+
+        <!-- Form -->
+        <form id="edit-team-form" class="space-y-4 text-xs">
+          
+          <!-- 1. Team Basics -->
+          <div class="p-3.5 bg-slate-950/80 rounded-2xl border border-slate-800 space-y-3">
+            <span class="text-[11px] font-black text-sky-400 uppercase tracking-wider block">🛡️ Team Identity</span>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Team Name *</label>
+                <input type="text" id="edit-team-name" required value="${team.name || ''}" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl p-2.5 focus:border-sky-400 focus:outline-none" />
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Short Code (e.g. KH)</label>
+                <input type="text" id="edit-team-code" value="${team.shortCode || team.name.substring(0, 3).toUpperCase()}" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl p-2.5 focus:border-sky-400 focus:outline-none" />
+              </div>
+            </div>
+
+            <!-- Team Logo (Compressed < 100KB) -->
+            <div>
+              <label class="block text-[10px] font-bold text-sky-300 uppercase mb-1">Team Logo (Auto-Compressed &lt; 100KB)</label>
+              <div class="flex items-center gap-3">
+                <img id="edit-logo-preview" src="${teamLogoData || 'assets/jsl_logo.jpg'}" class="w-12 h-12 rounded-xl object-cover border-2 border-sky-500/50 shadow shrink-0" onerror="this.src='assets/jsl_logo.jpg'" />
+                <input type="file" id="edit-logo-file" accept="image/*" class="w-full bg-slate-900 border border-slate-700 text-slate-300 text-[11px] rounded-xl p-2 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-sky-600 file:text-white cursor-pointer" />
+              </div>
+            </div>
+          </div>
+
+          <!-- 2. Owner Details -->
+          <div class="p-3.5 bg-slate-950/80 rounded-2xl border border-slate-800 space-y-3">
+            <span class="text-[11px] font-black text-amber-400 uppercase tracking-wider block">👑 Team Owner Details</span>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Owner Name *</label>
+                <input type="text" id="edit-owner-name" required value="${team.ownerName || ''}" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl p-2.5 focus:border-amber-400 focus:outline-none" />
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Owner Phone *</label>
+                <input type="tel" id="edit-owner-phone" required value="${team.ownerPhone || ''}" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl p-2.5 focus:border-amber-400 focus:outline-none" />
+              </div>
+            </div>
+
+            <!-- Owner Photo (Compressed < 100KB) -->
+            <div>
+              <label class="block text-[10px] font-bold text-amber-300 uppercase mb-1">Owner HD Photo (Auto-Compressed &lt; 100KB)</label>
+              <div class="flex items-center gap-3">
+                <img id="edit-owner-photo-preview" src="${ownerPhotoData || 'assets/card_jsl_user.png'}" class="w-12 h-12 rounded-xl object-cover border-2 border-amber-500/50 shadow shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                <input type="file" id="edit-owner-photo-file" accept="image/*" class="w-full bg-slate-900 border border-slate-700 text-slate-300 text-[11px] rounded-xl p-2 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-amber-500 file:text-slate-950 cursor-pointer" />
+              </div>
+            </div>
+          </div>
+
+          <!-- 3. Icon Player Details -->
+          <div class="p-3.5 bg-slate-950/80 rounded-2xl border border-slate-800 space-y-3">
+            <span class="text-[11px] font-black text-emerald-400 uppercase tracking-wider block">🌟 Icon Player Details</span>
+            <div>
+              <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Icon Player Name</label>
+              <input type="text" id="edit-icon-name" value="${team.iconPlayerName || team.iconName || ''}" placeholder="e.g. Bijay Haldar" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl p-2.5 focus:border-emerald-400 focus:outline-none" />
+            </div>
+
+            <!-- Icon Photo (Compressed < 100KB) -->
+            <div>
+              <label class="block text-[10px] font-bold text-emerald-300 uppercase mb-1">Icon Player Photo (Auto-Compressed &lt; 100KB)</label>
+              <div class="flex items-center gap-3">
+                <img id="edit-icon-photo-preview" src="${iconPhotoData || 'assets/player_jsl_hd.jpg'}" class="w-12 h-12 rounded-xl object-cover border-2 border-emerald-500/50 shadow shrink-0" onerror="this.src='assets/player_jsl_hd.jpg'" />
+                <input type="file" id="edit-icon-photo-file" accept="image/*" class="w-full bg-slate-900 border border-slate-700 text-slate-300 text-[11px] rounded-xl p-2 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-emerald-600 file:text-white cursor-pointer" />
+              </div>
+            </div>
+          </div>
+
+          <!-- 4. Co-Owner & Mentor (Optional) -->
+          <div class="p-3.5 bg-slate-950/80 rounded-2xl border border-slate-800 space-y-3">
+            <span class="text-[11px] font-black text-purple-400 uppercase tracking-wider block">👥 Co-Owner & Mentor (Optional)</span>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Co-Owner Name</label>
+                <input type="text" id="edit-coowner-name" value="${team.coOwnerName || team.coOwner1Name || ''}" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl p-2 focus:border-purple-400 focus:outline-none" />
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Mentor Name</label>
+                <input type="text" id="edit-mentor-name" value="${team.mentorName || ''}" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl p-2 focus:border-purple-400 focus:outline-none" />
+              </div>
+            </div>
+          </div>
+
+          <!-- 5. Purse & Auction Status -->
+          <div class="p-3.5 bg-slate-950/80 rounded-2xl border border-slate-800 space-y-3">
+            <span class="text-[11px] font-black text-rose-400 uppercase tracking-wider block">💰 Purse & Status Controls</span>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Total Purse Budget (₹)</label>
+                <input type="number" id="edit-team-purse" required value="${maxPurse}" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl p-2.5 focus:border-rose-400 focus:outline-none" />
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Remaining Purse (₹)</label>
+                <input type="number" id="edit-team-rem-purse" required value="${remPurse}" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl p-2.5 focus:border-rose-400 focus:outline-none" />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Registration Status</label>
+                <select id="edit-team-status" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl p-2.5 focus:outline-none">
+                  <option value="APPROVED" ${team.registrationStatus === 'APPROVED' ? 'selected' : ''}>APPROVED</option>
+                  <option value="PENDING" ${team.registrationStatus === 'PENDING' ? 'selected' : ''}>PENDING</option>
+                  <option value="REJECTED" ${team.registrationStatus === 'REJECTED' ? 'selected' : ''}>REJECTED</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1">Payment Status</label>
+                <select id="edit-team-payment-status" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl p-2.5 focus:outline-none">
+                  <option value="APPROVED" ${team.paymentStatus === 'APPROVED' ? 'selected' : ''}>APPROVED</option>
+                  <option value="PENDING" ${team.paymentStatus === 'PENDING' ? 'selected' : ''}>PENDING</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div class="flex items-center gap-3 pt-2">
+            <button type="button" id="cancel-edit-team-btn" class="w-1/3 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-xl transition-colors cursor-pointer">
+              Cancel
+            </button>
+            <button type="submit" id="save-edit-team-btn" class="w-2/3 py-2.5 bg-gradient-to-r from-sky-600 to-blue-600 hover:from-sky-500 hover:to-blue-500 text-white font-black rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer">
+              <i data-lucide="save" class="w-4 h-4"></i> Save Team Changes
+            </button>
+          </div>
+
+        </form>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  if (window.lucide) window.lucide.createIcons();
+
+  const removeModal = () => document.getElementById('edit-team-modal')?.remove();
+  document.getElementById('close-edit-team-modal-btn')?.addEventListener('click', removeModal);
+  document.getElementById('cancel-edit-team-btn')?.addEventListener('click', removeModal);
+
+  // File Change Listeners with < 100KB Compression
+  document.getElementById('edit-logo-file')?.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      teamLogoData = await compressImage(file, 600, 600, 0.70);
+      document.getElementById('edit-logo-preview').src = teamLogoData;
+    }
+  });
+
+  document.getElementById('edit-owner-photo-file')?.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      ownerPhotoData = await compressImage(file, 600, 600, 0.70);
+      document.getElementById('edit-owner-photo-preview').src = ownerPhotoData;
+    }
+  });
+
+  document.getElementById('edit-icon-photo-file')?.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      iconPhotoData = await compressImage(file, 600, 600, 0.70);
+      document.getElementById('edit-icon-photo-preview').src = iconPhotoData;
+    }
+  });
+
+  // Submit Handler: Upload to CDN first, then update team & cloud
+  document.getElementById('edit-team-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const filteredList = getFilteredList();
-    if (filteredList.length === 0) {
-      alert("No players match the selected filters.");
-      return;
+
+    const saveBtn = document.getElementById('save-edit-team-btn');
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.innerHTML = `
+        <div class="flex items-center justify-center gap-2">
+          <div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+          <span>Uploading Images to CDN & Saving...</span>
+        </div>
+      `;
     }
 
-    const catText = categorySelect.options[categorySelect.selectedIndex].text.replace(/^[^\w\s]+/, '').trim();
-    const statusText = statusSelect.value === 'ALL' ? '' : ` [${statusSelect.value}]`;
-    const label = `${catText}${statusText}`;
+    try {
+      // Upload new/modified photos to CDN first
+      const uploadIfNew = async (photoData, folder) => {
+        if (!photoData) return '';
+        if (typeof photoData === 'string' && photoData.startsWith('data:')) {
+          try {
+            const cdnUrl = await uploadHDImage(photoData, folder);
+            return cdnUrl || photoData;
+          } catch (err) {
+            console.warn('CDN upload fallback:', err);
+            return photoData;
+          }
+        }
+        return photoData;
+      };
 
-    removeModal();
-    exportPlayersToPDF(filteredList, label);
+      const [finalLogoUrl, finalOwnerPhotoUrl, finalIconPhotoUrl] = await Promise.all([
+        uploadIfNew(teamLogoData, 'team_logos'),
+        uploadIfNew(ownerPhotoData, 'owner_photos'),
+        uploadIfNew(iconPhotoData, 'icon_player_photos')
+      ]);
+
+      const updatedTeam = {
+        ...team,
+        name: document.getElementById('edit-team-name').value.trim(),
+        shortCode: document.getElementById('edit-team-code').value.trim().toUpperCase(),
+        ownerName: document.getElementById('edit-owner-name').value.trim(),
+        ownerPhone: document.getElementById('edit-owner-phone').value.trim(),
+        ownerPhotoUrl: finalOwnerPhotoUrl,
+        ownerPhoto: finalOwnerPhotoUrl,
+        captainName: document.getElementById('edit-owner-name').value.trim(),
+        iconPlayerName: document.getElementById('edit-icon-name').value.trim(),
+        iconName: document.getElementById('edit-icon-name').value.trim(),
+        iconPlayerPhotoUrl: finalIconPhotoUrl,
+        iconPhotoUrl: finalIconPhotoUrl,
+        iconPhoto: finalIconPhotoUrl,
+        logoUrl: finalLogoUrl,
+        teamLogoUrl: finalLogoUrl,
+        coOwnerName: document.getElementById('edit-coowner-name')?.value.trim() || '',
+        coOwner1Name: document.getElementById('edit-coowner-name')?.value.trim() || '',
+        mentorName: document.getElementById('edit-mentor-name')?.value.trim() || '',
+        purse: Number(document.getElementById('edit-team-purse').value) || 8000,
+        purseBudget: Number(document.getElementById('edit-team-purse').value) || 8000,
+        remainingPurse: Number(document.getElementById('edit-team-rem-purse').value) || 8000,
+        registrationStatus: document.getElementById('edit-team-status').value,
+        paymentStatus: document.getElementById('edit-team-payment-status').value,
+        updated_at: Date.now()
+      };
+
+      // 1. Update in local store
+      store.updateTeam(updatedTeam);
+
+      // 2. Direct Sync to Firebase Realtime DB
+      try {
+        await fetch(`https://cpl-jsl-2026-default-rtdb.firebaseio.com/cpl_master/teams/${team.id}.json`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updatedTeam)
+        });
+      } catch (cloudErr) {
+        console.warn('Direct cloud team sync fallback:', cloudErr);
+      }
+
+      removeModal();
+      if (onSaved) onSaved();
+      alert(`✅ Team "${updatedTeam.name}" updated successfully!`);
+
+    } catch (err) {
+      console.error('Error saving team:', err);
+      alert(`❌ Error saving team: ${err.message || 'Please try again'}`);
+      if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = `<i data-lucide="save" class="w-4 h-4"></i> Save Team Changes`;
+        if (window.lucide) window.lucide.createIcons();
+      }
+    }
   });
 }
+
 
