@@ -1,10 +1,10 @@
 // Admin Master Data & Payment Verification Panel with Single Source Cloud Control (Developer: Suman Kolay)
 
-import { store } from './store.js?v=10.2.0';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF } from './export.js?v=10.2.0';
-import { openSquareImageCropModal, compressImage, openYouTubePromoModal } from './app_v9.js?v=10.2.0';
-import { saveAdSettingsToFirebase, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, savePopupSettingsToFirebase, uploadHDImage, getOptimizedImageUrl } from './supabase.js?v=10.2.0';
-import { shops } from './shopsData.js?v=10.2.0';
+import { store } from './store.js?v=10.2.5';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF } from './export.js?v=10.2.5';
+import { openSquareImageCropModal, compressImage, openYouTubePromoModal } from './app_v9.js?v=10.2.5';
+import { saveAdSettingsToFirebase, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, savePopupSettingsToFirebase, uploadHDImage, getOptimizedImageUrl } from './supabase.js?v=10.2.5';
+import { shops } from './shopsData.js?v=10.2.5';
 
 let activeAdminTab = 'payments'; // 'payments', 'all-players', 'teams'
 const todayStr = new Date().toISOString().split('T')[0];
@@ -2488,12 +2488,6 @@ export function renderActiveAuctionBlock() {
 
     const confirmed = confirm(`🔨 Confirm Player Sale:\n\nAre you sure you want to mark "${p.name}" as SOLD to "${team.name}" for ₹${price.toLocaleString('en-IN')}?\n\nClick OK to confirm or Cancel to revert.`);
     if (!confirmed) return;
-    if (!activeAuction.leadingTeam) {
-      alert("No team has placed a bid yet! Mark as Unsold or place a bid.");
-      return;
-    }
-    const team = activeAuction.leadingTeam;
-    const price = activeAuction.currentBid;
 
     // Deduct purse
     const updatedPurseSpent = (Number(team.purseSpent) || 0) + price;
