@@ -1,10 +1,10 @@
 // Admin Master Data & Payment Verification Panel with Single Source Cloud Control (Developer: Suman Kolay)
 
-import { store } from './store.js?v=10.2.5';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF } from './export.js?v=10.2.5';
-import { openSquareImageCropModal, compressImage, openYouTubePromoModal } from './app_v9.js?v=10.2.5';
-import { saveAdSettingsToFirebase, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, savePopupSettingsToFirebase, uploadHDImage, getOptimizedImageUrl } from './supabase.js?v=10.2.5';
-import { shops } from './shopsData.js?v=10.2.5';
+import { store } from './store.js?v=10.3.0';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF } from './export.js?v=10.3.0';
+import { openSquareImageCropModal, compressImage, openYouTubePromoModal } from './app_v9.js?v=10.3.0';
+import { saveAdSettingsToFirebase, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, savePopupSettingsToFirebase, uploadHDImage, getOptimizedImageUrl } from './supabase.js?v=10.3.0';
+import { shops } from './shopsData.js?v=10.3.0';
 
 let activeAdminTab = 'payments'; // 'payments', 'all-players', 'teams'
 const todayStr = new Date().toISOString().split('T')[0];
@@ -2278,9 +2278,11 @@ export function renderActiveAuctionBlock() {
   const p = activeAuction.player;
   const timerClass = activeAuction.timerSecs <= 5 ? 'text-rose-400 animate-pulse border-rose-500 bg-rose-950/50' : activeAuction.timerSecs <= 10 ? 'text-amber-400 border-amber-500 bg-amber-950/50' : 'text-emerald-400 border-emerald-500 bg-emerald-950/50';
 
-  // Calculate Next Increment (+50 under 1000, +100 at/above 1000)
-  const nextInc = activeAuction.currentBid < 1000 ? 50 : 100;
-  const nextBidAmount = activeAuction.currentBid + nextInc;
+  // Calculate Next Increment (If no team has bid yet, next bid is the Base Price; otherwise +50 under 1000, +100 at/above 1000)
+  const isOpeningBid = !activeAuction.leadingTeam;
+  const inc = activeAuction.currentBid < 1000 ? 50 : 100;
+  const nextInc = isOpeningBid ? 0 : inc;
+  const nextBidAmount = isOpeningBid ? activeAuction.currentBid : (activeAuction.currentBid + inc);
 
   container.innerHTML = `
     <div class="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-4">
@@ -2315,7 +2317,7 @@ export function renderActiveAuctionBlock() {
           <div class="text-xl sm:text-2xl font-black text-amber-400 font-mono mt-0.5">
             ₹ ${activeAuction.currentBid.toLocaleString('en-IN')}
           </div>
-          <span class="text-[9px] text-slate-400 font-mono">Next Bid: +₹${nextInc} (₹${nextBidAmount})</span>
+          <span class="text-[9px] text-slate-400 font-mono">${isOpeningBid ? 'Opening: ₹' + activeAuction.currentBid : 'Next Bid: +₹' + nextInc + ' (₹' + nextBidAmount + ')'}</span>
         </div>
         <div class="p-3 bg-slate-900/90 rounded-xl border border-slate-800 text-center">
           <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">LEADING BIDDER TEAM</span>
@@ -2331,8 +2333,8 @@ export function renderActiveAuctionBlock() {
       <!-- 1-CLICK TEAM BID BUTTONS (Auto Increment +50 / +100) -->
       <div>
         <div class="flex justify-between items-center mb-1.5">
-          <label class="block text-[10px] font-black text-slate-300 uppercase tracking-wider">⚡ 1-Click Team Bidding (+₹${nextInc} rule)</label>
-          <span class="text-[10px] text-amber-400 font-mono font-bold">Next Bid: ₹${nextBidAmount}</span>
+          <label class="block text-[10px] font-black text-slate-300 uppercase tracking-wider">⚡ 1-Click Team Bidding (${isOpeningBid ? 'Base Price Opening' : '+₹' + nextInc + ' rule'})</label>
+          <span class="text-[10px] text-amber-400 font-mono font-bold">${isOpeningBid ? 'Open Bid: ₹' + activeAuction.currentBid : 'Next: ₹' + nextBidAmount}</span>
         </div>
         
         <div class="grid grid-cols-2 gap-2">
@@ -2363,7 +2365,7 @@ export function renderActiveAuctionBlock() {
                 <div class="flex items-center justify-between text-[11px] mt-0.5 pt-1 border-t border-slate-800/80">
                   <span class="text-slate-400 font-semibold">Purse: ₹${rem}</span>
                   <span class="font-black ${isLeading ? 'text-amber-300' : isDisabled ? 'text-slate-500' : 'text-emerald-400'}">
-                    ${isLeading ? 'Top Offer' : isDisabled ? (isFull ? 'Roster Full' : 'Low Purse') : `+₹${nextInc} (₹${nextBidAmount})`}
+                    ${isLeading ? 'Top Offer' : isDisabled ? (isFull ? 'Roster Full' : 'Low Purse') : (isOpeningBid ? '⚡ Open (₹' + nextBidAmount + ')' : `+₹${nextInc} (₹${nextBidAmount})`)}
                   </span>
                 </div>
               </button>
@@ -2400,8 +2402,9 @@ export function renderActiveAuctionBlock() {
       const team = store.getTeamById(teamId);
       if (!team) return;
 
+      const isOpening = !activeAuction.leadingTeam;
       const inc = activeAuction.currentBid < 1000 ? 50 : 100;
-      const newBid = activeAuction.currentBid + inc;
+      const newBid = isOpening ? activeAuction.currentBid : (activeAuction.currentBid + inc);
 
       if (team.remainingPurse < newBid) {
         alert(`Franchise ${team.name} has only ₹${team.remainingPurse} remaining and cannot place a bid of ₹${newBid}!`);
