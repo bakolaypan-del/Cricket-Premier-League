@@ -4517,13 +4517,13 @@ function renderLiveAuctionView(container) {
           }
         }
       } else {
-        if (lastActivePlayerId !== null) {
+        if (lastActivePlayerId !== null || !document.getElementById('auction-waiting-block-box')) {
           lastActivePlayerId = null;
           lastActiveStatus = null;
-          const isAuctionCompleted = (state && state.status === 'COMPLETED') || (allPlayers.length > 0 && allPlayers.filter(p => (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED')).every(p => p.auctionStatus === 'SOLD'));
+          const isAuctionCompleted = (state && state.status === 'COMPLETED');
 
           activeBlockWrapper.innerHTML = `
-            <div class="text-center p-6 sm:p-8 ${isAuctionCompleted ? 'bg-gradient-to-br from-amber-500/10 to-emerald-500/10 border-2 border-amber-400/60' : 'bg-white border-2 border-dashed border-slate-300'} rounded-2xl sm:rounded-3xl shadow-xs">
+            <div id="auction-waiting-block-box" class="text-center p-6 sm:p-8 ${isAuctionCompleted ? 'bg-gradient-to-br from-amber-500/10 to-emerald-500/10 border-2 border-amber-400/60' : 'bg-white border-2 border-dashed border-slate-300'} rounded-2xl sm:rounded-3xl shadow-xs animate-fade-in">
               <div class="w-12 h-12 rounded-2xl ${isAuctionCompleted ? 'bg-amber-100 text-amber-600' : 'bg-blue-50 text-blue-500'} flex items-center justify-center mx-auto mb-3 shadow-2xs">
                 <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="m14 13-7.5 7.5c-.83.83-2.17.83-3 0 0 0 0 0 0 0-.83-.83-.83-2.17 0-3L11 10"/>

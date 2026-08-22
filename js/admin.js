@@ -3099,8 +3099,8 @@ export function renderActiveAuctionBlock() {
 
     playAuctionAudio('sold');
 
-    // Broadcast SOLD stamp to all spectator phones, projector and admin screen
-    store.updateLiveAuctionState({
+    // 1. FIRST Broadcast SOLD stamp IMMEDIATELY to all spectator phones, projector and admin screen
+    await store.updateLiveAuctionState({
       status: 'SOLD',
       is_sold: true,
       active_player_id: p.id,
@@ -3120,6 +3120,11 @@ export function renderActiveAuctionBlock() {
     renderActiveAuctionBlock();
     updateProjectorModalView();
 
+    // 2. Then update player and team database records
+    store.updateTeam(updatedTeam);
+    store.updatePlayer(updatedPlayer);
+
+    // 3. Keep SOLD stamp on screen for exactly 5 seconds, then transition cleanly to idle
     setTimeout(() => {
       store.updateLiveAuctionState({
         status: 'IDLE',
@@ -3144,19 +3149,18 @@ export function renderActiveAuctionBlock() {
         store.updateLiveAuctionState({ status: 'COMPLETED', active_player_id: null, updated_at: Date.now() });
         alert("🏆 ALL APPROVED PLAYERS AUCTIONED! Auction is now complete.");
       }
-    }, 4000);
+    }, 5000);
   });
 
   // Attach Mark UNSOLD
-  document.getElementById('auction-mark-unsold-btn')?.addEventListener('click', () => {
+  document.getElementById('auction-mark-unsold-btn')?.addEventListener('click', async () => {
     if (confirm(`Mark "${p.name}" as UNSOLD for this round?`)) {
       const updatedPlayer = { ...p, auctionStatus: 'UNSOLD' };
-      store.updatePlayer(updatedPlayer);
 
       if (activeAuction.timerInterval) clearInterval(activeAuction.timerInterval);
 
-      // Broadcast UNSOLD stamp to all spectator phones, projector and admin screen
-      store.updateLiveAuctionState({
+      // 1. FIRST Broadcast UNSOLD stamp IMMEDIATELY to all spectator phones, projector and admin screen
+      await store.updateLiveAuctionState({
         status: 'UNSOLD',
         is_unsold: true,
         active_player_id: p.id,
@@ -3172,6 +3176,10 @@ export function renderActiveAuctionBlock() {
       renderActiveAuctionBlock();
       updateProjectorModalView();
 
+      // 2. Then update player database record
+      store.updatePlayer(updatedPlayer);
+
+      // 3. Keep UNSOLD stamp on screen for exactly 5 seconds, then transition cleanly to idle
       setTimeout(() => {
         store.updateLiveAuctionState({
           status: 'IDLE',
@@ -3190,7 +3198,7 @@ export function renderActiveAuctionBlock() {
         if (remainingUnsold.length > 0) {
           openNextPlayerAuctionModal(remainingUnsold);
         }
-      }, 4000);
+      }, 5000);
     }
   });
 
