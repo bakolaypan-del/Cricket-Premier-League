@@ -418,6 +418,17 @@ class Store {
         safeSetLocalStorage(STORAGE_KEYS.PLAYER_PROFILES, cloudData.playerProfiles);
       }
 
+      // 4d. Sync Live Auction State (Cross-Device Admin Sync)
+      if (cloudData.liveAuction !== undefined) {
+        this.liveAuctionState = cloudData.liveAuction;
+        if (cloudData.liveAuction && cloudData.liveAuction.active_player_id) {
+          safeSetLocalStorage('cpl_live_auction_state', cloudData.liveAuction);
+        } else {
+          localStorage.removeItem('cpl_live_auction_state');
+        }
+        this.notify('live_auction_updated');
+      }
+
       // 5. Sync Tournament Owners & User Accounts from Firebase
       try {
         const cloudOwners = await fetchTournamentOwnersFromFirebase();
@@ -1367,6 +1378,18 @@ class Store {
       console.warn("Live auction state fetch error:", e);
     }
     return this.liveAuctionState || null;
+  }
+
+  getLiveAuctionStateSync() {
+    if (this.liveAuctionState) return this.liveAuctionState;
+    try {
+      const local = localStorage.getItem('cpl_live_auction_state');
+      if (local) {
+        this.liveAuctionState = JSON.parse(local);
+        return this.liveAuctionState;
+      }
+    } catch(e) {}
+    return null;
   }
 
   async updateLiveAuctionState(state) {

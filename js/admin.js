@@ -410,9 +410,11 @@ export function renderAdminDashboard(containerEl) {
                   <label class="block text-xs font-bold text-slate-600 mb-1">SELECT APPROVED PLAYER</label>
                   <select id="auction-select-player" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-medium">
                     <option value="">-- Choose Player --</option>
-                    ${players.filter(p => (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED') && !p.teamId && p.auctionStatus !== 'SOLD' && !p.isIcon && !p.isIconPlayer).map(p => `
-                      <option value="${p.id}">${p.name} (${p.category || 'All Rounder'}) - Base: ₹${p.basePrice || 300}</option>
-                    `).join('')}
+                    ${players.filter(p => (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED') && !p.teamId && p.auctionStatus !== 'SOLD' && !p.isIcon && !p.isIconPlayer).map(p => {
+                      const sNo = p.displayRegistrationNumber || p.serialNo || '';
+                      const sNoPrefix = sNo ? `[#${String(sNo).padStart(2, '0')}] ` : '';
+                      return `<option value="${p.id}">${sNoPrefix}${p.name} (${p.category || 'All Rounder'}) - Base: ₹${p.basePrice || 300}</option>`;
+                    }).join('')}
                   </select>
                 </div>
                 <button id="auction-start-bid-btn" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl shadow-xs cursor-pointer">
@@ -2612,17 +2614,31 @@ export function openNextPlayerAuctionModal(remainingPlayers) {
         </div>
 
         <div class="my-3">
-          <input type="text" id="next-player-search" placeholder="🔍 Search player by name, category, or village..." class="w-full bg-slate-950 border border-slate-700 text-white text-xs rounded-xl p-2.5 focus:border-amber-400 focus:outline-none" />
+          <input type="text" id="next-player-search" placeholder="🔍 Search player by sl no (e.g. #01), name, category, or village..." class="w-full bg-slate-950 border border-slate-700 text-white text-xs rounded-xl p-2.5 focus:border-amber-400 focus:outline-none" />
         </div>
 
         <div class="flex-1 overflow-y-auto space-y-2 pr-1" id="next-player-list">
-          ${validPlayers.map(p => `
-            <div class="p-3 bg-slate-950 border border-slate-800 rounded-2xl flex items-center justify-between gap-3 hover:border-amber-400/60 transition-all next-player-row" data-name="${p.name.toLowerCase()}" data-cat="${(p.category || '').toLowerCase()}">
+          ${validPlayers.map(p => {
+            const sNo = p.displayRegistrationNumber || p.serialNo || '';
+            const sNoDisplay = sNo ? `#${String(sNo).padStart(2, '0')}` : '';
+            const regId = p.registrationId || p.regNo || ('JSL2026-' + String(sNo || 1).padStart(4, '0'));
+            return `
+            <div class="p-3 bg-slate-950 border border-slate-800 rounded-2xl flex items-center justify-between gap-3 hover:border-amber-400/60 transition-all next-player-row" data-name="${p.name.toLowerCase()}" data-cat="${(p.category || '').toLowerCase()}" data-serial="${String(sNo)}" data-reg="${regId.toLowerCase()}">
               <div class="flex items-center gap-3 min-w-0">
-                <img src="${getOptimizedImageUrl(p.photoUrl || p.player_photo_url, 80, 80)}" class="w-11 h-11 rounded-xl object-cover border border-slate-700 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                <div class="relative shrink-0">
+                  <img src="${getOptimizedImageUrl(p.photoUrl || p.player_photo_url, 80, 80)}" class="w-11 h-11 rounded-xl object-cover border border-slate-700" onerror="this.src='assets/card_jsl_user.png'" />
+                  ${sNoDisplay ? `
+                    <span class="absolute -top-1.5 -left-1.5 px-1.5 py-0.2 bg-red-600 text-white font-mono font-black text-[9px] rounded-md shadow border border-red-400">
+                      ${sNoDisplay}
+                    </span>
+                  ` : ''}
+                </div>
                 <div class="min-w-0">
-                  <div class="font-black text-sm text-white truncate">${p.name}</div>
-                  <div class="text-[11px] text-amber-400 font-bold flex items-center gap-1.5">
+                  <div class="font-black text-sm text-white truncate flex items-center gap-1.5">
+                    ${sNoDisplay ? `<span class="text-amber-400 font-mono font-bold">${sNoDisplay}</span>` : ''}
+                    <span>${p.name}</span>
+                  </div>
+                  <div class="text-[11px] text-amber-400 font-bold flex items-center gap-1.5 flex-wrap">
                     <span>🏏 ${p.category || 'All Rounder'}</span>
                     <span>•</span>
                     <span class="text-slate-400">📍 ${p.village || 'Paschim Medinipur'}</span>
@@ -2635,7 +2651,8 @@ export function openNextPlayerAuctionModal(remainingPlayers) {
                 🔨 Start Bid
               </button>
             </div>
-          `).join('')}
+            `;
+          }).join('')}
         </div>
       </div>
     </div>
@@ -2651,9 +2668,11 @@ export function openNextPlayerAuctionModal(remainingPlayers) {
   document.getElementById('next-player-search')?.addEventListener('input', (e) => {
     const q = e.target.value.toLowerCase().trim();
     document.querySelectorAll('.next-player-row').forEach(row => {
-      const name = row.getAttribute('data-name');
-      const cat = row.getAttribute('data-cat');
-      if (name.includes(q) || cat.includes(q)) {
+      const name = row.getAttribute('data-name') || '';
+      const cat = row.getAttribute('data-cat') || '';
+      const serial = row.getAttribute('data-serial') || '';
+      const reg = row.getAttribute('data-reg') || '';
+      if (name.includes(q) || cat.includes(q) || serial.includes(q) || reg.includes(q)) {
         row.classList.remove('hidden');
       } else {
         row.classList.add('hidden');
@@ -2736,8 +2755,8 @@ export function renderActiveAuctionBlock() {
 
   // Restore from store.liveAuctionState if bidding is in progress
   if (!activeAuction.player) {
-    const liveState = store.getLiveAuctionState();
-    if (liveState && liveState.active_player_id && liveState.status === 'BIDDING') {
+    const liveState = store.getLiveAuctionStateSync();
+    if (liveState && liveState.active_player_id && (liveState.status === 'BIDDING' || liveState.status === 'OPEN' || !liveState.status || liveState.status === 'LIVE')) {
       const p = store.getPlayerById(liveState.active_player_id);
       if (p) {
         activeAuction.player = p;
@@ -2746,6 +2765,24 @@ export function renderActiveAuctionBlock() {
         activeAuction.timerSecs = Number(liveState.timer_left) || 30;
       }
     }
+  }
+
+  // Asynchronously fetch from cloud if idle to ensure cross-device / refresh recovery
+  if (!activeAuction.player && !window._adminLiveAuctionFetched) {
+    window._adminLiveAuctionFetched = true;
+    store.getLiveAuctionState().then(cloudLive => {
+      if (cloudLive && cloudLive.active_player_id && (cloudLive.status === 'BIDDING' || cloudLive.status === 'OPEN' || !cloudLive.status || cloudLive.status === 'LIVE')) {
+        const p = store.getPlayerById(cloudLive.active_player_id);
+        if (p) {
+          activeAuction.player = p;
+          activeAuction.currentBid = Number(cloudLive.current_bid) || Number(p.basePrice) || 300;
+          activeAuction.leadingTeam = cloudLive.highest_bidder_team_id ? store.getTeamById(cloudLive.highest_bidder_team_id) : null;
+          activeAuction.timerSecs = Number(cloudLive.timer_left) || 30;
+          renderActiveAuctionBlock();
+          updateProjectorModalView();
+        }
+      }
+    }).catch(err => console.warn('Admin live auction cloud sync:', err));
   }
 
   if (!activeAuction.player) {
@@ -2784,17 +2821,13 @@ export function renderActiveAuctionBlock() {
   container.innerHTML = `
     <div class="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-4">
       
-      <!-- Top Badges Row: Green Live Auction Badge & Red JSL Serial Number Box -->
+      <!-- Top Badges Row: Clear Bid Button & Red JSL Serial Box -->
       <div class="flex items-center justify-between gap-2 pb-2 border-b border-slate-800">
-        <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-600 text-white font-black text-xs rounded-full border-2 border-emerald-400 shadow-md">
-          <span class="relative flex h-2 w-2">
-            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-            <span class="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
-          </span>
-          LIVE AUCTION
-        </span>
+        <button type="button" id="auction-quick-cancel-btn" class="px-3 py-1.5 bg-rose-950/90 hover:bg-rose-900 text-rose-300 border border-rose-600 rounded-xl text-xs font-black flex items-center gap-1.5 cursor-pointer shadow transition-all active:scale-95">
+          <i data-lucide="ban" class="w-3.5 h-3.5"></i> 🚫 Clear Bid
+        </button>
 
-        <span class="px-3 py-1 bg-red-600 text-white font-black font-mono text-xs rounded-xl border-2 border-red-400 shadow-md">
+        <span class="px-3.5 py-1.5 bg-red-600 text-white font-black font-mono text-xs sm:text-sm rounded-xl border-2 border-red-400 shadow-md">
           ${p.registrationId || p.regNo || ('JSL2026-' + String(p.displayRegistrationNumber || p.serialNo || 1).padStart(4, '0'))}
         </span>
       </div>
@@ -2887,7 +2920,10 @@ export function renderActiveAuctionBlock() {
       </div>
 
       <!-- Auctioneer Action Controls -->
-      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-800">
+      <div class="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-2 border-t border-slate-800">
+        <button id="auction-cancel-active-btn" class="py-2.5 bg-rose-950/80 hover:bg-rose-900 text-rose-300 border border-rose-700/80 font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95">
+          <i data-lucide="ban" class="w-4 h-4"></i> 🚫 Clear Bid
+        </button>
         <button id="auction-undo-bid-btn" ${(activeAuction.bidHistory && activeAuction.bidHistory.length > 0) ? '' : 'disabled'} class="py-2.5 ${(activeAuction.bidHistory && activeAuction.bidHistory.length > 0) ? 'bg-amber-950 hover:bg-amber-900 text-amber-300 border-amber-700 cursor-pointer shadow-md' : 'bg-slate-900/50 text-slate-600 border-slate-800 cursor-not-allowed opacity-50'} font-black text-xs rounded-xl border flex items-center justify-center gap-1.5 transition-all">
           <i data-lucide="undo-2" class="w-4 h-4"></i> ↩️ Undo Bid
         </button>
@@ -2897,7 +2933,7 @@ export function renderActiveAuctionBlock() {
         <button id="auction-mark-unsold-btn" class="py-2.5 bg-slate-800 hover:bg-slate-700 text-rose-400 font-black text-xs rounded-xl border border-slate-700 flex items-center justify-center gap-1.5 cursor-pointer">
           <i data-lucide="x-circle" class="w-4 h-4"></i> ❌ UNSOLD
         </button>
-        <button id="auction-open-projector-btn" class="py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs rounded-xl shadow-lg flex items-center justify-center gap-1.5 cursor-pointer">
+        <button id="auction-open-projector-btn" class="py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs rounded-xl shadow-lg flex items-center justify-center gap-1.5 cursor-pointer col-span-2 sm:col-span-1">
           <i data-lucide="tv" class="w-4 h-4"></i> 📽️ Projector
         </button>
       </div>
@@ -2961,6 +2997,38 @@ export function renderActiveAuctionBlock() {
       updateProjectorModalView();
     });
   });
+
+  // Attach Cancel / Clear Active Bid Player
+  const cancelActiveAuctionHandler = () => {
+    if (!activeAuction.player) return;
+    const playerToCancel = activeAuction.player;
+
+    const confirmed = confirm(`🚫 Cancel & Clear Active Bidding:\n\nAre you sure you want to clear the active bidding for "${playerToCancel.name}"?\n\n• Player will return to the auction queue.\n• The active auction block will be cleared for all devices.\n• Any current bids on this player will be reset.\n\nClick OK to clear or Cancel to keep bidding.`);
+    if (!confirmed) return;
+
+    if (activeAuction.timerInterval) clearInterval(activeAuction.timerInterval);
+
+    // Reset local auction state
+    activeAuction = { player: null, currentBid: 0, leadingTeam: null, timerSecs: 30, timerInterval: null, isSold: false, isUnsold: false, bidHistory: [] };
+
+    // Reset cloud live auction state so all phones clear the block immediately
+    store.updateLiveAuctionState({
+      status: 'IDLE',
+      active_player_id: null,
+      name: null,
+      current_bid: 0,
+      highest_bidder_team_id: null,
+      timer_left: 0,
+      updated_at: Date.now()
+    });
+
+    alert(`✅ Active bidding cleared for "${playerToCancel.name}". Player returned to the available queue.`);
+    renderActiveAuctionBlock();
+    updateProjectorModalView();
+  };
+
+  document.getElementById('auction-cancel-active-btn')?.addEventListener('click', cancelActiveAuctionHandler);
+  document.getElementById('auction-quick-cancel-btn')?.addEventListener('click', cancelActiveAuctionHandler);
 
   // Attach Undo Bid
   document.getElementById('auction-undo-bid-btn')?.addEventListener('click', () => {
@@ -3030,31 +3098,53 @@ export function renderActiveAuctionBlock() {
     if (activeAuction.timerInterval) clearInterval(activeAuction.timerInterval);
 
     playAuctionAudio('sold');
-    alert(`🎉 SOLD! Player "${p.name}" sold to "${team.name}" for ₹${price.toLocaleString('en-IN')}!`);
 
+    // Broadcast SOLD stamp to all spectator phones, projector and admin screen
     store.updateLiveAuctionState({
-      status: 'IDLE',
-      active_player_id: null,
-      current_bid: 0,
-      highest_bidder_team_id: null,
+      status: 'SOLD',
+      is_sold: true,
+      active_player_id: p.id,
+      name: p.name,
+      photoUrl: p.photoUrl || p.player_photo_url,
+      current_bid: price,
+      sold_price: price,
+      highest_bidder_team_id: team.id,
+      highest_bidder_team_name: team.name,
       last_sold_player_id: p.id,
       last_sold_price: price,
       last_sold_team_id: team.id,
       updated_at: Date.now()
     });
 
-    activeAuction = { player: null, currentBid: 0, leadingTeam: null, timerSecs: 30, timerInterval: null, isSold: false, isUnsold: false };
+    activeAuction.isSold = true;
     renderActiveAuctionBlock();
     updateProjectorModalView();
 
-    // Check remaining players and auto-open selector modal
-    const remainingUnsold = store.getPlayers().filter(pl => (pl.registrationStatus === 'APPROVED' || pl.paymentStatus === 'APPROVED') && !pl.teamId && pl.auctionStatus !== 'SOLD' && pl.auctionStatus !== 'UNSOLD' && !pl.isIcon && !pl.isIconPlayer);
-    if (remainingUnsold.length > 0) {
-      openNextPlayerAuctionModal(remainingUnsold);
-    } else {
-      store.updateLiveAuctionState({ status: 'COMPLETED', active_player_id: null, updated_at: Date.now() });
-      alert("🏆 ALL APPROVED PLAYERS AUCTIONED! Auction is now complete.");
-    }
+    setTimeout(() => {
+      store.updateLiveAuctionState({
+        status: 'IDLE',
+        active_player_id: null,
+        current_bid: 0,
+        highest_bidder_team_id: null,
+        last_sold_player_id: p.id,
+        last_sold_price: price,
+        last_sold_team_id: team.id,
+        updated_at: Date.now()
+      });
+
+      activeAuction = { player: null, currentBid: 0, leadingTeam: null, timerSecs: 30, timerInterval: null, isSold: false, isUnsold: false };
+      renderActiveAuctionBlock();
+      updateProjectorModalView();
+
+      // Check remaining players and auto-open selector modal
+      const remainingUnsold = store.getPlayers().filter(pl => (pl.registrationStatus === 'APPROVED' || pl.paymentStatus === 'APPROVED') && !pl.teamId && pl.auctionStatus !== 'SOLD' && pl.auctionStatus !== 'UNSOLD' && !pl.isIcon && !pl.isIconPlayer);
+      if (remainingUnsold.length > 0) {
+        openNextPlayerAuctionModal(remainingUnsold);
+      } else {
+        store.updateLiveAuctionState({ status: 'COMPLETED', active_player_id: null, updated_at: Date.now() });
+        alert("🏆 ALL APPROVED PLAYERS AUCTIONED! Auction is now complete.");
+      }
+    }, 3000);
   });
 
   // Attach Mark UNSOLD
@@ -3064,25 +3154,43 @@ export function renderActiveAuctionBlock() {
       store.updatePlayer(updatedPlayer);
 
       if (activeAuction.timerInterval) clearInterval(activeAuction.timerInterval);
-      alert(`Player "${p.name}" marked as UNSOLD.`);
 
+      // Broadcast UNSOLD stamp to all spectator phones, projector and admin screen
       store.updateLiveAuctionState({
-        status: 'IDLE',
-        active_player_id: null,
+        status: 'UNSOLD',
+        is_unsold: true,
+        active_player_id: p.id,
+        name: p.name,
+        photoUrl: p.photoUrl || p.player_photo_url,
         current_bid: 0,
         highest_bidder_team_id: null,
         last_unsold_player_id: p.id,
         updated_at: Date.now()
       });
 
-      activeAuction = { player: null, currentBid: 0, leadingTeam: null, timerSecs: 30, timerInterval: null, isSold: false, isUnsold: false };
+      activeAuction.isUnsold = true;
       renderActiveAuctionBlock();
       updateProjectorModalView();
 
-      const remainingUnsold = store.getPlayers().filter(pl => (pl.registrationStatus === 'APPROVED' || pl.paymentStatus === 'APPROVED') && !pl.teamId && pl.auctionStatus !== 'SOLD' && pl.auctionStatus !== 'UNSOLD' && !pl.isIcon && !pl.isIconPlayer);
-      if (remainingUnsold.length > 0) {
-        openNextPlayerAuctionModal(remainingUnsold);
-      }
+      setTimeout(() => {
+        store.updateLiveAuctionState({
+          status: 'IDLE',
+          active_player_id: null,
+          current_bid: 0,
+          highest_bidder_team_id: null,
+          last_unsold_player_id: p.id,
+          updated_at: Date.now()
+        });
+
+        activeAuction = { player: null, currentBid: 0, leadingTeam: null, timerSecs: 30, timerInterval: null, isSold: false, isUnsold: false };
+        renderActiveAuctionBlock();
+        updateProjectorModalView();
+
+        const remainingUnsold = store.getPlayers().filter(pl => (pl.registrationStatus === 'APPROVED' || pl.paymentStatus === 'APPROVED') && !pl.teamId && pl.auctionStatus !== 'SOLD' && pl.auctionStatus !== 'UNSOLD' && !pl.isIcon && !pl.isIconPlayer);
+        if (remainingUnsold.length > 0) {
+          openNextPlayerAuctionModal(remainingUnsold);
+        }
+      }, 3000);
     }
   });
 
@@ -3116,6 +3224,9 @@ export function openAuctionProjectorModal() {
         </div>
 
         <div class="flex items-center gap-2">
+          <button id="projector-cancel-bid-btn" class="px-3.5 py-2 bg-rose-950 hover:bg-rose-900 text-rose-300 font-bold text-xs rounded-xl border border-rose-700 flex items-center gap-1.5 cursor-pointer">
+            <i data-lucide="ban" class="w-4 h-4"></i> <span>🚫 Clear Bid</span>
+          </button>
           <button id="projector-fullscreen-toggle-btn" class="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-amber-400 font-bold text-xs rounded-xl border border-slate-700 flex items-center gap-1.5 cursor-pointer">
             <i data-lucide="maximize" class="w-4 h-4"></i> <span>Fullscreen (F11)</span>
           </button>
@@ -3130,15 +3241,8 @@ export function openAuctionProjectorModal() {
         
         <!-- Left: Player HD Portrait Card (5 Cols) -->
         <div class="md:col-span-5 flex flex-col items-center justify-center text-center p-6 bg-gradient-to-b from-slate-900 via-slate-900/90 to-slate-950 rounded-3xl border-2 border-emerald-500/50 shadow-2xl relative overflow-hidden">
-          <div class="w-full flex items-center justify-between gap-2 mb-2">
-            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white font-black text-xs rounded-full border-2 border-emerald-400 shadow-lg">
-              <span class="relative flex h-2 w-2">
-                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                <span class="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
-              </span>
-              LIVE AUCTION
-            </span>
-            <span class="px-3 py-1.5 bg-red-600 text-white font-black font-mono text-xs sm:text-sm rounded-xl border-2 border-red-400 shadow-lg">
+          <div class="w-full flex items-center justify-end mb-2">
+            <span class="px-3.5 py-1.5 bg-red-600 text-white font-black font-mono text-xs sm:text-sm rounded-xl border-2 border-red-400 shadow-lg">
               ${p ? (p.registrationId || p.regNo || ('JSL2026-' + String(p.displayRegistrationNumber || p.serialNo || 1).padStart(4, '0'))) : 'READY'}
             </span>
           </div>
@@ -3200,6 +3304,32 @@ export function openAuctionProjectorModal() {
 
   const removeProjModal = () => document.getElementById('auction-projector-modal')?.remove();
   document.getElementById('projector-close-btn')?.addEventListener('click', removeProjModal);
+
+  document.getElementById('projector-cancel-bid-btn')?.addEventListener('click', () => {
+    if (!activeAuction.player) return;
+    const playerToCancel = activeAuction.player;
+
+    const confirmed = confirm(`🚫 Cancel & Clear Active Bidding:\n\nAre you sure you want to clear the active bidding for "${playerToCancel.name}"?\n\n• Player will return to the auction queue.\n• The active auction block will be cleared for all devices.\n• Any current bids on this player will be reset.`);
+    if (!confirmed) return;
+
+    if (activeAuction.timerInterval) clearInterval(activeAuction.timerInterval);
+
+    activeAuction = { player: null, currentBid: 0, leadingTeam: null, timerSecs: 30, timerInterval: null, isSold: false, isUnsold: false, bidHistory: [] };
+
+    store.updateLiveAuctionState({
+      status: 'IDLE',
+      active_player_id: null,
+      name: null,
+      current_bid: 0,
+      highest_bidder_team_id: null,
+      timer_left: 0,
+      updated_at: Date.now()
+    });
+
+    alert(`✅ Active bidding cleared for "${playerToCancel.name}".`);
+    removeProjModal();
+    renderActiveAuctionBlock();
+  });
 
   document.getElementById('projector-fullscreen-toggle-btn')?.addEventListener('click', () => {
     if (!document.fullscreenElement) {
@@ -4269,5 +4399,29 @@ export function openEditTeamModal(team, onSaved) {
     }
   });
 }
+
+// Global Store Event Listener for Admin Auction Realtime Synchronization
+store.subscribe((event) => {
+  if (event === 'live_auction_updated') {
+    const liveState = store.getLiveAuctionStateSync();
+    if (liveState && liveState.active_player_id) {
+      const p = store.getPlayerById(liveState.active_player_id);
+      if (p && (!activeAuction.player || activeAuction.player.id !== p.id || activeAuction.currentBid !== liveState.current_bid)) {
+        activeAuction.player = p;
+        activeAuction.currentBid = Number(liveState.current_bid) || Number(p.basePrice) || 300;
+        activeAuction.leadingTeam = liveState.highest_bidder_team_id ? store.getTeamById(liveState.highest_bidder_team_id) : null;
+        activeAuction.timerSecs = Number(liveState.timer_left) || 30;
+        renderActiveAuctionBlock();
+        updateProjectorModalView();
+      }
+    } else if (!liveState || !liveState.active_player_id) {
+      if (activeAuction.player && !activeAuction.isSold && !activeAuction.isUnsold) {
+        activeAuction.player = null;
+        renderActiveAuctionBlock();
+        updateProjectorModalView();
+      }
+    }
+  }
+});
 
 

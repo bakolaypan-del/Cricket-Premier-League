@@ -347,6 +347,7 @@ export async function fetchCloudData() {
           players, 
           teams, 
           fixtures,
+          liveAuction: data.liveAuction || null,
           playerProfiles: rawProfiles,
           auctionSettings,
           registrationSettings,

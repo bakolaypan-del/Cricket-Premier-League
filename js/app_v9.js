@@ -4253,6 +4253,7 @@ function renderLiveAuctionView(container) {
       if (state && state.active_player_id) {
         const bidderTeam = teams.find(t => t.id === state.highest_bidder_team_id);
         const isUnsoldState = (state.status === 'UNSOLD' || state.is_unsold);
+        const isSoldState = (state.status === 'SOLD' || state.is_sold);
         const isStateChanged = (lastActivePlayerId !== state.active_player_id || lastActiveStatus !== state.status);
 
         if (isStateChanged) {
@@ -4261,14 +4262,18 @@ function renderLiveAuctionView(container) {
           const playerPhoto = getOptimizedImageUrl(state.photoUrl, 600, 600) || 'assets/card_jsl_user.png';
 
           activeBlockWrapper.innerHTML = `
-            <div class="relative rounded-3xl overflow-hidden shadow-2xl border-2 ${isUnsoldState ? 'border-rose-500' : 'border-emerald-500/40'} min-h-[460px] sm:min-h-[540px] md:min-h-[580px] max-w-2xl mx-auto flex flex-col justify-between p-3 sm:p-4 bg-slate-950 animate-fade-in">
-              <!-- Background blurred atmosphere for wide desktop screens -->
-              <img src="${playerPhoto}" class="absolute inset-0 w-full h-full object-cover blur-xl opacity-30 pointer-events-none" alt="" />
-              <!-- Full Uncropped Player Photo -->
+            <div class="relative rounded-3xl overflow-hidden shadow-2xl border-2 ${isSoldState ? 'border-emerald-500' : isUnsoldState ? 'border-rose-500' : 'border-emerald-500/40'} min-h-[460px] sm:min-h-[540px] md:min-h-[580px] max-w-2xl mx-auto flex flex-col justify-between p-3 sm:p-4 bg-slate-900 animate-fade-in">
+              <!-- Full Crystal Clear Real Player Photo (Zero Dark Shading/Light Overlay) -->
               <img src="${playerPhoto}" class="absolute inset-0 w-full h-full object-cover sm:object-contain object-top" alt="${state.name}" onerror="this.src='assets/card_jsl_user.png'" />
-              <div class="absolute inset-0 bg-gradient-to-b from-black/70 via-transparent to-black/90 pointer-events-none"></div>
 
-              ${isUnsoldState ? `
+              ${isSoldState ? `
+                <!-- 🔴 LARGE BOLD RED SOLD STAMP OVERLAY -->
+                <div class="absolute inset-0 z-30 flex items-center justify-center pointer-events-none bg-slate-950/40 backdrop-blur-[1px]">
+                  <div class="px-6 sm:px-10 py-3 sm:py-4 bg-red-600/95 text-white font-black text-2xl sm:text-4xl uppercase tracking-widest border-4 border-white shadow-2xl rounded-2xl rotate-[-12deg] animate-pulse text-center">
+                    🔨 SOLD<br><span class="text-xs sm:text-base tracking-normal">₹ ${Number(state.sold_price || state.current_bid || 300).toLocaleString('en-IN')} ${bidderTeam ? '• ' + bidderTeam.name : ''}</span>
+                  </div>
+                </div>
+              ` : isUnsoldState ? `
                 <!-- 🔴 LARGE RED UNSOLD STAMP OVERLAY -->
                 <div class="absolute inset-0 z-30 flex items-center justify-center pointer-events-none bg-slate-950/40 backdrop-blur-[1px]">
                   <div class="px-6 sm:px-10 py-3 sm:py-4 bg-rose-600/95 text-white font-black text-2xl sm:text-4xl uppercase tracking-widest border-4 border-white shadow-2xl rounded-2xl rotate-[-12deg] animate-pulse">
@@ -4277,18 +4282,8 @@ function renderLiveAuctionView(container) {
                 </div>
               ` : ''}
 
-              <!-- TOP ROW: Upper Left Live Auction (Green) & Upper Right JSL Serial (Red Box) -->
-              <div class="relative z-10 flex justify-between items-center w-full">
-                <!-- Most Upper Left: Vibrant Green Live Auction Badge -->
-                <span class="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 text-white font-black text-xs rounded-full border-2 border-emerald-400 shadow-lg tracking-wide">
-                  <span class="relative flex h-2.5 w-2.5">
-                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                    <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
-                  </span>
-                  ${isUnsoldState ? 'ROUND 1 PASSED' : 'LIVE AUCTION'}
-                </span>
-                
-                <!-- Most Upper Right: Red Box with Full JSL Serial ID -->
+              <!-- TOP ROW: Upper Right Red Box with Full JSL Serial ID -->
+              <div class="relative z-10 flex justify-end items-center w-full">
                 <span class="px-3.5 py-1.5 bg-red-600 text-white font-black font-mono text-xs sm:text-sm rounded-xl border-2 border-red-400 shadow-lg tracking-wider">
                   ${state.registrationId || state.regNo || ('JSL2026-' + String(state.displayRegistrationNumber || state.serialNo || 1).padStart(4, '0'))}
                 </span>
