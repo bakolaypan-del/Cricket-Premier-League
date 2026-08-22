@@ -12,6 +12,8 @@ import {
   initRealtimePushListener,
   clearAllPlayersFromFirebase,
   clearAllTeamsFromFirebase,
+  savePlayerToFirebase,
+  saveTeamToFirebase,
   saveFixtureToFirebase,
   deleteFixtureFromFirebase,
   saveAuctionSettingsToFirebase,
@@ -22,7 +24,7 @@ import {
   fetchCommunityQueriesFromFirebase,
   fetchTournamentOwnersFromFirebase,
   fetchUserAccountsFromFirebase
-} from './supabase.js?v=10.6.5';
+} from './supabase.js?v=11.3.5';
 
 const FIREBASE_DB_URL = "https://cpl-jsl-2026-default-rtdb.firebaseio.com";
 
@@ -376,14 +378,41 @@ class Store {
   }
 
   startCloudPolling() {
-    // Option 02: On-Demand Fetch enabled - background polling disabled to prevent UI re-render lag
-    console.log("On-Demand Cloud Sync active (Background 4s polling disabled).");
+    if (this.cloudPollingInterval) clearInterval(this.cloudPollingInterval);
+    // Intelligent 4s Background Cloud Polling (only if not filling modal forms)
+    this.cloudPollingInterval = setInterval(() => {
+      const isUserFillingForm = document.getElementById('player-reg-modal') || document.getElementById('team-reg-modal') || document.getElementById('edit-player-modal');
+      if (!isUserFillingForm) {
+        this.syncWithCloud();
+      }
+    }, 4000);
   }
 
   setupRealtimeListeners() {
     window.addEventListener('storage', (e) => {
       if (e.key === STORAGE_KEYS.PLAYERS) this.notify('players_updated');
       if (e.key === STORAGE_KEYS.TEAMS) this.notify('teams_updated');
+    });
+
+    // Mobile Phone Wakeup & Tab Switch Instant Cloud Sync
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') {
+        this.syncWithCloud();
+        this.notify('live_auction_updated');
+        this.notify('players_updated');
+        this.notify('teams_updated');
+      }
+    });
+
+    window.addEventListener('online', () => {
+      this.syncWithCloud();
+      this.notify('live_auction_updated');
+      this.notify('players_updated');
+      this.notify('teams_updated');
+    });
+
+    window.addEventListener('focus', () => {
+      this.syncWithCloud();
     });
 
     if ('BroadcastChannel' in window) {
@@ -633,6 +662,8 @@ class Store {
       });
 
       safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
+      saveCloudData(players, this.getTeams());
+      savePlayerToFirebase(players[idx]);
       syncPlayerToSupabase(players[idx]);
       this.notify('players_updated');
       return players[idx];

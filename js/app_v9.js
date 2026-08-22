@@ -1,10 +1,10 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=11.3.2';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, printDigitalPass, openUserGuidePDF } from './export.js?v=11.3.2';
-import { renderAdminDashboard } from './admin.js?v=11.3.2';
-import { uploadHDImage, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats } from './supabase.js?v=11.3.2';
-import { shops } from './shopsData.js?v=11.3.2';
+import { store } from './store.js?v=11.3.5';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, printDigitalPass, openUserGuidePDF } from './export.js?v=11.3.5';
+import { renderAdminDashboard } from './admin.js?v=11.3.5';
+import { uploadHDImage, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats } from './supabase.js?v=11.3.5';
+import { shops } from './shopsData.js?v=11.3.5';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
 let latestVisitorStats = { liveCount: 1, totalVisits: 1524 };
@@ -4098,6 +4098,9 @@ function renderLiveAuctionView(container) {
   // Pre-calculate counts on load
   renderPlayerStatusTable();
 
+  let lastAuctionSyncTimestamp = 0;
+  let lastAuctionCloudHeartbeat = 0;
+
   const pollActiveAuctionState = async () => {
     if (currentRoute !== 'auction') {
       if (auctionPollInterval) {
@@ -4109,6 +4112,20 @@ function renderLiveAuctionView(container) {
 
     const state = await store.getLiveAuctionState();
     if (currentRoute !== 'auction') return;
+
+    const now = Date.now();
+    const stateUpdatedAt = Number(state?.updated_at || state?.timestamp || 0);
+
+    // If state version changed OR periodic heartbeat (every 3.5s), sync cloud data to keep all phones 100% matched!
+    if (stateUpdatedAt > lastAuctionSyncTimestamp || (now - lastAuctionCloudHeartbeat > 3500)) {
+      lastAuctionSyncTimestamp = stateUpdatedAt;
+      lastAuctionCloudHeartbeat = now;
+      try {
+        await store.syncWithCloud();
+      } catch (err) {
+        console.warn("Auction cloud sync notice:", err);
+      }
+    }
 
     const teams = store.getTeams();
     const allPlayers = store.getPlayers();
