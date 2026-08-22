@@ -1,10 +1,10 @@
 // Admin Master Data & Payment Verification Panel with Single Source Cloud Control (Developer: Suman Kolay)
 
-import { store } from './store.js?v=10.0.0';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF } from './export.js?v=10.0.0';
-import { openSquareImageCropModal, compressImage, openYouTubePromoModal } from './app_v9.js?v=10.0.0';
-import { saveAdSettingsToFirebase, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, savePopupSettingsToFirebase, uploadHDImage, getOptimizedImageUrl } from './supabase.js?v=10.0.0';
-import { shops } from './shopsData.js?v=10.0.0';
+import { store } from './store.js?v=10.1.0';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF } from './export.js?v=10.1.0';
+import { openSquareImageCropModal, compressImage, openYouTubePromoModal } from './app_v9.js?v=10.1.0';
+import { saveAdSettingsToFirebase, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, savePopupSettingsToFirebase, uploadHDImage, getOptimizedImageUrl } from './supabase.js?v=10.1.0';
+import { shops } from './shopsData.js?v=10.1.0';
 
 let activeAdminTab = 'payments'; // 'payments', 'all-players', 'teams'
 const todayStr = new Date().toISOString().split('T')[0];
@@ -702,14 +702,15 @@ export function renderAdminDashboard(containerEl) {
     if (p) {
       if (activeAuction.timerInterval) clearInterval(activeAuction.timerInterval);
       activeAuction = {
-        player: p,
-        currentBid: Number(p.basePrice) || 300,
-        leadingTeam: null,
-        timerSecs: 30,
-        timerInterval: null,
-        isSold: false,
-        isUnsold: false
-      };
+    player: p,
+    currentBid: Number(p.basePrice) || 300,
+    leadingTeam: null,
+    timerSecs: 30,
+    timerInterval: null,
+    isSold: false,
+    isUnsold: false,
+    bidHistory: []
+  };
       store.updateLiveAuctionState({
         active_player_id: p.id,
         name: p.name,
@@ -2105,7 +2106,8 @@ let activeAuction = {
   timerSecs: 30,
   timerInterval: null,
   isSold: false,
-  isUnsold: false
+  isUnsold: false,
+  bidHistory: []
 };
 
 export function openNextPlayerAuctionModal(remainingPlayers) {
@@ -2199,7 +2201,8 @@ export function startAuctionForPlayerDirectly(p) {
     timerSecs: 30,
     timerInterval: null,
     isSold: false,
-    isUnsold: false
+    isUnsold: false,
+    bidHistory: []
   };
 
   store.updateLiveAuctionState({
@@ -2370,7 +2373,10 @@ export function renderActiveAuctionBlock() {
       </div>
 
       <!-- Auctioneer Action Controls -->
-      <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-2 border-t border-slate-800">
+      <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-800">
+        <button id="auction-undo-bid-btn" ${(activeAuction.bidHistory && activeAuction.bidHistory.length > 0) ? '' : 'disabled'} class="py-2.5 ${(activeAuction.bidHistory && activeAuction.bidHistory.length > 0) ? 'bg-amber-950 hover:bg-amber-900 text-amber-300 border-amber-700 cursor-pointer shadow-md' : 'bg-slate-900/50 text-slate-600 border-slate-800 cursor-not-allowed opacity-50'} font-black text-xs rounded-xl border flex items-center justify-center gap-1.5 transition-all">
+          <i data-lucide="undo-2" class="w-4 h-4"></i> ↩️ Undo Bid
+        </button>
         <button id="auction-mark-sold-btn" class="py-2.5 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-black text-xs rounded-xl shadow-lg flex items-center justify-center gap-1.5 cursor-pointer">
           <i data-lucide="check-circle-2" class="w-4 h-4"></i> 🔨 Mark SOLD
         </button>
@@ -2378,7 +2384,7 @@ export function renderActiveAuctionBlock() {
           <i data-lucide="x-circle" class="w-4 h-4"></i> ❌ UNSOLD
         </button>
         <button id="auction-open-projector-btn" class="py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs rounded-xl shadow-lg flex items-center justify-center gap-1.5 cursor-pointer">
-          <i data-lucide="tv" class="w-4 h-4"></i> 📽️ Projector View
+          <i data-lucide="tv" class="w-4 h-4"></i> 📽️ Projector
         </button>
       </div>
 
@@ -2405,6 +2411,13 @@ export function renderActiveAuctionBlock() {
         alert(`Franchise ${team.name} already has a full squad of 13 players!`);
         return;
       }
+
+      if (!activeAuction.bidHistory) activeAuction.bidHistory = [];
+      activeAuction.bidHistory.push({
+        currentBid: activeAuction.currentBid,
+        leadingTeam: activeAuction.leadingTeam,
+        timerSecs: activeAuction.timerSecs
+      });
 
       activeAuction.currentBid = newBid;
       activeAuction.leadingTeam = team;
@@ -2434,8 +2447,47 @@ export function renderActiveAuctionBlock() {
     });
   });
 
-  // Attach Mark SOLD
+  // Attach Undo Bid
+  document.getElementById('auction-undo-bid-btn')?.addEventListener('click', () => {
+    if (!activeAuction.bidHistory || activeAuction.bidHistory.length === 0) return;
+    const prev = activeAuction.bidHistory.pop();
+    activeAuction.currentBid = prev.currentBid;
+    activeAuction.leadingTeam = prev.leadingTeam;
+    activeAuction.timerSecs = 30;
+
+    if (activeAuction.player) {
+      store.updateLiveAuctionState({
+        active_player_id: activeAuction.player.id,
+        name: activeAuction.player.name,
+        photoUrl: activeAuction.player.photoUrl || activeAuction.player.player_photo_url,
+        category: activeAuction.player.category || activeAuction.player.playingType || 'All Rounder',
+        basePrice: Number(activeAuction.player.basePrice) || 300,
+        current_bid: activeAuction.currentBid,
+        highest_bidder_team_id: activeAuction.leadingTeam ? activeAuction.leadingTeam.id : null,
+        timer_left: 30,
+        status: activeAuction.leadingTeam ? 'BIDDING' : 'OPEN',
+        registrationId: activeAuction.player.registrationId || activeAuction.player.regNo,
+        village: activeAuction.player.village,
+        battingStyle: activeAuction.player.battingStyle,
+        bowlingStyle: activeAuction.player.bowlingStyle
+      });
+    }
+
+    renderActiveAuctionBlock();
+    updateProjectorModalView();
+  });
+
+  // Attach Mark SOLD (With Safety Confirmation)
   document.getElementById('auction-mark-sold-btn')?.addEventListener('click', async () => {
+    if (!activeAuction.leadingTeam) {
+      alert("No team has placed a bid yet! Mark as Unsold or place a bid.");
+      return;
+    }
+    const team = activeAuction.leadingTeam;
+    const price = activeAuction.currentBid;
+
+    const confirmed = confirm(`🔨 Confirm Player Sale:\n\nAre you sure you want to mark "${p.name}" as SOLD to "${team.name}" for ₹${price.toLocaleString('en-IN')}?\n\nClick OK to confirm or Cancel to revert.`);
+    if (!confirmed) return;
     if (!activeAuction.leadingTeam) {
       alert("No team has placed a bid yet! Mark as Unsold or place a bid.");
       return;

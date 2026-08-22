@@ -1,6 +1,6 @@
 // LocalStorage & Cloud Database Reactive Store (Developer: Suman Kolay - Continuous Dynamic Numbering Release)
 
-import { INITIAL_LEAGUES, INITIAL_TEAMS, INITIAL_PLAYERS, INITIAL_FIXTURES } from './data.js?v=10.0.0';
+import { INITIAL_LEAGUES, INITIAL_TEAMS, INITIAL_PLAYERS, INITIAL_FIXTURES } from './data.js?v=10.1.0';
 import { 
   fetchCloudData, 
   saveCloudData, 
@@ -22,23 +22,23 @@ import {
   fetchCommunityQueriesFromFirebase,
   fetchTournamentOwnersFromFirebase,
   fetchUserAccountsFromFirebase
-} from './supabase.js?v=10.0.0';
+} from './supabase.js?v=10.1.0';
 
 const FIREBASE_DB_URL = "https://cpl-jsl-2026-default-rtdb.firebaseio.com";
 
 const STORAGE_KEYS = {
-  LEAGUES: 'cpl_leagues_v7',
-  TEAMS: 'cpl_teams_v7',
-  PLAYERS: 'cpl_players_v7',
-  FIXTURES: 'cpl_fixtures_v7',
-  USER: 'cpl_user_v7',
-  ADMIN_AUTH: 'cpl_admin_auth_v7',
-  PLAYER_PROFILES: 'cpl_player_profiles_v7',
-  AUCTION_SETTINGS: 'cpl_auction_settings_v7',
-  COMMUNITY_QUERIES: 'cpl_community_queries_v7',
-  CURRENT_USER: 'cpl_current_user_v7',
-  TOURNAMENT_OWNERS: 'cpl_tournament_owners_v7',
-  USER_ACCOUNTS: 'cpl_user_accounts_v7'
+  LEAGUES: 'cpl_leagues_v8',
+  TEAMS: 'cpl_teams_v8',
+  PLAYERS: 'cpl_players_v8',
+  FIXTURES: 'cpl_fixtures_v8',
+  USER: 'cpl_user_v8',
+  ADMIN_AUTH: 'cpl_admin_auth_v8',
+  PLAYER_PROFILES: 'cpl_player_profiles_v8',
+  AUCTION_SETTINGS: 'cpl_auction_settings_v8',
+  COMMUNITY_QUERIES: 'cpl_community_queries_v8',
+  CURRENT_USER: 'cpl_current_user_v8',
+  TOURNAMENT_OWNERS: 'cpl_tournament_owners_v8',
+  USER_ACCOUNTS: 'cpl_user_accounts_v8'
 };
 
 const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23059669'/%3E%3Ctext x='50' y='62' font-size='45' text-anchor='middle' fill='white'%3E🏏%3C/text%3E%3C/svg%3E";
