@@ -50,7 +50,7 @@
 <body class="bg-slate-950 text-white min-h-screen font-sans">
 
   <!-- CRICKET HERO INTRO SCREEN (CLEAN WHITE BACKGROUND - DEVELOPER: SUMAN KOLAY) -->
-  <div id="intro-loading-screen">
+  <div id="intro-loading-screen" onclick="this.classList.add('fade-out'); setTimeout(() => this.remove(), 250);">
     <!-- Center Main Action Cricket Poster Image (No border, no shape) -->
     <div class="intro-stage-clean">
       <div class="intro-hero-poster-wrapper">
@@ -60,10 +60,23 @@
 
     <!-- Lower Portion on White Background: Handwritten Developer - Suman Kolay (No shape/border) -->
     <div class="intro-developer-simple">
-      <span id="typewriter-text" class="typewriter-handwritten"></span>
+      <span id="typewriter-text" class="typewriter-handwritten">Developer - Suman Kolay</span>
       <span class="typewriter-cursor-simple">|</span>
     </div>
   </div>
+
+  <script>
+    // Bulletproof inline auto-dismiss
+    setTimeout(function() {
+      var scr = document.getElementById('intro-loading-screen');
+      if (scr) {
+        scr.classList.add('fade-out');
+        setTimeout(function() {
+          if (scr && scr.parentNode) scr.parentNode.removeChild(scr);
+        }, 300);
+      }
+    }, 1000);
+  </script>
 
   <!-- Upper Header (Blue & Indigo Gradient) -->
   <header id="app-navbar" class="sticky top-0 z-40 bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-950 text-white rounded-b-2xl sm:rounded-b-3xl shadow-2xl border-b-2 border-blue-400/40 px-2 sm:px-4"></header>
@@ -75,6 +88,6 @@
   <nav id="mobile-bottom-nav"></nav>
 
   <!-- Application Main Script with Version Cache Buster -->
-  <script type="module" src="js/app_v9.js?v=10.4.0"></script>
+  <script type="module" src="js/app_v9.js?v=10.4.5"></script>
 </body>
 </html>
