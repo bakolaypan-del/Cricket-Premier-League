@@ -1198,38 +1198,58 @@ function renderFirstPageLanding(containerEl) {
         </div>
       </div>
 
-      <!-- 🔨 LIVE PLAYER AUCTION NOTIFICATION BANNER (CLICKABLE TO OPEN AUCTION TAB) -->
-      <a href="#auction" id="live-auction-banner-notice" class="block w-full max-w-3xl mx-auto bg-gradient-to-r from-slate-900 via-red-950 to-slate-900 border-2 border-red-500/80 hover:border-amber-400 p-3 sm:p-4 rounded-2xl sm:rounded-3xl shadow-xl text-white animate-fade-in relative overflow-hidden transition-all duration-300 hover:shadow-2xl hover:scale-[1.01] group cursor-pointer no-underline">
+      <!-- 🔨 LIVE PLAYER AUCTION NOTIFICATION BANNER (WITH INTEGRATED 3 PM COUNTDOWN CLOCK) -->
+      <div id="live-auction-banner-notice" class="w-full max-w-3xl mx-auto bg-gradient-to-r from-slate-950 via-red-950/90 to-slate-950 border-2 border-red-500/90 hover:border-amber-400 p-3 sm:p-4 rounded-2xl sm:rounded-3xl shadow-2xl text-white animate-fade-in relative overflow-hidden transition-all duration-300 hover:scale-[1.01] group cursor-pointer">
         <div class="absolute -right-8 -bottom-8 w-28 h-28 bg-red-500/20 rounded-full blur-xl pointer-events-none group-hover:bg-amber-400/20 transition-all"></div>
         <div class="absolute -left-8 -top-8 w-28 h-28 bg-amber-500/15 rounded-full blur-xl pointer-events-none"></div>
 
         <div class="flex flex-col sm:flex-row items-center justify-between gap-3 relative z-10">
-          <div class="flex items-center gap-3 text-center sm:text-left">
-            <div class="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-red-600 to-rose-700 text-white flex items-center justify-center text-xl sm:text-2xl shrink-0 shadow-md group-hover:scale-110 transition-transform">
+          <div class="flex items-center gap-3 text-center sm:text-left min-w-0">
+            <div class="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-red-600 to-rose-700 text-white flex items-center justify-center text-xl sm:text-2xl shrink-0 shadow-lg group-hover:scale-110 transition-transform">
               🔨
             </div>
-            <div>
+            <div class="min-w-0">
               <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-red-500/20 text-red-400 border border-red-500/40 rounded-full text-[9px] sm:text-[10px] font-black tracking-wider uppercase shadow-2xs">
                 <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping"></span>
                 <span>🔴 LIVE PLAYER AUCTION</span>
               </div>
-              <h3 class="text-sm sm:text-base font-black text-white tracking-tight leading-tight mt-0.5">
+              <h3 class="text-sm sm:text-base font-black text-white tracking-tight leading-tight mt-0.5 truncate">
                 Live Player Auction of JSL Start on <span class="text-amber-400 font-mono font-black">3:00 PM</span>
               </h3>
-              <p class="text-[10px] sm:text-[11px] text-slate-300 font-bold">
+              <p class="text-[10px] sm:text-[11px] text-slate-300 font-bold truncate">
                 Watch real-time bidding, official team squads & sold stamps live
               </p>
             </div>
           </div>
 
-          <div class="shrink-0 w-full sm:w-auto">
-            <span class="w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-red-600 via-rose-600 to-amber-500 group-hover:from-red-500 group-hover:to-amber-400 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg border border-red-400 flex items-center justify-center gap-1.5 uppercase tracking-wider group-hover:shadow-red-500/50 transition-all">
+          <!-- 3-Unit Vibrant Countdown Clock Grid & Click Here Button -->
+          <div id="auc-cd-box" class="flex items-center gap-2 shrink-0">
+            <div class="grid grid-cols-3 gap-1 text-center">
+              <!-- Hours -->
+              <div class="bg-slate-900/90 border border-amber-400/60 rounded-xl p-1 sm:p-1.5 min-w-[40px] sm:min-w-[48px] shadow-2xs">
+                <div id="auc-cd-hrs" class="text-sm sm:text-lg font-black text-amber-400 font-mono leading-none">00</div>
+                <div class="text-[7px] sm:text-[8px] font-black text-slate-400 uppercase tracking-wider mt-0.5">Hours</div>
+              </div>
+              <!-- Mins -->
+              <div class="bg-slate-900/90 border border-amber-400/60 rounded-xl p-1 sm:p-1.5 min-w-[40px] sm:min-w-[48px] shadow-2xs">
+                <div id="auc-cd-mins" class="text-sm sm:text-lg font-black text-amber-400 font-mono leading-none">00</div>
+                <div class="text-[7px] sm:text-[8px] font-black text-slate-400 uppercase tracking-wider mt-0.5">Mins</div>
+              </div>
+              <!-- Secs (Pulsing Red) -->
+              <div class="bg-red-950/80 border border-red-500/80 rounded-xl p-1 sm:p-1.5 min-w-[40px] sm:min-w-[48px] shadow-2xs">
+                <div id="auc-cd-secs" class="text-sm sm:text-lg font-black text-red-400 font-mono leading-none animate-pulse">00</div>
+                <div class="text-[7px] sm:text-[8px] font-black text-red-400 uppercase tracking-wider mt-0.5">Secs</div>
+              </div>
+            </div>
+
+            <!-- CLICK HERE BUTTON -->
+            <button id="live-auction-click-btn" class="px-3.5 py-2 sm:py-2.5 bg-gradient-to-r from-red-600 via-rose-600 to-amber-500 hover:from-red-500 hover:to-amber-400 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg border border-red-400 flex items-center justify-center gap-1 uppercase tracking-wider cursor-pointer group-hover:shadow-red-500/60 transition-all shrink-0 active:scale-95">
               <span>Click Here</span>
               <span class="text-base group-hover:translate-x-1 transition-transform">➔</span>
-            </span>
+            </button>
           </div>
         </div>
-      </a>
+      </div>
 
       <!-- SELECT PREMIER LEAGUE BADGE -->
       <div class="text-center">
@@ -1379,8 +1399,16 @@ function renderFirstPageLanding(containerEl) {
     </div>
   `;
 
-  // START COUNTDOWN TIMER
+  // START COUNTDOWN TIMERS
   initTournamentCountdown();
+  initAuctionNoticeCountdown();
+
+  // ATTACH LIVE AUCTION BANNER CLICK LISTENERS
+  document.getElementById('live-auction-banner-notice')?.addEventListener('click', () => navigate('auction'));
+  document.getElementById('live-auction-click-btn')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    navigate('auction');
+  });
 
   // ATTACH CARD CLICK LISTENERS
   document.getElementById('btn-click-jpl')?.addEventListener('click', () => openComingSoonModal('JPL', 'Jhankra Premier League', 'assets/jpl_logo_white.jpg'));
@@ -1543,6 +1571,60 @@ export async function initTournamentCountdown() {
     clearInterval(window._tournamentCountdownInterval);
   }
   window._tournamentCountdownInterval = setInterval(update, 1000);
+}
+
+// --- LIVE PLAYER AUCTION 3 PM COUNTDOWN CLOCK ---
+export function initAuctionNoticeCountdown() {
+  const hEl = document.getElementById('auc-cd-hrs');
+  const mEl = document.getElementById('auc-cd-mins');
+  const sEl = document.getElementById('auc-cd-secs');
+  if (!hEl || !mEl || !sEl) return;
+
+  const update = () => {
+    const now = new Date();
+    // Auction target: Today at 3:00 PM IST (15:00:00)
+    let target = new Date();
+    target.setHours(15, 0, 0, 0);
+
+    // If today's 3 PM has passed by more than 6 hours, show next day 3 PM
+    if (now.getTime() > target.getTime() && (now.getTime() - target.getTime() > 6 * 3600 * 1000)) {
+      target.setDate(target.getDate() + 1);
+    }
+
+    const diff = target.getTime() - now.getTime();
+    const liveBox = document.getElementById('auc-cd-box');
+
+    if (diff <= 0) {
+      if (liveBox) {
+        liveBox.innerHTML = `
+          <button id="live-auction-click-btn" class="px-4 py-2.5 bg-gradient-to-r from-red-600 to-amber-500 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg border border-red-400 flex items-center justify-center gap-1.5 uppercase tracking-wider animate-pulse cursor-pointer">
+            <span>🔴 LIVE NOW - ENTER</span>
+            <span class="text-base">➔</span>
+          </button>
+        `;
+        document.getElementById('live-auction-click-btn')?.addEventListener('click', (e) => {
+          e.stopPropagation();
+          navigate('auction');
+        });
+      }
+      return;
+    }
+
+    const hrs = Math.floor(diff / (1000 * 60 * 60));
+    const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+    const secs = Math.floor((diff % (1000 * 60)) / 1000);
+
+    const pad = (n) => String(n).padStart(2, '0');
+    if (hEl) hEl.textContent = pad(hrs);
+    if (mEl) mEl.textContent = pad(mins);
+    if (sEl) sEl.textContent = pad(secs);
+  };
+
+  update();
+  if (window._auctionNoticeCountdownInterval) {
+    clearInterval(window._auctionNoticeCountdownInterval);
+  }
+  window._auctionNoticeCountdownInterval = setInterval(update, 1000);
 }
 
 // --- COMING SOON MODAL WITH STYLISH LOGOS ---
