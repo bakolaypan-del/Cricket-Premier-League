@@ -1,10 +1,10 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=10.6.0';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, printDigitalPass, openUserGuidePDF } from './export.js?v=10.6.0';
-import { renderAdminDashboard } from './admin.js?v=10.6.0';
-import { uploadHDImage, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats } from './supabase.js?v=10.6.0';
-import { shops } from './shopsData.js?v=10.6.0';
+import { store } from './store.js?v=10.6.5';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, printDigitalPass, openUserGuidePDF } from './export.js?v=10.6.5';
+import { renderAdminDashboard } from './admin.js?v=10.6.5';
+import { uploadHDImage, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats } from './supabase.js?v=10.6.5';
+import { shops } from './shopsData.js?v=10.6.5';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
 let latestVisitorStats = { liveCount: 1, totalVisits: 1524 };
@@ -3779,17 +3779,15 @@ function renderLiveAuctionView(container) {
   container.innerHTML = `
     <div class="space-y-6 sm:space-y-8 animate-fade-in pb-16">
       <!-- Header Banner (Off-white / Slate clean card) -->
-      <div class="bg-white border border-slate-200 p-4 sm:p-6 rounded-2xl shadow-md">
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          <div>
-            <h1 class="text-xl sm:text-2xl font-black text-slate-900 flex items-center gap-2">
-              <span class="p-1.5 bg-amber-100 text-amber-800 rounded-xl">🔨</span> Live Player Auction Hub
+      <div class="bg-white border border-slate-200 p-3.5 sm:p-4 rounded-2xl shadow-sm">
+        <div class="flex items-center justify-between gap-3 flex-wrap">
+          <div class="flex items-center gap-2 sm:gap-2.5 flex-wrap">
+            <span class="p-1.5 bg-amber-100 text-amber-800 rounded-xl text-base sm:text-lg shrink-0">🔨</span>
+            <h1 class="text-base sm:text-xl font-black text-slate-900 leading-tight">
+              Live Player Auction Hub
             </h1>
-            <p class="text-xs text-slate-500 mt-1">Track current bids, player block assignments, and team budgets in real time.</p>
-          </div>
-          <div class="flex items-center gap-2">
-            <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 font-bold text-xs rounded-full border border-emerald-200">
-              <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Live Sync Active
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-emerald-50 text-emerald-700 font-extrabold text-[10px] sm:text-xs rounded-full border border-emerald-200 shadow-2xs">
+              <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> LIVE
             </span>
           </div>
         </div>
