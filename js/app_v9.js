@@ -4232,6 +4232,8 @@ function renderLiveAuctionView(container) {
 
   let lastAuctionSyncTimestamp = 0;
   let lastAuctionCloudHeartbeat = 0;
+  let lastRenderedTableHash = '';
+  let lastRenderedPursesHash = '';
 
   const pollActiveAuctionState = async () => {
     if (currentRoute !== 'auction') {
@@ -4248,8 +4250,8 @@ function renderLiveAuctionView(container) {
     const now = Date.now();
     const stateUpdatedAt = Number(state?.updated_at || state?.timestamp || 0);
 
-    // If state version changed OR periodic heartbeat (every 3.5s), sync cloud data to keep all phones 100% matched!
-    if (stateUpdatedAt > lastAuctionSyncTimestamp || (now - lastAuctionCloudHeartbeat > 3500)) {
+    // If state version changed OR periodic heartbeat (every 6s), sync cloud data
+    if (stateUpdatedAt > lastAuctionSyncTimestamp || (now - lastAuctionCloudHeartbeat > 6000)) {
       lastAuctionSyncTimestamp = stateUpdatedAt;
       lastAuctionCloudHeartbeat = now;
       try {
@@ -4387,7 +4389,8 @@ function renderLiveAuctionView(container) {
             </div>
           `;
           if (window.lucide) window.lucide.createIcons();
-        } else if (!isUnsoldState) {
+        } else if (!isUnsoldState && !isSoldState) {
+          // PURE TEXT-ONLY UPDATES: The player photo and container are NEVER re-rendered while bidding is active!
           const bidEl = document.getElementById('auction-live-bid-display');
           const teamEl = document.getElementById('auction-leading-bidder-display');
           const tagEl = document.getElementById('auction-bid-tag-display');
@@ -4428,11 +4431,17 @@ function renderLiveAuctionView(container) {
       }
     }
 
-    // 2. Real-time update of player status table if open
-    renderPlayerStatusTable();
+    // 2. Real-time update of player status table ONLY when data actually changed
+    const currentTableHash = allPlayers.map(p => p.id + ':' + (p.auctionStatus || '') + ':' + (p.teamId || '') + ':' + (p.soldPrice || 0)).join('|');
+    if (currentTableHash !== lastRenderedTableHash) {
+      lastRenderedTableHash = currentTableHash;
+      renderPlayerStatusTable();
+    }
 
-    // 3. Render / Update Franchise Purses & Live Squad Names
-    if (pursesWrapper) {
+    // 3. Render / Update Franchise Purses ONLY when teams or player purchases changed
+    const currentPursesHash = teams.map(t => t.id + ':' + (t.remainingPurse || 0) + ':' + (t.squadCount || 0) + ':' + (t.purseSpent || 0)).join('|') + '||' + currentTableHash;
+    if (pursesWrapper && currentPursesHash !== lastRenderedPursesHash) {
+      lastRenderedPursesHash = currentPursesHash;
       pursesWrapper.innerHTML = teams.map(t => {
         const hasIcon = !!((t.iconPlayerName && t.iconPlayerName.trim()) || (t.iconName && t.iconName.trim()));
         const iconDeduction = hasIcon ? 1000 : 0;
