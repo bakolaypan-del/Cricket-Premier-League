@@ -1198,54 +1198,82 @@ function renderFirstPageLanding(containerEl) {
         </div>
       </div>
 
-      <!-- 🔨 LIVE PLAYER AUCTION NOTIFICATION BANNER (WITH INTEGRATED 3 PM COUNTDOWN CLOCK) -->
-      <div id="live-auction-banner-notice" class="w-full max-w-3xl mx-auto bg-gradient-to-r from-slate-950 via-red-950/90 to-slate-950 border-2 border-red-500/90 hover:border-amber-400 p-3 sm:p-4 rounded-2xl sm:rounded-3xl shadow-2xl text-white animate-fade-in relative overflow-hidden transition-all duration-300 hover:scale-[1.01] group cursor-pointer">
-        <div class="absolute -right-8 -bottom-8 w-28 h-28 bg-red-500/20 rounded-full blur-xl pointer-events-none group-hover:bg-amber-400/20 transition-all"></div>
-        <div class="absolute -left-8 -top-8 w-28 h-28 bg-amber-500/15 rounded-full blur-xl pointer-events-none"></div>
+      <!-- 🔨 LIVE PLAYER AUCTION NOTIFICATION BANNER (COMPACT, MOBILE-PERFECT & RICH SVG BACKGROUND) -->
+      <div id="live-auction-banner-notice" class="w-full max-w-3xl mx-auto bg-gradient-to-br from-slate-950 via-[#180507] to-slate-950 border-2 border-red-500/90 hover:border-amber-400 p-3 sm:p-4 rounded-2xl sm:rounded-3xl shadow-2xl text-white animate-fade-in relative overflow-hidden transition-all duration-300 hover:scale-[1.01] group cursor-pointer">
+        
+        <!-- RICH VECTOR BACKGROUND: AUCTION GAVEL & MONEY COINS -->
+        <div class="absolute inset-0 pointer-events-none overflow-hidden opacity-10">
+          <!-- Background Gavel SVG Left -->
+          <svg class="absolute -left-4 -top-4 w-32 h-32 text-amber-400 transform -rotate-12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="m14 13-7.5 7.5c-.83.83-2.17.83-3 0 0 0 0 0 0 0-.83-.83-.83-2.17 0-3L11 10"/>
+            <path d="m16 16 6-6"/>
+            <path d="m8 8 6-6"/>
+            <path d="m9 7 8 8"/>
+            <path d="m21 11-8-8"/>
+          </svg>
+          <!-- Background Money Bag & Rupee SVGs Right -->
+          <svg class="absolute -right-4 -bottom-4 w-28 h-28 text-emerald-400 transform rotate-12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M6 3h12l1 6H5l1-6z"/>
+            <path d="M12 9v12"/>
+            <path d="M19 9a7 7 0 1 1-14 0"/>
+            <path d="M9 14h6"/>
+          </svg>
+          <!-- Floating Coin / Currency SVGs Center -->
+          <svg class="absolute left-1/2 -top-4 w-20 h-20 text-yellow-300 transform -translate-x-1/2 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <circle cx="12" cy="12" r="9"/>
+            <path d="M9 8h6M9 12h6M9 8v8M13 12c1.5 0 2.5 1 2.5 2.5S14.5 17 13 17H9"/>
+          </svg>
+        </div>
 
-        <div class="flex flex-col sm:flex-row items-center justify-between gap-3 relative z-10">
-          <div class="flex items-center gap-3 text-center sm:text-left min-w-0">
-            <div class="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-red-600 to-rose-700 text-white flex items-center justify-center text-xl sm:text-2xl shrink-0 shadow-lg group-hover:scale-110 transition-transform">
-              🔨
+        <div class="relative z-10 flex flex-col gap-2 sm:gap-2.5">
+          <!-- TOP ROW: BADGE + TITLE & SUBTITLE -->
+          <div class="flex items-center justify-between gap-2 flex-wrap">
+            <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-red-500/20 text-red-400 border border-red-500/50 rounded-full text-[9px] sm:text-[10px] font-black tracking-wider uppercase shadow-2xs">
+              <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping"></span>
+              <span>🔴 LIVE PLAYER AUCTION</span>
             </div>
-            <div class="min-w-0">
-              <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-red-500/20 text-red-400 border border-red-500/40 rounded-full text-[9px] sm:text-[10px] font-black tracking-wider uppercase shadow-2xs">
-                <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping"></span>
-                <span>🔴 LIVE PLAYER AUCTION</span>
-              </div>
-              <h3 class="text-sm sm:text-base font-black text-white tracking-tight leading-tight mt-0.5 truncate">
-                Live Player Auction of JSL Start on <span class="text-amber-400 font-mono font-black">3:00 PM</span>
-              </h3>
-              <p class="text-[10px] sm:text-[11px] text-slate-300 font-bold truncate">
-                Watch real-time bidding, official team squads & sold stamps live
-              </p>
+            <div class="text-[9px] sm:text-[10px] font-black text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-400/30 flex items-center gap-1">
+              <span>💰 JSL 2026</span>
             </div>
           </div>
 
-          <!-- 3-Unit Vibrant Countdown Clock Grid & Click Here Button -->
-          <div id="auc-cd-box" class="flex items-center gap-2 shrink-0">
-            <div class="grid grid-cols-3 gap-1 text-center">
+          <!-- MIDDLE: HEADLINE -->
+          <div>
+            <h3 class="text-sm sm:text-lg font-black text-white tracking-tight leading-snug">
+              Live Player Auction of JSL Starts at <span class="text-amber-400 font-mono font-black text-base sm:text-xl">3:00 PM</span>
+            </h3>
+            <p class="text-[10px] sm:text-xs text-slate-300 font-medium leading-tight mt-0.5">
+              Watch real-time bidding, official team squads & sold stamps live
+            </p>
+          </div>
+
+          <!-- BOTTOM ROW: COUNTDOWN CLOCK & BUTTON -->
+          <div id="auc-cd-box" class="flex items-center justify-between gap-2 pt-1 border-t border-slate-800/80">
+            <!-- 3-Unit Vibrant Countdown Clock Grid -->
+            <div class="flex items-center gap-1 sm:gap-1.5 shrink-0">
               <!-- Hours -->
-              <div class="bg-slate-900/90 border border-amber-400/60 rounded-xl p-1 sm:p-1.5 min-w-[40px] sm:min-w-[48px] shadow-2xs">
-                <div id="auc-cd-hrs" class="text-sm sm:text-lg font-black text-amber-400 font-mono leading-none">00</div>
+              <div class="bg-slate-900/90 border border-amber-400/60 rounded-xl px-2 py-1 min-w-[38px] sm:min-w-[46px] text-center shadow-xs">
+                <div id="auc-cd-hrs" class="text-xs sm:text-base font-black text-amber-400 font-mono leading-none">00</div>
                 <div class="text-[7px] sm:text-[8px] font-black text-slate-400 uppercase tracking-wider mt-0.5">Hours</div>
               </div>
+              <span class="text-amber-400 font-black text-xs">:</span>
               <!-- Mins -->
-              <div class="bg-slate-900/90 border border-amber-400/60 rounded-xl p-1 sm:p-1.5 min-w-[40px] sm:min-w-[48px] shadow-2xs">
-                <div id="auc-cd-mins" class="text-sm sm:text-lg font-black text-amber-400 font-mono leading-none">00</div>
+              <div class="bg-slate-900/90 border border-amber-400/60 rounded-xl px-2 py-1 min-w-[38px] sm:min-w-[46px] text-center shadow-xs">
+                <div id="auc-cd-mins" class="text-xs sm:text-base font-black text-amber-400 font-mono leading-none">00</div>
                 <div class="text-[7px] sm:text-[8px] font-black text-slate-400 uppercase tracking-wider mt-0.5">Mins</div>
               </div>
+              <span class="text-red-400 font-black text-xs animate-pulse">:</span>
               <!-- Secs (Pulsing Red) -->
-              <div class="bg-red-950/80 border border-red-500/80 rounded-xl p-1 sm:p-1.5 min-w-[40px] sm:min-w-[48px] shadow-2xs">
-                <div id="auc-cd-secs" class="text-sm sm:text-lg font-black text-red-400 font-mono leading-none animate-pulse">00</div>
+              <div class="bg-red-950/90 border border-red-500/80 rounded-xl px-2 py-1 min-w-[38px] sm:min-w-[46px] text-center shadow-xs">
+                <div id="auc-cd-secs" class="text-xs sm:text-base font-black text-red-400 font-mono leading-none animate-pulse">00</div>
                 <div class="text-[7px] sm:text-[8px] font-black text-red-400 uppercase tracking-wider mt-0.5">Secs</div>
               </div>
             </div>
 
             <!-- CLICK HERE BUTTON -->
-            <button id="live-auction-click-btn" class="px-3.5 py-2 sm:py-2.5 bg-gradient-to-r from-red-600 via-rose-600 to-amber-500 hover:from-red-500 hover:to-amber-400 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg border border-red-400 flex items-center justify-center gap-1 uppercase tracking-wider cursor-pointer group-hover:shadow-red-500/60 transition-all shrink-0 active:scale-95">
+            <button id="live-auction-click-btn" class="flex-1 sm:flex-initial px-3.5 py-1.5 sm:py-2 bg-gradient-to-r from-red-600 via-rose-600 to-amber-500 hover:from-red-500 hover:to-amber-400 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg border border-red-400 flex items-center justify-center gap-1 uppercase tracking-wider cursor-pointer group-hover:shadow-red-500/60 transition-all active:scale-95">
               <span>Click Here</span>
-              <span class="text-base group-hover:translate-x-1 transition-transform">➔</span>
+              <span class="text-xs sm:text-sm group-hover:translate-x-1 transition-transform">➔</span>
             </button>
           </div>
         </div>
