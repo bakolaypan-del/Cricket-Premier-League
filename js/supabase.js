@@ -719,19 +719,27 @@ let visitorHeartbeatTimer = null;
 
 export async function initVisitorTracking(onStatsChange) {
   try {
+    // Permanent Device / Unique User ID
+    let deviceUid = localStorage.getItem('cpl_device_uid');
+    if (!deviceUid) {
+      deviceUid = 'uid_' + Date.now() + '_' + Math.random().toString(36).substring(2, 10);
+      localStorage.setItem('cpl_device_uid', deviceUid);
+    }
+
+    // Session ID for Live Online Presence Heartbeats
     let sessionId = sessionStorage.getItem('cpl_visitor_sid');
     if (!sessionId) {
       sessionId = 'sid_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
       sessionStorage.setItem('cpl_visitor_sid', sessionId);
     }
 
-    // 1. Record total visit if not yet counted this session
-    if (!sessionStorage.getItem('cpl_visit_counted')) {
-      sessionStorage.setItem('cpl_visit_counted', 'true');
+    // 1. Strictly Unique Visitor Count: counted once per device/person forever
+    if (!localStorage.getItem('cpl_unique_visitor_counted')) {
+      localStorage.setItem('cpl_unique_visitor_counted', 'true');
       fetch(`${FIREBASE_DB_URL}/cpl_master/site_stats/total_visits.json?_t=${Date.now()}`)
         .then(r => r.json())
         .then(currentTotal => {
-          const newTotal = (Number(currentTotal) || 1520) + 1;
+          const newTotal = (Number(currentTotal) || 1665) + 1;
           fetch(`${FIREBASE_DB_URL}/cpl_master/site_stats/total_visits.json`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },

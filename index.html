@@ -25,7 +25,7 @@
   <!-- Google Fonts: Hind Siliguri & Anek Bangla for Stylish Bengali Typography -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Anek+Bangla:wght@400;600;700;800;900&family=Hind+Siliguri:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Anek+Bangla:wght@400;600;700;800;900&family=Caveat:wght@600;700&family=Hind+Siliguri:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@700;800&display=swap" rel="stylesheet">
 
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -45,12 +45,12 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
 
   <!-- Custom Styles with Version Cache Buster -->
-  <link rel="stylesheet" href="css/styles_v9.css" />
+  <link rel="stylesheet" href="css/styles_v9.css?v=11.0.0" />
 </head>
 <body class="bg-slate-950 text-white min-h-screen font-sans">
 
   <!-- CRICKET HERO INTRO SCREEN (CLEAN WHITE BACKGROUND - DEVELOPER: SUMAN KOLAY) -->
-  <div id="intro-loading-screen" onclick="this.classList.add('fade-out'); setTimeout(() => this.remove(), 300);">
+  <div id="intro-loading-screen" onclick="this.classList.add('fade-out'); this.style.pointerEvents='none'; setTimeout(() => this.remove(), 350);">
     <!-- Center Main Action Cricket Poster Image (No border, no shape) -->
     <div class="intro-stage-clean">
       <div class="intro-hero-poster-wrapper">
@@ -65,6 +65,18 @@
     </div>
   </div>
 
+  <script>
+    // Failsafe auto-dismiss after 2.6s so intro screen NEVER stays stuck
+    setTimeout(function() {
+      var intro = document.getElementById('intro-loading-screen');
+      if (intro) {
+        intro.classList.add('fade-out');
+        intro.style.pointerEvents = 'none';
+        setTimeout(function() { if (intro && intro.parentNode) intro.parentNode.removeChild(intro); }, 350);
+      }
+    }, 2600);
+  </script>
+
   <!-- Upper Header (Blue & Indigo Gradient) -->
   <header id="app-navbar" class="sticky top-0 z-40 bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-950 text-white rounded-b-2xl sm:rounded-b-3xl shadow-2xl border-b-2 border-blue-400/40 px-2 sm:px-4"></header>
 
@@ -75,6 +87,6 @@
   <nav id="mobile-bottom-nav"></nav>
 
   <!-- Application Main Script with Version Cache Buster -->
-  <script type="module" src="js/app_v9.js?v=10.6.5"></script>
+  <script type="module" src="js/app_v9.js?v=11.3.2"></script>
 </body>
 </html>

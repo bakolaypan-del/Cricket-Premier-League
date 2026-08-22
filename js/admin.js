@@ -1,12 +1,12 @@
 // Admin Master Data & Payment Verification Panel with Single Source Cloud Control (Developer: Suman Kolay)
 
-import { store } from './store.js?v=10.6.5';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF } from './export.js?v=10.6.5';
-import { openSquareImageCropModal, compressImage, openYouTubePromoModal } from './app_v9.js?v=10.6.5';
-import { saveAdSettingsToFirebase, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, savePopupSettingsToFirebase, uploadHDImage, getOptimizedImageUrl } from './supabase.js?v=10.6.5';
-import { shops } from './shopsData.js?v=10.6.5';
+import { store } from './store.js?v=11.3.2';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF } from './export.js?v=11.3.2';
+import { saveAdSettingsToFirebase, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, savePopupSettingsToFirebase, uploadHDImage, getOptimizedImageUrl } from './supabase.js?v=11.3.2';
+import { shops } from './shopsData.js?v=11.3.2';
 
 let activeAdminTab = 'payments'; // 'payments', 'all-players', 'teams'
+let adminAuctionSubTab = 'sold'; // 'sold', 'unsold'
 const todayStr = new Date().toISOString().split('T')[0];
 
 export function renderAdminDashboard(containerEl) {
@@ -24,6 +24,10 @@ export function renderAdminDashboard(containerEl) {
   const rejectedPlayers = players.filter(p => p.registrationStatus === 'REJECTED' || p.paymentStatus === 'REJECTED');
   const pendingPlayers = players.filter(p => !approvedPlayers.includes(p) && !rejectedPlayers.includes(p));
   const todayPlayers = players.filter(p => p.regDate === todayStr || (p.created_at && p.created_at.startsWith(todayStr)));
+
+  const soldPlayers = players.filter(p => p.teamId || p.auctionStatus === 'SOLD');
+  const unsoldPlayers = players.filter(p => p.auctionStatus === 'UNSOLD' && !p.teamId);
+  const queuePlayers = players.filter(p => (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED') && !p.teamId && p.auctionStatus !== 'SOLD' && p.auctionStatus !== 'UNSOLD' && !p.isIcon && !p.isIconPlayer);
 
   const isMaster = store.isMasterAdmin();
   const currentUser = store.getCurrentUser();
@@ -390,7 +394,7 @@ export function renderAdminDashboard(containerEl) {
                   <label class="block text-xs font-bold text-slate-400 mb-1">SELECT APPROVED PLAYER</label>
                   <select id="auction-select-player" class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-xl p-2.5">
                     <option value="">-- Choose Player --</option>
-                    ${players.filter(p => (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED') && !p.teamId).map(p => `
+                    ${players.filter(p => (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED') && !p.teamId && p.auctionStatus !== 'SOLD' && !p.isIcon && !p.isIconPlayer).map(p => `
                       <option value="${p.id}">${p.name} (${p.category || 'All Rounder'}) - Base: ₹${p.basePrice || 300}</option>
                     `).join('')}
                   </select>
@@ -407,6 +411,134 @@ export function renderAdminDashboard(containerEl) {
                 <i data-lucide="gavel" class="w-5 h-5 text-amber-500"></i> Active Auction Console
               </h3>
               <div id="admin-active-auction-block" class="space-y-4"></div>
+            </div>
+          </div>
+
+          <!-- 🔨 Sold Players & Unsold Pool Tabs Section -->
+          <div class="glass-card p-4 sm:p-6 bg-slate-900/90 border border-slate-800 space-y-4 rounded-2xl shadow-xl">
+            <div class="flex items-center justify-between border-b border-slate-800 pb-3 flex-wrap gap-2">
+              <div class="flex items-center gap-2 flex-wrap">
+                <button type="button" id="admin-auction-tab-sold" class="px-3.5 py-2 rounded-xl font-black text-xs transition-all cursor-pointer flex items-center gap-1.5 ${adminAuctionSubTab === 'sold' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}">
+                  <span>✅ Sold & Allocated</span>
+                  <span class="px-1.5 py-0.2 rounded-full text-[10px] font-mono ${adminAuctionSubTab === 'sold' ? 'bg-white text-blue-900 font-black' : 'bg-slate-900 text-slate-300'}">${soldPlayers.length}</span>
+                </button>
+                <button type="button" id="admin-auction-tab-unsold" class="px-3.5 py-2 rounded-xl font-black text-xs transition-all cursor-pointer flex items-center gap-1.5 ${adminAuctionSubTab === 'unsold' ? 'bg-rose-600 text-white shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}">
+                  <span>❌ Unsold Pool (Round 1)</span>
+                  <span class="px-1.5 py-0.2 rounded-full text-[10px] font-mono ${adminAuctionSubTab === 'unsold' ? 'bg-white text-rose-900 font-black' : 'bg-slate-900 text-slate-300'}">${unsoldPlayers.length}</span>
+                </button>
+              </div>
+
+              ${adminAuctionSubTab === 'unsold' && unsoldPlayers.length > 0 ? `
+                <button type="button" id="admin-reset-all-unsold-btn" class="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/40 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5">
+                  🔄 Revert All to Queue (Round 2)
+                </button>
+              ` : ''}
+            </div>
+
+            <!-- TAB 1: Sold Players & Squad Allocations Table -->
+            <div id="admin-auction-sold-container" class="${adminAuctionSubTab === 'sold' ? '' : 'hidden'} overflow-x-auto">
+              <table class="w-full text-left text-xs text-slate-300">
+                <thead class="bg-slate-950/80 text-[10px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-800">
+                  <tr>
+                    <th class="py-2.5 px-3">PLAYER</th>
+                    <th class="py-2.5 px-3">ROLE</th>
+                    <th class="py-2.5 px-3">BOUGHT BY TEAM</th>
+                    <th class="py-2.5 px-3 text-center text-amber-400">SOLD PRICE</th>
+                    <th class="py-2.5 px-3 text-right">ACTION</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800 font-semibold">
+                  ${soldPlayers.length === 0 ? `
+                    <tr>
+                      <td colspan="5" class="py-8 text-center text-slate-500 italic">No players sold or allocated yet.</td>
+                    </tr>
+                  ` : soldPlayers.map(p => {
+                    const assignedTeam = teams.find(t => t.id === p.teamId) || { name: 'Unknown Team' };
+                    return `
+                      <tr class="hover:bg-slate-800/40 transition-colors">
+                        <td class="py-2.5 px-3">
+                          <div class="flex items-center gap-2.5">
+                            <img src="${p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png'}" class="w-8 h-8 rounded-lg object-cover border border-slate-700 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                            <div>
+                              <div class="font-black text-white text-xs flex items-center gap-1.5">
+                                <span>${p.name}</span>
+                                ${(p.isIcon || p.isIconPlayer) ? `<span class="px-1.5 py-0.2 bg-amber-400 text-slate-950 font-black text-[8px] rounded uppercase tracking-wider">⭐ ICON</span>` : ''}
+                              </div>
+                              <div class="text-[9px] text-slate-400">${p.village || 'Jhankra'}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td class="py-2.5 px-3">
+                          <span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300 text-[9px] font-bold border border-slate-700">${p.category || 'All Rounder'}</span>
+                        </td>
+                        <td class="py-2.5 px-3 font-bold text-amber-300">
+                          🛡️ ${assignedTeam.name}
+                        </td>
+                        <td class="py-2.5 px-3 text-center font-mono font-black text-emerald-400">
+                          ${(p.isIcon || p.isIconPlayer) ? '⭐ ₹ 1,000 (Icon)' : `₹ ${(Number(p.soldPrice) || Number(p.basePrice) || 0).toLocaleString('en-IN')}`}
+                        </td>
+                        <td class="py-2.5 px-3 text-right">
+                          ${(p.isIcon || p.isIconPlayer) ? `
+                            <span class="text-[10px] text-amber-400/80 font-bold italic">Franchise Icon</span>
+                          ` : `
+                            <button class="admin-unsell-player-btn px-2.5 py-1.5 bg-rose-950/90 hover:bg-rose-900 text-rose-300 hover:text-white border border-rose-800 rounded-lg text-[10px] font-black transition-all shadow-sm cursor-pointer" data-player-id="${p.id}" data-player-name="${p.name}" data-team-name="${assignedTeam.name}" data-price="${p.soldPrice || 0}">
+                              ❌ Remove & Refund
+                            </button>
+                          `}
+                        </td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+
+            <!-- TAB 2: Unsold Players Pool & Re-Bid Controls -->
+            <div id="admin-auction-unsold-container" class="${adminAuctionSubTab === 'unsold' ? '' : 'hidden'} overflow-x-auto">
+              <table class="w-full text-left text-xs text-slate-300">
+                <thead class="bg-slate-950/80 text-[10px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-800">
+                  <tr>
+                    <th class="py-2.5 px-3">UNSOLD PLAYER</th>
+                    <th class="py-2.5 px-3">ROLE</th>
+                    <th class="py-2.5 px-3">STATUS</th>
+                    <th class="py-2.5 px-3 text-center text-amber-400">BASE PRICE</th>
+                    <th class="py-2.5 px-3 text-right">RE-AUCTION ACTION</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-800 font-semibold">
+                  ${unsoldPlayers.length === 0 ? `
+                    <tr>
+                      <td colspan="5" class="py-8 text-center text-slate-500 italic">No unsold players in this round.</td>
+                    </tr>
+                  ` : unsoldPlayers.map(p => `
+                    <tr class="hover:bg-slate-800/40 transition-colors">
+                      <td class="py-2.5 px-3">
+                        <div class="flex items-center gap-2.5">
+                          <img src="${p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png'}" class="w-8 h-8 rounded-lg object-cover border border-slate-700 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                          <div>
+                            <div class="font-black text-white text-xs">${p.name}</div>
+                            <div class="text-[9px] text-slate-400">${p.village || 'Jhankra'}</div>
+                          </div>
+                        </div>
+                      </td>
+                      <td class="py-2.5 px-3">
+                        <span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300 text-[9px] font-bold border border-slate-700">${p.category || 'All Rounder'}</span>
+                      </td>
+                      <td class="py-2.5 px-3 font-bold text-rose-400">
+                        ❌ UNSOLD (Round 1)
+                      </td>
+                      <td class="py-2.5 px-3 text-center font-mono font-black text-emerald-400">
+                        ₹ ${(Number(p.basePrice) || 300).toLocaleString('en-IN')}
+                      </td>
+                      <td class="py-2.5 px-3 text-right">
+                        <button class="admin-rebid-unsold-player-btn px-3 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-md transition-all cursor-pointer inline-flex items-center gap-1.5" data-player-id="${p.id}">
+                          🔨 Re-Bid / Put on Block
+                        </button>
+                      </td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>
@@ -682,6 +814,81 @@ export function renderAdminDashboard(containerEl) {
     alert(`👑 Authority Granted!\n\n"${name}" (${phone}) is now the official Tournament Owner for JSL 2026.`);
     activeAdminTab = 'owners';
     renderAdminDashboard(containerEl);
+  });
+
+  // Bind Reset Auction Button
+  document.getElementById('admin-reset-auction-btn')?.addEventListener('click', () => {
+    if (confirm("⚠️ CAUTION: Are you sure you want to revert all sold players and reset team purses?\n\nThis will clear all team squads and reset purses to original budgets.")) {
+      store.resetAuctionData();
+      alert("✅ Auction data reverted successfully!");
+      renderAdminDashboard(containerEl, 'auction');
+    }
+  });
+
+  // Bind Individual Unsell / Remove Player Button in Auction Tab
+  document.querySelectorAll('.admin-unsell-player-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const pId = e.currentTarget.getAttribute('data-player-id');
+      const pName = e.currentTarget.getAttribute('data-player-name');
+      const tName = e.currentTarget.getAttribute('data-team-name');
+      const price = Number(e.currentTarget.getAttribute('data-price')) || 0;
+
+      if (confirm(`Are you sure you want to remove "${pName}" from "${tName}"?\n\n• Player will be removed from ${tName}'s squad (-1 player).\n• ₹${price.toLocaleString('en-IN')} will be refunded to ${tName}'s purse/wallet.\n• Player will return to the available auction pool.`)) {
+        store.unassignPlayerFromTeam(pId);
+        alert(`✅ "${pName}" removed from ${tName} and ₹${price.toLocaleString('en-IN')} refunded!`);
+        renderAdminDashboard(containerEl);
+      }
+    });
+  });
+
+  // Bind Auction Subtab Switching (Sold vs Unsold)
+  document.getElementById('admin-auction-tab-sold')?.addEventListener('click', () => {
+    adminAuctionSubTab = 'sold';
+    document.getElementById('admin-auction-sold-container')?.classList.remove('hidden');
+    document.getElementById('admin-auction-unsold-container')?.classList.add('hidden');
+    document.getElementById('admin-auction-tab-sold')?.classList.add('bg-blue-600', 'text-white', 'shadow-md');
+    document.getElementById('admin-auction-tab-sold')?.classList.remove('bg-slate-800', 'text-slate-300');
+    document.getElementById('admin-auction-tab-unsold')?.classList.remove('bg-rose-600', 'text-white', 'shadow-md');
+    document.getElementById('admin-auction-tab-unsold')?.classList.add('bg-slate-800', 'text-slate-300');
+    document.getElementById('admin-reset-all-unsold-btn')?.classList.add('hidden');
+  });
+
+  document.getElementById('admin-auction-tab-unsold')?.addEventListener('click', () => {
+    adminAuctionSubTab = 'unsold';
+    document.getElementById('admin-auction-sold-container')?.classList.add('hidden');
+    document.getElementById('admin-auction-unsold-container')?.classList.remove('hidden');
+    document.getElementById('admin-auction-tab-unsold')?.classList.add('bg-rose-600', 'text-white', 'shadow-md');
+    document.getElementById('admin-auction-tab-unsold')?.classList.remove('bg-slate-800', 'text-slate-300');
+    document.getElementById('admin-auction-tab-sold')?.classList.remove('bg-blue-600', 'text-white', 'shadow-md');
+    document.getElementById('admin-auction-tab-sold')?.classList.add('bg-slate-800', 'text-slate-300');
+    document.getElementById('admin-reset-all-unsold-btn')?.classList.remove('hidden');
+  });
+
+  // Bind Re-Bid Unsold Player Button (Instantly puts player on active block)
+  document.querySelectorAll('.admin-rebid-unsold-player-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const pId = e.currentTarget.getAttribute('data-player-id');
+      const p = store.getPlayerById(pId);
+      if (p) {
+        startAuctionForPlayerDirectly(p);
+        window.scrollTo({ top: 300, behavior: 'smooth' });
+        alert(`🔨 Re-Auctioning "${p.name}"! Placed directly on the live bidding block.`);
+      }
+    });
+  });
+
+  // Bind Reset All Unsold to Queue (Round 2)
+  document.getElementById('admin-reset-all-unsold-btn')?.addEventListener('click', () => {
+    const unsoldPlayers = store.getPlayers().filter(p => p.auctionStatus === 'UNSOLD' && !p.teamId);
+    if (unsoldPlayers.length === 0) return;
+    if (confirm(`Reset all ${unsoldPlayers.length} unsold players back to the active auction Queue for Round 2?`)) {
+      unsoldPlayers.forEach(p => {
+        p.auctionStatus = 'PENDING';
+        store.updatePlayer(p);
+      });
+      alert(`✅ ${unsoldPlayers.length} unsold players moved back to the Queue for Round 2!`);
+      renderAdminDashboard(containerEl);
+    }
   });
 
   // Bind Auction Settings Form Submit
@@ -1438,7 +1645,7 @@ function openAdminEditPlayerModal(player, containerEl) {
   const processAdminPhotoSelection = (file) => {
     if (!file) return;
     const objectUrl = URL.createObjectURL(file);
-    openSquareImageCropModal(objectUrl, (croppedUrl) => {
+    (window.openSquareImageCropModal || openSquareImageCropModal)(objectUrl, (croppedUrl) => {
       updatedPhotoUrl = croppedUrl;
       const previewImg = document.getElementById('admin-edit-photo-preview');
       if (previewImg) previewImg.src = croppedUrl;
@@ -1451,7 +1658,7 @@ function openAdminEditPlayerModal(player, containerEl) {
   document.getElementById('admin-crop-photo-btn')?.addEventListener('click', () => {
     const currentSrc = updatedPhotoUrl || document.getElementById('admin-edit-photo-preview')?.src;
     if (currentSrc) {
-      openSquareImageCropModal(currentSrc, (croppedUrl) => {
+      (window.openSquareImageCropModal || openSquareImageCropModal)(currentSrc, (croppedUrl) => {
         updatedPhotoUrl = croppedUrl;
         const previewImg = document.getElementById('admin-edit-photo-preview');
         if (previewImg) previewImg.src = croppedUrl;
@@ -2034,6 +2241,23 @@ export function playAuctionAudio(type) {
     if (!AudioCtx) return;
     const ctx = new AudioCtx();
 
+    if (type === 'unsold') {
+      // Descending Buzzer Tone for Unsold
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.type = 'sawtooth';
+      const now = ctx.currentTime;
+      osc.frequency.setValueAtTime(360, now);
+      osc.frequency.exponentialRampToValueAtTime(140, now + 0.45);
+      gain.gain.setValueAtTime(0.3, now);
+      gain.gain.exponentialRampToValueAtTime(0.01, now + 0.5);
+      osc.start(now);
+      osc.stop(now + 0.5);
+      return;
+    }
+
     if (type === 'bid') {
       // Ascending Chime
       const osc = ctx.createOscillator();
@@ -2076,7 +2300,6 @@ export function playAuctionAudio(type) {
       osc1.start(now);
       osc1.stop(now + 0.45);
 
-      // Second Gavel Impact after 180ms
       setTimeout(() => {
         try {
           const osc2 = ctx.createOscillator();
@@ -2113,6 +2336,8 @@ let activeAuction = {
 export function openNextPlayerAuctionModal(remainingPlayers) {
   document.getElementById('next-player-modal')?.remove();
 
+  const validPlayers = (remainingPlayers || []).filter(p => (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED') && !p.teamId && p.auctionStatus !== 'SOLD' && !p.isIcon && !p.isIconPlayer);
+
   const modalHtml = `
     <div id="next-player-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
       <div class="relative w-full max-w-xl bg-slate-900 text-white rounded-3xl shadow-2xl border border-amber-500/40 p-5 sm:p-6 max-h-[85vh] flex flex-col">
@@ -2121,7 +2346,7 @@ export function openNextPlayerAuctionModal(remainingPlayers) {
             <h3 class="text-base sm:text-lg font-black text-white flex items-center gap-2">
               <span class="p-1.5 bg-amber-500/20 text-amber-400 rounded-xl">🔨</span> Select Next Player for Auction
             </h3>
-            <p class="text-xs text-slate-400 mt-0.5">${remainingPlayers.length} Approved Players Remaining</p>
+            <p class="text-xs text-slate-400 mt-0.5">${validPlayers.length} Approved Players Remaining</p>
           </div>
           <button id="close-next-player-modal-btn" class="p-1.5 text-slate-400 hover:text-white rounded-lg">
             <i data-lucide="x" class="w-5 h-5"></i>
@@ -2133,7 +2358,7 @@ export function openNextPlayerAuctionModal(remainingPlayers) {
         </div>
 
         <div class="flex-1 overflow-y-auto space-y-2 pr-1" id="next-player-list">
-          ${remainingPlayers.map(p => `
+          ${validPlayers.map(p => `
             <div class="p-3 bg-slate-950 border border-slate-800 rounded-2xl flex items-center justify-between gap-3 hover:border-amber-400/60 transition-all next-player-row" data-name="${p.name.toLowerCase()}" data-cat="${(p.category || '').toLowerCase()}">
               <div class="flex items-center gap-3 min-w-0">
                 <img src="${getOptimizedImageUrl(p.photoUrl || p.player_photo_url, 80, 80)}" class="w-11 h-11 rounded-xl object-cover border border-slate-700 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
@@ -2269,7 +2494,7 @@ export function renderActiveAuctionBlock() {
     if (window.lucide) window.lucide.createIcons();
 
     document.getElementById('quick-open-next-player-btn')?.addEventListener('click', () => {
-      const remainingUnsold = store.getPlayers().filter(pl => (pl.registrationStatus === 'APPROVED' || pl.paymentStatus === 'APPROVED') && pl.auctionStatus !== 'SOLD');
+      const remainingUnsold = store.getPlayers().filter(pl => (pl.registrationStatus === 'APPROVED' || pl.paymentStatus === 'APPROVED') && !pl.teamId && pl.auctionStatus !== 'SOLD' && !pl.isIcon && !pl.isIconPlayer);
       openNextPlayerAuctionModal(remainingUnsold);
     });
     return;
@@ -2535,7 +2760,7 @@ export function renderActiveAuctionBlock() {
     updateProjectorModalView();
 
     // Check remaining players and auto-open selector modal
-    const remainingUnsold = store.getPlayers().filter(pl => (pl.registrationStatus === 'APPROVED' || pl.paymentStatus === 'APPROVED') && pl.auctionStatus !== 'SOLD');
+    const remainingUnsold = store.getPlayers().filter(pl => (pl.registrationStatus === 'APPROVED' || pl.paymentStatus === 'APPROVED') && !pl.teamId && pl.auctionStatus !== 'SOLD' && !pl.isIcon && !pl.isIconPlayer);
     if (remainingUnsold.length > 0) {
       openNextPlayerAuctionModal(remainingUnsold);
     } else {
@@ -2564,7 +2789,7 @@ export function renderActiveAuctionBlock() {
       renderActiveAuctionBlock();
       updateProjectorModalView();
 
-      const remainingUnsold = store.getPlayers().filter(pl => (pl.registrationStatus === 'APPROVED' || pl.paymentStatus === 'APPROVED') && pl.auctionStatus !== 'SOLD');
+      const remainingUnsold = store.getPlayers().filter(pl => (pl.registrationStatus === 'APPROVED' || pl.paymentStatus === 'APPROVED') && !pl.teamId && pl.auctionStatus !== 'SOLD' && !pl.isIcon && !pl.isIconPlayer);
       if (remainingUnsold.length > 0) {
         openNextPlayerAuctionModal(remainingUnsold);
       }
@@ -3131,7 +3356,7 @@ export async function renderAdminShopAdsPanel() {
 
   // Bind YouTube promo preview button
   document.getElementById('admin-preview-youtube-promo-btn')?.addEventListener('click', () => {
-    openYouTubePromoModal(true);
+    (window.openYouTubePromoModal || openYouTubePromoModal)(true);
   });
 
   // Bind YouTube promo toggle

@@ -1,6 +1,6 @@
 // LocalStorage & Cloud Database Reactive Store (Developer: Suman Kolay - Continuous Dynamic Numbering Release)
 
-import { INITIAL_LEAGUES, INITIAL_TEAMS, INITIAL_PLAYERS, INITIAL_FIXTURES } from './data.js?v=10.6.5';
+import { INITIAL_LEAGUES, INITIAL_TEAMS, INITIAL_PLAYERS, INITIAL_FIXTURES } from './data.js?v=10.9.1';
 import { 
   fetchCloudData, 
   saveCloudData, 
@@ -327,6 +327,7 @@ class Store {
         
         if (localTeamsStr !== cleanCloudTeamsStr) {
           safeSetLocalStorage(STORAGE_KEYS.TEAMS, reindexedTeams);
+          this.syncAllIconPlayers();
           this.notify('teams_updated');
         }
       }
@@ -455,6 +456,7 @@ class Store {
   // --- PLAYERS ---
   getPlayers() {
     const rawPlayers = JSON.parse(localStorage.getItem(STORAGE_KEYS.PLAYERS)) || [];
+    const rawTeams = JSON.parse(localStorage.getItem(STORAGE_KEYS.TEAMS)) || [];
     rawPlayers.sort((a, b) => (a.createdTime || a.regTimestamp || 0) - (b.createdTime || b.regTimestamp || 0));
 
     // Deduplicate players by unique ID to preserve all distinct registrations
@@ -476,8 +478,28 @@ class Store {
         validPhoto = DEFAULT_AVATAR;
       }
 
+      // Check if this player is chosen as an Icon Player for any team
+      const pNameNorm = (p.name || '').trim().toLowerCase();
+      const matchingIconTeam = rawTeams.find(t => {
+        const iconName = (t.iconPlayerName || t.iconName || '').trim().toLowerCase();
+        const iconId = t.iconPlayerId;
+        return (iconId && iconId === p.id) || (iconName && iconName === pNameNorm);
+      });
+
+      const isIcon = !!matchingIconTeam || !!p.isIcon || !!p.isIconPlayer;
+      const effectiveTeamId = matchingIconTeam ? matchingIconTeam.id : p.teamId;
+      const effectiveTeamName = matchingIconTeam ? matchingIconTeam.name : (p.teamName || '');
+      const effectiveAuctionStatus = matchingIconTeam ? 'SOLD' : (p.auctionStatus || (p.teamId ? 'SOLD' : 'PENDING'));
+      const effectiveSoldPrice = matchingIconTeam ? (Number(p.soldPrice) || 1000) : (Number(p.soldPrice) || 0);
+
       return {
         ...p,
+        teamId: effectiveTeamId,
+        teamName: effectiveTeamName,
+        isIcon: isIcon,
+        isIconPlayer: isIcon,
+        auctionStatus: effectiveAuctionStatus,
+        soldPrice: effectiveSoldPrice,
         basePrice: (!p.basePrice || Number(p.basePrice) === 200) ? 300 : Number(p.basePrice),
         photoUrl: validPhoto,
         player_photo_url: validPhoto,
@@ -772,6 +794,43 @@ class Store {
     }
   }
 
+  unassignPlayerFromTeam(playerId) {
+    const players = this.getPlayers();
+    const teams = this.getTeams();
+    const player = players.find(p => p.id === playerId);
+    if (!player) return false;
+
+    if (player.teamId) {
+      const team = teams.find(t => t.id === player.teamId);
+      if (team) {
+        team.squadCount = Math.max(0, (Number(team.squadCount) || 1) - 1);
+        team.purseSpent = Math.max(0, (Number(team.purseSpent) || 0) - (Number(player.soldPrice) || 0));
+        const budget = Number(team.purseBudget || team.purse || 8000);
+        team.remainingPurse = Math.max(0, budget - team.purseSpent);
+        if (Array.isArray(team.playerIds)) {
+          team.playerIds = team.playerIds.filter(id => id !== playerId);
+        }
+        syncTeamToSupabase(team);
+      }
+    }
+
+    player.teamId = null;
+    player.teamName = null;
+    player.soldPrice = 0;
+    player.auctionStatus = 'PENDING';
+    player.isSold = false;
+    player.isUnsold = false;
+    player.boughtByTeamId = null;
+
+    safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
+    safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
+    saveCloudData(players, teams);
+    syncPlayerToSupabase(player);
+    this.notify('players_updated');
+    this.notify('teams_updated');
+    return true;
+  }
+
 
   resetAuctionData() {
     const players = this.getPlayers();
@@ -830,17 +889,17 @@ class Store {
     const allPlayers = JSON.parse(localStorage.getItem(STORAGE_KEYS.PLAYERS)) || [];
     
     return teams.map((t, idx) => {
-      const hasIcon = !!(t.iconPlayerName || t.iconName);
+      const hasIcon = !!((t.iconPlayerName && t.iconPlayerName.trim()) || (t.iconName && t.iconName.trim()));
       const iconDeduction = hasIcon ? 1000 : 0;
       
-      // Calculate total spent on purchased auction players
-      const purchasedPlayers = allPlayers.filter(p => p.teamId === t.id && (p.auctionStatus === 'SOLD' || p.paymentStatus === 'APPROVED'));
-      const auctionSpent = purchasedPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || 0), 0);
+      // Calculate total spent on purchased auction players (excluding icon player to avoid double deduction)
+      const purchasedNonIconPlayers = allPlayers.filter(p => p.teamId === t.id && !p.isIcon && !p.isIconPlayer && (p.auctionStatus === 'SOLD' || p.paymentStatus === 'APPROVED'));
+      const auctionSpent = purchasedNonIconPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || 0), 0);
       
       const totalBudget = Number(t.purseBudget || t.purse || 8000);
       const totalSpent = iconDeduction + auctionSpent;
       const remainingPurse = Math.max(0, totalBudget - totalSpent);
-      const squadCount = (hasIcon ? 1 : 0) + purchasedPlayers.length;
+      const squadCount = (hasIcon ? 1 : 0) + purchasedNonIconPlayers.length;
 
       return {
         ...t,
@@ -857,6 +916,97 @@ class Store {
 
   getTeamById(id) {
     return this.getTeams().find(t => t.id === id);
+  }
+
+  syncIconPlayerAllocation(oldTeam, newTeam) {
+    const players = this.getPlayers();
+    let changed = false;
+
+    const oldIconName = (oldTeam?.iconPlayerName || oldTeam?.iconName || '').trim().toLowerCase();
+    const oldIconId = oldTeam?.iconPlayerId;
+    const newIconName = (newTeam?.iconPlayerName || newTeam?.iconName || '').trim().toLowerCase();
+    const newIconId = newTeam?.iconPlayerId;
+
+    // 1. Revert previous icon player if changed or removed
+    if (oldTeam && (oldIconName !== newIconName || (oldIconId && oldIconId !== newIconId))) {
+      players.forEach(p => {
+        const isOld = (oldIconId && p.id === oldIconId) || (oldIconName && (p.name || '').trim().toLowerCase() === oldIconName);
+        if (isOld && p.teamId === oldTeam.id) {
+          p.teamId = null;
+          p.teamName = '';
+          p.isIcon = false;
+          p.isIconPlayer = false;
+          p.auctionStatus = 'PENDING';
+          p.soldPrice = 0;
+          p.isSold = false;
+          p.boughtByTeamId = null;
+          p.updated_at = Date.now();
+          changed = true;
+          if (typeof syncPlayerToSupabase === 'function') syncPlayerToSupabase(p);
+        }
+      });
+    }
+
+    // 2. Allocate newly assigned icon player from registration list
+    if (newTeam && (newIconName || newIconId)) {
+      players.forEach(p => {
+        const isNew = (newIconId && p.id === newIconId) || (newIconName && (p.name || '').trim().toLowerCase() === newIconName);
+        if (isNew) {
+          p.teamId = newTeam.id;
+          p.teamName = newTeam.name;
+          p.isIcon = true;
+          p.isIconPlayer = true;
+          p.auctionStatus = 'SOLD';
+          p.soldPrice = 1000;
+          p.isSold = true;
+          p.boughtByTeamId = newTeam.id;
+          p.updated_at = Date.now();
+          changed = true;
+          if (typeof syncPlayerToSupabase === 'function') syncPlayerToSupabase(p);
+        }
+      });
+    }
+
+    if (changed) {
+      safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
+      saveCloudData(players, this.getTeams());
+      this.notify('players_updated');
+    }
+  }
+
+  syncAllIconPlayers() {
+    const teams = this.getTeams();
+    const players = this.getPlayers();
+    let changed = false;
+
+    teams.forEach(t => {
+      const iconName = (t.iconPlayerName || t.iconName || '').trim().toLowerCase();
+      const iconId = t.iconPlayerId;
+      if (iconName || iconId) {
+        players.forEach(p => {
+          const isThisIcon = (iconId && p.id === iconId) || (iconName && (p.name || '').trim().toLowerCase() === iconName);
+          if (isThisIcon && (p.teamId !== t.id || p.auctionStatus !== 'SOLD' || !p.isIcon)) {
+            p.teamId = t.id;
+            p.teamName = t.name;
+            p.isIcon = true;
+            p.isIconPlayer = true;
+            p.auctionStatus = 'SOLD';
+            p.soldPrice = 1000;
+            p.isSold = true;
+            p.boughtByTeamId = t.id;
+            p.updated_at = Date.now();
+            changed = true;
+            if (typeof syncPlayerToSupabase === 'function') syncPlayerToSupabase(p);
+          }
+        });
+      }
+    });
+
+    if (changed) {
+      safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
+      saveCloudData(players, teams);
+      this.notify('players_updated');
+    }
   }
 
   registerTeam(teamData) {
@@ -883,6 +1033,7 @@ class Store {
 
     saveCloudData(this.getPlayers(), teams);
     syncTeamToSupabase(newTeam);
+    this.syncIconPlayerAllocation(null, newTeam);
     this.notify('teams_updated');
     return newTeam;
   }
@@ -891,6 +1042,7 @@ class Store {
     const teams = this.getTeams();
     const idx = teams.findIndex(t => t.id === updatedTeamData.id);
     if (idx !== -1) {
+      const oldTeam = { ...teams[idx] };
       teams[idx] = { ...teams[idx], ...updatedTeamData };
       teams.forEach((t, i) => {
         t.serialNo = i + 1;
@@ -898,6 +1050,7 @@ class Store {
       safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
       saveCloudData(this.getPlayers(), teams);
       syncTeamToSupabase(teams[idx]);
+      this.syncIconPlayerAllocation(oldTeam, teams[idx]);
       this.notify('teams_updated');
       return teams[idx];
     }
@@ -906,6 +1059,7 @@ class Store {
 
   deleteTeam(teamId) {
     let teams = this.getTeams();
+    const deletedTeam = teams.find(t => t.id === teamId);
     teams = teams.filter(t => t.id !== teamId);
     
     teams.forEach((t, idx) => {
@@ -916,7 +1070,14 @@ class Store {
     players.forEach(p => {
       if (p.teamId === teamId) {
         p.teamId = null;
+        p.teamName = '';
+        p.isIcon = false;
+        p.isIconPlayer = false;
+        p.auctionStatus = 'PENDING';
         p.soldPrice = 0;
+        p.isSold = false;
+        p.boughtByTeamId = null;
+        if (typeof syncPlayerToSupabase === 'function') syncPlayerToSupabase(p);
       }
     });
 
