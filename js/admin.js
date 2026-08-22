@@ -75,27 +75,27 @@ export function renderAdminDashboard(containerEl) {
 
       <!-- DASHBOARD CARDS (Total, Pending, Approved, Rejected, Today's) -->
       <div class="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
-        <div class="glass-card p-3 text-center border border-slate-800 bg-slate-900/90 rounded-2xl">
+        <div class="p-3 text-center border border-slate-800 bg-slate-900/90 rounded-2xl shadow-md">
           <div class="text-[9px] font-bold text-slate-400 uppercase">Total Registered</div>
           <div class="text-xl sm:text-2xl font-black text-white mt-0.5">${players.length}</div>
         </div>
 
-        <div class="glass-card p-3 text-center border border-amber-500/40 bg-amber-950/20 rounded-2xl">
+        <div class="p-3 text-center border border-amber-500/40 bg-amber-950/20 rounded-2xl shadow-md">
           <div class="text-[9px] font-bold text-amber-400 uppercase">Pending (🔴 Red)</div>
           <div class="text-xl sm:text-2xl font-black text-amber-400 mt-0.5">${pendingPlayers.length}</div>
         </div>
 
-        <div class="glass-card p-3 text-center border border-emerald-500/40 bg-emerald-950/20 rounded-2xl">
+        <div class="p-3 text-center border border-emerald-500/40 bg-emerald-950/20 rounded-2xl shadow-md">
           <div class="text-[9px] font-bold text-emerald-400 uppercase">Approved (🟢 Green)</div>
           <div class="text-xl sm:text-2xl font-black text-emerald-400 mt-0.5">${approvedPlayers.length}</div>
         </div>
 
-        <div class="glass-card p-3 text-center border border-red-500/40 bg-red-950/20 rounded-2xl">
+        <div class="p-3 text-center border border-red-500/40 bg-red-950/20 rounded-2xl shadow-md">
           <div class="text-[9px] font-bold text-red-400 uppercase">Rejected</div>
           <div class="text-xl sm:text-2xl font-black text-red-400 mt-0.5">${rejectedPlayers.length}</div>
         </div>
 
-        <div class="glass-card p-3 text-center border border-sky-500/40 bg-sky-950/20 rounded-2xl col-span-2 sm:col-span-1">
+        <div class="p-3 text-center border border-sky-500/40 bg-sky-950/20 rounded-2xl shadow-md col-span-2 sm:col-span-1">
           <div class="text-[9px] font-bold text-sky-400 uppercase">Today's Registrations</div>
           <div class="text-xl sm:text-2xl font-black text-sky-400 mt-0.5">${todayPlayers.length}</div>
         </div>
@@ -137,7 +137,7 @@ export function renderAdminDashboard(containerEl) {
         
         <!-- 1. Pending Payment Verification Tab -->
         <div id="tab-payments-view" class="${activeAdminTab === 'payments' ? '' : 'hidden'} space-y-6">
-          <div class="glass-card p-4 sm:p-6 bg-slate-900/90 border border-slate-800">
+          <div class="p-4 sm:p-6 bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl">
             <div class="flex justify-between items-center mb-4">
               <div>
                 <h3 class="text-base sm:text-lg font-black text-white">Pending Player Approvals (${pendingPlayers.length})</h3>
@@ -215,7 +215,7 @@ export function renderAdminDashboard(containerEl) {
 
         <!-- 2. All Registered Players Tab -->
         <div id="tab-all-players-view" class="${activeAdminTab === 'all-players' ? '' : 'hidden'} space-y-6">
-          <div class="glass-card p-4 sm:p-6 bg-slate-900/90 border border-slate-800 space-y-4">
+          <div class="p-4 sm:p-6 bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl space-y-4">
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <div>
                 <h3 class="text-base sm:text-lg font-black text-white">Registered Players Master Table (${players.length})</h3>
@@ -250,7 +250,7 @@ export function renderAdminDashboard(containerEl) {
 
         <!-- 3. Registered Teams Tab -->
         <div id="tab-teams-view" class="${activeAdminTab === 'teams' ? '' : 'hidden'} space-y-6">
-          <div class="glass-card p-4 sm:p-6 bg-slate-900/90 border border-slate-800">
+          <div class="p-4 sm:p-6 bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl">
             <div class="flex justify-between items-center mb-4">
               <div>
                 <h3 class="text-base sm:text-lg font-black text-white">Registered Teams (${teams.length})</h3>
@@ -270,7 +270,7 @@ export function renderAdminDashboard(containerEl) {
                   const spent = Number(t.purseSpent || 0);
                   const remPurse = (t.remainingPurse !== undefined) ? Number(t.remainingPurse) : (maxPurse - spent);
                   return `
-                  <div class="glass-card p-3.5 flex flex-col justify-between border border-slate-800 bg-slate-950/90 rounded-2xl hover:border-sky-500/50 transition-all shadow-md">
+                  <div class="p-3.5 flex flex-col justify-between border border-slate-800 bg-slate-950/90 rounded-2xl hover:border-sky-500/50 transition-all shadow-md">
                     <div class="flex items-start gap-3 mb-2.5">
                       <img src="${t.logoUrl || t.teamLogoUrl || 'assets/jsl_logo.jpg'}" class="w-12 h-12 rounded-xl object-cover border-2 border-sky-500/60 shadow-md shrink-0" onerror="this.src='assets/jsl_logo.jpg'" />
                       <div class="flex-1 min-w-0">
@@ -298,7 +298,7 @@ export function renderAdminDashboard(containerEl) {
 
         <!-- 5. Tournament Owner Delegation Tab -->
         <div id="tab-owners-view" class="${activeAdminTab === 'owners' ? '' : 'hidden'} space-y-6 animate-fade-in">
-          <div class="glass-card p-4 sm:p-6 bg-slate-900/90 border border-slate-800 space-y-5">
+          <div class="p-4 sm:p-6 bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl space-y-5">
             <div class="flex items-center gap-3 border-b border-slate-800 pb-3">
               <span class="p-2.5 bg-amber-500/20 text-amber-400 rounded-2xl border border-amber-500/30">
                 <i data-lucide="crown" class="w-6 h-6"></i>
@@ -362,7 +362,7 @@ export function renderAdminDashboard(containerEl) {
         <div id="tab-auction-view" class="${activeAdminTab === 'auction' ? '' : 'hidden'} space-y-6 animate-fade-in">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
             <!-- Setup & Settings -->
-            <div class="glass-card p-4 sm:p-6 bg-slate-900/90 border border-slate-800 space-y-4">
+            <div class="p-4 sm:p-6 bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl space-y-4">
               <h3 class="text-base sm:text-lg font-black text-white flex items-center gap-2">
                 <i data-lucide="settings" class="w-5 h-5 text-amber-500"></i> Auction Parameters
               </h3>
@@ -406,7 +406,7 @@ export function renderAdminDashboard(containerEl) {
             </div>
 
             <!-- Active Auctioneer Controls -->
-            <div class="glass-card p-4 sm:p-6 bg-slate-900/90 border border-slate-800 space-y-4">
+            <div class="p-4 sm:p-6 bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl space-y-4">
               <h3 class="text-base sm:text-lg font-black text-white flex items-center gap-2">
                 <i data-lucide="gavel" class="w-5 h-5 text-amber-500"></i> Active Auction Console
               </h3>
@@ -415,7 +415,7 @@ export function renderAdminDashboard(containerEl) {
           </div>
 
           <!-- 🔨 Sold Players & Unsold Pool Tabs Section -->
-          <div class="glass-card p-4 sm:p-6 bg-slate-900/90 border border-slate-800 space-y-4 rounded-2xl shadow-xl">
+          <div class="p-4 sm:p-6 bg-slate-900/90 border border-slate-800 space-y-4 rounded-2xl shadow-xl">
             <div class="flex items-center justify-between border-b border-slate-800 pb-3 flex-wrap gap-2">
               <div class="flex items-center gap-2 flex-wrap">
                 <button type="button" id="admin-auction-tab-sold" class="px-3.5 py-2 rounded-xl font-black text-xs transition-all cursor-pointer flex items-center gap-1.5 ${adminAuctionSubTab === 'sold' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}">
@@ -547,7 +547,7 @@ export function renderAdminDashboard(containerEl) {
         <div id="tab-fixtures-view" class="${activeAdminTab === 'fixtures' ? '' : 'hidden'} space-y-6 animate-fade-in">
           <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
             <!-- Create Fixture Form -->
-            <div class="glass-card p-4 sm:p-6 bg-slate-900/90 border border-slate-800 space-y-4 md:col-span-1">
+            <div class="p-4 sm:p-6 bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl space-y-4 md:col-span-1">
               <h3 class="text-base sm:text-lg font-black text-white flex items-center gap-2">
                 <i data-lucide="plus-circle" class="w-5 h-5 text-sky-400"></i> Schedule Match
               </h3>
@@ -599,7 +599,7 @@ export function renderAdminDashboard(containerEl) {
             </div>
 
             <!-- List Scheduled Fixtures -->
-            <div class="glass-card p-4 sm:p-6 bg-slate-900/90 border border-slate-800 space-y-4 md:col-span-2">
+            <div class="p-4 sm:p-6 bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl space-y-4 md:col-span-2">
               <h3 class="text-base sm:text-lg font-black text-white flex items-center gap-2">
                 <i data-lucide="calendar" class="w-5 h-5 text-sky-400"></i> Scheduled Matches
               </h3>
@@ -623,7 +623,7 @@ export function renderAdminDashboard(containerEl) {
 
         <!-- 6. Live Match Scorer Tab -->
         <div id="tab-scorer-view" class="${activeAdminTab === 'scorer' ? '' : 'hidden'} space-y-6 animate-fade-in">
-          <div class="glass-card p-4 sm:p-6 bg-slate-900/90 border border-slate-800 space-y-4">
+          <div class="p-4 sm:p-6 bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl space-y-4">
             <h3 class="text-base sm:text-lg font-black text-white flex items-center gap-2">
               <i data-lucide="gamepad-2" class="w-5 h-5 text-emerald-400"></i> Scorer Control Console
             </h3>
@@ -726,7 +726,7 @@ export function renderAdminDashboard(containerEl) {
 
         <!-- 7. Partner Shop Advertisement Tab -->
         <div id="tab-shop-ads-view" class="${activeAdminTab === 'shop-ads' ? '' : 'hidden'} space-y-6 animate-fade-in">
-          <div class="glass-card p-4 sm:p-6 bg-slate-900/90 border border-slate-800 space-y-6">
+          <div class="p-4 sm:p-6 bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl space-y-6">
             <div class="flex items-center gap-3 pb-4 border-b border-slate-800">
               <span class="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl border border-amber-500/40">
                 <i data-lucide="megaphone" class="w-6 h-6"></i>
