@@ -137,6 +137,15 @@ function initApp() {
     const isUserFillingForm = document.getElementById('player-reg-modal') || document.getElementById('team-reg-modal') || document.getElementById('edit-player-modal');
     if (isUserFillingForm) return;
 
+    // IF ON AUCTION TAB, NEVER WIPE THE AUCTION VIEW! Let pollActiveAuctionState() handle smooth in-place updates!
+    if (currentRoute === 'auction') {
+      const activeBlock = document.getElementById('auction-active-block-container');
+      if (activeBlock) {
+        pollActiveAuctionState();
+        return;
+      }
+    }
+
     if (renderDebounceTimer) clearTimeout(renderDebounceTimer);
     renderDebounceTimer = setTimeout(() => {
       renderCurrentView();
@@ -4272,72 +4281,73 @@ function renderLiveAuctionView(container) {
         const bidderTeam = teams.find(t => t.id === state.highest_bidder_team_id);
         const isUnsoldState = (state.status === 'UNSOLD' || state.is_unsold);
         const isSoldState = (state.status === 'SOLD' || state.is_sold);
-        const isStateChanged = (lastActivePlayerId !== state.active_player_id || lastActiveStatus !== state.status);
+        const isNewPlayer = (lastActivePlayerId !== state.active_player_id);
+        const playerCardEl = document.getElementById('auction-player-card-box');
 
-        if (isStateChanged) {
+        if (isNewPlayer || !playerCardEl) {
           lastActivePlayerId = state.active_player_id;
           lastActiveStatus = state.status;
           const playerPhoto = getOptimizedImageUrl(state.photoUrl, 600, 600) || 'assets/card_jsl_user.png';
 
           activeBlockWrapper.innerHTML = `
-            <div class="relative rounded-3xl overflow-hidden shadow-2xl border-2 ${isSoldState ? 'border-emerald-500' : isUnsoldState ? 'border-rose-500' : 'border-emerald-500/40'} min-h-[460px] sm:min-h-[540px] md:min-h-[580px] max-w-2xl mx-auto flex flex-col justify-between p-3 sm:p-4 bg-slate-900 animate-fade-in">
+            <div id="auction-player-card-box" class="relative rounded-3xl overflow-hidden shadow-2xl border-2 ${isSoldState ? 'border-emerald-500' : isUnsoldState ? 'border-rose-500' : 'border-emerald-500/40'} min-h-[460px] sm:min-h-[540px] md:min-h-[580px] max-w-2xl mx-auto flex flex-col justify-between p-3 sm:p-4 bg-slate-900 animate-fade-in">
               <!-- Full Crystal Clear Real Player Photo (Zero Dark Shading/Light Overlay) -->
-              <img src="${playerPhoto}" class="absolute inset-0 w-full h-full object-cover sm:object-contain object-top" alt="${state.name}" onerror="this.src='assets/card_jsl_user.png'" />
+              <img id="auction-player-photo-img" src="${playerPhoto}" class="absolute inset-0 w-full h-full object-cover sm:object-contain object-top" alt="${state.name}" onerror="this.src='assets/card_jsl_user.png'" />
 
-              ${isSoldState ? `
-                <!-- 🟢 VINTAGE GREEN RUBBER STAMP FOR SOLD -->
-                <div class="absolute inset-0 z-30 flex items-center justify-center pointer-events-none bg-slate-950/20">
-                  <svg viewBox="0 0 300 300" class="w-60 h-60 sm:w-80 sm:h-80 stamp-slam-animate select-none drop-shadow-2xl" xmlns="http://www.w3.org/2000/svg">
-                    <g transform="rotate(-13 150 150)">
-                      <circle cx="150" cy="150" r="140" fill="none" stroke="#059669" stroke-width="7" stroke-dasharray="20 4 15 3 25 5" />
-                      <circle cx="150" cy="150" r="128" fill="none" stroke="#059669" stroke-width="2.5" />
-                      <path id="sold-arc-top-v9" d="M 35,150 A 115,115 0 0,1 265,150" fill="none" />
-                      <text fill="#059669" font-size="22" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="6">
-                        <textPath href="#sold-arc-top-v9" startOffset="50%" text-anchor="middle">JSL 2026 AUCTION</textPath>
-                      </text>
-                      <text x="105" y="94" fill="#059669" font-size="20" text-anchor="middle">★</text>
-                      <text x="150" y="82" fill="#059669" font-size="28" text-anchor="middle">★</text>
-                      <text x="195" y="94" fill="#059669" font-size="20" text-anchor="middle">★</text>
-                      <text x="105" y="222" fill="#059669" font-size="20" text-anchor="middle">★</text>
-                      <text x="150" y="234" fill="#059669" font-size="28" text-anchor="middle">★</text>
-                      <text x="195" y="222" fill="#059669" font-size="20" text-anchor="middle">★</text>
-                      <path id="sold-arc-bottom-v9" d="M 265,150 A 115,115 0 0,1 35,150" fill="none" />
-                      <text fill="#059669" font-size="20" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="6">
-                        <textPath href="#sold-arc-bottom-v9" startOffset="50%" text-anchor="middle">OFFICIALLY SIGNED</textPath>
-                      </text>
-                      <rect x="5" y="106" width="290" height="88" rx="16" fill="#059669" stroke="#ffffff" stroke-width="4" />
-                      <text x="150" y="152" fill="#ffffff" font-size="46" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="8" text-anchor="middle">SOLD</text>
-                      <text x="150" y="178" fill="#fef08a" font-size="14" font-weight="900" font-family="'Arial', sans-serif" text-anchor="middle">${bidderTeam ? bidderTeam.name + ' • ' : ''}₹ ${Number(state.sold_price || state.current_bid || 300).toLocaleString('en-IN')}</text>
-                    </g>
-                  </svg>
-                </div>
-              ` : isUnsoldState ? `
-                <!-- 🔴 VINTAGE RED RUBBER STAMP FOR UNSOLD (EXACT MATCH TO REFERENCE) -->
-                <div class="absolute inset-0 z-30 flex items-center justify-center pointer-events-none bg-slate-950/20">
-                  <svg viewBox="0 0 300 300" class="w-60 h-60 sm:w-80 sm:h-80 stamp-slam-animate select-none drop-shadow-2xl" xmlns="http://www.w3.org/2000/svg">
-                    <g transform="rotate(-15 150 150)">
-                      <circle cx="150" cy="150" r="140" fill="none" stroke="#C5221F" stroke-width="7" stroke-dasharray="18 4 12 3 24 5" />
-                      <circle cx="150" cy="150" r="128" fill="none" stroke="#C5221F" stroke-width="2.5" />
-                      <path id="unsold-arc-top-v9" d="M 35,150 A 115,115 0 0,1 265,150" fill="none" />
-                      <text fill="#C5221F" font-size="28" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="14">
-                        <textPath href="#unsold-arc-top-v9" startOffset="50%" text-anchor="middle">UNSOLD</textPath>
-                      </text>
-                      <text x="105" y="94" fill="#C5221F" font-size="20" text-anchor="middle">★</text>
-                      <text x="150" y="82" fill="#C5221F" font-size="28" text-anchor="middle">★</text>
-                      <text x="195" y="94" fill="#C5221F" font-size="20" text-anchor="middle">★</text>
-                      <text x="105" y="222" fill="#C5221F" font-size="20" text-anchor="middle">★</text>
-                      <text x="150" y="234" fill="#C5221F" font-size="28" text-anchor="middle">★</text>
-                      <text x="195" y="222" fill="#C5221F" font-size="20" text-anchor="middle">★</text>
-                      <path id="unsold-arc-bottom-v9" d="M 265,150 A 115,115 0 0,1 35,150" fill="none" />
-                      <text fill="#C5221F" font-size="24" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="12">
-                        <textPath href="#unsold-arc-bottom-v9" startOffset="50%" text-anchor="middle">UNSOLD</textPath>
-                      </text>
-                      <rect x="5" y="110" width="290" height="80" rx="16" fill="#C5221F" stroke="#ffffff" stroke-width="4" />
-                      <text x="150" y="167" fill="#ffffff" font-size="52" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="6" text-anchor="middle">UNSOLD</text>
-                    </g>
-                  </svg>
-                </div>
-              ` : ''}
+              <div id="auction-stamp-slot">
+                ${isSoldState ? `
+                  <div id="auction-stamp-overlay" class="absolute inset-0 z-30 flex items-center justify-center pointer-events-none bg-slate-950/20">
+                    <svg viewBox="0 0 300 300" class="w-60 h-60 sm:w-80 sm:h-80 stamp-slam-animate select-none drop-shadow-2xl" xmlns="http://www.w3.org/2000/svg">
+                      <g transform="rotate(-13 150 150)">
+                        <circle cx="150" cy="150" r="140" fill="none" stroke="#059669" stroke-width="7" stroke-dasharray="20 4 15 3 25 5" />
+                        <circle cx="150" cy="150" r="128" fill="none" stroke="#059669" stroke-width="2.5" />
+                        <path id="sold-arc-top-v9" d="M 35,150 A 115,115 0 0,1 265,150" fill="none" />
+                        <text fill="#059669" font-size="22" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="6">
+                          <textPath href="#sold-arc-top-v9" startOffset="50%" text-anchor="middle">JSL 2026 AUCTION</textPath>
+                        </text>
+                        <text x="105" y="94" fill="#059669" font-size="20" text-anchor="middle">★</text>
+                        <text x="150" y="82" fill="#059669" font-size="28" text-anchor="middle">★</text>
+                        <text x="195" y="94" fill="#059669" font-size="20" text-anchor="middle">★</text>
+                        <text x="105" y="222" fill="#059669" font-size="20" text-anchor="middle">★</text>
+                        <text x="150" y="234" fill="#059669" font-size="28" text-anchor="middle">★</text>
+                        <text x="195" y="222" fill="#059669" font-size="20" text-anchor="middle">★</text>
+                        <path id="sold-arc-bottom-v9" d="M 265,150 A 115,115 0 0,1 35,150" fill="none" />
+                        <text fill="#059669" font-size="20" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="6">
+                          <textPath href="#sold-arc-bottom-v9" startOffset="50%" text-anchor="middle">OFFICIALLY SIGNED</textPath>
+                        </text>
+                        <rect x="5" y="106" width="290" height="88" rx="16" fill="#059669" stroke="#ffffff" stroke-width="4" />
+                        <text x="150" y="152" fill="#ffffff" font-size="46" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="8" text-anchor="middle">SOLD</text>
+                        <text x="150" y="178" fill="#fef08a" font-size="14" font-weight="900" font-family="'Arial', sans-serif" text-anchor="middle">${bidderTeam ? bidderTeam.name + ' • ' : ''}₹ ${Number(state.sold_price || state.current_bid || 300).toLocaleString('en-IN')}</text>
+                      </g>
+                    </svg>
+                  </div>
+                ` : isUnsoldState ? `
+                  <div id="auction-stamp-overlay" class="absolute inset-0 z-30 flex items-center justify-center pointer-events-none bg-slate-950/20">
+                    <svg viewBox="0 0 300 300" class="w-60 h-60 sm:w-80 sm:h-80 stamp-slam-animate select-none drop-shadow-2xl" xmlns="http://www.w3.org/2000/svg">
+                      <g transform="rotate(-15 150 150)">
+                        <circle cx="150" cy="150" r="140" fill="none" stroke="#C5221F" stroke-width="7" stroke-dasharray="18 4 12 3 24 5" />
+                        <circle cx="150" cy="150" r="128" fill="none" stroke="#C5221F" stroke-width="2.5" />
+                        <path id="unsold-arc-top-v9" d="M 35,150 A 115,115 0 0,1 265,150" fill="none" />
+                        <text fill="#C5221F" font-size="28" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="14">
+                          <textPath href="#unsold-arc-top-v9" startOffset="50%" text-anchor="middle">UNSOLD</textPath>
+                        </text>
+                        <text x="105" y="94" fill="#C5221F" font-size="20" text-anchor="middle">★</text>
+                        <text x="150" y="82" fill="#C5221F" font-size="28" text-anchor="middle">★</text>
+                        <text x="195" y="94" fill="#C5221F" font-size="20" text-anchor="middle">★</text>
+                        <text x="105" y="222" fill="#C5221F" font-size="20" text-anchor="middle">★</text>
+                        <text x="150" y="234" fill="#C5221F" font-size="28" text-anchor="middle">★</text>
+                        <text x="195" y="222" fill="#C5221F" font-size="20" text-anchor="middle">★</text>
+                        <path id="unsold-arc-bottom-v9" d="M 265,150 A 115,115 0 0,1 35,150" fill="none" />
+                        <text fill="#C5221F" font-size="24" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="12">
+                          <textPath href="#unsold-arc-bottom-v9" startOffset="50%" text-anchor="middle">UNSOLD</textPath>
+                        </text>
+                        <rect x="5" y="110" width="290" height="80" rx="16" fill="#C5221F" stroke="#ffffff" stroke-width="4" />
+                        <text x="150" y="167" fill="#ffffff" font-size="52" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="6" text-anchor="middle">UNSOLD</text>
+                      </g>
+                    </svg>
+                  </div>
+                ` : ''}
+              </div>
 
               <!-- TOP ROW: Upper Right Red Box with Full JSL Serial ID -->
               <div class="relative z-10 flex justify-end items-center w-full">
@@ -4369,18 +4379,18 @@ function renderLiveAuctionView(container) {
                 <!-- Bid Shape (Current Bid & Leading Bidder in the Lowest Portion) -->
                 <div class="grid grid-cols-2 gap-2 ${isUnsoldState ? 'bg-rose-950/95 border-2 border-rose-500' : 'bg-slate-950/95 border-2 border-amber-400'} backdrop-blur-xl p-2.5 sm:p-3 rounded-2xl shadow-2xl">
                   <div>
-                    <span class="text-[8px] sm:text-[9px] font-extrabold ${isUnsoldState ? 'text-rose-300' : 'text-amber-300'} uppercase tracking-widest block">${isUnsoldState ? 'Auction Status' : 'CURRENT HIGH BID'}</span>
-                    <div id="auction-live-bid-display" class="text-lg sm:text-2xl font-black ${isUnsoldState ? 'text-rose-400' : 'text-amber-400'} font-mono leading-none mt-0.5">
-                      ${isUnsoldState ? '❌ UNSOLD' : '₹ ' + Number(state.current_bid || state.basePrice || 300).toLocaleString('en-IN')}
+                    <span id="auction-status-label" class="text-[8px] sm:text-[9px] font-extrabold ${isUnsoldState ? 'text-rose-300' : 'text-amber-300'} uppercase tracking-widest block">${isSoldState ? 'AUCTION RESULT' : isUnsoldState ? 'Auction Status' : 'CURRENT HIGH BID'}</span>
+                    <div id="auction-live-bid-display" class="text-lg sm:text-2xl font-black ${isSoldState ? 'text-emerald-400' : isUnsoldState ? 'text-rose-400' : 'text-amber-400'} font-mono leading-none mt-0.5">
+                      ${isSoldState ? '🔨 SOLD' : isUnsoldState ? '❌ UNSOLD' : '₹ ' + Number(state.current_bid || state.basePrice || 300).toLocaleString('en-IN')}
                     </div>
                   </div>
                   <div class="text-right border-l border-slate-800 pl-2 flex flex-col justify-center">
-                    <span class="text-[8px] sm:text-[9px] font-extrabold text-slate-400 uppercase tracking-widest block">${isUnsoldState ? 'Round 2 Status' : 'LEADING BIDDER'}</span>
+                    <span id="auction-bidder-label" class="text-[8px] sm:text-[9px] font-extrabold text-slate-400 uppercase tracking-widest block">${isSoldState ? 'WINNING FRANCHISE' : isUnsoldState ? 'Round 2 Status' : 'LEADING BIDDER'}</span>
                     <span id="auction-leading-bidder-display" class="text-xs sm:text-sm font-black text-white block mt-0.5 truncate">
-                      ${isUnsoldState ? 'Eligible for Re-Bid' : (bidderTeam ? '🛡️ ' + bidderTeam.name : 'No bids yet')}
+                      ${isSoldState ? (bidderTeam ? '🛡️ ' + bidderTeam.name : 'Sold') : isUnsoldState ? 'Eligible for Re-Bid' : (bidderTeam ? '🛡️ ' + bidderTeam.name : 'No bids yet')}
                     </span>
-                    <span id="auction-bid-tag-display" class="text-[8px] sm:text-[9px] font-bold ${isUnsoldState ? 'text-amber-400' : (bidderTeam ? 'text-emerald-400' : 'text-slate-400')}">
-                      ${isUnsoldState ? '⚡ Round 2 Pool' : (bidderTeam ? '🔥 Leading Offer' : 'Opening Bid')}
+                    <span id="auction-bid-tag-display" class="text-[8px] sm:text-[9px] font-bold ${isSoldState ? 'text-emerald-400' : isUnsoldState ? 'text-amber-400' : (bidderTeam ? 'text-emerald-400' : 'text-slate-400')}">
+                      ${isSoldState ? '✅ Confirmed Sale' : isUnsoldState ? '⚡ Round 2 Pool' : (bidderTeam ? '🔥 Leading Offer' : 'Opening Bid')}
                     </span>
                   </div>
                 </div>
@@ -4389,16 +4399,121 @@ function renderLiveAuctionView(container) {
             </div>
           `;
           if (window.lucide) window.lucide.createIcons();
-        } else if (!isUnsoldState && !isSoldState) {
-          // PURE TEXT-ONLY UPDATES: The player photo and container are NEVER re-rendered while bidding is active!
-          const bidEl = document.getElementById('auction-live-bid-display');
-          const teamEl = document.getElementById('auction-leading-bidder-display');
-          const tagEl = document.getElementById('auction-bid-tag-display');
-          if (bidEl) bidEl.textContent = `₹ ${Number(state.current_bid || state.basePrice || 300).toLocaleString('en-IN')}`;
-          if (teamEl) teamEl.textContent = bidderTeam ? '🛡️ ' + bidderTeam.name : 'No bids yet';
-          if (tagEl) {
-            tagEl.textContent = bidderTeam ? '🔥 Leading Offer' : 'Opening Bid';
-            tagEl.className = `text-[8px] sm:text-[9px] font-bold ${bidderTeam ? 'text-emerald-400' : 'text-slate-400'}`;
+        } else {
+          // SAME PLAYER ALREADY SHOWN: SMOOTH IN-PLACE UPDATES WITHOUT TOUCHING PHOTO!
+          const stampSlot = document.getElementById('auction-stamp-slot');
+          const stampOverlay = document.getElementById('auction-stamp-overlay');
+
+          if (isSoldState) {
+            if (!stampOverlay && stampSlot) {
+              stampSlot.innerHTML = `
+                <div id="auction-stamp-overlay" class="absolute inset-0 z-30 flex items-center justify-center pointer-events-none bg-slate-950/20">
+                  <svg viewBox="0 0 300 300" class="w-60 h-60 sm:w-80 sm:h-80 stamp-slam-animate select-none drop-shadow-2xl" xmlns="http://www.w3.org/2000/svg">
+                    <g transform="rotate(-13 150 150)">
+                      <circle cx="150" cy="150" r="140" fill="none" stroke="#059669" stroke-width="7" stroke-dasharray="20 4 15 3 25 5" />
+                      <circle cx="150" cy="150" r="128" fill="none" stroke="#059669" stroke-width="2.5" />
+                      <path id="sold-arc-top-v9" d="M 35,150 A 115,115 0 0,1 265,150" fill="none" />
+                      <text fill="#059669" font-size="22" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="6">
+                        <textPath href="#sold-arc-top-v9" startOffset="50%" text-anchor="middle">JSL 2026 AUCTION</textPath>
+                      </text>
+                      <text x="105" y="94" fill="#059669" font-size="20" text-anchor="middle">★</text>
+                      <text x="150" y="82" fill="#059669" font-size="28" text-anchor="middle">★</text>
+                      <text x="195" y="94" fill="#059669" font-size="20" text-anchor="middle">★</text>
+                      <text x="105" y="222" fill="#059669" font-size="20" text-anchor="middle">★</text>
+                      <text x="150" y="234" fill="#059669" font-size="28" text-anchor="middle">★</text>
+                      <text x="195" y="222" fill="#059669" font-size="20" text-anchor="middle">★</text>
+                      <path id="sold-arc-bottom-v9" d="M 265,150 A 115,115 0 0,1 35,150" fill="none" />
+                      <text fill="#059669" font-size="20" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="6">
+                        <textPath href="#sold-arc-bottom-v9" startOffset="50%" text-anchor="middle">OFFICIALLY SIGNED</textPath>
+                      </text>
+                      <rect x="5" y="106" width="290" height="88" rx="16" fill="#059669" stroke="#ffffff" stroke-width="4" />
+                      <text x="150" y="152" fill="#ffffff" font-size="46" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="8" text-anchor="middle">SOLD</text>
+                      <text x="150" y="178" fill="#fef08a" font-size="14" font-weight="900" font-family="'Arial', sans-serif" text-anchor="middle">${bidderTeam ? bidderTeam.name + ' • ' : ''}₹ ${Number(state.sold_price || state.current_bid || 300).toLocaleString('en-IN')}</text>
+                    </g>
+                  </svg>
+                </div>
+              `;
+            }
+            const statusLabel = document.getElementById('auction-status-label');
+            const bidEl = document.getElementById('auction-live-bid-display');
+            const bidderLabel = document.getElementById('auction-bidder-label');
+            const teamEl = document.getElementById('auction-leading-bidder-display');
+            const tagEl = document.getElementById('auction-bid-tag-display');
+            if (statusLabel) statusLabel.textContent = 'AUCTION RESULT';
+            if (bidEl) {
+              bidEl.textContent = '🔨 SOLD';
+              bidEl.className = 'text-lg sm:text-2xl font-black text-emerald-400 font-mono leading-none mt-0.5';
+            }
+            if (bidderLabel) bidderLabel.textContent = 'WINNING FRANCHISE';
+            if (teamEl) teamEl.textContent = bidderTeam ? '🛡️ ' + bidderTeam.name : 'Sold';
+            if (tagEl) {
+              tagEl.textContent = '✅ Confirmed Sale';
+              tagEl.className = 'text-[8px] sm:text-[9px] font-bold text-emerald-400';
+            }
+          } else if (isUnsoldState) {
+            if (!stampOverlay && stampSlot) {
+              stampSlot.innerHTML = `
+                <div id="auction-stamp-overlay" class="absolute inset-0 z-30 flex items-center justify-center pointer-events-none bg-slate-950/20">
+                  <svg viewBox="0 0 300 300" class="w-60 h-60 sm:w-80 sm:h-80 stamp-slam-animate select-none drop-shadow-2xl" xmlns="http://www.w3.org/2000/svg">
+                    <g transform="rotate(-15 150 150)">
+                      <circle cx="150" cy="150" r="140" fill="none" stroke="#C5221F" stroke-width="7" stroke-dasharray="18 4 12 3 24 5" />
+                      <circle cx="150" cy="150" r="128" fill="none" stroke="#C5221F" stroke-width="2.5" />
+                      <path id="unsold-arc-top-v9" d="M 35,150 A 115,115 0 0,1 265,150" fill="none" />
+                      <text fill="#C5221F" font-size="28" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="14">
+                        <textPath href="#unsold-arc-top-v9" startOffset="50%" text-anchor="middle">UNSOLD</textPath>
+                      </text>
+                      <text x="105" y="94" fill="#C5221F" font-size="20" text-anchor="middle">★</text>
+                      <text x="150" y="82" fill="#C5221F" font-size="28" text-anchor="middle">★</text>
+                      <text x="195" y="94" fill="#C5221F" font-size="20" text-anchor="middle">★</text>
+                      <text x="105" y="222" fill="#C5221F" font-size="20" text-anchor="middle">★</text>
+                      <text x="150" y="234" fill="#C5221F" font-size="28" text-anchor="middle">★</text>
+                      <text x="195" y="222" fill="#C5221F" font-size="20" text-anchor="middle">★</text>
+                      <path id="unsold-arc-bottom-v9" d="M 265,150 A 115,115 0 0,1 35,150" fill="none" />
+                      <text fill="#C5221F" font-size="24" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="12">
+                        <textPath href="#unsold-arc-bottom-v9" startOffset="50%" text-anchor="middle">UNSOLD</textPath>
+                      </text>
+                      <rect x="5" y="110" width="290" height="80" rx="16" fill="#C5221F" stroke="#ffffff" stroke-width="4" />
+                      <text x="150" y="167" fill="#ffffff" font-size="52" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="6" text-anchor="middle">UNSOLD</text>
+                    </g>
+                  </svg>
+                </div>
+              `;
+            }
+            const statusLabel = document.getElementById('auction-status-label');
+            const bidEl = document.getElementById('auction-live-bid-display');
+            const bidderLabel = document.getElementById('auction-bidder-label');
+            const teamEl = document.getElementById('auction-leading-bidder-display');
+            const tagEl = document.getElementById('auction-bid-tag-display');
+            if (statusLabel) statusLabel.textContent = 'Auction Status';
+            if (bidEl) {
+              bidEl.textContent = '❌ UNSOLD';
+              bidEl.className = 'text-lg sm:text-2xl font-black text-rose-400 font-mono leading-none mt-0.5';
+            }
+            if (bidderLabel) bidderLabel.textContent = 'Round 2 Status';
+            if (teamEl) teamEl.textContent = 'Eligible for Re-Bid';
+            if (tagEl) {
+              tagEl.textContent = '⚡ Round 2 Pool';
+              tagEl.className = 'text-[8px] sm:text-[9px] font-bold text-amber-400';
+            }
+          } else {
+            // NORMAL BIDDING IN PROGRESS: Update text only
+            if (stampOverlay && stampSlot) stampSlot.innerHTML = '';
+            const statusLabel = document.getElementById('auction-status-label');
+            const bidEl = document.getElementById('auction-live-bid-display');
+            const bidderLabel = document.getElementById('auction-bidder-label');
+            const teamEl = document.getElementById('auction-leading-bidder-display');
+            const tagEl = document.getElementById('auction-bid-tag-display');
+            if (statusLabel) statusLabel.textContent = 'CURRENT HIGH BID';
+            if (bidEl) {
+              bidEl.textContent = `₹ ${Number(state.current_bid || state.basePrice || 300).toLocaleString('en-IN')}`;
+              bidEl.className = 'text-lg sm:text-2xl font-black text-amber-400 font-mono leading-none mt-0.5';
+            }
+            if (bidderLabel) bidderLabel.textContent = 'LEADING BIDDER';
+            if (teamEl) teamEl.textContent = bidderTeam ? '🛡️ ' + bidderTeam.name : 'No bids yet';
+            if (tagEl) {
+              tagEl.textContent = bidderTeam ? '🔥 Leading Offer' : 'Opening Bid';
+              tagEl.className = `text-[8px] sm:text-[9px] font-bold ${bidderTeam ? 'text-emerald-400' : 'text-slate-400'}`;
+            }
           }
         }
       } else {

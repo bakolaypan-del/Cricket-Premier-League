@@ -3144,7 +3144,7 @@ export function renderActiveAuctionBlock() {
         store.updateLiveAuctionState({ status: 'COMPLETED', active_player_id: null, updated_at: Date.now() });
         alert("🏆 ALL APPROVED PLAYERS AUCTIONED! Auction is now complete.");
       }
-    }, 3000);
+    }, 4000);
   });
 
   // Attach Mark UNSOLD
@@ -3190,7 +3190,7 @@ export function renderActiveAuctionBlock() {
         if (remainingUnsold.length > 0) {
           openNextPlayerAuctionModal(remainingUnsold);
         }
-      }, 3000);
+      }, 4000);
     }
   });
 
