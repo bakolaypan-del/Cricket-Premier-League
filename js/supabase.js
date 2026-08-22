@@ -202,27 +202,45 @@ export async function uploadHDImage(fileInput, folderName = 'documents') {
   return null;
 }
 
-// --- REALTIME PUSH EVENT LISTENER (FIREBASE REALTIME SSE) ---
+// --- REALTIME PUSH EVENT LISTENER (ALWAYS-ON FIREBASE REALTIME SSE) ---
+let activeEventSource = null;
+let sseReconnectTimer = null;
+
 export function initRealtimePushListener(onUpdateCallback) {
+  if (typeof EventSource === 'undefined') return null;
+
+  if (activeEventSource) {
+    try { activeEventSource.close(); } catch(e) {}
+  }
+  if (sseReconnectTimer) clearTimeout(sseReconnectTimer);
+
   try {
     const eventSource = new EventSource(`${FIREBASE_DB_URL}/cpl_master.json`);
-    
+    activeEventSource = eventSource;
+
     const handleUpdate = (event) => {
-      console.log("Realtime Event received:", event.type);
-      onUpdateCallback();
+      if (typeof onUpdateCallback === 'function') {
+        onUpdateCallback(event);
+      }
     };
 
     eventSource.addEventListener('put', handleUpdate);
     eventSource.addEventListener('patch', handleUpdate);
     eventSource.onmessage = handleUpdate;
 
-    eventSource.onerror = (err) => {
-      console.warn("Realtime EventSource reconnecting...", err);
+    eventSource.onerror = () => {
+      try { eventSource.close(); } catch(e) {}
+      sseReconnectTimer = setTimeout(() => {
+        initRealtimePushListener(onUpdateCallback);
+      }, 3000);
     };
-    console.log("Realtime EventSource listener initialized.");
+
+    console.log("🟢 Always-On Real-Time Live Push (Firebase SSE) connected.");
     return eventSource;
   } catch (err) {
-    console.warn("EventSource setup notice:", err);
+    sseReconnectTimer = setTimeout(() => {
+      initRealtimePushListener(onUpdateCallback);
+    }, 5000);
     return null;
   }
 }
@@ -243,8 +261,8 @@ export async function fetchCloudData() {
             if (p && p.id) {
               const existing = uniquePlayerMap.get(p.id);
               if (existing) {
-                const pTime = Number(p.updated_at || p.created_at || p.timestamp || 0);
-                const existingTime = Number(existing.updated_at || existing.created_at || existing.timestamp || 0);
+                const pTime = Number(p.updated_at || p.created_at || p.timestamp || p.createdTime || 0);
+                const existingTime = Number(existing.updated_at || existing.created_at || existing.timestamp || existing.createdTime || 0);
                 if (pTime >= existingTime) {
                   uniquePlayerMap.set(p.id, p);
                 }
@@ -346,7 +364,7 @@ export async function fetchCloudData() {
   return { players: [], teams: [], fixtures: [], playerProfiles: [], auctionSettings: { defaultBasePrice: 300, defaultPurseBudget: 8000 }, registrationSettings: { isJslRegistrationOpen: true, isPlayerRegOpen: true, isTeamRegOpen: true, closedReason: "JSL 2026 Registration is currently closed by the Master Admin." }, clearedAt: 0, teamsClearedAt: 0, deletedPlayerIds: [], deletedTeamIds: [] };
 }
 
-// --- ATOMIC REALTIME CLOUD DATA OPERATIONS (KEY-VALUE OBJECT MAP SYNC) ---
+// --- ATOMIC REALTIME CLOUD DATA OPERATIONS (KEY-VALUE OBJECT MAP MERGE VIA PATCH) ---
 export async function saveFullPlayersListToFirebase(playersList) {
   try {
     if (!Array.isArray(playersList)) return;
@@ -356,12 +374,13 @@ export async function saveFullPlayersListToFirebase(playersList) {
         playersMap[p.id] = p;
       }
     }
+    // Using PATCH to merge rather than destructive PUT
     await fetch(`${FIREBASE_DB_URL}/cpl_master/players.json`, {
-      method: 'PUT',
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(playersMap)
     });
-    console.log("Saved full players list as key-value map to Realtime Database.");
+    console.log("Merged players list as key-value map to Realtime Database.");
   } catch (err) {
     console.warn("Atomic players list save notice:", err);
   }
@@ -376,12 +395,13 @@ export async function saveFullTeamsListToFirebase(teamsList) {
         teamsMap[t.id] = t;
       }
     }
+    // Using PATCH to merge rather than destructive PUT
     await fetch(`${FIREBASE_DB_URL}/cpl_master/teams.json`, {
-      method: 'PUT',
+      method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(teamsMap)
     });
-    console.log("Saved full teams list as key-value map to Realtime Database.");
+    console.log("Merged teams list as key-value map to Realtime Database.");
   } catch (err) {
     console.warn("Atomic teams list save notice:", err);
   }

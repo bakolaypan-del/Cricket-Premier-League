@@ -318,11 +318,7 @@ class Store {
         }
 
         // 3. Sort chronologically by registration timestamp
-        mergedPlayers.sort((a, b) => {
-          const tA = Number(a.created_at || a.timestamp || a.regTimestamp || 0);
-          const tB = Number(b.created_at || b.timestamp || b.regTimestamp || 0);
-          return tA - tB;
-        });
+        mergedPlayers.sort((a, b) => getPlayerTimestamp(a) - getPlayerTimestamp(b));
 
         // CONTINUOUS DYNAMIC RE-INDEXING: Ensure registration IDs (JSL2026-0001, JSL2026-0002...) and display numbers (1, 2, 3...) have no gaps
         const reindexedPlayers = mergedPlayers.map((p, idx) => {
