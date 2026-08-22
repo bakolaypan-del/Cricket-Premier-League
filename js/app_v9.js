@@ -1198,6 +1198,39 @@ function renderFirstPageLanding(containerEl) {
         </div>
       </div>
 
+      <!-- 🔨 LIVE PLAYER AUCTION NOTIFICATION BANNER (CLICKABLE TO OPEN AUCTION TAB) -->
+      <a href="#auction" id="live-auction-banner-notice" class="block w-full max-w-3xl mx-auto bg-gradient-to-r from-slate-900 via-red-950 to-slate-900 border-2 border-red-500/80 hover:border-amber-400 p-3 sm:p-4 rounded-2xl sm:rounded-3xl shadow-xl text-white animate-fade-in relative overflow-hidden transition-all duration-300 hover:shadow-2xl hover:scale-[1.01] group cursor-pointer no-underline">
+        <div class="absolute -right-8 -bottom-8 w-28 h-28 bg-red-500/20 rounded-full blur-xl pointer-events-none group-hover:bg-amber-400/20 transition-all"></div>
+        <div class="absolute -left-8 -top-8 w-28 h-28 bg-amber-500/15 rounded-full blur-xl pointer-events-none"></div>
+
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-3 relative z-10">
+          <div class="flex items-center gap-3 text-center sm:text-left">
+            <div class="w-11 h-11 sm:w-12 sm:h-12 rounded-2xl bg-gradient-to-br from-red-600 to-rose-700 text-white flex items-center justify-center text-xl sm:text-2xl shrink-0 shadow-md group-hover:scale-110 transition-transform">
+              🔨
+            </div>
+            <div>
+              <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-red-500/20 text-red-400 border border-red-500/40 rounded-full text-[9px] sm:text-[10px] font-black tracking-wider uppercase shadow-2xs">
+                <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping"></span>
+                <span>🔴 LIVE PLAYER AUCTION</span>
+              </div>
+              <h3 class="text-sm sm:text-base font-black text-white tracking-tight leading-tight mt-0.5">
+                Live Player Auction of JSL Start on <span class="text-amber-400 font-mono font-black">3:00 PM</span>
+              </h3>
+              <p class="text-[10px] sm:text-[11px] text-slate-300 font-bold">
+                Watch real-time bidding, official team squads & sold stamps live
+              </p>
+            </div>
+          </div>
+
+          <div class="shrink-0 w-full sm:w-auto">
+            <span class="w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-red-600 via-rose-600 to-amber-500 group-hover:from-red-500 group-hover:to-amber-400 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg border border-red-400 flex items-center justify-center gap-1.5 uppercase tracking-wider group-hover:shadow-red-500/50 transition-all">
+              <span>Click Here</span>
+              <span class="text-base group-hover:translate-x-1 transition-transform">➔</span>
+            </span>
+          </div>
+        </div>
+      </a>
+
       <!-- SELECT PREMIER LEAGUE BADGE -->
       <div class="text-center">
         <span class="px-5 py-2 rounded-full bg-white text-emerald-800 border-2 border-emerald-300 text-xs sm:text-base font-black uppercase tracking-widest shadow-md">
