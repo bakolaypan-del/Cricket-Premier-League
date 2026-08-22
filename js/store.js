@@ -234,6 +234,28 @@ class Store {
               mergedRecord = { ...localP, ...cloudP };
             }
 
+            // CRITICAL REALTIME FIX: Cloud is authoritative for auction team assignments, sold status & prices!
+            // If the player was unassigned/unsold in cloud (no teamId or not SOLD), clear any stale local team assignment
+            if (!cloudP.teamId || cloudP.auctionStatus === 'PENDING' || cloudP.auctionStatus === 'UNSOLD') {
+              if (!cloudP.isIcon && !cloudP.isIconPlayer) {
+                mergedRecord.teamId = cloudP.teamId || null;
+                mergedRecord.teamName = cloudP.teamName || null;
+                mergedRecord.boughtByTeamId = cloudP.boughtByTeamId || null;
+                mergedRecord.soldPrice = Number(cloudP.soldPrice) || 0;
+                mergedRecord.auctionStatus = cloudP.auctionStatus || 'PENDING';
+                mergedRecord.isSold = false;
+                mergedRecord.isUnsold = (cloudP.auctionStatus === 'UNSOLD' || !!cloudP.isUnsold);
+              }
+            } else if (cloudP.teamId && (cloudP.auctionStatus === 'SOLD' || cloudP.isSold)) {
+              mergedRecord.teamId = cloudP.teamId;
+              mergedRecord.teamName = cloudP.teamName || '';
+              mergedRecord.boughtByTeamId = cloudP.boughtByTeamId || cloudP.teamId;
+              mergedRecord.soldPrice = Number(cloudP.soldPrice) || 0;
+              mergedRecord.auctionStatus = 'SOLD';
+              mergedRecord.isSold = true;
+              mergedRecord.isUnsold = false;
+            }
+
             if (isPurged) {
               mergedRecord.aadharPhotoUrl = '';
               mergedRecord.aadhaar_photo_url = '';
@@ -682,7 +704,15 @@ class Store {
       if (team) {
         team.squadCount = Math.max(0, team.squadCount - 1);
         team.purseSpent = Math.max(0, team.purseSpent - (playerToDelete.soldPrice || 0));
+        const budget = Number(team.purseBudget || team.purse || 8000);
+        team.remainingPurse = Math.max(0, budget - team.purseSpent);
+        if (Array.isArray(team.playerIds)) {
+          team.playerIds = team.playerIds.filter(id => id !== playerId);
+        }
+        team.updated_at = Date.now();
         safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
+        syncTeamToSupabase(team);
+        this.notify('teams_updated');
       }
     }
 
@@ -831,6 +861,8 @@ class Store {
     const player = players.find(p => p.id === playerId);
     if (!player) return false;
 
+    const now = Date.now();
+
     if (player.teamId) {
       const team = teams.find(t => t.id === player.teamId);
       if (team) {
@@ -841,6 +873,7 @@ class Store {
         if (Array.isArray(team.playerIds)) {
           team.playerIds = team.playerIds.filter(id => id !== playerId);
         }
+        team.updated_at = now;
         syncTeamToSupabase(team);
       }
     }
@@ -852,6 +885,20 @@ class Store {
     player.isSold = false;
     player.isUnsold = false;
     player.boughtByTeamId = null;
+    player.isIcon = false;
+    player.isIconPlayer = false;
+    player.updated_at = now;
+
+    // Also update live auction state if this player was the last sold record
+    if (this.liveAuctionState && this.liveAuctionState.last_sold_player_id === playerId) {
+      this.updateLiveAuctionState({
+        ...this.liveAuctionState,
+        last_sold_player_id: null,
+        last_sold_price: 0,
+        last_sold_team_id: null,
+        updated_at: now
+      });
+    }
 
     safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
     safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
@@ -859,6 +906,7 @@ class Store {
     syncPlayerToSupabase(player);
     this.notify('players_updated');
     this.notify('teams_updated');
+    this.notify('live_auction_updated');
     return true;
   }
 
@@ -924,7 +972,7 @@ class Store {
       const iconDeduction = hasIcon ? 1000 : 0;
       
       // Calculate total spent on purchased auction players (excluding icon player to avoid double deduction)
-      const purchasedNonIconPlayers = allPlayers.filter(p => p.teamId === t.id && !p.isIcon && !p.isIconPlayer && (p.auctionStatus === 'SOLD' || p.paymentStatus === 'APPROVED'));
+      const purchasedNonIconPlayers = allPlayers.filter(p => p.teamId === t.id && !p.isIcon && !p.isIconPlayer && (p.auctionStatus === 'SOLD' || p.isSold === true));
       const auctionSpent = purchasedNonIconPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || 0), 0);
       
       const totalBudget = Number(t.purseBudget || t.purse || 8000);

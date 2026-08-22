@@ -132,14 +132,23 @@ function initApp() {
   initRealtimePlayerToast();
 
   const safeRenderCurrentView = () => {
-    // PROTECT ACTIVE USER FORMS: If any modal or form is open, DO NOT re-render or reset form data!
-    if (document.querySelector('.modal-overlay')) return;
+    // PROTECT ACTIVE USER FORMS: Only prevent re-render if user is filling player/team registration forms
+    const isUserFillingForm = document.getElementById('player-reg-modal') || document.getElementById('team-reg-modal');
+    if (isUserFillingForm) return;
+
     renderCurrentView();
+
+    // REAL-TIME AUTO SQUAD SYNC: If Franchise Squad Modal is open on screen, re-render it in real-time!
+    const openSquadModal = document.getElementById('team-squad-modal');
+    if (openSquadModal && window.currentViewingTeamId) {
+      openTeamPurchasedSquadModal(window.currentViewingTeamId);
+    }
   };
 
   window.addEventListener('leagues_updated', safeRenderCurrentView);
   window.addEventListener('players_updated', safeRenderCurrentView);
   window.addEventListener('teams_updated', safeRenderCurrentView);
+  window.addEventListener('live_auction_updated', safeRenderCurrentView);
   window.addEventListener('user_updated', () => {
     renderNavbar();
     renderMobileBottomNav();
@@ -1642,7 +1651,7 @@ function openRegisteredTeamsModal(allTeams) {
             const iconPlayerName = t.iconPlayerName || t.iconName || '';
             const iconPlayerPhoto = t.iconPlayerPhotoUrl || t.iconPhotoUrl || t.iconPhoto || '';
 
-            const squadCount = store.getPlayers().filter(p => p.teamId === t.id).length;
+            const squadCount = store.getPlayers().filter(p => p.teamId === t.id && (p.isIcon || p.isIconPlayer || p.auctionStatus === 'SOLD' || p.isSold === true)).length;
 
             return `
               <div class="bg-white rounded-2xl sm:rounded-3xl border-2 border-slate-300 hover:border-indigo-600 shadow-md hover:shadow-xl transition-all overflow-hidden flex flex-col justify-between text-center">
@@ -4259,7 +4268,7 @@ function renderLiveAuctionView(container) {
         const hasIcon = !!((t.iconPlayerName && t.iconPlayerName.trim()) || (t.iconName && t.iconName.trim()));
         const iconDeduction = hasIcon ? 1000 : 0;
         const totalPurse = Number(t.purseBudget || t.purse || 8000);
-        const purchasedNonIconPlayers = allPlayers.filter(p => p.teamId === t.id && !p.isIcon && !p.isIconPlayer && (p.auctionStatus === 'SOLD' || p.paymentStatus === 'APPROVED'));
+        const purchasedNonIconPlayers = allPlayers.filter(p => p.teamId === t.id && !p.isIcon && !p.isIconPlayer && (p.auctionStatus === 'SOLD' || p.isSold === true));
         const auctionSpent = purchasedNonIconPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || 0), 0);
         const spent = iconDeduction + auctionSpent;
         const left = Math.max(0, totalPurse - spent);
@@ -4339,6 +4348,7 @@ function renderLiveAuctionView(container) {
 
 // --- FRANCHISE SQUAD & PURCHASED PLAYERS MODAL ---
 export function openTeamPurchasedSquadModal(teamId) {
+  window.currentViewingTeamId = teamId;
   document.getElementById('team-squad-modal')?.remove();
 
   const team = store.getTeamById(teamId);
@@ -4350,7 +4360,7 @@ export function openTeamPurchasedSquadModal(teamId) {
   const iconDeduction = hasIcon ? 1000 : 0;
 
   // Find purchased players (excluding icon player to avoid double charging)
-  const purchasedNonIconPlayers = allPlayers.filter(p => p.teamId === team.id && !p.isIcon && !p.isIconPlayer && (p.auctionStatus === 'SOLD' || p.paymentStatus === 'APPROVED'));
+  const purchasedNonIconPlayers = allPlayers.filter(p => p.teamId === team.id && !p.isIcon && !p.isIconPlayer && (p.auctionStatus === 'SOLD' || p.isSold === true));
   const auctionSpent = purchasedNonIconPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || 0), 0);
   const totalPurse = Number(team.purseBudget || team.purse || 8000);
   const totalSpent = iconDeduction + auctionSpent;
@@ -4470,15 +4480,16 @@ export function openTeamPurchasedSquadModal(teamId) {
   document.body.insertAdjacentHTML('beforeend', modalHtml);
   if (window.lucide) window.lucide.createIcons();
 
-  document.getElementById('close-team-squad-modal-btn')?.addEventListener('click', () => {
+  const handleClose = () => {
+    window.currentViewingTeamId = null;
     document.getElementById('team-squad-modal')?.remove();
-  });
-  document.getElementById('dismiss-team-squad-btn')?.addEventListener('click', () => {
-    document.getElementById('team-squad-modal')?.remove();
-  });
+  };
+
+  document.getElementById('close-team-squad-modal-btn')?.addEventListener('click', handleClose);
+  document.getElementById('dismiss-team-squad-btn')?.addEventListener('click', handleClose);
   document.getElementById('team-squad-modal')?.addEventListener('click', (e) => {
     if (e.target.id === 'team-squad-modal') {
-      document.getElementById('team-squad-modal')?.remove();
+      handleClose();
     }
   });
 }
