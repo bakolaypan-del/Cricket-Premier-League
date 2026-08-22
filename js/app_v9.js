@@ -4376,20 +4376,27 @@ function renderLiveAuctionView(container) {
                   </div>
                 </div>
 
-                <!-- Bid Shape (Current Bid & Leading Bidder in the Lowest Portion) -->
-                <div class="grid grid-cols-2 gap-2 ${isUnsoldState ? 'bg-rose-950/95 border-2 border-rose-500' : 'bg-slate-950/95 border-2 border-amber-400'} backdrop-blur-xl p-2.5 sm:p-3 rounded-2xl shadow-2xl">
-                  <div>
-                    <span id="auction-status-label" class="text-[8px] sm:text-[9px] font-extrabold ${isUnsoldState ? 'text-rose-300' : 'text-amber-300'} uppercase tracking-widest block">${isSoldState ? 'AUCTION RESULT' : isUnsoldState ? 'Auction Status' : 'CURRENT HIGH BID'}</span>
-                    <div id="auction-live-bid-display" class="text-lg sm:text-2xl font-black ${isSoldState ? 'text-emerald-400' : isUnsoldState ? 'text-rose-400' : 'text-amber-400'} font-mono leading-none mt-0.5">
+                <!-- High-Impact Bold Bid Shape (Extra Large Highlighted Amount & Team Name) -->
+                <div class="grid grid-cols-2 gap-3 ${isUnsoldState ? 'bg-rose-950/95 border-2 sm:border-3 border-rose-500' : 'bg-slate-950/95 border-2 sm:border-3 border-amber-400'} backdrop-blur-2xl p-3 sm:p-4 rounded-2xl sm:rounded-3xl shadow-2xl">
+                  <!-- LEFT: CURRENT HIGH BID (Massive Glowing Gold Display) -->
+                  <div class="flex flex-col justify-center">
+                    <span id="auction-status-label" class="text-[9px] sm:text-xs font-black ${isUnsoldState ? 'text-rose-300' : 'text-amber-300'} uppercase tracking-widest block">
+                      ${isSoldState ? 'AUCTION RESULT' : isUnsoldState ? 'Auction Status' : 'CURRENT HIGH BID'}
+                    </span>
+                    <div id="auction-live-bid-display" class="text-2xl sm:text-4xl md:text-5xl font-black ${isSoldState ? 'text-emerald-400' : isUnsoldState ? 'text-rose-400' : 'text-amber-400'} font-mono leading-none mt-1 drop-shadow-[0_2px_12px_rgba(251,191,36,0.4)]">
                       ${isSoldState ? '🔨 SOLD' : isUnsoldState ? '❌ UNSOLD' : '₹ ' + Number(state.current_bid || state.basePrice || 300).toLocaleString('en-IN')}
                     </div>
                   </div>
-                  <div class="text-right border-l border-slate-800 pl-2 flex flex-col justify-center">
-                    <span id="auction-bidder-label" class="text-[8px] sm:text-[9px] font-extrabold text-slate-400 uppercase tracking-widest block">${isSoldState ? 'WINNING FRANCHISE' : isUnsoldState ? 'Round 2 Status' : 'LEADING BIDDER'}</span>
-                    <span id="auction-leading-bidder-display" class="text-xs sm:text-sm font-black text-white block mt-0.5 truncate">
+                  
+                  <!-- RIGHT: LEADING BIDDER (Large Bold Team Name) -->
+                  <div class="text-right border-l border-slate-800/90 pl-3 flex flex-col justify-center">
+                    <span id="auction-bidder-label" class="text-[9px] sm:text-xs font-black text-slate-400 uppercase tracking-widest block">
+                      ${isSoldState ? 'WINNING FRANCHISE' : isUnsoldState ? 'Round 2 Status' : 'LEADING BIDDER'}
+                    </span>
+                    <span id="auction-leading-bidder-display" class="text-base sm:text-2xl md:text-3xl font-black text-white block mt-1 truncate leading-tight tracking-wide">
                       ${isSoldState ? (bidderTeam ? '🛡️ ' + bidderTeam.name : 'Sold') : isUnsoldState ? 'Eligible for Re-Bid' : (bidderTeam ? '🛡️ ' + bidderTeam.name : 'No bids yet')}
                     </span>
-                    <span id="auction-bid-tag-display" class="text-[8px] sm:text-[9px] font-bold ${isSoldState ? 'text-emerald-400' : isUnsoldState ? 'text-amber-400' : (bidderTeam ? 'text-emerald-400' : 'text-slate-400')}">
+                    <span id="auction-bid-tag-display" class="text-[9px] sm:text-[11px] font-extrabold mt-0.5 ${isSoldState ? 'text-emerald-400' : isUnsoldState ? 'text-amber-400' : (bidderTeam ? 'text-emerald-400' : 'text-slate-400')}">
                       ${isSoldState ? '✅ Confirmed Sale' : isUnsoldState ? '⚡ Round 2 Pool' : (bidderTeam ? '🔥 Leading Offer' : 'Opening Bid')}
                     </span>
                   </div>
@@ -4442,13 +4449,13 @@ function renderLiveAuctionView(container) {
             if (statusLabel) statusLabel.textContent = 'AUCTION RESULT';
             if (bidEl) {
               bidEl.textContent = '🔨 SOLD';
-              bidEl.className = 'text-lg sm:text-2xl font-black text-emerald-400 font-mono leading-none mt-0.5';
+              bidEl.className = 'text-2xl sm:text-4xl md:text-5xl font-black text-emerald-400 font-mono leading-none mt-1 drop-shadow-[0_2px_12px_rgba(16,185,129,0.4)]';
             }
             if (bidderLabel) bidderLabel.textContent = 'WINNING FRANCHISE';
             if (teamEl) teamEl.textContent = bidderTeam ? '🛡️ ' + bidderTeam.name : 'Sold';
             if (tagEl) {
               tagEl.textContent = '✅ Confirmed Sale';
-              tagEl.className = 'text-[8px] sm:text-[9px] font-bold text-emerald-400';
+              tagEl.className = 'text-[9px] sm:text-[11px] font-extrabold text-emerald-400 mt-0.5';
             }
           } else if (isUnsoldState) {
             if (!stampOverlay && stampSlot) {
@@ -4487,13 +4494,13 @@ function renderLiveAuctionView(container) {
             if (statusLabel) statusLabel.textContent = 'Auction Status';
             if (bidEl) {
               bidEl.textContent = '❌ UNSOLD';
-              bidEl.className = 'text-lg sm:text-2xl font-black text-rose-400 font-mono leading-none mt-0.5';
+              bidEl.className = 'text-2xl sm:text-4xl md:text-5xl font-black text-rose-400 font-mono leading-none mt-1 drop-shadow-[0_2px_12px_rgba(244,63,94,0.4)]';
             }
             if (bidderLabel) bidderLabel.textContent = 'Round 2 Status';
             if (teamEl) teamEl.textContent = 'Eligible for Re-Bid';
             if (tagEl) {
               tagEl.textContent = '⚡ Round 2 Pool';
-              tagEl.className = 'text-[8px] sm:text-[9px] font-bold text-amber-400';
+              tagEl.className = 'text-[9px] sm:text-[11px] font-extrabold text-amber-400 mt-0.5';
             }
           } else {
             // NORMAL BIDDING IN PROGRESS: Update text only
@@ -4506,13 +4513,13 @@ function renderLiveAuctionView(container) {
             if (statusLabel) statusLabel.textContent = 'CURRENT HIGH BID';
             if (bidEl) {
               bidEl.textContent = `₹ ${Number(state.current_bid || state.basePrice || 300).toLocaleString('en-IN')}`;
-              bidEl.className = 'text-lg sm:text-2xl font-black text-amber-400 font-mono leading-none mt-0.5';
+              bidEl.className = 'text-2xl sm:text-4xl md:text-5xl font-black text-amber-400 font-mono leading-none mt-1 drop-shadow-[0_2px_12px_rgba(251,191,36,0.5)]';
             }
             if (bidderLabel) bidderLabel.textContent = 'LEADING BIDDER';
             if (teamEl) teamEl.textContent = bidderTeam ? '🛡️ ' + bidderTeam.name : 'No bids yet';
             if (tagEl) {
               tagEl.textContent = bidderTeam ? '🔥 Leading Offer' : 'Opening Bid';
-              tagEl.className = `text-[8px] sm:text-[9px] font-bold ${bidderTeam ? 'text-emerald-400' : 'text-slate-400'}`;
+              tagEl.className = `text-[9px] sm:text-[11px] font-extrabold ${bidderTeam ? 'text-emerald-400' : 'text-slate-400'} mt-0.5`;
             }
           }
         }
