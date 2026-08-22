@@ -3124,32 +3124,16 @@ export function renderActiveAuctionBlock() {
     store.updateTeam(updatedTeam);
     store.updatePlayer(updatedPlayer);
 
-    // 3. Keep SOLD stamp on screen for exactly 5 seconds, then transition cleanly to idle
+    // 3. Keep SOLD stamp visible continuously on screen until admin selects the next player
     setTimeout(() => {
-      store.updateLiveAuctionState({
-        status: 'IDLE',
-        active_player_id: null,
-        current_bid: 0,
-        highest_bidder_team_id: null,
-        last_sold_player_id: p.id,
-        last_sold_price: price,
-        last_sold_team_id: team.id,
-        updated_at: Date.now()
-      });
-
-      activeAuction = { player: null, currentBid: 0, leadingTeam: null, timerSecs: 30, timerInterval: null, isSold: false, isUnsold: false };
-      renderActiveAuctionBlock();
-      updateProjectorModalView();
-
-      // Check remaining players and auto-open selector modal
+      // Check remaining players and auto-open selector modal for admin convenience
       const remainingUnsold = store.getPlayers().filter(pl => (pl.registrationStatus === 'APPROVED' || pl.paymentStatus === 'APPROVED') && !pl.teamId && pl.auctionStatus !== 'SOLD' && pl.auctionStatus !== 'UNSOLD' && !pl.isIcon && !pl.isIconPlayer);
       if (remainingUnsold.length > 0) {
         openNextPlayerAuctionModal(remainingUnsold);
       } else {
-        store.updateLiveAuctionState({ status: 'COMPLETED', active_player_id: null, updated_at: Date.now() });
         alert("🏆 ALL APPROVED PLAYERS AUCTIONED! Auction is now complete.");
       }
-    }, 5000);
+    }, 2000);
   });
 
   // Attach Mark UNSOLD
@@ -3179,26 +3163,13 @@ export function renderActiveAuctionBlock() {
       // 2. Then update player database record
       store.updatePlayer(updatedPlayer);
 
-      // 3. Keep UNSOLD stamp on screen for exactly 5 seconds, then transition cleanly to idle
+      // 3. Keep UNSOLD stamp visible continuously on screen until admin selects the next player
       setTimeout(() => {
-        store.updateLiveAuctionState({
-          status: 'IDLE',
-          active_player_id: null,
-          current_bid: 0,
-          highest_bidder_team_id: null,
-          last_unsold_player_id: p.id,
-          updated_at: Date.now()
-        });
-
-        activeAuction = { player: null, currentBid: 0, leadingTeam: null, timerSecs: 30, timerInterval: null, isSold: false, isUnsold: false };
-        renderActiveAuctionBlock();
-        updateProjectorModalView();
-
         const remainingUnsold = store.getPlayers().filter(pl => (pl.registrationStatus === 'APPROVED' || pl.paymentStatus === 'APPROVED') && !pl.teamId && pl.auctionStatus !== 'SOLD' && pl.auctionStatus !== 'UNSOLD' && !pl.isIcon && !pl.isIconPlayer);
         if (remainingUnsold.length > 0) {
           openNextPlayerAuctionModal(remainingUnsold);
         }
-      }, 5000);
+      }, 2000);
     }
   });
 
