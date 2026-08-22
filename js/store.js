@@ -512,7 +512,39 @@ class Store {
     }
 
     try {
-      initRealtimePushListener(() => {
+      initRealtimePushListener((event) => {
+        try {
+          if (event && event.data) {
+            const parsed = JSON.parse(event.data);
+            const path = parsed.path || '';
+            const data = parsed.data;
+
+            // INSTANT LIVE AUCTION PUSH (0ms latency direct memory update)
+            if (path === '/liveAuction' || path === '/liveAuction/') {
+              const localLiveStr = localStorage.getItem('cpl_live_auction_state') || 'null';
+              const cleanCloudLiveStr = JSON.stringify(data || null);
+              if (localLiveStr !== cleanCloudLiveStr) {
+                this.liveAuctionState = data;
+                if (data && data.active_player_id) {
+                  safeSetLocalStorage('cpl_live_auction_state', data);
+                } else {
+                  localStorage.removeItem('cpl_live_auction_state');
+                }
+                this.notify('live_auction_updated');
+              }
+              return;
+            } else if (path.startsWith('/liveAuction/')) {
+              const prop = path.replace('/liveAuction/', '').split('/')[0];
+              if (!this.liveAuctionState) this.liveAuctionState = {};
+              this.liveAuctionState[prop] = data;
+              safeSetLocalStorage('cpl_live_auction_state', this.liveAuctionState);
+              this.notify('live_auction_updated');
+              return;
+            }
+          }
+        } catch (parseErr) {}
+
+        // For other database changes (players, teams), sync full cloud data
         this.syncWithCloud();
       });
     } catch (err) {
@@ -1356,10 +1388,13 @@ class Store {
 
   // --- LIVE AUCTION STATE ---
   async getLiveAuctionState() {
+    if (this.liveAuctionState) return this.liveAuctionState;
+
     try {
       const local = localStorage.getItem('cpl_live_auction_state');
       if (local) {
         this.liveAuctionState = JSON.parse(local);
+        return this.liveAuctionState;
       }
     } catch(e) {}
 
