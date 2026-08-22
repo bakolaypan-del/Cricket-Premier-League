@@ -1,10 +1,10 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=10.4.5';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, printDigitalPass, openUserGuidePDF } from './export.js?v=10.4.5';
-import { renderAdminDashboard } from './admin.js?v=10.4.5';
-import { uploadHDImage, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats } from './supabase.js?v=10.4.5';
-import { shops } from './shopsData.js?v=10.4.5';
+import { store } from './store.js?v=10.5.0';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, printDigitalPass, openUserGuidePDF } from './export.js?v=10.5.0';
+import { renderAdminDashboard } from './admin.js?v=10.5.0';
+import { uploadHDImage, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats } from './supabase.js?v=10.5.0';
+import { shops } from './shopsData.js?v=10.5.0';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
 let latestVisitorStats = { liveCount: 1, totalVisits: 1524 };
@@ -3407,7 +3407,6 @@ function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
 }
 
 // --- VISITOR VIEWS: MATCH CENTER, LIVE AUCTION & CAREER HUB ---
-let auctionPollInterval = null;
 
 function renderFixturesView(container) {
   let selectedCategory = 'JSL';
