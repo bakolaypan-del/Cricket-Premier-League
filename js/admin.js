@@ -907,53 +907,7 @@ export function renderAdminDashboard(containerEl) {
     if (!pId) return alert("Please select an approved player from the dropdown first!");
     const p = store.getPlayerById(pId);
     if (p) {
-      if (activeAuction.timerInterval) clearInterval(activeAuction.timerInterval);
-      activeAuction = {
-    player: p,
-    currentBid: Number(p.basePrice) || 300,
-    leadingTeam: null,
-    timerSecs: 30,
-    timerInterval: null,
-    isSold: false,
-    isUnsold: false,
-    bidHistory: []
-  };
-      store.updateLiveAuctionState({
-        active_player_id: p.id,
-        name: p.name,
-        photoUrl: p.photoUrl || p.player_photo_url,
-        category: p.category || p.playingType || 'All Rounder',
-        basePrice: Number(p.basePrice) || 300,
-        current_bid: Number(p.basePrice) || 300,
-        highest_bidder_team_id: null,
-        timer_left: 30,
-        status: 'BIDDING',
-        registrationId: p.registrationId || p.regNo,
-        village: p.village,
-        battingStyle: p.battingStyle,
-        bowlingStyle: p.bowlingStyle
-      });
-      // Start 1-second countdown
-      activeAuction.timerInterval = setInterval(() => {
-        if (activeAuction.timerSecs > 0) {
-          activeAuction.timerSecs--;
-          if (activeAuction.timerSecs <= 5 && activeAuction.timerSecs > 0) {
-            playAuctionAudio('tick');
-          }
-          updateProjectorModalView();
-          const timerBox = document.querySelector('#admin-active-auction-block .text-center .border');
-          if (timerBox) {
-            timerBox.textContent = `⏱️ ${String(activeAuction.timerSecs).padStart(2, '0')}s`;
-            if (activeAuction.timerSecs <= 5) {
-              timerBox.className = 'px-3 py-1.5 rounded-xl border font-mono font-black text-lg text-rose-400 animate-pulse border-rose-500 bg-rose-950/50';
-            } else if (activeAuction.timerSecs <= 10) {
-              timerBox.className = 'px-3 py-1.5 rounded-xl border font-mono font-black text-lg text-amber-400 border-amber-500 bg-amber-950/50';
-            }
-          }
-        }
-      }, 1000);
-
-      renderActiveAuctionBlock();
+      startAuctionForPlayerDirectly(p);
     }
   });
 
@@ -1404,6 +1358,17 @@ function bindAdminTableActions(containerEl) {
     ['input', 'keyup', 'change', 'paste'].forEach(evt => {
       adminSearchInput.addEventListener(evt, filterAdminPlayers);
     });
+  }
+
+  // --- AUTOMATIC ACTIVE TAB RENDERING ON DASHBOARD LOAD ---
+  if (activeAdminTab === 'auction') {
+    renderActiveAuctionBlock();
+  } else if (activeAdminTab === 'fixtures') {
+    renderAdminFixturesList();
+  } else if (activeAdminTab === 'scorer') {
+    renderScorerMatchesList();
+  } else if (activeAdminTab === 'shop-ads') {
+    renderAdminShopAdsPanel();
   }
 }
 
@@ -2475,6 +2440,20 @@ export function renderActiveAuctionBlock() {
   if (!container) return;
 
   const allTeams = store.getTeams();
+
+  // Restore from store.liveAuctionState if bidding is in progress
+  if (!activeAuction.player) {
+    const liveState = store.getLiveAuctionState();
+    if (liveState && liveState.active_player_id && liveState.status === 'BIDDING') {
+      const p = store.getPlayerById(liveState.active_player_id);
+      if (p) {
+        activeAuction.player = p;
+        activeAuction.currentBid = Number(liveState.current_bid) || Number(p.basePrice) || 300;
+        activeAuction.leadingTeam = liveState.highest_bidder_team_id ? store.getTeamById(liveState.highest_bidder_team_id) : null;
+        activeAuction.timerSecs = Number(liveState.timer_left) || 30;
+      }
+    }
+  }
 
   if (!activeAuction.player) {
     container.innerHTML = `
