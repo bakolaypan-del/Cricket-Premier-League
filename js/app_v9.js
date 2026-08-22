@@ -2156,18 +2156,6 @@ function openFullPlayerProfileModal(player) {
           </div>
         </div>
 
-        <!-- PHOTO UPDATE OPTION -->
-        <div class="flex items-center justify-between p-2 bg-slate-50 border border-slate-200 rounded-xl text-left">
-          <div class="space-y-0.5">
-            <span class="text-[9px] text-slate-500 uppercase font-bold block">Profile Management</span>
-            <span class="text-[10px] text-slate-700 font-bold">Update your HD profile photo</span>
-          </div>
-          <label class="px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-[10px] rounded-lg shadow flex items-center gap-1 cursor-pointer transition-all">
-            <i data-lucide="camera" class="w-3.5 h-3.5 text-amber-400"></i> Change Photo
-            <input type="file" id="profile-photo-change-input" accept="image/*" class="hidden" />
-          </label>
-        </div>
-
         <!-- PRINT DIGITAL PASS & CLOSE BUTTONS -->
         <div class="flex gap-2 pt-1">
           <button id="print-pass-btn" class="flex-1 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1">
@@ -2188,20 +2176,6 @@ function openFullPlayerProfileModal(player) {
   const removeModal = () => document.getElementById('player-profile-modal')?.remove();
   document.getElementById('close-profile-btn')?.addEventListener('click', removeModal);
   document.getElementById('close-profile-bottom-btn')?.addEventListener('click', removeModal);
-
-  document.getElementById('profile-photo-change-input')?.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const objectUrl = URL.createObjectURL(file);
-    openSquareImageCropModal(objectUrl, async (croppedDataUrl) => {
-      const cdnUrl = await uploadHDImage(croppedDataUrl, 'player_photos');
-      const photoToSave = cdnUrl || croppedDataUrl;
-      store.updatePlayerProfilePhoto(player.phone, photoToSave, player.id);
-      removeModal();
-      const updatedP = store.getPlayerById(player.id) || { ...player, photoUrl: photoToSave, player_photo_url: photoToSave };
-      openFullPlayerProfileModal(updatedP);
-    }, 'Crop New Profile Photo (1:1)');
-  });
 
   document.getElementById('print-pass-btn')?.addEventListener('click', () => {
     printDigitalPass(player, store.getLeagueById('leg-jsl'), store.getTeamById(player.teamId));
