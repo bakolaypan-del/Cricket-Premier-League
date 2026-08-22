@@ -4136,7 +4136,7 @@ function renderLiveAuctionView(container) {
 
     const soldList = allPlayers.filter(p => p.teamId || p.auctionStatus === 'SOLD');
     const unsoldList = allPlayers.filter(p => p.auctionStatus === 'UNSOLD' && !p.teamId);
-    const pendingList = allPlayers.filter(p => !p.teamId && p.auctionStatus !== 'SOLD' && p.auctionStatus !== 'UNSOLD' && !p.isIcon && !p.isIconPlayer);
+    const pendingList = allPlayers.filter(p => !p.teamId && p.auctionStatus !== 'SOLD' && p.auctionStatus !== 'UNSOLD');
 
     // Update Counts & Badges
     document.getElementById('accordion-total-players-badge')?.replaceChildren(document.createTextNode(`${allPlayers.length} Players`));

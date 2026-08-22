@@ -627,7 +627,7 @@ class Store {
         return (iconId && iconId === p.id) || (iconName && iconName === pNameNorm);
       });
 
-      const isIcon = !!matchingIconTeam || !!p.isIcon || !!p.isIconPlayer;
+      const isIcon = !!matchingIconTeam || (!!p.teamId && (!!p.isIcon || !!p.isIconPlayer));
       const effectiveTeamId = matchingIconTeam ? matchingIconTeam.id : p.teamId;
       const effectiveTeamName = matchingIconTeam ? matchingIconTeam.name : (p.teamName || '');
       const effectiveAuctionStatus = matchingIconTeam ? 'SOLD' : (p.auctionStatus || (p.teamId ? 'SOLD' : 'PENDING'));

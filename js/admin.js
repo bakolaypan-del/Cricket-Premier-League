@@ -27,7 +27,7 @@ export function renderAdminDashboard(containerEl) {
 
   const soldPlayers = players.filter(p => p.teamId || p.auctionStatus === 'SOLD');
   const unsoldPlayers = players.filter(p => p.auctionStatus === 'UNSOLD' && !p.teamId);
-  const queuePlayers = players.filter(p => (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED') && !p.teamId && p.auctionStatus !== 'SOLD' && p.auctionStatus !== 'UNSOLD' && !p.isIcon && !p.isIconPlayer);
+  const queuePlayers = players.filter(p => (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED') && !p.teamId && p.auctionStatus !== 'SOLD' && p.auctionStatus !== 'UNSOLD');
 
   const isMaster = store.isMasterAdmin();
   const currentUser = store.getCurrentUser();
@@ -410,7 +410,7 @@ export function renderAdminDashboard(containerEl) {
                   <label class="block text-xs font-bold text-slate-600 mb-1">SELECT APPROVED PLAYER</label>
                   <select id="auction-select-player" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-medium">
                     <option value="">-- Choose Player --</option>
-                    ${players.filter(p => (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED') && !p.teamId && p.auctionStatus !== 'SOLD' && !p.isIcon && !p.isIconPlayer).map(p => {
+                    ${players.filter(p => (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED') && !p.teamId && p.auctionStatus !== 'SOLD').map(p => {
                       const sNo = p.displayRegistrationNumber || p.serialNo || '';
                       const sNoPrefix = sNo ? `[#${String(sNo).padStart(2, '0')}] ` : '';
                       return `<option value="${p.id}">${sNoPrefix}${p.name} (${p.category || 'All Rounder'}) - Base: ₹${p.basePrice || 300}</option>`;
@@ -2596,7 +2596,7 @@ let activeAuction = {
 export function openNextPlayerAuctionModal(remainingPlayers) {
   document.getElementById('next-player-modal')?.remove();
 
-  const validPlayers = (remainingPlayers || []).filter(p => (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED') && !p.teamId && p.auctionStatus !== 'SOLD' && !p.isIcon && !p.isIconPlayer);
+  const validPlayers = (remainingPlayers || []).filter(p => (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED') && !p.teamId && p.auctionStatus !== 'SOLD');
 
   const modalHtml = `
     <div id="next-player-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
@@ -2803,7 +2803,7 @@ export function renderActiveAuctionBlock() {
     if (window.lucide) window.lucide.createIcons();
 
     document.getElementById('quick-open-next-player-btn')?.addEventListener('click', () => {
-      const remainingUnsold = store.getPlayers().filter(pl => (pl.registrationStatus === 'APPROVED' || pl.paymentStatus === 'APPROVED') && !pl.teamId && pl.auctionStatus !== 'SOLD' && !pl.isIcon && !pl.isIconPlayer);
+      const remainingUnsold = store.getPlayers().filter(pl => (pl.registrationStatus === 'APPROVED' || pl.paymentStatus === 'APPROVED') && !pl.teamId && pl.auctionStatus !== 'SOLD');
       openNextPlayerAuctionModal(remainingUnsold);
     });
     return;
@@ -3127,7 +3127,7 @@ export function renderActiveAuctionBlock() {
     // 3. Keep SOLD stamp visible continuously on screen until admin selects the next player
     setTimeout(() => {
       // Check remaining players and auto-open selector modal for admin convenience
-      const remainingUnsold = store.getPlayers().filter(pl => (pl.registrationStatus === 'APPROVED' || pl.paymentStatus === 'APPROVED') && !pl.teamId && pl.auctionStatus !== 'SOLD' && pl.auctionStatus !== 'UNSOLD' && !pl.isIcon && !pl.isIconPlayer);
+      const remainingUnsold = store.getPlayers().filter(pl => (pl.registrationStatus === 'APPROVED' || pl.paymentStatus === 'APPROVED') && !pl.teamId && pl.auctionStatus !== 'SOLD' && pl.auctionStatus !== 'UNSOLD');
       if (remainingUnsold.length > 0) {
         openNextPlayerAuctionModal(remainingUnsold);
       } else {
@@ -3165,7 +3165,7 @@ export function renderActiveAuctionBlock() {
 
       // 3. Keep UNSOLD stamp visible continuously on screen until admin selects the next player
       setTimeout(() => {
-        const remainingUnsold = store.getPlayers().filter(pl => (pl.registrationStatus === 'APPROVED' || pl.paymentStatus === 'APPROVED') && !pl.teamId && pl.auctionStatus !== 'SOLD' && pl.auctionStatus !== 'UNSOLD' && !pl.isIcon && !pl.isIconPlayer);
+        const remainingUnsold = store.getPlayers().filter(pl => (pl.registrationStatus === 'APPROVED' || pl.paymentStatus === 'APPROVED') && !pl.teamId && pl.auctionStatus !== 'SOLD' && pl.auctionStatus !== 'UNSOLD');
         if (remainingUnsold.length > 0) {
           openNextPlayerAuctionModal(remainingUnsold);
         }
