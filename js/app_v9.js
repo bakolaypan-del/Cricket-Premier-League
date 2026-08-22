@@ -1977,8 +1977,10 @@ function openRegisteredPlayersModal(allPlayers = store.getPlayers()) {
       const fatherName = (p.fatherName || '').toLowerCase();
       const regId = (p.registrationId || p.regNo || '').toLowerCase();
       const serialNo = String(p.displayRegistrationNumber || p.serialNo || '');
-      const category = pCat.toLowerCase();
-      const phone = (p.phone || '').toLowerCase();
+      const category = (p.category || p.role || p.playingType || '').toLowerCase();
+      const phone = (p.phone || p.mobile || '').toLowerCase();
+      const cleanPhone = (p.phone || p.mobile || '').replace(/[^0-9]/g, '');
+      const cleanQueryPhone = query.replace(/[^0-9]/g, '');
       const altPhone = (p.alternateMobile || '').toLowerCase();
       const village = (p.village || '').toLowerCase();
       const district = (p.district || '').toLowerCase();
@@ -1994,6 +1996,7 @@ function openRegisteredPlayersModal(allPlayers = store.getPlayers()) {
              serialNo.includes(query) ||
              category.includes(query) ||
              phone.includes(query) ||
+             (cleanQueryPhone && cleanPhone.includes(cleanQueryPhone)) ||
              altPhone.includes(query) ||
              village.includes(query) ||
              district.includes(query) ||
@@ -4258,9 +4261,12 @@ function renderLiveAuctionView(container) {
           const playerPhoto = getOptimizedImageUrl(state.photoUrl, 600, 600) || 'assets/card_jsl_user.png';
 
           activeBlockWrapper.innerHTML = `
-            <div class="relative rounded-2xl overflow-hidden shadow-2xl border-2 ${isUnsoldState ? 'border-rose-500' : 'border-slate-200'} min-h-[380px] sm:min-h-[420px] flex flex-col justify-between p-4 sm:p-5 bg-slate-100 animate-fade-in">
-              <img src="${playerPhoto}" class="absolute inset-0 w-full h-full object-cover object-top" alt="${state.name}" onerror="this.src='assets/card_jsl_user.png'" />
-              <div class="absolute inset-0 bg-gradient-to-b from-white/50 via-transparent to-slate-900/40 pointer-events-none"></div>
+            <div class="relative rounded-3xl overflow-hidden shadow-2xl border-2 ${isUnsoldState ? 'border-rose-500' : 'border-emerald-500/40'} min-h-[460px] sm:min-h-[540px] md:min-h-[580px] max-w-2xl mx-auto flex flex-col justify-between p-3 sm:p-4 bg-slate-950 animate-fade-in">
+              <!-- Background blurred atmosphere for wide desktop screens -->
+              <img src="${playerPhoto}" class="absolute inset-0 w-full h-full object-cover blur-xl opacity-30 pointer-events-none" alt="" />
+              <!-- Full Uncropped Player Photo -->
+              <img src="${playerPhoto}" class="absolute inset-0 w-full h-full object-cover sm:object-contain object-top" alt="${state.name}" onerror="this.src='assets/card_jsl_user.png'" />
+              <div class="absolute inset-0 bg-gradient-to-b from-black/70 via-transparent to-black/90 pointer-events-none"></div>
 
               ${isUnsoldState ? `
                 <!-- 🔴 LARGE RED UNSOLD STAMP OVERLAY -->
@@ -4271,53 +4277,62 @@ function renderLiveAuctionView(container) {
                 </div>
               ` : ''}
 
-              <div class="relative z-10 flex justify-between items-center">
-                <span class="px-3 py-1 ${isUnsoldState ? 'bg-rose-600 text-white' : 'bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950'} font-black text-[10px] rounded-full uppercase tracking-wider shadow-md flex items-center gap-1.5 border border-white/60">
-                  <span class="w-2 h-2 ${isUnsoldState ? 'bg-white' : 'bg-rose-600'} rounded-full animate-ping"></span> ${isUnsoldState ? 'PASSED FOR ROUND 1' : 'LIVE AUCTION'}
+              <!-- TOP ROW: Upper Left Live Auction (Green) & Upper Right JSL Serial (Red Box) -->
+              <div class="relative z-10 flex justify-between items-center w-full">
+                <!-- Most Upper Left: Vibrant Green Live Auction Badge -->
+                <span class="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 text-white font-black text-xs rounded-full border-2 border-emerald-400 shadow-lg tracking-wide">
+                  <span class="relative flex h-2.5 w-2.5">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-white"></span>
+                  </span>
+                  ${isUnsoldState ? 'ROUND 1 PASSED' : 'LIVE AUCTION'}
                 </span>
-                <span class="px-3 py-1 bg-white/95 backdrop-blur-md text-slate-900 border border-slate-200 rounded-full text-xs font-mono font-black shadow-sm">
-                  ${state.registrationId || 'JSL 2026'}
+                
+                <!-- Most Upper Right: Red Box with Full JSL Serial ID -->
+                <span class="px-3.5 py-1.5 bg-red-600 text-white font-black font-mono text-xs sm:text-sm rounded-xl border-2 border-red-400 shadow-lg tracking-wider">
+                  ${state.registrationId || state.regNo || ('JSL2026-' + String(state.displayRegistrationNumber || state.serialNo || 1).padStart(4, '0'))}
                 </span>
               </div>
 
-              <div class="relative z-10 space-y-2 mt-auto mb-3">
-                <div class="inline-block p-3 sm:p-4 bg-white/95 backdrop-blur-md rounded-2xl border border-white/80 shadow-lg max-w-full">
-                  <div class="flex flex-wrap items-center gap-1.5 mb-1">
-                    <span class="px-2.5 py-0.5 bg-emerald-600 text-white font-extrabold text-[10px] sm:text-[11px] rounded-md uppercase tracking-wider shadow-sm">
+              <!-- LOWEST PORTION: Compact Player Details Box & Bid Shape -->
+              <div class="relative z-10 mt-auto space-y-2">
+                
+                <!-- Compact Details Box -->
+                <div class="p-2.5 sm:p-3 bg-white/95 backdrop-blur-md rounded-2xl border border-white/80 shadow-lg space-y-1">
+                  <div class="flex items-center justify-between gap-2">
+                    <h2 class="text-base sm:text-xl font-black text-slate-950 tracking-tight leading-tight truncate">
+                      ${state.name}
+                    </h2>
+                    <span class="px-2.5 py-0.5 bg-emerald-600 text-white font-extrabold text-[10px] sm:text-[11px] rounded-lg uppercase tracking-wider shrink-0 shadow-2xs">
                       🏏 ${state.category || 'All Rounder'}
                     </span>
-                    <span class="px-2.5 py-0.5 bg-blue-50 text-blue-800 font-bold text-[10px] rounded-md border border-blue-200">
-                      📍 ${state.village || 'Paschim Medinipur'}
+                  </div>
+
+                  <div class="flex items-center justify-between text-[10px] sm:text-[11px] text-slate-600 font-bold border-t border-slate-200/80 pt-1">
+                    <span class="truncate">📍 ${state.village || 'Paschim Medinipur'} • ${state.battingStyle || 'Right Hand Bat'}${state.bowlingStyle && state.bowlingStyle !== 'None' ? ' • ' + state.bowlingStyle : ''}</span>
+                    <span class="text-amber-700 font-extrabold shrink-0 ml-1">Base: ₹ ${state.basePrice || 300}</span>
+                  </div>
+                </div>
+
+                <!-- Bid Shape (Current Bid & Leading Bidder in the Lowest Portion) -->
+                <div class="grid grid-cols-2 gap-2 ${isUnsoldState ? 'bg-rose-950/95 border-2 border-rose-500' : 'bg-slate-950/95 border-2 border-amber-400'} backdrop-blur-xl p-2.5 sm:p-3 rounded-2xl shadow-2xl">
+                  <div>
+                    <span class="text-[8px] sm:text-[9px] font-extrabold ${isUnsoldState ? 'text-rose-300' : 'text-amber-300'} uppercase tracking-widest block">${isUnsoldState ? 'Auction Status' : 'CURRENT HIGH BID'}</span>
+                    <div id="auction-live-bid-display" class="text-lg sm:text-2xl font-black ${isUnsoldState ? 'text-rose-400' : 'text-amber-400'} font-mono leading-none mt-0.5">
+                      ${isUnsoldState ? '❌ UNSOLD' : '₹ ' + Number(state.current_bid || state.basePrice || 300).toLocaleString('en-IN')}
+                    </div>
+                  </div>
+                  <div class="text-right border-l border-slate-800 pl-2 flex flex-col justify-center">
+                    <span class="text-[8px] sm:text-[9px] font-extrabold text-slate-400 uppercase tracking-widest block">${isUnsoldState ? 'Round 2 Status' : 'LEADING BIDDER'}</span>
+                    <span id="auction-leading-bidder-display" class="text-xs sm:text-sm font-black text-white block mt-0.5 truncate">
+                      ${isUnsoldState ? 'Eligible for Re-Bid' : (bidderTeam ? '🛡️ ' + bidderTeam.name : 'No bids yet')}
+                    </span>
+                    <span id="auction-bid-tag-display" class="text-[8px] sm:text-[9px] font-bold ${isUnsoldState ? 'text-amber-400' : (bidderTeam ? 'text-emerald-400' : 'text-slate-400')}">
+                      ${isUnsoldState ? '⚡ Round 2 Pool' : (bidderTeam ? '🔥 Leading Offer' : 'Opening Bid')}
                     </span>
                   </div>
-                  <h2 class="text-xl sm:text-2xl font-black text-slate-950 tracking-tight leading-tight">
-                    ${state.name}
-                  </h2>
-                  <div class="text-[11px] text-slate-600 font-semibold flex flex-wrap items-center gap-2 mt-0.5">
-                    <span>${state.battingStyle || 'Right Hand Bat'}</span>
-                    ${state.bowlingStyle && state.bowlingStyle !== 'None' ? `<span>• ${state.bowlingStyle}</span>` : ''}
-                    <span class="text-amber-600 font-bold">• Base: ₹ ${state.basePrice || 300}</span>
-                  </div>
                 </div>
-              </div>
 
-              <div class="relative z-10 grid grid-cols-2 gap-3 ${isUnsoldState ? 'bg-rose-950/95 border-2 border-rose-500' : 'bg-slate-950/95 border-2 border-amber-400'} backdrop-blur-xl p-3.5 sm:p-4 rounded-2xl shadow-2xl">
-                <div>
-                  <span class="text-[9px] font-extrabold ${isUnsoldState ? 'text-rose-300' : 'text-amber-300'} uppercase tracking-widest block">${isUnsoldState ? 'Auction Status' : 'Current High Bid'}</span>
-                  <span id="auction-live-bid-display" class="text-xl sm:text-2xl font-black ${isUnsoldState ? 'text-rose-400' : 'text-amber-400'} font-mono">
-                    ${isUnsoldState ? '❌ UNSOLD' : '₹ ' + Number(state.current_bid || state.basePrice || 300).toLocaleString('en-IN')}
-                  </span>
-                  <span class="text-[9px] text-slate-400 block font-mono">Base Price: ₹ ${state.basePrice || 300}</span>
-                </div>
-                <div class="text-right border-l border-slate-800 pl-3 flex flex-col justify-center">
-                  <span class="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest block">${isUnsoldState ? 'Round 2 Status' : 'Leading Bidder'}</span>
-                  <span id="auction-leading-bidder-display" class="text-xs sm:text-sm font-black text-white block mt-0.5 truncate">
-                    ${isUnsoldState ? 'Eligible for Re-Bid' : (bidderTeam ? '🛡️ ' + bidderTeam.name : 'No bids yet')}
-                  </span>
-                  <span id="auction-bid-tag-display" class="text-[9px] font-bold ${isUnsoldState ? 'text-amber-400' : (bidderTeam ? 'text-emerald-400' : 'text-slate-400')}">
-                    ${isUnsoldState ? '⚡ Round 2 Pool' : (bidderTeam ? '🔥 Leading Offer' : 'Opening Bid')}
-                  </span>
-                </div>
               </div>
             </div>
           `;
@@ -4330,7 +4345,7 @@ function renderLiveAuctionView(container) {
           if (teamEl) teamEl.textContent = bidderTeam ? '🛡️ ' + bidderTeam.name : 'No bids yet';
           if (tagEl) {
             tagEl.textContent = bidderTeam ? '🔥 Leading Offer' : 'Opening Bid';
-            tagEl.className = `text-[9px] font-bold ${bidderTeam ? 'text-emerald-400' : 'text-slate-400'}`;
+            tagEl.className = `text-[8px] sm:text-[9px] font-bold ${bidderTeam ? 'text-emerald-400' : 'text-slate-400'}`;
           }
         }
       } else {

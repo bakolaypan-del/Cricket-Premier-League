@@ -1228,16 +1228,20 @@ export function renderAdminDashboard(containerEl) {
   if (adminSearchInput) {
     const filterAdminPlayers = () => {
       const query = adminSearchInput.value.toLowerCase().trim();
+      const cleanQPhone = query.replace(/[^0-9]/g, '');
       const allP = store.getPlayers();
-      const filtered = query ? allP.filter(p => 
-        (p.name || '').toLowerCase().includes(query) ||
-        (p.registrationId || p.regNo || '').toLowerCase().includes(query) ||
-        String(p.displayRegistrationNumber || p.serialNo || '').includes(query) ||
-        (p.fatherName || '').toLowerCase().includes(query) ||
-        (p.phone || '').toLowerCase().includes(query) ||
-        (p.category || p.playingType || '').toLowerCase().includes(query) ||
-        (p.village || p.district || '').toLowerCase().includes(query)
-      ) : allP;
+      const filtered = query ? allP.filter(p => {
+        const pCleanPhone = (p.phone || p.mobile || '').replace(/[^0-9]/g, '');
+        return (p.name || '').toLowerCase().includes(query) ||
+               (p.registrationId || p.regNo || '').toLowerCase().includes(query) ||
+               String(p.displayRegistrationNumber || p.serialNo || '').includes(query) ||
+               (p.fatherName || '').toLowerCase().includes(query) ||
+               (p.phone || p.mobile || '').toLowerCase().includes(query) ||
+               (cleanQPhone && pCleanPhone.includes(cleanQPhone)) ||
+               (p.category || p.playingType || '').toLowerCase().includes(query) ||
+               (p.village || p.district || '').toLowerCase().includes(query) ||
+               (p.paymentRef || p.remarks || '').toLowerCase().includes(query);
+      }) : allP;
 
       const tbody = document.getElementById('admin-all-players-table-body');
       if (tbody) tbody.innerHTML = renderAdminPlayersRows(filtered);
@@ -2780,7 +2784,22 @@ export function renderActiveAuctionBlock() {
   container.innerHTML = `
     <div class="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-4">
       
-      <!-- Top Bar: Player Info & Big Timer -->
+      <!-- Top Badges Row: Green Live Auction Badge & Red JSL Serial Number Box -->
+      <div class="flex items-center justify-between gap-2 pb-2 border-b border-slate-800">
+        <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-600 text-white font-black text-xs rounded-full border-2 border-emerald-400 shadow-md">
+          <span class="relative flex h-2 w-2">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+          </span>
+          LIVE AUCTION
+        </span>
+
+        <span class="px-3 py-1 bg-red-600 text-white font-black font-mono text-xs rounded-xl border-2 border-red-400 shadow-md">
+          ${p.registrationId || p.regNo || ('JSL2026-' + String(p.displayRegistrationNumber || p.serialNo || 1).padStart(4, '0'))}
+        </span>
+      </div>
+
+      <!-- Player Info & Big Timer -->
       <div class="flex items-center justify-between gap-3 border-b border-slate-800 pb-3">
         <div class="flex items-center gap-3">
           <img src="${getOptimizedImageUrl(p.photoUrl || p.player_photo_url, 120, 120)}" class="w-12 h-12 rounded-xl object-cover border border-amber-500/50 shadow" onerror="this.src='assets/card_jsl_user.png'" />
@@ -3110,9 +3129,18 @@ export function openAuctionProjectorModal() {
       <div class="grid grid-cols-1 md:grid-cols-12 gap-6 my-auto items-center">
         
         <!-- Left: Player HD Portrait Card (5 Cols) -->
-        <div class="md:col-span-5 flex flex-col items-center justify-center text-center p-6 bg-gradient-to-b from-slate-900 via-slate-900/90 to-slate-950 rounded-3xl border-2 border-amber-500/60 shadow-2xl relative overflow-hidden">
-          <div class="absolute top-3 left-3 px-3 py-1 bg-amber-500 text-slate-950 font-black text-xs rounded-full uppercase">
-            ${p ? p.registrationId || 'LOT #1' : 'READY'}
+        <div class="md:col-span-5 flex flex-col items-center justify-center text-center p-6 bg-gradient-to-b from-slate-900 via-slate-900/90 to-slate-950 rounded-3xl border-2 border-emerald-500/50 shadow-2xl relative overflow-hidden">
+          <div class="w-full flex items-center justify-between gap-2 mb-2">
+            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 text-white font-black text-xs rounded-full border-2 border-emerald-400 shadow-lg">
+              <span class="relative flex h-2 w-2">
+                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                <span class="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+              </span>
+              LIVE AUCTION
+            </span>
+            <span class="px-3 py-1.5 bg-red-600 text-white font-black font-mono text-xs sm:text-sm rounded-xl border-2 border-red-400 shadow-lg">
+              ${p ? (p.registrationId || p.regNo || ('JSL2026-' + String(p.displayRegistrationNumber || p.serialNo || 1).padStart(4, '0'))) : 'READY'}
+            </span>
           </div>
           <img id="proj-player-img" src="${pPhoto}" class="w-48 h-48 sm:w-64 sm:h-64 object-cover rounded-3xl border-4 border-white shadow-2xl my-3" onerror="this.src='assets/card_jsl_user.png'" />
           <h1 id="proj-player-name" class="text-2xl sm:text-4xl font-black text-white tracking-wide">${pName}</h1>
