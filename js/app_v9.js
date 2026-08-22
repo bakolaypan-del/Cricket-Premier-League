@@ -1,10 +1,10 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=10.5.5';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, printDigitalPass, openUserGuidePDF } from './export.js?v=10.5.5';
-import { renderAdminDashboard } from './admin.js?v=10.5.5';
-import { uploadHDImage, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats } from './supabase.js?v=10.5.5';
-import { shops } from './shopsData.js?v=10.5.5';
+import { store } from './store.js?v=10.6.0';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, printDigitalPass, openUserGuidePDF } from './export.js?v=10.6.0';
+import { renderAdminDashboard } from './admin.js?v=10.6.0';
+import { uploadHDImage, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats } from './supabase.js?v=10.6.0';
+import { shops } from './shopsData.js?v=10.6.0';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
 let latestVisitorStats = { liveCount: 1, totalVisits: 1524 };
@@ -3999,10 +3999,10 @@ function renderLiveAuctionView(container) {
       }
     }
 
-    // FRANCHISE PURSES RENDERING (COMPACT, HIGH CONTRAST DARK TEXT, SQUAD X/13)
+        // FRANCHISE PURSES RENDERING (PREMIUM SHADOWED BORDER, CLICKABLE SQUAD MODAL)
     if (pursesWrapper) {
       pursesWrapper.innerHTML = teams.map(t => {
-        const hasIcon = !!(t.iconPlayerName || t.iconName);
+        const hasIcon = !!((t.iconPlayerName && t.iconPlayerName.trim()) || (t.iconName && t.iconName.trim()));
         const iconDeduction = hasIcon ? 1000 : 0;
         const totalPurse = Number(t.purseBudget || t.purse || 8000);
         const purchasedPlayers = allPlayers.filter(p => p.teamId === t.id && (p.auctionStatus === 'SOLD' || p.paymentStatus === 'APPROVED'));
@@ -4014,32 +4014,52 @@ function renderLiveAuctionView(container) {
         const ratio = Math.min(100, Math.max(0, (left / totalPurse) * 100));
 
         return `
-          <div class="p-2.5 sm:p-3 bg-white border border-slate-200 rounded-xl shadow-sm hover:border-slate-300 transition-all flex flex-col justify-between gap-1.5">
+          <div data-team-id="${t.id}" class="franchise-purse-card p-3 sm:p-3.5 bg-white border-2 border-slate-200/90 hover:border-amber-400/90 rounded-2xl shadow-md hover:shadow-xl transition-all duration-300 flex flex-col justify-between gap-2 cursor-pointer transform hover:-translate-y-0.5 active:scale-[0.98] group">
             <div class="flex justify-between items-center gap-2">
-              <span class="font-extrabold text-slate-900 text-xs sm:text-sm truncate" title="${t.name}">${t.name}</span>
-              <span class="px-2 py-0.5 bg-slate-100 text-slate-700 font-mono font-bold text-[10px] rounded border border-slate-200 flex-shrink-0">
+              <div class="flex items-center gap-2 min-w-0">
+                <img src="${t.logoUrl || t.teamLogoUrl || 'assets/card_jsl_user.png'}" class="w-6 h-6 rounded-lg object-cover border border-slate-200 shrink-0 group-hover:border-amber-400 transition-colors" onerror="this.src='assets/card_jsl_user.png'" />
+                <span class="font-black text-slate-900 text-xs sm:text-sm truncate group-hover:text-amber-800 transition-colors" title="${t.name}">${t.name}</span>
+              </div>
+              <span class="px-2 py-0.5 bg-slate-100 text-slate-700 font-mono font-black text-[10px] rounded-lg border border-slate-200 flex-shrink-0 shadow-2xs">
                 Squad: <strong class="text-teal-700 font-black">${squadCount}/${totalRequired}</strong>
               </span>
             </div>
             
             ${hasIcon ? `
-              <div class="text-[10px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-bold flex items-center justify-between">
-                <span>⭐ Icon: ${t.iconPlayerName || t.iconName}</span>
-                <span class="text-slate-500 font-mono text-[9px] font-semibold">-₹1,000</span>
+              <div class="text-[10px] text-amber-900 bg-amber-50 px-2.5 py-1 rounded-xl border border-amber-200/80 font-bold flex items-center justify-between">
+                <span class="truncate">⭐ Icon: ${t.iconPlayerName || t.iconName}</span>
+                <span class="text-amber-700 font-mono text-[9px] font-black shrink-0">-₹1,000</span>
               </div>
             ` : ''}
 
-            <div class="flex justify-between items-center text-xs">
-              <span class="text-[11px] font-semibold text-slate-500">Purse Left:</span>
-              <span class="font-black text-emerald-700">₹ ${Number(left).toLocaleString('en-IN')} <span class="text-[10px] text-slate-400 font-normal">/ ₹${Number(totalPurse).toLocaleString('en-IN')}</span></span>
+            <div class="flex justify-between items-center text-xs pt-0.5">
+              <span class="text-[11px] font-bold text-slate-500">Purse Left:</span>
+              <span class="font-black text-emerald-700 font-mono">₹ ${Number(left).toLocaleString('en-IN')} <span class="text-[10px] text-slate-400 font-normal">/ ₹${Number(totalPurse).toLocaleString('en-IN')}</span></span>
             </div>
 
             <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden border border-slate-200">
               <div class="bg-gradient-to-r from-teal-500 to-emerald-600 h-full rounded-full transition-all duration-500" style="width: ${ratio}%"></div>
             </div>
+
+            <div class="flex items-center justify-between text-[10px] text-slate-400 font-bold pt-1 border-t border-slate-100 group-hover:text-amber-700 transition-colors">
+              <span class="flex items-center gap-1">
+                <i data-lucide="users" class="w-3 h-3 text-amber-500"></i> View Purchased Squad (${purchasedPlayers.length}${hasIcon ? ' + Icon' : ''})
+              </span>
+              <span class="text-amber-600 font-black">➔</span>
+            </div>
           </div>
         `;
       }).join('');
+
+      // Attach click listeners to all franchise purse cards
+      pursesWrapper.querySelectorAll('.franchise-purse-card').forEach(card => {
+        card.addEventListener('click', (e) => {
+          const teamId = e.currentTarget.getAttribute('data-team-id');
+          if (teamId) {
+            openTeamPurchasedSquadModal(teamId);
+          }
+        });
+      });
     }
   };
 
@@ -4048,6 +4068,153 @@ function renderLiveAuctionView(container) {
   const unsubLiveAuction = store.subscribe('live_auction_updated', () => {
     if (currentRoute === 'auction') {
       pollActiveAuctionState();
+    }
+  });
+}
+
+
+// --- FRANCHISE SQUAD & PURCHASED PLAYERS MODAL ---
+export function openTeamPurchasedSquadModal(teamId) {
+  document.getElementById('team-squad-modal')?.remove();
+
+  const team = store.getTeamById(teamId);
+  if (!team) return;
+
+  const allPlayers = store.getPlayers();
+  const hasIcon = !!((team.iconPlayerName && team.iconPlayerName.trim()) || (team.iconName && team.iconName.trim()));
+  const iconName = team.iconPlayerName || team.iconName;
+  const iconDeduction = hasIcon ? 1000 : 0;
+
+  // Find purchased players
+  const purchasedPlayers = allPlayers.filter(p => p.teamId === team.id && (p.auctionStatus === 'SOLD' || p.paymentStatus === 'APPROVED'));
+  const auctionSpent = purchasedPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || 0), 0);
+  const totalPurse = Number(team.purseBudget || team.purse || 8000);
+  const totalSpent = iconDeduction + auctionSpent;
+  const remainingPurse = Math.max(0, totalPurse - totalSpent);
+  const squadCount = (hasIcon ? 1 : 0) + purchasedPlayers.length;
+
+  const modalHtml = `
+    <div id="team-squad-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
+      <div class="relative w-full max-w-xl bg-white text-slate-900 rounded-3xl shadow-2xl border border-slate-200 p-5 sm:p-6 max-h-[88vh] flex flex-col">
+        
+        <!-- Header -->
+        <div class="flex justify-between items-start pb-3.5 border-b border-slate-100">
+          <div class="flex items-center gap-3">
+            <img src="${team.logoUrl || team.teamLogoUrl || 'assets/card_jsl_user.png'}" class="w-12 h-12 rounded-2xl object-cover border-2 border-amber-400 shadow-md shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+            <div>
+              <div class="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded-full text-[9px] font-black uppercase tracking-wider">
+                🛡️ Franchise Squad
+              </div>
+              <h3 class="text-base sm:text-lg font-black text-slate-900 leading-tight mt-0.5">${team.name}</h3>
+              <p class="text-[11px] text-slate-500 font-bold">Owner: <span class="text-slate-800">${team.ownerName || 'Franchise Owner'}</span></p>
+            </div>
+          </div>
+          <button id="close-team-squad-modal-btn" class="p-1.5 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-all cursor-pointer">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+
+        <!-- Budget & Squad Statistics Ribbon -->
+        <div class="grid grid-cols-3 gap-2 my-3.5">
+          <div class="p-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-center shadow-2xs">
+            <div class="text-[9px] font-black text-slate-500 uppercase tracking-wider">Squad Count</div>
+            <div class="text-sm sm:text-base font-black text-teal-700 font-mono mt-0.5">${squadCount} / 13</div>
+          </div>
+          <div class="p-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-center shadow-2xs">
+            <div class="text-[9px] font-black text-slate-500 uppercase tracking-wider">Purse Spent</div>
+            <div class="text-sm sm:text-base font-black text-rose-600 font-mono mt-0.5">₹${Number(totalSpent).toLocaleString('en-IN')}</div>
+          </div>
+          <div class="p-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-center shadow-2xs">
+            <div class="text-[9px] font-black text-slate-500 uppercase tracking-wider">Purse Left</div>
+            <div class="text-sm sm:text-base font-black text-emerald-700 font-mono mt-0.5">₹${Number(remainingPurse).toLocaleString('en-IN')}</div>
+          </div>
+        </div>
+
+        <!-- Player List Header -->
+        <div class="flex justify-between items-center px-1 mb-2">
+          <h4 class="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+            <span>👥 Purchased Squad</span>
+            <span class="px-2 py-0.5 bg-slate-100 text-slate-700 font-mono text-[10px] rounded-full font-bold">${squadCount} Players</span>
+          </h4>
+          <span class="text-[10px] font-bold text-slate-400">Total Budget: ₹${Number(totalPurse).toLocaleString('en-IN')}</span>
+        </div>
+
+        <!-- Scrollable Player List -->
+        <div class="flex-1 overflow-y-auto space-y-2 pr-1">
+          ${hasIcon ? `
+            <!-- Icon Player Card -->
+            <div class="p-3 bg-gradient-to-r from-amber-50 to-orange-50/60 border-2 border-amber-300/80 rounded-2xl flex items-center justify-between gap-3 shadow-xs">
+              <div class="flex items-center gap-3 min-w-0">
+                <div class="w-11 h-11 rounded-xl bg-amber-400/20 border border-amber-400/60 flex items-center justify-center text-xl shrink-0">
+                  ⭐
+                </div>
+                <div class="min-w-0">
+                  <div class="flex items-center gap-1.5">
+                    <span class="font-black text-sm text-slate-900 truncate">${iconName}</span>
+                    <span class="px-1.5 py-0.5 bg-amber-200 text-amber-900 font-black text-[9px] rounded uppercase tracking-wider">ICON</span>
+                  </div>
+                  <div class="text-[11px] text-amber-800 font-bold">
+                    Official Franchise Icon Player
+                  </div>
+                </div>
+              </div>
+              <div class="text-right shrink-0">
+                <div class="text-[9px] font-black text-slate-400 uppercase tracking-wider">Icon Fee</div>
+                <div class="text-xs sm:text-sm font-black text-amber-700 font-mono">₹ 1,000</div>
+              </div>
+            </div>
+          ` : ''}
+
+          ${purchasedPlayers.length > 0 ? purchasedPlayers.map((p, idx) => `
+            <div class="p-3 bg-white border border-slate-200 rounded-2xl flex items-center justify-between gap-3 shadow-xs hover:border-slate-300 transition-all">
+              <div class="flex items-center gap-3 min-w-0">
+                <img src="${getOptimizedImageUrl(p.photoUrl || p.player_photo_url, 80, 80)}" class="w-11 h-11 rounded-xl object-cover border border-slate-200 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                <div class="min-w-0">
+                  <div class="font-black text-sm text-slate-900 truncate">${p.name}</div>
+                  <div class="text-[11px] text-slate-500 font-bold flex items-center gap-1.5 flex-wrap">
+                    <span class="text-teal-700">🏏 ${p.category || 'All Rounder'}</span>
+                    <span>•</span>
+                    <span>📍 ${p.village || 'Paschim Medinipur'}</span>
+                  </div>
+                </div>
+              </div>
+              <div class="text-right shrink-0">
+                <div class="text-[9px] font-black text-slate-400 uppercase tracking-wider">Sold Price</div>
+                <div class="text-xs sm:text-sm font-black text-emerald-700 font-mono">₹ ${Number(p.soldPrice || p.basePrice || 300).toLocaleString('en-IN')}</div>
+              </div>
+            </div>
+          `).join('') : (!hasIcon ? `
+            <div class="p-8 text-center bg-slate-50 border border-dashed border-slate-200 rounded-2xl space-y-2">
+              <div class="text-3xl">🏏</div>
+              <div class="text-xs sm:text-sm font-black text-slate-700">No Players Purchased Yet</div>
+              <p class="text-[11px] text-slate-400 max-w-xs mx-auto">Players bought by ${team.name} during the live auction will appear here with their final auction prices.</p>
+            </div>
+          ` : '')}
+        </div>
+
+        <!-- Footer -->
+        <div class="pt-3 border-t border-slate-100 mt-3 text-center">
+          <button id="dismiss-team-squad-btn" class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl shadow-md transition-all cursor-pointer">
+            Close Squad Window
+          </button>
+        </div>
+
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  if (window.lucide) window.lucide.createIcons();
+
+  document.getElementById('close-team-squad-modal-btn')?.addEventListener('click', () => {
+    document.getElementById('team-squad-modal')?.remove();
+  });
+  document.getElementById('dismiss-team-squad-btn')?.addEventListener('click', () => {
+    document.getElementById('team-squad-modal')?.remove();
+  });
+  document.getElementById('team-squad-modal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'team-squad-modal') {
+      document.getElementById('team-squad-modal')?.remove();
     }
   });
 }
