@@ -4283,18 +4283,57 @@ function renderLiveAuctionView(container) {
               <img src="${playerPhoto}" class="absolute inset-0 w-full h-full object-cover sm:object-contain object-top" alt="${state.name}" onerror="this.src='assets/card_jsl_user.png'" />
 
               ${isSoldState ? `
-                <!-- 🔴 LARGE BOLD RED SOLD STAMP OVERLAY -->
-                <div class="absolute inset-0 z-30 flex items-center justify-center pointer-events-none bg-slate-950/40 backdrop-blur-[1px]">
-                  <div class="px-6 sm:px-10 py-3 sm:py-4 bg-red-600/95 text-white font-black text-2xl sm:text-4xl uppercase tracking-widest border-4 border-white shadow-2xl rounded-2xl rotate-[-12deg] animate-pulse text-center">
-                    🔨 SOLD<br><span class="text-xs sm:text-base tracking-normal">₹ ${Number(state.sold_price || state.current_bid || 300).toLocaleString('en-IN')} ${bidderTeam ? '• ' + bidderTeam.name : ''}</span>
-                  </div>
+                <!-- 🟢 VINTAGE GREEN RUBBER STAMP FOR SOLD -->
+                <div class="absolute inset-0 z-30 flex items-center justify-center pointer-events-none bg-slate-950/20">
+                  <svg viewBox="0 0 300 300" class="w-60 h-60 sm:w-80 sm:h-80 stamp-slam-animate select-none drop-shadow-2xl" xmlns="http://www.w3.org/2000/svg">
+                    <g transform="rotate(-13 150 150)">
+                      <circle cx="150" cy="150" r="140" fill="none" stroke="#059669" stroke-width="7" stroke-dasharray="20 4 15 3 25 5" />
+                      <circle cx="150" cy="150" r="128" fill="none" stroke="#059669" stroke-width="2.5" />
+                      <path id="sold-arc-top-v9" d="M 35,150 A 115,115 0 0,1 265,150" fill="none" />
+                      <text fill="#059669" font-size="22" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="6">
+                        <textPath href="#sold-arc-top-v9" startOffset="50%" text-anchor="middle">JSL 2026 AUCTION</textPath>
+                      </text>
+                      <text x="105" y="94" fill="#059669" font-size="20" text-anchor="middle">★</text>
+                      <text x="150" y="82" fill="#059669" font-size="28" text-anchor="middle">★</text>
+                      <text x="195" y="94" fill="#059669" font-size="20" text-anchor="middle">★</text>
+                      <text x="105" y="222" fill="#059669" font-size="20" text-anchor="middle">★</text>
+                      <text x="150" y="234" fill="#059669" font-size="28" text-anchor="middle">★</text>
+                      <text x="195" y="222" fill="#059669" font-size="20" text-anchor="middle">★</text>
+                      <path id="sold-arc-bottom-v9" d="M 265,150 A 115,115 0 0,1 35,150" fill="none" />
+                      <text fill="#059669" font-size="20" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="6">
+                        <textPath href="#sold-arc-bottom-v9" startOffset="50%" text-anchor="middle">OFFICIALLY SIGNED</textPath>
+                      </text>
+                      <rect x="5" y="106" width="290" height="88" rx="16" fill="#059669" stroke="#ffffff" stroke-width="4" />
+                      <text x="150" y="152" fill="#ffffff" font-size="46" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="8" text-anchor="middle">SOLD</text>
+                      <text x="150" y="178" fill="#fef08a" font-size="14" font-weight="900" font-family="'Arial', sans-serif" text-anchor="middle">${bidderTeam ? bidderTeam.name + ' • ' : ''}₹ ${Number(state.sold_price || state.current_bid || 300).toLocaleString('en-IN')}</text>
+                    </g>
+                  </svg>
                 </div>
               ` : isUnsoldState ? `
-                <!-- 🔴 LARGE RED UNSOLD STAMP OVERLAY -->
-                <div class="absolute inset-0 z-30 flex items-center justify-center pointer-events-none bg-slate-950/40 backdrop-blur-[1px]">
-                  <div class="px-6 sm:px-10 py-3 sm:py-4 bg-rose-600/95 text-white font-black text-2xl sm:text-4xl uppercase tracking-widest border-4 border-white shadow-2xl rounded-2xl rotate-[-12deg] animate-pulse">
-                    ❌ UNSOLD (ROUND 1)
-                  </div>
+                <!-- 🔴 VINTAGE RED RUBBER STAMP FOR UNSOLD (EXACT MATCH TO REFERENCE) -->
+                <div class="absolute inset-0 z-30 flex items-center justify-center pointer-events-none bg-slate-950/20">
+                  <svg viewBox="0 0 300 300" class="w-60 h-60 sm:w-80 sm:h-80 stamp-slam-animate select-none drop-shadow-2xl" xmlns="http://www.w3.org/2000/svg">
+                    <g transform="rotate(-15 150 150)">
+                      <circle cx="150" cy="150" r="140" fill="none" stroke="#C5221F" stroke-width="7" stroke-dasharray="18 4 12 3 24 5" />
+                      <circle cx="150" cy="150" r="128" fill="none" stroke="#C5221F" stroke-width="2.5" />
+                      <path id="unsold-arc-top-v9" d="M 35,150 A 115,115 0 0,1 265,150" fill="none" />
+                      <text fill="#C5221F" font-size="28" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="14">
+                        <textPath href="#unsold-arc-top-v9" startOffset="50%" text-anchor="middle">UNSOLD</textPath>
+                      </text>
+                      <text x="105" y="94" fill="#C5221F" font-size="20" text-anchor="middle">★</text>
+                      <text x="150" y="82" fill="#C5221F" font-size="28" text-anchor="middle">★</text>
+                      <text x="195" y="94" fill="#C5221F" font-size="20" text-anchor="middle">★</text>
+                      <text x="105" y="222" fill="#C5221F" font-size="20" text-anchor="middle">★</text>
+                      <text x="150" y="234" fill="#C5221F" font-size="28" text-anchor="middle">★</text>
+                      <text x="195" y="222" fill="#C5221F" font-size="20" text-anchor="middle">★</text>
+                      <path id="unsold-arc-bottom-v9" d="M 265,150 A 115,115 0 0,1 35,150" fill="none" />
+                      <text fill="#C5221F" font-size="24" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="12">
+                        <textPath href="#unsold-arc-bottom-v9" startOffset="50%" text-anchor="middle">UNSOLD</textPath>
+                      </text>
+                      <rect x="5" y="110" width="290" height="80" rx="16" fill="#C5221F" stroke="#ffffff" stroke-width="4" />
+                      <text x="150" y="167" fill="#ffffff" font-size="52" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="6" text-anchor="middle">UNSOLD</text>
+                    </g>
+                  </svg>
                 </div>
               ` : ''}
 
