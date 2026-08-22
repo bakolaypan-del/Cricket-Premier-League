@@ -1,12 +1,13 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=10.3.0';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, printDigitalPass, openUserGuidePDF } from './export.js?v=10.3.0';
-import { renderAdminDashboard } from './admin.js?v=10.3.0';
-import { uploadHDImage, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, getOptimizedImageUrl } from './supabase.js?v=10.3.0';
-import { shops } from './shopsData.js?v=10.3.0';
+import { store } from './store.js?v=10.4.0';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, printDigitalPass, openUserGuidePDF } from './export.js?v=10.4.0';
+import { renderAdminDashboard } from './admin.js?v=10.4.0';
+import { uploadHDImage, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats } from './supabase.js?v=10.4.0';
+import { shops } from './shopsData.js?v=10.4.0';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
+let latestVisitorStats = { liveCount: 1, totalVisits: 1524 };
 
 // PWA Deferred Prompt Capture
 let deferredPrompt = null;
@@ -115,6 +116,15 @@ function initIntroLoadingScreen() {
 }
 
 function initApp() {
+  // Initialize Real-time Live & Total Visitor Tracking
+  initVisitorTracking((stats) => {
+    latestVisitorStats = stats;
+    const liveEl = document.getElementById('live-visitors-count');
+    const totalEl = document.getElementById('total-visitors-count');
+    if (liveEl) liveEl.textContent = stats.liveCount;
+    if (totalEl) totalEl.textContent = Number(stats.totalVisits).toLocaleString('en-IN');
+  });
+
   renderNavbar();
   renderMobileBottomNav();
   renderFooter();
@@ -152,6 +162,8 @@ function initApp() {
     safeRenderCurrentView();
   });
 }
+
+let auctionPollInterval = null;
 
 function navigate(route, pushState = true) {
   if (auctionPollInterval) {
@@ -1084,6 +1096,43 @@ function renderFirstPageLanding(containerEl) {
   containerEl.innerHTML = `
     <div class="w-full max-w-5xl mx-auto space-y-4 sm:space-y-6 animate-fade-in py-2 sm:py-4 text-slate-900">
       
+      <!-- 👥 REALTIME LIVE & TOTAL VISITOR TRAFFIC METRICS BAR -->
+      <div class="w-full max-w-3xl mx-auto bg-gradient-to-r from-slate-900 via-slate-950 to-slate-900 border border-slate-800 rounded-2xl p-2.5 sm:p-3.5 shadow-xl flex items-center justify-around gap-2 text-white animate-fade-in">
+        <!-- Live Online Visitors -->
+        <div class="flex items-center gap-2 sm:gap-2.5">
+          <span class="relative flex h-3 w-3 shrink-0">
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 shadow-sm"></span>
+          </span>
+          <div>
+            <div class="text-[9px] sm:text-[10px] font-black text-emerald-400 uppercase tracking-wider leading-tight">Live Online</div>
+            <div id="live-visitors-count" class="text-sm sm:text-lg font-black text-white font-mono leading-none mt-0.5">${latestVisitorStats.liveCount}</div>
+          </div>
+        </div>
+
+        <div class="h-7 sm:h-8 w-px bg-slate-800"></div>
+
+        <!-- Total Site Visitors -->
+        <div class="flex items-center gap-2 sm:gap-2.5">
+          <span class="p-1.5 bg-amber-500/20 text-amber-400 rounded-xl text-xs sm:text-sm border border-amber-500/30">👥</span>
+          <div>
+            <div class="text-[9px] sm:text-[10px] font-black text-amber-400 uppercase tracking-wider leading-tight">Total Visitors</div>
+            <div id="total-visitors-count" class="text-sm sm:text-lg font-black text-white font-mono leading-none mt-0.5">${Number(latestVisitorStats.totalVisits).toLocaleString('en-IN')}</div>
+          </div>
+        </div>
+
+        <div class="h-7 sm:h-8 w-px bg-slate-800"></div>
+
+        <!-- Total Registered Players -->
+        <div class="flex items-center gap-2 sm:gap-2.5">
+          <span class="p-1.5 bg-blue-500/20 text-blue-400 rounded-xl text-xs sm:text-sm border border-blue-500/30">🏏</span>
+          <div>
+            <div class="text-[9px] sm:text-[10px] font-black text-blue-400 uppercase tracking-wider leading-tight">Registered</div>
+            <div class="text-sm sm:text-lg font-black text-white font-mono leading-none mt-0.5">${players.length}</div>
+          </div>
+        </div>
+      </div>
+
       <!-- ⏳ LIVE TOURNAMENT COUNTDOWN TIMER (COMPACT & MOBILE-OPTIMIZED) -->
       <div id="tournament-countdown-card" class="w-full max-w-3xl mx-auto bg-white border border-amber-400/90 p-2.5 sm:p-3.5 rounded-2xl sm:rounded-3xl shadow-lg text-slate-900 animate-fade-in relative overflow-hidden">
         <div class="absolute -right-8 -bottom-8 w-24 h-24 bg-amber-400/10 rounded-full blur-lg pointer-events-none"></div>

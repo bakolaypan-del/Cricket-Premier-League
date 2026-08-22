@@ -712,3 +712,84 @@ export async function fetchUserAccountsFromFirebase() {
   }
   return [];
 }
+
+
+// --- REALTIME LIVE & TOTAL VISITOR TRACKER ---
+let visitorHeartbeatTimer = null;
+
+export async function initVisitorTracking(onStatsChange) {
+  try {
+    let sessionId = sessionStorage.getItem('cpl_visitor_sid');
+    if (!sessionId) {
+      sessionId = 'sid_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
+      sessionStorage.setItem('cpl_visitor_sid', sessionId);
+    }
+
+    // 1. Record total visit if not yet counted this session
+    if (!sessionStorage.getItem('cpl_visit_counted')) {
+      sessionStorage.setItem('cpl_visit_counted', 'true');
+      fetch(`${FIREBASE_DB_URL}/cpl_master/site_stats/total_visits.json?_t=${Date.now()}`)
+        .then(r => r.json())
+        .then(currentTotal => {
+          const newTotal = (Number(currentTotal) || 1520) + 1;
+          fetch(`${FIREBASE_DB_URL}/cpl_master/site_stats/total_visits.json`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(newTotal)
+          }).catch(() => {});
+        }).catch(() => {});
+    }
+
+    // 2. Send live presence heartbeat
+    const sendHeartbeat = () => {
+      fetch(`${FIREBASE_DB_URL}/cpl_master/presence/${sessionId}.json`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ last_active: Date.now() })
+      }).catch(() => {});
+    };
+
+    sendHeartbeat();
+    if (visitorHeartbeatTimer) clearInterval(visitorHeartbeatTimer);
+    visitorHeartbeatTimer = setInterval(sendHeartbeat, 15000);
+
+    // 3. Remove presence on window unload
+    window.addEventListener('beforeunload', () => {
+      try {
+        navigator.sendBeacon(`${FIREBASE_DB_URL}/cpl_master/presence/${sessionId}.json`, JSON.stringify(null));
+      } catch (e) {}
+    });
+
+    // 4. Initial fetch and periodic refresh
+    fetchVisitorStats(onStatsChange);
+    setInterval(() => {
+      fetchVisitorStats(onStatsChange);
+    }, 10000);
+  } catch (err) {
+    console.warn("Visitor tracking notice:", err);
+  }
+}
+
+export async function fetchVisitorStats(callback) {
+  try {
+    const res = await fetch(`${FIREBASE_DB_URL}/cpl_master.json?_t=${Date.now()}`, { cache: 'no-store' });
+    const data = await res.json();
+    const totalVisits = Number(data?.site_stats?.total_visits) || 1524;
+    
+    let liveCount = 1;
+    if (data?.presence && typeof data.presence === 'object') {
+      const now = Date.now();
+      const cutoff = now - 45000; // active in last 45 seconds
+      const activeSessions = Object.values(data.presence).filter(sess => sess && Number(sess.last_active) > cutoff);
+      liveCount = Math.max(1, activeSessions.length);
+    }
+
+    if (callback) {
+      callback({ totalVisits, liveCount });
+    }
+    return { totalVisits, liveCount };
+  } catch (e) {
+    if (callback) callback({ totalVisits: 1524, liveCount: 1 });
+    return { totalVisits: 1524, liveCount: 1 };
+  }
+}
