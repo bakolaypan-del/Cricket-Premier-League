@@ -23,7 +23,9 @@ import {
   deleteCommunityQueryFromFirebase,
   fetchCommunityQueriesFromFirebase,
   fetchTournamentOwnersFromFirebase,
-  fetchUserAccountsFromFirebase
+  fetchUserAccountsFromFirebase,
+  saveRegistrationSettingsToFirebase,
+  fetchRegistrationSettingsFromFirebase
 } from './supabase.js?v=11.3.5';
 
 const FIREBASE_DB_URL = "https://cpl-jsl-2026-default-rtdb.firebaseio.com";
@@ -40,7 +42,8 @@ const STORAGE_KEYS = {
   COMMUNITY_QUERIES: 'cpl_community_queries_v8',
   CURRENT_USER: 'cpl_current_user_v8',
   TOURNAMENT_OWNERS: 'cpl_tournament_owners_v8',
-  USER_ACCOUNTS: 'cpl_user_accounts_v8'
+  USER_ACCOUNTS: 'cpl_user_accounts_v8',
+  REGISTRATION_SETTINGS: 'cpl_registration_settings_v8'
 };
 
 const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23059669'/%3E%3Ctext x='50' y='62' font-size='45' text-anchor='middle' fill='white'%3E🏏%3C/text%3E%3C/svg%3E";
@@ -123,6 +126,7 @@ class Store {
 
   init() {
     clearOldStorageQuota();
+
     if (!localStorage.getItem(STORAGE_KEYS.LEAGUES)) {
       safeSetLocalStorage(STORAGE_KEYS.LEAGUES, INITIAL_LEAGUES);
     }
@@ -140,6 +144,14 @@ class Store {
     }
     if (!localStorage.getItem(STORAGE_KEYS.AUCTION_SETTINGS)) {
       safeSetLocalStorage(STORAGE_KEYS.AUCTION_SETTINGS, { defaultBasePrice: 300, defaultPurseBudget: 8000 });
+    }
+    if (!localStorage.getItem(STORAGE_KEYS.REGISTRATION_SETTINGS)) {
+      safeSetLocalStorage(STORAGE_KEYS.REGISTRATION_SETTINGS, {
+        isJslRegistrationOpen: true,
+        isPlayerRegOpen: true,
+        isTeamRegOpen: true,
+        closedReason: "JSL 2026 Registration is currently closed by the Master Admin."
+      });
     }
     if (!localStorage.getItem(STORAGE_KEYS.USER)) {
       safeSetLocalStorage(STORAGE_KEYS.USER, {
@@ -376,6 +388,16 @@ class Store {
         }
       }
 
+      // 4b. Sync Registration Settings
+      if (cloudData.registrationSettings) {
+        const localRegStr = localStorage.getItem(STORAGE_KEYS.REGISTRATION_SETTINGS) || '{}';
+        const cloudRegStr = JSON.stringify(cloudData.registrationSettings);
+        if (localRegStr !== cloudRegStr) {
+          safeSetLocalStorage(STORAGE_KEYS.REGISTRATION_SETTINGS, cloudData.registrationSettings);
+          this.notify('registration_settings_updated');
+        }
+      }
+
       // 5. Sync Tournament Owners & User Accounts from Firebase
       try {
         const cloudOwners = await fetchTournamentOwnersFromFirebase();
@@ -414,6 +436,7 @@ class Store {
     window.addEventListener('storage', (e) => {
       if (e.key === STORAGE_KEYS.PLAYERS) this.notify('players_updated');
       if (e.key === STORAGE_KEYS.TEAMS) this.notify('teams_updated');
+      if (e.key === STORAGE_KEYS.REGISTRATION_SETTINGS) this.notify('registration_settings_updated');
     });
 
     // Mobile Phone Wakeup & Tab Switch Instant Cloud Sync
@@ -568,6 +591,9 @@ class Store {
 
   // --- REGISTER NEW PLAYER WITH ATOMIC TIMESTAMP QUEUE & ZERO DUPLICATES ---
   registerPlayer(playerData) {
+    if (!this.isPlayerRegistrationOpen()) {
+      throw new Error(this.getRegistrationSettings().closedReason || "JSL 2026 Player Registration is currently closed by the Master Admin.");
+    }
     let players = JSON.parse(localStorage.getItem(STORAGE_KEYS.PLAYERS)) || [];
     
     const inputName = (playerData.name || playerData.playerName || '').trim().toLowerCase();
@@ -1089,6 +1115,9 @@ class Store {
   }
 
   registerTeam(teamData) {
+    if (!this.isTeamRegistrationOpen()) {
+      throw new Error(this.getRegistrationSettings().closedReason || "JSL 2026 Team Registration is currently closed by the Master Admin.");
+    }
     const teams = this.getTeams();
     const serialNo = teams.length + 1;
     const newTeam = {
@@ -1233,6 +1262,57 @@ class Store {
     safeSetLocalStorage(STORAGE_KEYS.AUCTION_SETTINGS, settings);
     saveAuctionSettingsToFirebase(settings);
     this.notify('auction_settings_updated');
+  }
+
+  // --- REGISTRATION CONTROL CONFIG & MASTER TOGGLE ---
+  getRegistrationSettings() {
+    const defaultSettings = {
+      isJslRegistrationOpen: true,
+      isPlayerRegOpen: true,
+      isTeamRegOpen: true,
+      closedReason: "JSL 2026 Registration is currently closed by the Master Admin."
+    };
+    try {
+      const s = localStorage.getItem(STORAGE_KEYS.REGISTRATION_SETTINGS);
+      if (!s) return defaultSettings;
+      const parsed = JSON.parse(s);
+      return {
+        ...defaultSettings,
+        ...parsed
+      };
+    } catch (e) {
+      return defaultSettings;
+    }
+  }
+
+  isJslRegistrationOpen() {
+    const s = this.getRegistrationSettings();
+    return s.isJslRegistrationOpen !== false;
+  }
+
+  isPlayerRegistrationOpen() {
+    const s = this.getRegistrationSettings();
+    return s.isJslRegistrationOpen !== false && s.isPlayerRegOpen !== false;
+  }
+
+  isTeamRegistrationOpen() {
+    const s = this.getRegistrationSettings();
+    return s.isJslRegistrationOpen !== false && s.isTeamRegOpen !== false;
+  }
+
+  updateRegistrationSettings(settings) {
+    const current = this.getRegistrationSettings();
+    const updated = { ...current, ...settings };
+    safeSetLocalStorage(STORAGE_KEYS.REGISTRATION_SETTINGS, updated);
+    saveRegistrationSettingsToFirebase(updated);
+    this.notify('registration_settings_updated');
+    return updated;
+  }
+
+  toggleJslRegistration(isOpen, closedReason = null) {
+    const patch = { isJslRegistrationOpen: isOpen };
+    if (closedReason) patch.closedReason = closedReason;
+    return this.updateRegistrationSettings(patch);
   }
 
   // --- LIVE AUCTION STATE ---

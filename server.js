@@ -51,11 +51,12 @@ function startServerOnPort(index) {
     }
   });
 
-  server.listen(PORT, '127.0.0.1', () => {
+  server.listen(PORT, '0.0.0.0', () => {
     process.stdout.write(`==========================================================\n`);
     process.stdout.write(`Cricket Premier League Web Application is running live at:\n`);
     process.stdout.write(`-> http://localhost:${PORT}/\n`);
     process.stdout.write(`-> http://127.0.0.1:${PORT}/\n`);
+    process.stdout.write(`-> http://192.168.0.6:${PORT}/\n`);
     process.stdout.write(`==========================================================\n`);
   });
 }

@@ -149,6 +149,7 @@ function initApp() {
   window.addEventListener('players_updated', safeRenderCurrentView);
   window.addEventListener('teams_updated', safeRenderCurrentView);
   window.addEventListener('live_auction_updated', safeRenderCurrentView);
+  window.addEventListener('registration_settings_updated', safeRenderCurrentView);
   window.addEventListener('user_updated', () => {
     renderNavbar();
     renderMobileBottomNav();
@@ -1527,6 +1528,8 @@ function openComingSoonModal(code, title, logoPath) {
 function renderJSLHub(containerEl) {
   const teams = store.getTeams();
   const players = store.getPlayers();
+  const isRegOpen = store.isJslRegistrationOpen();
+  const regSettings = store.getRegistrationSettings();
 
   containerEl.innerHTML = `
     <div class="space-y-3 sm:space-y-4 animate-fade-in max-w-4xl mx-auto py-1 sm:py-2">
@@ -1605,11 +1608,17 @@ function renderJSLHub(containerEl) {
 
       </div>
 
-      <!-- LOWER PORTION: COMPACT RED COLOUR REGISTER NOW BUTTON & LIVE AUCTION HUB -->
+      <!-- LOWER PORTION: COMPACT REGISTER BUTTON & LIVE AUCTION HUB -->
       <div class="flex flex-wrap items-center justify-center gap-3 pt-2 sm:pt-3">
-        <button id="jsl-right-reg-btn" class="btn-blink-always px-6 sm:px-8 py-2.5 bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg flex items-center justify-center gap-2 border border-red-400 transition-all">
-          <i data-lucide="edit-3" class="w-4 h-4 text-amber-300"></i> Register Now
-        </button>
+        ${isRegOpen ? `
+          <button id="jsl-right-reg-btn" class="btn-blink-always px-6 sm:px-8 py-2.5 bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg flex items-center justify-center gap-2 border border-red-400 transition-all cursor-pointer">
+            <i data-lucide="edit-3" class="w-4 h-4 text-amber-300"></i> Register Now
+          </button>
+        ` : `
+          <button id="jsl-right-reg-btn" class="px-6 sm:px-8 py-2.5 bg-gradient-to-r from-slate-800 to-slate-900 hover:from-slate-700 hover:to-slate-800 text-slate-300 font-black text-xs sm:text-sm rounded-xl shadow-lg flex items-center justify-center gap-2 border border-red-500/60 transition-all cursor-pointer" title="Registration Closed by Master Admin">
+            <i data-lucide="lock" class="w-4 h-4 text-red-400"></i> Registration Closed
+          </button>
+        `}
         <button id="jsl-hub-auction-btn" class="px-5 sm:px-7 py-2.5 bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-lg flex items-center justify-center gap-2 border border-amber-300 transition-all hover:scale-105">
           <span>🔨 Live Auction Hub</span>
         </button>
@@ -2417,8 +2426,80 @@ export function openPhoneOtpModal({ title = 'Mobile Number Verification', subtit
   });
 }
 
+// --- REGISTRATION CLOSED MODAL (WHEN DEACTIVATED BY MASTER ADMIN) ---
+function openRegistrationClosedModal() {
+  document.getElementById('reg-closed-backdrop')?.remove();
+  const regSettings = store.getRegistrationSettings();
+  const message = regSettings.closedReason || "JSL 2026 Registration is currently closed by the Master Admin.";
+
+  const modalHtml = `
+    <div id="reg-closed-backdrop" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3">
+      <div class="bg-white max-w-sm sm:max-w-md w-full p-5 sm:p-6 relative space-y-4 animate-fade-in rounded-2xl shadow-2xl border-2 border-red-500 text-center modal-content-container">
+        <button id="close-reg-closed-btn" class="absolute top-3 right-3 text-slate-400 hover:text-slate-900 p-1 cursor-pointer">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+
+        <div class="w-14 h-14 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mx-auto shadow-inner border border-red-200">
+          <i data-lucide="lock" class="w-7 h-7"></i>
+        </div>
+
+        <div class="space-y-1">
+          <span class="px-3 py-1 bg-red-100 text-red-800 font-black text-[10px] rounded-full uppercase border border-red-300">REGISTRATION DEACTIVATED</span>
+          <h2 class="text-lg sm:text-xl font-black text-slate-900 mt-1">Registration is Closed</h2>
+          <p class="text-xs font-semibold text-slate-600 leading-relaxed pt-1">${message}</p>
+        </div>
+
+        <div class="p-3 bg-slate-50 border border-slate-200 rounded-xl text-left space-y-1.5 text-xs text-slate-700">
+          <div class="font-bold text-slate-900 flex items-center gap-1.5">
+            <i data-lucide="info" class="w-4 h-4 text-sky-600"></i> Need Help / Tournament Queries?
+          </div>
+          <div class="text-[11px] text-slate-600">Contact Tournament Management: <strong>Pintu Santra (89722144166)</strong> or check the live auction hub.</div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2.5 pt-1">
+          <button id="view-teams-from-closed-btn" class="py-2.5 px-3 bg-sky-900 hover:bg-sky-800 text-white font-extrabold text-xs rounded-xl shadow transition-all flex items-center justify-center gap-1 cursor-pointer">
+            <i data-lucide="shield" class="w-3.5 h-3.5 text-sky-400"></i> View Teams
+          </button>
+          <button id="view-players-from-closed-btn" class="py-2.5 px-3 bg-emerald-900 hover:bg-emerald-800 text-white font-extrabold text-xs rounded-xl shadow transition-all flex items-center justify-center gap-1 cursor-pointer">
+            <i data-lucide="users" class="w-3.5 h-3.5 text-emerald-400"></i> View Players
+          </button>
+        </div>
+
+        <button id="ok-reg-closed-btn" class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl shadow transition-all cursor-pointer">
+          Close Window
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  if (window.lucide) window.lucide.createIcons();
+
+  const removeModal = () => document.getElementById('reg-closed-backdrop')?.remove();
+  document.getElementById('close-reg-closed-btn')?.addEventListener('click', removeModal);
+  document.getElementById('ok-reg-closed-btn')?.addEventListener('click', removeModal);
+
+  document.getElementById('view-teams-from-closed-btn')?.addEventListener('click', () => {
+    removeModal();
+    openRegisteredTeamsModal(store.getTeams());
+  });
+
+  document.getElementById('view-players-from-closed-btn')?.addEventListener('click', () => {
+    removeModal();
+    openRegisteredPlayersModal(store.getPlayers());
+  });
+}
+
 // --- REGISTRATION TYPE SELECTION MODAL ---
 function openRegistrationTypeModal() {
+  if (!store.isJslRegistrationOpen()) {
+    openRegistrationClosedModal();
+    return;
+  }
+
+  const isTeamOpen = store.isTeamRegistrationOpen();
+  const isPlayerOpen = store.isPlayerRegistrationOpen();
+
   const modalHtml = `
     <div id="reg-type-backdrop" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3">
       <div class="bg-white max-w-sm sm:max-w-md w-full p-5 relative space-y-4 animate-fade-in rounded-2xl shadow-2xl border-2 border-emerald-500 text-center modal-content-container">
@@ -2434,13 +2515,13 @@ function openRegistrationTypeModal() {
 
         <div class="grid grid-cols-1 gap-3 pt-1">
           <!-- TEAM REGISTER BUTTON -->
-          <button id="select-team-reg-btn" class="p-4 rounded-2xl bg-gradient-to-r from-blue-600 to-sky-700 hover:from-blue-500 hover:to-sky-600 text-white font-black flex items-center justify-between shadow-lg border border-sky-400 transition-all">
+          <button id="select-team-reg-btn" class="p-4 rounded-2xl ${isTeamOpen ? 'bg-gradient-to-r from-blue-600 to-sky-700 hover:from-blue-500 hover:to-sky-600 cursor-pointer' : 'bg-slate-700 opacity-60 cursor-not-allowed'} text-white font-black flex items-center justify-between shadow-lg border border-sky-400 transition-all">
             <div class="flex items-center gap-3">
               <div class="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
-                <i data-lucide="shield" class="w-5 h-5 text-amber-300"></i>
+                <i data-lucide="${isTeamOpen ? 'shield' : 'lock'}" class="w-5 h-5 text-amber-300"></i>
               </div>
               <div class="text-left">
-                <div class="text-base sm:text-lg font-black leading-snug">Team Register</div>
+                <div class="text-base sm:text-lg font-black leading-snug">Team Register ${!isTeamOpen ? '(Closed)' : ''}</div>
                 <div class="text-xs font-semibold text-sky-100">15K (8K Auction + 7K Fee)</div>
               </div>
             </div>
@@ -2448,13 +2529,13 @@ function openRegistrationTypeModal() {
           </button>
 
           <!-- PLAYER REGISTER BUTTON -->
-          <button id="select-player-reg-btn" class="p-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black flex items-center justify-between shadow-lg border border-emerald-400 transition-all">
+          <button id="select-player-reg-btn" class="p-4 rounded-2xl ${isPlayerOpen ? 'bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 cursor-pointer' : 'bg-slate-700 opacity-60 cursor-not-allowed'} text-white font-black flex items-center justify-between shadow-lg border border-emerald-400 transition-all">
             <div class="flex items-center gap-3">
               <div class="w-10 h-10 rounded-xl bg-white/20 flex items-center justify-center">
-                <i data-lucide="user-plus" class="w-5 h-5 text-white"></i>
+                <i data-lucide="${isPlayerOpen ? 'user-plus' : 'lock'}" class="w-5 h-5 text-white"></i>
               </div>
               <div class="text-left">
-                <div class="text-base sm:text-lg font-black leading-snug">Player Register</div>
+                <div class="text-base sm:text-lg font-black leading-snug">Player Register ${!isPlayerOpen ? '(Closed)' : ''}</div>
                 <div class="text-xs font-semibold text-emerald-100">Entry Fee: ₹ 200 Rupees</div>
               </div>
             </div>
@@ -2472,11 +2553,21 @@ function openRegistrationTypeModal() {
   document.getElementById('close-reg-type-btn')?.addEventListener('click', removeModal);
 
   document.getElementById('select-team-reg-btn')?.addEventListener('click', () => {
+    if (!store.isTeamRegistrationOpen()) {
+      removeModal();
+      openRegistrationClosedModal();
+      return;
+    }
     removeModal();
     openTeamRegisterFormModal();
   });
 
   document.getElementById('select-player-reg-btn')?.addEventListener('click', () => {
+    if (!store.isPlayerRegistrationOpen()) {
+      removeModal();
+      openRegistrationClosedModal();
+      return;
+    }
     removeModal();
     openPlayerRegisterFormModal();
   });
@@ -2484,6 +2575,10 @@ function openRegistrationTypeModal() {
 
 // --- TEAM REGISTER FORM MODAL ---
 function openTeamRegisterFormModal(initialData = null, verifiedPhone = null) {
+  if (!store.isTeamRegistrationOpen()) {
+    openRegistrationClosedModal();
+    return;
+  }
   document.getElementById('team-reg-modal')?.remove();
 
   let ownerPhotoFileObj = null;
@@ -2804,6 +2899,10 @@ function openTeamRegisterFormModal(initialData = null, verifiedPhone = null) {
 
 // --- FULL PROFESSIONAL PLAYER REGISTER FORM MODAL ---
 function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
+  if (!store.isPlayerRegistrationOpen()) {
+    openRegistrationClosedModal();
+    return;
+  }
   const upiId = "pintusantra4166@nyes";
   const payeeName = "Pintu Santra";
   const amount = 200;

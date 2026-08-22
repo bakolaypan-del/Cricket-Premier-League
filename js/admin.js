@@ -31,6 +31,8 @@ export function renderAdminDashboard(containerEl) {
 
   const isMaster = store.isMasterAdmin();
   const currentUser = store.getCurrentUser();
+  const regSettings = store.getRegistrationSettings();
+  const isRegOpen = store.isJslRegistrationOpen();
   const panelTitle = isMaster ? 'Master Admin Control Panel' : 'JSL 2026 Tournament Control Console';
   const panelSubtitle = isMaster 
     ? 'Log ID: <strong class="text-amber-400">bakolaypan@gmail.com</strong> • Single Source Supabase & Realtime Cloud Database'
@@ -54,6 +56,18 @@ export function renderAdminDashboard(containerEl) {
 
         <div class="flex flex-wrap items-center gap-2.5">
           ${isMaster ? `
+            <!-- JSL REGISTRATION MASTER QUICK-TOGGLE BADGE -->
+            <div class="flex items-center gap-2 bg-slate-950/90 px-3 py-1.5 rounded-xl border ${isRegOpen ? 'border-emerald-500/50 bg-emerald-950/30' : 'border-red-500/50 bg-red-950/30'} shadow">
+              <span class="w-2.5 h-2.5 rounded-full ${isRegOpen ? 'bg-emerald-400 animate-pulse' : 'bg-red-500'}"></span>
+              <span class="text-xs font-black ${isRegOpen ? 'text-emerald-300' : 'text-red-400'}">
+                JSL Reg: ${isRegOpen ? 'ACTIVE' : 'DEACTIVATED'}
+              </span>
+              <button id="quick-toggle-reg-btn" class="px-2.5 py-1 text-[10px] font-black rounded-lg ${isRegOpen ? 'bg-red-600 hover:bg-red-500 text-white' : 'bg-emerald-600 hover:bg-emerald-500 text-white'} transition-all shadow flex items-center gap-1 cursor-pointer" title="${isRegOpen ? 'Deactivate Public Registration Link' : 'Activate Public Registration Link'}">
+                <i data-lucide="${isRegOpen ? 'power-off' : 'power'}" class="w-3 h-3"></i>
+                ${isRegOpen ? 'Deactivate' : 'Activate'}
+              </button>
+            </div>
+
             <a href="cpl_project_handbook.html" target="_blank" class="px-3.5 py-2 bg-emerald-950 hover:bg-emerald-900 text-emerald-300 text-xs font-bold rounded-xl border border-emerald-800 flex items-center gap-1.5 transition-colors shadow no-underline">
               <i data-lucide="book-open" class="w-4 h-4 text-emerald-400"></i> Handbook
             </a>
@@ -123,6 +137,9 @@ export function renderAdminDashboard(containerEl) {
           <i data-lucide="gamepad-2" class="w-4 h-4"></i> Match Scorer
         </button>
         ${isMaster ? `
+          <button data-tab="reg-settings" class="admin-tab-btn ${activeAdminTab === 'reg-settings' ? 'active border-amber-400 text-amber-400 bg-slate-900/90' : 'border-transparent text-slate-400 hover:text-white'} px-4 sm:px-5 py-2.5 rounded-t-xl text-xs sm:text-sm font-black flex items-center gap-2 border-b-2">
+            <i data-lucide="power" class="w-4 h-4 text-amber-400"></i> ⚙️ Registration Link Control
+          </button>
           <button data-tab="shop-ads" class="admin-tab-btn ${activeAdminTab === 'shop-ads' ? 'active border-amber-400 text-amber-400 bg-slate-900/90' : 'border-transparent text-slate-400 hover:text-white'} px-4 sm:px-5 py-2.5 rounded-t-xl text-xs sm:text-sm font-black flex items-center gap-2 border-b-2">
             <i data-lucide="megaphone" class="w-4 h-4"></i> 📢 Shop Ads
           </button>
@@ -724,6 +741,112 @@ export function renderAdminDashboard(containerEl) {
           </div>
         </div>
 
+        <!-- 6b. JSL Registration Link & Public Access Controller Tab -->
+        <div id="tab-reg-settings-view" class="${activeAdminTab === 'reg-settings' ? '' : 'hidden'} space-y-6 animate-fade-in">
+          <div class="p-4 sm:p-6 bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl space-y-6">
+            <div class="flex items-center justify-between pb-4 border-b border-slate-800 flex-wrap gap-3">
+              <div class="flex items-center gap-3">
+                <span class="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl border border-amber-500/40">
+                  <i data-lucide="power" class="w-6 h-6"></i>
+                </span>
+                <div>
+                  <h3 class="text-base sm:text-lg font-black text-white">JSL Registration Link Controller</h3>
+                  <p class="text-xs text-slate-400">Activate or deactivate the public JSL 2026 registration link with 1-click cloud sync.</p>
+                </div>
+              </div>
+
+              <!-- Real-time Status Badge -->
+              <div id="reg-status-badge-container" class="flex items-center gap-2 px-3.5 py-2 rounded-xl border ${isRegOpen ? 'border-emerald-500/50 bg-emerald-950/40 text-emerald-300' : 'border-red-500/50 bg-red-950/40 text-red-400'}">
+                <span class="w-3 h-3 rounded-full ${isRegOpen ? 'bg-emerald-400 animate-pulse' : 'bg-red-500'}"></span>
+                <span class="text-xs font-black uppercase tracking-wider">${isRegOpen ? '🟢 Registration Active (Open)' : '🔴 Registration Deactivated (Closed)'}</span>
+              </div>
+            </div>
+
+            <!-- MASTER ON / OFF CARD -->
+            <div class="p-5 rounded-2xl border ${isRegOpen ? 'border-emerald-500/30 bg-emerald-950/10' : 'border-red-500/30 bg-red-950/10'} space-y-4">
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div class="space-y-1">
+                  <div class="flex items-center gap-2">
+                    <span class="text-sm sm:text-base font-black text-white">Master Registration Switch</span>
+                    <span class="px-2 py-0.5 rounded text-[10px] font-black uppercase ${isRegOpen ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-red-500/20 text-red-300 border border-red-500/40'}">
+                      ${isRegOpen ? 'ENABLED' : 'DEACTIVATED'}
+                    </span>
+                  </div>
+                  <p class="text-xs text-slate-400">When deactivated, visitors cannot register new players or teams. The "Register Now" button will display as "Registration Closed".</p>
+                </div>
+
+                <div class="flex items-center gap-3">
+                  <button id="toggle-master-reg-switch-btn" class="px-5 py-2.5 rounded-xl font-black text-xs sm:text-sm shadow-xl flex items-center gap-2 transition-all cursor-pointer ${isRegOpen ? 'bg-red-600 hover:bg-red-500 text-white shadow-red-900/30' : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/30'}">
+                    <i data-lucide="${isRegOpen ? 'power-off' : 'power'}" class="w-4 h-4"></i>
+                    ${isRegOpen ? 'Deactivate Registration Link' : 'Activate Registration Link'}
+                  </button>
+                </div>
+              </div>
+
+              <!-- DETAILED GRANULAR CONTROLS -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-slate-800/80">
+                <!-- Player Registration Sub-Toggle -->
+                <div class="p-4 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center justify-between">
+                  <div>
+                    <div class="text-xs font-black text-slate-200">Player Registration Form</div>
+                    <div class="text-[10px] text-slate-400">Public Player Entry Form (₹ 200/₹ 300)</div>
+                  </div>
+                  <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" id="reg-player-sub-toggle" class="sr-only peer" ${regSettings.isPlayerRegOpen !== false ? 'checked' : ''} ${!isRegOpen ? 'disabled' : ''}>
+                    <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500 peer-disabled:opacity-50"></div>
+                  </label>
+                </div>
+
+                <!-- Team Registration Sub-Toggle -->
+                <div class="p-4 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center justify-between">
+                  <div>
+                    <div class="text-xs font-black text-slate-200">Franchise Team Registration</div>
+                    <div class="text-[10px] text-slate-400">Public Team Entry Form (15K Entry)</div>
+                  </div>
+                  <label class="relative inline-flex items-center cursor-pointer">
+                    <input type="checkbox" id="reg-team-sub-toggle" class="sr-only peer" ${regSettings.isTeamRegOpen !== false ? 'checked' : ''} ${!isRegOpen ? 'disabled' : ''}>
+                    <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500 peer-disabled:opacity-50"></div>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <!-- CLOSURE NOTICE MESSAGE EDITOR -->
+            <div class="space-y-2 bg-slate-950/50 p-4 sm:p-5 rounded-2xl border border-slate-800">
+              <label class="block text-xs font-black text-slate-300 uppercase tracking-wide">
+                Custom Deactivation / Closed Banner Message
+              </label>
+              <p class="text-[11px] text-slate-400">This message is shown to users when they click the registration button while deactivated.</p>
+              <textarea id="reg-closed-message-input" rows="2" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400" placeholder="JSL 2026 Registration is currently closed by the Master Admin.">${regSettings.closedReason || 'JSL 2026 Registration is currently closed by the Master Admin.'}</textarea>
+              <div class="flex justify-end pt-1">
+                <button id="save-reg-message-btn" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl border border-slate-700 flex items-center gap-1.5 transition-all cursor-pointer">
+                  <i data-lucide="save" class="w-3.5 h-3.5 text-amber-400"></i> Update Closure Message
+                </button>
+              </div>
+            </div>
+
+            <!-- LIVE PREVIEW WIDGET -->
+            <div class="p-4 sm:p-5 bg-slate-950/70 rounded-2xl border border-slate-800 space-y-3">
+              <div class="flex items-center justify-between">
+                <div class="text-xs font-black text-slate-300 uppercase tracking-wide">Public UI Button Preview</div>
+                <span class="text-[10px] text-slate-400">What visitors currently see on the website</span>
+              </div>
+              <div class="p-6 bg-slate-900/90 rounded-xl border border-slate-800 flex items-center justify-center">
+                ${isRegOpen ? `
+                  <button class="btn-blink-always px-8 py-3 bg-gradient-to-r from-red-600 to-rose-700 text-white font-black text-sm rounded-xl shadow-lg flex items-center justify-center gap-2 border border-red-400 pointer-events-none">
+                    <i data-lucide="edit-3" class="w-4 h-4 text-amber-300"></i> Register Now (ACTIVE)
+                  </button>
+                ` : `
+                  <button class="px-8 py-3 bg-gradient-to-r from-slate-800 to-slate-900 text-slate-300 font-black text-sm rounded-xl shadow-lg flex items-center justify-center gap-2 border border-red-500/50 pointer-events-none">
+                    <i data-lucide="lock" class="w-4 h-4 text-red-400"></i> Registration Closed (DEACTIVATED)
+                  </button>
+                `}
+              </div>
+            </div>
+
+          </div>
+        </div>
+
         <!-- 7. Partner Shop Advertisement Tab -->
         <div id="tab-shop-ads-view" class="${activeAdminTab === 'shop-ads' ? '' : 'hidden'} space-y-6 animate-fade-in">
           <div class="p-4 sm:p-6 bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl space-y-6">
@@ -770,6 +893,7 @@ export function renderAdminDashboard(containerEl) {
       document.getElementById('tab-auction-view')?.classList.add('hidden');
       document.getElementById('tab-fixtures-view')?.classList.add('hidden');
       document.getElementById('tab-scorer-view')?.classList.add('hidden');
+      document.getElementById('tab-reg-settings-view')?.classList.add('hidden');
       document.getElementById('tab-shop-ads-view')?.classList.add('hidden');
       document.getElementById('tab-owners-view')?.classList.add('hidden');
 
@@ -789,6 +913,9 @@ export function renderAdminDashboard(containerEl) {
         document.getElementById('tab-scorer-view')?.classList.remove('hidden');
         renderScorerMatchesList();
       }
+      if (activeAdminTab === 'reg-settings') {
+        document.getElementById('tab-reg-settings-view')?.classList.remove('hidden');
+      }
       if (activeAdminTab === 'shop-ads') {
         document.getElementById('tab-shop-ads-view')?.classList.remove('hidden');
         renderAdminShopAdsPanel();
@@ -797,6 +924,40 @@ export function renderAdminDashboard(containerEl) {
         document.getElementById('tab-owners-view')?.classList.remove('hidden');
       }
     });
+  });
+
+  // --- REGISTRATION SETTINGS LISTENERS ---
+  document.getElementById('quick-toggle-reg-btn')?.addEventListener('click', () => {
+    const currentOpen = store.isJslRegistrationOpen();
+    const newStatus = !currentOpen;
+    store.toggleJslRegistration(newStatus);
+    alert(newStatus ? '✅ JSL Registration link is now ACTIVATED (Open for all players & teams)!' : '🚫 JSL Registration link is now DEACTIVATED (Closed for all public entries)!');
+    renderAdminDashboard(containerEl);
+  });
+
+  document.getElementById('toggle-master-reg-switch-btn')?.addEventListener('click', () => {
+    const currentOpen = store.isJslRegistrationOpen();
+    const newStatus = !currentOpen;
+    store.toggleJslRegistration(newStatus);
+    alert(newStatus ? '✅ JSL Registration link is now ACTIVATED!' : '🚫 JSL Registration link is now DEACTIVATED!');
+    activeAdminTab = 'reg-settings';
+    renderAdminDashboard(containerEl);
+  });
+
+  document.getElementById('reg-player-sub-toggle')?.addEventListener('change', (e) => {
+    store.updateRegistrationSettings({ isPlayerRegOpen: e.target.checked });
+  });
+
+  document.getElementById('reg-team-sub-toggle')?.addEventListener('change', (e) => {
+    store.updateRegistrationSettings({ isTeamRegOpen: e.target.checked });
+  });
+
+  document.getElementById('save-reg-message-btn')?.addEventListener('click', () => {
+    const msg = document.getElementById('reg-closed-message-input')?.value.trim();
+    if (msg) {
+      store.updateRegistrationSettings({ closedReason: msg });
+      alert('✅ Closure notice message updated successfully!');
+    }
   });
 
   // Bind Assign Tournament Owner Form Submit

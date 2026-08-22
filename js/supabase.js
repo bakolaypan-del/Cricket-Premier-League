@@ -272,6 +272,12 @@ export async function fetchCloudData() {
         }
 
         let auctionSettings = data.auctionSettings || { defaultBasePrice: 300, defaultPurseBudget: 8000 };
+        let registrationSettings = data.registrationSettings || {
+          isJslRegistrationOpen: true,
+          isPlayerRegOpen: true,
+          isTeamRegOpen: true,
+          closedReason: "JSL 2026 Registration is currently closed by the Master Admin."
+        };
 
         const deletedPlayerIds = data.deletedPlayerIds ? Object.keys(data.deletedPlayerIds) : [];
         const deletedTeamIds = data.deletedTeamIds ? Object.keys(data.deletedTeamIds) : [];
@@ -299,6 +305,7 @@ export async function fetchCloudData() {
           teams, 
           fixtures,
           auctionSettings,
+          registrationSettings,
           clearedAt: data.clearedAt || 0, 
           teamsClearedAt: data.teamsClearedAt || 0,
           deletedPlayerIds, 
@@ -310,7 +317,7 @@ export async function fetchCloudData() {
     console.warn("Realtime Database fetch notice:", err);
   }
 
-  return { players: [], teams: [], fixtures: [], auctionSettings: { defaultBasePrice: 300, defaultPurseBudget: 8000 }, clearedAt: 0, teamsClearedAt: 0, deletedPlayerIds: [], deletedTeamIds: [] };
+  return { players: [], teams: [], fixtures: [], auctionSettings: { defaultBasePrice: 300, defaultPurseBudget: 8000 }, registrationSettings: { isJslRegistrationOpen: true, isPlayerRegOpen: true, isTeamRegOpen: true, closedReason: "JSL 2026 Registration is currently closed by the Master Admin." }, clearedAt: 0, teamsClearedAt: 0, deletedPlayerIds: [], deletedTeamIds: [] };
 }
 
 // --- ATOMIC REALTIME CLOUD DATA OPERATIONS (KEY-VALUE OBJECT MAP SYNC) ---
@@ -635,6 +642,47 @@ export async function fetchAdSettingsFromFirebase() {
     isEnabled: pSettings.isAdPopupEnabled,
     shopId: pSettings.promotedShopId,
     expiryTime: pSettings.adExpiryTime
+  };
+}
+
+export async function saveRegistrationSettingsToFirebase(settings) {
+  try {
+    const response = await fetch(`${FIREBASE_DB_URL}/cpl_master/registrationSettings.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(settings)
+    });
+    if (response.ok) {
+      console.log("Registration settings saved to Firebase.");
+      return true;
+    }
+  } catch (err) {
+    console.warn("Failed to save registration settings to Firebase:", err);
+  }
+  return false;
+}
+
+export async function fetchRegistrationSettingsFromFirebase() {
+  try {
+    const response = await fetch(`${FIREBASE_DB_URL}/cpl_master/registrationSettings.json?_t=${Date.now()}`, { cache: 'no-store' });
+    if (response.ok) {
+      const data = await response.json();
+      return {
+        isJslRegistrationOpen: true,
+        isPlayerRegOpen: true,
+        isTeamRegOpen: true,
+        closedReason: "JSL 2026 Registration is currently closed by the Master Admin.",
+        ...(data || {})
+      };
+    }
+  } catch (err) {
+    console.warn("Failed to fetch registration settings from Firebase:", err);
+  }
+  return {
+    isJslRegistrationOpen: true,
+    isPlayerRegOpen: true,
+    isTeamRegOpen: true,
+    closedReason: "JSL 2026 Registration is currently closed by the Master Admin."
   };
 }
 
