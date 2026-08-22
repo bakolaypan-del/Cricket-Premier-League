@@ -833,7 +833,7 @@ export async function initVisitorTracking(onStatsChange) {
       fetch(`${FIREBASE_DB_URL}/cpl_master/site_stats/total_visits.json?_t=${Date.now()}`)
         .then(r => r.json())
         .then(currentTotal => {
-          const newTotal = (Number(currentTotal) || 1665) + 1;
+          const newTotal = (Number(currentTotal) || 286) + 1;
           fetch(`${FIREBASE_DB_URL}/cpl_master/site_stats/total_visits.json`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -876,7 +876,7 @@ export async function fetchVisitorStats(callback) {
   try {
     const res = await fetch(`${FIREBASE_DB_URL}/cpl_master.json?_t=${Date.now()}`, { cache: 'no-store' });
     const data = await res.json();
-    const totalVisits = Number(data?.site_stats?.total_visits) || 1524;
+    const totalVisits = Number(data?.site_stats?.total_visits) || 286;
     
     let liveCount = 1;
     if (data?.presence && typeof data.presence === 'object') {
@@ -891,7 +891,7 @@ export async function fetchVisitorStats(callback) {
     }
     return { totalVisits, liveCount };
   } catch (e) {
-    if (callback) callback({ totalVisits: 1524, liveCount: 1 });
-    return { totalVisits: 1524, liveCount: 1 };
+    if (callback) callback({ totalVisits: 286, liveCount: 1 });
+    return { totalVisits: 286, liveCount: 1 };
   }
 }

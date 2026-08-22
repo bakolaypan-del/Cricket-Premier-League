@@ -7,7 +7,7 @@ import { uploadHDImage, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFireb
 import { shops } from './shopsData.js?v=11.3.5';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
-let latestVisitorStats = { liveCount: 1, totalVisits: 1524 };
+let latestVisitorStats = { liveCount: 1, totalVisits: 286 };
 
 // PWA Deferred Prompt Capture
 let deferredPrompt = null;
