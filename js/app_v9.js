@@ -1,10 +1,10 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, printDigitalPass, openUserGuidePDF } from './export.js';
-import { renderAdminDashboard } from './admin.js';
-import { uploadHDImage, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, getOptimizedImageUrl } from './supabase.js';
-import { shops } from './shopsData.js';
+import { store } from './store.js?v=9.9.6';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, printDigitalPass, openUserGuidePDF } from './export.js?v=9.9.6';
+import { renderAdminDashboard } from './admin.js?v=9.9.6';
+import { uploadHDImage, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, getOptimizedImageUrl } from './supabase.js?v=9.9.6';
+import { shops } from './shopsData.js?v=9.9.6';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
 
@@ -17,7 +17,7 @@ window.addEventListener('beforeinstallprompt', (e) => {
 });
 
 // ALWAYS default to landing page (No category opens automatically!)
-let currentRoute = 'landing'; // landing, jsl-hub, admin, shop-detail
+let currentRoute = 'landing'; // landing, jsl-hub, admin, fixtures, auction, career, profile, shop-detail
 let selectedShopId = '';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -750,7 +750,7 @@ function renderNavbar() {
   if (!navbarEl) return;
 
   navbarEl.classList.remove('hidden');
-  navbarEl.className = "sticky top-0 z-40 bg-gradient-to-r from-emerald-800 via-emerald-900 to-teal-950 text-white rounded-b-2xl sm:rounded-b-3xl shadow-2xl border-b-2 border-emerald-400/40 px-2 sm:px-4";
+  navbarEl.className = "sticky top-0 z-40 bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-950 text-white rounded-b-2xl sm:rounded-b-3xl shadow-2xl border-b-2 border-blue-400/40 px-2 sm:px-4";
 
   navbarEl.innerHTML = `
     <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between gap-2 relative z-10">
@@ -777,27 +777,27 @@ function renderNavbar() {
       </div>
 
       <!-- Desktop Navigation links -->
-      <div class="hidden lg:flex items-center gap-6 text-xs font-bold tracking-widest text-emerald-100">
+      <div class="hidden lg:flex items-center gap-4 xl:gap-6 text-xs font-bold tracking-widest text-emerald-100">
         <button id="nav-home-btn" class="hover:text-white transition-colors py-1 ${currentRoute === 'landing' ? 'text-white border-b-2 border-emerald-300 font-black' : ''}">HOME</button>
         <button id="nav-tournaments-btn" class="hover:text-white transition-colors py-1">TOURNAMENTS</button>
         <button id="nav-schedule-btn" class="hover:text-white transition-colors py-1 ${currentRoute === 'fixtures' ? 'text-white border-b-2 border-emerald-300 font-black' : ''}">SCHEDULE</button>
+        <button id="nav-auction-btn" class="hover:text-amber-300 transition-colors py-1 flex items-center gap-1 ${currentRoute === 'auction' ? 'text-amber-300 border-b-2 border-amber-300 font-black' : ''}">🔨 AUCTION</button>
+        <button id="nav-career-btn" class="hover:text-emerald-300 transition-colors py-1 flex items-center gap-1 ${currentRoute === 'career' ? 'text-emerald-300 border-b-2 border-emerald-300 font-black' : ''}">📊 STATS</button>
         <button id="nav-teams-btn" class="hover:text-white transition-colors py-1">TEAMS</button>
-        <button id="nav-admin-link" class="hover:text-amber-300 font-black transition-colors py-1 flex items-center gap-1 ${currentRoute === 'admin' ? 'text-amber-300 border-b-2 border-amber-300' : 'text-emerald-100'}">
-          🔐 ADMIN LOGIN
-        </button>
       </div>
 
-      <!-- Right Side: Download Option Button Only -->
+      <!-- Right Side: Download Button & Single Desktop-Only Account Pill -->
       <div class="flex items-center gap-2 flex-shrink-0">
-        <!-- Apps Download Option (ICON SVG ONLY - NO TEXT) -->
+        <!-- Apps Download Option -->
         <button id="nav-install-app-btn" title="Download Web App (PWA)" class="p-2 sm:p-2.5 bg-gradient-to-r from-amber-400 via-emerald-500 to-teal-500 hover:scale-105 transition-all rounded-full shadow-xl border border-white/60 flex items-center justify-center cursor-pointer">
           <svg class="w-5 h-5 text-slate-950 flex-shrink-0" viewBox="0 0 24 24" fill="none">
             <path d="M12 3v11m0 0l-5-5m5 5l5-5M4 19h16" stroke="#0F172A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
         </button>
 
-        <button id="nav-admin-btn" title="Admin Login" class="hidden lg:flex px-3.5 py-1.5 bg-white hover:bg-slate-100 text-emerald-950 text-xs font-black rounded-full transition-all shadow-lg flex items-center gap-1.5 cursor-pointer">
-          <span class="text-[10px] uppercase font-black tracking-wider">Admin</span>
+        <!-- Desktop-Only Single Login/Profile Button (Hidden on Mobile) -->
+        <button id="nav-admin-btn" title="Login / Profile" class="hidden lg:flex px-3.5 py-1.5 bg-white hover:bg-slate-100 text-slate-950 text-xs font-black rounded-full transition-all shadow-lg items-center gap-1.5 cursor-pointer">
+          <span class="text-[10px] uppercase font-black tracking-wider">${store.getCurrentUser() ? `👤 ${store.getCurrentUser().name ? store.getCurrentUser().name.split(' ')[0].toUpperCase() : 'PROFILE'}` : '🔐 LOGIN'}</span>
         </button>
       </div>
     </div>
@@ -806,8 +806,20 @@ function renderNavbar() {
   document.getElementById('brand-header-logo')?.addEventListener('click', () => navigate('landing'));
   document.getElementById('brand-header-title')?.addEventListener('click', () => navigate('landing'));
   document.getElementById('nav-install-app-btn')?.addEventListener('click', handleInstallAppClick);
-  document.getElementById('nav-admin-btn')?.addEventListener('click', () => navigate('admin'));
-  document.getElementById('nav-admin-link')?.addEventListener('click', () => navigate('admin'));
+  document.getElementById('nav-admin-btn')?.addEventListener('click', () => {
+    if (!store.getCurrentUser()) {
+      openPlayerLoginModal(() => navigate('profile'));
+    } else {
+      navigate('profile');
+    }
+  });
+  document.getElementById('nav-admin-link')?.addEventListener('click', () => {
+    if (!store.getCurrentUser()) {
+      openPlayerLoginModal(() => navigate('profile'));
+    } else {
+      navigate('profile');
+    }
+  });
   document.getElementById('nav-home-btn')?.addEventListener('click', () => navigate('landing'));
   document.getElementById('nav-tournaments-btn')?.addEventListener('click', () => {
     navigate('landing');
@@ -816,6 +828,9 @@ function renderNavbar() {
     }, 100);
   });
   document.getElementById('nav-schedule-btn')?.addEventListener('click', () => navigate('fixtures'));
+  document.getElementById('nav-auction-btn')?.addEventListener('click', () => navigate('auction'));
+  document.getElementById('nav-career-btn')?.addEventListener('click', () => navigate('career'));
+  document.getElementById('nav-profile-btn')?.addEventListener('click', () => navigate('profile'));
   document.getElementById('nav-teams-btn')?.addEventListener('click', () => {
     document.getElementById('open-teams-modal-btn')?.click();
   });
@@ -830,31 +845,36 @@ function renderNavbar() {
   if (window.lucide) window.lucide.createIcons();
 }
 
-// --- FULL-WIDTH FLUSH ZERO-GAP MOBILE STICKY BOTTOM BAR ---
-function renderMobileBottomNav() {
-  const bottomNavEl = document.getElementById('mobile-bottom-nav');
-  if (!bottomNavEl) return;
+// --- SLEEK FLOATING BOTTOM NAVIGATION BAR FOR MOBILE SCREENS ---
+function renderMobileNav() {
+  let bottomNavEl = document.getElementById('mobile-bottom-nav');
+  if (!bottomNavEl) {
+    bottomNavEl = document.createElement('div');
+    bottomNavEl.id = 'mobile-bottom-nav';
+    document.body.appendChild(bottomNavEl);
+  }
 
-  bottomNavEl.className = "fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-slate-200/90 shadow-[0_-6px_25px_rgba(0,0,0,0.12)] px-1 pt-1.5 pb-2 sm:hidden flex items-center justify-around w-full mb-0";
+  bottomNavEl.className = "fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-xl border-t border-slate-200 px-2 py-1.5 sm:hidden shadow-lg flex items-center justify-around";
 
   const getSvgIcon = (type, isActive) => {
-    const opacity = isActive ? 'opacity-100 scale-110' : 'opacity-65 grayscale-[30%]';
+    const opacity = isActive ? 'opacity-100 scale-105' : 'opacity-65';
     switch (type) {
       case 'home':
         return `
-          <svg class="w-6 h-6 flex-shrink-0 transition-transform ${opacity}" viewBox="0 0 24 24" fill="none">
+          <svg class="w-5 h-5 flex-shrink-0 transition-transform ${opacity}" viewBox="0 0 24 24" fill="none">
             <defs>
               <linearGradient id="homeSvgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stop-color="#10B981"/>
-                <stop offset="100%" stop-color="#047857"/>
+                <stop offset="0%" stop-color="#3B82F6"/>
+                <stop offset="100%" stop-color="#1D4ED8"/>
               </linearGradient>
             </defs>
-            <path d="M3 10.5L12 3l9 7.5V20a1 1 0 0 1-1 1h-5v-6h-6v6H4a1 1 0 0 1-1-1v-9.5z" fill="url(#homeSvgGrad)"/>
+            <path d="M3 10.5L12 3l9 7.5V20a2 2 0 01-2 2H5a2 2 0 01-2-2v-9.5z" fill="url(#homeSvgGrad)"/>
+            <path d="M9 22V12h6v10" fill="#FFFFFF"/>
           </svg>
         `;
       case 'fixtures':
         return `
-          <svg class="w-6 h-6 flex-shrink-0 transition-transform ${opacity}" viewBox="0 0 24 24" fill="none">
+          <svg class="w-5 h-5 flex-shrink-0 transition-transform ${opacity}" viewBox="0 0 24 24" fill="none">
             <defs>
               <linearGradient id="matchSvgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
                 <stop offset="0%" stop-color="#F59E0B"/>
@@ -868,7 +888,7 @@ function renderMobileBottomNav() {
         `;
       case 'auction':
         return `
-          <svg class="w-6 h-6 flex-shrink-0 transition-transform ${opacity}" viewBox="0 0 24 24" fill="none">
+          <svg class="w-5 h-5 flex-shrink-0 transition-transform ${opacity}" viewBox="0 0 24 24" fill="none">
             <defs>
               <linearGradient id="auctionSvgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
                 <stop offset="0%" stop-color="#FBBF24"/>
@@ -881,30 +901,29 @@ function renderMobileBottomNav() {
         `;
       case 'career':
         return `
-          <svg class="w-6 h-6 flex-shrink-0 transition-transform ${opacity}" viewBox="0 0 24 24" fill="none">
+          <svg class="w-5 h-5 flex-shrink-0 transition-transform ${opacity}" viewBox="0 0 24 24" fill="none">
             <defs>
               <linearGradient id="careerSvgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stop-color="#38BDF8"/>
-                <stop offset="100%" stop-color="#0284C7"/>
+                <stop offset="0%" stop-color="#10B981"/>
+                <stop offset="100%" stop-color="#047857"/>
               </linearGradient>
             </defs>
+            <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2" fill="url(#careerSvgGrad)"/>
             <circle cx="9" cy="7" r="4" fill="url(#careerSvgGrad)"/>
-            <path d="M2 20c0-3.5 3-6 7-6s7 2.5 7 6" fill="url(#careerSvgGrad)"/>
-            <circle cx="17" cy="8" r="3" fill="#0284C7"/>
-            <path d="M15 19c.5-2 2-3.5 4.5-3.5 1.5 0 2.8.5 3.5 1.5" stroke="#0284C7" stroke-width="2" stroke-linecap="round"/>
+            <path d="M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" stroke="#10B981" stroke-width="2" stroke-linecap="round"/>
           </svg>
         `;
-      case 'admin':
+      case 'profile':
         return `
-          <svg class="w-6 h-6 flex-shrink-0 transition-transform ${opacity}" viewBox="0 0 24 24" fill="none">
+          <svg class="w-5 h-5 flex-shrink-0 transition-transform ${opacity}" viewBox="0 0 24 24" fill="none">
             <defs>
-              <linearGradient id="adminSvgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stop-color="#10B981"/>
-                <stop offset="100%" stop-color="#059669"/>
+              <linearGradient id="profSvgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stop-color="#6366F1"/>
+                <stop offset="100%" stop-color="#4338CA"/>
               </linearGradient>
             </defs>
-            <path d="M12 2L4 5v6c0 5.55 3.84 10.74 8 12 4.16-1.26 8-6.45 8-12V5l-8-3z" fill="url(#adminSvgGrad)"/>
-            <path d="M9 12l2 2 4-4" stroke="#F59E0B" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="12" cy="8" r="4" fill="url(#profSvgGrad)"/>
+            <path d="M4 20c0-4 4-6 8-6s8 2 8 6" fill="url(#profSvgGrad)"/>
           </svg>
         `;
       default:
@@ -915,26 +934,37 @@ function renderMobileBottomNav() {
   const getTabItem = (id, type, label, routeName) => {
     const isActive = currentRoute === routeName;
     return `
-      <button id="${id}" class="flex flex-col items-center justify-center flex-1 py-1 px-1 transition-all cursor-pointer ${isActive ? 'bg-slate-100/90 rounded-2xl' : ''}">
+      <button id="${id}" class="flex flex-col items-center justify-center flex-1 py-1 px-0.5 transition-all cursor-pointer ${isActive ? 'bg-slate-100/90 rounded-2xl' : ''}">
         ${getSvgIcon(type, isActive)}
-        <span class="text-[9.5px] ${isActive ? 'font-black text-slate-900' : 'font-semibold text-slate-500'} mt-0.5">${label}</span>
+        <span class="text-[9px] ${isActive ? 'font-black text-slate-900' : 'font-semibold text-slate-500'} mt-0.5">${label}</span>
       </button>
     `;
   };
 
+  const isUserLoggedIn = !!store.getCurrentUser();
   bottomNavEl.innerHTML = `
     ${getTabItem('mob-nav-home', 'home', 'Home', 'landing')}
-    ${getTabItem('mob-nav-fixtures', 'fixtures', 'Matches', 'fixtures')}
+    ${getTabItem('mob-nav-fixtures', 'fixtures', 'Schedule', 'fixtures')}
     ${getTabItem('mob-nav-auction', 'auction', 'Auction', 'auction')}
-    ${getTabItem('mob-nav-career', 'career', 'Career', 'career')}
-    ${getTabItem('mob-nav-admin', 'admin', 'Admin', 'admin')}
+    ${getTabItem('mob-nav-career', 'career', 'Stats', 'career')}
+    ${getTabItem('mob-nav-profile', 'profile', isUserLoggedIn ? 'Profile' : 'Login', 'profile')}
   `;
 
   document.getElementById('mob-nav-home')?.addEventListener('click', () => navigate('landing'));
   document.getElementById('mob-nav-fixtures')?.addEventListener('click', () => navigate('fixtures'));
   document.getElementById('mob-nav-auction')?.addEventListener('click', () => navigate('auction'));
   document.getElementById('mob-nav-career')?.addEventListener('click', () => navigate('career'));
-  document.getElementById('mob-nav-admin')?.addEventListener('click', () => navigate('admin'));
+  document.getElementById('mob-nav-profile')?.addEventListener('click', () => {
+    if (!store.getCurrentUser()) {
+      openPlayerLoginModal(() => navigate('profile'));
+    } else {
+      navigate('profile');
+    }
+  });
+}
+
+function renderMobileBottomNav() {
+  renderMobileNav();
 }
 
 // --- REMOVE FOOTER PORTION COMPLETELY ---
@@ -968,6 +998,9 @@ function renderCurrentView() {
       break;
     case 'career':
       renderCareerHubView(container);
+      break;
+    case 'profile':
+      renderPlayerProfileView(container);
       break;
     case 'shop-detail':
       renderShopDetailsView(container);
@@ -1191,8 +1224,8 @@ function renderFirstPageLanding(containerEl) {
             </div>
 
             <!-- SLIDE 4: SHIV SHAKTI EKADASH (4TH CONFIRM TEAM) -->
-            <div class="w-full flex-shrink-0 relative cursor-pointer slide-item px-1" data-slide-index="3" data-img-src="assets/team_confirm_4_shiv_shakti.jpg" data-team-name="4TH CONFIRM TEAM - SHIV SHAKTI EKADASH">
-              <img src="assets/team_confirm_4_shiv_shakti.jpg" alt="4th Confirm Team - SHIV SHAKTI EKADASH" class="w-full h-auto max-h-72 sm:max-h-96 object-contain mx-auto rounded-2xl border-4 border-white shadow-xl" />
+            <div class="w-full flex-shrink-0 relative cursor-pointer slide-item px-1" data-slide-index="3" data-img-src="assets/team_confirm_4_shiv_shakti_ekadash.jpg" data-team-name="4TH CONFIRM TEAM - SHIV SHAKTI EKADASH">
+              <img src="assets/team_confirm_4_shiv_shakti_ekadash.jpg" alt="4th Confirm Team - SHIV SHAKTI EKADASH" class="w-full h-auto max-h-72 sm:max-h-96 object-contain mx-auto rounded-2xl border-4 border-white shadow-xl" />
             </div>
 
             <!-- SLIDE 5: AVD ELEVEN (5TH CONFIRM TEAM) -->
@@ -1526,10 +1559,13 @@ function renderJSLHub(containerEl) {
 
       </div>
 
-      <!-- LOWER PORTION: COMPACT RED COLOUR REGISTER NOW BUTTON -->
-      <div class="flex items-center justify-center pt-2 sm:pt-3">
+      <!-- LOWER PORTION: COMPACT RED COLOUR REGISTER NOW BUTTON & LIVE AUCTION HUB -->
+      <div class="flex flex-wrap items-center justify-center gap-3 pt-2 sm:pt-3">
         <button id="jsl-right-reg-btn" class="btn-blink-always px-6 sm:px-8 py-2.5 bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg flex items-center justify-center gap-2 border border-red-400 transition-all">
           <i data-lucide="edit-3" class="w-4 h-4 text-amber-300"></i> Register Now
+        </button>
+        <button id="jsl-hub-auction-btn" class="px-5 sm:px-7 py-2.5 bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-lg flex items-center justify-center gap-2 border border-amber-300 transition-all hover:scale-105">
+          <span>🔨 Live Auction Hub</span>
         </button>
       </div>
 
@@ -2707,6 +2743,7 @@ function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
         <div>
           <span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[9px] font-black rounded border border-emerald-300 uppercase">PLAYER REGISTER</span>
           <h2 class="text-base font-black text-slate-900 mt-0.5">Player Registration Form</h2>
+          <p class="text-[10px] text-slate-500 font-medium mt-0.5">⚡ Serial No. & Registration ID are assigned sequentially upon final submission.</p>
         </div>
 
         <form id="player-registration-form" class="space-y-2.5">
@@ -2769,9 +2806,10 @@ function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
             <div>
               <label class="block text-[8px] font-bold text-slate-700 uppercase mb-0.5">Player Category *</label>
               <select id="ply-category" required class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-1.5 focus:outline-none focus:border-emerald-500">
+                <option value="" disabled selected>-- Select Category * --</option>
                 <option value="Batsman">Batsman</option>
                 <option value="Bowler">Bowler</option>
-                <option value="All-rounder" selected>All-rounder</option>
+                <option value="All-rounder">All-rounder</option>
                 <option value="Wicket Keeper">Wicket Keeper</option>
               </select>
             </div>
@@ -3228,6 +3266,15 @@ function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
 
     try {
       const name = document.getElementById('ply-name').value;
+      const category = document.getElementById('ply-category').value;
+      if (!category) {
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.innerText = "Submit Player Registration";
+        }
+        alert("⚠️ Please select your Player Category (Batsman, Bowler, All-rounder, or Wicket Keeper).");
+        return;
+      }
       const fatherName = document.getElementById('ply-father-name').value;
       const dob = document.getElementById('ply-dob').value;
       const age = parseInt(document.getElementById('ply-age').value, 10) || 22;
@@ -3236,7 +3283,6 @@ function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
       const village = document.getElementById('ply-village').value;
       const district = document.getElementById('ply-district').value;
       const state = document.getElementById('ply-state').value || 'West Bengal';
-      const category = document.getElementById('ply-category').value;
       const battingStyle = document.getElementById('ply-batting-style').value;
       const bowlingStyle = document.getElementById('ply-bowling-style').value;
       const isWicketKeeper = (category === 'Wicket Keeper');
@@ -3286,7 +3332,7 @@ function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
         paymentRef: upiRef,
         remarks,
         phoneVerified: true,
-        basePrice: 200
+        basePrice: 300
       });
 
       store.setUserRole('PLAYER', newPlayer.name, newPlayer);
@@ -3321,8 +3367,14 @@ function renderFixturesView(container) {
     const scheduledMatches = fixtures.filter(f => f.status === 'SCHEDULED');
     const completedMatches = fixtures.filter(f => f.status === 'COMPLETED');
 
+    // Filter teams strictly by selected tournament category
+    const leagueTeams = store.getTeams().filter(t => {
+      const code = (t.leagueCode || (t.leagueId === 'leg-jsl' ? 'JSL' : (t.leagueId === 'leg-jpl' ? 'JPL' : (t.leagueId === 'leg-kpl' ? 'KPL' : 'JSL'))));
+      return code === selectedCategory;
+    });
+
     // Standings points compilation (dynamic calculation from matches)
-    const standings = store.getTeams().map(t => {
+    const standings = leagueTeams.map(t => {
       const teamId = t.id;
       // Get all completed games for this category involving this team
       const teamFixtures = store.getFixtures().filter(f => f.status === 'COMPLETED' && f.leagueCode === selectedCategory && (f.teamAId === teamId || f.teamBId === teamId));
@@ -3400,7 +3452,7 @@ function renderFixturesView(container) {
         <!-- 1. LIVE MATCHES (IF ANY) -->
         ${liveMatches.length > 0 ? `
           <div class="space-y-3">
-            <h2 class="text-sm font-black text-emerald-400 uppercase tracking-widest flex items-center gap-1.5">
+            <h2 class="text-sm font-black text-emerald-700 uppercase tracking-widest flex items-center gap-1.5">
               <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 animate-pulse"></span> Live Match Scoreboard
             </h2>
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -3415,38 +3467,40 @@ function renderFixturesView(container) {
                 if (state.innings === 2 && state.target) {
                   const runsReq = state.target - state.runs;
                   const remainingBalls = (m.oversLimit * 6) - totalBalls;
-                  secondInningsTarget = `<div class="text-xs font-black text-amber-400 mt-2">Target: ${state.target} | Need ${runsReq} runs off ${remainingBalls} balls</div>`;
+                  secondInningsTarget = `<div class="text-xs font-black text-amber-700 mt-2">Target: ${state.target} | Need ${runsReq} runs off ${remainingBalls} balls</div>`;
                 }
 
                 return `
-                  <div class="glass-card p-5 bg-gradient-to-br from-slate-900 to-emerald-950/20 border-2 border-emerald-500/40 rounded-2xl shadow-xl flex flex-col justify-between">
-                    <div class="flex justify-between items-center pb-2 border-b border-slate-800/80">
-                      <span class="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded font-black uppercase">Live Scoring</span>
-                      <span class="text-[10px] text-slate-400 font-bold">${m.venue}</span>
+                  <div class="bg-white border-2 border-emerald-500 rounded-2xl shadow-md p-4 sm:p-5 flex flex-col justify-between">
+                    <div class="flex justify-between items-center pb-2 border-b border-slate-100">
+                      <span class="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded font-black uppercase flex items-center gap-1">
+                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span> Live Scoring
+                      </span>
+                      <span class="text-[10px] text-slate-500 font-bold">📍 ${m.venue}</span>
                     </div>
 
-                    <div class="py-4 space-y-2">
+                    <div class="py-3 space-y-2">
                       <div class="flex justify-between items-center">
-                        <span class="font-black text-white text-base">${batTeamName}</span>
-                        <span class="font-black text-2xl text-emerald-400">${state.runs} / ${state.wickets}</span>
+                        <span class="font-black text-slate-900 text-base">${batTeamName}</span>
+                        <span class="font-black text-2xl text-emerald-600">${state.runs} / ${state.wickets}</span>
                       </div>
-                      <div class="flex justify-between items-center text-xs text-slate-400">
-                        <span>Overs: ${state.overs}.${state.balls} / ${m.oversLimit}</span>
-                        <span>Run Rate: ${rr}</span>
+                      <div class="flex justify-between items-center text-xs text-slate-500">
+                        <span>Overs: <strong>${state.overs}.${state.balls}</strong> / ${m.oversLimit}</span>
+                        <span>Run Rate: <strong>${rr}</strong></span>
                       </div>
                       ${secondInningsTarget}
                     </div>
 
                     <!-- Batter / Bowler partner logs -->
-                    <div class="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/60 space-y-1.5 text-[11px]">
-                      <div class="flex justify-between text-slate-300 font-bold">
-                        <span>Striker: ${store.getPlayerById(state.strikerId)?.name || 'Striking'}</span>
-                        <span>Bowler: ${store.getPlayerById(state.bowlerId)?.name || 'Bowling'}</span>
+                    <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-1.5 text-[11px]">
+                      <div class="flex justify-between text-slate-700 font-bold">
+                        <span>🏏 Striker: <strong class="text-slate-900">${store.getPlayerById(state.strikerId)?.name || 'Striking'}</strong></span>
+                        <span>⚾ Bowler: <strong class="text-slate-900">${store.getPlayerById(state.bowlerId)?.name || 'Bowling'}</strong></span>
                       </div>
-                      <div class="flex items-center gap-2 pt-1.5 border-t border-slate-900 text-[10px]">
+                      <div class="flex items-center gap-2 pt-1.5 border-t border-slate-200 text-[10px]">
                         <span class="text-slate-500 uppercase font-extrabold">This Over:</span>
                         <div class="flex gap-1">
-                          ${(state.overBalls || []).map(b => `<span class="px-1.5 py-0.5 bg-slate-900 text-slate-300 rounded font-bold text-[9px]">${b.label}</span>`).join('')}
+                          ${(state.overBalls || []).map(b => `<span class="px-2 py-0.5 bg-white border border-slate-200 text-slate-800 rounded font-bold text-[9px] shadow-sm">${b.label}</span>`).join('')}
                         </div>
                       </div>
                     </div>
@@ -3459,25 +3513,27 @@ function renderFixturesView(container) {
 
         <!-- 2. UPCOMING MATCH FIXTURES -->
         <div class="space-y-3">
-          <h2 class="text-sm font-black text-sky-400 uppercase tracking-widest">Scheduled Fixtures</h2>
+          <h2 class="text-sm font-black text-slate-700 uppercase tracking-widest flex items-center gap-1.5">
+            <span>📅</span> Scheduled Fixtures (${selectedCategory})
+          </h2>
           ${scheduledMatches.length === 0 ? `
-            <div class="text-center py-8 text-xs text-slate-500 border border-dashed border-slate-800 rounded-xl bg-slate-950/10">No upcoming fixtures scheduled yet.</div>
+            <div class="text-center py-10 text-xs text-slate-500 border border-dashed border-slate-300 rounded-2xl bg-white shadow-sm">No upcoming fixtures scheduled for ${selectedCategory} yet.</div>
           ` : `
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               ${scheduledMatches.map(m => `
-                <div class="glass-card p-4 bg-slate-900/90 border border-slate-800 rounded-2xl flex flex-col justify-between">
-                  <div class="flex justify-between items-center pb-2 border-b border-slate-800/60 text-[10px] text-slate-400">
-                    <span class="font-bold uppercase tracking-wider text-sky-400">${m.leagueCode} Match</span>
-                    <span class="font-semibold">${m.date} at ${m.time}</span>
+                <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm flex flex-col justify-between hover:shadow-md transition-shadow">
+                  <div class="flex justify-between items-center pb-2 border-b border-slate-100 text-[10px] text-slate-500">
+                    <span class="font-bold uppercase tracking-wider text-blue-700 bg-blue-50 px-2 py-0.5 rounded border border-blue-100">${m.leagueCode} Match</span>
+                    <span class="font-semibold">🗓️ ${m.date} at ${m.time}</span>
                   </div>
-                  <div class="py-3 flex justify-between items-center font-black text-white text-sm">
-                    <span>${m.teamAName}</span>
-                    <span class="text-xs text-slate-500">VS</span>
-                    <span>${m.teamBName}</span>
+                  <div class="py-3 flex justify-between items-center font-black text-slate-900 text-sm">
+                    <span class="truncate">${m.teamAName}</span>
+                    <span class="text-xs text-slate-400 font-bold px-2 py-0.5 bg-slate-100 rounded-full">VS</span>
+                    <span class="truncate text-right">${m.teamBName}</span>
                   </div>
-                  <div class="text-[10px] text-slate-400 pt-2 border-t border-slate-800 flex justify-between">
-                    <span>Overs: ${m.oversLimit} Overs</span>
-                    <span>Venue: ${m.venue}</span>
+                  <div class="text-[10px] text-slate-500 pt-2 border-t border-slate-100 flex justify-between">
+                    <span>⚡ Overs: <strong>${m.oversLimit} Overs</strong></span>
+                    <span>📍 Venue: <strong>${m.venue}</strong></span>
                   </div>
                 </div>
               `).join('')}
@@ -3487,29 +3543,31 @@ function renderFixturesView(container) {
 
         <!-- 3. COMPLETED MATCH RESULTS -->
         <div class="space-y-3">
-          <h2 class="text-sm font-black text-slate-400 uppercase tracking-widest">Results</h2>
+          <h2 class="text-sm font-black text-slate-700 uppercase tracking-widest flex items-center gap-1.5">
+            <span>🏆</span> Match Results (${selectedCategory})
+          </h2>
           ${completedMatches.length === 0 ? `
-            <div class="text-center py-8 text-xs text-slate-500 border border-dashed border-slate-800 rounded-xl bg-slate-950/10">No matches completed yet.</div>
+            <div class="text-center py-10 text-xs text-slate-500 border border-dashed border-slate-300 rounded-2xl bg-white shadow-sm">No completed matches for ${selectedCategory} yet.</div>
           ` : `
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
               ${completedMatches.map(m => `
-                <div class="glass-card p-4 bg-slate-900/90 border border-slate-850 rounded-2xl">
-                  <div class="flex justify-between items-center pb-2 border-b border-slate-850 text-[10px] text-slate-400">
-                    <span class="font-bold text-emerald-500 uppercase">Completed</span>
-                    <span>${m.date}</span>
+                <div class="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm hover:shadow-md transition-shadow">
+                  <div class="flex justify-between items-center pb-2 border-b border-slate-100 text-[10px] text-slate-500">
+                    <span class="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 uppercase">Completed</span>
+                    <span>🗓️ ${m.date}</span>
                   </div>
-                  <div class="py-3 flex justify-between items-center font-black text-white text-xs sm:text-sm">
+                  <div class="py-3 flex justify-between items-center font-black text-slate-900 text-xs sm:text-sm">
                     <div>
                       <div>${m.teamAName}</div>
-                      <div class="text-[11px] text-slate-400 font-bold">${m.teamAScore ? `${m.teamAScore.runs}/${m.teamAScore.wickets} (${m.teamAScore.overs}.${m.teamAScore.balls})` : ''}</div>
+                      <div class="text-[11px] text-slate-500 font-bold">${m.teamAScore ? `${m.teamAScore.runs}/${m.teamAScore.wickets} (${m.teamAScore.overs}.${m.teamAScore.balls} ov)` : ''}</div>
                     </div>
-                    <span class="text-slate-500 font-semibold">vs</span>
+                    <span class="text-slate-400 font-semibold px-2">vs</span>
                     <div class="text-right">
                       <div>${m.teamBName}</div>
-                      <div class="text-[11px] text-slate-400 font-bold">${m.teamBScore ? `${m.teamBScore.runs}/${m.teamBScore.wickets} (${m.teamBScore.overs}.${m.teamBScore.balls})` : ''}</div>
+                      <div class="text-[11px] text-slate-500 font-bold">${m.teamBScore ? `${m.teamBScore.runs}/${m.teamBScore.wickets} (${m.teamBScore.overs}.${m.teamBScore.balls} ov)` : ''}</div>
                     </div>
                   </div>
-                  <div class="text-[11px] bg-sky-950/20 border border-sky-500/20 text-sky-300 font-extrabold p-2 rounded-xl text-center mt-2 uppercase tracking-wide">
+                  <div class="text-[11px] bg-blue-50 border border-blue-200 text-blue-900 font-extrabold p-2 rounded-xl text-center mt-2 uppercase tracking-wide shadow-sm">
                     🏆 ${m.result || 'Match Completed'}
                   </div>
                 </div>
@@ -3519,82 +3577,116 @@ function renderFixturesView(container) {
         </div>
       `;
     } else {
-      mainContentHtml = `
-        <div class="space-y-4">
-          <div class="flex items-center justify-between">
-            <h2 class="text-sm font-black text-sky-400 uppercase tracking-widest">Franchise Standings (Points Table)</h2>
-            <span class="px-2 py-0.5 bg-emerald-950 text-emerald-400 border border-emerald-800 rounded font-bold text-[10px] uppercase tracking-wide">🏆 Top 4 Qualify for Semifinal</span>
+      if (standings.length === 0) {
+        mainContentHtml = `
+          <div class="bg-white border border-slate-200 rounded-2xl p-8 sm:p-12 text-center shadow-sm space-y-3 animate-fade-in">
+            <div class="w-14 h-14 rounded-2xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center mx-auto text-2xl shadow-inner">
+              🏏
+            </div>
+            <h3 class="text-base sm:text-lg font-black text-slate-800">${selectedCategory} Tournament Standings Coming Soon</h3>
+            <p class="text-xs text-slate-500 max-w-md mx-auto">Franchise teams and fixtures for <strong>${selectedCategory}</strong> will be populated as tournament registrations open.</p>
           </div>
+        `;
+      } else {
+        mainContentHtml = `
+          <div class="space-y-3 sm:space-y-4 animate-fade-in">
+            <!-- Table Header Bar -->
+            <div class="flex flex-wrap items-center justify-between gap-2 px-1">
+              <div>
+                <h2 class="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <span>🏆</span> ${selectedCategory} Franchise Standings
+                </h2>
+              </div>
+              <span class="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-300 rounded-full font-black text-[10px] uppercase shadow-xs">
+                <span>⭐</span> Top 4 Qualify for Semifinal
+              </span>
+            </div>
 
-          <div class="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-2xl">
-            <div class="overflow-x-auto">
-              <table class="w-full text-left text-xs sm:text-sm text-slate-200">
-                <thead class="bg-slate-950 font-black text-[10px] uppercase text-slate-400 border-b border-slate-800">
+            <!-- Single-Display Mobile-Friendly Colorful Points Table -->
+            <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-md">
+              <table class="w-full text-left text-xs text-slate-800">
+                <thead class="bg-gradient-to-r from-slate-100 via-blue-50/50 to-slate-100 font-black text-[10px] sm:text-[11px] uppercase text-slate-600 border-b border-slate-200">
                   <tr>
-                    <th class="py-3.5 px-4 text-center w-10">POS</th>
-                    <th class="py-3.5 px-3">TEAM</th>
-                    <th class="py-3.5 px-3 text-center">P</th>
-                    <th class="py-3.5 px-3 text-center text-emerald-400">W</th>
-                    <th class="py-3.5 px-3 text-center text-red-400">L</th>
-                    <th class="py-3.5 px-3 text-center">NR</th>
-                    <th class="py-3.5 px-3 text-center text-amber-400">PTS</th>
-                    <th class="py-3.5 px-4 text-right">NRR</th>
+                    <th class="py-2.5 sm:py-3 px-1.5 sm:px-3 text-center w-7 sm:w-10">#</th>
+                    <th class="py-2.5 sm:py-3 px-1.5 sm:px-3 text-left">Team</th>
+                    <th class="py-2.5 sm:py-3 px-1 text-center w-6 sm:w-10" title="Played">P</th>
+                    <th class="py-2.5 sm:py-3 px-1 text-center w-6 sm:w-10 text-emerald-700 font-black" title="Won">W</th>
+                    <th class="py-2.5 sm:py-3 px-1 text-center w-6 sm:w-10 text-rose-600 font-bold" title="Lost">L</th>
+                    <th class="py-2.5 sm:py-3 px-1.5 sm:px-3 text-center w-10 sm:w-14 text-blue-700 font-black" title="Points">PTS</th>
+                    <th class="py-2.5 sm:py-3 px-2 sm:px-4 text-right w-14 sm:w-20 font-mono" title="Net Run Rate">NRR</th>
                   </tr>
                 </thead>
-                <tbody class="divide-y divide-slate-800/60 font-semibold">
+                <tbody class="divide-y divide-slate-100 font-semibold">
                   ${standings.map((t, idx) => {
                     const isSemiSpot = idx < 4;
-                    const rowClass = isSemiSpot ? 'bg-emerald-950/5 hover:bg-emerald-950/10' : 'hover:bg-slate-950/40';
+                    const rowBg = isSemiSpot ? 'bg-emerald-50/30 hover:bg-emerald-50/60' : 'hover:bg-slate-50';
                     return `
-                      <tr class="${rowClass} transition-colors">
-                        <td class="py-3.5 px-4 text-center font-black">
-                          <span class="inline-flex w-5 h-5 rounded-full ${isSemiSpot ? 'bg-emerald-600 text-slate-950' : 'bg-slate-800 text-slate-400'} items-center justify-center text-[10px] font-black shadow-sm">
+                      <tr class="${rowBg} transition-colors">
+                        <td class="py-2.5 sm:py-3.5 px-1.5 sm:px-3 text-center font-black">
+                          <span class="inline-flex w-5 h-5 sm:w-6 sm:h-6 rounded-full ${isSemiSpot ? 'bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-xs' : 'bg-slate-100 text-slate-500 border border-slate-200'} items-center justify-center text-[10px] font-black">
                             ${idx + 1}
                           </span>
                         </td>
-                        <td class="py-3.5 px-3 text-xs sm:text-sm font-black text-white flex items-center gap-2">
-                          ${isSemiSpot ? `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" title="In Semifinal Zone"></span>` : ''}
-                          <span>${t.name}</span>
+                        <td class="py-2.5 sm:py-3.5 px-1.5 sm:px-3 font-black text-slate-900">
+                          <div class="flex items-center gap-1.5 min-w-0">
+                            ${isSemiSpot ? `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" title="In Semifinal Zone"></span>` : ''}
+                            <span class="text-xs sm:text-sm font-black truncate tracking-tight">${t.name}</span>
+                          </div>
                         </td>
-                        <td class="py-3.5 px-3 text-center font-mono">${t.played}</td>
-                        <td class="py-3.5 px-3 text-center font-mono text-emerald-400 font-bold">${t.won}</td>
-                        <td class="py-3.5 px-3 text-center font-mono text-red-400 font-bold">${t.lost}</td>
-                        <td class="py-3.5 px-3 text-center font-mono">${t.nr}</td>
-                        <td class="py-3.5 px-3 text-center font-black font-mono text-amber-400 text-sm">${t.points}</td>
-                        <td class="py-3.5 px-4 text-right font-mono text-xs ${parseFloat(t.nrr) >= 0 ? 'text-sky-400' : 'text-slate-400'}">${t.nrr}</td>
+                        <td class="py-2.5 sm:py-3.5 px-1 text-center font-mono text-xs text-slate-600 font-bold">${t.played}</td>
+                        <td class="py-2.5 sm:py-3.5 px-1 text-center font-mono text-xs text-emerald-700 font-black">${t.won}</td>
+                        <td class="py-2.5 sm:py-3.5 px-1 text-center font-mono text-xs text-rose-600 font-bold">${t.lost}</td>
+                        <td class="py-2.5 sm:py-3.5 px-1.5 sm:px-3 text-center font-mono">
+                          <span class="inline-block px-1.5 sm:px-2 py-0.5 bg-gradient-to-r from-blue-600 to-indigo-700 text-white rounded-md font-black text-[11px] sm:text-xs shadow-xs">
+                            ${t.points}
+                          </span>
+                        </td>
+                        <td class="py-2.5 sm:py-3.5 px-2 sm:px-4 text-right font-mono text-[10px] sm:text-xs font-bold ${parseFloat(t.nrr) >= 0 ? 'text-emerald-700' : 'text-slate-500'}">
+                          ${parseFloat(t.nrr) > 0 ? '+' : ''}${t.nrr}
+                        </td>
                       </tr>
                     `;
                   }).join('')}
                 </tbody>
               </table>
             </div>
+
+            <!-- Mobile-Friendly Footer Legend -->
+            <div class="flex flex-wrap items-center justify-between text-[10px] text-slate-500 px-2 pt-1 font-semibold gap-1">
+              <span class="flex items-center gap-1 text-emerald-700 font-bold">
+                <span class="w-2 h-2 rounded-full bg-emerald-500"></span> 1-4 Rank: Semifinal Qualifier
+              </span>
+              <span class="text-slate-400">P=Played, W=Won, L=Lost, PTS=Points</span>
+            </div>
           </div>
-        </div>
-      `;
+        `;
+      }
     }
 
     container.innerHTML = `
       <div class="space-y-6 sm:space-y-8 animate-fade-in pb-16">
         <!-- Banner & Category Selector -->
-        <div class="bg-slate-900/90 border border-slate-800 p-4 sm:p-6 rounded-2xl shadow-2xl backdrop-blur-xl flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+        <div class="bg-white border border-slate-200 p-4 sm:p-6 rounded-2xl shadow-sm flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
           <div>
-            <h1 class="text-xl sm:text-2xl font-black text-white">🏏 Match Center</h1>
-            <p class="text-xs text-slate-400">View live scores, match standings, and fixtures in real-time.</p>
+            <h1 class="text-xl sm:text-2xl font-black text-slate-900 flex items-center gap-2">
+              <span class="p-1.5 bg-emerald-100 text-emerald-800 rounded-xl">🏏</span> Match Center
+            </h1>
+            <p class="text-xs text-slate-500 mt-1">View live scores, match standings, and fixtures in real-time.</p>
           </div>
-          <div class="flex border border-slate-800 rounded-xl overflow-hidden bg-slate-950 p-1">
-            <button data-cat="JSL" class="fixture-cat-btn ${selectedCategory === 'JSL' ? 'bg-sky-600 text-white font-extrabold' : 'text-slate-400 hover:text-white'} px-3 py-1.5 text-xs rounded-lg transition-all">JSL</button>
-            <button data-cat="JPL" class="fixture-cat-btn ${selectedCategory === 'JPL' ? 'bg-sky-600 text-white font-extrabold' : 'text-slate-400 hover:text-white'} px-3 py-1.5 text-xs rounded-lg transition-all">JPL</button>
-            <button data-cat="KPL" class="fixture-cat-btn ${selectedCategory === 'KPL' ? 'bg-sky-600 text-white font-extrabold' : 'text-slate-400 hover:text-white'} px-3 py-1.5 text-xs rounded-lg transition-all">KPL</button>
+          <div class="flex border border-slate-200 rounded-xl overflow-hidden bg-slate-100 p-1 shadow-inner">
+            <button data-cat="JSL" class="fixture-cat-btn ${selectedCategory === 'JSL' ? 'bg-blue-600 text-white font-extrabold shadow' : 'text-slate-600 hover:text-slate-900 font-bold'} px-3.5 py-1.5 text-xs rounded-lg transition-all cursor-pointer">JSL</button>
+            <button data-cat="JPL" class="fixture-cat-btn ${selectedCategory === 'JPL' ? 'bg-blue-600 text-white font-extrabold shadow' : 'text-slate-600 hover:text-slate-900 font-bold'} px-3.5 py-1.5 text-xs rounded-lg transition-all cursor-pointer">JPL</button>
+            <button data-cat="KPL" class="fixture-cat-btn ${selectedCategory === 'KPL' ? 'bg-blue-600 text-white font-extrabold shadow' : 'text-slate-600 hover:text-slate-900 font-bold'} px-3.5 py-1.5 text-xs rounded-lg transition-all cursor-pointer">KPL</button>
           </div>
         </div>
 
         <!-- Sub-Tabs Navigation (Matches / Points Table) -->
-        <div class="flex gap-4 border-b border-slate-800/60 pb-2">
-          <button id="fixture-subtab-matches" class="text-xs font-black pb-1.5 border-b-2 transition-all ${activeSubTab === 'matches' ? 'text-sky-400 border-sky-500' : 'text-slate-400 border-transparent hover:text-white'}">
-            Matches
+        <div class="flex gap-4 border-b border-slate-200 pb-2">
+          <button id="fixture-subtab-matches" class="text-xs font-black pb-1.5 border-b-2 transition-all cursor-pointer ${activeSubTab === 'matches' ? 'text-blue-700 border-blue-600' : 'text-slate-500 border-transparent hover:text-slate-800'}">
+            🏏 Matches
           </button>
-          <button id="fixture-subtab-table" class="text-xs font-black pb-1.5 border-b-2 transition-all ${activeSubTab === 'table' ? 'text-sky-400 border-sky-500' : 'text-slate-400 border-transparent hover:text-white'}">
-            IPL Standing Table
+          <button id="fixture-subtab-table" class="text-xs font-black pb-1.5 border-b-2 transition-all cursor-pointer ${activeSubTab === 'table' ? 'text-blue-700 border-blue-600' : 'text-slate-500 border-transparent hover:text-slate-800'}">
+            📊 Points Table (Standings)
           </button>
         </div>
 
@@ -3634,6 +3726,52 @@ function renderLiveAuctionView(container) {
     clearInterval(auctionPollInterval);
   }
 
+  // 1. Render outer shell ONCE in premium off-white theme
+  container.innerHTML = `
+    <div class="space-y-6 sm:space-y-8 animate-fade-in pb-16">
+      <!-- Header Banner (Off-white / Slate clean card) -->
+      <div class="bg-white border border-slate-200 p-4 sm:p-6 rounded-2xl shadow-md">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div>
+            <h1 class="text-xl sm:text-2xl font-black text-slate-900 flex items-center gap-2">
+              <span class="p-1.5 bg-amber-100 text-amber-800 rounded-xl">🔨</span> Live Player Auction Hub
+            </h1>
+            <p class="text-xs text-slate-500 mt-1">Track current bids, player block assignments, and team budgets in real time.</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-emerald-50 text-emerald-700 font-bold text-xs rounded-full border border-emerald-200">
+              <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Live Sync Active
+            </span>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <!-- Left Column: Active Player Live Block -->
+        <div class="lg:col-span-2 space-y-4" id="auction-active-block-container">
+          <div class="text-center py-16 text-slate-400 border-2 border-dashed border-slate-300 rounded-2xl bg-white shadow-sm">
+            <i data-lucide="gavel" class="w-12 h-12 text-slate-300 mx-auto mb-3"></i>
+            <h3 class="text-slate-700 font-bold text-sm">Waiting for Auctioneer...</h3>
+            <p class="text-xs text-slate-400 mt-1">The active player will appear here dynamically once bidding starts.</p>
+          </div>
+        </div>
+
+        <!-- Right Column: Franchise Purses -->
+        <div class="lg:col-span-1 space-y-3">
+          <div class="flex justify-between items-center">
+            <h3 class="text-xs sm:text-sm font-black text-slate-700 uppercase tracking-wider">Franchise Purses</h3>
+            <span class="text-[11px] font-bold text-slate-500">Target: 13 Players</span>
+          </div>
+          <div class="space-y-2" id="auction-franchise-purses-list"></div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  if (window.lucide) window.lucide.createIcons();
+
+  let lastActivePlayerId = undefined; // Tracks active player to prevent card destruction & flickering
+
   const pollActiveAuctionState = async () => {
     if (currentRoute !== 'auction') {
       if (auctionPollInterval) {
@@ -3645,7 +3783,7 @@ function renderLiveAuctionView(container) {
 
     const state = await store.getLiveAuctionState();
     
-    // Safeguard: Check route again after async cloud state fetch!
+    // Safeguard route check
     if (currentRoute !== 'auction') {
       if (auctionPollInterval) {
         clearInterval(auctionPollInterval);
@@ -3653,103 +3791,207 @@ function renderLiveAuctionView(container) {
       }
       return;
     }
-    const teams = store.getTeams();
-    
-    let activeBlockHtml = `
-      <div class="text-center py-16 text-slate-500 border border-dashed border-slate-800 rounded-2xl bg-slate-950/30">
-        <i data-lucide="gavel" class="w-12 h-12 text-slate-700 mx-auto mb-3"></i>
-        <h3 class="text-slate-400 font-bold text-sm">Waiting for Auctioneer...</h3>
-        <p class="text-xs text-slate-500 mt-1">The active player will appear here dynamically once bidding starts.</p>
-      </div>
-    `;
 
+    const teams = store.getTeams();
+    const allPlayers = store.getPlayers();
+    const activeBlockWrapper = document.getElementById('auction-active-block-container');
+    const pursesWrapper = document.getElementById('auction-franchise-purses-list');
+
+    if (!activeBlockWrapper) return;
+
+    // ACTIVE PLAYER BLOCK HANDLING
     if (state && state.active_player_id) {
       const bidderTeam = teams.find(t => t.id === state.highest_bidder_team_id);
-      activeBlockHtml = `
-        <div class="bg-gradient-to-br from-slate-900 to-amber-950/10 border-2 border-amber-500/40 p-5 rounded-2xl shadow-2xl space-y-6 animate-fade-in relative overflow-hidden">
-          <div class="absolute -top-16 -right-16 w-32 h-32 bg-amber-500/10 rounded-full blur-2xl"></div>
+      const isNewPlayer = (lastActivePlayerId !== state.active_player_id);
 
-          <div class="flex justify-between items-center pb-2 border-b border-slate-800/80">
-            <span class="px-2.5 py-0.5 bg-amber-500/10 text-amber-400 border border-amber-500/30 rounded font-black text-[10px] uppercase tracking-wider animate-pulse flex items-center gap-1.5">
-              <span class="w-1.5 h-1.5 bg-amber-500 rounded-full animate-ping"></span> Live Bidding Block
-            </span>
-            <span class="text-xs text-slate-400 font-mono font-bold">Category: JSL 2026</span>
-          </div>
+      if (isNewPlayer) {
+        lastActivePlayerId = state.active_player_id;
+        const playerPhoto = getOptimizedImageUrl(state.photoUrl, 600, 600) || 'assets/card_jsl_user.png';
+        
+        activeBlockWrapper.innerHTML = `
+          <div class="relative rounded-2xl overflow-hidden shadow-2xl border-2 border-slate-200 min-h-[420px] sm:min-h-[460px] flex flex-col justify-between p-4 sm:p-5 bg-slate-100 animate-fade-in">
+            <!-- FULL VIVID PLAYER IMAGE (NATURAL & BRIGHT - NO DARK FADE) -->
+            <img src="${playerPhoto}" class="absolute inset-0 w-full h-full object-cover object-top" alt="${state.name}" onerror="this.src='assets/card_jsl_user.png'" />
+            
+            <!-- SOFT TOP & BOTTOM LIGHT GRADIENT SO PHOTO REMAINS SHARP -->
+            <div class="absolute inset-0 bg-gradient-to-b from-white/50 via-transparent to-slate-900/30 pointer-events-none"></div>
 
-          <!-- Active Player Details -->
-          <div class="flex flex-col sm:flex-row gap-5 items-center sm:items-start text-center sm:text-left">
-            <img src="${getOptimizedImageUrl(state.photoUrl, 300, 300) || 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Crect width=\'100\' height=\'100\' rx=\'20\' fill=\'%23059669\'/%3E%3Ctext x=\'50\' y=\'62\' font-size=\'45\' text-anchor=\'middle\' fill=\'white\'%3E🏏%3C/text%3E%3C/svg%3E'}" loading="lazy" class="w-28 h-28 sm:w-32 sm:h-32 rounded-2xl object-cover border-2 border-amber-500 shadow-xl" />
-            <div class="space-y-2">
-              <h2 class="text-xl sm:text-2xl font-black text-white">${state.name}</h2>
-              <div class="flex flex-wrap gap-1.5 justify-center sm:justify-start">
-                <span class="px-2.5 py-0.5 bg-sky-950 text-sky-400 border border-sky-850 rounded-full font-bold text-[10px]">${state.category}</span>
-                <span class="px-2.5 py-0.5 bg-slate-950 text-slate-350 border border-slate-800 rounded-full font-mono text-[10px]">Base: ₹ ${state.basePrice}</span>
+            <!-- TOP ROW: Live Badge & Registration ID in clean white pills -->
+            <div class="relative z-10 flex justify-between items-center">
+              <span class="px-3 py-1 bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 font-black text-[10px] rounded-full uppercase tracking-wider shadow-md flex items-center gap-1.5 border border-white/60">
+                <span class="w-2 h-2 bg-rose-600 rounded-full animate-ping"></span> LIVE AUCTION
+              </span>
+              <span class="px-3 py-1 bg-white/95 backdrop-blur-md text-slate-900 border border-slate-200 rounded-full text-xs font-mono font-black shadow-sm">
+                ${state.registrationId || 'JSL 2026'}
+              </span>
+            </div>
+
+            <!-- MIDDLE: PLAYER DETAILS IN CLEAN WHITE FROSTED CARD -->
+            <div class="relative z-10 space-y-2 mt-auto mb-3">
+              <div class="inline-block p-3 sm:p-4 bg-white/95 backdrop-blur-md rounded-2xl border border-white/80 shadow-lg max-w-full">
+                <div class="flex flex-wrap items-center gap-1.5 mb-1">
+                  <span class="px-2.5 py-0.5 bg-emerald-600 text-white font-extrabold text-[10px] sm:text-[11px] rounded-md uppercase tracking-wider shadow-sm">
+                    🏏 ${state.category || 'All Rounder'}
+                  </span>
+                  <span class="px-2.5 py-0.5 bg-blue-50 text-blue-800 font-bold text-[10px] rounded-md border border-blue-200">
+                    📍 ${state.village || 'Paschim Medinipur'}
+                  </span>
+                </div>
+                <h2 class="text-xl sm:text-3xl font-black text-slate-950 tracking-tight leading-tight">
+                  ${state.name}
+                </h2>
+                <div class="text-[11px] text-slate-600 font-semibold flex flex-wrap items-center gap-2 mt-0.5">
+                  <span>${state.battingStyle || 'Right Hand Bat'}</span>
+                  ${state.bowlingStyle && state.bowlingStyle !== 'None' ? `<span>• ${state.bowlingStyle}</span>` : ''}
+                  <span class="text-amber-600 font-bold">• Base: ₹ ${state.basePrice || 300}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- BOTTOM: LIVE BID & LEADING BIDDER (BLACK/DARK GLASS CARD) -->
+            <div class="relative z-10 grid grid-cols-2 gap-3 bg-slate-950/95 backdrop-blur-xl p-3.5 sm:p-4 rounded-2xl border-2 border-amber-400 shadow-2xl">
+              <div>
+                <span class="text-[9px] font-extrabold text-amber-300 uppercase tracking-widest block">Current High Bid</span>
+                <span id="auction-live-bid-display" class="text-2xl sm:text-3xl font-black text-amber-400 font-mono">
+                  ₹ ${Number(state.current_bid || state.basePrice || 300).toLocaleString('en-IN')}
+                </span>
+                <span class="text-[9px] text-slate-400 block font-mono">Base Price: ₹ ${state.basePrice || 300}</span>
+              </div>
+              <div class="text-right border-l border-slate-800 pl-3 flex flex-col justify-center">
+                <span class="text-[9px] font-extrabold text-slate-400 uppercase tracking-widest block">Leading Bidder</span>
+                <span id="auction-leading-bidder-display" class="text-sm sm:text-base font-black text-white block mt-0.5 truncate">
+                  ${bidderTeam ? '🛡️ ' + bidderTeam.name : 'No bids yet'}
+                </span>
+                <span id="auction-bid-tag-display" class="text-[9px] font-bold ${bidderTeam ? 'text-emerald-400' : 'text-slate-400'}">
+                  ${bidderTeam ? '🔥 Leading Offer' : 'Opening Bid'}
+                </span>
               </div>
             </div>
           </div>
+        `;
+        if (window.lucide) window.lucide.createIcons();
+      } else {
+        // SAME PLAYER: Only update bid and team elements (ZERO CARD FLICKER / RELOAD)
+        const bidEl = document.getElementById('auction-live-bid-display');
+        const teamEl = document.getElementById('auction-leading-bidder-display');
+        const tagEl = document.getElementById('auction-bid-tag-display');
+        if (bidEl) bidEl.textContent = `₹ ${Number(state.current_bid || state.basePrice || 300).toLocaleString('en-IN')}`;
+        if (teamEl) teamEl.textContent = bidderTeam ? '🛡️ ' + bidderTeam.name : 'No bids yet';
+        if (tagEl) {
+          tagEl.textContent = bidderTeam ? '🔥 Leading Offer' : 'Opening Bid';
+          tagEl.className = `text-[9px] font-bold ${bidderTeam ? 'text-emerald-400' : 'text-slate-400'}`;
+        }
+      }
+    } else {
+      // NO ACTIVE PLAYER ON BLOCK
+      if (lastActivePlayerId !== null) {
+        lastActivePlayerId = null;
+        const soldPlayers = allPlayers.filter(p => p.auctionStatus === 'SOLD');
+        const isAuctionCompleted = (state && state.status === 'COMPLETED') || (allPlayers.length > 0 && allPlayers.filter(p => (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED')).every(p => p.auctionStatus === 'SOLD'));
 
-          <!-- Active Bid Metrics -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-slate-950 p-4 rounded-xl border border-slate-900">
-            <div>
-              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Current High Bid</span>
-              <span class="text-3xl font-black text-amber-400">₹ ${state.current_bid}</span>
+        activeBlockWrapper.innerHTML = `
+          <div class="space-y-4">
+            <!-- Idle / Completed Banner -->
+            <div class="text-center p-6 sm:p-8 ${isAuctionCompleted ? 'bg-gradient-to-br from-amber-500/10 to-emerald-500/10 border-2 border-amber-400/60' : 'bg-white border-2 border-dashed border-slate-300'} rounded-2xl shadow-sm">
+              <div class="w-12 h-12 rounded-2xl ${isAuctionCompleted ? 'bg-amber-100 text-amber-600' : 'bg-slate-100 text-slate-400'} flex items-center justify-center mx-auto mb-3">
+                <i data-lucide="${isAuctionCompleted ? 'trophy' : 'gavel'}" class="w-6 h-6"></i>
+              </div>
+              <h3 class="text-slate-900 font-black text-base sm:text-lg">
+                ${isAuctionCompleted ? '🏆 JSL 2026 Live Auction Concluded!' : 'Waiting for Auctioneer to Place Player on Block...'}
+              </h3>
+              <p class="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+                ${isAuctionCompleted ? 'All approved franchise squad selections are complete. Review the final sold rosters below.' : 'Live bids will appear here automatically when the next player is auctioned.'}
+              </p>
             </div>
-            <div class="text-left sm:text-right border-t sm:border-t-0 sm:border-l border-slate-900 pt-2.5 sm:pt-0 sm:pl-4">
-              <span class="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Leading Bidder</span>
-              <span class="text-lg font-black text-white truncate block mt-1">${bidderTeam ? bidderTeam.name : 'No bids yet'}</span>
-            </div>
+
+            <!-- Sold Players Summary Table -->
+            ${soldPlayers.length > 0 ? `
+              <div class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
+                <div class="flex justify-between items-center">
+                  <h4 class="text-xs sm:text-sm font-black text-slate-900 flex items-center gap-1.5">
+                    <span>📋</span> Auctioned Players (${soldPlayers.length} Sold)
+                  </h4>
+                  <span class="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
+                    Live Roster Feed
+                  </span>
+                </div>
+
+                <div class="divide-y divide-slate-100 max-h-96 overflow-y-auto pr-1">
+                  ${soldPlayers.map(p => {
+                    const team = teams.find(t => t.id === p.teamId);
+                    return `
+                      <div class="py-2.5 flex items-center justify-between gap-3">
+                        <div class="flex items-center gap-2.5 min-w-0">
+                          <img src="${getOptimizedImageUrl(p.photoUrl || p.player_photo_url, 80, 80)}" class="w-9 h-9 rounded-xl object-cover border border-slate-200 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                          <div class="min-w-0">
+                            <div class="font-black text-xs text-slate-900 truncate">${p.name}</div>
+                            <div class="text-[10px] text-slate-500 font-medium truncate">
+                              ${p.category || 'All Rounder'} • ${p.village || 'Jhankra'}
+                            </div>
+                          </div>
+                        </div>
+                        <div class="text-right shrink-0">
+                          <span class="px-2 py-0.5 bg-blue-50 text-blue-700 font-black text-[10px] rounded border border-blue-200 block truncate max-w-[120px]">
+                            ${team ? team.name : (p.teamName || 'Sold')}
+                          </span>
+                          <span class="font-mono font-black text-xs text-emerald-700 block mt-0.5">
+                            ₹ ${Number(p.soldPrice || p.basePrice || 300).toLocaleString('en-IN')}
+                          </span>
+                        </div>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+            ` : ''}
           </div>
-        </div>
-      `;
+        `;
+        if (window.lucide) window.lucide.createIcons();
+      }
     }
 
-    container.innerHTML = `
-      <div class="space-y-6 sm:space-y-8 animate-fade-in pb-16">
-        <div class="bg-slate-900/90 border border-slate-800 p-4 sm:p-6 rounded-2xl shadow-2xl backdrop-blur-xl">
-          <h1 class="text-xl sm:text-2xl font-black text-white">🔨 Live Player Auction Hub</h1>
-          <p class="text-xs text-slate-400">Track current bids, player block assignments, and team budgets live.</p>
-        </div>
+    // FRANCHISE PURSES RENDERING (COMPACT, HIGH CONTRAST DARK TEXT, SQUAD X/13)
+    if (pursesWrapper) {
+      pursesWrapper.innerHTML = teams.map(t => {
+        const spent = t.purseSpent || (t.purse !== undefined ? (8000 - (t.remainingPurse ?? 8000)) : 0);
+        const totalPurse = t.purseBudget || 8000;
+        const left = t.remainingPurse !== undefined ? t.remainingPurse : (totalPurse - spent);
+        const ratio = Math.min(100, Math.max(0, (left / totalPurse) * 100));
+        
+        // Count purchased squad members (default target = 13)
+        const purchasedCount = allPlayers.filter(p => p.teamId === t.id && (p.auctionStatus === 'SOLD' || p.paymentStatus === 'APPROVED')).length || t.squadCount || 0;
+        const totalRequired = 13;
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <div class="lg:col-span-2 space-y-4">
-            ${activeBlockHtml}
-          </div>
+        return `
+          <div class="p-2.5 sm:p-3 bg-white border border-slate-200 rounded-xl shadow-sm hover:border-slate-300 transition-all flex flex-col justify-between gap-1.5">
+            <div class="flex justify-between items-center gap-2">
+              <span class="font-extrabold text-slate-900 text-xs sm:text-sm truncate" title="${t.name}">${t.name}</span>
+              <span class="px-2 py-0.5 bg-slate-100 text-slate-700 font-mono font-bold text-[10px] rounded border border-slate-200 flex-shrink-0">
+                Squad: <strong class="text-teal-700 font-black">${purchasedCount}/${totalRequired}</strong>
+              </span>
+            </div>
+            
+            <div class="flex justify-between items-center text-xs">
+              <span class="text-[11px] font-semibold text-slate-500">Purse Left:</span>
+              <span class="font-black text-emerald-700">₹ ${Number(left).toLocaleString('en-IN')}</span>
+            </div>
 
-          <div class="lg:col-span-1 space-y-3">
-            <h3 class="text-sm font-black text-slate-400 uppercase tracking-widest">Franchise Purses</h3>
-            <div class="space-y-2">
-              ${teams.map(t => {
-                const spent = t.purseSpent || 0;
-                const totalPurse = t.purseBudget || 8000;
-                const left = totalPurse - spent;
-                const ratio = Math.min(100, Math.max(0, (left / totalPurse) * 100));
-                return `
-                  <div class="glass-card p-3.5 bg-slate-900/95 border border-slate-800 flex flex-col justify-between">
-                    <div class="flex justify-between items-center mb-1 text-xs">
-                      <span class="font-black text-white">${t.name}</span>
-                      <span class="font-mono text-slate-400">Roster: <strong class="text-white">${t.squadCount || 0} / 13</strong></span>
-                    </div>
-                    <div class="flex justify-between items-center text-xs font-bold text-amber-400">
-                      <span>Purse Remaining:</span>
-                      <span>₹ ${left}</span>
-                    </div>
-                    <div class="w-full bg-slate-950 h-1.5 rounded-full mt-2 overflow-hidden border border-slate-900">
-                      <div class="bg-amber-500 h-full rounded-full" style="width: ${ratio}%"></div>
-                    </div>
-                  </div>
-                `;
-              }).join('')}
+            <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden border border-slate-200">
+              <div class="bg-gradient-to-r from-teal-500 to-emerald-600 h-full rounded-full transition-all duration-500" style="width: ${ratio}%"></div>
             </div>
           </div>
-        </div>
-      </div>
-    `;
-
-    if (window.lucide) window.lucide.createIcons();
+        `;
+      }).join('');
+    }
   };
 
   pollActiveAuctionState();
-  auctionPollInterval = setInterval(pollActiveAuctionState, 1500);
+  auctionPollInterval = setInterval(pollActiveAuctionState, 1200);
+  const unsubLiveAuction = store.subscribe('live_auction_updated', () => {
+    if (currentRoute === 'auction') {
+      pollActiveAuctionState();
+    }
+  });
 }
 
 function renderCareerHubView(container) {
@@ -4671,3 +4913,586 @@ function initRealtimePlayerToast() {
   }, 2500);
 }
 
+
+
+// =========================================================================
+// PLAYER AUTHENTICATION, PASSWORD RESET & PROFILE HUB
+// =========================================================================
+
+export function openPlayerLoginModal(onSuccess) {
+  document.getElementById('player-login-modal')?.remove();
+
+  const modalHtml = `
+    <div id="player-login-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-fade-in">
+      <div class="relative w-full max-w-md bg-white text-slate-900 rounded-3xl shadow-2xl border border-slate-200 p-5 sm:p-6 text-center modal-content-container">
+        <button id="close-player-login-modal-btn" class="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition-colors">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+
+        <div class="w-14 h-14 bg-gradient-to-br from-blue-700 via-indigo-800 to-slate-950 text-white rounded-2xl flex items-center justify-center mx-auto text-2xl shadow-lg border border-blue-400">
+          🔐
+        </div>
+
+        <div class="mt-3 mb-4">
+          <h3 class="text-xl font-black text-slate-900">Player & Official Login</h3>
+          <p class="text-xs text-slate-500 mt-0.5">Sign in to view your digital pass, status & tournament controls</p>
+        </div>
+
+        <form id="player-login-form" class="space-y-3.5 text-left">
+          <div>
+            <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">10-Digit Mobile Number *</label>
+            <input type="text" id="login-identifier" required autocomplete="off" placeholder="Enter your 10-digit mobile number" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-3 focus:border-blue-500 focus:outline-none font-mono" />
+          </div>
+
+          <div>
+            <div class="flex justify-between items-center mb-1">
+              <label class="block text-[10px] font-bold text-slate-700 uppercase">Password *</label>
+              <span class="text-[10px] text-amber-600 font-semibold">(Default for players: Mobile Number)</span>
+            </div>
+            <input type="password" id="login-password" required autocomplete="off" placeholder="Enter password" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-3 focus:border-blue-500 focus:outline-none font-mono" />
+          </div>
+
+          <div id="login-error-msg" class="text-xs text-rose-600 font-bold hidden text-center"></div>
+
+          <button type="submit" class="w-full py-3 bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-950 hover:from-blue-600 hover:to-indigo-900 text-white font-black text-xs rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer border border-blue-400/40">
+            <i data-lucide="log-in" class="w-4 h-4"></i> Sign In to Account
+          </button>
+        </form>
+
+        <div class="mt-4 pt-3 border-t border-slate-100 text-center">
+          <p class="text-xs text-slate-500">
+            New Player? 
+            <button id="modal-goto-register-btn" class="font-bold text-blue-600 hover:underline cursor-pointer">Register for Tournament</button>
+          </p>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  if (window.lucide) window.lucide.createIcons();
+
+  const removeModal = () => document.getElementById('player-login-modal')?.remove();
+  document.getElementById('close-player-login-modal-btn')?.addEventListener('click', removeModal);
+
+  document.getElementById('modal-goto-register-btn')?.addEventListener('click', () => {
+    removeModal();
+    openRegistrationModal();
+  });
+
+  document.getElementById('player-login-form')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const identifier = document.getElementById('login-identifier').value.trim();
+    const pass = document.getElementById('login-password').value.trim();
+    const errEl = document.getElementById('login-error-msg');
+
+    const res = store.authenticateUser(identifier, pass);
+    if (!res.success) {
+      if (errEl) {
+        errEl.textContent = res.message || 'Login failed';
+        errEl.classList.remove('hidden');
+      }
+      return;
+    }
+
+    removeModal();
+
+    if (onSuccess) onSuccess(res.user);
+    renderNavbar();
+    renderMobileNav();
+
+    // Smart routing based on role
+    if (res.role === 'SUPER_ADMIN') {
+      navigate('admin');
+    } else if (res.role === 'TOURNAMENT_OWNER') {
+      navigate('profile');
+    } else {
+      navigate('profile');
+    }
+  });
+}
+
+export function openFirstTimePasswordResetModal(phone, onSuccess) {
+  document.getElementById('first-login-pwd-modal')?.remove();
+
+  const modalHtml = `
+    <div id="first-login-pwd-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-fade-in">
+      <div class="relative w-full max-w-md bg-white text-slate-900 rounded-3xl shadow-2xl border-2 border-amber-400 p-5 sm:p-6 text-center modal-content-container">
+        <button id="close-pwd-reset-modal-btn" class="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer" title="Close">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+        
+        <div class="w-14 h-14 bg-gradient-to-br from-amber-400 to-amber-600 text-slate-950 rounded-2xl flex items-center justify-center mx-auto text-2xl shadow-lg border border-amber-300">
+          🔐
+        </div>
+
+        <div class="mt-3 mb-4">
+          <h3 class="text-lg font-black text-slate-900">First-Time Login Security</h3>
+          <p class="text-xs text-slate-500 mt-0.5">Please create your private password to protect your player profile</p>
+        </div>
+
+        <form id="first-login-pwd-form" class="space-y-3.5 text-left">
+          <div>
+            <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">New Password *</label>
+            <input type="password" id="first-new-password" required minlength="4" placeholder="Enter new password (min 4 chars)" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-3 focus:border-amber-500 focus:outline-none" />
+          </div>
+
+          <div>
+            <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Confirm New Password *</label>
+            <input type="password" id="first-confirm-password" required minlength="4" placeholder="Re-enter new password" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-3 focus:border-amber-500 focus:outline-none" />
+          </div>
+
+          <div id="pwd-error-msg" class="text-xs text-rose-600 font-bold hidden text-center"></div>
+
+          <button type="submit" class="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer">
+            <i data-lucide="shield-check" class="w-4 h-4"></i> Save Password & Enter Profile
+          </button>
+          
+          <button type="button" id="skip-first-pwd-btn" class="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl transition-all cursor-pointer">
+            Keep Default Password (Mobile Number) & Continue
+          </button>
+        </form>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  if (window.lucide) window.lucide.createIcons();
+
+  document.getElementById('close-pwd-reset-modal-btn')?.addEventListener('click', () => {
+    document.getElementById('first-login-pwd-modal')?.remove();
+  });
+
+  document.getElementById('skip-first-pwd-btn')?.addEventListener('click', () => {
+    document.getElementById('first-login-pwd-modal')?.remove();
+    renderNavbar();
+    renderMobileNav();
+    navigate('profile');
+  });
+
+  document.getElementById('first-login-pwd-form')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const p1 = document.getElementById('first-new-password').value;
+    const p2 = document.getElementById('first-confirm-password').value;
+    const errEl = document.getElementById('pwd-error-msg');
+
+    if (p1 !== p2) {
+      if (errEl) {
+        errEl.textContent = 'Passwords do not match!';
+        errEl.classList.remove('hidden');
+      }
+      return;
+    }
+
+    const res = store.updateUserPassword(phone, p1);
+    if (!res.success) {
+      if (errEl) {
+        errEl.textContent = res.message || 'Failed to update password';
+        errEl.classList.remove('hidden');
+      }
+      return;
+    }
+
+    document.getElementById('first-login-pwd-modal')?.remove();
+    alert('🎉 Password set successfully! Welcome to your profile.');
+    if (onSuccess) onSuccess(res.user);
+    renderNavbar();
+    renderMobileNav();
+    navigate('profile');
+  });
+}
+
+function renderPlayerProfileView(container) {
+  const currentUser = store.getCurrentUser();
+
+  if (!currentUser) {
+    container.innerHTML = `
+      <div class="max-w-md mx-auto my-8 p-6 bg-white border border-slate-200 rounded-3xl shadow-xl text-center space-y-4 animate-fade-in">
+        <div class="w-16 h-16 bg-gradient-to-br from-blue-600 to-indigo-700 text-white rounded-3xl flex items-center justify-center mx-auto text-3xl shadow-lg">
+          👤
+        </div>
+        <div>
+          <h2 class="text-xl font-black text-slate-900">Account Login</h2>
+          <p class="text-xs text-slate-500 mt-1">Sign in with your 10-Digit Mobile Number OR Master Admin Email</p>
+        </div>
+        <button id="trigger-profile-login-btn" class="w-full py-3.5 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-black text-xs rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer">
+          <i data-lucide="log-in" class="w-4 h-4"></i> Sign In to Account
+        </button>
+      </div>
+    `;
+    if (window.lucide) window.lucide.createIcons();
+    document.getElementById('trigger-profile-login-btn')?.addEventListener('click', () => {
+      openPlayerLoginModal(() => navigate('profile'));
+    });
+    return;
+  }
+
+  const isMaster = currentUser.role === 'SUPER_ADMIN' || (currentUser.email && currentUser.email.toLowerCase() === 'bakolaypan@gmail.com');
+  const allPlayers = store.getPlayers();
+  const cleanPhone = (currentUser.phone || '').replace(/[^0-9]/g, '');
+  const owners = store.getTournamentOwners();
+  const isAssignedOwner = Object.values(owners).some(o => o && (o.phone || '').replace(/[^0-9]/g, '').slice(-10) === cleanPhone.slice(-10));
+  const isTournamentOwner = currentUser.role === 'TOURNAMENT_OWNER' || isAssignedOwner;
+
+  // Player record lookup
+  let player = allPlayers.find(p => (p.phone || p.mobile || '').replace(/[^0-9]/g, '').slice(-10) === cleanPhone.slice(-10));
+  if (!player) {
+    if (isMaster) {
+      player = {
+        name: 'Suman Kolay (Master Super Admin)',
+        phone: 'bakolaypan@gmail.com',
+        category: 'Super Admin Authority',
+        village: 'Kolkata, West Bengal',
+        registrationStatus: 'APPROVED',
+        paymentStatus: 'APPROVED',
+        basePrice: 300
+      };
+    } else if (isTournamentOwner) {
+      player = {
+        name: owners['tournament-jsl-2026']?.name || 'Pintu Santra',
+        phone: currentUser.phone || '8972144166',
+        category: 'Tournament Owner',
+        village: 'Jhakra, Paschim Medinipur',
+        registrationStatus: 'APPROVED',
+        paymentStatus: 'APPROVED',
+        basePrice: 300
+      };
+    } else {
+      player = {
+        name: currentUser.name || 'Registered Player',
+        phone: currentUser.phone || '',
+        category: 'Player',
+        village: 'Paschim Medinipur',
+        registrationStatus: 'APPROVED',
+        paymentStatus: 'APPROVED',
+        basePrice: 300
+      };
+    }
+  }
+
+  const teams = store.getTeams();
+  const playerTeam = player.teamId ? teams.find(t => t.id === player.teamId) : null;
+  const isOwner = isMaster || isTournamentOwner;
+
+  container.innerHTML = `
+    <div class="max-w-3xl mx-auto space-y-6 animate-fade-in pb-16">
+      
+      <!-- Top Identity Card -->
+      <div class="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-xl relative overflow-hidden">
+        <div class="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-blue-100/50 to-indigo-100/30 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none"></div>
+
+        <div class="flex flex-col sm:flex-row items-center sm:items-start gap-5 relative z-10">
+          <img src="${getOptimizedImageUrl(player.photoUrl || player.player_photo_url, 160, 160)}" class="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover border-2 border-blue-500 shadow-md bg-slate-100 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+
+          <div class="flex-1 text-center sm:text-left space-y-1.5 min-w-0">
+            <div class="flex flex-wrap items-center justify-center sm:justify-start gap-2">
+              <span class="px-2.5 py-0.5 ${isMaster ? 'bg-amber-50 text-amber-800 border-amber-300' : (isTournamentOwner ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-blue-50 text-blue-700 border-blue-200')} border rounded-full font-black text-[10px] uppercase">
+                ${isMaster ? '👑 MASTER SUPER ADMIN' : (isTournamentOwner ? '🏆 TOURNAMENT OWNER' : '🏏 JSL 2026 PLAYER')}
+              </span>
+              ${player.registrationId ? `
+                <span class="px-2.5 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 rounded-full font-mono font-bold text-[10px]">
+                  #${player.displayRegistrationNumber || player.serialNo || 1} • ${player.registrationId}
+                </span>
+              ` : ''}
+            </div>
+
+            <h1 class="text-xl sm:text-2xl font-black text-slate-900 truncate">${player.name}</h1>
+            <div class="text-xs text-slate-600 font-semibold flex flex-wrap items-center justify-center sm:justify-start gap-2">
+              <span>📱 ${player.phone}</span>
+              <span>•</span>
+              <span>📍 ${player.village || 'Paschim Medinipur'}</span>
+              <span>•</span>
+              <span class="text-emerald-700 font-bold">🏏 ${player.category || 'All Rounder'}</span>
+            </div>
+          </div>
+
+          <div class="flex flex-row sm:flex-col items-center gap-2 shrink-0">
+            <button id="profile-edit-btn" class="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-xl border border-blue-200 transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm">
+              <i data-lucide="edit-3" class="w-3.5 h-3.5"></i> Edit Profile
+            </button>
+            <button id="profile-logout-btn" class="px-3 py-1.5 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-700 text-xs font-bold rounded-xl border border-slate-300 transition-colors flex items-center gap-1.5 cursor-pointer">
+              <i data-lucide="log-out" class="w-3.5 h-3.5"></i> Logout
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TOURNAMENT OWNER / MASTER ADMIN CONTROL CONSOLE LAUNCHER -->
+      ${isOwner ? `
+        <div class="p-5 sm:p-6 bg-gradient-to-r from-amber-500/15 via-amber-600/10 to-indigo-950/20 border-2 border-amber-400 rounded-3xl shadow-xl space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <span class="p-3 bg-amber-400 text-slate-950 font-black rounded-2xl text-2xl shadow">🏆</span>
+              <div>
+                <h3 class="font-black text-slate-900 text-base sm:text-lg">${isMaster ? 'Master Super Admin Control Console' : 'JSL 2026 Tournament Control Console'}</h3>
+                <p class="text-xs text-slate-600">${isMaster ? 'You have full Super Admin control over the entire system and ownership delegations.' : 'You have full administrative authority over auction, verification, fixtures & scoring.'}</p>
+              </div>
+            </div>
+          </div>
+          <div class="pt-2 flex flex-wrap gap-2">
+            <button id="profile-open-admin-console-btn" class="w-full sm:w-auto px-5 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-2 cursor-pointer transition-transform active:scale-95 border border-amber-300">
+              <i data-lucide="shield-check" class="w-4 h-4"></i> ${isMaster ? 'Open Master Admin Panel' : 'Open Tournament Control Dashboard'}
+            </button>
+          </div>
+        </div>
+      ` : ''}
+
+      <!-- Status & Pass Grid -->
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <!-- Verification Card -->
+        <div class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-2">
+          <span class="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Verification & Payment Status</span>
+          <div class="flex items-center gap-2">
+            <span class="px-3 py-1.5 rounded-xl font-black text-xs ${(player.registrationStatus === 'APPROVED' || player.paymentStatus === 'APPROVED') ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}">
+              ${(player.registrationStatus === 'APPROVED' || player.paymentStatus === 'APPROVED') ? '✅ VERIFIED & APPROVED' : '⏳ PENDING VERIFICATION'}
+            </span>
+          </div>
+          <p class="text-[11px] text-slate-500">
+            ${(player.registrationStatus === 'APPROVED' || player.paymentStatus === 'APPROVED') ? 'Your registration and fee payment are verified for JSL 2026.' : 'Your documents are currently under verification by the tournament organizers.'}
+          </p>
+        </div>
+
+        <!-- Team & Auction Status Card -->
+        <div class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-2">
+          <span class="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Franchise & Auction Status</span>
+          <div>
+            ${playerTeam ? `
+              <div class="font-black text-sm text-blue-700 flex items-center gap-1.5">
+                🛡️ ${playerTeam.name}
+              </div>
+              <span class="text-xs text-slate-500 font-bold block mt-0.5">
+                Sold Price: <strong class="text-emerald-700">₹ ${Number(player.soldPrice || player.basePrice || 300).toLocaleString('en-IN')}</strong>
+              </span>
+            ` : `
+              <div class="font-black text-xs text-amber-600 flex items-center gap-1.5">
+                🔨 Active Auction Pool (Base: ₹${player.basePrice || 300})
+              </div>
+              <span class="text-[11px] text-slate-500 block mt-0.5">Available for bidding during live player auction.</span>
+            `}
+          </div>
+        </div>
+      </div>
+
+      <!-- 1-Click Digital ID Card Download -->
+      <div class="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl p-4 sm:p-5 text-white shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div class="space-y-1 text-center sm:text-left">
+          <h3 class="text-sm sm:text-base font-black flex items-center justify-center sm:justify-start gap-2">
+            <span>🪪</span> Official Player Digital Pass
+          </h3>
+          <p class="text-xs text-blue-100">Download or print your high-definition tournament registration pass.</p>
+        </div>
+        <button id="profile-download-pass-btn" class="px-4 py-2.5 bg-white hover:bg-blue-50 text-blue-900 font-black text-xs rounded-xl shadow-md flex items-center gap-2 cursor-pointer shrink-0 transition-transform active:scale-95">
+          <i data-lucide="download" class="w-4 h-4"></i> Download Digital Pass
+        </button>
+      </div>
+
+      <!-- Account Security Card -->
+      <div class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
+        <div class="flex justify-between items-center">
+          <div>
+            <h4 class="text-xs sm:text-sm font-black text-slate-900">Account Security</h4>
+            <p class="text-[11px] text-slate-500">Update your private password anytime</p>
+          </div>
+          <button id="profile-change-pwd-btn" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl border border-slate-300 transition-colors cursor-pointer">
+            Change Password
+          </button>
+        </div>
+      </div>
+
+    </div>
+  `;
+
+  if (window.lucide) window.lucide.createIcons();
+
+  document.getElementById('profile-logout-btn')?.addEventListener('click', () => {
+    store.logoutUser();
+    renderNavbar();
+    renderMobileNav();
+    navigate('landing');
+  });
+
+  document.getElementById('profile-edit-btn')?.addEventListener('click', () => {
+    openPlayerEditProfileModal(player, () => renderPlayerProfileView(container));
+  });
+
+  document.getElementById('profile-open-admin-console-btn')?.addEventListener('click', () => {
+    navigate('admin');
+  });
+
+  document.getElementById('profile-change-pwd-btn')?.addEventListener('click', () => {
+    openFirstTimePasswordResetModal(cleanPhone, () => renderPlayerProfileView(container));
+  });
+
+  document.getElementById('profile-download-pass-btn')?.addEventListener('click', async () => {
+    try {
+      const exportModule = await import('./export.js');
+      if (exportModule && exportModule.printDigitalPass) {
+        exportModule.printDigitalPass(player);
+      } else {
+        alert("Pass generator loaded. Preparing document...");
+      }
+    } catch(err) {
+      console.warn("Pass download error:", err);
+      alert("Preparing pass download...");
+    }
+  });
+}
+
+
+
+// --- GLOBAL DELEGATED LOGOUT CLICK HANDLER ---
+document.addEventListener('click', (e) => {
+  const logoutTrigger = e.target.closest('#profile-logout-btn, #admin-logout-btn, #nav-logout-btn, [data-action="logout"]');
+  if (logoutTrigger) {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log("Global Logout clicked. Terminating user session...");
+    store.logoutUser();
+    renderNavbar();
+    renderMobileNav();
+    navigate('landing');
+  }
+});
+
+
+// =========================================================================
+// PLAYER EDIT PROFILE MODAL (Photo & Category Update)
+// =========================================================================
+export function openPlayerEditProfileModal(player, onSaved) {
+  document.getElementById('player-edit-profile-modal')?.remove();
+
+  let currentPhoto = player.photoUrl || player.player_photo_url || 'assets/card_jsl_user.png';
+  let uploadedPhotoBase64 = null;
+
+  const modalHtml = `
+    <div id="player-edit-profile-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-fade-in">
+      <div class="relative w-full max-w-md bg-white text-slate-900 rounded-3xl shadow-2xl border border-slate-200 p-5 sm:p-6 text-center modal-content-container">
+        <button id="close-edit-profile-modal-btn" class="absolute top-4 right-4 p-1.5 text-slate-400 hover:text-slate-900 rounded-xl hover:bg-slate-100 transition-colors cursor-pointer" title="Close">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+
+        <div class="w-12 h-12 bg-gradient-to-br from-blue-600 to-indigo-700 text-white rounded-2xl flex items-center justify-center mx-auto text-xl shadow-lg border border-blue-400">
+          ✏️
+        </div>
+
+        <div class="mt-2 mb-4">
+          <h3 class="text-lg font-black text-slate-900">Edit Player Profile</h3>
+          <p class="text-xs text-slate-500 mt-0.5">Update your profile photo, player role category, and village</p>
+        </div>
+
+        <form id="player-edit-profile-form" class="space-y-4 text-left">
+          
+          <!-- Photo Upload & Preview -->
+          <div class="flex flex-col sm:flex-row items-center gap-4 p-3 bg-slate-50 border border-slate-200 rounded-2xl">
+            <img id="edit-player-preview-img" src="${currentPhoto}" class="w-16 h-16 rounded-xl object-cover border-2 border-blue-500 shadow-sm bg-white shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+            <div class="space-y-1 text-center sm:text-left flex-1">
+              <label class="block text-[10px] font-bold text-slate-700 uppercase">Profile Photo</label>
+              <input type="file" id="edit-player-photo-file" accept="image/*" class="text-[11px] text-slate-500 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 cursor-pointer" />
+              <p class="text-[9px] text-slate-400">Recommended: Passport or clear face photo</p>
+            </div>
+          </div>
+
+          <!-- Category Selection -->
+          <div>
+            <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Player Category (Role) *</label>
+            <select id="edit-player-category" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-3 focus:border-blue-500 focus:outline-none cursor-pointer">
+              <option value="All Rounder" ${(player.category || '') === 'All Rounder' ? 'selected' : ''}>🏏 All Rounder</option>
+              <option value="Batsman" ${(player.category || '') === 'Batsman' ? 'selected' : ''}>🏏 Batsman</option>
+              <option value="Bowler" ${(player.category || '') === 'Bowler' ? 'selected' : ''}>⚾ Bowler</option>
+              <option value="Wicket Keeper" ${(player.category || '') === 'Wicket Keeper' ? 'selected' : ''}>🧤 Wicket Keeper</option>
+              <option value="Wicket Keeper Batsman" ${(player.category || '') === 'Wicket Keeper Batsman' ? 'selected' : ''}>🧤🏏 Wicket Keeper Batsman</option>
+            </select>
+          </div>
+
+          <!-- Village / City -->
+          <div>
+            <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Village / City *</label>
+            <input type="text" id="edit-player-village" value="${player.village || 'Paschim Medinipur'}" required placeholder="e.g. Jhankra, Paschim Medinipur" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-3 focus:border-blue-500 focus:outline-none" />
+          </div>
+
+          <div id="edit-profile-error-msg" class="text-xs text-rose-600 font-bold hidden text-center"></div>
+
+          <button type="submit" id="save-player-profile-btn" class="w-full py-3 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white font-black text-xs rounded-xl shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer">
+            <i data-lucide="check" class="w-4 h-4"></i> Save Profile Changes
+          </button>
+        </form>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  if (window.lucide) window.lucide.createIcons();
+
+  const removeModal = () => document.getElementById('player-edit-profile-modal')?.remove();
+  document.getElementById('close-edit-profile-modal-btn')?.addEventListener('click', removeModal);
+
+  // Handle Photo File Upload & Canvas Compression
+  document.getElementById('edit-player-photo-file')?.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const maxDim = 600;
+        let width = img.width;
+        let height = img.height;
+        if (width > height) {
+          if (width > maxDim) {
+            height *= maxDim / width;
+            width = maxDim;
+          }
+        } else {
+          if (height > maxDim) {
+            width *= maxDim / height;
+            height = maxDim;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        uploadedPhotoBase64 = canvas.toDataURL('image/jpeg', 0.85);
+        document.getElementById('edit-player-preview-img').src = uploadedPhotoBase64;
+      };
+      img.src = event.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+
+  // Handle Form Submit
+  document.getElementById('player-edit-profile-form')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const saveBtn = document.getElementById('save-player-profile-btn');
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = 'Saving updates...';
+
+    const newCategory = document.getElementById('edit-player-category').value;
+    const newVillage = document.getElementById('edit-player-village').value.trim();
+    const finalPhoto = uploadedPhotoBase64 || player.photoUrl || player.player_photo_url || currentPhoto;
+
+    const updatedPlayerData = {
+      ...player,
+      category: newCategory,
+      village: newVillage,
+      photoUrl: finalPhoto,
+      player_photo_url: finalPhoto
+    };
+
+    store.updatePlayer(updatedPlayerData);
+
+    // Also update current user account name & details if applicable
+    const currentUser = store.getCurrentUser();
+    if (currentUser) {
+      currentUser.category = newCategory;
+      currentUser.village = newVillage;
+      currentUser.photoUrl = finalPhoto;
+      store.setCurrentUser(currentUser);
+    }
+
+    removeModal();
+    if (onSaved) onSaved(updatedPlayerData);
+  });
+}

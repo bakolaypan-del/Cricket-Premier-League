@@ -271,7 +271,7 @@ export async function fetchCloudData() {
           rawFixtures = Array.isArray(data.fixtures) ? data.fixtures : Object.values(data.fixtures);
         }
 
-        let auctionSettings = data.auctionSettings || { defaultBasePrice: 200, defaultPurseBudget: 8000 };
+        let auctionSettings = data.auctionSettings || { defaultBasePrice: 300, defaultPurseBudget: 8000 };
 
         const deletedPlayerIds = data.deletedPlayerIds ? Object.keys(data.deletedPlayerIds) : [];
         const deletedTeamIds = data.deletedTeamIds ? Object.keys(data.deletedTeamIds) : [];
@@ -310,7 +310,7 @@ export async function fetchCloudData() {
     console.warn("Realtime Database fetch notice:", err);
   }
 
-  return { players: [], teams: [], fixtures: [], auctionSettings: { defaultBasePrice: 200, defaultPurseBudget: 8000 }, clearedAt: 0, teamsClearedAt: 0, deletedPlayerIds: [], deletedTeamIds: [] };
+  return { players: [], teams: [], fixtures: [], auctionSettings: { defaultBasePrice: 300, defaultPurseBudget: 8000 }, clearedAt: 0, teamsClearedAt: 0, deletedPlayerIds: [], deletedTeamIds: [] };
 }
 
 // --- ATOMIC REALTIME CLOUD DATA OPERATIONS (KEY-VALUE OBJECT MAP SYNC) ---
@@ -683,3 +683,32 @@ export async function fetchCommunityQueriesFromFirebase() {
   return [];
 }
 
+
+
+export async function fetchTournamentOwnersFromFirebase() {
+  try {
+    const response = await fetch(`${FIREBASE_DB_URL}/cpl_master/tournament_owners.json?_t=${Date.now()}`, { cache: 'no-store' });
+    if (response.ok) {
+      const data = await response.json();
+      return data || {};
+    }
+  } catch (err) {
+    console.warn("Failed to fetch tournament owners from Firebase:", err);
+  }
+  return {};
+}
+
+export async function fetchUserAccountsFromFirebase() {
+  try {
+    const response = await fetch(`${FIREBASE_DB_URL}/cpl_master/user_accounts.json?_t=${Date.now()}`, { cache: 'no-store' });
+    if (response.ok) {
+      const data = await response.json();
+      if (data) {
+        return Array.isArray(data) ? data : Object.values(data);
+      }
+    }
+  } catch (err) {
+    console.warn("Failed to fetch user accounts from Firebase:", err);
+  }
+  return [];
+}

@@ -1,10 +1,10 @@
 // Admin Master Data & Payment Verification Panel with Single Source Cloud Control (Developer: Suman Kolay)
 
-import { store } from './store.js';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF } from './export.js';
-import { openSquareImageCropModal, compressImage, openYouTubePromoModal } from './app_v9.js';
-import { saveAdSettingsToFirebase, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, savePopupSettingsToFirebase, uploadHDImage, getOptimizedImageUrl } from './supabase.js';
-import { shops } from './shopsData.js';
+import { store } from './store.js?v=9.9.6';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF } from './export.js?v=9.9.6';
+import { openSquareImageCropModal, compressImage, openYouTubePromoModal } from './app_v9.js?v=9.9.6';
+import { saveAdSettingsToFirebase, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, savePopupSettingsToFirebase, uploadHDImage, getOptimizedImageUrl } from './supabase.js?v=9.9.6';
+import { shops } from './shopsData.js?v=9.9.6';
 
 let activeAdminTab = 'payments'; // 'payments', 'all-players', 'teams'
 const todayStr = new Date().toISOString().split('T')[0];
@@ -25,6 +25,13 @@ export function renderAdminDashboard(containerEl) {
   const pendingPlayers = players.filter(p => !approvedPlayers.includes(p) && !rejectedPlayers.includes(p));
   const todayPlayers = players.filter(p => p.regDate === todayStr || (p.created_at && p.created_at.startsWith(todayStr)));
 
+  const isMaster = store.isMasterAdmin();
+  const currentUser = store.getCurrentUser();
+  const panelTitle = isMaster ? 'Master Admin Control Panel' : 'JSL 2026 Tournament Control Console';
+  const panelSubtitle = isMaster 
+    ? 'Log ID: <strong class="text-amber-400">bakolaypan@gmail.com</strong> • Single Source Supabase & Realtime Cloud Database'
+    : `Logged in as: <strong class="text-amber-400">${currentUser?.name || 'Tournament Owner'}</strong> • Tournament Operations Only`;
+
   containerEl.innerHTML = `
     <div class="space-y-6 sm:space-y-8 animate-fade-in">
       <!-- Admin Header & Actions Bar -->
@@ -35,28 +42,27 @@ export function renderAdminDashboard(containerEl) {
               <i data-lucide="shield-check" class="w-6 h-6"></i>
             </span>
             <div>
-              <h1 class="text-lg sm:text-2xl font-black text-white">Master Admin Control Panel</h1>
-              <p class="text-xs text-slate-400">Log ID: <strong class="text-amber-400">bakolaypan@gmail.com</strong> • Single Source Supabase & Realtime Cloud Database</p>
+              <h1 class="text-lg sm:text-2xl font-black text-white">${panelTitle}</h1>
+              <p class="text-xs text-slate-400">${panelSubtitle}</p>
             </div>
           </div>
         </div>
 
         <div class="flex flex-wrap items-center gap-2.5">
-          <a href="cpl_project_handbook.html" target="_blank" class="px-3.5 py-2 bg-emerald-950 hover:bg-emerald-900 text-emerald-300 text-xs font-bold rounded-xl border border-emerald-800 flex items-center gap-1.5 transition-colors shadow no-underline">
-            <i data-lucide="book-open" class="w-4 h-4 text-emerald-400"></i> Handbook
-          </a>
-          <button id="export-master-csv-btn" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl border border-slate-700 flex items-center gap-2 transition-all shadow">
-            <i data-lucide="download" class="w-4 h-4 text-emerald-400"></i> Export CSV
-          </button>
-          <button id="export-master-pdf-btn" class="px-3.5 py-2 bg-red-950 hover:bg-red-900 text-red-300 text-xs font-bold rounded-xl border border-red-800 flex items-center gap-2 transition-all shadow">
-            <i data-lucide="file-text" class="w-4 h-4 text-red-400"></i> Export PDF
-          </button>
-          <button id="purge-verified-docs-btn" class="px-3.5 py-2 bg-sky-950 hover:bg-sky-900 text-sky-300 text-xs font-bold rounded-xl border border-sky-800 flex items-center gap-1.5 transition-all shadow" title="Delete Aadhaar & Payment Receipts for Approved Players to save cloud memory">
-            <i data-lucide="shield-check" class="w-4 h-4 text-sky-400"></i> Purge Docs
-          </button>
-          <button id="clear-all-players-btn" class="px-3 py-2 bg-red-950/60 hover:bg-red-900 text-red-300 text-xs font-bold rounded-xl border border-red-800 flex items-center gap-1.5 transition-colors">
-            <i data-lucide="trash-2" class="w-4 h-4 text-red-400"></i> Clear All
-          </button>
+          ${isMaster ? `
+            <a href="cpl_project_handbook.html" target="_blank" class="px-3.5 py-2 bg-emerald-950 hover:bg-emerald-900 text-emerald-300 text-xs font-bold rounded-xl border border-emerald-800 flex items-center gap-1.5 transition-colors shadow no-underline">
+              <i data-lucide="book-open" class="w-4 h-4 text-emerald-400"></i> Handbook
+            </a>
+            <button id="export-master-csv-btn" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl border border-slate-700 flex items-center gap-2 transition-all shadow">
+              <i data-lucide="download" class="w-4 h-4 text-emerald-400"></i> Export CSV
+            </button>
+            <button id="export-master-pdf-btn" class="px-3.5 py-2 bg-red-950 hover:bg-red-900 text-red-300 text-xs font-bold rounded-xl border border-red-800 flex items-center gap-2 transition-all shadow">
+              <i data-lucide="file-text" class="w-4 h-4 text-red-400"></i> Export PDF
+            </button>
+            <button id="purge-verified-docs-btn" class="px-3.5 py-2 bg-sky-950 hover:bg-sky-900 text-sky-300 text-xs font-bold rounded-xl border border-sky-800 flex items-center gap-1.5 transition-all shadow" title="Delete Aadhaar & Payment Receipts for Approved Players to save cloud memory">
+              <i data-lucide="shield-check" class="w-4 h-4 text-sky-400"></i> Purge Docs
+            </button>
+          ` : ''}
           <button id="admin-logout-btn" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 flex items-center gap-1.5 transition-colors">
             <i data-lucide="log-out" class="w-4 h-4"></i> Logout
           </button>
@@ -112,9 +118,14 @@ export function renderAdminDashboard(containerEl) {
         <button data-tab="scorer" class="admin-tab-btn ${activeAdminTab === 'scorer' ? 'active border-amber-400 text-amber-400 bg-slate-900/90' : 'border-transparent text-slate-400 hover:text-white'} px-4 sm:px-5 py-2.5 rounded-t-xl text-xs sm:text-sm font-black flex items-center gap-2 border-b-2">
           <i data-lucide="gamepad-2" class="w-4 h-4"></i> Match Scorer
         </button>
-        <button data-tab="shop-ads" class="admin-tab-btn ${activeAdminTab === 'shop-ads' ? 'active border-amber-400 text-amber-400 bg-slate-900/90' : 'border-transparent text-slate-400 hover:text-white'} px-4 sm:px-5 py-2.5 rounded-t-xl text-xs sm:text-sm font-black flex items-center gap-2 border-b-2">
-          <i data-lucide="megaphone" class="w-4 h-4"></i> 📢 Shop Ads
-        </button>
+        ${isMaster ? `
+          <button data-tab="shop-ads" class="admin-tab-btn ${activeAdminTab === 'shop-ads' ? 'active border-amber-400 text-amber-400 bg-slate-900/90' : 'border-transparent text-slate-400 hover:text-white'} px-4 sm:px-5 py-2.5 rounded-t-xl text-xs sm:text-sm font-black flex items-center gap-2 border-b-2">
+            <i data-lucide="megaphone" class="w-4 h-4"></i> 📢 Shop Ads
+          </button>
+          <button data-tab="owners" class="admin-tab-btn ${activeAdminTab === 'owners' ? 'active border-amber-400 text-amber-400 bg-slate-900/90' : 'border-transparent text-slate-400 hover:text-white'} px-4 sm:px-5 py-2.5 rounded-t-xl text-xs sm:text-sm font-black flex items-center gap-2 border-b-2">
+            <i data-lucide="crown" class="w-4 h-4 text-amber-400"></i> 👑 Tournament Owners
+          </button>
+        ` : ''}
       </div>
 
       <!-- Tab Content Area -->
@@ -181,10 +192,10 @@ export function renderAdminDashboard(containerEl) {
                             <button data-reject-id="${p.id}" class="reject-player-btn px-2 py-1 bg-red-950 hover:bg-red-900 text-red-300 font-extrabold text-[10px] rounded-lg border border-red-800 shadow">
                               Reject
                             </button>
-                            <button data-edit-id="${p.id}" class="edit-player-btn p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700">
+                            <button data-edit-id="${p.id}" class="edit-player-btn p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700" style="${isMaster ? '' : 'display:none'}">
                               <i data-lucide="edit-2" class="w-3.5 h-3.5"></i>
                             </button>
-                            <button data-delete-id="${p.id}" class="delete-player-btn p-1.5 bg-red-950 hover:bg-red-900 text-red-400 rounded-lg border border-red-800">
+                            <button data-delete-id="${p.id}" class="delete-player-btn p-1.5 bg-red-950 hover:bg-red-900 text-red-400 rounded-lg border border-red-800" style="${isMaster ? '' : 'display:none'}">
                               <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                             </button>
                           </div>
@@ -280,6 +291,69 @@ export function renderAdminDashboard(containerEl) {
           </div>
         </div>
 
+
+        <!-- 5. Tournament Owner Delegation Tab -->
+        <div id="tab-owners-view" class="${activeAdminTab === 'owners' ? '' : 'hidden'} space-y-6 animate-fade-in">
+          <div class="glass-card p-4 sm:p-6 bg-slate-900/90 border border-slate-800 space-y-5">
+            <div class="flex items-center gap-3 border-b border-slate-800 pb-3">
+              <span class="p-2.5 bg-amber-500/20 text-amber-400 rounded-2xl border border-amber-500/30">
+                <i data-lucide="crown" class="w-6 h-6"></i>
+              </span>
+              <div>
+                <h3 class="text-base sm:text-lg font-black text-white">Appoint Tournament Owner & Admin</h3>
+                <p class="text-xs text-slate-400">Delegate full tournament operational controls to any registered player/user.</p>
+              </div>
+            </div>
+
+            <!-- Current Appointed Owner Banner -->
+            <div class="p-4 bg-slate-950 rounded-2xl border border-amber-400/40 flex flex-col sm:flex-row items-center justify-between gap-3">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-400 text-amber-400 flex items-center justify-center font-black text-xl">
+                  👑
+                </div>
+                <div>
+                  <span class="text-[10px] font-bold text-amber-400 uppercase">JSL 2026 Appointed Owner</span>
+                  <div class="font-black text-white text-sm sm:text-base">
+                    ${store.getTournamentOwners()['tournament-jsl-2026'] ? store.getTournamentOwners()['tournament-jsl-2026'].name : 'Not Appointed'}
+                  </div>
+                  <div class="text-xs text-slate-400 font-mono">
+                    Phone: ${store.getTournamentOwners()['tournament-jsl-2026'] ? store.getTournamentOwners()['tournament-jsl-2026'].phone : 'N/A'}
+                  </div>
+                </div>
+              </div>
+              <span class="px-3 py-1 bg-emerald-950 text-emerald-300 font-black text-xs rounded-xl border border-emerald-800">
+                Active Permissions
+              </span>
+            </div>
+
+            <!-- Assign Owner Form -->
+            <form id="assign-tournament-owner-form" class="space-y-4 pt-2">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label class="block text-xs font-bold text-slate-400 mb-1">SELECT TOURNAMENT *</label>
+                  <select id="assign-owner-tournament-id" class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-xl p-3 focus:border-amber-400 focus:outline-none">
+                    <option value="tournament-jsl-2026">Jankra Super League 2026 (JSL)</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label class="block text-xs font-bold text-slate-400 mb-1">SELECT REGISTERED PLAYER AS OWNER *</label>
+                  <select id="assign-owner-player-select" required class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-xl p-3 focus:border-amber-400 focus:outline-none">
+                    <option value="">-- Choose Player to Appoint as Owner --</option>
+                    ${players.map(p => `
+                      <option value="${p.phone || p.mobile}" data-name="${p.name}">${p.name} (${p.phone || p.mobile} • ${p.village || 'Jhankra'}${p.displayRegistrationNumber ? ' • #' + p.displayRegistrationNumber : ''})</option>
+                    `).join('')}
+                  </select>
+                </div>
+              </div>
+
+              <button type="submit" class="py-3 px-6 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-lg transition-all flex items-center gap-2 cursor-pointer">
+                <i data-lucide="check-circle-2" class="w-4 h-4"></i> Save & Grant Tournament Owner Authority
+              </button>
+            </form>
+          </div>
+        </div>
+
         <!-- 4. Auction Controls Tab -->
         <div id="tab-auction-view" class="${activeAdminTab === 'auction' ? '' : 'hidden'} space-y-6 animate-fade-in">
           <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -310,7 +384,7 @@ export function renderAdminDashboard(containerEl) {
                   <select id="auction-select-player" class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-xl p-2.5">
                     <option value="">-- Choose Player --</option>
                     ${players.filter(p => (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED') && !p.teamId).map(p => `
-                      <option value="${p.id}">${p.name} (${p.category || 'All Rounder'}) - Base: ₹${p.basePrice || 200}</option>
+                      <option value="${p.id}">${p.name} (${p.category || 'All Rounder'}) - Base: ₹${p.basePrice || 300}</option>
                     `).join('')}
                   </select>
                 </div>
@@ -558,6 +632,7 @@ export function renderAdminDashboard(containerEl) {
       document.getElementById('tab-fixtures-view')?.classList.add('hidden');
       document.getElementById('tab-scorer-view')?.classList.add('hidden');
       document.getElementById('tab-shop-ads-view')?.classList.add('hidden');
+      document.getElementById('tab-owners-view')?.classList.add('hidden');
 
       if (activeAdminTab === 'payments') document.getElementById('tab-payments-view').classList.remove('hidden');
       if (activeAdminTab === 'all-players') document.getElementById('tab-all-players-view').classList.remove('hidden');
@@ -579,13 +654,33 @@ export function renderAdminDashboard(containerEl) {
         document.getElementById('tab-shop-ads-view')?.classList.remove('hidden');
         renderAdminShopAdsPanel();
       }
+      if (activeAdminTab === 'owners') {
+        document.getElementById('tab-owners-view')?.classList.remove('hidden');
+      }
     });
+  });
+
+  // Bind Assign Tournament Owner Form Submit
+  document.getElementById('assign-tournament-owner-form')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const tId = document.getElementById('assign-owner-tournament-id').value;
+    const sel = document.getElementById('assign-owner-player-select');
+    const phone = sel ? sel.value : '';
+    const opt = sel ? sel.options[sel.selectedIndex] : null;
+    const name = opt ? (opt.getAttribute('data-name') || opt.textContent.split('(')[0].trim()) : 'Tournament Owner';
+
+    if (!phone) return alert('Please select a player from the dropdown to appoint as Tournament Owner!');
+
+    store.setTournamentOwner(tId, phone, name);
+    alert(`👑 Authority Granted!\n\n"${name}" (${phone}) is now the official Tournament Owner for JSL 2026.`);
+    activeAdminTab = 'owners';
+    renderAdminDashboard(containerEl);
   });
 
   // Bind Auction Settings Form Submit
   document.getElementById('admin-auction-settings-form')?.addEventListener('submit', (e) => {
     e.preventDefault();
-    const defaultBasePrice = Number(document.getElementById('auction-setting-base-price').value) || 200;
+    const defaultBasePrice = Number(document.getElementById('auction-setting-base-price').value) || 300;
     const defaultPurseBudget = Number(document.getElementById('auction-setting-purse-budget').value) || 8000;
     store.updateAuctionSettings({ defaultBasePrice, defaultPurseBudget });
     alert("Auction parameters updated successfully!");
@@ -601,13 +696,28 @@ export function renderAdminDashboard(containerEl) {
       if (activeAuction.timerInterval) clearInterval(activeAuction.timerInterval);
       activeAuction = {
         player: p,
-        currentBid: Number(p.basePrice) || 200,
+        currentBid: Number(p.basePrice) || 300,
         leadingTeam: null,
         timerSecs: 30,
         timerInterval: null,
         isSold: false,
         isUnsold: false
       };
+      store.updateLiveAuctionState({
+        active_player_id: p.id,
+        name: p.name,
+        photoUrl: p.photoUrl || p.player_photo_url,
+        category: p.category || p.playingType || 'All Rounder',
+        basePrice: Number(p.basePrice) || 300,
+        current_bid: Number(p.basePrice) || 300,
+        highest_bidder_team_id: null,
+        timer_left: 30,
+        status: 'BIDDING',
+        registrationId: p.registrationId || p.regNo,
+        village: p.village,
+        battingStyle: p.battingStyle,
+        bowlingStyle: p.bowlingStyle
+      });
       // Start 1-second countdown
       activeAuction.timerInterval = setInterval(() => {
         if (activeAuction.timerSecs > 0) {
@@ -784,13 +894,6 @@ export function renderAdminDashboard(containerEl) {
     }
   });
 
-  document.getElementById('clear-all-players-btn')?.addEventListener('click', () => {
-    if (confirm("⚠️ WARNING: Are you sure you want to delete ALL player registrations?")) {
-      store.clearAllPlayers();
-      renderAdminDashboard(containerEl);
-    }
-  });
-
   // Realtime Search Listener for Admin Players Table
   const adminSearchInput = document.getElementById('admin-player-search');
   if (adminSearchInput) {
@@ -846,6 +949,7 @@ export function renderAdminDashboard(containerEl) {
 }
 
 function renderAdminPlayersRows(playersList) {
+  const isMaster = store.isMasterAdmin();
   if (playersList.length === 0) {
     return `<tr><td colspan="7" class="py-8 text-center text-xs text-slate-500">No players found</td></tr>`;
   }
@@ -918,10 +1022,10 @@ function renderAdminPlayersRows(playersList) {
                 Reset
               </button>
             `}
-            <button data-edit-id="${p.id}" class="edit-player-btn p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700">
+            <button data-edit-id="${p.id}" class="edit-player-btn p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700" style="${isMaster ? '' : 'display:none'}">
               <i data-lucide="edit-2" class="w-3.5 h-3.5 pointer-events-none"></i>
             </button>
-            <button data-delete-id="${p.id}" class="delete-player-btn p-1.5 bg-red-950 hover:bg-red-900 text-red-400 rounded-lg border border-red-800">
+            <button data-delete-id="${p.id}" class="delete-player-btn p-1.5 bg-red-950 hover:bg-red-900 text-red-400 rounded-lg border border-red-800" style="${isMaster ? '' : 'display:none'}">
               <i data-lucide="trash-2" class="w-3.5 h-3.5 pointer-events-none"></i>
             </button>
           </div>
@@ -952,7 +1056,7 @@ export function sendWhatsAppPlayerApproval(player) {
 🆔 *Registration ID:* ${player.registrationId || 'JSL2026-0001'}
 🏏 *Category:* ${player.category || 'All Rounder'}
 📍 *Location:* ${player.village || ''}, ${player.district || 'Paschim Medinipur'}
-💰 *Base Price:* ₹${player.basePrice || 200}
+💰 *Base Price:* ₹${player.basePrice || 300}
 
 🏆 *Grand Tournament Starts:* 30 August 2026, 9:00 AM IST
 📍 *Venue:* Jhankra School Stadium Ground
@@ -1088,7 +1192,7 @@ function bindAdminTableActions(containerEl) {
   }
 }
 
-// --- ADMIN LOGIN SCREEN (WITH TOP-RIGHT 'X' CROSS CLOSE BUTTON) ---
+// --- ADMIN & TOURNAMENT OWNER LOGIN SCREEN ---
 function renderAdminLoginScreen(containerEl) {
   containerEl.innerHTML = `
     <div class="max-w-md mx-auto my-8 p-6 bg-slate-900/95 border-2 border-amber-500/50 rounded-2xl shadow-2xl space-y-4 animate-fade-in text-center relative">
@@ -1103,31 +1207,34 @@ function renderAdminLoginScreen(containerEl) {
       </div>
 
       <div>
-        <h2 class="text-xl font-black text-white">Master Admin Verification</h2>
-        <p class="text-xs text-slate-400 mt-0.5">Single Source Supabase & Realtime Cloud Data Control</p>
+        <h2 class="text-xl font-black text-white">Tournament & Admin Portal</h2>
+        <p class="text-xs text-slate-400 mt-0.5">Super Admin Email OR Tournament Owner Mobile Number</p>
       </div>
 
       <form id="admin-login-form" class="space-y-3 text-left">
         <div>
-          <label class="block text-[10px] font-bold text-slate-300 uppercase mb-1">Admin Email ID *</label>
-          <input type="email" id="admin-email" required placeholder="Enter Admin Email ID" class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-xl p-3 focus:outline-none focus:border-amber-500 font-mono" />
+          <label class="block text-[10px] font-bold text-slate-300 uppercase mb-1">Email ID OR 10-Digit Mobile Number *</label>
+          <input type="text" id="admin-identifier" required placeholder="e.g. bakolaypan@gmail.com OR 9876543210" class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-xl p-3 focus:outline-none focus:border-amber-500 font-mono" />
         </div>
 
         <div>
           <label class="block text-[10px] font-bold text-slate-300 uppercase mb-1">Password *</label>
-          <input type="password" id="admin-password" required placeholder="Enter Admin Password" class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-xl p-3 focus:outline-none focus:border-amber-500 font-mono" />
+          <input type="password" id="admin-password" required placeholder="Enter Password" class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-xl p-3 focus:outline-none focus:border-amber-500 font-mono" />
         </div>
 
-        <button type="submit" class="w-full py-3 bg-gradient-to-r from-amber-500 via-amber-600 to-red-600 hover:from-amber-400 hover:to-red-500 text-slate-950 font-black text-xs rounded-xl shadow-xl transition-all border border-amber-300">
-          Unlock Master Admin Control Panel
+        <button type="submit" class="w-full py-3 bg-gradient-to-r from-amber-500 via-amber-600 to-red-600 hover:from-amber-400 hover:to-red-500 text-slate-950 font-black text-xs rounded-xl shadow-xl transition-all border border-amber-300 cursor-pointer">
+          Unlock Tournament Control Dashboard
         </button>
       </form>
+
+      <div class="text-[11px] text-slate-400 pt-2 border-t border-slate-800/80">
+        Default password for registered players is their 10-digit mobile number.
+      </div>
     </div>
   `;
 
   if (window.lucide) window.lucide.createIcons();
 
-  // CLOSE 'X' BUTTON CLICK -> RETURN HOME / LANDING
   document.getElementById('close-admin-login-btn')?.addEventListener('click', () => {
     window.location.hash = 'landing';
     window.dispatchEvent(new CustomEvent('popstate'));
@@ -1135,14 +1242,42 @@ function renderAdminLoginScreen(containerEl) {
 
   document.getElementById('admin-login-form')?.addEventListener('submit', (e) => {
     e.preventDefault();
-    const email = document.getElementById('admin-email').value;
-    const pass = document.getElementById('admin-password').value;
+    const identifier = document.getElementById('admin-identifier').value.trim();
+    const pass = document.getElementById('admin-password').value.trim();
 
-    const res = store.authenticateAdmin(email, pass);
-    if (res.success) {
+    // 1. Try Super Admin email
+    if (identifier.includes('@')) {
+      const res = store.authenticateAdmin(identifier, pass);
+      if (res.success) {
+        store.setCurrentUser({
+          phone: '9876543210',
+          name: 'Suman Kolay (Master Super Admin)',
+          role: 'SUPER_ADMIN',
+          isFirstLogin: false,
+          ownedTournaments: ['tournament-jsl-2026']
+        });
+        renderAdminDashboard(containerEl);
+        return;
+      } else {
+        alert(res.message || "Invalid Admin Email Credentials");
+        return;
+      }
+    }
+
+    // 2. Try Mobile Number (Tournament Owner or Player)
+    const res = store.authenticateUser(identifier, pass);
+    if (!res.success) {
+      alert(res.message || "Invalid Mobile Number or Password");
+      return;
+    }
+
+    if (res.user.role === 'TOURNAMENT_OWNER' || res.user.role === 'SUPER_ADMIN') {
+      localStorage.setItem('cpl_admin_auth_v7', 'true');
       renderAdminDashboard(containerEl);
     } else {
-      alert(res.message || "Invalid Credentials");
+      alert(`Logged in as player "${res.user.name}". You do not have Tournament Owner permissions. Navigating to your Player Profile.`);
+      window.location.hash = 'profile';
+      window.dispatchEvent(new CustomEvent('popstate'));
     }
   });
 }
@@ -1966,6 +2101,140 @@ let activeAuction = {
   isUnsold: false
 };
 
+export function openNextPlayerAuctionModal(remainingPlayers) {
+  document.getElementById('next-player-modal')?.remove();
+
+  const modalHtml = `
+    <div id="next-player-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
+      <div class="relative w-full max-w-xl bg-slate-900 text-white rounded-3xl shadow-2xl border border-amber-500/40 p-5 sm:p-6 max-h-[85vh] flex flex-col">
+        <div class="flex justify-between items-center pb-3 border-b border-slate-800">
+          <div>
+            <h3 class="text-base sm:text-lg font-black text-white flex items-center gap-2">
+              <span class="p-1.5 bg-amber-500/20 text-amber-400 rounded-xl">🔨</span> Select Next Player for Auction
+            </h3>
+            <p class="text-xs text-slate-400 mt-0.5">${remainingPlayers.length} Approved Players Remaining</p>
+          </div>
+          <button id="close-next-player-modal-btn" class="p-1.5 text-slate-400 hover:text-white rounded-lg">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+
+        <div class="my-3">
+          <input type="text" id="next-player-search" placeholder="🔍 Search player by name, category, or village..." class="w-full bg-slate-950 border border-slate-700 text-white text-xs rounded-xl p-2.5 focus:border-amber-400 focus:outline-none" />
+        </div>
+
+        <div class="flex-1 overflow-y-auto space-y-2 pr-1" id="next-player-list">
+          ${remainingPlayers.map(p => `
+            <div class="p-3 bg-slate-950 border border-slate-800 rounded-2xl flex items-center justify-between gap-3 hover:border-amber-400/60 transition-all next-player-row" data-name="${p.name.toLowerCase()}" data-cat="${(p.category || '').toLowerCase()}">
+              <div class="flex items-center gap-3 min-w-0">
+                <img src="${getOptimizedImageUrl(p.photoUrl || p.player_photo_url, 80, 80)}" class="w-11 h-11 rounded-xl object-cover border border-slate-700 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                <div class="min-w-0">
+                  <div class="font-black text-sm text-white truncate">${p.name}</div>
+                  <div class="text-[11px] text-amber-400 font-bold flex items-center gap-1.5">
+                    <span>🏏 ${p.category || 'All Rounder'}</span>
+                    <span>•</span>
+                    <span class="text-slate-400">📍 ${p.village || 'Paschim Medinipur'}</span>
+                    <span>•</span>
+                    <span class="text-emerald-400 font-mono font-black">Base: ₹${p.basePrice || 300}</span>
+                  </div>
+                </div>
+              </div>
+              <button data-launch-player-id="${p.id}" class="launch-next-auction-btn px-3 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-md cursor-pointer shrink-0 transition-transform active:scale-95">
+                🔨 Start Bid
+              </button>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  if (window.lucide) window.lucide.createIcons();
+
+  const removeModal = () => document.getElementById('next-player-modal')?.remove();
+  document.getElementById('close-next-player-modal-btn')?.addEventListener('click', removeModal);
+
+  // Search filter
+  document.getElementById('next-player-search')?.addEventListener('input', (e) => {
+    const q = e.target.value.toLowerCase().trim();
+    document.querySelectorAll('.next-player-row').forEach(row => {
+      const name = row.getAttribute('data-name');
+      const cat = row.getAttribute('data-cat');
+      if (name.includes(q) || cat.includes(q)) {
+        row.classList.remove('hidden');
+      } else {
+        row.classList.add('hidden');
+      }
+    });
+  });
+
+  // Launch auction on click
+  document.querySelectorAll('.launch-next-auction-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const pId = e.currentTarget.getAttribute('data-launch-player-id');
+      const p = store.getPlayerById(pId);
+      if (p) {
+        removeModal();
+        startAuctionForPlayerDirectly(p);
+      }
+    });
+  });
+}
+
+export function startAuctionForPlayerDirectly(p) {
+  if (activeAuction.timerInterval) clearInterval(activeAuction.timerInterval);
+
+  activeAuction = {
+    player: p,
+    currentBid: Number(p.basePrice) || 300,
+    leadingTeam: null,
+    timerSecs: 30,
+    timerInterval: null,
+    isSold: false,
+    isUnsold: false
+  };
+
+  store.updateLiveAuctionState({
+    active_player_id: p.id,
+    name: p.name,
+    photoUrl: p.photoUrl || p.player_photo_url,
+    category: p.category || p.playingType || 'All Rounder',
+    basePrice: Number(p.basePrice) || 300,
+    current_bid: Number(p.basePrice) || 300,
+    highest_bidder_team_id: null,
+    timer_left: 30,
+    status: 'BIDDING',
+    registrationId: p.registrationId || p.regNo,
+    village: p.village,
+    battingStyle: p.battingStyle,
+    bowlingStyle: p.bowlingStyle
+  });
+
+  // Start 1-second countdown
+  activeAuction.timerInterval = setInterval(() => {
+    if (activeAuction.timerSecs > 0) {
+      activeAuction.timerSecs--;
+      if (activeAuction.timerSecs <= 5 && activeAuction.timerSecs > 0) {
+        playAuctionAudio('tick');
+      }
+      updateProjectorModalView();
+      const timerBox = document.querySelector('#admin-active-auction-block .text-center .border');
+      if (timerBox) {
+        timerBox.textContent = `⏱️ ${String(activeAuction.timerSecs).padStart(2, '0')}s`;
+        if (activeAuction.timerSecs <= 5) {
+          timerBox.className = 'px-3 py-1.5 rounded-xl border font-mono font-black text-lg text-rose-400 animate-pulse border-rose-500 bg-rose-950/50';
+        } else if (activeAuction.timerSecs <= 10) {
+          timerBox.className = 'px-3 py-1.5 rounded-xl border font-mono font-black text-lg text-amber-400 border-amber-500 bg-amber-950/50';
+        }
+      }
+    }
+  }, 1000);
+
+  renderActiveAuctionBlock();
+  updateProjectorModalView();
+}
+
 export function renderActiveAuctionBlock() {
   const container = document.getElementById('admin-active-auction-block');
   if (!container) return;
@@ -1980,16 +2249,28 @@ export function renderActiveAuctionBlock() {
         </div>
         <div>
           <h4 class="text-sm font-bold text-white">Auction Block is Idle</h4>
-          <p class="text-xs text-slate-400">Select an approved player from the left panel and click "Put Player on Auction Block" to begin.</p>
+          <p class="text-xs text-slate-400">Select an approved player from the left panel or click below to launch bidding.</p>
         </div>
+        <button id="quick-open-next-player-btn" class="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-lg transition-all cursor-pointer inline-flex items-center gap-1.5">
+          <i data-lucide="user-plus" class="w-4 h-4"></i> Pick Next Player from Queue
+        </button>
       </div>
     `;
     if (window.lucide) window.lucide.createIcons();
+
+    document.getElementById('quick-open-next-player-btn')?.addEventListener('click', () => {
+      const remainingUnsold = store.getPlayers().filter(pl => (pl.registrationStatus === 'APPROVED' || pl.paymentStatus === 'APPROVED') && pl.auctionStatus !== 'SOLD');
+      openNextPlayerAuctionModal(remainingUnsold);
+    });
     return;
   }
 
   const p = activeAuction.player;
   const timerClass = activeAuction.timerSecs <= 5 ? 'text-rose-400 animate-pulse border-rose-500 bg-rose-950/50' : activeAuction.timerSecs <= 10 ? 'text-amber-400 border-amber-500 bg-amber-950/50' : 'text-emerald-400 border-emerald-500 bg-emerald-950/50';
+
+  // Calculate Next Increment (+50 under 1000, +100 at/above 1000)
+  const nextInc = activeAuction.currentBid < 1000 ? 50 : 100;
+  const nextBidAmount = activeAuction.currentBid + nextInc;
 
   container.innerHTML = `
     <div class="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-4">
@@ -2005,7 +2286,7 @@ export function renderActiveAuctionBlock() {
               <span>•</span>
               <span>📍 ${p.village || 'Paschim Medinipur'}</span>
               <span>•</span>
-              <span>Base: ₹${p.basePrice || 200}</span>
+              <span>Base: ₹${p.basePrice || 300}</span>
             </div>
           </div>
         </div>
@@ -2024,40 +2305,60 @@ export function renderActiveAuctionBlock() {
           <div class="text-xl sm:text-2xl font-black text-amber-400 font-mono mt-0.5">
             ₹ ${activeAuction.currentBid.toLocaleString('en-IN')}
           </div>
+          <span class="text-[9px] text-slate-400 font-mono">Next Bid: +₹${nextInc} (₹${nextBidAmount})</span>
         </div>
         <div class="p-3 bg-slate-900/90 rounded-xl border border-slate-800 text-center">
           <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">LEADING BIDDER TEAM</span>
           <div class="text-xs sm:text-sm font-black text-white truncate mt-1">
-            ${activeAuction.leadingTeam ? `🛡️ ${activeAuction.leadingTeam.name}` : '<span class="text-slate-500 italic">No Bids Yet</span>'}
+            ${activeAuction.leadingTeam ? `🛡️ ${activeAuction.leadingTeam.name}` : '<span class="text-slate-500 italic">Opening Bid (₹' + (p.basePrice || 300) + ')</span>'}
           </div>
+          <span class="text-[9px] font-bold ${activeAuction.leadingTeam ? 'text-emerald-400' : 'text-slate-500'}">
+            ${activeAuction.leadingTeam ? '🔥 Top Bidder' : 'Waiting for First Team Bid'}
+          </span>
         </div>
       </div>
 
-      <!-- Quick Bid Increment Buttons -->
+      <!-- 1-CLICK TEAM BID BUTTONS (Auto Increment +50 / +100) -->
       <div>
-        <label class="block text-[10px] font-bold text-slate-400 uppercase mb-1.5">Select Team & Place Bid Increment</label>
-        <div class="flex gap-2 mb-2">
-          <select id="auction-bidding-team-select" class="w-full bg-slate-900 border border-slate-700 text-white text-xs rounded-xl p-2.5 focus:border-amber-400 focus:outline-none">
-            <option value="">-- Choose Bidding Franchise --</option>
-            ${allTeams.map(t => {
-              const rem = t.remainingPurse !== undefined ? t.remainingPurse : (t.purse || 8000);
-              return `<option value="${t.id}">${t.name} (Rem Purse: ₹${rem})</option>`;
-            }).join('')}
-          </select>
+        <div class="flex justify-between items-center mb-1.5">
+          <label class="block text-[10px] font-black text-slate-300 uppercase tracking-wider">⚡ 1-Click Team Bidding (+₹${nextInc} rule)</label>
+          <span class="text-[10px] text-amber-400 font-mono font-bold">Next Bid: ₹${nextBidAmount}</span>
         </div>
-        <div class="grid grid-cols-4 gap-1.5">
-          <button data-inc="50" class="auction-bid-inc-btn py-2 bg-slate-800 hover:bg-slate-700 text-amber-400 font-black text-xs rounded-xl border border-slate-700 transition-all cursor-pointer">
-            +₹50
-          </button>
-          <button data-inc="100" class="auction-bid-inc-btn py-2 bg-slate-800 hover:bg-slate-700 text-amber-400 font-black text-xs rounded-xl border border-slate-700 transition-all cursor-pointer">
-            +₹100
-          </button>
-          <button data-inc="200" class="auction-bid-inc-btn py-2 bg-slate-800 hover:bg-slate-700 text-amber-400 font-black text-xs rounded-xl border border-slate-700 transition-all cursor-pointer">
-            +₹200
-          </button>
-          <button data-inc="500" class="auction-bid-inc-btn py-2 bg-slate-800 hover:bg-slate-700 text-amber-400 font-black text-xs rounded-xl border border-slate-700 transition-all cursor-pointer">
-            +₹500
-          </button>
+        
+        <div class="grid grid-cols-2 gap-2">
+          ${allTeams.map(t => {
+            const rem = t.remainingPurse !== undefined ? t.remainingPurse : (t.purseBudget || 8000);
+            const isLeading = activeAuction.leadingTeam && activeAuction.leadingTeam.id === t.id;
+            const canAfford = rem >= nextBidAmount;
+            const isFull = (t.squadCount || 0) >= 13;
+            const isDisabled = (!canAfford || isFull || isLeading);
+
+            return `
+              <button 
+                data-bid-team-id="${t.id}" 
+                ${isDisabled ? 'disabled' : ''} 
+                class="auction-team-bid-btn p-2.5 rounded-xl border text-left flex flex-col justify-between transition-all cursor-pointer ${
+                  isLeading 
+                    ? 'bg-amber-500/20 border-amber-400 ring-2 ring-amber-400/80 shadow-lg' 
+                    : isDisabled 
+                      ? 'bg-slate-900/40 border-slate-800/80 opacity-50 cursor-not-allowed' 
+                      : 'bg-slate-900 hover:bg-slate-800 hover:border-amber-400 border-slate-700 active:scale-95 shadow-md'
+                }">
+                <div class="flex items-center justify-between gap-1 mb-1">
+                  <span class="font-black text-xs text-white truncate" title="${t.name}">🛡️ ${t.name}</span>
+                  <span class="px-1.5 py-0.5 rounded text-[9px] font-bold ${isLeading ? 'bg-amber-400 text-slate-950 animate-pulse font-black' : 'bg-slate-800 text-slate-300'}">
+                    ${isLeading ? '👑 LEADING' : `${t.squadCount || 0}/13`}
+                  </span>
+                </div>
+                <div class="flex items-center justify-between text-[11px] mt-0.5 pt-1 border-t border-slate-800/80">
+                  <span class="text-slate-400 font-semibold">Purse: ₹${rem}</span>
+                  <span class="font-black ${isLeading ? 'text-amber-300' : isDisabled ? 'text-slate-500' : 'text-emerald-400'}">
+                    ${isLeading ? 'Top Offer' : isDisabled ? (isFull ? 'Roster Full' : 'Low Purse') : `+₹${nextInc} (₹${nextBidAmount})`}
+                  </span>
+                </div>
+              </button>
+            `;
+          }).join('')}
         </div>
       </div>
 
@@ -2079,22 +2380,46 @@ export function renderActiveAuctionBlock() {
 
   if (window.lucide) window.lucide.createIcons();
 
-  // Attach Bid Increment Listeners
-  container.querySelectorAll('.auction-bid-inc-btn').forEach(btn => {
+  // Attach 1-Click Team Bidding
+  container.querySelectorAll('.auction-team-bid-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
-      const inc = Number(e.currentTarget.getAttribute('data-inc')) || 100;
-      const teamSelect = document.getElementById('auction-bidding-team-select');
-      const teamId = teamSelect?.value;
-      if (!teamId) {
-        alert("Please select a bidding franchise team first!");
-        return;
-      }
+      const teamId = e.currentTarget.getAttribute('data-bid-team-id');
       const team = store.getTeamById(teamId);
       if (!team) return;
 
-      activeAuction.currentBid += inc;
+      const inc = activeAuction.currentBid < 1000 ? 50 : 100;
+      const newBid = activeAuction.currentBid + inc;
+
+      if (team.remainingPurse < newBid) {
+        alert(`Franchise ${team.name} has only ₹${team.remainingPurse} remaining and cannot place a bid of ₹${newBid}!`);
+        return;
+      }
+      if ((team.squadCount || 0) >= 13) {
+        alert(`Franchise ${team.name} already has a full squad of 13 players!`);
+        return;
+      }
+
+      activeAuction.currentBid = newBid;
       activeAuction.leadingTeam = team;
       activeAuction.timerSecs = 30; // Reset timer on bid
+
+      if (activeAuction.player) {
+        store.updateLiveAuctionState({
+          active_player_id: activeAuction.player.id,
+          name: activeAuction.player.name,
+          photoUrl: activeAuction.player.photoUrl || activeAuction.player.player_photo_url,
+          category: activeAuction.player.category || activeAuction.player.playingType || 'All Rounder',
+          basePrice: Number(activeAuction.player.basePrice) || 300,
+          current_bid: activeAuction.currentBid,
+          highest_bidder_team_id: team.id,
+          timer_left: 30,
+          status: 'BIDDING',
+          registrationId: activeAuction.player.registrationId || activeAuction.player.regNo,
+          village: activeAuction.player.village,
+          battingStyle: activeAuction.player.battingStyle,
+          bowlingStyle: activeAuction.player.bowlingStyle
+        });
+      }
 
       playAuctionAudio('bid');
       renderActiveAuctionBlock();
@@ -2139,9 +2464,28 @@ export function renderActiveAuctionBlock() {
     playAuctionAudio('sold');
     alert(`🎉 SOLD! Player "${p.name}" sold to "${team.name}" for ₹${price.toLocaleString('en-IN')}!`);
 
+    store.updateLiveAuctionState({
+      status: 'IDLE',
+      active_player_id: null,
+      current_bid: 0,
+      highest_bidder_team_id: null,
+      last_sold_player_id: p.id,
+      last_sold_price: price,
+      last_sold_team_id: team.id
+    });
+
     activeAuction = { player: null, currentBid: 0, leadingTeam: null, timerSecs: 30, timerInterval: null, isSold: false, isUnsold: false };
     renderActiveAuctionBlock();
     updateProjectorModalView();
+
+    // Check remaining players and auto-open selector modal
+    const remainingUnsold = store.getPlayers().filter(pl => (pl.registrationStatus === 'APPROVED' || pl.paymentStatus === 'APPROVED') && pl.auctionStatus !== 'SOLD');
+    if (remainingUnsold.length > 0) {
+      openNextPlayerAuctionModal(remainingUnsold);
+    } else {
+      store.updateLiveAuctionState({ status: 'COMPLETED', active_player_id: null });
+      alert("🏆 ALL APPROVED PLAYERS AUCTIONED! Auction is now complete.");
+    }
   });
 
   // Attach Mark UNSOLD
@@ -2153,9 +2497,21 @@ export function renderActiveAuctionBlock() {
       if (activeAuction.timerInterval) clearInterval(activeAuction.timerInterval);
       alert(`Player "${p.name}" marked as UNSOLD.`);
 
+      store.updateLiveAuctionState({
+        status: 'IDLE',
+        active_player_id: null,
+        current_bid: 0,
+        highest_bidder_team_id: null
+      });
+
       activeAuction = { player: null, currentBid: 0, leadingTeam: null, timerSecs: 30, timerInterval: null, isSold: false, isUnsold: false };
       renderActiveAuctionBlock();
       updateProjectorModalView();
+
+      const remainingUnsold = store.getPlayers().filter(pl => (pl.registrationStatus === 'APPROVED' || pl.paymentStatus === 'APPROVED') && pl.auctionStatus !== 'SOLD');
+      if (remainingUnsold.length > 0) {
+        openNextPlayerAuctionModal(remainingUnsold);
+      }
     }
   });
 
@@ -2165,7 +2521,6 @@ export function renderActiveAuctionBlock() {
   });
 }
 
-// 2. Fullscreen Big Screen / Projector Modal
 export function openAuctionProjectorModal() {
   document.getElementById('auction-projector-modal')?.remove();
 
@@ -2174,7 +2529,7 @@ export function openAuctionProjectorModal() {
   const pPhoto = p ? getOptimizedImageUrl(p.photoUrl || p.player_photo_url, 400, 400) : 'assets/card_jsl_user.png';
   const pCat = p ? (p.category || 'All Rounder') : 'JSL 2026';
   const pVillage = p ? (p.village || 'Paschim Medinipur') : 'Cricket Ground';
-  const pBase = p ? (p.basePrice || 200) : 200;
+  const pBase = p ? (p.basePrice || 300) : 300;
 
   const modalHtml = `
     <div id="auction-projector-modal" class="fixed inset-0 z-[100] bg-slate-950 text-white flex flex-col justify-between p-4 sm:p-8 animate-fade-in select-none">
@@ -2314,13 +2669,28 @@ export function initAuctionStartListener() {
 
     activeAuction = {
       player: player,
-      currentBid: Number(player.basePrice) || 200,
+      currentBid: Number(player.basePrice) || 300,
       leadingTeam: null,
       timerSecs: 30,
       timerInterval: null,
       isSold: false,
       isUnsold: false
     };
+    store.updateLiveAuctionState({
+      active_player_id: player.id,
+      name: player.name,
+      photoUrl: player.photoUrl || player.player_photo_url,
+      category: player.category || player.playingType || 'All Rounder',
+      basePrice: Number(player.basePrice) || 300,
+      current_bid: Number(player.basePrice) || 300,
+      highest_bidder_team_id: null,
+      timer_left: 30,
+      status: 'BIDDING',
+      registrationId: player.registrationId || player.regNo,
+      village: player.village,
+      battingStyle: player.battingStyle,
+      bowlingStyle: player.bowlingStyle
+    });
 
     // Start 1-second countdown
     activeAuction.timerInterval = setInterval(() => {
@@ -2965,18 +3335,34 @@ export function openEditTeamModal(team, onSaved) {
             </div>
           </div>
 
-          <!-- 3. Icon Player Details -->
+          <!-- 3. Icon Player Details (Dropdown from Approved Players) -->
           <div class="p-3.5 bg-emerald-50/50 rounded-2xl border border-emerald-200/80 space-y-3">
-            <span class="text-[11px] font-black text-emerald-800 uppercase tracking-wider block">🌟 Icon Player Details</span>
+            <div class="flex items-center justify-between">
+              <span class="text-[11px] font-black text-emerald-800 uppercase tracking-wider block">🌟 Icon Player (₹1,000 Fee)</span>
+              <span class="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">Auto-deducts ₹1,000 & Roster 1/13</span>
+            </div>
+
             <div>
-              <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Icon Player Name</label>
+              <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Select Icon Player from Approved Registry *</label>
+              <select id="edit-icon-select" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-sm">
+                <option value="">-- No Icon Player Assigned --</option>
+                <option value="__CUSTOM__" ${team.iconPlayerName && !store.getPlayers().some(p => p.name === team.iconPlayerName) ? 'selected' : ''}>✍️ Custom Name / Outside Registry</option>
+                ${store.getPlayers().filter(p => (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED')).map(p => {
+                  const isSelected = (team.iconPlayerName === p.name || team.iconName === p.name || team.iconPlayerId === p.id);
+                  return `<option value="${p.id}" data-name="${p.name}" data-photo="${p.photoUrl || p.player_photo_url || ''}" ${isSelected ? 'selected' : ''}>${p.name} (${p.category || 'All Rounder'} • ${p.village || 'Jhankra'}${p.displayRegistrationNumber ? ' • #' + p.displayRegistrationNumber : ''})</option>`;
+                }).join('')}
+              </select>
+            </div>
+
+            <div id="custom-icon-name-wrapper" class="${team.iconPlayerName && !store.getPlayers().some(p => p.name === team.iconPlayerName) ? '' : 'hidden'}">
+              <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Custom Icon Player Name</label>
               <input type="text" id="edit-icon-name" value="${team.iconPlayerName || team.iconName || ''}" placeholder="e.g. Bijay Haldar" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-sm" />
             </div>
 
             <!-- Icon Photo (Auto-Compressed < 100KB & Instant CDN Upload) -->
             <div>
               <div class="flex items-center justify-between mb-1">
-                <label class="block text-[10px] font-bold text-emerald-800 uppercase">Icon Player Photo (Compressed &lt; 100KB)</label>
+                <label class="block text-[10px] font-bold text-emerald-800 uppercase">Icon Player Photo (Auto-populated or Upload)</label>
                 <div id="icon-photo-upload-status" class="text-[10px] font-bold"></div>
               </div>
               <div class="flex items-center gap-2.5">
@@ -3143,6 +3529,33 @@ export function openEditTeamModal(team, onSaved) {
     );
   });
 
+  // Icon Select Dropdown Change Handler
+  document.getElementById('edit-icon-select')?.addEventListener('change', (e) => {
+    const val = e.target.value;
+    const customWrapper = document.getElementById('custom-icon-name-wrapper');
+    const nameInput = document.getElementById('edit-icon-name');
+    const preview = document.getElementById('edit-icon-photo-preview');
+
+    if (val === '__CUSTOM__') {
+      if (customWrapper) customWrapper.classList.remove('hidden');
+    } else if (val === '') {
+      if (customWrapper) customWrapper.classList.add('hidden');
+      if (nameInput) nameInput.value = '';
+      iconPhotoData = '';
+      if (preview) preview.src = 'assets/player_jsl_hd.jpg';
+    } else {
+      if (customWrapper) customWrapper.classList.add('hidden');
+      const selectedOption = e.target.options[e.target.selectedIndex];
+      const pName = selectedOption?.getAttribute('data-name') || '';
+      const pPhoto = selectedOption?.getAttribute('data-photo') || '';
+      if (nameInput) nameInput.value = pName;
+      if (pPhoto) {
+        iconPhotoData = pPhoto;
+        if (preview) preview.src = pPhoto;
+      }
+    }
+  });
+
   // 3. Icon Photo Select
   document.getElementById('edit-icon-photo-file')?.addEventListener('change', (e) => {
     handlePhotoSelectAndCDNUpload(
@@ -3214,8 +3627,23 @@ export function openEditTeamModal(team, onSaved) {
         ownerPhotoUrl: ownerPhotoData,
         ownerPhoto: ownerPhotoData,
         captainName: document.getElementById('edit-owner-name').value.trim(),
-        iconPlayerName: document.getElementById('edit-icon-name').value.trim(),
-        iconName: document.getElementById('edit-icon-name').value.trim(),
+        iconPlayerId: (document.getElementById('edit-icon-select')?.value !== '__CUSTOM__' && document.getElementById('edit-icon-select')?.value) || team.iconPlayerId || '',
+        iconPlayerName: (() => {
+          const sel = document.getElementById('edit-icon-select');
+          if (!sel) return '';
+          if (sel.value === '__CUSTOM__') return (document.getElementById('edit-icon-name')?.value || '').trim();
+          if (sel.value === '') return '';
+          const opt = sel.options[sel.selectedIndex];
+          return (opt?.getAttribute('data-name') || '').trim();
+        })(),
+        iconName: (() => {
+          const sel = document.getElementById('edit-icon-select');
+          if (!sel) return '';
+          if (sel.value === '__CUSTOM__') return (document.getElementById('edit-icon-name')?.value || '').trim();
+          if (sel.value === '') return '';
+          const opt = sel.options[sel.selectedIndex];
+          return (opt?.getAttribute('data-name') || '').trim();
+        })(),
         iconPlayerPhotoUrl: iconPhotoData,
         iconPhotoUrl: iconPhotoData,
         iconPhoto: iconPhotoData,

@@ -1,6 +1,6 @@
 // LocalStorage & Cloud Database Reactive Store (Developer: Suman Kolay - Continuous Dynamic Numbering Release)
 
-import { INITIAL_LEAGUES, INITIAL_TEAMS, INITIAL_PLAYERS, INITIAL_FIXTURES } from './data.js';
+import { INITIAL_LEAGUES, INITIAL_TEAMS, INITIAL_PLAYERS, INITIAL_FIXTURES } from './data.js?v=9.9.6';
 import { 
   fetchCloudData, 
   saveCloudData, 
@@ -19,8 +19,10 @@ import {
   saveLiveMatchToFirebase,
   saveCommunityQueryToFirebase,
   deleteCommunityQueryFromFirebase,
-  fetchCommunityQueriesFromFirebase
-} from './supabase.js';
+  fetchCommunityQueriesFromFirebase,
+  fetchTournamentOwnersFromFirebase,
+  fetchUserAccountsFromFirebase
+} from './supabase.js?v=9.9.6';
 
 const FIREBASE_DB_URL = "https://cpl-jsl-2026-default-rtdb.firebaseio.com";
 
@@ -33,7 +35,10 @@ const STORAGE_KEYS = {
   ADMIN_AUTH: 'cpl_admin_auth_v7',
   PLAYER_PROFILES: 'cpl_player_profiles_v7',
   AUCTION_SETTINGS: 'cpl_auction_settings_v7',
-  COMMUNITY_QUERIES: 'cpl_community_queries_v7'
+  COMMUNITY_QUERIES: 'cpl_community_queries_v7',
+  CURRENT_USER: 'cpl_current_user_v7',
+  TOURNAMENT_OWNERS: 'cpl_tournament_owners_v7',
+  USER_ACCOUNTS: 'cpl_user_accounts_v7'
 };
 
 const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23059669'/%3E%3Ctext x='50' y='62' font-size='45' text-anchor='middle' fill='white'%3E🏏%3C/text%3E%3C/svg%3E";
@@ -132,7 +137,7 @@ class Store {
       safeSetLocalStorage(STORAGE_KEYS.PLAYER_PROFILES, []);
     }
     if (!localStorage.getItem(STORAGE_KEYS.AUCTION_SETTINGS)) {
-      safeSetLocalStorage(STORAGE_KEYS.AUCTION_SETTINGS, { defaultBasePrice: 200, defaultPurseBudget: 8000 });
+      safeSetLocalStorage(STORAGE_KEYS.AUCTION_SETTINGS, { defaultBasePrice: 300, defaultPurseBudget: 8000 });
     }
     if (!localStorage.getItem(STORAGE_KEYS.USER)) {
       safeSetLocalStorage(STORAGE_KEYS.USER, {
@@ -345,6 +350,25 @@ class Store {
           this.notify('auction_settings_updated');
         }
       }
+
+      // 5. Sync Tournament Owners & User Accounts from Firebase
+      try {
+        const cloudOwners = await fetchTournamentOwnersFromFirebase();
+        if (cloudOwners && typeof cloudOwners === 'object' && Object.keys(cloudOwners).length > 0) {
+          const currentOwners = this.getTournamentOwners();
+          const mergedOwners = { ...currentOwners, ...cloudOwners };
+          safeSetLocalStorage(STORAGE_KEYS.TOURNAMENT_OWNERS, mergedOwners);
+          this.notify('tournament_owners_updated');
+        }
+
+        const cloudAccounts = await fetchUserAccountsFromFirebase();
+        if (Array.isArray(cloudAccounts) && cloudAccounts.length > 0) {
+          safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, cloudAccounts);
+          this.notify('user_accounts_updated');
+        }
+      } catch (errOwners) {
+        console.warn("Owners sync notice:", errOwners);
+      }
     } catch (err) {
       console.warn("Cloud sync error:", err);
     }
@@ -386,10 +410,17 @@ class Store {
     }
   }
 
-  // --- ADMIN AUTHENTICATION ---
+  // --- ADMIN & TOURNAMENT OWNER AUTHENTICATION ---
   isAdminAuthenticated() {
+    const u = this.getCurrentUser();
+    if (u && (u.role === 'TOURNAMENT_OWNER' || u.role === 'SUPER_ADMIN')) return true;
     const val = localStorage.getItem(STORAGE_KEYS.ADMIN_AUTH);
     return val === 'true' || val === '"true"';
+  }
+
+  isMasterAdmin() {
+    const u = this.getCurrentUser();
+    return !!(u && (u.role === 'SUPER_ADMIN' || (u.email && u.email.toLowerCase() === 'bakolaypan@gmail.com')));
   }
 
   authenticateAdmin(email, password) {
@@ -447,6 +478,7 @@ class Store {
 
       return {
         ...p,
+        basePrice: (!p.basePrice || Number(p.basePrice) === 200) ? 300 : Number(p.basePrice),
         photoUrl: validPhoto,
         player_photo_url: validPhoto,
         serialNo: displayNo,
@@ -533,7 +565,7 @@ class Store {
       paymentRef: playerData.paymentRef || '',
       teamId: null,
       soldPrice: 0,
-      basePrice: Number(playerData.basePrice) || 200,
+      basePrice: Number(playerData.basePrice) || 300,
       regDate: new Date().toISOString().split('T')[0]
     };
 
@@ -743,10 +775,32 @@ class Store {
   // --- TEAMS ---
   getTeams() {
     const teams = JSON.parse(localStorage.getItem(STORAGE_KEYS.TEAMS)) || [];
-    return teams.map((t, idx) => ({
-      ...t,
-      serialNo: idx + 1
-    }));
+    const allPlayers = JSON.parse(localStorage.getItem(STORAGE_KEYS.PLAYERS)) || [];
+    
+    return teams.map((t, idx) => {
+      const hasIcon = !!(t.iconPlayerName || t.iconName);
+      const iconDeduction = hasIcon ? 1000 : 0;
+      
+      // Calculate total spent on purchased auction players
+      const purchasedPlayers = allPlayers.filter(p => p.teamId === t.id && (p.auctionStatus === 'SOLD' || p.paymentStatus === 'APPROVED'));
+      const auctionSpent = purchasedPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || 0), 0);
+      
+      const totalBudget = Number(t.purseBudget || t.purse || 8000);
+      const totalSpent = iconDeduction + auctionSpent;
+      const remainingPurse = Math.max(0, totalBudget - totalSpent);
+      const squadCount = (hasIcon ? 1 : 0) + purchasedPlayers.length;
+
+      return {
+        ...t,
+        serialNo: idx + 1,
+        hasIconPlayer: hasIcon,
+        iconPlayerFee: iconDeduction,
+        purseBudget: totalBudget,
+        purseSpent: totalSpent,
+        remainingPurse: remainingPurse,
+        squadCount: squadCount
+      };
+    });
   }
 
   getTeamById(id) {
@@ -868,10 +922,16 @@ class Store {
 
   // --- AUCTION CONFIG ---
   getAuctionSettings() {
-    const defaultSettings = { defaultBasePrice: 200, defaultPurseBudget: 8000 };
+    const defaultSettings = { defaultBasePrice: 300, defaultPurseBudget: 8000 };
     try {
       const s = localStorage.getItem(STORAGE_KEYS.AUCTION_SETTINGS);
-      return s ? { ...defaultSettings, ...JSON.parse(s) } : defaultSettings;
+      if (!s) return defaultSettings;
+      const parsed = JSON.parse(s);
+      return {
+        ...defaultSettings,
+        ...parsed,
+        defaultBasePrice: (!parsed.defaultBasePrice || Number(parsed.defaultBasePrice) === 200) ? 300 : Number(parsed.defaultBasePrice)
+      };
     } catch (e) {
       return defaultSettings;
     }
@@ -886,17 +946,40 @@ class Store {
   // --- LIVE AUCTION STATE ---
   async getLiveAuctionState() {
     try {
-      const res = await fetch(`${FIREBASE_DB_URL}/cpl_master/liveAuction.json`);
+      const local = localStorage.getItem('cpl_live_auction_state');
+      if (local) {
+        this.liveAuctionState = JSON.parse(local);
+      }
+    } catch(e) {}
+
+    try {
+      const res = await fetch(`${FIREBASE_DB_URL}/cpl_master/liveAuction.json?_t=${Date.now()}`, {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' }
+      });
       if (res.ok) {
-        return await res.json();
+        const data = await res.json();
+        this.liveAuctionState = data;
+        if (data && data.active_player_id) {
+          safeSetLocalStorage('cpl_live_auction_state', data);
+        } else {
+          localStorage.removeItem('cpl_live_auction_state');
+        }
+        return data;
       }
     } catch (e) {
       console.warn("Live auction state fetch error:", e);
     }
-    return null;
+    return this.liveAuctionState || null;
   }
 
   async updateLiveAuctionState(state) {
+    this.liveAuctionState = state;
+    if (state && state.active_player_id) {
+      safeSetLocalStorage('cpl_live_auction_state', state);
+    } else {
+      localStorage.removeItem('cpl_live_auction_state');
+    }
     await saveLiveAuctionToFirebase(state);
     this.notify('live_auction_updated');
   }
@@ -1040,6 +1123,306 @@ class Store {
     return user;
   }
 
+
+  // --- USER ACCOUNTS & PLAYER AUTHENTICATION ---
+  getUserAccounts() {
+    try {
+      const val = localStorage.getItem(STORAGE_KEYS.USER_ACCOUNTS);
+      if (!val) return [];
+      const parsed = JSON.parse(val);
+      if (Array.isArray(parsed)) return parsed;
+      if (parsed && typeof parsed === 'object') {
+        const vals = Object.values(parsed);
+        if (vals.length > 0 && typeof vals[0] === 'object' && vals[0] !== null && 'phone' in vals[0]) {
+          return vals;
+        }
+        if ('phone' in parsed) {
+          return [parsed];
+        }
+      }
+      return [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  getTournamentOwners() {
+    try {
+      const local = localStorage.getItem(STORAGE_KEYS.TOURNAMENT_OWNERS);
+      if (local) {
+        const parsed = JSON.parse(local);
+        if (parsed && typeof parsed === 'object') return parsed;
+      }
+    } catch (e) {}
+    return {
+      'tournament-jsl-2026': { phone: '8972144166', name: 'Pintu Santra', assignedAt: Date.now() }
+    };
+  }
+
+  setTournamentOwner(tournamentId, phone, name) {
+    const cleanPhone = (phone || '').replace(/[^0-9]/g, '');
+    if (!cleanPhone) return false;
+
+    const owners = this.getTournamentOwners();
+    owners[tournamentId] = {
+      phone: cleanPhone,
+      name: name || 'Tournament Owner',
+      assignedAt: Date.now()
+    };
+    safeSetLocalStorage(STORAGE_KEYS.TOURNAMENT_OWNERS, owners);
+
+    fetch(`${FIREBASE_DB_URL}/cpl_master/tournament_owners/${tournamentId}.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(owners[tournamentId])
+    }).catch(err => console.warn("Tournament owner sync error:", err));
+
+    // Update user account role
+    const players = this.getPlayers();
+    const player = players.find(p => (p.phone || p.mobile || '').replace(/[^0-9]/g, '') === cleanPhone) || { phone: cleanPhone, name };
+    let userAcc = this.ensureUserAccountForPlayer(player);
+    if (userAcc) {
+      userAcc.role = 'TOURNAMENT_OWNER';
+      if (!userAcc.password) userAcc.password = cleanPhone;
+      if (!userAcc.ownedTournaments) userAcc.ownedTournaments = [];
+      if (!userAcc.ownedTournaments.includes(tournamentId)) userAcc.ownedTournaments.push(tournamentId);
+      const accounts = this.getUserAccounts();
+      const idx = accounts.findIndex(a => a.phone === cleanPhone);
+      if (idx !== -1) accounts[idx] = userAcc; else accounts.push(userAcc);
+      safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, accounts);
+      fetch(`${FIREBASE_DB_URL}/cpl_master/user_accounts/${cleanPhone}.json`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(userAcc)
+      }).catch(err => console.warn("User account role sync error:", err));
+    }
+
+    this.notify('tournament_owners_updated');
+    return true;
+  }
+
+  ensureUserAccountForPlayer(player) {
+    if (!player) return null;
+    const cleanPhone = (player.phone || player.mobile || '').replace(/[^0-9]/g, '');
+    if (!cleanPhone || cleanPhone.length < 10) return null;
+
+    let accounts = this.getUserAccounts();
+    let acc = accounts.find(a => a.phone === cleanPhone);
+    const owners = this.getTournamentOwners();
+    const isOwner = Object.values(owners).some(o => o && o.phone === cleanPhone);
+
+    if (!acc) {
+      acc = {
+        phone: cleanPhone,
+        password: cleanPhone, // default password is mobile number
+        isFirstLogin: true,
+        name: player.name || 'Player',
+        playerId: player.id || null,
+        role: isOwner ? 'TOURNAMENT_OWNER' : 'PLAYER',
+        ownedTournaments: isOwner ? ['tournament-jsl-2026'] : [],
+        created_at: Date.now()
+      };
+      accounts.push(acc);
+      safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, accounts);
+      fetch(`${FIREBASE_DB_URL}/cpl_master/user_accounts/${cleanPhone}.json`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(acc)
+      }).catch(err => console.warn("User account creation sync error:", err));
+    } else {
+      if (!acc.password) acc.password = cleanPhone;
+      if (isOwner && acc.role !== 'TOURNAMENT_OWNER') {
+        acc.role = 'TOURNAMENT_OWNER';
+        safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, accounts);
+      }
+    }
+    return acc;
+  }
+
+  authenticateUser(identifier, password) {
+    const rawId = (identifier || '').trim();
+    if (!rawId) {
+      return { success: false, message: 'Please enter your Mobile Number or Admin Email!' };
+    }
+
+    // 1. MASTER SUPER ADMIN AUTO-DETECTION (Email or Master Phone)
+    if (rawId.toLowerCase() === 'bakolaypan@gmail.com' || rawId === '9876543210') {
+      if (password === 'Suman@2030') {
+        const superAdminUser = {
+          phone: '9876543210',
+          email: 'bakolaypan@gmail.com',
+          name: 'Suman Kolay (Master Admin)',
+          role: 'SUPER_ADMIN',
+          isFirstLogin: false,
+          ownedTournaments: ['tournament-jsl-2026']
+        };
+        this.setCurrentUser(superAdminUser);
+        localStorage.setItem(STORAGE_KEYS.ADMIN_AUTH, 'true');
+        return {
+          success: true,
+          user: superAdminUser,
+          role: 'SUPER_ADMIN',
+          isFirstLogin: false,
+          redirect: 'admin'
+        };
+      } else {
+        return { success: false, message: 'Incorrect Master Admin password!' };
+      }
+    }
+
+    // 2. MOBILE NUMBER LOGIN (Players & Tournament Owners)
+    const cleanPhone = rawId.replace(/[^0-9]/g, '');
+    if (!cleanPhone || cleanPhone.length < 10) {
+      return { success: false, message: 'Please enter a valid 10-digit mobile number or admin email!' };
+    }
+
+    // Check if this mobile is assigned as a Tournament Owner
+    const owners = this.getTournamentOwners();
+    const isTournamentOwner = Object.values(owners).some(o => o && (o.phone || '').replace(/[^0-9]/g, '') === cleanPhone);
+
+    const players = this.getPlayers();
+    const player = players.find(p => (p.phone || p.mobile || '').replace(/[^0-9]/g, '') === cleanPhone);
+
+    let accounts = this.getUserAccounts();
+    let acc = accounts.find(a => a.phone === cleanPhone);
+
+    if (!acc && player) {
+      acc = this.ensureUserAccountForPlayer(player);
+      accounts = this.getUserAccounts();
+    }
+
+    if (!acc) {
+      acc = {
+        phone: cleanPhone,
+        password: cleanPhone,
+        name: player ? player.name : (isTournamentOwner ? (owners['tournament-jsl-2026']?.name || 'Tournament Admin') : 'Player'),
+        role: isTournamentOwner ? 'TOURNAMENT_OWNER' : 'PLAYER',
+        isFirstLogin: true,
+        ownedTournaments: isTournamentOwner ? ['tournament-jsl-2026'] : [],
+        created_at: Date.now()
+      };
+      accounts.push(acc);
+      safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, accounts);
+    }
+
+    // Dynamic role elevation if assigned as Tournament Owner
+    if (isTournamentOwner) {
+      acc.role = 'TOURNAMENT_OWNER';
+      if (!acc.ownedTournaments) acc.ownedTournaments = [];
+      if (!acc.ownedTournaments.includes('tournament-jsl-2026')) acc.ownedTournaments.push('tournament-jsl-2026');
+      safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, accounts);
+    }
+
+    // Verify Password
+    if (acc.password !== password) {
+      return { success: false, message: 'Incorrect password! (Default password is your 10-digit mobile number)' };
+    }
+
+    // Set logged-in session
+    this.setCurrentUser(acc);
+
+    // Auto-unlock admin controls if Tournament Owner or Super Admin
+    if (acc.role === 'TOURNAMENT_OWNER' || acc.role === 'SUPER_ADMIN') {
+      localStorage.setItem(STORAGE_KEYS.ADMIN_AUTH, 'true');
+    }
+
+    return {
+      success: true,
+      user: acc,
+      role: acc.role || 'PLAYER',
+      isFirstLogin: !!acc.isFirstLogin,
+      redirect: (acc.role === 'TOURNAMENT_OWNER' || acc.role === 'SUPER_ADMIN') ? 'admin' : 'profile'
+    };
+  }
+
+  updateUserPassword(phone, newPassword) {
+    const cleanPhone = (phone || '').replace(/[^0-9]/g, '');
+    if (!cleanPhone || !newPassword || newPassword.length < 4) {
+      return { success: false, message: 'Password must be at least 4 characters long!' };
+    }
+
+    let accounts = this.getUserAccounts();
+    let acc = accounts.find(a => a.phone === cleanPhone);
+
+    if (!acc) {
+      const players = this.getPlayers();
+      const player = players.find(p => (p.phone || p.mobile || '').replace(/[^0-9]/g, '') === cleanPhone);
+      if (player) {
+        acc = this.ensureUserAccountForPlayer(player);
+        accounts = this.getUserAccounts();
+      }
+    }
+
+    if (!acc) return { success: false, message: 'Account not found!' };
+
+    acc.password = newPassword;
+    acc.isFirstLogin = false;
+    acc.passwordChangedAt = Date.now();
+
+    const existingIdx = accounts.findIndex(a => a.phone === cleanPhone);
+    if (existingIdx !== -1) {
+      accounts[existingIdx] = acc;
+    } else {
+      accounts.push(acc);
+    }
+
+    safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, accounts);
+    this.setCurrentUser(acc);
+
+    fetch(`${FIREBASE_DB_URL}/cpl_master/user_accounts/${cleanPhone}.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(acc)
+    }).catch(err => console.warn("Password update sync error:", err));
+
+    this.notify('user_auth_updated');
+    return { success: true, user: acc };
+  }
+
+  getCurrentUser() {
+    try {
+      const u = JSON.parse(localStorage.getItem(STORAGE_KEYS.CURRENT_USER));
+      if (!u) return null;
+      const cleanPhone = (u.phone || '').replace(/[^0-9]/g, '');
+      const owners = this.getTournamentOwners();
+      const isOwner = Object.values(owners).some(o => o && (o.phone || '').replace(/[^0-9]/g, '') === cleanPhone);
+      if (isOwner && u.role !== 'TOURNAMENT_OWNER' && u.role !== 'SUPER_ADMIN') {
+        u.role = 'TOURNAMENT_OWNER';
+        if (!u.ownedTournaments) u.ownedTournaments = [];
+        if (!u.ownedTournaments.includes('tournament-jsl-2026')) u.ownedTournaments.push('tournament-jsl-2026');
+        safeSetLocalStorage(STORAGE_KEYS.CURRENT_USER, u);
+      }
+      return u;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  setCurrentUser(user) {
+    if (user) {
+      safeSetLocalStorage(STORAGE_KEYS.CURRENT_USER, user);
+      this.setUserRole(user.role || 'PLAYER', user.name || 'Player');
+    } else {
+      localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+      this.setUserRole('GUEST', 'Guest Visitor');
+    }
+    this.notify('user_auth_updated');
+  }
+
+  logoutUser() {
+    this.setCurrentUser(null);
+    try {
+      localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
+      localStorage.removeItem(STORAGE_KEYS.ADMIN_AUTH);
+      localStorage.removeItem('cpl_user_role');
+      localStorage.removeItem('cpl_user_name');
+      sessionStorage.clear();
+    } catch (e) {}
+    this.notify('user_updated');
+    this.notify('user_auth_updated');
+    this.notify('admin_auth_updated');
+  }
+
   notify(eventName) {
     window.dispatchEvent(new CustomEvent(eventName));
     if (this.broadcastChannel) {
@@ -1049,6 +1432,13 @@ class Store {
         // ignore fallback
       }
     }
+  }
+
+  subscribe(eventName, callback) {
+    if (typeof window === 'undefined') return () => {};
+    const handler = (e) => callback(e.detail || e);
+    window.addEventListener(eventName, handler);
+    return () => window.removeEventListener(eventName, handler);
   }
 
   // --- PUBLIC COMMUNITY QUERIES & DISCUSSION BOARD ---

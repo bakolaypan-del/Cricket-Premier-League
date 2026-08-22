@@ -33,7 +33,14 @@ function startServerOnPort(index) {
         '.svg': 'image/svg+xml'
       };
 
-      res.writeHead(200, { 'Content-Type': mimeTypes[ext] || 'application/octet-stream' });
+      res.writeHead(200, {
+        'Content-Type': mimeTypes[ext] || 'application/octet-stream',
+        'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0',
+        'Pragma': 'no-cache',
+        'Expires': '0',
+        'Surrogate-Control': 'no-store',
+        'Access-Control-Allow-Origin': '*'
+      });
       fs.createReadStream(filePath).pipe(res);
     });
   });

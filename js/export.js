@@ -386,10 +386,26 @@ export function printDigitalPass(player, league, team) {
   const serialNo = player.registrationId || player.regNo || 'JSL2026-0001';
   const photoSrc = player.photoUrl || player.player_photo_url || 'assets/jsl_logo_white.jpg';
 
-  const rawDate = player.registeredAt || player.createdAt || player.timestamp || player.date;
-  const regDateTime = rawDate 
-    ? new Date(rawDate).toLocaleString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true })
-    : new Date().toLocaleString('en-IN', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true });
+  const rawDate = player.createdTime || player.regTimestamp || player.regDate || player.created_at || player.registeredAt || player.createdAt || player.timestamp || player.date;
+  let regDateTime = 'Registered';
+  if (rawDate) {
+    const parsedDate = typeof rawDate === 'number' ? new Date(rawDate) : new Date(rawDate);
+    if (!isNaN(parsedDate.getTime())) {
+      regDateTime = parsedDate.toLocaleString('en-IN', { 
+        day: '2-digit', 
+        month: '2-digit', 
+        year: 'numeric', 
+        hour: '2-digit', 
+        minute: '2-digit', 
+        hour12: true 
+      });
+    }
+  }
+
+  const isApproved = player.registrationStatus === 'APPROVED' || player.paymentStatus === 'APPROVED';
+  const statusBadgeHtml = isApproved 
+    ? `<div class="official-seal" style="background: #ECFDF5; color: #065F46; border: 1.5px solid #10B981;">✅ VERIFIED PASS</div>`
+    : `<div class="official-seal" style="background: #FFFBEB; color: #92400E; border: 1.5px solid #F59E0B;">⏳ PENDING VERIFICATION</div>`;
 
   const html = `
     <!DOCTYPE html>
@@ -436,7 +452,7 @@ export function printDigitalPass(player, league, team) {
 
         /* FOOTER STRIP */
         .card-footer { border-top: 1.5px border-dashed #CBD5E1; padding-top: 8px; font-size: 9px; color: #475569; font-weight: 800; display: flex; justify-content: space-between; items: center; }
-        .official-seal { padding: 3px 8px; background: #FEF3C7; color: #92400E; border: 1px solid #F59E0B; border-radius: 8px; font-weight: 900; }
+        .official-seal { padding: 4px 10px; border-radius: 8px; font-weight: 900; font-size: 9.5px; }
 
         @media print {
           body { background: white; padding: 0; display: block; }
@@ -506,9 +522,7 @@ export function printDigitalPass(player, league, team) {
             📍 Jhankra School Ground • 29-31 Aug 2026<br/>
             Organizer: Pintu Santra (89722144166)
           </div>
-          <div class="official-seal">
-            ✅ VERIFIED PASS
-          </div>
+          ${statusBadgeHtml}
         </div>
 
       </div>

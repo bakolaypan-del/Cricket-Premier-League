@@ -20,7 +20,7 @@ export const INITIAL_LEAGUES = [
     category: "JSL",
     status: "REGISTRATION_OPEN",
     teamEntryFee: 15000, // 15K
-    playerEntryFee: 200,   // 200 Rupees for Player Entry
+    playerEntryFee: 300,   // 200 Rupees for Player Entry
     prizeWinner: "35K",
     prizeRunners: "25K",
     auctionPurse: 8000,
