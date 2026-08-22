@@ -203,60 +203,43 @@ class Store {
         const localPlayerMap = new Map(validLocalPlayers.map(p => [p.id, p]));
         const mergedMap = new Map();
 
-        // 1. Process cloud players & compare modification timestamps + approval locks
+        // 1. Process cloud players as canonical Single Source of Truth
         for (const cloudP of cloudData.players) {
           if (!cloudP || !cloudP.id || deletedIdsSet.has(cloudP.id)) continue;
           const localP = localPlayerMap.get(cloudP.id);
-          if (localP) {
-            const cloudTime = Number(cloudP.updated_at || cloudP.created_at || cloudP.timestamp || 0);
-            const localTime = Number(localP.updated_at || localP.created_at || localP.timestamp || 0);
+          const isPurged = (localP && localP.docsPurged) || cloudP.docsPurged;
 
-            const isLocalApproved = localP.registrationStatus === 'APPROVED' || localP.paymentStatus === 'APPROVED';
-            const isCloudApproved = cloudP.registrationStatus === 'APPROVED' || cloudP.paymentStatus === 'APPROVED';
+          const mergedRecord = { ...(localP || {}), ...cloudP };
 
-            const isPurged = localP.docsPurged || cloudP.docsPurged;
+          if (isPurged) {
+            mergedRecord.aadharPhotoUrl = '';
+            mergedRecord.aadhaar_photo_url = '';
+            mergedRecord.aadharBackUrl = '';
+            mergedRecord.aadhaar_back_url = '';
+            mergedRecord.aadhar_photo = '';
+            mergedRecord.aadhaar_photo = '';
+            mergedRecord.paymentReceiptUrl = '';
+            mergedRecord.payment_receipt_url = '';
+            mergedRecord.paymentProofUrl = '';
+            mergedRecord.payment_proof_url = '';
+            mergedRecord.payment_receipt = '';
+            mergedRecord.paymentProof = '';
+            mergedRecord.docsPurged = true;
+          }
 
-            let mergedRecord;
-            if (isLocalApproved && !isCloudApproved) {
-              // Local is approved, cloud is not yet approved -> KEEP LOCAL APPROVED STATUS & push back to cloud!
-              mergedRecord = {
-                ...cloudP,
-                ...localP,
-                paymentStatus: 'APPROVED',
-                registrationStatus: 'APPROVED',
-                updated_at: Math.max(localTime, Date.now())
-              };
-              syncPlayerToSupabase(mergedRecord);
-            } else if (localTime > cloudTime) {
-              // Local record has newer admin edits -> preserve local fields
-              mergedRecord = { ...cloudP, ...localP };
-            } else {
-              mergedRecord = { ...localP, ...cloudP };
-            }
+          mergedMap.set(cloudP.id, mergedRecord);
+        }
 
-            if (isPurged) {
-              mergedRecord.aadharPhotoUrl = '';
-              mergedRecord.aadhaar_photo_url = '';
-              mergedRecord.aadharBackUrl = '';
-              mergedRecord.aadhaar_back_url = '';
-              mergedRecord.aadhar_photo = '';
-              mergedRecord.aadhaar_photo = '';
-              mergedRecord.paymentReceiptUrl = '';
-              mergedRecord.payment_receipt_url = '';
-              mergedRecord.paymentProofUrl = '';
-              mergedRecord.payment_proof_url = '';
-              mergedRecord.payment_receipt = '';
-              mergedRecord.paymentProof = '';
-              mergedRecord.docsPurged = true;
-            }
-
-            mergedMap.set(cloudP.id, mergedRecord);
-          } else {
-            mergedMap.set(cloudP.id, cloudP);
+        // 2. Also preserve any local newly-registered players that haven't been synced to cloud yet
+        for (const localP of validLocalPlayers) {
+          if (localP && localP.id && !mergedMap.has(localP.id) && !deletedIdsSet.has(localP.id)) {
+            mergedMap.set(localP.id, localP);
+            // Push pending local registration to cloud
+            syncPlayerToSupabase(localP);
+            savePlayerToFirebase(localP);
           }
         }
 
-        // 2. Only retain cloud players as authoritative when cloudData has players
         let mergedPlayers = Array.from(mergedMap.values());
 
         // If cloud database is empty, fallback to valid local players
@@ -284,13 +267,9 @@ class Store {
           };
         });
 
-        const localPlayersStr = localStorage.getItem(STORAGE_KEYS.PLAYERS) || '[]';
-        const cleanCloudPlayersStr = JSON.stringify(sanitizeForStorage(reindexedPlayers));
-        
-        if (localPlayersStr !== cleanCloudPlayersStr) {
-          safeSetLocalStorage(STORAGE_KEYS.PLAYERS, reindexedPlayers);
-          this.notify('players_updated');
-        }
+        safeSetLocalStorage(STORAGE_KEYS.PLAYERS, reindexedPlayers);
+        this.syncAllIconPlayers();
+        this.notify('players_updated');
       }
 
       // 2. Sync Teams ONLY if valid array received from cloud

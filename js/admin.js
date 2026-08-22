@@ -1,9 +1,9 @@
 // Admin Master Data & Payment Verification Panel with Single Source Cloud Control (Developer: Suman Kolay)
 
-import { store } from './store.js?v=11.3.5';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF } from './export.js?v=11.3.5';
-import { saveAdSettingsToFirebase, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, savePopupSettingsToFirebase, uploadHDImage, getOptimizedImageUrl } from './supabase.js?v=11.3.5';
-import { shops } from './shopsData.js?v=11.3.5';
+import { store } from './store.js?v=11.3.8';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF } from './export.js?v=11.3.8';
+import { saveAdSettingsToFirebase, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, savePopupSettingsToFirebase, uploadHDImage, getOptimizedImageUrl } from './supabase.js?v=11.3.8';
+import { shops } from './shopsData.js?v=11.3.8';
 
 let activeAdminTab = 'payments'; // 'payments', 'all-players', 'teams'
 let adminAuctionSubTab = 'sold'; // 'sold', 'unsold'
