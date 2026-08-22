@@ -673,32 +673,32 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 }
 
 /* ============================================================
-   LIVE BID BLINK & GOLD PULSE ATTENTION-GRABBER
+   LIVE BID BLINK & VIVID RED PULSE ATTENTION-GRABBER
    ============================================================ */
 @keyframes bidPulseFlash {
   0% {
     transform: scale(1);
     color: #ffffff;
-    filter: drop-shadow(0 0 25px #f59e0b) drop-shadow(0 0 50px #fbbf24);
+    filter: drop-shadow(0 0 25px #ef4444) drop-shadow(0 0 50px #dc2626);
   }
   25% {
     transform: scale(1.22);
     color: #ffffff;
-    filter: drop-shadow(0 0 35px #fbbf24) drop-shadow(0 0 70px #f59e0b);
+    filter: drop-shadow(0 0 35px #ff2a2a) drop-shadow(0 0 70px #b91c1c);
   }
   50% {
     transform: scale(0.96);
-    color: #fef08a;
+    color: #fecaca;
   }
   75% {
     transform: scale(1.12);
-    color: #fde047;
-    filter: drop-shadow(0 0 25px #fbbf24);
+    color: #f87171;
+    filter: drop-shadow(0 0 25px #ef4444);
   }
   100% {
     transform: scale(1);
-    color: #fbbf24;
-    filter: drop-shadow(0 2px 14px rgba(251, 191, 36, 0.6));
+    color: #ff3333;
+    filter: drop-shadow(0 2px 14px rgba(239, 68, 68, 0.7));
   }
 }
 
@@ -709,11 +709,11 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
 @keyframes liveBidBlink {
   0%, 100% {
     opacity: 1;
-    filter: drop-shadow(0 0 12px rgba(251, 191, 36, 0.6));
+    filter: drop-shadow(0 0 14px rgba(239, 68, 68, 0.75));
   }
   50% {
-    opacity: 0.6;
-    filter: drop-shadow(0 0 30px rgba(251, 191, 36, 1));
+    opacity: 0.65;
+    filter: drop-shadow(0 0 32px rgba(255, 42, 42, 1));
   }
 }
 

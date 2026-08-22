@@ -4357,48 +4357,76 @@ function renderLiveAuctionView(container) {
                 </span>
               </div>
 
-              <!-- LOWEST PORTION: Compact Player Details Box & Bid Shape -->
-              <div class="relative z-10 mt-auto space-y-2">
+              <!-- LOWEST PORTION: Compact Player Details Box & Bid Shape (Max Image Visibility) -->
+              <div class="relative z-10 mt-auto space-y-1.5">
                 
-                <!-- Compact Details Box -->
-                <div class="p-2.5 sm:p-3 bg-white/95 backdrop-blur-md rounded-2xl border border-white/80 shadow-lg space-y-1">
+                <!-- Compact Details Box with Larger Name & Category, SVG Icons -->
+                <div class="p-2 sm:p-2.5 bg-white/95 backdrop-blur-md rounded-2xl border border-white/80 shadow-md space-y-0.5">
                   <div class="flex items-center justify-between gap-2">
-                    <h2 class="text-base sm:text-xl font-black text-slate-950 tracking-tight leading-tight truncate">
+                    <h2 class="text-lg sm:text-2xl font-black text-slate-950 tracking-tight leading-tight truncate">
                       ${state.name}
                     </h2>
-                    <span class="px-2.5 py-0.5 bg-emerald-600 text-white font-extrabold text-[10px] sm:text-[11px] rounded-lg uppercase tracking-wider shrink-0 shadow-2xs">
+                    <span class="px-2.5 py-0.5 bg-emerald-600 text-white font-black text-xs sm:text-sm rounded-lg uppercase tracking-wider shrink-0 shadow-2xs">
                       🏏 ${state.category || 'All Rounder'}
                     </span>
                   </div>
 
-                  <div class="flex items-center justify-between text-[10px] sm:text-[11px] text-slate-600 font-bold border-t border-slate-200/80 pt-1">
-                    <span class="truncate">📍 ${state.village || 'Paschim Medinipur'} • ${state.battingStyle || 'Right Hand Bat'}${state.bowlingStyle && state.bowlingStyle !== 'None' ? ' • ' + state.bowlingStyle : ''}</span>
-                    <span class="text-amber-700 font-extrabold shrink-0 ml-1">Base: ₹ ${state.basePrice || 300}</span>
+                  <div class="flex items-center justify-between text-[10px] sm:text-xs text-slate-700 font-bold border-t border-slate-200/80 pt-1 flex-wrap gap-x-2 gap-y-0.5">
+                    <div class="flex items-center gap-2 flex-wrap min-w-0">
+                      <!-- Red Pin SVG + Address -->
+                      <span class="inline-flex items-center gap-0.5 truncate text-slate-800">
+                        <svg class="w-3.5 h-3.5 text-red-500 fill-red-500 shrink-0 inline-block" viewBox="0 0 24 24">
+                          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                        </svg>
+                        ${state.village || 'Paschim Medinipur'}
+                      </span>
+
+                      <!-- SVG Bat + Batting Style -->
+                      <span class="inline-flex items-center gap-0.5 truncate text-slate-700">
+                        <svg class="w-3.5 h-3.5 text-amber-600 shrink-0 inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <path d="m14 13-7.5 7.5c-.83.83-2.17.83-3 0 0 0 0 0 0 0-.83-.83-.83-2.17 0-3L11 10"/>
+                          <path d="m16 16 6-6"/>
+                        </svg>
+                        ${state.battingStyle || 'Right Hand Bat'}
+                      </span>
+
+                      <!-- SVG Ball + Bowling Style -->
+                      ${state.bowlingStyle && state.bowlingStyle !== 'None' ? `
+                        <span class="inline-flex items-center gap-0.5 truncate text-slate-700">
+                          <svg class="w-3.5 h-3.5 text-rose-600 shrink-0 inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <circle cx="12" cy="12" r="9"/>
+                            <path d="m4.93 4.93 4.24 4.24"/>
+                            <path d="m14.83 14.83 4.24 4.24"/>
+                          </svg>
+                          ${state.bowlingStyle}
+                        </span>
+                      ` : ''}
+                    </div>
+
+                    <!-- Base Price -->
+                    <span class="text-amber-800 font-mono font-black shrink-0 ml-auto text-xs sm:text-sm">Base: ₹${state.basePrice || 300}</span>
                   </div>
                 </div>
 
-                <!-- High-Impact Bold Bid Shape (Extra Large Highlighted Amount & Team Name with Live Blink) -->
-                <div class="grid grid-cols-2 gap-3 ${isUnsoldState ? 'bg-rose-950/95 border-2 sm:border-3 border-rose-500' : 'bg-slate-950/95 border-2 sm:border-3 border-amber-400'} backdrop-blur-2xl p-3 sm:p-4 rounded-2xl sm:rounded-3xl shadow-2xl">
-                  <!-- LEFT: CURRENT HIGH BID (Massive Glowing Gold Display with Attention Blink) -->
+                <!-- High-Impact Bold Bid Shape (Red High-Glow Amount & LEADER BIDDER 🔥) -->
+                <div class="grid grid-cols-2 gap-2 ${isUnsoldState ? 'bg-rose-950/95 border-2 sm:border-3 border-rose-500' : 'bg-slate-950/95 border-2 sm:border-3 border-amber-400'} backdrop-blur-2xl p-2.5 sm:p-3 rounded-2xl sm:rounded-3xl shadow-2xl">
+                  <!-- LEFT: CURRENT HIGH BID (Massive Glowing RED Display) -->
                   <div class="flex flex-col justify-center">
-                    <span id="auction-status-label" class="text-[10px] sm:text-xs font-black ${isUnsoldState ? 'text-rose-300' : 'text-amber-300'} uppercase tracking-widest block">
+                    <span id="auction-status-label" class="text-[9px] sm:text-[11px] font-black ${isUnsoldState ? 'text-rose-300' : 'text-amber-300'} uppercase tracking-widest block">
                       ${isSoldState ? 'AUCTION RESULT' : isUnsoldState ? 'Auction Status' : 'CURRENT HIGH BID'}
                     </span>
-                    <div id="auction-live-bid-display" class="text-3xl sm:text-5xl md:text-6xl font-black ${isSoldState ? 'text-emerald-400' : isUnsoldState ? 'text-rose-400' : 'text-amber-400 live-bid-ambient-blink'} font-mono leading-none mt-1 drop-shadow-[0_4px_16px_rgba(251,191,36,0.6)]">
+                    <div id="auction-live-bid-display" class="text-3xl sm:text-5xl md:text-6xl font-black ${isSoldState ? 'text-emerald-400' : isUnsoldState ? 'text-rose-400' : 'text-red-500 live-bid-ambient-blink'} font-mono leading-none mt-0.5 drop-shadow-[0_4px_18px_rgba(239,68,68,0.85)]">
                       ${isSoldState ? '🔨 SOLD' : isUnsoldState ? '❌ UNSOLD' : '₹ ' + Number(state.current_bid || state.basePrice || 300).toLocaleString('en-IN')}
                     </div>
                   </div>
                   
-                  <!-- RIGHT: LEADING BIDDER (Large Bold Team Name) -->
-                  <div class="text-right border-l border-slate-800/90 pl-3 flex flex-col justify-center">
-                    <span id="auction-bidder-label" class="text-[10px] sm:text-xs font-black text-slate-400 uppercase tracking-widest block">
-                      ${isSoldState ? 'WINNING FRANCHISE' : isUnsoldState ? 'Round 2 Status' : 'LEADING BIDDER'}
+                  <!-- RIGHT: LEADER BIDDER 🔥 & TEAM NAME -->
+                  <div class="text-right border-l border-slate-800/90 pl-2.5 flex flex-col justify-center">
+                    <span id="auction-bidder-label" class="text-[9px] sm:text-[11px] font-black ${isSoldState ? 'text-emerald-400' : isUnsoldState ? 'text-rose-400' : 'text-amber-400'} uppercase tracking-widest flex items-center justify-end gap-1">
+                      ${isSoldState ? 'WINNING FRANCHISE 🏆' : isUnsoldState ? 'ROUND 2 STATUS ⚡' : 'LEADER BIDDER 🔥'}
                     </span>
-                    <span id="auction-leading-bidder-display" class="text-lg sm:text-2xl md:text-3xl font-black text-white block mt-1 truncate leading-tight tracking-wide">
+                    <span id="auction-leading-bidder-display" class="text-lg sm:text-2xl md:text-3xl font-black text-white block mt-0.5 truncate leading-tight tracking-wide">
                       ${isSoldState ? (bidderTeam ? '🛡️ ' + bidderTeam.name : 'Sold') : isUnsoldState ? 'Eligible for Re-Bid' : (bidderTeam ? '🛡️ ' + bidderTeam.name : 'No bids yet')}
-                    </span>
-                    <span id="auction-bid-tag-display" class="text-[10px] sm:text-xs font-extrabold mt-0.5 ${isSoldState ? 'text-emerald-400' : isUnsoldState ? 'text-amber-400' : (bidderTeam ? 'text-emerald-400' : 'text-slate-400')}">
-                      ${isSoldState ? '✅ Confirmed Sale' : isUnsoldState ? '⚡ Round 2 Pool' : (bidderTeam ? '🔥 Leading Offer' : 'Opening Bid')}
                     </span>
                   </div>
                 </div>
@@ -4446,18 +4474,13 @@ function renderLiveAuctionView(container) {
             const bidEl = document.getElementById('auction-live-bid-display');
             const bidderLabel = document.getElementById('auction-bidder-label');
             const teamEl = document.getElementById('auction-leading-bidder-display');
-            const tagEl = document.getElementById('auction-bid-tag-display');
             if (statusLabel) statusLabel.textContent = 'AUCTION RESULT';
             if (bidEl) {
               bidEl.textContent = '🔨 SOLD';
-              bidEl.className = 'text-3xl sm:text-5xl md:text-6xl font-black text-emerald-400 font-mono leading-none mt-1 drop-shadow-[0_4px_16px_rgba(16,185,129,0.5)]';
+              bidEl.className = 'text-3xl sm:text-5xl md:text-6xl font-black text-emerald-400 font-mono leading-none mt-0.5 drop-shadow-[0_4px_16px_rgba(16,185,129,0.5)]';
             }
-            if (bidderLabel) bidderLabel.textContent = 'WINNING FRANCHISE';
+            if (bidderLabel) bidderLabel.textContent = 'WINNING FRANCHISE 🏆';
             if (teamEl) teamEl.textContent = bidderTeam ? '🛡️ ' + bidderTeam.name : 'Sold';
-            if (tagEl) {
-              tagEl.textContent = '✅ Confirmed Sale';
-              tagEl.className = 'text-[10px] sm:text-xs font-extrabold text-emerald-400 mt-0.5';
-            }
           } else if (isUnsoldState) {
             if (!stampOverlay && stampSlot) {
               stampSlot.innerHTML = `
@@ -4491,18 +4514,13 @@ function renderLiveAuctionView(container) {
             const bidEl = document.getElementById('auction-live-bid-display');
             const bidderLabel = document.getElementById('auction-bidder-label');
             const teamEl = document.getElementById('auction-leading-bidder-display');
-            const tagEl = document.getElementById('auction-bid-tag-display');
             if (statusLabel) statusLabel.textContent = 'Auction Status';
             if (bidEl) {
               bidEl.textContent = '❌ UNSOLD';
-              bidEl.className = 'text-3xl sm:text-5xl md:text-6xl font-black text-rose-400 font-mono leading-none mt-1 drop-shadow-[0_4px_16px_rgba(244,63,94,0.5)]';
+              bidEl.className = 'text-3xl sm:text-5xl md:text-6xl font-black text-rose-400 font-mono leading-none mt-0.5 drop-shadow-[0_4px_16px_rgba(244,63,94,0.5)]';
             }
-            if (bidderLabel) bidderLabel.textContent = 'Round 2 Status';
+            if (bidderLabel) bidderLabel.textContent = 'ROUND 2 STATUS ⚡';
             if (teamEl) teamEl.textContent = 'Eligible for Re-Bid';
-            if (tagEl) {
-              tagEl.textContent = '⚡ Round 2 Pool';
-              tagEl.className = 'text-[10px] sm:text-xs font-extrabold text-amber-400 mt-0.5';
-            }
           } else {
             // NORMAL BIDDING IN PROGRESS: Update text only + trigger pulse flash animation on change!
             if (stampOverlay && stampSlot) stampSlot.innerHTML = '';
@@ -4510,12 +4528,11 @@ function renderLiveAuctionView(container) {
             const bidEl = document.getElementById('auction-live-bid-display');
             const bidderLabel = document.getElementById('auction-bidder-label');
             const teamEl = document.getElementById('auction-leading-bidder-display');
-            const tagEl = document.getElementById('auction-bid-tag-display');
             if (statusLabel) statusLabel.textContent = 'CURRENT HIGH BID';
             if (bidEl) {
               const currentBidVal = Number(state.current_bid || state.basePrice || 300);
               bidEl.textContent = `₹ ${currentBidVal.toLocaleString('en-IN')}`;
-              bidEl.className = 'text-3xl sm:text-5xl md:text-6xl font-black text-amber-400 font-mono leading-none mt-1 drop-shadow-[0_4px_16px_rgba(251,191,36,0.6)] live-bid-ambient-blink';
+              bidEl.className = 'text-3xl sm:text-5xl md:text-6xl font-black text-red-500 font-mono leading-none mt-0.5 drop-shadow-[0_4px_18px_rgba(239,68,68,0.85)] live-bid-ambient-blink';
               
               if (lastRenderedLiveBid !== currentBidVal) {
                 lastRenderedLiveBid = currentBidVal;
@@ -4524,12 +4541,8 @@ function renderLiveAuctionView(container) {
                 bidEl.classList.add('bid-pulse-flash');
               }
             }
-            if (bidderLabel) bidderLabel.textContent = 'LEADING BIDDER';
+            if (bidderLabel) bidderLabel.innerHTML = 'LEADER BIDDER <span class="text-amber-400">🔥</span>';
             if (teamEl) teamEl.textContent = bidderTeam ? '🛡️ ' + bidderTeam.name : 'No bids yet';
-            if (tagEl) {
-              tagEl.textContent = bidderTeam ? '🔥 Leading Offer' : 'Opening Bid';
-              tagEl.className = `text-[10px] sm:text-xs font-extrabold ${bidderTeam ? 'text-emerald-400' : 'text-slate-400'} mt-0.5`;
-            }
           }
         }
       } else {
