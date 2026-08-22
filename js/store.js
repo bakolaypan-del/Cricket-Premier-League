@@ -418,15 +418,19 @@ class Store {
         safeSetLocalStorage(STORAGE_KEYS.PLAYER_PROFILES, cloudData.playerProfiles);
       }
 
-      // 4d. Sync Live Auction State (Cross-Device Admin Sync)
+      // 4d. Sync Live Auction State (Cross-Device Admin Sync with Diff Check)
       if (cloudData.liveAuction !== undefined) {
-        this.liveAuctionState = cloudData.liveAuction;
-        if (cloudData.liveAuction && cloudData.liveAuction.active_player_id) {
-          safeSetLocalStorage('cpl_live_auction_state', cloudData.liveAuction);
-        } else {
-          localStorage.removeItem('cpl_live_auction_state');
+        const localLiveStr = localStorage.getItem('cpl_live_auction_state') || 'null';
+        const cleanCloudLiveStr = JSON.stringify(cloudData.liveAuction || null);
+        if (localLiveStr !== cleanCloudLiveStr) {
+          this.liveAuctionState = cloudData.liveAuction;
+          if (cloudData.liveAuction && cloudData.liveAuction.active_player_id) {
+            safeSetLocalStorage('cpl_live_auction_state', cloudData.liveAuction);
+          } else {
+            localStorage.removeItem('cpl_live_auction_state');
+          }
+          this.notify('live_auction_updated');
         }
-        this.notify('live_auction_updated');
       }
 
       // 5. Sync Tournament Owners & User Accounts from Firebase
@@ -454,13 +458,13 @@ class Store {
 
   startCloudPolling() {
     if (this.cloudPollingInterval) clearInterval(this.cloudPollingInterval);
-    // Intelligent 4s Background Cloud Polling (only if not filling modal forms)
+    // 15s Background Cloud Polling Heartbeat (Firebase SSE already pushes changes instantaneously)
     this.cloudPollingInterval = setInterval(() => {
       const isUserFillingForm = document.getElementById('player-reg-modal') || document.getElementById('team-reg-modal') || document.getElementById('edit-player-modal');
       if (!isUserFillingForm) {
         this.syncWithCloud();
       }
-    }, 4000);
+    }, 15000);
   }
 
   setupRealtimeListeners() {

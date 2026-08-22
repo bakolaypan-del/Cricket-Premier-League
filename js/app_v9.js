@@ -131,25 +131,41 @@ function initApp() {
   // Initialize Real-time Registered Player Toast Widget
   initRealtimePlayerToast();
 
+  let renderDebounceTimer = null;
   const safeRenderCurrentView = () => {
     // PROTECT ACTIVE USER FORMS: Only prevent re-render if user is filling player/team registration forms
-    const isUserFillingForm = document.getElementById('player-reg-modal') || document.getElementById('team-reg-modal');
+    const isUserFillingForm = document.getElementById('player-reg-modal') || document.getElementById('team-reg-modal') || document.getElementById('edit-player-modal');
     if (isUserFillingForm) return;
 
-    renderCurrentView();
+    if (renderDebounceTimer) clearTimeout(renderDebounceTimer);
+    renderDebounceTimer = setTimeout(() => {
+      renderCurrentView();
 
-    // REAL-TIME AUTO SQUAD SYNC: If Franchise Squad Modal is open on screen, re-render it in real-time!
-    const openSquadModal = document.getElementById('team-squad-modal');
-    if (openSquadModal && window.currentViewingTeamId) {
-      openTeamPurchasedSquadModal(window.currentViewingTeamId);
-    }
+      // REAL-TIME AUTO SQUAD SYNC: If Franchise Squad Modal is open on screen, re-render it in real-time!
+      const openSquadModal = document.getElementById('team-squad-modal');
+      if (openSquadModal && window.currentViewingTeamId) {
+        openTeamPurchasedSquadModal(window.currentViewingTeamId);
+      }
+    }, 150);
   };
 
   window.addEventListener('leagues_updated', safeRenderCurrentView);
   window.addEventListener('players_updated', safeRenderCurrentView);
   window.addEventListener('teams_updated', safeRenderCurrentView);
-  window.addEventListener('live_auction_updated', safeRenderCurrentView);
   window.addEventListener('registration_settings_updated', safeRenderCurrentView);
+  
+  // LIVE AUCTION SYNC: Only update auction page when on auction route to prevent unnecessary full-page refreshes
+  window.addEventListener('live_auction_updated', () => {
+    if (currentRoute === 'auction') {
+      const activeBlockWrapper = document.getElementById('auction-active-block-container');
+      if (activeBlockWrapper) {
+        pollActiveAuctionState();
+      } else {
+        safeRenderCurrentView();
+      }
+    }
+  });
+
   window.addEventListener('user_updated', () => {
     renderNavbar();
     renderMobileBottomNav();
