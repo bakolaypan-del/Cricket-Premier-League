@@ -2855,21 +2855,21 @@ export function renderActiveAuctionBlock() {
         </div>
       </div>
 
-      <!-- Current Bid & Leading Team (High-Impact Large Display) -->
+      <!-- Current Bid & Leading Team (High-Impact Large Display with Ambient Blink) -->
       <div class="grid grid-cols-2 gap-3">
-        <div class="p-3.5 bg-slate-900/95 rounded-2xl border-2 border-amber-400 text-center shadow-md">
-          <span class="text-[10px] font-black text-amber-300 uppercase tracking-widest block">CURRENT LIVE BID</span>
-          <div class="text-2xl sm:text-4xl font-black text-amber-400 font-mono mt-1 drop-shadow-[0_2px_10px_rgba(251,191,36,0.5)]">
+        <div class="p-3.5 bg-slate-900/95 rounded-2xl border-2 sm:border-3 border-amber-400 text-center shadow-lg">
+          <span class="text-[10px] sm:text-xs font-black text-amber-300 uppercase tracking-widest block">CURRENT LIVE BID</span>
+          <div class="text-3xl sm:text-5xl font-black text-amber-400 font-mono mt-1 drop-shadow-[0_4px_16px_rgba(251,191,36,0.6)] live-bid-ambient-blink">
             ₹ ${activeAuction.currentBid.toLocaleString('en-IN')}
           </div>
-          <span class="text-[10px] text-amber-300/80 font-mono font-bold block mt-0.5">${isOpeningBid ? 'Opening: ₹' + activeAuction.currentBid : 'Next Bid: +₹' + nextInc + ' (₹' + nextBidAmount + ')'}</span>
+          <span class="text-[10px] sm:text-xs text-amber-300/90 font-mono font-bold block mt-0.5">${isOpeningBid ? 'Opening: ₹' + activeAuction.currentBid : 'Next Bid: +₹' + nextInc + ' (₹' + nextBidAmount + ')'}</span>
         </div>
-        <div class="p-3.5 bg-slate-900/95 rounded-2xl border-2 border-slate-700 text-center shadow-md flex flex-col justify-center">
-          <span class="text-[10px] font-black text-slate-400 uppercase tracking-widest block">LEADING BIDDER TEAM</span>
-          <div class="text-base sm:text-xl font-black text-white truncate mt-1">
-            ${activeAuction.leadingTeam ? `🛡️ ${activeAuction.leadingTeam.name}` : '<span class="text-slate-500 italic text-sm">Opening Bid (₹' + (p.basePrice || 300) + ')</span>'}
+        <div class="p-3.5 bg-slate-900/95 rounded-2xl border-2 sm:border-3 border-slate-700 text-center shadow-lg flex flex-col justify-center">
+          <span class="text-[10px] sm:text-xs font-black text-slate-400 uppercase tracking-widest block">LEADING BIDDER TEAM</span>
+          <div class="text-lg sm:text-2xl font-black text-white truncate mt-1 tracking-wide">
+            ${activeAuction.leadingTeam ? `🛡️ ${activeAuction.leadingTeam.name}` : '<span class="text-slate-500 italic text-sm sm:text-base">Opening Bid (₹' + (p.basePrice || 300) + ')</span>'}
           </div>
-          <span class="text-[10px] font-extrabold ${activeAuction.leadingTeam ? 'text-emerald-400' : 'text-slate-500'} block mt-0.5">
+          <span class="text-[10px] sm:text-xs font-extrabold ${activeAuction.leadingTeam ? 'text-emerald-400' : 'text-slate-500'} block mt-0.5">
             ${activeAuction.leadingTeam ? '🔥 Top Bidder' : 'Waiting for First Team Bid'}
           </span>
         </div>

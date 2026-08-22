@@ -672,5 +672,55 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   transform-origin: center center;
 }
 
+/* ============================================================
+   LIVE BID BLINK & GOLD PULSE ATTENTION-GRABBER
+   ============================================================ */
+@keyframes bidPulseFlash {
+  0% {
+    transform: scale(1);
+    color: #ffffff;
+    filter: drop-shadow(0 0 25px #f59e0b) drop-shadow(0 0 50px #fbbf24);
+  }
+  25% {
+    transform: scale(1.22);
+    color: #ffffff;
+    filter: drop-shadow(0 0 35px #fbbf24) drop-shadow(0 0 70px #f59e0b);
+  }
+  50% {
+    transform: scale(0.96);
+    color: #fef08a;
+  }
+  75% {
+    transform: scale(1.12);
+    color: #fde047;
+    filter: drop-shadow(0 0 25px #fbbf24);
+  }
+  100% {
+    transform: scale(1);
+    color: #fbbf24;
+    filter: drop-shadow(0 2px 14px rgba(251, 191, 36, 0.6));
+  }
+}
+
+.bid-pulse-flash {
+  animation: bidPulseFlash 0.75s ease-out forwards;
+}
+
+@keyframes liveBidBlink {
+  0%, 100% {
+    opacity: 1;
+    filter: drop-shadow(0 0 12px rgba(251, 191, 36, 0.6));
+  }
+  50% {
+    opacity: 0.6;
+    filter: drop-shadow(0 0 30px rgba(251, 191, 36, 1));
+  }
+}
+
+.live-bid-ambient-blink {
+  animation: liveBidBlink 1.4s infinite ease-in-out;
+}
+
+
 
 
