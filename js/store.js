@@ -115,6 +115,25 @@ function safeSetLocalStorage(key, data) {
   }
 }
 
+function getPlayerTimestamp(p) {
+  if (!p) return 0;
+  if (typeof p.createdTime === 'number' && p.createdTime > 0) return p.createdTime;
+  if (typeof p.regTimestamp === 'number' && p.regTimestamp > 0) return p.regTimestamp;
+  if (p.created_at) {
+    const t = new Date(p.created_at).getTime();
+    if (!isNaN(t) && t > 0) return t;
+  }
+  if (p.id && typeof p.id === 'string' && p.id.startsWith('ply-')) {
+    const parts = p.id.split('-');
+    if (parts.length >= 2) {
+      const t = parseInt(parts[1], 10);
+      if (!isNaN(t) && t > 0) return t;
+    }
+  }
+  if (typeof p.serialNo === 'number' && p.serialNo > 0) return p.serialNo;
+  return 0;
+}
+
 class Store {
   constructor() {
     clearOldStorageQuota();
@@ -398,6 +417,11 @@ class Store {
         }
       }
 
+      // 4c. Sync Lifetime Player Profiles
+      if (Array.isArray(cloudData.playerProfiles) && cloudData.playerProfiles.length > 0) {
+        safeSetLocalStorage(STORAGE_KEYS.PLAYER_PROFILES, cloudData.playerProfiles);
+      }
+
       // 5. Sync Tournament Owners & User Accounts from Firebase
       try {
         const cloudOwners = await fetchTournamentOwnersFromFirebase();
@@ -531,7 +555,7 @@ class Store {
   getPlayers() {
     const rawPlayers = JSON.parse(localStorage.getItem(STORAGE_KEYS.PLAYERS)) || [];
     const rawTeams = JSON.parse(localStorage.getItem(STORAGE_KEYS.TEAMS)) || [];
-    rawPlayers.sort((a, b) => (a.createdTime || a.regTimestamp || 0) - (b.createdTime || b.regTimestamp || 0));
+    rawPlayers.sort((a, b) => getPlayerTimestamp(a) - getPlayerTimestamp(b));
 
     // Deduplicate players by unique ID to preserve all distinct registrations
     const uniqueMap = new Map();
@@ -541,7 +565,7 @@ class Store {
     }
 
     const uniquePlayers = Array.from(uniqueMap.values());
-    uniquePlayers.sort((a, b) => (a.createdTime || a.regTimestamp || 0) - (b.createdTime || b.regTimestamp || 0));
+    uniquePlayers.sort((a, b) => getPlayerTimestamp(a) - getPlayerTimestamp(b));
 
     return uniquePlayers.map((p, idx) => {
       const displayNo = idx + 1;
@@ -671,7 +695,7 @@ class Store {
     players.push(newPlayer);
 
     // ATOMIC RE-INDEXING (Continuous numbering 1, 2, 3... JSL2026-0001, 0002...)
-    players.sort((a, b) => (a.createdTime || a.regTimestamp || 0) - (b.createdTime || b.regTimestamp || 0));
+    players.sort((a, b) => getPlayerTimestamp(a) - getPlayerTimestamp(b));
 
     players.forEach((p, idx) => {
       const dNo = idx + 1;

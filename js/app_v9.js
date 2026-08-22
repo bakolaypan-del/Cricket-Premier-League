@@ -2036,7 +2036,8 @@ function openRegisteredPlayersModal(allPlayers = store.getPlayers()) {
 function renderPlayerCardsWithSerial(playersList) {
   return playersList.map((p, idx) => {
     const isApproved = (p.registrationStatus || p.paymentStatus) === 'APPROVED';
-    const shortSerialNo = String(idx + 1).padStart(2, '0');
+    const trueSerial = p.displayRegistrationNumber || p.serialNo || (idx + 1);
+    const shortSerialNo = String(trueSerial).padStart(2, '0');
     const photoSrc = getOptimizedImageUrl(p.photoUrl || p.player_photo_url || '', 280, 280);
 
     return `
@@ -5893,174 +5894,191 @@ function renderPlayerProfileView(container) {
   const isMaster = currentUser.role === 'SUPER_ADMIN' || (currentUser.email && currentUser.email.toLowerCase() === 'bakolaypan@gmail.com');
   const allPlayers = store.getPlayers();
   const cleanPhone = (currentUser.phone || '').replace(/[^0-9]/g, '');
+  const cleanPhone10 = cleanPhone.slice(-10);
   const owners = store.getTournamentOwners();
-  const isAssignedOwner = Object.values(owners).some(o => o && (o.phone || '').replace(/[^0-9]/g, '').slice(-10) === cleanPhone.slice(-10));
+  const isAssignedOwner = Object.values(owners).some(o => o && (o.phone || '').replace(/[^0-9]/g, '').slice(-10) === cleanPhone10);
   const isTournamentOwner = currentUser.role === 'TOURNAMENT_OWNER' || isAssignedOwner;
 
-  // Player record lookup
-  let player = allPlayers.find(p => (p.phone || p.mobile || '').replace(/[^0-9]/g, '').slice(-10) === cleanPhone.slice(-10));
+  // 1. Try finding in active players list
+  let player = allPlayers.find(p => (p.phone || p.mobile || '').replace(/[^0-9]/g, '').slice(-10) === cleanPhone10);
+
+  // 2. If not found or incomplete, look up lifetime player_profiles
+  const allProfiles = store.getPlayerProfiles();
+  const matchedProfile = allProfiles.find(pp => (pp.phone || '').replace(/[^0-9]/g, '').slice(-10) === cleanPhone10);
+
+  if (!player && matchedProfile) {
+    player = {
+      id: matchedProfile.id,
+      name: matchedProfile.name,
+      phone: matchedProfile.phone,
+      village: matchedProfile.village,
+      district: matchedProfile.district || 'Paschim Medinipur',
+      state: matchedProfile.state || 'West Bengal',
+      category: matchedProfile.category || 'All-Rounder',
+      playingType: matchedProfile.category || 'All-Rounder',
+      battingStyle: matchedProfile.battingStyle || 'Right Hand Bat',
+      bowlingStyle: matchedProfile.bowlingStyle || 'Right Hand Fast',
+      photoUrl: matchedProfile.photoUrl || '',
+      player_photo_url: matchedProfile.photoUrl || '',
+      registrationStatus: 'APPROVED',
+      paymentStatus: 'APPROVED',
+      basePrice: 300,
+      serialNo: matchedProfile.serialNo || 103,
+      displayRegistrationNumber: matchedProfile.displayRegistrationNumber || 103,
+      registrationId: matchedProfile.registrationId || `JSL2026-${String(matchedProfile.displayRegistrationNumber || 103).padStart(4, '0')}`
+    };
+  }
+
+  if (player && matchedProfile) {
+    if (!player.photoUrl && matchedProfile.photoUrl) {
+      player.photoUrl = matchedProfile.photoUrl;
+      player.player_photo_url = matchedProfile.photoUrl;
+    }
+    if ((!player.village || player.village === 'Paschim Medinipur') && matchedProfile.village) {
+      player.village = matchedProfile.village;
+    }
+    if ((!player.category || player.category === 'Player') && matchedProfile.category) {
+      player.category = matchedProfile.category;
+    }
+    if (!player.battingStyle && matchedProfile.battingStyle) {
+      player.battingStyle = matchedProfile.battingStyle;
+    }
+    if (!player.bowlingStyle && matchedProfile.bowlingStyle) {
+      player.bowlingStyle = matchedProfile.bowlingStyle;
+    }
+  }
+
   if (!player) {
     if (isMaster) {
       player = {
         name: 'Suman Kolay (Master Super Admin)',
         phone: 'bakolaypan@gmail.com',
         category: 'Super Admin Authority',
-        village: 'Kolkata, West Bengal',
+        village: 'Kolkata',
+        district: 'Kolkata',
+        state: 'West Bengal',
         registrationStatus: 'APPROVED',
         paymentStatus: 'APPROVED',
-        basePrice: 300
+        basePrice: 300,
+        photoUrl: 'assets/card_jsl_user.png'
       };
     } else if (isTournamentOwner) {
       player = {
         name: owners['tournament-jsl-2026']?.name || 'Pintu Santra',
         phone: currentUser.phone || '8972144166',
         category: 'Tournament Owner',
-        village: 'Jhakra, Paschim Medinipur',
+        village: 'Jhakra',
+        district: 'Paschim Medinipur',
+        state: 'West Bengal',
         registrationStatus: 'APPROVED',
         paymentStatus: 'APPROVED',
-        basePrice: 300
+        basePrice: 300,
+        photoUrl: 'assets/card_jsl_user.png'
       };
     } else {
       player = {
         name: currentUser.name || 'Registered Player',
         phone: currentUser.phone || '',
-        category: 'Player',
-        village: 'Paschim Medinipur',
+        category: 'All-Rounder',
+        village: 'Jhakra',
+        district: 'Paschim Medinipur',
+        state: 'West Bengal',
         registrationStatus: 'APPROVED',
         paymentStatus: 'APPROVED',
-        basePrice: 300
+        basePrice: 300,
+        photoUrl: 'assets/card_jsl_user.png'
       };
     }
   }
 
-  const teams = store.getTeams();
-  const playerTeam = player.teamId ? teams.find(t => t.id === player.teamId) : null;
+  let finalPhoto = player.photoUrl || player.player_photo_url || (matchedProfile && matchedProfile.photoUrl) || '';
+  if (!finalPhoto || finalPhoto.includes('[Image Stored In Cloud]') || finalPhoto.includes('unsplash.com') || (!finalPhoto.startsWith('http') && !finalPhoto.startsWith('data:image') && !finalPhoto.startsWith('assets/'))) {
+    finalPhoto = 'assets/card_jsl_user.png';
+  }
+
+  const vName = (player.village || (matchedProfile && matchedProfile.village) || '').trim();
+  const dName = (player.district || (matchedProfile && matchedProfile.district) || 'Paschim Medinipur').trim();
+  const sName = (player.state || (matchedProfile && matchedProfile.state) || 'West Bengal').trim();
+  const fullAddress = [vName ? `Village: ${vName}` : '', dName, sName].filter(Boolean).join(', ');
+
+  const roleName = player.category || player.playingType || (matchedProfile && matchedProfile.category) || 'All-Rounder';
+  const batStyle = player.battingStyle || (matchedProfile && matchedProfile.battingStyle) || 'Right Hand Bat';
+  const bowlStyle = player.bowlingStyle || (matchedProfile && matchedProfile.bowlingStyle) || 'Right Hand Fast';
   const isOwner = isMaster || isTournamentOwner;
 
   container.innerHTML = `
-    <div class="max-w-3xl mx-auto space-y-6 animate-fade-in pb-16">
+    <div class="max-w-xl mx-auto space-y-4 animate-fade-in pb-16 pt-2">
       
       <!-- Top Identity Card -->
-      <div class="bg-white border border-slate-200 rounded-3xl p-5 sm:p-6 shadow-xl relative overflow-hidden">
-        <div class="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-blue-100/50 to-indigo-100/30 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none"></div>
+      <div class="bg-white border-2 border-slate-200/80 rounded-3xl p-5 sm:p-7 shadow-xl relative overflow-hidden text-center sm:text-left">
+        <div class="absolute top-0 right-0 w-48 h-48 bg-gradient-to-br from-emerald-100/40 to-blue-100/30 rounded-full blur-2xl -mr-10 -mt-10 pointer-events-none"></div>
 
-        <div class="flex flex-col sm:flex-row items-center sm:items-start gap-5 relative z-10">
-          <img src="${getOptimizedImageUrl(player.photoUrl || player.player_photo_url, 160, 160)}" class="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover border-2 border-blue-500 shadow-md bg-slate-100 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+        <div class="flex flex-col sm:flex-row items-center gap-5 relative z-10">
+          <div class="relative shrink-0">
+            <img src="${finalPhoto}" class="w-24 h-24 sm:w-28 sm:h-28 rounded-2xl object-cover border-2 border-emerald-500 shadow-md bg-slate-100" onerror="this.onerror=null; this.src='assets/card_jsl_user.png'" />
+            <span class="absolute -bottom-2 -right-1 px-2 py-0.5 ${(player.registrationStatus === 'APPROVED' || player.paymentStatus === 'APPROVED') ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-slate-950'} rounded-full text-[9px] font-black shadow-sm">
+              ${(player.registrationStatus === 'APPROVED' || player.paymentStatus === 'APPROVED') ? 'VERIFIED' : 'PENDING'}
+            </span>
+          </div>
 
-          <div class="flex-1 text-center sm:text-left space-y-1.5 min-w-0">
+          <div class="flex-1 space-y-2 min-w-0">
             <div class="flex flex-wrap items-center justify-center sm:justify-start gap-2">
-              <span class="px-2.5 py-0.5 ${isMaster ? 'bg-amber-50 text-amber-800 border-amber-300' : (isTournamentOwner ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-blue-50 text-blue-700 border-blue-200')} border rounded-full font-black text-[10px] uppercase">
+              <span class="px-2.5 py-0.5 ${isMaster ? 'bg-amber-50 text-amber-800 border-amber-300' : (isTournamentOwner ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200')} border rounded-full font-black text-[10px] uppercase">
                 ${isMaster ? '👑 MASTER SUPER ADMIN' : (isTournamentOwner ? '🏆 TOURNAMENT OWNER' : '🏏 JSL 2026 PLAYER')}
               </span>
-              ${player.registrationId ? `
-                <span class="px-2.5 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 rounded-full font-mono font-bold text-[10px]">
-                  #${player.displayRegistrationNumber || player.serialNo || 1} • ${player.registrationId}
+              ${(player.displayRegistrationNumber || player.serialNo || player.registrationId) ? `
+                <span class="px-2.5 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 rounded-full font-mono font-black text-[10px]">
+                  #${player.displayRegistrationNumber || player.serialNo || 1} • ${player.registrationId || ('JSL2026-' + String(player.serialNo || 1).padStart(4, '0'))}
                 </span>
               ` : ''}
             </div>
 
             <h1 class="text-xl sm:text-2xl font-black text-slate-900 truncate">${player.name}</h1>
-            <div class="text-xs text-slate-600 font-semibold flex flex-wrap items-center justify-center sm:justify-start gap-2">
-              <span>📱 ${player.phone}</span>
-              <span>•</span>
-              <span>📍 ${player.village || 'Paschim Medinipur'}</span>
-              <span>•</span>
-              <span class="text-emerald-700 font-bold">🏏 ${player.category || 'All Rounder'}</span>
+            
+            <div class="space-y-1 text-xs text-slate-600 font-semibold">
+              <div class="flex items-center justify-center sm:justify-start gap-1.5">
+                <span class="text-slate-400">📱 Mobile:</span>
+                <span class="font-bold text-slate-800 font-mono">${player.phone || cleanPhone}</span>
+              </div>
+              <div class="flex items-center justify-center sm:justify-start gap-1.5">
+                <span class="text-slate-400">📍 Address:</span>
+                <span class="font-bold text-slate-800">${fullAddress}</span>
+              </div>
+              <div class="flex items-center justify-center sm:justify-start gap-1.5 flex-wrap">
+                <span class="text-slate-400">🏏 Role:</span>
+                <span class="font-black text-emerald-700">${roleName}</span>
+                <span class="text-slate-300">•</span>
+                <span class="text-slate-600 font-medium text-[11px]">${batStyle} / ${bowlStyle}</span>
+              </div>
             </div>
-          </div>
 
-          <div class="flex flex-row sm:flex-col items-center gap-2 shrink-0">
-            <button id="profile-edit-btn" class="px-3 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-xl border border-blue-200 transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm">
-              <i data-lucide="edit-3" class="w-3.5 h-3.5"></i> Edit Profile
-            </button>
-            <button id="profile-logout-btn" class="px-3 py-1.5 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-700 text-xs font-bold rounded-xl border border-slate-300 transition-colors flex items-center gap-1.5 cursor-pointer">
-              <i data-lucide="log-out" class="w-3.5 h-3.5"></i> Logout
-            </button>
+            <div class="pt-2 flex flex-wrap items-center justify-center sm:justify-start gap-2">
+              <button id="profile-edit-btn" class="px-3.5 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-bold rounded-xl border border-blue-200 transition-colors flex items-center gap-1.5 cursor-pointer shadow-sm">
+                <i data-lucide="edit-3" class="w-3.5 h-3.5"></i> Edit Profile
+              </button>
+              <button id="profile-logout-btn" class="px-3.5 py-1.5 bg-slate-100 hover:bg-rose-50 hover:text-rose-600 text-slate-700 text-xs font-bold rounded-xl border border-slate-300 transition-colors flex items-center gap-1.5 cursor-pointer">
+                <i data-lucide="log-out" class="w-3.5 h-3.5"></i> Logout
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
       <!-- TOURNAMENT OWNER / MASTER ADMIN CONTROL CONSOLE LAUNCHER -->
       ${isOwner ? `
-        <div class="p-5 sm:p-6 bg-gradient-to-r from-amber-500/15 via-amber-600/10 to-indigo-950/20 border-2 border-amber-400 rounded-3xl shadow-xl space-y-3">
-          <div class="flex items-center justify-between">
-            <div class="flex items-center gap-3">
-              <span class="p-3 bg-amber-400 text-slate-950 font-black rounded-2xl text-2xl shadow">🏆</span>
-              <div>
-                <h3 class="font-black text-slate-900 text-base sm:text-lg">${isMaster ? 'Master Super Admin Control Console' : 'JSL 2026 Tournament Control Console'}</h3>
-                <p class="text-xs text-slate-600">${isMaster ? 'You have full Super Admin control over the entire system and ownership delegations.' : 'You have full administrative authority over auction, verification, fixtures & scoring.'}</p>
-              </div>
+        <div class="p-5 bg-gradient-to-r from-amber-500/15 via-amber-600/10 to-indigo-950/20 border-2 border-amber-400 rounded-3xl shadow-xl space-y-3">
+          <div class="flex items-center gap-3">
+            <span class="p-2.5 bg-amber-400 text-slate-950 font-black rounded-2xl text-xl shadow">🏆</span>
+            <div>
+              <h3 class="font-black text-slate-900 text-sm sm:text-base">${isMaster ? 'Master Super Admin Control Console' : 'JSL 2026 Tournament Control Console'}</h3>
+              <p class="text-xs text-slate-600">${isMaster ? 'You have full Super Admin control over the entire system.' : 'You have full administrative authority over auction, verification & scoring.'}</p>
             </div>
           </div>
-          <div class="pt-2 flex flex-wrap gap-2">
-            <button id="profile-open-admin-console-btn" class="w-full sm:w-auto px-5 py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-2 cursor-pointer transition-transform active:scale-95 border border-amber-300">
-              <i data-lucide="shield-check" class="w-4 h-4"></i> ${isMaster ? 'Open Master Admin Panel' : 'Open Tournament Control Dashboard'}
-            </button>
-          </div>
-        </div>
-      ` : ''}
-
-      <!-- Status & Pass Grid -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <!-- Verification Card -->
-        <div class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-2">
-          <span class="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Verification & Payment Status</span>
-          <div class="flex items-center gap-2">
-            <span class="px-3 py-1.5 rounded-xl font-black text-xs ${(player.registrationStatus === 'APPROVED' || player.paymentStatus === 'APPROVED') ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' : 'bg-amber-50 text-amber-700 border border-amber-200'}">
-              ${(player.registrationStatus === 'APPROVED' || player.paymentStatus === 'APPROVED') ? '✅ VERIFIED & APPROVED' : '⏳ PENDING VERIFICATION'}
-            </span>
-          </div>
-          <p class="text-[11px] text-slate-500">
-            ${(player.registrationStatus === 'APPROVED' || player.paymentStatus === 'APPROVED') ? 'Your registration and fee payment are verified for JSL 2026.' : 'Your documents are currently under verification by the tournament organizers.'}
-          </p>
-        </div>
-
-        <!-- Team & Auction Status Card -->
-        <div class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-2">
-          <span class="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Franchise & Auction Status</span>
-          <div>
-            ${playerTeam ? `
-              <div class="font-black text-sm text-blue-700 flex items-center gap-1.5">
-                🛡️ ${playerTeam.name}
-              </div>
-              <span class="text-xs text-slate-500 font-bold block mt-0.5">
-                Sold Price: <strong class="text-emerald-700">₹ ${Number(player.soldPrice || player.basePrice || 300).toLocaleString('en-IN')}</strong>
-              </span>
-            ` : `
-              <div class="font-black text-xs text-amber-600 flex items-center gap-1.5">
-                🔨 Active Auction Pool (Base: ₹${player.basePrice || 300})
-              </div>
-              <span class="text-[11px] text-slate-500 block mt-0.5">Available for bidding during live player auction.</span>
-            `}
-          </div>
-        </div>
-      </div>
-
-      <!-- 1-Click Digital ID Card Download -->
-      <div class="bg-gradient-to-r from-blue-600 to-indigo-700 rounded-2xl p-4 sm:p-5 text-white shadow-lg flex flex-col sm:flex-row items-center justify-between gap-4">
-        <div class="space-y-1 text-center sm:text-left">
-          <h3 class="text-sm sm:text-base font-black flex items-center justify-center sm:justify-start gap-2">
-            <span>🪪</span> Official Player Digital Pass
-          </h3>
-          <p class="text-xs text-blue-100">Download or print your high-definition tournament registration pass.</p>
-        </div>
-        <button id="profile-download-pass-btn" class="px-4 py-2.5 bg-white hover:bg-blue-50 text-blue-900 font-black text-xs rounded-xl shadow-md flex items-center gap-2 cursor-pointer shrink-0 transition-transform active:scale-95">
-          <i data-lucide="download" class="w-4 h-4"></i> Download Digital Pass
-        </button>
-      </div>
-
-      <!-- Account Security Card -->
-      <div class="bg-white border border-slate-200 rounded-2xl p-4 sm:p-5 shadow-sm space-y-3">
-        <div class="flex justify-between items-center">
-          <div>
-            <h4 class="text-xs sm:text-sm font-black text-slate-900">Account Security</h4>
-            <p class="text-[11px] text-slate-500">Update your private password anytime</p>
-          </div>
-          <button id="profile-change-pwd-btn" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold rounded-xl border border-slate-300 transition-colors cursor-pointer">
-            Change Password
+          <button id="profile-open-admin-console-btn" class="w-full px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow flex items-center justify-center gap-2 cursor-pointer border border-amber-300">
+            <i data-lucide="shield-check" class="w-4 h-4"></i> ${isMaster ? 'Open Master Admin Panel' : 'Open Tournament Control Dashboard'}
           </button>
         </div>
-      </div>
+      ` : ''}
 
     </div>
   `;
@@ -6080,24 +6098,6 @@ function renderPlayerProfileView(container) {
 
   document.getElementById('profile-open-admin-console-btn')?.addEventListener('click', () => {
     navigate('admin');
-  });
-
-  document.getElementById('profile-change-pwd-btn')?.addEventListener('click', () => {
-    openFirstTimePasswordResetModal(cleanPhone, () => renderPlayerProfileView(container));
-  });
-
-  document.getElementById('profile-download-pass-btn')?.addEventListener('click', async () => {
-    try {
-      const exportModule = await import('./export.js');
-      if (exportModule && exportModule.printDigitalPass) {
-        exportModule.printDigitalPass(player);
-      } else {
-        alert("Pass generator loaded. Preparing document...");
-      }
-    } catch(err) {
-      console.warn("Pass download error:", err);
-      alert("Preparing pass download...");
-    }
   });
 }
 

@@ -282,13 +282,33 @@ export async function fetchCloudData() {
         const deletedPlayerIds = data.deletedPlayerIds ? Object.keys(data.deletedPlayerIds) : [];
         const deletedTeamIds = data.deletedTeamIds ? Object.keys(data.deletedTeamIds) : [];
 
+        const getPlayerTimestamp = (p) => {
+          if (!p) return 0;
+          if (typeof p.createdTime === 'number' && p.createdTime > 0) return p.createdTime;
+          if (typeof p.regTimestamp === 'number' && p.regTimestamp > 0) return p.regTimestamp;
+          if (p.created_at) {
+            const t = new Date(p.created_at).getTime();
+            if (!isNaN(t) && t > 0) return t;
+          }
+          if (p.id && typeof p.id === 'string' && p.id.startsWith('ply-')) {
+            const parts = p.id.split('-');
+            if (parts.length >= 2) {
+              const t = parseInt(parts[1], 10);
+              if (!isNaN(t) && t > 0) return t;
+            }
+          }
+          if (typeof p.serialNo === 'number' && p.serialNo > 0) return p.serialNo;
+          return 0;
+        };
+
         const players = rawPlayers
           .filter(p => p && p.id && !deletedPlayerIds.includes(p.id))
+          .sort((a, b) => getPlayerTimestamp(a) - getPlayerTimestamp(b))
           .map((p, idx) => ({
             ...p,
             serialNo: idx + 1,
             displayRegistrationNumber: idx + 1,
-            registrationId: p.registrationId || p.regNo || `JSL2026-${String(idx + 1).padStart(4, '0')}`
+            registrationId: `JSL2026-${String(idx + 1).padStart(4, '0')}`
           }));
 
         const teams = rawTeams
@@ -298,12 +318,18 @@ export async function fetchCloudData() {
             serialNo: idx + 1
           }));
 
+        let rawProfiles = [];
+        if (data.player_profiles) {
+          rawProfiles = Array.isArray(data.player_profiles) ? data.player_profiles : Object.values(data.player_profiles);
+        }
+
         const fixtures = rawFixtures.filter(f => f && f.id);
 
         return { 
           players, 
           teams, 
           fixtures,
+          playerProfiles: rawProfiles,
           auctionSettings,
           registrationSettings,
           clearedAt: data.clearedAt || 0, 
@@ -317,7 +343,7 @@ export async function fetchCloudData() {
     console.warn("Realtime Database fetch notice:", err);
   }
 
-  return { players: [], teams: [], fixtures: [], auctionSettings: { defaultBasePrice: 300, defaultPurseBudget: 8000 }, registrationSettings: { isJslRegistrationOpen: true, isPlayerRegOpen: true, isTeamRegOpen: true, closedReason: "JSL 2026 Registration is currently closed by the Master Admin." }, clearedAt: 0, teamsClearedAt: 0, deletedPlayerIds: [], deletedTeamIds: [] };
+  return { players: [], teams: [], fixtures: [], playerProfiles: [], auctionSettings: { defaultBasePrice: 300, defaultPurseBudget: 8000 }, registrationSettings: { isJslRegistrationOpen: true, isPlayerRegOpen: true, isTeamRegOpen: true, closedReason: "JSL 2026 Registration is currently closed by the Master Admin." }, clearedAt: 0, teamsClearedAt: 0, deletedPlayerIds: [], deletedTeamIds: [] };
 }
 
 // --- ATOMIC REALTIME CLOUD DATA OPERATIONS (KEY-VALUE OBJECT MAP SYNC) ---
