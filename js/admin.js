@@ -39,27 +39,27 @@ export function renderAdminDashboard(containerEl) {
     : `Logged in as: <strong class="text-amber-400">${currentUser?.name || 'Tournament Owner'}</strong> • Tournament Operations Only`;
 
   containerEl.innerHTML = `
-    <div class="space-y-6 sm:space-y-8 animate-fade-in">
-      <!-- Admin Header & Actions Bar -->
-      <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-900/90 border border-slate-800 p-4 sm:p-6 rounded-2xl shadow-2xl backdrop-blur-xl">
+    <div class="space-y-4 sm:space-y-6 animate-fade-in">
+      <!-- Admin Header & Actions Bar (Stylish White Background) -->
+      <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white border-2 border-emerald-500/20 p-4 sm:p-5 rounded-3xl shadow-sm">
         <div>
           <div class="flex items-center gap-3">
-            <span class="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl border border-amber-500/40">
+            <span class="p-2.5 bg-emerald-50 text-emerald-700 rounded-2xl border border-emerald-200 shadow-xs">
               <i data-lucide="shield-check" class="w-6 h-6"></i>
             </span>
             <div>
-              <h1 class="text-lg sm:text-2xl font-black text-white">${panelTitle}</h1>
-              <p class="text-xs text-slate-400">${panelSubtitle}</p>
+              <h1 class="text-lg sm:text-xl font-black text-slate-900">${panelTitle}</h1>
+              <p class="text-xs text-slate-500">${panelSubtitle}</p>
             </div>
           </div>
         </div>
 
-        <div class="flex flex-wrap items-center gap-2.5">
+        <div class="flex flex-wrap items-center gap-2">
           ${isMaster ? `
             <!-- JSL REGISTRATION MASTER QUICK-TOGGLE BADGE -->
-            <div class="flex items-center gap-2 bg-slate-950/90 px-3 py-1.5 rounded-xl border ${isRegOpen ? 'border-emerald-500/50 bg-emerald-950/30' : 'border-red-500/50 bg-red-950/30'} shadow">
-              <span class="w-2.5 h-2.5 rounded-full ${isRegOpen ? 'bg-emerald-400 animate-pulse' : 'bg-red-500'}"></span>
-              <span class="text-xs font-black ${isRegOpen ? 'text-emerald-300' : 'text-red-400'}">
+            <div class="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border ${isRegOpen ? 'border-emerald-400 bg-emerald-50/50' : 'border-red-400 bg-red-50/50'} shadow-2xs">
+              <span class="w-2.5 h-2.5 rounded-full ${isRegOpen ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}"></span>
+              <span class="text-xs font-black ${isRegOpen ? 'text-emerald-800' : 'text-red-700'}">
                 JSL Reg: ${isRegOpen ? 'ACTIVE' : 'DEACTIVATED'}
               </span>
               <button id="quick-toggle-reg-btn" class="px-2.5 py-1 text-[10px] font-black rounded-lg ${isRegOpen ? 'bg-red-600 hover:bg-red-500 text-white' : 'bg-emerald-600 hover:bg-emerald-500 text-white'} transition-all shadow flex items-center gap-1 cursor-pointer" title="${isRegOpen ? 'Deactivate Public Registration Link' : 'Activate Public Registration Link'}">
@@ -68,20 +68,20 @@ export function renderAdminDashboard(containerEl) {
               </button>
             </div>
 
-            <a href="cpl_project_handbook.html" target="_blank" class="px-3.5 py-2 bg-emerald-950 hover:bg-emerald-900 text-emerald-300 text-xs font-bold rounded-xl border border-emerald-800 flex items-center gap-1.5 transition-colors shadow no-underline">
-              <i data-lucide="book-open" class="w-4 h-4 text-emerald-400"></i> Handbook
+            <a href="cpl_project_handbook.html" target="_blank" class="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold rounded-xl border border-emerald-300 flex items-center gap-1.5 transition-colors shadow-2xs no-underline">
+              <i data-lucide="book-open" class="w-4 h-4 text-emerald-600"></i> Handbook
             </a>
-            <button id="export-master-csv-btn" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl border border-slate-700 flex items-center gap-2 transition-all shadow">
-              <i data-lucide="download" class="w-4 h-4 text-emerald-400"></i> Export CSV
+            <button id="export-master-csv-btn" class="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl border border-slate-300 flex items-center gap-1.5 transition-all shadow-2xs">
+              <i data-lucide="download" class="w-4 h-4 text-emerald-600"></i> Export CSV
             </button>
-            <button id="export-master-pdf-btn" class="px-3.5 py-2 bg-red-950 hover:bg-red-900 text-red-300 text-xs font-bold rounded-xl border border-red-800 flex items-center gap-2 transition-all shadow">
-              <i data-lucide="file-text" class="w-4 h-4 text-red-400"></i> Export PDF
+            <button id="export-master-pdf-btn" class="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold rounded-xl border border-red-300 flex items-center gap-1.5 transition-all shadow-2xs">
+              <i data-lucide="file-text" class="w-4 h-4 text-red-600"></i> Export PDF
             </button>
-            <button id="purge-verified-docs-btn" class="px-3.5 py-2 bg-sky-950 hover:bg-sky-900 text-sky-300 text-xs font-bold rounded-xl border border-sky-800 flex items-center gap-1.5 transition-all shadow" title="Delete Aadhaar & Payment Receipts for Approved Players to save cloud memory">
-              <i data-lucide="shield-check" class="w-4 h-4 text-sky-400"></i> Purge Docs
+            <button id="purge-verified-docs-btn" class="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-800 text-xs font-bold rounded-xl border border-sky-300 flex items-center gap-1.5 transition-all shadow-2xs" title="Delete Aadhaar & Payment Receipts for Approved Players to save cloud memory">
+              <i data-lucide="shield-check" class="w-4 h-4 text-sky-600"></i> Purge Docs
             </button>
           ` : ''}
-          <button id="admin-logout-btn" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold rounded-xl border border-slate-700 flex items-center gap-1.5 transition-colors">
+          <button id="admin-logout-btn" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl border border-slate-300 flex items-center gap-1.5 transition-colors">
             <i data-lucide="log-out" class="w-4 h-4"></i> Logout
           </button>
         </div>
@@ -89,62 +89,62 @@ export function renderAdminDashboard(containerEl) {
 
       <!-- DASHBOARD CARDS (Total, Pending, Approved, Rejected, Today's) -->
       <div class="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
-        <div class="p-3 text-center border border-slate-800 bg-slate-900/90 rounded-2xl shadow-md">
-          <div class="text-[9px] font-bold text-slate-400 uppercase">Total Registered</div>
-          <div class="text-xl sm:text-2xl font-black text-white mt-0.5">${players.length}</div>
+        <div class="p-3 text-center border-2 border-slate-200 bg-white rounded-2xl shadow-2xs">
+          <div class="text-[9px] font-bold text-slate-500 uppercase">Total Registered</div>
+          <div class="text-xl sm:text-2xl font-black text-slate-900 mt-0.5">${players.length}</div>
         </div>
 
-        <div class="p-3 text-center border border-amber-500/40 bg-amber-950/20 rounded-2xl shadow-md">
-          <div class="text-[9px] font-bold text-amber-400 uppercase">Pending (🔴 Red)</div>
-          <div class="text-xl sm:text-2xl font-black text-amber-400 mt-0.5">${pendingPlayers.length}</div>
+        <div class="p-3 text-center border-2 border-amber-300 bg-white rounded-2xl shadow-2xs">
+          <div class="text-[9px] font-bold text-amber-800 uppercase">Pending (🔴 Red)</div>
+          <div class="text-xl sm:text-2xl font-black text-amber-600 mt-0.5">${pendingPlayers.length}</div>
         </div>
 
-        <div class="p-3 text-center border border-emerald-500/40 bg-emerald-950/20 rounded-2xl shadow-md">
-          <div class="text-[9px] font-bold text-emerald-400 uppercase">Approved (🟢 Green)</div>
-          <div class="text-xl sm:text-2xl font-black text-emerald-400 mt-0.5">${approvedPlayers.length}</div>
+        <div class="p-3 text-center border-2 border-emerald-300 bg-white rounded-2xl shadow-2xs">
+          <div class="text-[9px] font-bold text-emerald-800 uppercase">Approved (🟢 Green)</div>
+          <div class="text-xl sm:text-2xl font-black text-emerald-600 mt-0.5">${approvedPlayers.length}</div>
         </div>
 
-        <div class="p-3 text-center border border-red-500/40 bg-red-950/20 rounded-2xl shadow-md">
-          <div class="text-[9px] font-bold text-red-400 uppercase">Rejected</div>
-          <div class="text-xl sm:text-2xl font-black text-red-400 mt-0.5">${rejectedPlayers.length}</div>
+        <div class="p-3 text-center border-2 border-rose-300 bg-white rounded-2xl shadow-2xs">
+          <div class="text-[9px] font-bold text-rose-800 uppercase">Rejected</div>
+          <div class="text-xl sm:text-2xl font-black text-rose-600 mt-0.5">${rejectedPlayers.length}</div>
         </div>
 
-        <div class="p-3 text-center border border-sky-500/40 bg-sky-950/20 rounded-2xl shadow-md col-span-2 sm:col-span-1">
-          <div class="text-[9px] font-bold text-sky-400 uppercase">Today's Registrations</div>
-          <div class="text-xl sm:text-2xl font-black text-sky-400 mt-0.5">${todayPlayers.length}</div>
+        <div class="p-3 text-center border-2 border-sky-300 bg-white rounded-2xl shadow-2xs col-span-2 sm:col-span-1">
+          <div class="text-[9px] font-bold text-sky-800 uppercase">Today's Registrations</div>
+          <div class="text-xl sm:text-2xl font-black text-sky-600 mt-0.5">${todayPlayers.length}</div>
         </div>
       </div>
 
-      <!-- Admin Tabs Navigation -->
-      <div class="flex border-b border-slate-800 space-x-2 overflow-x-auto pb-1" id="admin-tab-nav">
-        <button data-tab="payments" class="admin-tab-btn ${activeAdminTab === 'payments' ? 'active border-amber-400 text-amber-400 bg-slate-900/90' : 'border-transparent text-slate-400 hover:text-white'} px-4 sm:px-5 py-2.5 rounded-t-xl text-xs sm:text-sm font-black flex items-center gap-2 border-b-2">
-          <i data-lucide="badge-indian-rupee" class="w-4 h-4"></i> Pending Approvals 
-          <span class="px-2 py-0.5 text-xs bg-red-950 text-red-400 rounded-full font-black border border-red-800">${pendingPlayers.length}</span>
+      <!-- Admin Tabs Navigation (Clean White Buttons) -->
+      <div class="flex border-b-2 border-slate-200 space-x-1.5 overflow-x-auto pb-1" id="admin-tab-nav">
+        <button data-tab="payments" class="admin-tab-btn ${activeAdminTab === 'payments' ? 'active bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 font-bold'} px-3.5 sm:px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all">
+          <i data-lucide="badge-indian-rupee" class="w-3.5 h-3.5"></i> Pending Approvals 
+          <span class="px-1.5 py-0.2 text-[10px] ${activeAdminTab === 'payments' ? 'bg-white text-red-700' : 'bg-red-100 text-red-700 border border-red-300'} rounded-full font-black">${pendingPlayers.length}</span>
         </button>
-        <button data-tab="all-players" class="admin-tab-btn ${activeAdminTab === 'all-players' ? 'active border-amber-400 text-amber-400 bg-slate-900/90' : 'border-transparent text-slate-400 hover:text-white'} px-4 sm:px-5 py-2.5 rounded-t-xl text-xs sm:text-sm font-black flex items-center gap-2 border-b-2">
-          <i data-lucide="users" class="w-4 h-4"></i> All Registered Players (${players.length})
+        <button data-tab="all-players" class="admin-tab-btn ${activeAdminTab === 'all-players' ? 'active bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 font-bold'} px-3.5 sm:px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all">
+          <i data-lucide="users" class="w-3.5 h-3.5"></i> All Registered Players (${players.length})
         </button>
-        <button data-tab="teams" class="admin-tab-btn ${activeAdminTab === 'teams' ? 'active border-amber-400 text-amber-400 bg-slate-900/90' : 'border-transparent text-slate-400 hover:text-white'} px-4 sm:px-5 py-2.5 rounded-t-xl text-xs sm:text-sm font-black flex items-center gap-2 border-b-2">
-          <i data-lucide="shield" class="w-4 h-4"></i> Registered Teams (${teams.length})
+        <button data-tab="teams" class="admin-tab-btn ${activeAdminTab === 'teams' ? 'active bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 font-bold'} px-3.5 sm:px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all">
+          <i data-lucide="shield" class="w-3.5 h-3.5"></i> Registered Teams (${teams.length})
         </button>
-        <button data-tab="auction" class="admin-tab-btn ${activeAdminTab === 'auction' ? 'active border-amber-400 text-amber-400 bg-slate-900/90' : 'border-transparent text-slate-400 hover:text-white'} px-4 sm:px-5 py-2.5 rounded-t-xl text-xs sm:text-sm font-black flex items-center gap-2 border-b-2">
-          <i data-lucide="gavel" class="w-4 h-4"></i> Auction Controls
+        <button data-tab="auction" class="admin-tab-btn ${activeAdminTab === 'auction' ? 'active bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 font-bold'} px-3.5 sm:px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all">
+          <i data-lucide="gavel" class="w-3.5 h-3.5"></i> Auction Controls
         </button>
-        <button data-tab="fixtures" class="admin-tab-btn ${activeAdminTab === 'fixtures' ? 'active border-amber-400 text-amber-400 bg-slate-900/90' : 'border-transparent text-slate-400 hover:text-white'} px-4 sm:px-5 py-2.5 rounded-t-xl text-xs sm:text-sm font-black flex items-center gap-2 border-b-2">
-          <i data-lucide="calendar" class="w-4 h-4"></i> Scheduler
+        <button data-tab="fixtures" class="admin-tab-btn ${activeAdminTab === 'fixtures' ? 'active bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 font-bold'} px-3.5 sm:px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all">
+          <i data-lucide="calendar" class="w-3.5 h-3.5"></i> Scheduler
         </button>
-        <button data-tab="scorer" class="admin-tab-btn ${activeAdminTab === 'scorer' ? 'active border-amber-400 text-amber-400 bg-slate-900/90' : 'border-transparent text-slate-400 hover:text-white'} px-4 sm:px-5 py-2.5 rounded-t-xl text-xs sm:text-sm font-black flex items-center gap-2 border-b-2">
-          <i data-lucide="gamepad-2" class="w-4 h-4"></i> Match Scorer
+        <button data-tab="scorer" class="admin-tab-btn ${activeAdminTab === 'scorer' ? 'active bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 font-bold'} px-3.5 sm:px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all">
+          <i data-lucide="gamepad-2" class="w-3.5 h-3.5"></i> Match Scorer
         </button>
         ${isMaster ? `
-          <button data-tab="reg-settings" class="admin-tab-btn ${activeAdminTab === 'reg-settings' ? 'active border-amber-400 text-amber-400 bg-slate-900/90' : 'border-transparent text-slate-400 hover:text-white'} px-4 sm:px-5 py-2.5 rounded-t-xl text-xs sm:text-sm font-black flex items-center gap-2 border-b-2">
-            <i data-lucide="power" class="w-4 h-4 text-amber-400"></i> ⚙️ Registration Link Control
+          <button data-tab="reg-settings" class="admin-tab-btn ${activeAdminTab === 'reg-settings' ? 'active bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 font-bold'} px-3.5 sm:px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all">
+            <i data-lucide="power" class="w-3.5 h-3.5"></i> ⚙️ Registration Link Control
           </button>
-          <button data-tab="shop-ads" class="admin-tab-btn ${activeAdminTab === 'shop-ads' ? 'active border-amber-400 text-amber-400 bg-slate-900/90' : 'border-transparent text-slate-400 hover:text-white'} px-4 sm:px-5 py-2.5 rounded-t-xl text-xs sm:text-sm font-black flex items-center gap-2 border-b-2">
-            <i data-lucide="megaphone" class="w-4 h-4"></i> 📢 Shop Ads
+          <button data-tab="shop-ads" class="admin-tab-btn ${activeAdminTab === 'shop-ads' ? 'active bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 font-bold'} px-3.5 sm:px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all">
+            <i data-lucide="megaphone" class="w-3.5 h-3.5"></i> 📢 Shop Ads
           </button>
-          <button data-tab="owners" class="admin-tab-btn ${activeAdminTab === 'owners' ? 'active border-amber-400 text-amber-400 bg-slate-900/90' : 'border-transparent text-slate-400 hover:text-white'} px-4 sm:px-5 py-2.5 rounded-t-xl text-xs sm:text-sm font-black flex items-center gap-2 border-b-2">
-            <i data-lucide="crown" class="w-4 h-4 text-amber-400"></i> 👑 Tournament Owners
+          <button data-tab="owners" class="admin-tab-btn ${activeAdminTab === 'owners' ? 'active bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 font-bold'} px-3.5 sm:px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all">
+            <i data-lucide="crown" class="w-3.5 h-3.5"></i> 👑 Tournament Owners
           </button>
         ` : ''}
       </div>
@@ -153,70 +153,70 @@ export function renderAdminDashboard(containerEl) {
       <div id="admin-tab-content">
         
         <!-- 1. Pending Payment Verification Tab -->
-        <div id="tab-payments-view" class="${activeAdminTab === 'payments' ? '' : 'hidden'} space-y-6">
-          <div class="p-4 sm:p-6 bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl">
-            <div class="flex justify-between items-center mb-4">
+        <div id="tab-payments-view" class="${activeAdminTab === 'payments' ? '' : 'hidden'} space-y-4">
+          <div class="p-4 sm:p-5 bg-white border-2 border-slate-200 rounded-3xl shadow-sm">
+            <div class="flex justify-between items-center mb-3">
               <div>
-                <h3 class="text-base sm:text-lg font-black text-white">Pending Player Approvals (${pendingPlayers.length})</h3>
-                <p class="text-xs text-slate-400">Approve or Edit/Delete player registration entries in real-time.</p>
+                <h3 class="text-base sm:text-lg font-black text-slate-900">Pending Player Approvals (${pendingPlayers.length})</h3>
+                <p class="text-xs text-slate-500">Approve or Edit/Delete player registration entries in real-time.</p>
               </div>
             </div>
 
             ${pendingPlayers.length === 0 ? `
-              <div class="text-center py-12 border border-dashed border-slate-800 rounded-xl bg-slate-950/50">
-                <i data-lucide="check-circle-2" class="w-12 h-12 text-emerald-400 mx-auto mb-3 opacity-80"></i>
-                <p class="text-white font-bold text-sm">All Payments Verified!</p>
-                <p class="text-xs text-slate-400 mt-1">There are no pending player registrations requiring approval right now.</p>
+              <div class="text-center py-10 border-2 border-dashed border-emerald-200 rounded-2xl bg-emerald-50/40">
+                <i data-lucide="check-circle-2" class="w-10 h-10 text-emerald-600 mx-auto mb-2 opacity-80"></i>
+                <p class="text-slate-900 font-bold text-sm">All Payments Verified!</p>
+                <p class="text-xs text-slate-500 mt-0.5">There are no pending player registrations requiring approval right now.</p>
               </div>
             ` : `
-              <div class="overflow-x-auto">
-                <table class="w-full text-left text-xs sm:text-sm text-slate-300">
-                  <thead class="bg-slate-950 text-[10px] sm:text-xs uppercase text-slate-400 border-b border-slate-800">
+              <div class="overflow-x-auto border border-slate-200 rounded-2xl">
+                <table class="w-full text-left text-xs sm:text-sm text-slate-800">
+                  <thead class="bg-slate-100 text-[10px] sm:text-xs uppercase text-slate-700 font-black border-b border-slate-200">
                     <tr>
                       <th class="py-3 px-3">Serial & Reg ID</th>
                       <th class="py-3 px-3">Player Details</th>
                       <th class="py-3 px-3">Category & Phone</th>
-                      <th class="py-3 px-3 font-mono font-bold text-amber-400">UPI Ref</th>
+                      <th class="py-3 px-3 font-mono font-black text-amber-700">UPI Ref</th>
                       <th class="py-3 px-3 text-right flex justify-end">Actions</th>
                     </tr>
                   </thead>
-                  <tbody class="divide-y divide-slate-800">
+                  <tbody class="divide-y divide-slate-100">
                     ${pendingPlayers.map(p => `
-                      <tr class="hover:bg-slate-950/60">
+                      <tr class="hover:bg-slate-50 transition-colors">
                         <td class="py-3 px-3">
                           <div class="flex items-center gap-2.5">
-                            <img src="${p.photoUrl || p.player_photo_url}" loading="lazy" decoding="async" class="w-10 h-10 rounded-xl object-cover border border-slate-700" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300'"/>
+                            <img src="${p.photoUrl || p.player_photo_url}" loading="lazy" decoding="async" class="w-10 h-10 rounded-xl object-cover border border-slate-200 shadow-2xs" onerror="this.src='assets/card_jsl_user.png'"/>
                             <div>
-                              <div class="font-bold text-white text-xs sm:text-sm">${p.name}</div>
-                              <span class="px-1.5 py-0.5 bg-slate-950 text-amber-400 font-mono text-[9px] font-black rounded border border-amber-500/40">${p.registrationId || p.regNo || 'JSL2026-0001'} (#${p.displayRegistrationNumber || p.serialNo})</span>
+                              <div class="font-bold text-slate-900 text-xs sm:text-sm">${p.name}</div>
+                              <span class="px-1.5 py-0.5 bg-slate-100 text-slate-800 font-mono text-[9px] font-black rounded border border-slate-300">${p.registrationId || p.regNo || 'JSL2026-0001'} (#${p.displayRegistrationNumber || p.serialNo})</span>
                             </div>
                           </div>
                         </td>
                         <td class="py-3 px-3 text-xs">
-                          <div class="font-semibold text-slate-200">Father: ${p.fatherName || 'N/A'}</div>
-                          <div class="text-slate-400 text-[10px]">📍 ${p.village || ''}, ${p.district || 'Paschim Medinipur'}</div>
+                          <div class="font-semibold text-slate-800">Father: ${p.fatherName || 'N/A'}</div>
+                          <div class="text-slate-500 text-[10px]">📍 ${p.village || ''}, ${p.district || 'Paschim Medinipur'}</div>
                         </td>
                         <td class="py-3 px-3 text-xs">
-                          <span class="px-2 py-0.5 bg-sky-950 text-sky-300 font-extrabold text-[10px] rounded border border-sky-800 inline-block mb-0.5">
+                          <span class="px-2 py-0.5 bg-sky-100 text-sky-800 font-extrabold text-[10px] rounded border border-sky-300 inline-block mb-0.5">
                             ${p.category || p.playingType || 'All Rounder'}
                           </span>
-                          <div class="text-slate-400 font-mono text-[10px]">📞 ${p.phone || 'N/A'}</div>
+                          <div class="text-slate-600 font-mono text-[10px]">📞 ${p.phone || 'N/A'}</div>
                         </td>
-                        <td class="py-3 px-3 font-mono font-bold text-amber-400 text-xs">
+                        <td class="py-3 px-3 font-mono font-bold text-amber-800 text-xs">
                           ${p.paymentRef || 'N/A'}
                         </td>
                         <td class="py-3 px-3 text-right">
                           <div class="flex items-center justify-end gap-1.5">
-                            <button data-approve-id="${p.id}" class="approve-player-btn px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-[10px] rounded-lg shadow flex items-center gap-1">
+                            <button data-approve-id="${p.id}" class="approve-player-btn px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-[10px] rounded-lg shadow-xs flex items-center gap-1">
                               <i data-lucide="check" class="w-3 h-3"></i> Approve
                             </button>
-                            <button data-reject-id="${p.id}" class="reject-player-btn px-2 py-1 bg-red-950 hover:bg-red-900 text-red-300 font-extrabold text-[10px] rounded-lg border border-red-800 shadow">
+                            <button data-reject-id="${p.id}" class="reject-player-btn px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-extrabold text-[10px] rounded-lg border border-rose-300 shadow-2xs">
                               Reject
                             </button>
-                            <button data-edit-id="${p.id}" class="edit-player-btn p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700" style="${isMaster ? '' : 'display:none'}">
+                            <button data-edit-id="${p.id}" class="edit-player-btn p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg border border-slate-300" style="${isMaster ? '' : 'display:none'}">
                               <i data-lucide="edit-2" class="w-3.5 h-3.5"></i>
                             </button>
-                            <button data-delete-id="${p.id}" class="delete-player-btn p-1.5 bg-red-950 hover:bg-red-900 text-red-400 rounded-lg border border-red-800" style="${isMaster ? '' : 'display:none'}">
+                            <button data-delete-id="${p.id}" class="delete-player-btn p-1.5 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg border border-red-300" style="${isMaster ? '' : 'display:none'}">
                               <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                             </button>
                           </div>
@@ -231,22 +231,22 @@ export function renderAdminDashboard(containerEl) {
         </div>
 
         <!-- 2. All Registered Players Tab -->
-        <div id="tab-all-players-view" class="${activeAdminTab === 'all-players' ? '' : 'hidden'} space-y-6">
-          <div class="p-4 sm:p-6 bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl space-y-4">
+        <div id="tab-all-players-view" class="${activeAdminTab === 'all-players' ? '' : 'hidden'} space-y-4">
+          <div class="p-4 sm:p-5 bg-white border-2 border-slate-200 rounded-3xl shadow-sm space-y-3">
             <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
               <div>
-                <h3 class="text-base sm:text-lg font-black text-white">Registered Players Master Table (${players.length})</h3>
-                <p class="text-xs text-slate-400">Search, filter, edit details, or remove players with automatic continuous serial re-indexing.</p>
+                <h3 class="text-base sm:text-lg font-black text-slate-900">Registered Players Master Table (${players.length})</h3>
+                <p class="text-xs text-slate-500">Search, filter, edit details, or remove players with automatic continuous serial re-indexing.</p>
               </div>
 
               <div class="relative w-full sm:w-64">
-                <input type="text" id="admin-player-search" placeholder="🔍 Search by name, reg ID, phone..." class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-xl p-2 pl-3 focus:outline-none focus:border-amber-500" />
+                <input type="text" id="admin-player-search" placeholder="🔍 Search by name, reg ID, phone..." class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 pl-3 focus:outline-none focus:border-emerald-500 placeholder-slate-400 font-medium" />
               </div>
             </div>
 
-            <div class="overflow-x-auto">
-              <table class="w-full text-left text-xs sm:text-sm text-slate-300">
-                <thead class="bg-slate-950 text-[10px] sm:text-xs uppercase text-slate-400 border-b border-slate-800">
+            <div class="overflow-x-auto border border-slate-200 rounded-2xl">
+              <table class="w-full text-left text-xs sm:text-sm text-slate-800">
+                <thead class="bg-slate-100 text-[10px] sm:text-xs uppercase text-slate-700 font-black border-b border-slate-200">
                   <tr>
                     <th class="py-3 px-3">Serial & Reg ID</th>
                     <th class="py-3 px-3">Player Name</th>
@@ -257,7 +257,7 @@ export function renderAdminDashboard(containerEl) {
                     <th class="py-3 px-3 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody id="admin-all-players-table-body" class="divide-y divide-slate-800">
+                <tbody id="admin-all-players-table-body" class="divide-y divide-slate-100">
                   ${renderAdminPlayersRows(players)}
                 </tbody>
               </table>
@@ -266,42 +266,42 @@ export function renderAdminDashboard(containerEl) {
         </div>
 
         <!-- 3. Registered Teams Tab -->
-        <div id="tab-teams-view" class="${activeAdminTab === 'teams' ? '' : 'hidden'} space-y-6">
-          <div class="p-4 sm:p-6 bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl">
-            <div class="flex justify-between items-center mb-4">
+        <div id="tab-teams-view" class="${activeAdminTab === 'teams' ? '' : 'hidden'} space-y-4">
+          <div class="p-4 sm:p-5 bg-white border-2 border-slate-200 rounded-3xl shadow-sm">
+            <div class="flex justify-between items-center mb-3">
               <div>
-                <h3 class="text-base sm:text-lg font-black text-white">Registered Teams (${teams.length})</h3>
-                <p class="text-xs text-slate-400">Manage franchise teams & squad allocations.</p>
+                <h3 class="text-base sm:text-lg font-black text-slate-900">Registered Teams (${teams.length})</h3>
+                <p class="text-xs text-slate-500">Manage franchise teams & squad allocations.</p>
               </div>
             </div>
 
             ${teams.length === 0 ? `
-              <div class="text-center py-10 border border-dashed border-slate-800 rounded-xl bg-slate-950/50">
-                <i data-lucide="shield-off" class="w-10 h-10 text-slate-600 mx-auto mb-2"></i>
-                <p class="text-white font-bold text-xs">No teams registered yet!</p>
+              <div class="text-center py-10 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50">
+                <i data-lucide="shield-off" class="w-10 h-10 text-slate-400 mx-auto mb-2"></i>
+                <p class="text-slate-800 font-bold text-xs">No teams registered yet!</p>
               </div>
             ` : `
-              <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
+              <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                 ${teams.map(t => {
                   const maxPurse = Number(t.purse || t.purseBudget || 8000);
                   const spent = Number(t.purseSpent || 0);
                   const remPurse = (t.remainingPurse !== undefined) ? Number(t.remainingPurse) : (maxPurse - spent);
                   return `
-                  <div class="p-3.5 flex flex-col justify-between border border-slate-800 bg-slate-950/90 rounded-2xl hover:border-sky-500/50 transition-all shadow-md">
+                  <div class="p-3.5 flex flex-col justify-between border-2 border-slate-200 bg-white rounded-2xl hover:border-sky-500 transition-all shadow-xs">
                     <div class="flex items-start gap-3 mb-2.5">
-                      <img src="${t.logoUrl || t.teamLogoUrl || 'assets/jsl_logo.jpg'}" class="w-12 h-12 rounded-xl object-cover border-2 border-sky-500/60 shadow-md shrink-0" onerror="this.src='assets/jsl_logo.jpg'" />
+                      <img src="${t.logoUrl || t.teamLogoUrl || 'assets/jsl_logo.jpg'}" class="w-12 h-12 rounded-xl object-cover border-2 border-sky-500/60 shadow-xs shrink-0" onerror="this.src='assets/jsl_logo.jpg'" />
                       <div class="flex-1 min-w-0">
-                        <div class="font-black text-white text-sm truncate">${t.name}</div>
-                        <div class="text-[11px] text-sky-400 font-bold">Owner: ${t.ownerName || 'N/A'} <span class="text-slate-400">(${t.ownerPhone || 'N/A'})</span></div>
-                        ${t.iconPlayerName || t.iconName ? `<div class="text-[10px] text-amber-300 font-extrabold truncate">⭐ Icon: ${t.iconPlayerName || t.iconName}</div>` : ''}
-                        <div class="text-[10px] text-slate-300 font-bold mt-0.5">Purse: <span class="text-emerald-400 font-extrabold">₹${remPurse}</span> / ₹${maxPurse}</div>
+                        <div class="font-black text-slate-900 text-sm truncate">${t.name}</div>
+                        <div class="text-[11px] text-sky-700 font-bold">Owner: ${t.ownerName || 'N/A'} <span class="text-slate-500">(${t.ownerPhone || 'N/A'})</span></div>
+                        ${t.iconPlayerName || t.iconName ? `<div class="text-[10px] text-amber-700 font-black truncate">⭐ Icon: ${t.iconPlayerName || t.iconName}</div>` : ''}
+                        <div class="text-[10px] text-slate-700 font-bold mt-0.5">Purse: <span class="text-emerald-700 font-extrabold">₹${remPurse}</span> / ₹${maxPurse}</div>
                       </div>
                     </div>
-                    <div class="flex justify-between items-center pt-2.5 border-t border-slate-800/80 gap-2">
-                      <button data-edit-team-id="${t.id}" class="edit-team-btn flex-1 py-1.5 px-3 bg-sky-600/90 hover:bg-sky-500 text-white font-black text-xs rounded-xl shadow transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+                    <div class="flex justify-between items-center pt-2.5 border-t border-slate-100 gap-2">
+                      <button data-edit-team-id="${t.id}" class="edit-team-btn flex-1 py-1.5 px-3 bg-sky-600 hover:bg-sky-500 text-white font-black text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer">
                         <i data-lucide="edit-3" class="w-3.5 h-3.5"></i> Edit Team
                       </button>
-                      <button data-delete-team-id="${t.id}" class="delete-team-btn py-1.5 px-3 bg-red-950/80 hover:bg-red-900 text-red-300 font-bold text-xs rounded-xl border border-red-800/80 transition-all flex items-center gap-1 cursor-pointer">
+                      <button data-delete-team-id="${t.id}" class="delete-team-btn py-1.5 px-3 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-xl border border-rose-300 transition-all flex items-center gap-1 cursor-pointer">
                         <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Delete
                       </button>
                     </div>
@@ -312,54 +312,53 @@ export function renderAdminDashboard(containerEl) {
           </div>
         </div>
 
-
         <!-- 5. Tournament Owner Delegation Tab -->
-        <div id="tab-owners-view" class="${activeAdminTab === 'owners' ? '' : 'hidden'} space-y-6 animate-fade-in">
-          <div class="p-4 sm:p-6 bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl space-y-5">
-            <div class="flex items-center gap-3 border-b border-slate-800 pb-3">
-              <span class="p-2.5 bg-amber-500/20 text-amber-400 rounded-2xl border border-amber-500/30">
-                <i data-lucide="crown" class="w-6 h-6"></i>
+        <div id="tab-owners-view" class="${activeAdminTab === 'owners' ? '' : 'hidden'} space-y-4 animate-fade-in">
+          <div class="p-4 sm:p-5 bg-white border-2 border-slate-200 rounded-3xl shadow-sm space-y-4">
+            <div class="flex items-center gap-3 border-b border-slate-200 pb-3">
+              <span class="p-2 bg-amber-100 text-amber-800 rounded-2xl border border-amber-300">
+                <i data-lucide="crown" class="w-5 h-5"></i>
               </span>
               <div>
-                <h3 class="text-base sm:text-lg font-black text-white">Appoint Tournament Owner & Admin</h3>
-                <p class="text-xs text-slate-400">Delegate full tournament operational controls to any registered player/user.</p>
+                <h3 class="text-base font-black text-slate-900">Appoint Tournament Owner & Admin</h3>
+                <p class="text-xs text-slate-500">Delegate full tournament operational controls to any registered player/user.</p>
               </div>
             </div>
 
             <!-- Current Appointed Owner Banner -->
-            <div class="p-4 bg-slate-950 rounded-2xl border border-amber-400/40 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div class="p-3.5 bg-amber-50 rounded-2xl border border-amber-300 flex flex-col sm:flex-row items-center justify-between gap-3">
               <div class="flex items-center gap-3">
-                <div class="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-400 text-amber-400 flex items-center justify-center font-black text-xl">
+                <div class="w-10 h-10 rounded-xl bg-amber-100 border border-amber-300 text-amber-700 flex items-center justify-center font-black text-lg">
                   👑
                 </div>
                 <div>
-                  <span class="text-[10px] font-bold text-amber-400 uppercase">JSL 2026 Appointed Owner</span>
-                  <div class="font-black text-white text-sm sm:text-base">
+                  <span class="text-[10px] font-bold text-amber-800 uppercase">JSL 2026 Appointed Owner</span>
+                  <div class="font-black text-slate-900 text-sm">
                     ${store.getTournamentOwners()['tournament-jsl-2026'] ? store.getTournamentOwners()['tournament-jsl-2026'].name : 'Not Appointed'}
                   </div>
-                  <div class="text-xs text-slate-400 font-mono">
+                  <div class="text-xs text-slate-500 font-mono">
                     Phone: ${store.getTournamentOwners()['tournament-jsl-2026'] ? store.getTournamentOwners()['tournament-jsl-2026'].phone : 'N/A'}
                   </div>
                 </div>
               </div>
-              <span class="px-3 py-1 bg-emerald-950 text-emerald-300 font-black text-xs rounded-xl border border-emerald-800">
+              <span class="px-3 py-1 bg-emerald-100 text-emerald-800 font-black text-xs rounded-xl border border-emerald-300">
                 Active Permissions
               </span>
             </div>
 
             <!-- Assign Owner Form -->
-            <form id="assign-tournament-owner-form" class="space-y-4 pt-2">
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <form id="assign-tournament-owner-form" class="space-y-3 pt-1">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label class="block text-xs font-bold text-slate-400 mb-1">SELECT TOURNAMENT *</label>
-                  <select id="assign-owner-tournament-id" class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-xl p-3 focus:border-amber-400 focus:outline-none">
+                  <label class="block text-xs font-bold text-slate-600 mb-1">SELECT TOURNAMENT *</label>
+                  <select id="assign-owner-tournament-id" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none">
                     <option value="tournament-jsl-2026">Jankra Super League 2026 (JSL)</option>
                   </select>
                 </div>
 
                 <div>
-                  <label class="block text-xs font-bold text-slate-400 mb-1">SELECT REGISTERED PLAYER AS OWNER *</label>
-                  <select id="assign-owner-player-select" required class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-xl p-3 focus:border-amber-400 focus:outline-none">
+                  <label class="block text-xs font-bold text-slate-600 mb-1">SELECT REGISTERED PLAYER AS OWNER *</label>
+                  <select id="assign-owner-player-select" required class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none">
                     <option value="">-- Choose Player to Appoint as Owner --</option>
                     ${players.map(p => `
                       <option value="${p.phone || p.mobile}" data-name="${p.name}">${p.name} (${p.phone || p.mobile} • ${p.village || 'Jhankra'}${p.displayRegistrationNumber ? ' • #' + p.displayRegistrationNumber : ''})</option>
@@ -368,7 +367,7 @@ export function renderAdminDashboard(containerEl) {
                 </div>
               </div>
 
-              <button type="submit" class="py-3 px-6 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-lg transition-all flex items-center gap-2 cursor-pointer">
+              <button type="submit" class="py-2.5 px-5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow transition-all flex items-center gap-2 cursor-pointer">
                 <i data-lucide="check-circle-2" class="w-4 h-4"></i> Save & Grant Tournament Owner Authority
               </button>
             </form>
@@ -376,95 +375,95 @@ export function renderAdminDashboard(containerEl) {
         </div>
 
         <!-- 4. Auction Controls Tab -->
-        <div id="tab-auction-view" class="${activeAdminTab === 'auction' ? '' : 'hidden'} space-y-6 animate-fade-in">
-          <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div id="tab-auction-view" class="${activeAdminTab === 'auction' ? '' : 'hidden'} space-y-4 animate-fade-in">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
             <!-- Setup & Settings -->
-            <div class="p-4 sm:p-6 bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl space-y-4">
-              <h3 class="text-base sm:text-lg font-black text-white flex items-center gap-2">
-                <i data-lucide="settings" class="w-5 h-5 text-amber-500"></i> Auction Parameters
+            <div class="p-4 sm:p-5 bg-white border-2 border-slate-200 rounded-3xl shadow-sm space-y-3.5">
+              <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
+                <i data-lucide="settings" class="w-5 h-5 text-amber-600"></i> Auction Parameters
               </h3>
-              <form id="admin-auction-settings-form" class="space-y-4">
+              <form id="admin-auction-settings-form" class="space-y-3">
                 <div>
-                  <label class="block text-xs font-bold text-slate-400 mb-1">DEFAULT PLAYER BASE PRICE (INR)</label>
-                  <input type="number" id="auction-setting-base-price" value="${store.getAuctionSettings().defaultBasePrice}" class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-xl p-2.5" />
+                  <label class="block text-xs font-bold text-slate-600 mb-1">DEFAULT PLAYER BASE PRICE (INR)</label>
+                  <input type="number" id="auction-setting-base-price" value="${store.getAuctionSettings().defaultBasePrice}" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold" />
                 </div>
                 <div>
-                  <label class="block text-xs font-bold text-slate-400 mb-1">DEFAULT TEAM PURSE BUDGET</label>
-                  <input type="number" id="auction-setting-purse-budget" value="${store.getAuctionSettings().defaultPurseBudget}" class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-xl p-2.5" />
+                  <label class="block text-xs font-bold text-slate-600 mb-1">DEFAULT TEAM PURSE BUDGET</label>
+                  <input type="number" id="auction-setting-purse-budget" value="${store.getAuctionSettings().defaultPurseBudget}" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold" />
                 </div>
-                <button type="submit" class="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl border border-amber-300">
+                <button type="submit" class="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl border border-amber-400 shadow-xs cursor-pointer">
                   Update Settings
                 </button>
               </form>
 
               <!-- Auction Reset Danger Zone -->
-              <div class="border-t border-slate-800 pt-3">
-                <button type="button" id="admin-reset-auction-btn" class="w-full py-2.5 bg-rose-950 hover:bg-rose-900 text-rose-300 hover:text-white font-black text-xs rounded-xl border border-rose-800 flex items-center justify-center gap-2 transition-all shadow cursor-pointer">
-                  <i data-lucide="rotate-ccw" class="w-4 h-4 text-rose-400"></i> 🔄 Revert Sold Players & Reset Purses
+              <div class="border-t border-slate-100 pt-2.5">
+                <button type="button" id="admin-reset-auction-btn" class="w-full py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-black text-xs rounded-xl border border-rose-300 flex items-center justify-center gap-2 transition-all shadow-2xs cursor-pointer">
+                  <i data-lucide="rotate-ccw" class="w-4 h-4 text-rose-600"></i> 🔄 Revert Sold Players & Reset Purses
                 </button>
               </div>
 
               <!-- Put Player on Block Form -->
-              <div class="border-t border-slate-800 pt-4 space-y-4">
-                <h4 class="text-xs font-black text-white uppercase tracking-wider">Start Auction for a Player</h4>
+              <div class="border-t border-slate-100 pt-3 space-y-3">
+                <h4 class="text-xs font-black text-slate-900 uppercase tracking-wider">Start Auction for a Player</h4>
                 <div>
-                  <label class="block text-xs font-bold text-slate-400 mb-1">SELECT APPROVED PLAYER</label>
-                  <select id="auction-select-player" class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-xl p-2.5">
+                  <label class="block text-xs font-bold text-slate-600 mb-1">SELECT APPROVED PLAYER</label>
+                  <select id="auction-select-player" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-medium">
                     <option value="">-- Choose Player --</option>
                     ${players.filter(p => (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED') && !p.teamId && p.auctionStatus !== 'SOLD' && !p.isIcon && !p.isIconPlayer).map(p => `
                       <option value="${p.id}">${p.name} (${p.category || 'All Rounder'}) - Base: ₹${p.basePrice || 300}</option>
                     `).join('')}
                   </select>
                 </div>
-                <button id="auction-start-bid-btn" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl border border-emerald-400">
+                <button id="auction-start-bid-btn" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl shadow-xs cursor-pointer">
                   Put Player on Auction Block
                 </button>
               </div>
             </div>
 
             <!-- Active Auctioneer Controls -->
-            <div class="p-4 sm:p-6 bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl space-y-4">
-              <h3 class="text-base sm:text-lg font-black text-white flex items-center gap-2">
-                <i data-lucide="gavel" class="w-5 h-5 text-amber-500"></i> Active Auction Console
+            <div class="p-4 sm:p-5 bg-white border-2 border-slate-200 rounded-3xl shadow-sm space-y-3.5">
+              <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
+                <i data-lucide="gavel" class="w-5 h-5 text-amber-600"></i> Active Auction Console
               </h3>
-              <div id="admin-active-auction-block" class="space-y-4"></div>
+              <div id="admin-active-auction-block" class="space-y-3"></div>
             </div>
           </div>
 
           <!-- 🔨 Sold Players & Unsold Pool Tabs Section -->
-          <div class="p-4 sm:p-6 bg-slate-900/90 border border-slate-800 space-y-4 rounded-2xl shadow-xl">
-            <div class="flex items-center justify-between border-b border-slate-800 pb-3 flex-wrap gap-2">
+          <div class="p-4 sm:p-5 bg-white border-2 border-slate-200 space-y-3.5 rounded-3xl shadow-sm">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3 flex-wrap gap-2">
               <div class="flex items-center gap-2 flex-wrap">
-                <button type="button" id="admin-auction-tab-sold" class="px-3.5 py-2 rounded-xl font-black text-xs transition-all cursor-pointer flex items-center gap-1.5 ${adminAuctionSubTab === 'sold' ? 'bg-blue-600 text-white shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}">
+                <button type="button" id="admin-auction-tab-sold" class="px-3.5 py-2 rounded-xl font-black text-xs transition-all cursor-pointer flex items-center gap-1.5 ${adminAuctionSubTab === 'sold' ? 'bg-blue-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300'}">
                   <span>✅ Sold & Allocated</span>
-                  <span class="px-1.5 py-0.2 rounded-full text-[10px] font-mono ${adminAuctionSubTab === 'sold' ? 'bg-white text-blue-900 font-black' : 'bg-slate-900 text-slate-300'}">${soldPlayers.length}</span>
+                  <span class="px-1.5 py-0.2 rounded-full text-[10px] font-mono ${adminAuctionSubTab === 'sold' ? 'bg-white text-blue-900 font-black' : 'bg-slate-200 text-slate-800'}">${soldPlayers.length}</span>
                 </button>
-                <button type="button" id="admin-auction-tab-unsold" class="px-3.5 py-2 rounded-xl font-black text-xs transition-all cursor-pointer flex items-center gap-1.5 ${adminAuctionSubTab === 'unsold' ? 'bg-rose-600 text-white shadow-md' : 'bg-slate-800 text-slate-300 hover:bg-slate-700'}">
+                <button type="button" id="admin-auction-tab-unsold" class="px-3.5 py-2 rounded-xl font-black text-xs transition-all cursor-pointer flex items-center gap-1.5 ${adminAuctionSubTab === 'unsold' ? 'bg-rose-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200 border border-slate-300'}">
                   <span>❌ Unsold Pool (Round 1)</span>
-                  <span class="px-1.5 py-0.2 rounded-full text-[10px] font-mono ${adminAuctionSubTab === 'unsold' ? 'bg-white text-rose-900 font-black' : 'bg-slate-900 text-slate-300'}">${unsoldPlayers.length}</span>
+                  <span class="px-1.5 py-0.2 rounded-full text-[10px] font-mono ${adminAuctionSubTab === 'unsold' ? 'bg-white text-rose-900 font-black' : 'bg-slate-200 text-slate-800'}">${unsoldPlayers.length}</span>
                 </button>
               </div>
 
               ${adminAuctionSubTab === 'unsold' && unsoldPlayers.length > 0 ? `
-                <button type="button" id="admin-reset-all-unsold-btn" class="px-3 py-1.5 bg-amber-500/20 hover:bg-amber-500 text-amber-300 hover:text-slate-950 border border-amber-500/40 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5">
+                <button type="button" id="admin-reset-all-unsold-btn" class="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 rounded-xl text-xs font-black transition-all cursor-pointer flex items-center gap-1.5 shadow-2xs">
                   🔄 Revert All to Queue (Round 2)
                 </button>
               ` : ''}
             </div>
 
             <!-- TAB 1: Sold Players & Squad Allocations Table -->
-            <div id="admin-auction-sold-container" class="${adminAuctionSubTab === 'sold' ? '' : 'hidden'} overflow-x-auto">
-              <table class="w-full text-left text-xs text-slate-300">
-                <thead class="bg-slate-950/80 text-[10px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-800">
+            <div id="admin-auction-sold-container" class="${adminAuctionSubTab === 'sold' ? '' : 'hidden'} overflow-x-auto border border-slate-200 rounded-2xl">
+              <table class="w-full text-left text-xs text-slate-800">
+                <thead class="bg-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-700 border-b border-slate-200">
                   <tr>
                     <th class="py-2.5 px-3">PLAYER</th>
                     <th class="py-2.5 px-3">ROLE</th>
                     <th class="py-2.5 px-3">BOUGHT BY TEAM</th>
-                    <th class="py-2.5 px-3 text-center text-amber-400">SOLD PRICE</th>
+                    <th class="py-2.5 px-3 text-center text-amber-800">SOLD PRICE</th>
                     <th class="py-2.5 px-3 text-right">ACTION</th>
                   </tr>
                 </thead>
-                <tbody class="divide-y divide-slate-800 font-semibold">
+                <tbody class="divide-y divide-slate-100 font-semibold">
                   ${soldPlayers.length === 0 ? `
                     <tr>
                       <td colspan="5" class="py-8 text-center text-slate-500 italic">No players sold or allocated yet.</td>
@@ -472,33 +471,33 @@ export function renderAdminDashboard(containerEl) {
                   ` : soldPlayers.map(p => {
                     const assignedTeam = teams.find(t => t.id === p.teamId) || { name: 'Unknown Team' };
                     return `
-                      <tr class="hover:bg-slate-800/40 transition-colors">
+                      <tr class="hover:bg-slate-50 transition-colors">
                         <td class="py-2.5 px-3">
                           <div class="flex items-center gap-2.5">
-                            <img src="${p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png'}" class="w-8 h-8 rounded-lg object-cover border border-slate-700 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                            <img src="${p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png'}" class="w-8 h-8 rounded-lg object-cover border border-slate-200 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
                             <div>
-                              <div class="font-black text-white text-xs flex items-center gap-1.5">
+                              <div class="font-black text-slate-900 text-xs flex items-center gap-1.5">
                                 <span>${p.name}</span>
                                 ${(p.isIcon || p.isIconPlayer) ? `<span class="px-1.5 py-0.2 bg-amber-400 text-slate-950 font-black text-[8px] rounded uppercase tracking-wider">⭐ ICON</span>` : ''}
                               </div>
-                              <div class="text-[9px] text-slate-400">${p.village || 'Jhankra'}</div>
+                              <div class="text-[9px] text-slate-500">${p.village || 'Jhankra'}</div>
                             </div>
                           </div>
                         </td>
                         <td class="py-2.5 px-3">
-                          <span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300 text-[9px] font-bold border border-slate-700">${p.category || 'All Rounder'}</span>
+                          <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[9px] font-bold border border-slate-200">${p.category || 'All Rounder'}</span>
                         </td>
-                        <td class="py-2.5 px-3 font-bold text-amber-300">
+                        <td class="py-2.5 px-3 font-bold text-sky-800">
                           🛡️ ${assignedTeam.name}
                         </td>
-                        <td class="py-2.5 px-3 text-center font-mono font-black text-emerald-400">
+                        <td class="py-2.5 px-3 text-center font-mono font-black text-emerald-700">
                           ${(p.isIcon || p.isIconPlayer) ? '⭐ ₹ 1,000 (Icon)' : `₹ ${(Number(p.soldPrice) || Number(p.basePrice) || 0).toLocaleString('en-IN')}`}
                         </td>
                         <td class="py-2.5 px-3 text-right">
                           ${(p.isIcon || p.isIconPlayer) ? `
-                            <span class="text-[10px] text-amber-400/80 font-bold italic">Franchise Icon</span>
+                            <span class="text-[10px] text-amber-700 font-bold italic">Franchise Icon</span>
                           ` : `
-                            <button class="admin-unsell-player-btn px-2.5 py-1.5 bg-rose-950/90 hover:bg-rose-900 text-rose-300 hover:text-white border border-rose-800 rounded-lg text-[10px] font-black transition-all shadow-sm cursor-pointer" data-player-id="${p.id}" data-player-name="${p.name}" data-team-name="${assignedTeam.name}" data-price="${p.soldPrice || 0}">
+                            <button class="admin-unsell-player-btn px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-lg text-[10px] font-black transition-all shadow-2xs cursor-pointer" data-player-id="${p.id}" data-player-name="${p.name}" data-team-name="${assignedTeam.name}" data-price="${p.soldPrice || 0}">
                               ❌ Remove & Refund
                             </button>
                           `}
@@ -511,44 +510,44 @@ export function renderAdminDashboard(containerEl) {
             </div>
 
             <!-- TAB 2: Unsold Players Pool & Re-Bid Controls -->
-            <div id="admin-auction-unsold-container" class="${adminAuctionSubTab === 'unsold' ? '' : 'hidden'} overflow-x-auto">
-              <table class="w-full text-left text-xs text-slate-300">
-                <thead class="bg-slate-950/80 text-[10px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-800">
+            <div id="admin-auction-unsold-container" class="${adminAuctionSubTab === 'unsold' ? '' : 'hidden'} overflow-x-auto border border-slate-200 rounded-2xl">
+              <table class="w-full text-left text-xs text-slate-800">
+                <thead class="bg-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-700 border-b border-slate-200">
                   <tr>
                     <th class="py-2.5 px-3">UNSOLD PLAYER</th>
                     <th class="py-2.5 px-3">ROLE</th>
                     <th class="py-2.5 px-3">STATUS</th>
-                    <th class="py-2.5 px-3 text-center text-amber-400">BASE PRICE</th>
+                    <th class="py-2.5 px-3 text-center text-amber-800">BASE PRICE</th>
                     <th class="py-2.5 px-3 text-right">RE-AUCTION ACTION</th>
                   </tr>
                 </thead>
-                <tbody class="divide-y divide-slate-800 font-semibold">
+                <tbody class="divide-y divide-slate-100 font-semibold">
                   ${unsoldPlayers.length === 0 ? `
                     <tr>
                       <td colspan="5" class="py-8 text-center text-slate-500 italic">No unsold players in this round.</td>
                     </tr>
                   ` : unsoldPlayers.map(p => `
-                    <tr class="hover:bg-slate-800/40 transition-colors">
+                    <tr class="hover:bg-slate-50 transition-colors">
                       <td class="py-2.5 px-3">
                         <div class="flex items-center gap-2.5">
-                          <img src="${p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png'}" class="w-8 h-8 rounded-lg object-cover border border-slate-700 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                          <img src="${p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png'}" class="w-8 h-8 rounded-lg object-cover border border-slate-200 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
                           <div>
-                            <div class="font-black text-white text-xs">${p.name}</div>
-                            <div class="text-[9px] text-slate-400">${p.village || 'Jhankra'}</div>
+                            <div class="font-black text-slate-900 text-xs">${p.name}</div>
+                            <div class="text-[9px] text-slate-500">${p.village || 'Jhankra'}</div>
                           </div>
                         </div>
                       </td>
                       <td class="py-2.5 px-3">
-                        <span class="px-2 py-0.5 rounded bg-slate-800 text-slate-300 text-[9px] font-bold border border-slate-700">${p.category || 'All Rounder'}</span>
+                        <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[9px] font-bold border border-slate-200">${p.category || 'All Rounder'}</span>
                       </td>
-                      <td class="py-2.5 px-3 font-bold text-rose-400">
+                      <td class="py-2.5 px-3 font-bold text-rose-600">
                         ❌ UNSOLD (Round 1)
                       </td>
-                      <td class="py-2.5 px-3 text-center font-mono font-black text-emerald-400">
+                      <td class="py-2.5 px-3 text-center font-mono font-black text-emerald-700">
                         ₹ ${(Number(p.basePrice) || 300).toLocaleString('en-IN')}
                       </td>
                       <td class="py-2.5 px-3 text-right">
-                        <button class="admin-rebid-unsold-player-btn px-3 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-md transition-all cursor-pointer inline-flex items-center gap-1.5" data-player-id="${p.id}">
+                        <button class="admin-rebid-unsold-player-btn px-3 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-xs transition-all cursor-pointer inline-flex items-center gap-1.5" data-player-id="${p.id}">
                           🔨 Re-Bid / Put on Block
                         </button>
                       </td>
@@ -561,68 +560,68 @@ export function renderAdminDashboard(containerEl) {
         </div>
 
         <!-- 5. Match Scheduler Tab -->
-        <div id="tab-fixtures-view" class="${activeAdminTab === 'fixtures' ? '' : 'hidden'} space-y-6 animate-fade-in">
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div id="tab-fixtures-view" class="${activeAdminTab === 'fixtures' ? '' : 'hidden'} space-y-4 animate-fade-in">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <!-- Create Fixture Form -->
-            <div class="p-4 sm:p-6 bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl space-y-4 md:col-span-1">
-              <h3 class="text-base sm:text-lg font-black text-white flex items-center gap-2">
-                <i data-lucide="plus-circle" class="w-5 h-5 text-sky-400"></i> Schedule Match
+            <div class="p-4 sm:p-5 bg-white border-2 border-slate-200 rounded-3xl shadow-sm space-y-3.5 md:col-span-1">
+              <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
+                <i data-lucide="plus-circle" class="w-5 h-5 text-sky-600"></i> Schedule Match
               </h3>
-              <form id="admin-create-fixture-form" class="space-y-3.5">
+              <form id="admin-create-fixture-form" class="space-y-3">
                 <div>
-                  <label class="block text-[10px] font-bold text-slate-400 mb-1">TOURNAMENT LEAGUE</label>
-                  <select id="fixture-league-category" class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-xl p-2.5">
+                  <label class="block text-[10px] font-bold text-slate-600 mb-1">TOURNAMENT LEAGUE</label>
+                  <select id="fixture-league-category" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5">
                     <option value="JSL">JHANKRA SUPER LEAGUE (JSL)</option>
                     <option value="JPL">JHANKRA PREMIER LEAGUE (JPL)</option>
                     <option value="KPL">KOTA PREMIER LEAGUE (KPL)</option>
                   </select>
                 </div>
                 <div>
-                  <label class="block text-[10px] font-bold text-slate-400 mb-1">TEAM A</label>
-                  <select id="fixture-team-a" class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-xl p-2.5" required>
+                  <label class="block text-[10px] font-bold text-slate-600 mb-1">TEAM A</label>
+                  <select id="fixture-team-a" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5" required>
                     <option value="">-- Select Team --</option>
                     ${teams.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}
                   </select>
                 </div>
                 <div>
-                  <label class="block text-[10px] font-bold text-slate-400 mb-1">TEAM B</label>
-                  <select id="fixture-team-b" class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-xl p-2.5" required>
+                  <label class="block text-[10px] font-bold text-slate-600 mb-1">TEAM B</label>
+                  <select id="fixture-team-b" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5" required>
                     <option value="">-- Select Team --</option>
                     ${teams.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}
                   </select>
                 </div>
                 <div class="grid grid-cols-2 gap-2">
                   <div>
-                    <label class="block text-[10px] font-bold text-slate-400 mb-1">MATCH DATE</label>
-                    <input type="date" id="fixture-date" value="${new Date().toISOString().split('T')[0]}" class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-xl p-2.5" required />
+                    <label class="block text-[10px] font-bold text-slate-600 mb-1">MATCH DATE</label>
+                    <input type="date" id="fixture-date" value="${new Date().toISOString().split('T')[0]}" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold" required />
                   </div>
                   <div>
-                    <label class="block text-[10px] font-bold text-slate-400 mb-1">START TIME</label>
-                    <input type="time" id="fixture-time" value="09:00" class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-xl p-2.5" required />
+                    <label class="block text-[10px] font-bold text-slate-600 mb-1">START TIME</label>
+                    <input type="time" id="fixture-time" value="09:00" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold" required />
                   </div>
                 </div>
                 <div>
-                  <label class="block text-[10px] font-bold text-slate-400 mb-1">VENUE</label>
-                  <input type="text" id="fixture-venue" value="JHANKRA SCHOOL GROUND" class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-xl p-2.5" required />
+                  <label class="block text-[10px] font-bold text-slate-600 mb-1">VENUE</label>
+                  <input type="text" id="fixture-venue" value="JHANKRA SCHOOL GROUND" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-medium" required />
                 </div>
                 <div>
-                  <label class="block text-[10px] font-bold text-slate-400 mb-1">TOTAL OVERS</label>
-                  <input type="number" id="fixture-overs" value="16" min="1" max="50" class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-xl p-2.5" required />
+                  <label class="block text-[10px] font-bold text-slate-600 mb-1">TOTAL OVERS</label>
+                  <input type="number" id="fixture-overs" value="16" min="1" max="50" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold" required />
                 </div>
-                <button type="submit" class="w-full py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-black text-xs rounded-xl border border-sky-400 shadow-md">
+                <button type="submit" class="w-full py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-black text-xs rounded-xl shadow-xs cursor-pointer">
                   Schedule Fixture
                 </button>
               </form>
             </div>
 
             <!-- List Scheduled Fixtures -->
-            <div class="p-4 sm:p-6 bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl space-y-4 md:col-span-2">
-              <h3 class="text-base sm:text-lg font-black text-white flex items-center gap-2">
-                <i data-lucide="calendar" class="w-5 h-5 text-sky-400"></i> Scheduled Matches
+            <div class="p-4 sm:p-5 bg-white border-2 border-slate-200 rounded-3xl shadow-sm space-y-3.5 md:col-span-2">
+              <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
+                <i data-lucide="calendar" class="w-5 h-5 text-sky-600"></i> Scheduled Matches
               </h3>
-              <div class="overflow-x-auto">
-                <table class="w-full text-left text-xs sm:text-sm text-slate-300">
-                  <thead class="bg-slate-950 text-[10px] uppercase text-slate-400 border-b border-slate-800">
+              <div class="overflow-x-auto border border-slate-200 rounded-2xl">
+                <table class="w-full text-left text-xs sm:text-sm text-slate-800">
+                  <thead class="bg-slate-100 text-[10px] uppercase text-slate-700 font-black border-b border-slate-200">
                     <tr>
                       <th class="py-3 px-3">Teams</th>
                       <th class="py-3 px-3">Date / Venue</th>
@@ -631,7 +630,7 @@ export function renderAdminDashboard(containerEl) {
                       <th class="py-3 px-3 text-right">Action</th>
                     </tr>
                   </thead>
-                  <tbody id="admin-fixtures-list" class="divide-y divide-slate-800"></tbody>
+                  <tbody id="admin-fixtures-list" class="divide-y divide-slate-100"></tbody>
                 </table>
               </div>
             </div>
@@ -639,65 +638,65 @@ export function renderAdminDashboard(containerEl) {
         </div>
 
         <!-- 6. Live Match Scorer Tab -->
-        <div id="tab-scorer-view" class="${activeAdminTab === 'scorer' ? '' : 'hidden'} space-y-6 animate-fade-in">
-          <div class="p-4 sm:p-6 bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl space-y-4">
-            <h3 class="text-base sm:text-lg font-black text-white flex items-center gap-2">
-              <i data-lucide="gamepad-2" class="w-5 h-5 text-emerald-400"></i> Scorer Control Console
+        <div id="tab-scorer-view" class="${activeAdminTab === 'scorer' ? '' : 'hidden'} space-y-4 animate-fade-in">
+          <div class="p-4 sm:p-5 bg-white border-2 border-slate-200 rounded-3xl shadow-sm space-y-3.5">
+            <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
+              <i data-lucide="gamepad-2" class="w-5 h-5 text-emerald-600"></i> Scorer Control Console
             </h3>
 
             <!-- Match Selector -->
-            <div id="scorer-match-selector-block" class="space-y-4">
+            <div id="scorer-match-selector-block" class="space-y-3">
               <div class="flex flex-col sm:flex-row gap-3 items-end">
                 <div class="flex-grow">
-                  <label class="block text-xs font-bold text-slate-400 mb-1">SELECT MATCH TO SCORE</label>
-                  <select id="scorer-select-match" class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-xl p-2.5">
+                  <label class="block text-xs font-bold text-slate-600 mb-1">SELECT MATCH TO SCORE</label>
+                  <select id="scorer-select-match" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-medium">
                     <option value="">-- Choose Match --</option>
                   </select>
                 </div>
-                <button id="scorer-start-btn" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl border border-emerald-400 shadow">
+                <button id="scorer-start-btn" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl shadow-xs cursor-pointer">
                   Load Scoring Panel
                 </button>
               </div>
             </div>
 
             <!-- Active Scorer Panel -->
-            <div id="scorer-active-panel" class="hidden border-t border-slate-800 pt-4 space-y-6">
+            <div id="scorer-active-panel" class="hidden border-t border-slate-100 pt-3.5 space-y-4">
               <!-- Active match status summary card -->
               <div id="scorer-match-status-summary"></div>
               
               <!-- Setup striker, non-striker and bowler -->
-              <div class="grid grid-cols-1 md:grid-cols-3 gap-4 bg-slate-950 p-4 rounded-2xl border border-slate-800">
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
                 <div>
-                  <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">Batsman 1 (On Strike 🏏)</label>
-                  <select id="scorer-select-striker" class="w-full bg-slate-900 border border-slate-800 text-white text-xs rounded-xl p-2"></select>
+                  <label class="block text-[10px] font-black text-slate-600 mb-1 uppercase tracking-wider">Batsman 1 (On Strike 🏏)</label>
+                  <select id="scorer-select-striker" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2"></select>
                 </div>
                 <div>
-                  <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">Batsman 2 (Non-Strike)</label>
-                  <select id="scorer-select-non-striker" class="w-full bg-slate-900 border border-slate-800 text-white text-xs rounded-xl p-2"></select>
+                  <label class="block text-[10px] font-black text-slate-600 mb-1 uppercase tracking-wider">Batsman 2 (Non-Strike)</label>
+                  <select id="scorer-select-non-striker" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2"></select>
                 </div>
                 <div>
-                  <label class="block text-[10px] font-bold text-slate-400 mb-1 uppercase tracking-wider">Active Bowler ⚾</label>
-                  <select id="scorer-select-bowler" class="w-full bg-slate-900 border border-slate-800 text-white text-xs rounded-xl p-2"></select>
+                  <label class="block text-[10px] font-black text-slate-600 mb-1 uppercase tracking-wider">Active Bowler ⚾</label>
+                  <select id="scorer-select-bowler" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2"></select>
                 </div>
               </div>
 
               <!-- Ball Scoring Inputs -->
-              <div class="bg-slate-950 p-4 rounded-2xl border border-slate-800 space-y-4">
-                <div class="font-bold text-xs text-slate-400 uppercase tracking-wider">Scoring Actions</div>
+              <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-3">
+                <div class="font-black text-xs text-slate-700 uppercase tracking-wider">Scoring Actions</div>
                 
                 <!-- Runs & Wicket Buttons Grid -->
                 <div class="grid grid-cols-3 sm:grid-cols-7 gap-2">
-                  <button data-runs="0" class="scorer-ball-act-btn py-3 bg-slate-850 hover:bg-slate-800 font-extrabold text-sm rounded-xl">0 Runs</button>
-                  <button data-runs="1" class="scorer-ball-act-btn py-3 bg-slate-850 hover:bg-slate-800 font-extrabold text-sm rounded-xl">1 Run</button>
-                  <button data-runs="2" class="scorer-ball-act-btn py-3 bg-slate-850 hover:bg-slate-800 font-extrabold text-sm rounded-xl">2 Runs</button>
-                  <button data-runs="3" class="scorer-ball-act-btn py-3 bg-slate-850 hover:bg-slate-800 font-extrabold text-sm rounded-xl">3 Runs</button>
-                  <button data-runs="4" class="scorer-ball-act-btn py-3 bg-blue-900 hover:bg-blue-800 font-black text-sm rounded-xl border border-blue-500">4 (FOUR)</button>
-                  <button data-runs="6" class="scorer-ball-act-btn py-3 bg-amber-600 hover:bg-amber-500 text-slate-950 font-black text-sm rounded-xl border border-amber-300">6 (SIX)</button>
-                  <button id="scorer-wicket-btn" class="py-3 bg-red-950 hover:bg-red-900 text-red-300 font-black text-sm rounded-xl border border-red-800">WICKET</button>
+                  <button data-runs="0" class="scorer-ball-act-btn py-2.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 font-black text-sm rounded-xl shadow-2xs">0 Runs</button>
+                  <button data-runs="1" class="scorer-ball-act-btn py-2.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 font-black text-sm rounded-xl shadow-2xs">1 Run</button>
+                  <button data-runs="2" class="scorer-ball-act-btn py-2.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 font-black text-sm rounded-xl shadow-2xs">2 Runs</button>
+                  <button data-runs="3" class="scorer-ball-act-btn py-2.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 font-black text-sm rounded-xl shadow-2xs">3 Runs</button>
+                  <button data-runs="4" class="scorer-ball-act-btn py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-black text-sm rounded-xl shadow-2xs">4 (FOUR)</button>
+                  <button data-runs="6" class="scorer-ball-act-btn py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm rounded-xl shadow-2xs">6 (SIX)</button>
+                  <button id="scorer-wicket-btn" class="py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-black text-sm rounded-xl shadow-2xs">WICKET</button>
                 </div>
 
                 <!-- Extras & Dismissal details -->
-                <div class="flex flex-wrap gap-4 text-xs font-bold pt-2 border-t border-slate-900">
+                <div class="flex flex-wrap gap-4 text-xs font-bold pt-2 border-t border-slate-200 text-slate-700">
                   <div class="flex items-center gap-1.5 cursor-pointer">
                     <input type="checkbox" id="scorer-extra-wide" class="w-4 h-4 accent-amber-500" />
                     <label for="scorer-extra-wide">Wide Ball (WD)</label>
@@ -717,21 +716,21 @@ export function renderAdminDashboard(containerEl) {
                 </div>
 
                 <!-- Current Over Logs -->
-                <div class="flex items-center justify-between pt-2 border-t border-slate-900 text-xs">
-                  <span class="text-slate-400 font-bold">This Over:</span>
+                <div class="flex items-center justify-between pt-2 border-t border-slate-200 text-xs">
+                  <span class="text-slate-500 font-bold">This Over:</span>
                   <div id="scorer-this-over-balls" class="flex gap-1.5"></div>
                 </div>
 
                 <!-- Submit and Innings controls -->
-                <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-900">
-                  <button id="scorer-swap-strike-btn" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl">
+                <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-200">
+                  <button id="scorer-swap-strike-btn" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl border border-slate-300">
                     🔄 Swap Strike manually
                   </button>
                   <div class="flex items-center gap-2">
-                    <button id="scorer-end-innings-btn" class="px-4 py-2 bg-purple-950 text-purple-300 font-black text-xs rounded-xl border border-purple-800">
+                    <button id="scorer-end-innings-btn" class="px-3.5 py-2 bg-purple-100 hover:bg-purple-200 text-purple-900 font-black text-xs rounded-xl border border-purple-300">
                       🌓 Close Innings
                     </button>
-                    <button id="scorer-finish-match-btn" class="px-4 py-2 bg-red-950 text-red-300 font-black text-xs rounded-xl border border-red-800">
+                    <button id="scorer-finish-match-btn" class="px-3.5 py-2 bg-rose-100 hover:bg-rose-200 text-rose-900 font-black text-xs rounded-xl border border-rose-300">
                       🏆 Finish Match & Set Winner
                     </button>
                   </div>
@@ -742,41 +741,41 @@ export function renderAdminDashboard(containerEl) {
         </div>
 
         <!-- 6b. JSL Registration Link & Public Access Controller Tab -->
-        <div id="tab-reg-settings-view" class="${activeAdminTab === 'reg-settings' ? '' : 'hidden'} space-y-6 animate-fade-in">
-          <div class="p-4 sm:p-6 bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl space-y-6">
-            <div class="flex items-center justify-between pb-4 border-b border-slate-800 flex-wrap gap-3">
+        <div id="tab-reg-settings-view" class="${activeAdminTab === 'reg-settings' ? '' : 'hidden'} space-y-4 animate-fade-in">
+          <div class="p-4 sm:p-5 bg-white border-2 border-slate-200 rounded-3xl shadow-sm space-y-4">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100 flex-wrap gap-3">
               <div class="flex items-center gap-3">
-                <span class="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl border border-amber-500/40">
-                  <i data-lucide="power" class="w-6 h-6"></i>
+                <span class="p-2 bg-emerald-50 text-emerald-700 rounded-xl border border-emerald-200">
+                  <i data-lucide="power" class="w-5 h-5"></i>
                 </span>
                 <div>
-                  <h3 class="text-base sm:text-lg font-black text-white">JSL Registration Link Controller</h3>
-                  <p class="text-xs text-slate-400">Activate or deactivate the public JSL 2026 registration link with 1-click cloud sync.</p>
+                  <h3 class="text-base font-black text-slate-900">JSL Registration Link Controller</h3>
+                  <p class="text-xs text-slate-500">Activate or deactivate the public JSL 2026 registration link with 1-click cloud sync.</p>
                 </div>
               </div>
 
               <!-- Real-time Status Badge -->
-              <div id="reg-status-badge-container" class="flex items-center gap-2 px-3.5 py-2 rounded-xl border ${isRegOpen ? 'border-emerald-500/50 bg-emerald-950/40 text-emerald-300' : 'border-red-500/50 bg-red-950/40 text-red-400'}">
-                <span class="w-3 h-3 rounded-full ${isRegOpen ? 'bg-emerald-400 animate-pulse' : 'bg-red-500'}"></span>
+              <div id="reg-status-badge-container" class="flex items-center gap-2 px-3 py-1.5 rounded-xl border ${isRegOpen ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-red-300 bg-red-50 text-red-800'}">
+                <span class="w-2.5 h-2.5 rounded-full ${isRegOpen ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}"></span>
                 <span class="text-xs font-black uppercase tracking-wider">${isRegOpen ? '🟢 Registration Active (Open)' : '🔴 Registration Deactivated (Closed)'}</span>
               </div>
             </div>
 
             <!-- MASTER ON / OFF CARD -->
-            <div class="p-5 rounded-2xl border ${isRegOpen ? 'border-emerald-500/30 bg-emerald-950/10' : 'border-red-500/30 bg-red-950/10'} space-y-4">
+            <div class="p-4 sm:p-5 rounded-2xl border-2 ${isRegOpen ? 'border-emerald-300 bg-emerald-50/40' : 'border-red-300 bg-red-50/40'} space-y-3.5">
               <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div class="space-y-1">
                   <div class="flex items-center gap-2">
-                    <span class="text-sm sm:text-base font-black text-white">Master Registration Switch</span>
-                    <span class="px-2 py-0.5 rounded text-[10px] font-black uppercase ${isRegOpen ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40' : 'bg-red-500/20 text-red-300 border border-red-500/40'}">
+                    <span class="text-sm sm:text-base font-black text-slate-900">Master Registration Switch</span>
+                    <span class="px-2 py-0.5 rounded text-[10px] font-black uppercase ${isRegOpen ? 'bg-emerald-600 text-white shadow-2xs' : 'bg-red-600 text-white shadow-2xs'}">
                       ${isRegOpen ? 'ENABLED' : 'DEACTIVATED'}
                     </span>
                   </div>
-                  <p class="text-xs text-slate-400">When deactivated, visitors cannot register new players or teams. The "Register Now" button will display as "Registration Closed".</p>
+                  <p class="text-xs text-slate-500">When deactivated, visitors cannot register new players or teams. The "Register Now" button will display as "Registration Closed".</p>
                 </div>
 
                 <div class="flex items-center gap-3">
-                  <button id="toggle-master-reg-switch-btn" class="px-5 py-2.5 rounded-xl font-black text-xs sm:text-sm shadow-xl flex items-center gap-2 transition-all cursor-pointer ${isRegOpen ? 'bg-red-600 hover:bg-red-500 text-white shadow-red-900/30' : 'bg-emerald-600 hover:bg-emerald-500 text-white shadow-emerald-900/30'}">
+                  <button id="toggle-master-reg-switch-btn" class="px-5 py-2.5 rounded-xl font-black text-xs sm:text-sm shadow-sm flex items-center gap-2 transition-all cursor-pointer ${isRegOpen ? 'bg-red-600 hover:bg-red-500 text-white' : 'bg-emerald-600 hover:bg-emerald-500 text-white'}">
                     <i data-lucide="${isRegOpen ? 'power-off' : 'power'}" class="w-4 h-4"></i>
                     ${isRegOpen ? 'Deactivate Registration Link' : 'Activate Registration Link'}
                   </button>
@@ -784,61 +783,61 @@ export function renderAdminDashboard(containerEl) {
               </div>
 
               <!-- DETAILED GRANULAR CONTROLS -->
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t border-slate-800/80">
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-3 border-t border-slate-200">
                 <!-- Player Registration Sub-Toggle -->
-                <div class="p-4 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center justify-between">
+                <div class="p-3.5 rounded-xl bg-white border border-slate-200 flex items-center justify-between shadow-2xs">
                   <div>
-                    <div class="text-xs font-black text-slate-200">Player Registration Form</div>
-                    <div class="text-[10px] text-slate-400">Public Player Entry Form (₹ 200/₹ 300)</div>
+                    <div class="text-xs font-black text-slate-900">Player Registration Form</div>
+                    <div class="text-[10px] text-slate-500">Public Player Entry Form (₹ 200/₹ 300)</div>
                   </div>
                   <label class="relative inline-flex items-center cursor-pointer">
                     <input type="checkbox" id="reg-player-sub-toggle" class="sr-only peer" ${regSettings.isPlayerRegOpen !== false ? 'checked' : ''} ${!isRegOpen ? 'disabled' : ''}>
-                    <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500 peer-disabled:opacity-50"></div>
+                    <div class="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500 peer-disabled:opacity-50"></div>
                   </label>
                 </div>
 
                 <!-- Team Registration Sub-Toggle -->
-                <div class="p-4 rounded-xl bg-slate-950/60 border border-slate-800 flex items-center justify-between">
+                <div class="p-3.5 rounded-xl bg-white border border-slate-200 flex items-center justify-between shadow-2xs">
                   <div>
-                    <div class="text-xs font-black text-slate-200">Franchise Team Registration</div>
-                    <div class="text-[10px] text-slate-400">Public Team Entry Form (15K Entry)</div>
+                    <div class="text-xs font-black text-slate-900">Franchise Team Registration</div>
+                    <div class="text-[10px] text-slate-500">Public Team Entry Form (15K Entry)</div>
                   </div>
                   <label class="relative inline-flex items-center cursor-pointer">
                     <input type="checkbox" id="reg-team-sub-toggle" class="sr-only peer" ${regSettings.isTeamRegOpen !== false ? 'checked' : ''} ${!isRegOpen ? 'disabled' : ''}>
-                    <div class="w-11 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500 peer-disabled:opacity-50"></div>
+                    <div class="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500 peer-disabled:opacity-50"></div>
                   </label>
                 </div>
               </div>
             </div>
 
             <!-- CLOSURE NOTICE MESSAGE EDITOR -->
-            <div class="space-y-2 bg-slate-950/50 p-4 sm:p-5 rounded-2xl border border-slate-800">
-              <label class="block text-xs font-black text-slate-300 uppercase tracking-wide">
+            <div class="space-y-2 bg-slate-50 p-4 sm:p-5 rounded-2xl border border-slate-200">
+              <label class="block text-xs font-black text-slate-800 uppercase tracking-wide">
                 Custom Deactivation / Closed Banner Message
               </label>
-              <p class="text-[11px] text-slate-400">This message is shown to users when they click the registration button while deactivated.</p>
-              <textarea id="reg-closed-message-input" rows="2" class="w-full bg-slate-900 border border-slate-700 rounded-xl p-3 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-amber-400" placeholder="JSL 2026 Registration is currently closed by the Master Admin.">${regSettings.closedReason || 'JSL 2026 Registration is currently closed by the Master Admin.'}</textarea>
+              <p class="text-[11px] text-slate-500">This message is shown to users when they click the registration button while deactivated.</p>
+              <textarea id="reg-closed-message-input" rows="2" class="w-full bg-white border border-slate-300 rounded-xl p-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500" placeholder="JSL 2026 Registration is currently closed by the Master Admin.">${regSettings.closedReason || 'JSL 2026 Registration is currently closed by the Master Admin.'}</textarea>
               <div class="flex justify-end pt-1">
-                <button id="save-reg-message-btn" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl border border-slate-700 flex items-center gap-1.5 transition-all cursor-pointer">
+                <button id="save-reg-message-btn" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer">
                   <i data-lucide="save" class="w-3.5 h-3.5 text-amber-400"></i> Update Closure Message
                 </button>
               </div>
             </div>
 
             <!-- LIVE PREVIEW WIDGET -->
-            <div class="p-4 sm:p-5 bg-slate-950/70 rounded-2xl border border-slate-800 space-y-3">
+            <div class="p-4 sm:p-5 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
               <div class="flex items-center justify-between">
-                <div class="text-xs font-black text-slate-300 uppercase tracking-wide">Public UI Button Preview</div>
-                <span class="text-[10px] text-slate-400">What visitors currently see on the website</span>
+                <div class="text-xs font-black text-slate-800 uppercase tracking-wide">Public UI Button Preview</div>
+                <span class="text-[10px] text-slate-500">What visitors currently see on the website</span>
               </div>
-              <div class="p-6 bg-slate-900/90 rounded-xl border border-slate-800 flex items-center justify-center">
+              <div class="p-6 bg-white rounded-xl border border-slate-200 flex items-center justify-center">
                 ${isRegOpen ? `
-                  <button class="btn-blink-always px-8 py-3 bg-gradient-to-r from-red-600 to-rose-700 text-white font-black text-sm rounded-xl shadow-lg flex items-center justify-center gap-2 border border-red-400 pointer-events-none">
+                  <button class="btn-blink-always px-8 py-3 bg-gradient-to-r from-red-600 to-rose-700 text-white font-black text-sm rounded-xl shadow-md flex items-center justify-center gap-2 border border-red-400 pointer-events-none">
                     <i data-lucide="edit-3" class="w-4 h-4 text-amber-300"></i> Register Now (ACTIVE)
                   </button>
                 ` : `
-                  <button class="px-8 py-3 bg-gradient-to-r from-slate-800 to-slate-900 text-slate-300 font-black text-sm rounded-xl shadow-lg flex items-center justify-center gap-2 border border-red-500/50 pointer-events-none">
-                    <i data-lucide="lock" class="w-4 h-4 text-red-400"></i> Registration Closed (DEACTIVATED)
+                  <button class="px-8 py-3 bg-slate-200 text-slate-600 font-black text-sm rounded-xl shadow-xs flex items-center justify-center gap-2 border border-slate-300 pointer-events-none">
+                    <i data-lucide="lock" class="w-4 h-4 text-slate-500"></i> Registration Closed (DEACTIVATED)
                   </button>
                 `}
               </div>
@@ -848,21 +847,21 @@ export function renderAdminDashboard(containerEl) {
         </div>
 
         <!-- 7. Partner Shop Advertisement Tab -->
-        <div id="tab-shop-ads-view" class="${activeAdminTab === 'shop-ads' ? '' : 'hidden'} space-y-6 animate-fade-in">
-          <div class="p-4 sm:p-6 bg-slate-900/90 border border-slate-800 rounded-2xl shadow-xl space-y-6">
-            <div class="flex items-center gap-3 pb-4 border-b border-slate-800">
-              <span class="p-2.5 bg-amber-500/20 text-amber-400 rounded-xl border border-amber-500/40">
-                <i data-lucide="megaphone" class="w-6 h-6"></i>
+        <div id="tab-shop-ads-view" class="${activeAdminTab === 'shop-ads' ? '' : 'hidden'} space-y-4 animate-fade-in">
+          <div class="p-4 sm:p-5 bg-white border-2 border-slate-200 rounded-3xl shadow-sm space-y-4">
+            <div class="flex items-center gap-3 pb-3 border-b border-slate-100">
+              <span class="p-2 bg-amber-100 text-amber-800 rounded-xl border border-amber-300">
+                <i data-lucide="megaphone" class="w-5 h-5"></i>
               </span>
               <div>
-                <h3 class="text-base sm:text-lg font-black text-white">Site-Wide Popup & Ad Controller</h3>
-                <p class="text-xs text-slate-400">Configure whether advertisement, welcome, or WhatsApp join popups show up on the website.</p>
+                <h3 class="text-base font-black text-slate-900">Site-Wide Popup & Ad Controller</h3>
+                <p class="text-xs text-slate-500">Configure whether advertisement, welcome, or WhatsApp join popups show up on the website.</p>
               </div>
             </div>
 
-            <div id="admin-ads-panel-container" class="space-y-4">
-              <div class="text-center py-6 text-slate-400 text-xs">
-                <i data-lucide="loader" class="w-6 h-6 animate-spin mx-auto mb-2 text-amber-500"></i>
+            <div id="admin-ads-panel-container" class="space-y-3">
+              <div class="text-center py-6 text-slate-500 text-xs">
+                <i data-lucide="loader" class="w-6 h-6 animate-spin mx-auto mb-2 text-amber-600"></i>
                 Loading Advertisement Settings...
               </div>
             </div>
@@ -881,11 +880,11 @@ export function renderAdminDashboard(containerEl) {
     btn.addEventListener('click', (e) => {
       activeAdminTab = e.currentTarget.getAttribute('data-tab');
       tabBtns.forEach(b => {
-        b.classList.remove('active', 'border-amber-400', 'text-amber-400', 'bg-slate-900/90');
-        b.classList.add('border-transparent', 'text-slate-400');
+        b.classList.remove('active', 'bg-emerald-600', 'text-white', 'shadow-xs');
+        b.classList.add('text-slate-600', 'bg-white', 'hover:bg-slate-50', 'border', 'border-slate-200');
       });
-      e.currentTarget.classList.add('active', 'border-amber-400', 'text-amber-400', 'bg-slate-900/90');
-      e.currentTarget.classList.remove('border-transparent', 'text-slate-400');
+      e.currentTarget.classList.add('active', 'bg-emerald-600', 'text-white', 'shadow-xs');
+      e.currentTarget.classList.remove('text-slate-600', 'bg-white', 'hover:bg-slate-50', 'border', 'border-slate-200');
 
       document.getElementById('tab-payments-view').classList.add('hidden');
       document.getElementById('tab-all-players-view').classList.add('hidden');
@@ -1281,7 +1280,7 @@ export function renderAdminDashboard(containerEl) {
 function renderAdminPlayersRows(playersList) {
   const isMaster = store.isMasterAdmin();
   if (playersList.length === 0) {
-    return `<tr><td colspan="7" class="py-8 text-center text-xs text-slate-500">No players found</td></tr>`;
+    return `<tr><td colspan="7" class="py-8 text-center text-xs text-slate-500 font-medium">No players found</td></tr>`;
   }
 
   return playersList.map(p => {
@@ -1289,73 +1288,74 @@ function renderAdminPlayersRows(playersList) {
     const isRejected = (p.registrationStatus || p.paymentStatus) === 'REJECTED';
 
     return `
-      <tr class="hover:bg-slate-950/60">
+      <tr class="hover:bg-slate-50 transition-colors">
         <td class="py-3 px-3">
-          <span class="px-1.5 py-0.5 bg-slate-950 text-amber-400 font-mono text-[9px] font-black rounded border border-amber-500/40">
+          <span class="px-1.5 py-0.5 bg-slate-100 text-slate-800 font-mono text-[9px] font-black rounded border border-slate-300">
             ${p.registrationId || p.regNo || 'JSL2026-0001'} (#${p.displayRegistrationNumber || p.serialNo})
           </span>
         </td>
-        <td class="py-3 px-3 font-bold text-white text-xs">
+        <td class="py-3 px-3 font-bold text-slate-900 text-xs">
           <div class="flex items-center gap-2">
-            <img src="${getOptimizedImageUrl(p.photoUrl || p.player_photo_url, 80, 80)}" loading="lazy" decoding="async" class="w-8 h-8 rounded-lg object-cover border border-slate-700" onerror="this.src='https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=300'"/>
+            <img src="${getOptimizedImageUrl(p.photoUrl || p.player_photo_url, 80, 80)}" loading="lazy" decoding="async" class="w-8 h-8 rounded-lg object-cover border border-slate-200 shadow-2xs" onerror="this.src='assets/card_jsl_user.png'"/>
             <div>
-              <div>${p.name}</div>
-              <div class="text-[9px] text-slate-400 font-normal">Age: ${p.age || 24} Yrs</div>
+              <div class="font-bold text-slate-900">${p.name}</div>
+              <div class="text-[9px] text-slate-500 font-normal">Age: ${p.age || 24} Yrs</div>
             </div>
           </div>
         </td>
         <td class="py-3 px-3 text-xs">
-          <div class="text-slate-300 font-medium">Father: ${p.fatherName || 'N/A'}</div>
-          <div class="text-[9px] text-slate-400">📍 ${p.village || ''}, ${p.district || 'Paschim Medinipur'}</div>
+          <div class="text-slate-800 font-semibold">Father: ${p.fatherName || 'N/A'}</div>
+          <div class="text-[9px] text-slate-500">📍 ${p.village || ''}, ${p.district || 'Paschim Medinipur'}</div>
         </td>
         <td class="py-3 px-3 text-xs">
-          <div class="font-bold text-sky-400 text-[10px]">${p.category || p.playingType || 'All Rounder'}</div>
-          <div class="text-[9px] text-slate-400">${p.battingStyle || 'Right Hand Bat'}</div>
+          <div class="font-bold text-indigo-700 text-[10px]">${p.category || p.playingType || 'All Rounder'}</div>
+          <div class="text-[9px] text-slate-500">${p.battingStyle || 'Right Hand Bat'}</div>
         </td>
-        <td class="py-3 px-3 font-mono text-xs text-amber-300">
+        <td class="py-3 px-3 font-mono text-xs text-slate-700 font-bold">
           📞 ${p.phone || 'N/A'}
         </td>
         <td class="py-3 px-3 font-mono font-bold text-xs">
-          <span class="px-2 py-0.5 text-[9px] font-black rounded-full border ${isApproved ? 'bg-emerald-950 text-emerald-300 border-emerald-800' : isRejected ? 'bg-red-950 text-red-300 border-red-800' : 'bg-amber-950 text-amber-300 border-amber-800'}">
+          <span class="px-2 py-0.5 text-[9px] font-black rounded-full border ${isApproved ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : isRejected ? 'bg-rose-100 text-rose-800 border-rose-300' : 'bg-amber-100 text-amber-800 border-amber-300'}">
             ${isApproved ? '🟢 APPROVED' : isRejected ? '⚪ REJECTED' : '🔴 PENDING'}
           </span>
         </td>
         <td class="py-3 px-3 text-right">
+          <div class="flex items-center justify-end gap-1">
             ${isApproved ? `
-              <button data-whatsapp-notify-id="${p.id}" title="Send Official Approval on WhatsApp" class="whatsapp-notify-btn px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[9px] rounded-lg shadow flex items-center gap-1 cursor-pointer">
+              <button data-whatsapp-notify-id="${p.id}" title="Send Official Approval on WhatsApp" class="whatsapp-notify-btn px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[9px] rounded-lg shadow-2xs flex items-center gap-1 cursor-pointer">
                 <span>💬 WhatsApp</span>
               </button>
             ` : ''}
             ${p.aadharPhotoUrl || p.paymentReceiptUrl ? `
-              <button data-purge-docs-id="${p.id}" title="Purge Aadhaar & Receipt images to save storage memory" class="purge-player-docs-btn px-2 py-1 bg-amber-950 hover:bg-amber-900 text-amber-300 font-bold text-[9px] rounded-lg border border-amber-800 shadow">
+              <button data-purge-docs-id="${p.id}" title="Purge Aadhaar & Receipt images to save storage memory" class="purge-player-docs-btn px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-[9px] rounded-lg border border-amber-300 shadow-2xs">
                 🧹 Purge Docs
               </button>
             ` : p.docsPurged ? `
-              <span class="text-[9px] text-emerald-400 font-bold">✅ Docs Purged</span>
+              <span class="text-[9px] text-emerald-700 font-bold">✅ Docs Purged</span>
             ` : ''}
             ${isRejected ? `
-              <button data-approve-id="${p.id}" title="Approve Player" class="approve-player-btn px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[9px] rounded-lg shadow">
+              <button data-approve-id="${p.id}" title="Approve Player" class="approve-player-btn px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[9px] rounded-lg shadow-2xs">
                 Approve
               </button>
-              <button data-restore-id="${p.id}" title="Reset to Pending" class="restore-player-btn px-2 py-1 bg-sky-700 hover:bg-sky-600 text-white font-black text-[9px] rounded-lg shadow">
+              <button data-restore-id="${p.id}" title="Reset to Pending" class="restore-player-btn px-2 py-1 bg-sky-600 hover:bg-sky-500 text-white font-black text-[9px] rounded-lg shadow-2xs">
                 Reset
               </button>
             ` : !isApproved ? `
-              <button data-approve-id="${p.id}" title="Approve Player" class="approve-player-btn px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[9px] rounded-lg shadow">
+              <button data-approve-id="${p.id}" title="Approve Player" class="approve-player-btn px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[9px] rounded-lg shadow-2xs">
                 Approve
               </button>
-              <button data-reject-id="${p.id}" title="Reject Player" class="reject-player-btn px-2 py-1 bg-red-950 hover:bg-red-900 text-red-300 font-black text-[9px] rounded-lg border border-red-800">
+              <button data-reject-id="${p.id}" title="Reject Player" class="reject-player-btn px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-black text-[9px] rounded-lg border border-rose-300 shadow-2xs">
                 Reject
               </button>
             ` : `
-              <button data-restore-id="${p.id}" title="Reset to Pending" class="restore-player-btn px-1.5 py-1 bg-amber-950 hover:bg-amber-900 text-amber-300 font-extrabold text-[9px] rounded-lg border border-amber-800">
+              <button data-restore-id="${p.id}" title="Reset to Pending" class="restore-player-btn px-1.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 font-extrabold text-[9px] rounded-lg border border-amber-300 shadow-2xs">
                 Reset
               </button>
             `}
-            <button data-edit-id="${p.id}" class="edit-player-btn p-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg border border-slate-700" style="${isMaster ? '' : 'display:none'}">
+            <button data-edit-id="${p.id}" class="edit-player-btn p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg border border-slate-300" style="${isMaster ? '' : 'display:none'}">
               <i data-lucide="edit-2" class="w-3.5 h-3.5 pointer-events-none"></i>
             </button>
-            <button data-delete-id="${p.id}" class="delete-player-btn p-1.5 bg-red-950 hover:bg-red-900 text-red-400 rounded-lg border border-red-800" style="${isMaster ? '' : 'display:none'}">
+            <button data-delete-id="${p.id}" class="delete-player-btn p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg border border-rose-300" style="${isMaster ? '' : 'display:none'}">
               <i data-lucide="trash-2" class="w-3.5 h-3.5 pointer-events-none"></i>
             </button>
           </div>
@@ -1536,39 +1536,39 @@ function bindAdminTableActions(containerEl) {
 // --- ADMIN & TOURNAMENT OWNER LOGIN SCREEN ---
 function renderAdminLoginScreen(containerEl) {
   containerEl.innerHTML = `
-    <div class="max-w-md mx-auto my-8 p-6 bg-slate-900/95 border-2 border-amber-500/50 rounded-2xl shadow-2xl space-y-4 animate-fade-in text-center relative">
+    <div class="max-w-md mx-auto my-8 p-6 bg-white border-2 border-emerald-500/30 rounded-3xl shadow-lg space-y-4 animate-fade-in text-center relative">
       
       <!-- TOP RIGHT 'X' CROSS BUTTON FOR BACK / CLOSE -->
-      <button id="close-admin-login-btn" class="absolute top-3.5 right-3.5 text-slate-400 hover:text-white p-1 rounded-xl bg-slate-800/80 border border-slate-700 transition-colors shadow">
-        <i data-lucide="x" class="w-5 h-5"></i>
+      <button id="close-admin-login-btn" class="absolute top-3.5 right-3.5 text-slate-500 hover:text-slate-900 p-1.5 rounded-xl bg-slate-100 border border-slate-300 transition-colors shadow-2xs">
+        <i data-lucide="x" class="w-4 h-4"></i>
       </button>
 
-      <div class="w-14 h-14 bg-gradient-to-br from-amber-400 to-amber-600 rounded-2xl flex items-center justify-center mx-auto text-slate-950 font-black text-2xl border border-amber-300 shadow-xl">
+      <div class="w-14 h-14 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl flex items-center justify-center mx-auto text-white font-black text-2xl shadow-xs">
         🔐
       </div>
 
       <div>
-        <h2 class="text-xl font-black text-white">Tournament & Admin Portal</h2>
-        <p class="text-xs text-slate-400 mt-0.5">Super Admin Email OR Tournament Owner Mobile Number</p>
+        <h2 class="text-xl font-black text-slate-900">Tournament & Admin Portal</h2>
+        <p class="text-xs text-slate-500 mt-0.5">Super Admin Email OR Tournament Owner Mobile Number</p>
       </div>
 
       <form id="admin-login-form" class="space-y-3 text-left">
         <div>
-          <label class="block text-[10px] font-bold text-slate-300 uppercase mb-1">Email ID OR 10-Digit Mobile Number *</label>
-          <input type="text" id="admin-identifier" required placeholder="e.g. bakolaypan@gmail.com OR 9876543210" class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-xl p-3 focus:outline-none focus:border-amber-500 font-mono" />
+          <label class="block text-[10px] font-black text-slate-700 uppercase mb-1">Email ID OR 10-Digit Mobile Number *</label>
+          <input type="text" id="admin-identifier" required placeholder="e.g. bakolaypan@gmail.com OR 9876543210" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-emerald-500 font-mono" />
         </div>
 
         <div>
-          <label class="block text-[10px] font-bold text-slate-300 uppercase mb-1">Password *</label>
-          <input type="password" id="admin-password" required placeholder="Enter Password" class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-xl p-3 focus:outline-none focus:border-amber-500 font-mono" />
+          <label class="block text-[10px] font-black text-slate-700 uppercase mb-1">Password *</label>
+          <input type="password" id="admin-password" required placeholder="Enter Password" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-emerald-500 font-mono" />
         </div>
 
-        <button type="submit" class="w-full py-3 bg-gradient-to-r from-amber-500 via-amber-600 to-red-600 hover:from-amber-400 hover:to-red-500 text-slate-950 font-black text-xs rounded-xl shadow-xl transition-all border border-amber-300 cursor-pointer">
+        <button type="submit" class="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-xs rounded-xl shadow-xs transition-all cursor-pointer">
           Unlock Tournament Control Dashboard
         </button>
       </form>
 
-      <div class="text-[11px] text-slate-400 pt-2 border-t border-slate-800/80">
+      <div class="text-[11px] text-slate-500 pt-2 border-t border-slate-100">
         Default password for registered players is their 10-digit mobile number.
       </div>
     </div>
@@ -1623,128 +1623,239 @@ function renderAdminLoginScreen(containerEl) {
   });
 }
 
-// --- ADMIN EDIT PLAYER MODAL ---
+// --- ADMIN EDIT PLAYER MODAL (COMPLETE FIELDS & STYLISH WHITE BACKGROUND) ---
 function openAdminEditPlayerModal(player, containerEl) {
   if (!player) return;
 
   document.getElementById('admin-edit-player-modal')?.remove();
 
-  const modalHtml = `
-    <div id="admin-edit-player-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3 overflow-y-auto">
-      <div class="bg-slate-900/95 backdrop-blur-2xl max-w-md w-full p-4 relative space-y-3 animate-fade-in rounded-2xl shadow-2xl border border-slate-800 modal-content-container text-left max-h-[90vh] overflow-y-auto">
-        <button id="close-edit-player-modal" class="absolute top-3 right-3 text-slate-400 hover:text-white p-1">
-          <i data-lucide="x" class="w-4 h-4"></i>
-        </button>
+  const teams = store.getTeams() || [];
+  const currentCategory = player.category || player.playingType || player.role || 'All-rounder';
+  const currentBatting = player.battingStyle || 'Right Hand Bat';
+  const currentBowling = player.bowlingStyle || 'Right Hand Fast';
+  const currentStatus = (player.registrationStatus || player.paymentStatus || 'PENDING').toUpperCase();
 
-        <div>
-          <span class="px-2 py-0.5 bg-amber-950 text-amber-400 text-[9px] font-black rounded border border-amber-800 uppercase">MASTER ADMIN EDIT</span>
-          <h2 class="text-base font-black text-white mt-0.5">Edit Player Registration (${player.registrationId || player.regNo})</h2>
+  const modalHtml = `
+    <div id="admin-edit-player-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-2.5 sm:p-4 bg-slate-950/70 backdrop-blur-sm overflow-y-auto animate-fade-in">
+      <div class="relative w-full max-w-xl bg-white text-slate-900 rounded-3xl shadow-2xl border-2 border-emerald-500/30 p-4 sm:p-6 max-h-[92vh] overflow-y-auto modal-content-container space-y-4">
+        
+        <!-- Header -->
+        <div class="flex justify-between items-center pb-3 border-b border-slate-100">
+          <div class="flex items-center gap-2.5">
+            <span class="w-10 h-10 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center font-black text-base shadow-xs">
+              🏏
+            </span>
+            <div>
+              <div class="flex items-center gap-1.5">
+                <span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[9px] font-black rounded-md border border-emerald-300 uppercase tracking-wider">MASTER ADMIN EDIT</span>
+                <span class="px-2 py-0.5 bg-slate-100 text-slate-700 font-mono text-[9px] font-black rounded-md border border-slate-300">#${player.displayRegistrationNumber || player.serialNo || 'N/A'}</span>
+              </div>
+              <h2 class="text-base sm:text-lg font-black text-slate-900 mt-0.5">Edit Player: ${player.name}</h2>
+            </div>
+          </div>
+          <button id="close-edit-player-modal" class="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer" title="Close">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
         </div>
 
-        <!-- DOCUMENT VERIFICATION SCREENSHOTS (FULL HD ZOOMABLE) -->
-        <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800 space-y-1.5">
-          <div class="text-[9px] font-extrabold text-amber-400 uppercase">HD Document Verification & Image Links</div>
-          <div class="grid grid-cols-3 gap-1.5 text-center">
+        <!-- 1. HD DOCUMENT VERIFICATION PREVIEWS (ZOOMABLE) -->
+        <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-2">
+          <div class="flex items-center justify-between">
+            <span class="text-[10px] font-black text-slate-700 uppercase tracking-wider flex items-center gap-1">
+              <span>🔍</span> HD Document Verification Proofs
+            </span>
+            <span class="text-[9px] text-slate-500 font-bold">Click any photo to Zoom HD</span>
+          </div>
+          <div class="grid grid-cols-3 gap-2 text-center">
             
             <!-- 1. PLAYER PHOTO -->
             <div class="space-y-1">
-              <span class="text-[8px] font-extrabold text-slate-300 block uppercase">Player Photo</span>
-              <img src="${player.photoUrl || player.player_photo_url}" class="doc-zoomable-img w-full h-20 rounded-lg object-cover border border-amber-500/50 hover:border-amber-400 shadow cursor-pointer transition-all" title="Click to view full HD player photo" data-zoom-title="${player.name} - Player Photo" onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Crect width=\'100\' height=\'100\' fill=\'%23059669\'/%3E%3Ctext x=\'50\' y=\'62\' font-size=\'45\' text-anchor=\'middle\' fill=\'white\'%3E🏏%3C/text%3E%3C/svg%3E';" />
-              <span class="text-[8px] text-amber-400 block font-bold cursor-pointer underline">🔍 Zoom Photo</span>
+              <span class="text-[9px] font-bold text-slate-600 block uppercase">Player Photo</span>
+              <img src="${player.photoUrl || player.player_photo_url}" class="doc-zoomable-img w-full h-20 rounded-xl object-cover border-2 border-emerald-300 hover:border-emerald-500 shadow-2xs cursor-pointer transition-all bg-white" title="Click to view full HD player photo" data-zoom-title="${player.name} - Player Photo" onerror="this.onerror=null; this.src='assets/card_jsl_user.png';" />
+              <span class="text-[9px] text-emerald-700 block font-bold cursor-pointer hover:underline">🔍 Zoom Photo</span>
             </div>
 
             <!-- 2. AADHAAR CARD -->
             <div class="space-y-1">
-              <span class="text-[8px] font-extrabold text-slate-300 block uppercase">Aadhaar Proof</span>
+              <span class="text-[9px] font-bold text-slate-600 block uppercase">Aadhaar Proof</span>
               ${player.aadharPhotoUrl || player.aadharBackUrl ? `
-                <img src="${player.aadharPhotoUrl || player.aadharBackUrl}" class="doc-zoomable-img w-full h-20 rounded-lg object-cover border border-sky-500/50 hover:border-sky-400 shadow cursor-pointer transition-all" title="Click to view full HD Aadhaar document" data-zoom-title="${player.name} - Aadhaar Document" onerror="this.src='assets/jsl_logo.jpg'" />
-                <span class="text-[8px] text-sky-400 block font-bold cursor-pointer underline">🔍 Zoom Aadhaar</span>
-              ` : `<span class="text-[8px] text-slate-500 block">N/A</span>`}
+                <img src="${player.aadharPhotoUrl || player.aadharBackUrl}" class="doc-zoomable-img w-full h-20 rounded-xl object-cover border-2 border-sky-300 hover:border-sky-500 shadow-2xs cursor-pointer transition-all bg-white" title="Click to view full HD Aadhaar document" data-zoom-title="${player.name} - Aadhaar Document" onerror="this.src='assets/jsl_logo.jpg'" />
+                <span class="text-[9px] text-sky-700 block font-bold cursor-pointer hover:underline">🔍 Zoom Aadhaar</span>
+              ` : `<div class="h-20 rounded-xl bg-slate-200 border border-slate-300 flex items-center justify-center text-[10px] text-slate-500 font-bold">No Aadhaar</div>`}
             </div>
 
             <!-- 3. PAYMENT RECEIPT -->
             <div class="space-y-1">
-              <span class="text-[8px] font-extrabold text-slate-300 block uppercase">Payment Receipt</span>
+              <span class="text-[9px] font-bold text-slate-600 block uppercase">Payment Receipt</span>
               ${player.paymentReceiptUrl || player.paymentProofUrl ? `
-                <img src="${player.paymentReceiptUrl || player.paymentProofUrl}" class="doc-zoomable-img w-full h-20 rounded-lg object-cover border border-emerald-500/50 hover:border-emerald-400 shadow cursor-pointer transition-all" title="Click to view full HD payment receipt" data-zoom-title="${player.name} - Payment Receipt" onerror="this.src='assets/jsl_logo.jpg'" />
-                <span class="text-[8px] text-emerald-400 block font-bold cursor-pointer underline">🔍 Zoom Receipt</span>
-              ` : `<span class="text-[8px] text-slate-500 block">N/A</span>`}
+                <img src="${player.paymentReceiptUrl || player.paymentProofUrl}" class="doc-zoomable-img w-full h-20 rounded-xl object-cover border-2 border-amber-300 hover:border-amber-500 shadow-2xs cursor-pointer transition-all bg-white" title="Click to view full HD payment receipt" data-zoom-title="${player.name} - Payment Receipt" onerror="this.src='assets/jsl_logo.jpg'" />
+                <span class="text-[9px] text-amber-700 block font-bold cursor-pointer hover:underline">🔍 Zoom Receipt</span>
+              ` : `<div class="h-20 rounded-xl bg-slate-200 border border-slate-300 flex items-center justify-center text-[10px] text-slate-500 font-bold">No Receipt</div>`}
             </div>
 
           </div>
         </div>
 
-        <form id="admin-edit-player-form" class="space-y-2.5">
-          <!-- MASTER ADMIN PLAYER PHOTO CHANGE & RE-CROP SECTION (SQUARE 1:1) -->
-          <div class="bg-slate-950 p-2.5 rounded-xl border border-slate-800 space-y-2">
-            <div class="flex items-center justify-between">
-              <label class="block text-[9px] font-black text-amber-400 uppercase">Admin Photo Control (Square 1:1)</label>
-              <span class="text-[8px] text-slate-400">Crop or replace photo</span>
+        <!-- 2. ADMIN PHOTO REPLACEMENT & CROP CONTROLS (SQUARE 1:1) -->
+        <div class="bg-emerald-50/50 p-3 rounded-2xl border border-emerald-200 space-y-2">
+          <div class="flex items-center justify-between">
+            <label class="block text-[10px] font-black text-emerald-900 uppercase">Admin Photo Control (Square 1:1)</label>
+            <span class="text-[9px] text-emerald-700 font-bold">Replace or Re-crop</span>
+          </div>
+
+          <div class="flex items-center gap-3">
+            <img id="admin-edit-photo-preview" src="${player.photoUrl || player.player_photo_url}" class="w-14 h-14 rounded-2xl object-cover border-2 border-emerald-500 shadow-xs bg-white shrink-0" onerror="this.onerror=null; this.src='assets/card_jsl_user.png';" />
+            
+            <div class="flex items-center gap-1.5 flex-1 flex-wrap">
+              <label class="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-800 font-bold text-[10px] rounded-xl border border-slate-300 cursor-pointer flex items-center gap-1 shadow-2xs transition-all">
+                <i data-lucide="image" class="w-3.5 h-3.5 text-emerald-600"></i> Gallery
+                <input type="file" id="admin-photo-gallery-input" accept="image/*" class="hidden" />
+              </label>
+              <label class="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-800 font-bold text-[10px] rounded-xl border border-slate-300 cursor-pointer flex items-center gap-1 shadow-2xs transition-all">
+                <i data-lucide="camera" class="w-3.5 h-3.5 text-amber-600"></i> Camera
+                <input type="file" id="admin-photo-camera-input" accept="image/*" capture="user" class="hidden" />
+              </label>
+              <button type="button" id="admin-crop-photo-btn" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[10px] rounded-xl border border-amber-400 flex items-center gap-1 shadow-2xs cursor-pointer transition-all">
+                <i data-lucide="crop" class="w-3.5 h-3.5"></i> Crop 1:1
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. COMPREHENSIVE FORM (ALL PLAYER FIELDS) -->
+        <form id="admin-edit-player-form" class="space-y-3.5 text-xs">
+
+          <!-- Section A: Personal & Contact Information -->
+          <div class="p-3.5 bg-slate-50/80 rounded-2xl border border-slate-200 space-y-2.5">
+            <span class="text-[10px] font-black text-slate-800 uppercase tracking-wider block flex items-center gap-1">
+              <span>👤</span> Personal & Contact Details
+            </span>
+            
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div>
+                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Player Name *</label>
+                <input type="text" id="edit-ply-name" value="${player.name || ''}" required class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-2xs" />
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Father's Name</label>
+                <input type="text" id="edit-ply-father-name" value="${player.fatherName || ''}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-2xs" />
+              </div>
             </div>
 
-            <div class="flex items-center gap-2.5">
-              <img id="admin-edit-photo-preview" src="${player.photoUrl || player.player_photo_url}" class="w-12 h-12 rounded-xl object-cover border-2 border-amber-500 shadow-md" onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Crect width=\'100\' height=\'100\' fill=\'%23059669\'/%3E%3Ctext x=\'50\' y=\'62\' font-size=\'45\' text-anchor=\'middle\' fill=\'white\'%3E🏏%3C/text%3E%3C/svg%3E';" />
-              
-              <div class="flex items-center gap-1.5 flex-1 flex-wrap">
-                <label class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-[9px] rounded-lg border border-slate-700 cursor-pointer flex items-center gap-1">
-                  <i data-lucide="image" class="w-3 h-3 text-emerald-400"></i> Gallery
-                  <input type="file" id="admin-photo-gallery-input" accept="image/*" class="hidden" />
-                </label>
-                <label class="px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-[9px] rounded-lg border border-slate-700 cursor-pointer flex items-center gap-1">
-                  <i data-lucide="camera" class="w-3 h-3 text-amber-400"></i> Camera
-                  <input type="file" id="admin-photo-camera-input" accept="image/*" capture="user" class="hidden" />
-                </label>
-                <button type="button" id="admin-crop-photo-btn" class="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[9px] rounded-lg border border-amber-400 flex items-center gap-1 shadow">
-                  <i data-lucide="crop" class="w-3 h-3"></i> Crop 1:1
-                </button>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div>
+                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Phone Number *</label>
+                <input type="tel" id="edit-ply-phone" value="${player.phone || player.mobile || ''}" required class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-mono font-bold rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-2xs" />
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Age (Years)</label>
+                <input type="number" id="edit-ply-age" value="${player.age || 24}" min="10" max="60" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-2xs" />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div>
+                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Village / Town</label>
+                <input type="text" id="edit-ply-village" value="${player.village || ''}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-2xs" />
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">District</label>
+                <input type="text" id="edit-ply-district" value="${player.district || 'Paschim Medinipur'}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-2xs" />
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Pincode</label>
+                <input type="text" id="edit-ply-pincode" value="${player.pincode || player.pin || '721201'}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-mono font-bold rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-2xs" />
               </div>
             </div>
           </div>
 
-          <div class="grid grid-cols-2 gap-2">
-            <div>
-              <label class="block text-[9px] font-bold text-slate-300 uppercase mb-0.5">Player Name *</label>
-              <input type="text" id="edit-ply-name" value="${player.name}" required class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-lg p-2 focus:outline-none focus:border-amber-500" />
+          <!-- Section B: Cricket Playing Profile & Styles -->
+          <div class="p-3.5 bg-blue-50/50 rounded-2xl border border-blue-200 space-y-2.5">
+            <span class="text-[10px] font-black text-blue-900 uppercase tracking-wider block flex items-center gap-1">
+              <span>⚡</span> Cricket Profile & Playing Styles
+            </span>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div>
+                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Playing Category *</label>
+                <select id="edit-ply-category" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-blue-500 focus:outline-none shadow-2xs">
+                  <option value="All-Rounder" ${currentCategory.toLowerCase().includes('all') ? 'selected' : ''}>All-Rounder</option>
+                  <option value="Batsman" ${currentCategory.toLowerCase() === 'batsman' ? 'selected' : ''}>Batsman</option>
+                  <option value="Bowler" ${currentCategory.toLowerCase() === 'bowler' ? 'selected' : ''}>Bowler</option>
+                  <option value="Wicket Keeper" ${currentCategory.toLowerCase().includes('keeper') ? 'selected' : ''}>Wicket Keeper</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Batting Style</label>
+                <select id="edit-ply-batting" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-blue-500 focus:outline-none shadow-2xs">
+                  <option value="Right Hand Bat" ${currentBatting.includes('Right') ? 'selected' : ''}>Right Hand Bat</option>
+                  <option value="Left Hand Bat" ${currentBatting.includes('Left') ? 'selected' : ''}>Left Hand Bat</option>
+                </select>
+              </div>
             </div>
-            <div>
-              <label class="block text-[9px] font-bold text-slate-300 uppercase mb-0.5">Father's Name</label>
-              <input type="text" id="edit-ply-father-name" value="${player.fatherName || ''}" class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-lg p-2 focus:outline-none focus:border-amber-500" />
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div>
+                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Bowling Style</label>
+                <select id="edit-ply-bowling" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-blue-500 focus:outline-none shadow-2xs">
+                  <option value="Right Hand Fast" ${currentBowling.includes('Fast') && currentBowling.includes('Right') ? 'selected' : ''}>Right Hand Fast</option>
+                  <option value="Right Hand Medium" ${currentBowling.includes('Medium') ? 'selected' : ''}>Right Hand Medium</option>
+                  <option value="Right Hand Spin" ${currentBowling.includes('Spin') && currentBowling.includes('Right') ? 'selected' : ''}>Right Hand Spin</option>
+                  <option value="Left Hand Fast" ${currentBowling.includes('Fast') && currentBowling.includes('Left') ? 'selected' : ''}>Left Hand Fast</option>
+                  <option value="Left Hand Spin" ${currentBowling.includes('Spin') && currentBowling.includes('Left') ? 'selected' : ''}>Left Hand Spin</option>
+                  <option value="None / Part-Time" ${currentBowling.includes('None') || currentBowling.includes('Part') ? 'selected' : ''}>None / Part-Time</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Base Price (INR ₹)</label>
+                <input type="number" id="edit-ply-base-price" value="${player.basePrice || 300}" min="100" step="50" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold font-mono rounded-xl p-2.5 focus:border-blue-500 focus:outline-none shadow-2xs" />
+              </div>
             </div>
           </div>
 
-          <div class="grid grid-cols-2 gap-2">
-            <div>
-              <label class="block text-[9px] font-bold text-slate-300 uppercase mb-0.5">Phone Number *</label>
-              <input type="tel" id="edit-ply-phone" value="${player.phone || ''}" required class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-lg p-2 focus:outline-none focus:border-amber-500" />
+          <!-- Section C: Registration, Approval & Franchise Squad -->
+          <div class="p-3.5 bg-amber-50/50 rounded-2xl border border-amber-200 space-y-2.5">
+            <span class="text-[10px] font-black text-amber-900 uppercase tracking-wider block flex items-center gap-1">
+              <span>🏆</span> Registration & Team Allocation
+            </span>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div>
+                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Registration Status</label>
+                <select id="edit-ply-status" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-amber-500 focus:outline-none shadow-2xs">
+                  <option value="APPROVED" ${currentStatus === 'APPROVED' ? 'selected' : ''}>APPROVED (🟢 Green)</option>
+                  <option value="PENDING" ${currentStatus === 'PENDING' ? 'selected' : ''}>PENDING (🔴 Red)</option>
+                  <option value="REJECTED" ${currentStatus === 'REJECTED' ? 'selected' : ''}>REJECTED (⚪ Gray)</option>
+                </select>
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">UPI Reference / Txn ID</label>
+                <input type="text" id="edit-ply-upiref" value="${player.paymentRef || player.remarks || ''}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-mono font-bold rounded-xl p-2.5 focus:border-amber-500 focus:outline-none shadow-2xs" placeholder="e.g. 211492297161" />
+              </div>
             </div>
-            <div>
-              <label class="block text-[9px] font-bold text-slate-300 uppercase mb-0.5">Category</label>
-              <select id="edit-ply-category" class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-lg p-2 focus:outline-none focus:border-amber-500">
-                <option value="Batsman" ${(player.category || player.playingType) === 'Batsman' ? 'selected' : ''}>Batsman</option>
-                <option value="Bowler" ${(player.category || player.playingType) === 'Bowler' ? 'selected' : ''}>Bowler</option>
-                <option value="All-rounder" ${(player.category || player.playingType) === 'All-rounder' ? 'selected' : ''}>All-rounder</option>
-                <option value="Wicket Keeper" ${(player.category || player.playingType) === 'Wicket Keeper' ? 'selected' : ''}>Wicket Keeper</option>
-              </select>
+
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              <div>
+                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Serial Number (#)</label>
+                <input type="number" id="edit-ply-serial" value="${player.displayRegistrationNumber || player.serialNo || 1}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-mono font-bold rounded-xl p-2.5 focus:border-amber-500 focus:outline-none shadow-2xs" />
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Registration ID</label>
+                <input type="text" id="edit-ply-reg-id" value="${player.registrationId || player.regNo || 'JSL2026-0001'}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-mono font-bold rounded-xl p-2.5 focus:border-amber-500 focus:outline-none shadow-2xs" />
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Franchise Squad</label>
+                <select id="edit-ply-team" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-amber-500 focus:outline-none shadow-2xs">
+                  <option value="">-- Free Agent (No Team) --</option>
+                  ${teams.map(t => `<option value="${t.id}" ${player.teamId === t.id ? 'selected' : ''}>${t.name}</option>`).join('')}
+                </select>
+              </div>
             </div>
           </div>
 
-          <div class="grid grid-cols-2 gap-2">
-            <div>
-              <label class="block text-[9px] font-bold text-slate-300 uppercase mb-0.5">Registration Status</label>
-              <select id="edit-ply-status" class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-lg p-2 focus:outline-none focus:border-amber-500">
-                <option value="APPROVED" ${(player.registrationStatus || player.paymentStatus) === 'APPROVED' ? 'selected' : ''}>APPROVED (🟢 Green)</option>
-                <option value="PENDING" ${(player.registrationStatus || player.paymentStatus) === 'PENDING' ? 'selected' : ''}>PENDING (🔴 Red)</option>
-                <option value="REJECTED" ${(player.registrationStatus || player.paymentStatus) === 'REJECTED' ? 'selected' : ''}>REJECTED</option>
-              </select>
-            </div>
-            <div>
-              <label class="block text-[9px] font-bold text-slate-300 uppercase mb-0.5">UPI Reference No</label>
-              <input type="text" id="edit-ply-upiref" value="${player.paymentRef || player.remarks || ''}" class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-lg p-2 focus:outline-none focus:border-amber-500 font-mono" />
-            </div>
-          </div>
-
-          <button type="submit" class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black text-xs rounded-xl shadow-lg">
-            Save Player Changes
+          <!-- Save Button -->
+          <button type="submit" class="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-sm rounded-2xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-2">
+            <i data-lucide="check-circle-2" class="w-4 h-4"></i> Save Player Changes
           </button>
         </form>
       </div>
@@ -1795,13 +1906,13 @@ function openAdminEditPlayerModal(player, containerEl) {
   document.getElementById('admin-edit-player-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const saveBtn = e.target.querySelector('button[type="submit"]');
-    const originalText = saveBtn ? saveBtn.innerText : "Save Changes";
+    const originalText = saveBtn ? saveBtn.innerHTML : "Save Player Changes";
     if (saveBtn) {
       saveBtn.disabled = true;
       saveBtn.innerHTML = `
         <div class="flex items-center justify-center gap-2">
           <div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-          <span>Saving & Uploading Photo...</span>
+          <span>Saving & Uploading to Cloud...</span>
         </div>
       `;
     }
@@ -1821,7 +1932,7 @@ function openAdminEditPlayerModal(player, containerEl) {
         } else {
           if (saveBtn) {
             saveBtn.disabled = false;
-            saveBtn.innerText = originalText;
+            saveBtn.innerHTML = originalText;
           }
           alert("⚠️ Photo Upload Failed!\n\nUnable to upload photo to Cloudinary CDN. Please check your internet connection and try again.");
           return;
@@ -1829,17 +1940,34 @@ function openAdminEditPlayerModal(player, containerEl) {
       }
 
       const newStatus = document.getElementById('edit-ply-status').value;
+      const serialNum = parseInt(document.getElementById('edit-ply-serial').value, 10) || player.serialNo || 1;
+      const regIdVal = document.getElementById('edit-ply-reg-id').value.trim() || player.registrationId || `JSL2026-${String(serialNum).padStart(4, '0')}`;
+      const selectedTeamId = document.getElementById('edit-ply-team').value || null;
+
       store.updatePlayer({
         id: player.id,
-        name: document.getElementById('edit-ply-name').value,
-        fatherName: document.getElementById('edit-ply-father-name').value,
-        phone: document.getElementById('edit-ply-phone').value,
+        name: document.getElementById('edit-ply-name').value.trim(),
+        fatherName: document.getElementById('edit-ply-father-name').value.trim(),
+        phone: document.getElementById('edit-ply-phone').value.trim(),
+        mobile: document.getElementById('edit-ply-phone').value.trim(),
+        age: parseInt(document.getElementById('edit-ply-age').value, 10) || 24,
+        village: document.getElementById('edit-ply-village').value.trim(),
+        district: document.getElementById('edit-ply-district').value.trim(),
+        pincode: document.getElementById('edit-ply-pincode').value.trim(),
         category: document.getElementById('edit-ply-category').value,
         role: document.getElementById('edit-ply-category').value,
         playingType: document.getElementById('edit-ply-category').value,
+        battingStyle: document.getElementById('edit-ply-batting').value,
+        bowlingStyle: document.getElementById('edit-ply-bowling').value,
+        basePrice: parseInt(document.getElementById('edit-ply-base-price').value, 10) || 300,
         paymentStatus: newStatus,
         registrationStatus: newStatus,
-        paymentRef: document.getElementById('edit-ply-upiref').value,
+        paymentRef: document.getElementById('edit-ply-upiref').value.trim(),
+        serialNo: serialNum,
+        displayRegistrationNumber: serialNum,
+        registrationId: regIdVal,
+        regNo: regIdVal,
+        teamId: selectedTeamId,
         photoUrl: finalPhotoUrl,
         player_photo_url: finalPhotoUrl
       });
@@ -1850,7 +1978,7 @@ function openAdminEditPlayerModal(player, containerEl) {
       console.error("Admin player update error:", err);
       if (saveBtn) {
         saveBtn.disabled = false;
-        saveBtn.innerText = originalText;
+        saveBtn.innerHTML = originalText;
       }
       alert("⚠️ Update error: " + err.message);
     }
@@ -1859,19 +1987,19 @@ function openAdminEditPlayerModal(player, containerEl) {
 
 function openFullDocumentViewer(imgSrc, title = 'Document Proof Viewer') {
   const modalHtml = `
-    <div id="full-doc-zoom-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3 bg-slate-950/95 backdrop-blur-2xl">
-      <div class="max-w-4xl w-full p-4 relative space-y-3 animate-fade-in text-center bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl">
-        <button id="close-doc-zoom-btn" class="absolute top-3 right-3 text-slate-400 hover:text-white p-1.5 bg-slate-800 rounded-xl">
+    <div id="full-doc-zoom-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3 bg-slate-950/70 backdrop-blur-sm animate-fade-in">
+      <div class="max-w-4xl w-full p-4 sm:p-5 relative space-y-3 animate-fade-in text-center bg-white border-2 border-slate-200 rounded-3xl shadow-2xl">
+        <button id="close-doc-zoom-btn" class="absolute top-3 right-3 text-slate-400 hover:text-slate-900 p-1.5 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer shadow-2xs">
           <i data-lucide="x" class="w-5 h-5"></i>
         </button>
-        <div class="text-left border-b border-slate-800 pb-2">
-          <span class="px-2 py-0.5 bg-amber-950 text-amber-400 font-mono text-[9px] font-black rounded border border-amber-800">HD DOCUMENT VERIFICATION</span>
-          <h3 class="text-white font-black text-base mt-0.5">${title}</h3>
+        <div class="text-left border-b border-slate-100 pb-2">
+          <span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 font-mono text-[9px] font-black rounded border border-emerald-300 uppercase">HD DOCUMENT VERIFICATION</span>
+          <h3 class="text-slate-900 font-black text-base mt-0.5">${title}</h3>
         </div>
-        <div class="max-h-[75vh] overflow-auto flex justify-center p-2 bg-slate-950 rounded-xl border border-slate-800">
-          <img src="${imgSrc}" class="max-w-full max-h-[70vh] object-contain rounded-lg shadow-2xl" />
+        <div class="max-h-[75vh] overflow-auto flex justify-center p-2 bg-slate-50 rounded-2xl border border-slate-200">
+          <img src="${imgSrc}" class="max-w-full max-h-[70vh] object-contain rounded-xl shadow-md" />
         </div>
-        <button id="close-doc-zoom-bottom-btn" class="w-full py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl shadow">
+        <button id="close-doc-zoom-bottom-btn" class="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer">
           Close Verification Viewer
         </button>
       </div>

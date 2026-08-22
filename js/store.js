@@ -645,6 +645,8 @@ class Store {
         player_photo_url: playerData.photoUrl || playerData.player_photo_url || players[existingIdx].player_photo_url,
       };
       safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
+      saveCloudData(players, this.getTeams());
+      savePlayerToFirebase(players[existingIdx]);
       syncPlayerToSupabase(players[existingIdx]);
       this.notify('players_updated');
       return players[existingIdx];
@@ -704,6 +706,8 @@ class Store {
     const registeredPlayer = players.find(p => p.id === uuid) || newPlayer;
 
     safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
+    saveCloudData(players, this.getTeams());
+    savePlayerToFirebase(registeredPlayer);
     syncPlayerToSupabase(registeredPlayer);
     this.notify('players_updated');
     return registeredPlayer;
