@@ -1,10 +1,10 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=10.1.0';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, printDigitalPass, openUserGuidePDF } from './export.js?v=10.1.0';
-import { renderAdminDashboard } from './admin.js?v=10.1.0';
-import { uploadHDImage, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, getOptimizedImageUrl } from './supabase.js?v=10.1.0';
-import { shops } from './shopsData.js?v=10.1.0';
+import { store } from './store.js?v=10.2.0';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, printDigitalPass, openUserGuidePDF } from './export.js?v=10.2.0';
+import { renderAdminDashboard } from './admin.js?v=10.2.0';
+import { uploadHDImage, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, getOptimizedImageUrl } from './supabase.js?v=10.2.0';
+import { shops } from './shopsData.js?v=10.2.0';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
 
@@ -65,14 +65,14 @@ function initIntroLoadingScreen() {
   };
 
   const dismissIntro = () => {
-    if (!introScreen || introScreen.classList.contains('fade-out')) return;
+    if (!introScreen) return;
     if (typeInterval) clearInterval(typeInterval);
     introScreen.classList.add('fade-out');
     setTimeout(() => {
-      if (introScreen.parentNode) {
+      if (introScreen && introScreen.parentNode) {
         introScreen.parentNode.removeChild(introScreen);
       }
-    }, 500);
+    }, 300);
   };
 
   const startTypewriter = () => {
@@ -91,17 +91,17 @@ function initIntroLoadingScreen() {
           typeIndex++;
         } else {
           clearInterval(typeInterval);
-          setTimeout(dismissIntro, 400);
+          setTimeout(dismissIntro, 200);
         }
       } catch (e) {
         clearInterval(typeInterval);
         dismissIntro();
       }
-    }, 60);
+    }, 45);
   };
 
-  const typewriterTimer = setTimeout(startTypewriter, 150);
-  const fallbackTimer = setTimeout(dismissIntro, 2200);
+  const typewriterTimer = setTimeout(startTypewriter, 50);
+  const fallbackTimer = setTimeout(dismissIntro, 1200);
 
   introScreen.addEventListener('click', () => {
     clearTimeout(typewriterTimer);
@@ -109,6 +109,9 @@ function initIntroLoadingScreen() {
     if (typeInterval) clearInterval(typeInterval);
     dismissIntro();
   });
+
+  // Global window fail-safe
+  window.addEventListener('load', () => setTimeout(dismissIntro, 500));
 }
 
 function initApp() {
