@@ -1,10 +1,10 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=9.9.6';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, printDigitalPass, openUserGuidePDF } from './export.js?v=9.9.6';
-import { renderAdminDashboard } from './admin.js?v=9.9.6';
-import { uploadHDImage, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, getOptimizedImageUrl } from './supabase.js?v=9.9.6';
-import { shops } from './shopsData.js?v=9.9.6';
+import { store } from './store.js?v=10.0.0';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, printDigitalPass, openUserGuidePDF } from './export.js?v=10.0.0';
+import { renderAdminDashboard } from './admin.js?v=10.0.0';
+import { uploadHDImage, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, getOptimizedImageUrl } from './supabase.js?v=10.0.0';
+import { shops } from './shopsData.js?v=10.0.0';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
 
@@ -3953,27 +3953,36 @@ function renderLiveAuctionView(container) {
     // FRANCHISE PURSES RENDERING (COMPACT, HIGH CONTRAST DARK TEXT, SQUAD X/13)
     if (pursesWrapper) {
       pursesWrapper.innerHTML = teams.map(t => {
-        const spent = t.purseSpent || (t.purse !== undefined ? (8000 - (t.remainingPurse ?? 8000)) : 0);
-        const totalPurse = t.purseBudget || 8000;
-        const left = t.remainingPurse !== undefined ? t.remainingPurse : (totalPurse - spent);
-        const ratio = Math.min(100, Math.max(0, (left / totalPurse) * 100));
-        
-        // Count purchased squad members (default target = 13)
-        const purchasedCount = allPlayers.filter(p => p.teamId === t.id && (p.auctionStatus === 'SOLD' || p.paymentStatus === 'APPROVED')).length || t.squadCount || 0;
+        const hasIcon = !!(t.iconPlayerName || t.iconName);
+        const iconDeduction = hasIcon ? 1000 : 0;
+        const totalPurse = Number(t.purseBudget || t.purse || 8000);
+        const purchasedPlayers = allPlayers.filter(p => p.teamId === t.id && (p.auctionStatus === 'SOLD' || p.paymentStatus === 'APPROVED'));
+        const auctionSpent = purchasedPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || 0), 0);
+        const spent = iconDeduction + auctionSpent;
+        const left = Math.max(0, totalPurse - spent);
+        const squadCount = (hasIcon ? 1 : 0) + purchasedPlayers.length;
         const totalRequired = 13;
+        const ratio = Math.min(100, Math.max(0, (left / totalPurse) * 100));
 
         return `
           <div class="p-2.5 sm:p-3 bg-white border border-slate-200 rounded-xl shadow-sm hover:border-slate-300 transition-all flex flex-col justify-between gap-1.5">
             <div class="flex justify-between items-center gap-2">
               <span class="font-extrabold text-slate-900 text-xs sm:text-sm truncate" title="${t.name}">${t.name}</span>
               <span class="px-2 py-0.5 bg-slate-100 text-slate-700 font-mono font-bold text-[10px] rounded border border-slate-200 flex-shrink-0">
-                Squad: <strong class="text-teal-700 font-black">${purchasedCount}/${totalRequired}</strong>
+                Squad: <strong class="text-teal-700 font-black">${squadCount}/${totalRequired}</strong>
               </span>
             </div>
             
+            ${hasIcon ? `
+              <div class="text-[10px] text-amber-800 bg-amber-50 px-2 py-0.5 rounded border border-amber-200 font-bold flex items-center justify-between">
+                <span>⭐ Icon: ${t.iconPlayerName || t.iconName}</span>
+                <span class="text-slate-500 font-mono text-[9px] font-semibold">-₹1,000</span>
+              </div>
+            ` : ''}
+
             <div class="flex justify-between items-center text-xs">
               <span class="text-[11px] font-semibold text-slate-500">Purse Left:</span>
-              <span class="font-black text-emerald-700">₹ ${Number(left).toLocaleString('en-IN')}</span>
+              <span class="font-black text-emerald-700">₹ ${Number(left).toLocaleString('en-IN')} <span class="text-[10px] text-slate-400 font-normal">/ ₹${Number(totalPurse).toLocaleString('en-IN')}</span></span>
             </div>
 
             <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden border border-slate-200">

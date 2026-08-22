@@ -1,6 +1,6 @@
 // LocalStorage & Cloud Database Reactive Store (Developer: Suman Kolay - Continuous Dynamic Numbering Release)
 
-import { INITIAL_LEAGUES, INITIAL_TEAMS, INITIAL_PLAYERS, INITIAL_FIXTURES } from './data.js?v=9.9.6';
+import { INITIAL_LEAGUES, INITIAL_TEAMS, INITIAL_PLAYERS, INITIAL_FIXTURES } from './data.js?v=10.0.0';
 import { 
   fetchCloudData, 
   saveCloudData, 
@@ -22,7 +22,7 @@ import {
   fetchCommunityQueriesFromFirebase,
   fetchTournamentOwnersFromFirebase,
   fetchUserAccountsFromFirebase
-} from './supabase.js?v=9.9.6';
+} from './supabase.js?v=10.0.0';
 
 const FIREBASE_DB_URL = "https://cpl-jsl-2026-default-rtdb.firebaseio.com";
 
@@ -770,6 +770,58 @@ class Store {
       this.notify('players_updated');
       this.notify('teams_updated');
     }
+  }
+
+
+  resetAuctionData() {
+    const players = this.getPlayers();
+    players.forEach(p => {
+      p.teamId = null;
+      p.teamName = null;
+      p.soldPrice = 0;
+      p.auctionStatus = 'PENDING';
+      p.isSold = false;
+      p.boughtByTeamId = null;
+    });
+
+    const teams = (JSON.parse(localStorage.getItem(STORAGE_KEYS.TEAMS)) || []).map((t, idx) => {
+      const hasIcon = !!(t.iconPlayerName || t.iconName);
+      const iconDeduction = hasIcon ? 1000 : 0;
+      const budget = Number(t.purseBudget || t.purse || 8000);
+      return {
+        ...t,
+        serialNo: idx + 1,
+        purseBudget: budget,
+        purseSpent: iconDeduction,
+        remainingPurse: Math.max(0, budget - iconDeduction),
+        squadCount: hasIcon ? 1 : 0,
+        playersCount: hasIcon ? 1 : 0,
+        playerIds: []
+      };
+    });
+
+    this.updateLiveAuctionState({
+      status: 'IDLE',
+      active_player_id: null,
+      current_bid: 0,
+      highest_bidder_team_id: null,
+      last_sold_player_id: null,
+      last_sold_price: 0,
+      last_sold_team_id: null
+    });
+
+    safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
+    safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
+    saveCloudData(players, teams);
+    
+    if (typeof syncTeamToSupabase === 'function') {
+      teams.forEach(t => syncTeamToSupabase(t));
+    }
+
+    this.notify('players_updated');
+    this.notify('teams_updated');
+    this.notify('live_auction_updated');
+    return { success: true };
   }
 
   // --- TEAMS ---

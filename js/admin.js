@@ -1,10 +1,10 @@
 // Admin Master Data & Payment Verification Panel with Single Source Cloud Control (Developer: Suman Kolay)
 
-import { store } from './store.js?v=9.9.6';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF } from './export.js?v=9.9.6';
-import { openSquareImageCropModal, compressImage, openYouTubePromoModal } from './app_v9.js?v=9.9.6';
-import { saveAdSettingsToFirebase, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, savePopupSettingsToFirebase, uploadHDImage, getOptimizedImageUrl } from './supabase.js?v=9.9.6';
-import { shops } from './shopsData.js?v=9.9.6';
+import { store } from './store.js?v=10.0.0';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF } from './export.js?v=10.0.0';
+import { openSquareImageCropModal, compressImage, openYouTubePromoModal } from './app_v9.js?v=10.0.0';
+import { saveAdSettingsToFirebase, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, savePopupSettingsToFirebase, uploadHDImage, getOptimizedImageUrl } from './supabase.js?v=10.0.0';
+import { shops } from './shopsData.js?v=10.0.0';
 
 let activeAdminTab = 'payments'; // 'payments', 'all-players', 'teams'
 const todayStr = new Date().toISOString().split('T')[0];
@@ -375,6 +375,13 @@ export function renderAdminDashboard(containerEl) {
                   Update Settings
                 </button>
               </form>
+
+              <!-- Auction Reset Danger Zone -->
+              <div class="border-t border-slate-800 pt-3">
+                <button type="button" id="admin-reset-auction-btn" class="w-full py-2.5 bg-rose-950 hover:bg-rose-900 text-rose-300 hover:text-white font-black text-xs rounded-xl border border-rose-800 flex items-center justify-center gap-2 transition-all shadow cursor-pointer">
+                  <i data-lucide="rotate-ccw" class="w-4 h-4 text-rose-400"></i> 🔄 Revert Sold Players & Reset Purses
+                </button>
+              </div>
 
               <!-- Put Player on Block Form -->
               <div class="border-t border-slate-800 pt-4 space-y-4">
