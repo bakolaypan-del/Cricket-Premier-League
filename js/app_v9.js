@@ -1,10 +1,10 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=10.5.0';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, printDigitalPass, openUserGuidePDF } from './export.js?v=10.5.0';
-import { renderAdminDashboard } from './admin.js?v=10.5.0';
-import { uploadHDImage, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats } from './supabase.js?v=10.5.0';
-import { shops } from './shopsData.js?v=10.5.0';
+import { store } from './store.js?v=10.5.5';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, printDigitalPass, openUserGuidePDF } from './export.js?v=10.5.5';
+import { renderAdminDashboard } from './admin.js?v=10.5.5';
+import { uploadHDImage, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats } from './supabase.js?v=10.5.5';
+import { shops } from './shopsData.js?v=10.5.5';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
 let latestVisitorStats = { liveCount: 1, totalVisits: 1524 };
@@ -92,17 +92,18 @@ function initIntroLoadingScreen() {
           typeIndex++;
         } else {
           clearInterval(typeInterval);
-          setTimeout(dismissIntro, 200);
+          // Let the user see the full name for 500ms before fading out
+          setTimeout(dismissIntro, 500);
         }
       } catch (e) {
         clearInterval(typeInterval);
         dismissIntro();
       }
-    }, 45);
+    }, 55);
   };
 
-  const typewriterTimer = setTimeout(startTypewriter, 50);
-  const fallbackTimer = setTimeout(dismissIntro, 1200);
+  const typewriterTimer = setTimeout(startTypewriter, 150);
+  const fallbackTimer = setTimeout(dismissIntro, 3500);
 
   introScreen.addEventListener('click', () => {
     clearTimeout(typewriterTimer);
@@ -110,9 +111,6 @@ function initIntroLoadingScreen() {
     if (typeInterval) clearInterval(typeInterval);
     dismissIntro();
   });
-
-  // Global window fail-safe
-  window.addEventListener('load', () => setTimeout(dismissIntro, 500));
 }
 
 function initApp() {
@@ -1096,39 +1094,39 @@ function renderFirstPageLanding(containerEl) {
   containerEl.innerHTML = `
     <div class="w-full max-w-5xl mx-auto space-y-4 sm:space-y-6 animate-fade-in py-2 sm:py-4 text-slate-900">
       
-      <!-- 👥 REALTIME LIVE & TOTAL VISITOR TRAFFIC METRICS BAR -->
-      <div class="w-full max-w-3xl mx-auto bg-gradient-to-r from-slate-900 via-slate-950 to-slate-900 border border-slate-800 rounded-2xl p-2.5 sm:p-3.5 shadow-xl flex items-center justify-around gap-2 text-white animate-fade-in">
+      <!-- 👥 REALTIME LIVE & TOTAL VISITOR TRAFFIC METRICS BAR (OFF-WHITE THEME) -->
+      <div class="w-full max-w-3xl mx-auto bg-slate-50/95 border border-slate-200/90 rounded-2xl p-2.5 sm:p-3.5 shadow-sm flex items-center justify-around gap-2 text-slate-800 animate-fade-in">
         <!-- Live Online Visitors -->
         <div class="flex items-center gap-2 sm:gap-2.5">
           <span class="relative flex h-3 w-3 shrink-0">
-            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-            <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-500 shadow-sm"></span>
+            <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-500 opacity-75"></span>
+            <span class="relative inline-flex rounded-full h-3 w-3 bg-emerald-600 shadow-sm"></span>
           </span>
           <div>
-            <div class="text-[9px] sm:text-[10px] font-black text-emerald-400 uppercase tracking-wider leading-tight">Live Online</div>
-            <div id="live-visitors-count" class="text-sm sm:text-lg font-black text-white font-mono leading-none mt-0.5">${latestVisitorStats.liveCount}</div>
+            <div class="text-[9px] sm:text-[10px] font-black text-emerald-800 uppercase tracking-wider leading-tight">Live Online</div>
+            <div id="live-visitors-count" class="text-sm sm:text-lg font-black text-slate-900 font-mono leading-none mt-0.5">${latestVisitorStats.liveCount}</div>
           </div>
         </div>
 
-        <div class="h-7 sm:h-8 w-px bg-slate-800"></div>
+        <div class="h-7 sm:h-8 w-px bg-slate-200"></div>
 
         <!-- Total Site Visitors -->
         <div class="flex items-center gap-2 sm:gap-2.5">
-          <span class="p-1.5 bg-amber-500/20 text-amber-400 rounded-xl text-xs sm:text-sm border border-amber-500/30">👥</span>
+          <span class="p-1.5 bg-amber-100 text-amber-800 rounded-xl text-xs sm:text-sm border border-amber-300">👥</span>
           <div>
-            <div class="text-[9px] sm:text-[10px] font-black text-amber-400 uppercase tracking-wider leading-tight">Total Visitors</div>
-            <div id="total-visitors-count" class="text-sm sm:text-lg font-black text-white font-mono leading-none mt-0.5">${Number(latestVisitorStats.totalVisits).toLocaleString('en-IN')}</div>
+            <div class="text-[9px] sm:text-[10px] font-black text-amber-800 uppercase tracking-wider leading-tight">Total Visitors</div>
+            <div id="total-visitors-count" class="text-sm sm:text-lg font-black text-slate-900 font-mono leading-none mt-0.5">${Number(latestVisitorStats.totalVisits).toLocaleString('en-IN')}</div>
           </div>
         </div>
 
-        <div class="h-7 sm:h-8 w-px bg-slate-800"></div>
+        <div class="h-7 sm:h-8 w-px bg-slate-200"></div>
 
         <!-- Total Registered Players -->
         <div class="flex items-center gap-2 sm:gap-2.5">
-          <span class="p-1.5 bg-blue-500/20 text-blue-400 rounded-xl text-xs sm:text-sm border border-blue-500/30">🏏</span>
+          <span class="p-1.5 bg-blue-100 text-blue-800 rounded-xl text-xs sm:text-sm border border-blue-300">🏏</span>
           <div>
-            <div class="text-[9px] sm:text-[10px] font-black text-blue-400 uppercase tracking-wider leading-tight">Registered</div>
-            <div class="text-sm sm:text-lg font-black text-white font-mono leading-none mt-0.5">${players.length}</div>
+            <div class="text-[9px] sm:text-[10px] font-black text-blue-800 uppercase tracking-wider leading-tight">Registered</div>
+            <div class="text-sm sm:text-lg font-black text-slate-900 font-mono leading-none mt-0.5">${players.length}</div>
           </div>
         </div>
       </div>
