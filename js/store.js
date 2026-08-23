@@ -1,6 +1,6 @@
 // LocalStorage & Cloud Database Reactive Store (Developer: Suman Kolay - Continuous Dynamic Numbering Release)
 
-import { INITIAL_LEAGUES, INITIAL_TEAMS, INITIAL_PLAYERS, INITIAL_FIXTURES } from './data.js?v=11.5.7';
+import { INITIAL_LEAGUES, INITIAL_TEAMS, INITIAL_PLAYERS, INITIAL_FIXTURES } from './data.js?v=11.5.8';
 import { 
   fetchCloudData, 
   saveCloudData, 
@@ -28,7 +28,7 @@ import {
   fetchUserAccountsFromFirebase,
   saveRegistrationSettingsToFirebase,
   fetchRegistrationSettingsFromFirebase
-} from './supabase.js?v=11.5.7';
+} from './supabase.js?v=11.5.8';
 
 const FIREBASE_DB_URL = "https://cpl-jsl-2026-default-rtdb.firebaseio.com";
 
@@ -496,35 +496,24 @@ class Store {
       uniqueMap.set(p.id, p);
     }
 
-    // SECONDARY DEDUP: If the same player exists under two different IDs
-    // (e.g. old legacy ply-178... and canonical ply-1787000000000-XXXX), keep ONLY the canonical one.
-    const nameMap = new Map();
+    // SECONDARY DEDUP: Discard ONLY non-canonical legacy IDs when a canonical record exists
+    const canonicalMap = new Map();
     for (const p of uniqueMap.values()) {
-      const normName = normalizeName(p.name);
-      if (!normName) continue;
-      
-      const existing = nameMap.get(normName);
-      if (existing) {
-        // Prefer the canonical ply-1787000000000 IDs
-        const pIsCanonical = (p.id || '').startsWith('ply-1787000000000');
-        const eIsCanonical = (existing.id || '').startsWith('ply-1787000000000');
-        if (pIsCanonical && !eIsCanonical) {
-          uniqueMap.delete(existing.id);
-          nameMap.set(normName, p);
-        } else if (!pIsCanonical && eIsCanonical) {
+      if (p.id && p.id.startsWith('ply-1787000000000-')) {
+        const normName = normalizeName(p.name);
+        const normPhone = (p.phone || p.mobile || '').replace(/\D/g, '').slice(-10);
+        canonicalMap.set(normName + '|' + normPhone, p);
+        if (normName) canonicalMap.set(normName, p);
+      }
+    }
+
+    for (const p of Array.from(uniqueMap.values())) {
+      if (!p.id.startsWith('ply-1787000000000-')) {
+        const normName = normalizeName(p.name);
+        const normPhone = (p.phone || p.mobile || '').replace(/\D/g, '').slice(-10);
+        if (canonicalMap.has(normName + '|' + normPhone) || canonicalMap.has(normName)) {
           uniqueMap.delete(p.id);
-        } else {
-          const pTime = Number(p.updated_at || p.createdTime || 0);
-          const eTime = Number(existing.updated_at || existing.createdTime || 0);
-          if (pTime > eTime) {
-            uniqueMap.delete(existing.id);
-            nameMap.set(normName, p);
-          } else {
-            uniqueMap.delete(p.id);
-          }
         }
-      } else {
-        nameMap.set(normName, p);
       }
     }
 

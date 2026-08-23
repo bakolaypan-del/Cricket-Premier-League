@@ -326,29 +326,31 @@ export async function fetchCloudData() {
           rawProfiles = Array.isArray(data.player_profiles) ? data.player_profiles : Object.values(data.player_profiles);
         }
 
-        // SECONDARY DEDUP by normalized name: collapse old and new IDs for the same person
+        // SECONDARY DEDUP: Discard ONLY non-canonical legacy IDs when a canonical record exists
         const normalizeName = (name) => (name || '').toLowerCase().replace(/\s+/g, ' ').replace(/[()]/g, '').trim();
-        const nameDedup = new Map();
+        const canonicalMap = new Map();
         for (const p of rawPlayers) {
-          if (!p || !p.id) continue;
-          const normName = normalizeName(p.name);
-          if (!normName) continue;
-          const existing = nameDedup.get(normName);
-          if (existing) {
-            const pCanonical = (p.id || '').startsWith('ply-1787000000000');
-            const eCanonical = (existing.id || '').startsWith('ply-1787000000000');
-            if (pCanonical && !eCanonical) { nameDedup.set(normName, p); }
-            else if (!pCanonical && eCanonical) { /* keep existing */ }
-            else {
-              const pTime = Number(p.updated_at || p.createdTime || 0);
-              const eTime = Number(existing.updated_at || existing.createdTime || 0);
-              if (pTime > eTime) nameDedup.set(normName, p);
-            }
-          } else {
-            nameDedup.set(normName, p);
+          if (p && p.id && p.id.startsWith('ply-1787000000000-')) {
+            const normName = normalizeName(p.name);
+            const normPhone = (p.phone || p.mobile || '').replace(/\D/g, '').slice(-10);
+            canonicalMap.set(normName + '|' + normPhone, p);
+            if (normName) canonicalMap.set(normName, p);
           }
         }
-        const dedupedPlayerIds = new Set(Array.from(nameDedup.values()).map(p => p.id));
+
+        const dedupedPlayerIds = new Set();
+        for (const p of rawPlayers) {
+          if (!p || !p.id) continue;
+          if (p.id.startsWith('ply-1787000000000-')) {
+            dedupedPlayerIds.add(p.id);
+          } else {
+            const normName = normalizeName(p.name);
+            const normPhone = (p.phone || p.mobile || '').replace(/\D/g, '').slice(-10);
+            if (!canonicalMap.has(normName + '|' + normPhone) && !canonicalMap.has(normName)) {
+              dedupedPlayerIds.add(p.id);
+            }
+          }
+        }
         
         const getCanonicalRank = (p) => {
           if (p.id && p.id.startsWith('ply-1787000000000-')) {
