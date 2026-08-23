@@ -1,6 +1,6 @@
 // LocalStorage & Cloud Database Reactive Store (Developer: Suman Kolay - Continuous Dynamic Numbering Release)
 
-import { INITIAL_LEAGUES, INITIAL_TEAMS, INITIAL_PLAYERS, INITIAL_FIXTURES } from './data.js?v=11.4.3';
+import { INITIAL_LEAGUES, INITIAL_TEAMS, INITIAL_PLAYERS, INITIAL_FIXTURES } from './data.js?v=11.4.4';
 import { 
   fetchCloudData, 
   saveCloudData, 
@@ -28,7 +28,7 @@ import {
   fetchUserAccountsFromFirebase,
   saveRegistrationSettingsToFirebase,
   fetchRegistrationSettingsFromFirebase
-} from './supabase.js?v=11.4.3';
+} from './supabase.js?v=11.4.4';
 
 const FIREBASE_DB_URL = "https://cpl-jsl-2026-default-rtdb.firebaseio.com";
 
@@ -492,6 +492,41 @@ class Store {
     for (const p of rawPlayers) {
       if (!p || !p.id) continue;
       uniqueMap.set(p.id, p);
+    }
+
+    // SECONDARY DEDUP: If the same player exists under two different IDs
+    // (e.g. old ply-178585... and new ply-1787000000000-XXXX), keep only the canonical one.
+    const namePhoneMap = new Map();
+    for (const p of uniqueMap.values()) {
+      const normName = (p.name || '').trim().toLowerCase();
+      const normPhone = (p.phone || p.mobileNumber || p.mobile || '').replace(/\D/g, '').slice(-10);
+      const dedupeKey = normName + '|' + normPhone;
+      if (!normName) continue;
+      
+      const existing = namePhoneMap.get(dedupeKey);
+      if (existing) {
+        // Prefer the canonical ply-1787000000000 IDs, then highest serialNo/updated_at
+        const pIsCanonical = (p.id || '').startsWith('ply-1787000000000');
+        const eIsCanonical = (existing.id || '').startsWith('ply-1787000000000');
+        if (pIsCanonical && !eIsCanonical) {
+          uniqueMap.delete(existing.id);
+          namePhoneMap.set(dedupeKey, p);
+        } else if (!pIsCanonical && eIsCanonical) {
+          uniqueMap.delete(p.id);
+        } else {
+          // Both same type — keep the one with higher serialNo or more recent update
+          const pTime = Number(p.updated_at || p.createdTime || 0);
+          const eTime = Number(existing.updated_at || existing.createdTime || 0);
+          if (pTime > eTime) {
+            uniqueMap.delete(existing.id);
+            namePhoneMap.set(dedupeKey, p);
+          } else {
+            uniqueMap.delete(p.id);
+          }
+        }
+      } else {
+        namePhoneMap.set(dedupeKey, p);
+      }
     }
 
     const uniquePlayers = Array.from(uniqueMap.values());
@@ -973,8 +1008,36 @@ class Store {
   getTeams() {
     const teams = JSON.parse(localStorage.getItem(STORAGE_KEYS.TEAMS)) || [];
     const allPlayers = JSON.parse(localStorage.getItem(STORAGE_KEYS.PLAYERS)) || [];
+
+    // DEDUP TEAMS: If the same team name exists under two IDs (e.g. team-aniket-xi AND team-1787144635606),
+    // keep only the canonical timestamp-based ID.
+    const teamNameMap = new Map();
+    const deduped = [];
+    for (const t of teams) {
+      if (!t || !t.id) continue;
+      const normName = (t.name || '').trim().toLowerCase();
+      if (!normName) { deduped.push(t); continue; }
+      
+      const existing = teamNameMap.get(normName);
+      if (existing) {
+        // Prefer timestamp-based IDs (team-178...) over slug-based IDs (team-aniket-xi)
+        const tIsTimestamp = /^team-\d{13}$/.test(t.id);
+        const eIsTimestamp = /^team-\d{13}$/.test(existing.id);
+        if (tIsTimestamp && !eIsTimestamp) {
+          // Replace slug with timestamp version
+          const idx = deduped.indexOf(existing);
+          if (idx !== -1) deduped.splice(idx, 1);
+          deduped.push(t);
+          teamNameMap.set(normName, t);
+        }
+        // else keep existing (already timestamp or same type)
+      } else {
+        teamNameMap.set(normName, t);
+        deduped.push(t);
+      }
+    }
     
-    return teams.map((t, idx) => {
+    return deduped.map((t, idx) => {
       const hasIcon = !!((t.iconPlayerName && t.iconPlayerName.trim()) || (t.iconName && t.iconName.trim()));
       const iconDeduction = hasIcon ? 1000 : 0;
       

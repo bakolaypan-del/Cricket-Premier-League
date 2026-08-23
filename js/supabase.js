@@ -326,8 +326,33 @@ export async function fetchCloudData() {
           rawProfiles = Array.isArray(data.player_profiles) ? data.player_profiles : Object.values(data.player_profiles);
         }
 
+        // SECONDARY DEDUP by name+phone: collapse old and new IDs for the same person
+        const namePhoneDedup = new Map();
+        for (const p of rawPlayers) {
+          if (!p || !p.id) continue;
+          const normName = (p.name || '').trim().toLowerCase();
+          const normPhone = (p.phone || p.mobileNumber || p.mobile || '').replace(/\D/g, '').slice(-10);
+          const key = normName + '|' + normPhone;
+          if (!normName) continue;
+          const existing = namePhoneDedup.get(key);
+          if (existing) {
+            const pCanonical = (p.id || '').startsWith('ply-1787000000000');
+            const eCanonical = (existing.id || '').startsWith('ply-1787000000000');
+            if (pCanonical && !eCanonical) { namePhoneDedup.set(key, p); }
+            else if (!pCanonical && eCanonical) { /* keep existing */ }
+            else {
+              const pTime = Number(p.updated_at || p.createdTime || 0);
+              const eTime = Number(existing.updated_at || existing.createdTime || 0);
+              if (pTime > eTime) namePhoneDedup.set(key, p);
+            }
+          } else {
+            namePhoneDedup.set(key, p);
+          }
+        }
+        const dedupedPlayerIds = new Set(Array.from(namePhoneDedup.values()).map(p => p.id));
+        
         const players = rawPlayers
-          .filter(p => p && p.id && !deletedPlayerIds.includes(p.id))
+          .filter(p => p && p.id && !deletedPlayerIds.includes(p.id) && dedupedPlayerIds.has(p.id))
           .sort((a, b) => {
             const sA = Number(a.serialNo) || (a.displayRegistrationNumber ? Number(a.displayRegistrationNumber) : 9999);
             const sB = Number(b.serialNo) || (b.displayRegistrationNumber ? Number(b.displayRegistrationNumber) : 9999);
@@ -344,8 +369,25 @@ export async function fetchCloudData() {
             };
           });
 
+        // DEDUP TEAMS by name: prefer timestamp-based IDs over slug-based IDs
+        const teamNameDedup = new Map();
+        for (const t of rawTeams) {
+          if (!t || !t.id) continue;
+          const normName = (t.name || '').trim().toLowerCase();
+          if (!normName) continue;
+          const existing = teamNameDedup.get(normName);
+          if (existing) {
+            const tIsTimestamp = /^team-\d{13}$/.test(t.id);
+            const eIsTimestamp = /^team-\d{13}$/.test(existing.id);
+            if (tIsTimestamp && !eIsTimestamp) teamNameDedup.set(normName, t);
+          } else {
+            teamNameDedup.set(normName, t);
+          }
+        }
+        const dedupedTeamIds = new Set(Array.from(teamNameDedup.values()).map(t => t.id));
+
         const teams = rawTeams
-          .filter(t => t && t.id && !deletedTeamIds.includes(t.id))
+          .filter(t => t && t.id && !deletedTeamIds.includes(t.id) && dedupedTeamIds.has(t.id))
           .sort((a, b) => (Number(a.serialNo) || 9999) - (Number(b.serialNo) || 9999))
           .map((t, idx) => ({
             ...t,
