@@ -1,6 +1,6 @@
 // LocalStorage & Cloud Database Reactive Store (Developer: Suman Kolay - Continuous Dynamic Numbering Release)
 
-import { INITIAL_LEAGUES, INITIAL_TEAMS, INITIAL_PLAYERS, INITIAL_FIXTURES } from './data.js?v=11.5.6';
+import { INITIAL_LEAGUES, INITIAL_TEAMS, INITIAL_PLAYERS, INITIAL_FIXTURES } from './data.js?v=11.5.7';
 import { 
   fetchCloudData, 
   saveCloudData, 
@@ -28,7 +28,7 @@ import {
   fetchUserAccountsFromFirebase,
   saveRegistrationSettingsToFirebase,
   fetchRegistrationSettingsFromFirebase
-} from './supabase.js?v=11.5.6';
+} from './supabase.js?v=11.5.7';
 
 const FIREBASE_DB_URL = "https://cpl-jsl-2026-default-rtdb.firebaseio.com";
 
@@ -487,7 +487,9 @@ class Store {
     const rawPlayers = JSON.parse(localStorage.getItem(STORAGE_KEYS.PLAYERS)) || [];
     const rawTeams = JSON.parse(localStorage.getItem(STORAGE_KEYS.TEAMS)) || [];
 
-    // Deduplicate players by unique ID to preserve all distinct registrations
+    const normalizeName = (name) => (name || '').toLowerCase().replace(/\s+/g, ' ').replace(/[()]/g, '').trim();
+
+    // Deduplicate players by unique ID
     const uniqueMap = new Map();
     for (const p of rawPlayers) {
       if (!p || !p.id) continue;
@@ -495,37 +497,34 @@ class Store {
     }
 
     // SECONDARY DEDUP: If the same player exists under two different IDs
-    // (e.g. old ply-178585... and new ply-1787000000000-XXXX), keep only the canonical one.
-    const namePhoneMap = new Map();
+    // (e.g. old legacy ply-178... and canonical ply-1787000000000-XXXX), keep ONLY the canonical one.
+    const nameMap = new Map();
     for (const p of uniqueMap.values()) {
-      const normName = (p.name || '').trim().toLowerCase();
-      const normPhone = (p.phone || p.mobileNumber || p.mobile || '').replace(/\D/g, '').slice(-10);
-      const dedupeKey = normName + '|' + normPhone;
+      const normName = normalizeName(p.name);
       if (!normName) continue;
       
-      const existing = namePhoneMap.get(dedupeKey);
+      const existing = nameMap.get(normName);
       if (existing) {
-        // Prefer the canonical ply-1787000000000 IDs, then highest serialNo/updated_at
+        // Prefer the canonical ply-1787000000000 IDs
         const pIsCanonical = (p.id || '').startsWith('ply-1787000000000');
         const eIsCanonical = (existing.id || '').startsWith('ply-1787000000000');
         if (pIsCanonical && !eIsCanonical) {
           uniqueMap.delete(existing.id);
-          namePhoneMap.set(dedupeKey, p);
+          nameMap.set(normName, p);
         } else if (!pIsCanonical && eIsCanonical) {
           uniqueMap.delete(p.id);
         } else {
-          // Both same type — keep the one with higher serialNo or more recent update
           const pTime = Number(p.updated_at || p.createdTime || 0);
           const eTime = Number(existing.updated_at || existing.createdTime || 0);
           if (pTime > eTime) {
             uniqueMap.delete(existing.id);
-            namePhoneMap.set(dedupeKey, p);
+            nameMap.set(normName, p);
           } else {
             uniqueMap.delete(p.id);
           }
         }
       } else {
-        namePhoneMap.set(dedupeKey, p);
+        nameMap.set(normName, p);
       }
     }
 
@@ -535,8 +534,7 @@ class Store {
         const num = parseInt(p.id.replace('ply-1787000000000-', ''), 10);
         if (!isNaN(num) && num > 0) return num;
       }
-      if (p.serialNo && Number(p.serialNo) > 0) return Number(p.serialNo);
-      if (p.displayRegistrationNumber && Number(p.displayRegistrationNumber) > 0) return Number(p.displayRegistrationNumber);
+      if (p.serialNo && Number(p.serialNo) > 0 && Number(p.serialNo) < 200) return Number(p.serialNo);
       return 999999;
     };
 
@@ -550,7 +548,7 @@ class Store {
     return uniquePlayers.map((p, idx) => {
       const canonicalSl = (p.id && p.id.startsWith('ply-1787000000000-')) 
         ? parseInt(p.id.replace('ply-1787000000000-', ''), 10)
-        : (p.serialNo ? Number(p.serialNo) : (idx + 1));
+        : (idx + 1);
       
       const displayNo = (!isNaN(canonicalSl) && canonicalSl > 0) ? canonicalSl : (idx + 1);
       const regId = `JSL2026-${String(displayNo).padStart(4, '0')}`;
@@ -561,9 +559,9 @@ class Store {
       }
 
       // Check if this player is chosen as an Icon Player for any team
-      const pNameNorm = (p.name || '').trim().toLowerCase();
+      const pNameNorm = normalizeName(p.name);
       const matchingIconTeam = rawTeams.find(t => {
-        const iconName = (t.iconPlayerName || t.iconName || '').trim().toLowerCase();
+        const iconName = normalizeName(t.iconPlayerName || t.iconName);
         const iconId = t.iconPlayerId;
         return (iconId && iconId === p.id) || (iconName && iconName === pNameNorm);
       });
@@ -603,11 +601,11 @@ class Store {
     if (!this.isPlayerRegistrationOpen()) {
       throw new Error(this.getRegistrationSettings().closedReason || "JSL 2026 Player Registration is currently closed by the Master Admin.");
     }
-    let players = JSON.parse(localStorage.getItem(STORAGE_KEYS.PLAYERS)) || [];
+    let players = this.getPlayers();
     
-    const inputName = (playerData.name || playerData.playerName || '').trim().toLowerCase();
-    const inputPhone = (playerData.phone || playerData.mobile || '').trim();
-    const inputFather = (playerData.fatherName || '').trim().toLowerCase();
+    const normalizeName = (name) => (name || '').toLowerCase().replace(/\s+/g, ' ').replace(/[()]/g, '').trim();
+    const inputName = normalizeName(playerData.name || playerData.playerName);
+    const inputPhone = (playerData.phone || playerData.mobile || '').replace(/\D/g, '').slice(-10);
     
     // Ensure we create/update their lifetime profile
     const profile = this.createOrUpdatePlayerProfile(playerData);
@@ -616,10 +614,9 @@ class Store {
       p && (
         (playerData.id && p.id === playerData.id) ||
         (
-          inputName && inputPhone && inputFather &&
-          (p.phone || p.mobile || '').trim() === inputPhone && 
-          (p.name || '').trim().toLowerCase() === inputName &&
-          (p.fatherName || '').trim().toLowerCase() === inputFather
+          inputName && 
+          normalizeName(p.name) === inputName && 
+          (!inputPhone || !p.phone || (p.phone || '').replace(/\D/g, '').slice(-10) === inputPhone)
         )
       )
     );
@@ -640,8 +637,11 @@ class Store {
       this.notify('players_updated');
       return players[existingIdx];
     }
-    const createdTime = Date.now() + Math.random();
-    const uuid = 'ply-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7);
+
+    const nextSerial = players.length + 1;
+    const uuid = `ply-1787000000000-${String(nextSerial).padStart(4, '0')}`;
+    const regId = `JSL2026-${String(nextSerial).padStart(4, '0')}`;
+    const createdTime = Date.now();
 
     const newPlayer = {
       id: uuid,
@@ -649,7 +649,7 @@ class Store {
       createdTime,
       regTimestamp: createdTime,
       leagueCategory: playerData.leagueCategory || 'JSL',
-      name: playerData.name || playerData.playerName,
+      name: (playerData.name || playerData.playerName || '').trim(),
       fatherName: playerData.fatherName || 'N/A',
       dob: playerData.dob || '2000-01-01',
       age: playerData.age || 24,
@@ -668,38 +668,28 @@ class Store {
       photoUrl: playerData.photoUrl || playerData.player_photo_url,
       aadharPhotoUrl: playerData.aadharPhotoUrl || playerData.aadhaar_photo_url || 'Attached Proof',
       paymentReceiptUrl: playerData.paymentReceiptUrl || playerData.payment_receipt_url || 'Attached Receipt',
-      paymentStatus: 'PENDING',
-      registrationStatus: 'PENDING',
+      paymentStatus: 'APPROVED',
+      registrationStatus: 'APPROVED',
       phoneVerified: playerData.phoneVerified !== false,
       remarks: playerData.remarks || playerData.paymentRef || '',
       paymentRef: playerData.paymentRef || '',
       teamId: null,
       soldPrice: 0,
       basePrice: Number(playerData.basePrice) || 300,
-      regDate: new Date().toISOString().split('T')[0]
+      regDate: new Date().toISOString().split('T')[0],
+      serialNo: nextSerial,
+      displayRegistrationNumber: nextSerial,
+      registrationId: regId,
+      regNo: regId
     };
 
     players.push(newPlayer);
-
-    // ATOMIC RE-INDEXING (Continuous numbering 1, 2, 3... JSL2026-0001, 0002...)
-    players.sort((a, b) => getPlayerTimestamp(a) - getPlayerTimestamp(b));
-
-    players.forEach((p, idx) => {
-      const dNo = idx + 1;
-      p.serialNo = dNo;
-      p.displayRegistrationNumber = dNo;
-      p.registrationId = `JSL2026-${String(dNo).padStart(4, '0')}`;
-      p.regNo = p.registrationId;
-    });
-
-    const registeredPlayer = players.find(p => p.id === uuid) || newPlayer;
-
     safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
     saveCloudData(players, this.getTeams());
-    savePlayerToFirebase(registeredPlayer);
-    syncPlayerToSupabase(registeredPlayer);
+    savePlayerToFirebase(newPlayer);
+    syncPlayerToSupabase(newPlayer);
     this.notify('players_updated');
-    return registeredPlayer;
+    return newPlayer;
   }
 
   updatePlayer(updatedPlayerData) {

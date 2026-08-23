@@ -326,38 +326,36 @@ export async function fetchCloudData() {
           rawProfiles = Array.isArray(data.player_profiles) ? data.player_profiles : Object.values(data.player_profiles);
         }
 
-        // SECONDARY DEDUP by name+phone: collapse old and new IDs for the same person
-        const namePhoneDedup = new Map();
+        // SECONDARY DEDUP by normalized name: collapse old and new IDs for the same person
+        const normalizeName = (name) => (name || '').toLowerCase().replace(/\s+/g, ' ').replace(/[()]/g, '').trim();
+        const nameDedup = new Map();
         for (const p of rawPlayers) {
           if (!p || !p.id) continue;
-          const normName = (p.name || '').trim().toLowerCase();
-          const normPhone = (p.phone || p.mobileNumber || p.mobile || '').replace(/\D/g, '').slice(-10);
-          const key = normName + '|' + normPhone;
+          const normName = normalizeName(p.name);
           if (!normName) continue;
-          const existing = namePhoneDedup.get(key);
+          const existing = nameDedup.get(normName);
           if (existing) {
             const pCanonical = (p.id || '').startsWith('ply-1787000000000');
             const eCanonical = (existing.id || '').startsWith('ply-1787000000000');
-            if (pCanonical && !eCanonical) { namePhoneDedup.set(key, p); }
+            if (pCanonical && !eCanonical) { nameDedup.set(normName, p); }
             else if (!pCanonical && eCanonical) { /* keep existing */ }
             else {
               const pTime = Number(p.updated_at || p.createdTime || 0);
               const eTime = Number(existing.updated_at || existing.createdTime || 0);
-              if (pTime > eTime) namePhoneDedup.set(key, p);
+              if (pTime > eTime) nameDedup.set(normName, p);
             }
           } else {
-            namePhoneDedup.set(key, p);
+            nameDedup.set(normName, p);
           }
         }
-        const dedupedPlayerIds = new Set(Array.from(namePhoneDedup.values()).map(p => p.id));
+        const dedupedPlayerIds = new Set(Array.from(nameDedup.values()).map(p => p.id));
         
         const getCanonicalRank = (p) => {
           if (p.id && p.id.startsWith('ply-1787000000000-')) {
             const num = parseInt(p.id.replace('ply-1787000000000-', ''), 10);
             if (!isNaN(num) && num > 0) return num;
           }
-          if (p.serialNo && Number(p.serialNo) > 0) return Number(p.serialNo);
-          if (p.displayRegistrationNumber && Number(p.displayRegistrationNumber) > 0) return Number(p.displayRegistrationNumber);
+          if (p.serialNo && Number(p.serialNo) > 0 && Number(p.serialNo) < 200) return Number(p.serialNo);
           return 999999;
         };
 
@@ -372,7 +370,7 @@ export async function fetchCloudData() {
           .map((p, idx) => {
             const canonicalSl = (p.id && p.id.startsWith('ply-1787000000000-')) 
               ? parseInt(p.id.replace('ply-1787000000000-', ''), 10)
-              : (p.serialNo ? Number(p.serialNo) : (idx + 1));
+              : (idx + 1);
             const serial = (!isNaN(canonicalSl) && canonicalSl > 0) ? canonicalSl : (idx + 1);
             return {
               ...p,
