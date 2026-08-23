@@ -1,9 +1,9 @@
 // Admin Master Data & Payment Verification Panel with Single Source Cloud Control (Developer: Suman Kolay)
 
-import { store } from './store.js?v=11.5.1';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF } from './export.js?v=11.5.1';
-import { saveAdSettingsToFirebase, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, savePopupSettingsToFirebase, uploadHDImage, getOptimizedImageUrl } from './supabase.js?v=11.5.1';
-import { shops } from './shopsData.js?v=11.5.1';
+import { store } from './store.js?v=11.5.2';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF } from './export.js?v=11.5.2';
+import { saveAdSettingsToFirebase, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, savePopupSettingsToFirebase, uploadHDImage, getOptimizedImageUrl } from './supabase.js?v=11.5.2';
+import { shops } from './shopsData.js?v=11.5.2';
 
 let activeAdminTab = 'payments'; // 'payments', 'all-players', 'teams'
 let adminAuctionSubTab = 'sold'; // 'sold', 'unsold'
@@ -3071,31 +3071,6 @@ export function renderActiveAuctionBlock() {
     const confirmed = confirm(`🔨 Confirm Player Sale:\n\nAre you sure you want to mark "${p.name}" as SOLD to "${team.name}" for ₹${price.toLocaleString('en-IN')}?\n\nClick OK to confirm or Cancel to revert.`);
     if (!confirmed) return;
 
-    // Deduct purse
-    const updatedPurseSpent = (Number(team.purseSpent) || 0) + price;
-    const maxPurse = Number(team.purse || team.purseBudget || 8000);
-    const updatedRemPurse = Math.max(0, maxPurse - updatedPurseSpent);
-
-    const updatedTeam = {
-      ...team,
-      squadCount: (Number(team.squadCount) || 0) + 1,
-      purseSpent: updatedPurseSpent,
-      remainingPurse: updatedRemPurse,
-      updated_at: Date.now()
-    };
-
-    // Assign player
-    const updatedPlayer = {
-      ...p,
-      teamId: team.id,
-      teamName: team.name,
-      soldPrice: price,
-      auctionStatus: 'SOLD',
-      isSold: true,
-      isUnsold: false,
-      updated_at: Date.now()
-    };
-
     // Stop timer
     if (activeAuction.timerInterval) clearInterval(activeAuction.timerInterval);
 
@@ -3122,9 +3097,8 @@ export function renderActiveAuctionBlock() {
     renderActiveAuctionBlock();
     updateProjectorModalView();
 
-    // 2. Update player and team database records atomically (single call)
-    store.updateTeam(updatedTeam);
-    store.updatePlayer(updatedPlayer);
+    // 2. Update player and team database records atomically via store.assignPlayerToTeam
+    store.assignPlayerToTeam(p.id, team.id, price);
 
     // 3. Keep SOLD stamp visible continuously on screen until admin selects the next player
     setTimeout(() => {
@@ -3141,8 +3115,6 @@ export function renderActiveAuctionBlock() {
   // Attach Mark UNSOLD
   document.getElementById('auction-mark-unsold-btn')?.addEventListener('click', async () => {
     if (confirm(`Mark "${p.name}" as UNSOLD for this round?`)) {
-      const updatedPlayer = { ...p, auctionStatus: 'UNSOLD' };
-
       if (activeAuction.timerInterval) clearInterval(activeAuction.timerInterval);
 
       // 1. FIRST Broadcast UNSOLD stamp IMMEDIATELY to all spectator phones, projector and admin screen
@@ -3162,8 +3134,8 @@ export function renderActiveAuctionBlock() {
       renderActiveAuctionBlock();
       updateProjectorModalView();
 
-      // 2. Then update player database record
-      store.updatePlayer(updatedPlayer);
+      // 2. Then update player database record via store.markPlayerUnsold
+      store.markPlayerUnsold(p.id);
 
       // 3. Keep UNSOLD stamp visible continuously on screen until admin selects the next player
       setTimeout(() => {

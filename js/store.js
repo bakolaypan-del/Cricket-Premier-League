@@ -1,6 +1,6 @@
 // LocalStorage & Cloud Database Reactive Store (Developer: Suman Kolay - Continuous Dynamic Numbering Release)
 
-import { INITIAL_LEAGUES, INITIAL_TEAMS, INITIAL_PLAYERS, INITIAL_FIXTURES } from './data.js?v=11.5.1';
+import { INITIAL_LEAGUES, INITIAL_TEAMS, INITIAL_PLAYERS, INITIAL_FIXTURES } from './data.js?v=11.5.2';
 import { 
   fetchCloudData, 
   saveCloudData, 
@@ -28,7 +28,7 @@ import {
   fetchUserAccountsFromFirebase,
   saveRegistrationSettingsToFirebase,
   fetchRegistrationSettingsFromFirebase
-} from './supabase.js?v=11.5.1';
+} from './supabase.js?v=11.5.2';
 
 const FIREBASE_DB_URL = "https://cpl-jsl-2026-default-rtdb.firebaseio.com";
 
@@ -555,8 +555,9 @@ class Store {
       });
 
       const isIcon = !!matchingIconTeam || (!!p.teamId && (!!p.isIcon || !!p.isIconPlayer));
+      const matchedTeam = rawTeams.find(t => t.id === p.teamId);
       const effectiveTeamId = matchingIconTeam ? matchingIconTeam.id : p.teamId;
-      const effectiveTeamName = matchingIconTeam ? matchingIconTeam.name : (p.teamName || '');
+      const effectiveTeamName = matchingIconTeam ? matchingIconTeam.name : (p.teamName || (matchedTeam ? matchedTeam.name : ''));
       const effectiveAuctionStatus = matchingIconTeam ? 'SOLD' : (p.auctionStatus || (p.teamId ? 'SOLD' : 'PENDING'));
       const effectiveSoldPrice = matchingIconTeam ? (Number(p.soldPrice) || 1000) : (Number(p.soldPrice) || 0);
 
@@ -702,6 +703,7 @@ class Store {
       savePlayerToFirebase(players[idx]);
       patchPlayerInFirebase(players[idx].id, players[idx]);
       syncPlayerToSupabase(players[idx]);
+      saveCloudData(players, this.getTeams());
       this.notify('players_updated');
       return players[idx];
     }
@@ -851,19 +853,22 @@ class Store {
         if (oldTeam) {
           oldTeam.squadCount = Math.max(0, oldTeam.squadCount - 1);
           oldTeam.purseSpent = Math.max(0, oldTeam.purseSpent - (player.soldPrice || 0));
+          oldTeam.remainingPurse = Math.max(0, (Number(oldTeam.purseBudget) || 8000) - oldTeam.purseSpent);
+          oldTeam.updated_at = Date.now();
         }
       }
 
+      const price = Number(soldPrice) || player.basePrice || 300;
       player.teamId = teamId;
-      player.soldPrice = Number(soldPrice) || player.basePrice || 0;
+      player.soldPrice = price;
       player.teamName = team.name;
       player.auctionStatus = 'SOLD';
       player.isSold = true;
       player.isUnsold = false;
       player.updated_at = Date.now();
       
-      team.squadCount += 1;
-      team.purseSpent += player.soldPrice;
+      team.squadCount = (Number(team.squadCount) || 0) + 1;
+      team.purseSpent = (Number(team.purseSpent) || 0) + price;
       team.remainingPurse = Math.max(0, (Number(team.purseBudget) || 8000) - team.purseSpent);
       team.updated_at = Date.now();
 
@@ -875,9 +880,37 @@ class Store {
       patchTeamInFirebase(team.id, team);
       syncPlayerToSupabase(player);
       syncTeamToSupabase(team);
+      saveCloudData(players, teams);
       this.notify('players_updated');
       this.notify('teams_updated');
+      this.notify('live_auction_updated');
+      return { player, team };
     }
+    return null;
+  }
+
+  markPlayerUnsold(playerId) {
+    const players = this.getPlayers();
+    const player = players.find(p => p.id === playerId);
+    if (!player) return false;
+
+    const now = Date.now();
+    player.teamId = null;
+    player.teamName = null;
+    player.soldPrice = 0;
+    player.auctionStatus = 'UNSOLD';
+    player.isSold = false;
+    player.isUnsold = true;
+    player.updated_at = now;
+
+    safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
+    savePlayerToFirebase(player);
+    patchPlayerInFirebase(player.id, player);
+    syncPlayerToSupabase(player);
+    saveCloudData(players, this.getTeams());
+    this.notify('players_updated');
+    this.notify('live_auction_updated');
+    return true;
   }
 
   unassignPlayerFromTeam(playerId) {
@@ -932,6 +965,7 @@ class Store {
     savePlayerToFirebase(player);
     patchPlayerInFirebase(player.id, player);
     syncPlayerToSupabase(player);
+    saveCloudData(players, teams);
     this.notify('players_updated');
     this.notify('teams_updated');
     this.notify('live_auction_updated');
@@ -1038,11 +1072,20 @@ class Store {
     }
     
     return deduped.map((t, idx) => {
-      const hasIcon = !!((t.iconPlayerName && t.iconPlayerName.trim()) || (t.iconName && t.iconName.trim()));
+      const iconPlayerName = (t.iconPlayerName || t.iconName || '').trim().toLowerCase();
+      const hasIcon = !!iconPlayerName;
       const iconDeduction = hasIcon ? 1000 : 0;
       
       // Calculate total spent on purchased auction players (excluding icon player to avoid double deduction)
-      const purchasedNonIconPlayers = allPlayers.filter(p => p.teamId === t.id && !p.isIcon && !p.isIconPlayer && (p.auctionStatus === 'SOLD' || p.isSold === true));
+      const purchasedNonIconPlayers = allPlayers.filter(p => {
+        if (!p) return false;
+        const isMatch = (p.teamId === t.id) || (p.teamName && (p.teamName || '').trim().toLowerCase() === (t.name || '').trim().toLowerCase());
+        if (!isMatch) return false;
+        const pName = (p.name || '').trim().toLowerCase();
+        const isThisTeamIcon = hasIcon && (pName === iconPlayerName || (t.iconPlayerId && p.id === t.iconPlayerId));
+        const isSoldStatus = (p.auctionStatus === 'SOLD' || p.isSold === true || !!p.teamId);
+        return isSoldStatus && !isThisTeamIcon;
+      });
       const auctionSpent = purchasedNonIconPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || 0), 0);
       
       const totalBudget = Number(t.purseBudget || t.purse || 8000);
@@ -1200,7 +1243,9 @@ class Store {
         t.serialNo = i + 1;
       });
       safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
-      saveCloudData(this.getPlayers(), teams);
+      saveTeamToFirebase(teams[idx]);
+      patchTeamInFirebase(teams[idx].id, teams[idx]);
+      saveFullTeamsListToFirebase(teams);
       syncTeamToSupabase(teams[idx]);
       this.syncIconPlayerAllocation(oldTeam, teams[idx]);
       this.notify('teams_updated');
