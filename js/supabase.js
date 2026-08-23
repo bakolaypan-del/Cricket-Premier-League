@@ -334,7 +334,6 @@ export async function fetchCloudData() {
             const normName = normalizeName(p.name);
             const normPhone = (p.phone || p.mobile || '').replace(/\D/g, '').slice(-10);
             canonicalMap.set(normName + '|' + normPhone, p);
-            if (normName) canonicalMap.set(normName, p);
           }
         }
 
@@ -346,7 +345,7 @@ export async function fetchCloudData() {
           } else {
             const normName = normalizeName(p.name);
             const normPhone = (p.phone || p.mobile || '').replace(/\D/g, '').slice(-10);
-            if (!canonicalMap.has(normName + '|' + normPhone) && !canonicalMap.has(normName)) {
+            if (!canonicalMap.has(normName + '|' + normPhone)) {
               dedupedPlayerIds.add(p.id);
             }
           }

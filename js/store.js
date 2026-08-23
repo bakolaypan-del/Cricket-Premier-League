@@ -1,6 +1,6 @@
 // LocalStorage & Cloud Database Reactive Store (Developer: Suman Kolay - Continuous Dynamic Numbering Release)
 
-import { INITIAL_LEAGUES, INITIAL_TEAMS, INITIAL_PLAYERS, INITIAL_FIXTURES } from './data.js?v=11.5.9';
+import { INITIAL_LEAGUES, INITIAL_TEAMS, INITIAL_PLAYERS, INITIAL_FIXTURES } from './data.js?v=11.6.0';
 import { 
   fetchCloudData, 
   saveCloudData, 
@@ -28,7 +28,7 @@ import {
   fetchUserAccountsFromFirebase,
   saveRegistrationSettingsToFirebase,
   fetchRegistrationSettingsFromFirebase
-} from './supabase.js?v=11.5.9';
+} from './supabase.js?v=11.6.0';
 
 const FIREBASE_DB_URL = "https://cpl-jsl-2026-default-rtdb.firebaseio.com";
 
@@ -503,7 +503,6 @@ class Store {
         const normName = normalizeName(p.name);
         const normPhone = (p.phone || p.mobile || '').replace(/\D/g, '').slice(-10);
         canonicalMap.set(normName + '|' + normPhone, p);
-        if (normName) canonicalMap.set(normName, p);
       }
     }
 
@@ -511,7 +510,7 @@ class Store {
       if (!p.id.startsWith('ply-1787000000000-')) {
         const normName = normalizeName(p.name);
         const normPhone = (p.phone || p.mobile || '').replace(/\D/g, '').slice(-10);
-        if (canonicalMap.has(normName + '|' + normPhone) || canonicalMap.has(normName)) {
+        if (canonicalMap.has(normName + '|' + normPhone)) {
           uniqueMap.delete(p.id);
         }
       }
