@@ -229,119 +229,9 @@ class Store {
           return;
         }
 
-        // MERGE LOCAL & CLOUD PLAYERS: Compare modification timestamps to preserve admin edits/approvals
-        const deletedIdsSet = new Set(cloudData.deletedPlayerIds || []);
-        const validLocalPlayers = localPlayers.filter(p => p && p.id && !deletedIdsSet.has(p.id));
-
-        const localPlayerMap = new Map(validLocalPlayers.map(p => [p.id, p]));
-        const mergedMap = new Map();
-
-        // 1. Process cloud players & compare modification timestamps + approval locks
-        for (const cloudP of cloudData.players) {
-          if (!cloudP || !cloudP.id || deletedIdsSet.has(cloudP.id)) continue;
-          const localP = localPlayerMap.get(cloudP.id);
-          if (localP) {
-            const cloudTime = Number(cloudP.updated_at || cloudP.created_at || cloudP.timestamp || 0);
-            const localTime = Number(localP.updated_at || localP.created_at || localP.timestamp || 0);
-
-            const isLocalApproved = localP.registrationStatus === 'APPROVED' || localP.paymentStatus === 'APPROVED';
-            const isCloudApproved = cloudP.registrationStatus === 'APPROVED' || cloudP.paymentStatus === 'APPROVED';
-
-            const isPurged = localP.docsPurged || cloudP.docsPurged;
-
-            let mergedRecord;
-            if (isLocalApproved && !isCloudApproved) {
-              // Local is approved, cloud is not yet approved -> KEEP LOCAL APPROVED STATUS & push back to cloud!
-              mergedRecord = {
-                ...cloudP,
-                ...localP,
-                paymentStatus: 'APPROVED',
-                registrationStatus: 'APPROVED',
-                updated_at: Math.max(localTime, Date.now())
-              };
-              syncPlayerToSupabase(mergedRecord);
-            } else if (localTime > cloudTime) {
-              // Local record has newer admin edits -> preserve local fields
-              mergedRecord = { ...cloudP, ...localP };
-            } else {
-              mergedRecord = { ...localP, ...cloudP };
-            }
-
-            // CRITICAL REALTIME FIX: Cloud is authoritative for auction team assignments, sold status & prices!
-            // If the player was unassigned/unsold in cloud (no teamId or not SOLD), clear any stale local team assignment
-            if (!cloudP.teamId || cloudP.auctionStatus === 'PENDING' || cloudP.auctionStatus === 'UNSOLD') {
-              if (!cloudP.isIcon && !cloudP.isIconPlayer) {
-                mergedRecord.teamId = cloudP.teamId || null;
-                mergedRecord.teamName = cloudP.teamName || null;
-                mergedRecord.boughtByTeamId = cloudP.boughtByTeamId || null;
-                mergedRecord.soldPrice = Number(cloudP.soldPrice) || 0;
-                mergedRecord.auctionStatus = cloudP.auctionStatus || 'PENDING';
-                mergedRecord.isSold = false;
-                mergedRecord.isUnsold = (cloudP.auctionStatus === 'UNSOLD' || !!cloudP.isUnsold);
-              }
-            } else if (cloudP.teamId && (cloudP.auctionStatus === 'SOLD' || cloudP.isSold)) {
-              mergedRecord.teamId = cloudP.teamId;
-              mergedRecord.teamName = cloudP.teamName || '';
-              mergedRecord.boughtByTeamId = cloudP.boughtByTeamId || cloudP.teamId;
-              mergedRecord.soldPrice = Number(cloudP.soldPrice) || 0;
-              mergedRecord.auctionStatus = 'SOLD';
-              mergedRecord.isSold = true;
-              mergedRecord.isUnsold = false;
-            }
-
-            if (isPurged) {
-              mergedRecord.aadharPhotoUrl = '';
-              mergedRecord.aadhaar_photo_url = '';
-              mergedRecord.aadharBackUrl = '';
-              mergedRecord.aadhaar_back_url = '';
-              mergedRecord.aadhar_photo = '';
-              mergedRecord.aadhaar_photo = '';
-              mergedRecord.paymentReceiptUrl = '';
-              mergedRecord.payment_receipt_url = '';
-              mergedRecord.paymentProofUrl = '';
-              mergedRecord.payment_proof_url = '';
-              mergedRecord.payment_receipt = '';
-              mergedRecord.paymentProof = '';
-              mergedRecord.docsPurged = true;
-            }
-
-            mergedMap.set(cloudP.id, mergedRecord);
-          } else {
-            mergedMap.set(cloudP.id, cloudP);
-          }
-        }
-
-        // 2. UNION-MERGE: Also retain any valid locally registered player not yet present in cloudData
-        for (const [lId, localP] of localPlayerMap.entries()) {
-          if (!mergedMap.has(lId) && !deletedIdsSet.has(lId)) {
-            mergedMap.set(lId, localP);
-            // Non-destructively ensure cloud has this local player
-            savePlayerToFirebase(localP);
-          }
-        }
-
-        let mergedPlayers = Array.from(mergedMap.values());
-
-        // If cloud database is empty, fallback to valid local players
-        if (mergedPlayers.length === 0 && validLocalPlayers.length > 0) {
-          mergedPlayers = validLocalPlayers;
-        }
-
-        // 3. Sort chronologically by registration timestamp
-        mergedPlayers.sort((a, b) => getPlayerTimestamp(a) - getPlayerTimestamp(b));
-
-        // CONTINUOUS DYNAMIC RE-INDEXING: Ensure registration IDs (JSL2026-0001, JSL2026-0002...) and display numbers (1, 2, 3...) have no gaps
-        const reindexedPlayers = mergedPlayers.map((p, idx) => {
-          const displayNo = idx + 1;
-          const regId = `JSL2026-${String(displayNo).padStart(4, '0')}`;
-          return {
-            ...p,
-            serialNo: displayNo,
-            displayRegistrationNumber: displayNo,
-            registrationId: regId,
-            regNo: regId
-          };
-        });
+        // CLOUD-AUTHORITATIVE SYNC: Cloud database is the single source of truth.
+        // Local storage serves as an offline-first cache and is updated to match cloud data.
+        const reindexedPlayers = cloudData.players;
 
         const localSanitized = sanitizeForStorage(this.getPlayers());
         const cleanCloudSanitized = sanitizeForStorage(reindexedPlayers);
@@ -363,7 +253,6 @@ class Store {
 
       if (Array.isArray(cloudData.teams)) {
         const localTeams = this.getTeams();
-        const deletedTeamIdsSet = new Set(cloudData.deletedTeamIds || []);
 
         if (cloudData.teams.length === 0 && cloudData.teamsClearedAt > 0) {
           if (localTeams.length > 0) {
@@ -373,15 +262,7 @@ class Store {
           return;
         }
 
-        const validLocalTeams = localTeams.filter(t => t && t.id && !deletedTeamIdsSet.has(t.id));
-        const cloudTeamIds = new Set(cloudData.teams.map(t => t.id));
-        const missingLocalTeams = validLocalTeams.filter(t => t && t.id && !cloudTeamIds.has(t.id) && !deletedTeamIdsSet.has(t.id));
-        let mergedTeams = [...cloudData.teams, ...missingLocalTeams];
-
-        const reindexedTeams = mergedTeams.map((t, idx) => ({
-          ...t,
-          serialNo: idx + 1
-        }));
+        const reindexedTeams = cloudData.teams;
 
         const localTeamsSanitized = sanitizeForStorage(localTeams);
         const cleanCloudTeamsSanitized = sanitizeForStorage(reindexedTeams);
