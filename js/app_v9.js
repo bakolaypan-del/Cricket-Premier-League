@@ -1,10 +1,10 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=11.6.2';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, printDigitalPass, openUserGuidePDF } from './export.js?v=11.6.2';
-import { renderAdminDashboard } from './admin.js?v=11.6.2';
-import { uploadHDImage, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats } from './supabase.js?v=11.6.2';
-import { shops } from './shopsData.js?v=11.6.2';
+import { store } from './store.js?v=11.6.3';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, printDigitalPass, openUserGuidePDF } from './export.js?v=11.6.3';
+import { renderAdminDashboard } from './admin.js?v=11.6.3';
+import { uploadHDImage, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats } from './supabase.js?v=11.6.3';
+import { shops } from './shopsData.js?v=11.6.3';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
 let latestVisitorStats = { liveCount: 1, totalVisits: 286 };
@@ -147,7 +147,7 @@ function initApp() {
     // IF ON AUCTION TAB, NEVER WIPE THE AUCTION VIEW: Let pollActiveAuctionState() handle smooth in-place updates
     if (currentRoute === 'auction') {
       const activeBlock = document.getElementById('auction-active-block-container');
-      if (activeBlock) {
+      if (activeBlock && typeof pollActiveAuctionState === 'function') {
         pollActiveAuctionState();
         return;
       }
@@ -188,7 +188,7 @@ function initApp() {
   window.addEventListener('live_auction_updated', () => {
     if (currentRoute === 'auction') {
       const activeBlockWrapper = document.getElementById('auction-active-block-container');
-      if (activeBlockWrapper) {
+      if (activeBlockWrapper && typeof pollActiveAuctionState === 'function') {
         pollActiveAuctionState();
       } else {
         safeRenderCurrentView();
@@ -205,6 +205,7 @@ function initApp() {
 }
 
 let auctionPollInterval = null;
+let pollActiveAuctionState = null;
 
 function navigate(route, pushState = true) {
   if (auctionPollInterval) {
@@ -4725,6 +4726,8 @@ function renderLiveAuctionView(container) {
 
     pursesWrapper.innerHTML = teams.map(t => {
       const hasIcon = !!((t.iconPlayerName && t.iconPlayerName.trim()) || (t.iconName && t.iconName.trim()));
+      const iconDeduction = hasIcon ? 1000 : 0;
+      const totalPurse = Number(t.purseBudget || t.purse || 8000);
       const purchasedNonIconPlayers = allPlayers.filter(p => (p.teamId === t.id || (p.teamName && p.teamName.trim().toLowerCase() === t.name.trim().toLowerCase())) && !p.isIcon && !p.isIconPlayer && (p.auctionStatus === 'SOLD' || p.isSold === true || !!p.teamId));
       const auctionSpent = purchasedNonIconPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || 0), 0);
       const spent = iconDeduction + auctionSpent;
@@ -4813,7 +4816,7 @@ function renderLiveAuctionView(container) {
   renderFranchisePurses(initialTeams, initialPlayers);
   renderPlayerStatusTable();
 
-  const pollActiveAuctionState = async () => {
+  pollActiveAuctionState = async () => {
     if (currentRoute !== 'auction') {
       if (auctionPollInterval) {
         clearInterval(auctionPollInterval);
