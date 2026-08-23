@@ -86,7 +86,9 @@
   <!-- Mobile Bottom Navigation Bar -->
   <nav id="mobile-bottom-nav"></nav>
 
-  <!-- Application Main Script with Version Cache Buster -->
-  <script type="module" src="js/app_v9.js?v=11.6.4"></script>
+  <!-- Application Main Script with Dynamic Cache Immunity -->
+  <script type="module">
+    import("./js/app_v9.js?t=" + Date.now());
+  </script>
 </body>
 </html>

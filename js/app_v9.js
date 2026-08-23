@@ -7737,3 +7737,4 @@ export function openPlayerEditProfileModal(player, onSaved) {
 window.openSquareImageCropModal = openSquareImageCropModal;
 window.compressImage = compressImage;
 window.openYouTubePromoModal = openYouTubePromoModal;
+window.openLiveAuctionProjectorView = openLiveAuctionProjectorView;
