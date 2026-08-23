@@ -1,10 +1,10 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=11.5.5';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, printDigitalPass, openUserGuidePDF } from './export.js?v=11.5.5';
-import { renderAdminDashboard } from './admin.js?v=11.5.5';
-import { uploadHDImage, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats } from './supabase.js?v=11.5.5';
-import { shops } from './shopsData.js?v=11.5.5';
+import { store } from './store.js?v=11.5.6';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, printDigitalPass, openUserGuidePDF } from './export.js?v=11.5.6';
+import { renderAdminDashboard } from './admin.js?v=11.5.6';
+import { uploadHDImage, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats } from './supabase.js?v=11.5.6';
+import { shops } from './shopsData.js?v=11.5.6';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
 let latestVisitorStats = { liveCount: 1, totalVisits: 286 };
@@ -4553,7 +4553,7 @@ function renderLiveAuctionView(container) {
                   <span id="auction-status-label" class="text-[9px] sm:text-[11px] font-black ${isUnsoldState ? 'text-rose-300' : 'text-amber-300'} uppercase tracking-widest block">
                     ${isSoldState ? 'AUCTION RESULT' : isUnsoldState ? 'Auction Status' : 'CURRENT HIGH BID'}
                   </span>
-                  <div id="auction-live-bid-display" class="text-3xl sm:text-5xl md:text-6xl font-black ${isSoldState ? 'text-emerald-400' : isUnsoldState ? 'text-rose-400' : 'text-red-500 live-bid-ambient-blink'} font-mono leading-none mt-0.5 drop-shadow-[0_4px_18px_rgba(239,68,68,0.85)]">
+                  <div id="auction-live-bid-display" class="text-3xl sm:text-5xl md:text-6xl font-black ${isSoldState ? 'text-emerald-400' : isUnsoldState ? 'text-rose-400' : 'text-[#DC2626] live-bid-ambient-blink'} font-mono leading-none mt-0.5 drop-shadow-[0_4px_22px_rgba(220,38,38,0.95)]">
                     ${isSoldState ? '🔨 SOLD' : isUnsoldState ? '❌ UNSOLD' : '₹ ' + Number(state.current_bid || state.basePrice || 300).toLocaleString('en-IN')}
                   </div>
                 </div>
@@ -4670,7 +4670,7 @@ function renderLiveAuctionView(container) {
           if (bidEl) {
             const currentBidVal = Number(state.current_bid || state.basePrice || 300);
             bidEl.textContent = `₹ ${currentBidVal.toLocaleString('en-IN')}`;
-            bidEl.className = 'text-3xl sm:text-5xl md:text-6xl font-black text-red-500 font-mono leading-none mt-0.5 drop-shadow-[0_4px_18px_rgba(239,68,68,0.85)] live-bid-ambient-blink';
+            bidEl.className = 'text-3xl sm:text-5xl md:text-6xl font-black text-[#DC2626] font-mono leading-none mt-0.5 drop-shadow-[0_4px_22px_rgba(220,38,38,0.95)] live-bid-ambient-blink';
             
             if (lastRenderedLiveBid !== currentBidVal) {
               lastRenderedLiveBid = currentBidVal;
@@ -4948,73 +4948,96 @@ export function openLiveAuctionProjectorView() {
   const modalHtml = `
     <div id="live-auction-projector-view-modal" class="fixed inset-0 z-[99999] bg-[#F1F5F9] text-slate-900 flex flex-col h-screen w-screen overflow-hidden select-none font-sans animate-fade-in">
       
-      <!-- 1. TOP BROADCAST HEADER (Height: 56px, Shrink-0, Off-White Stadium Theme) -->
-      <header class="h-14 px-3 sm:px-6 bg-white border-b-2 border-slate-200/90 flex items-center justify-between shrink-0 shadow-xs z-30">
+      <!-- 1. TOP BROADCAST HEADER (Height: 52px, Shrink-0, Perfectly Proportioned) -->
+      <header class="h-13 px-2.5 sm:px-4 bg-white border-b-2 border-slate-200/90 flex items-center justify-between shrink-0 shadow-xs z-30 gap-2">
         <!-- Left: Tournament Title & Live Pulse -->
-        <div class="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
-          <img src="assets/jsl_logo.jpg" class="w-9 h-9 sm:w-10 sm:h-10 rounded-xl object-cover border-2 border-amber-400 shadow-xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+        <div class="flex items-center gap-2 sm:gap-2.5 min-w-0">
+          <img src="assets/jsl_logo.jpg" class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl object-cover border border-amber-400 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
           <div class="min-w-0">
-            <div class="flex items-center gap-2">
-              <h1 class="text-xs sm:text-base font-black tracking-tight text-slate-950 uppercase truncate">
+            <div class="flex items-center gap-1.5">
+              <h1 class="text-xs sm:text-sm lg:text-base font-black tracking-tight text-slate-950 uppercase truncate">
                 JHANKRA SUPER LEAGUE 2026
               </h1>
-              <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-red-600 text-white font-black text-[9px] sm:text-[10px] rounded-md uppercase tracking-wider animate-pulse shrink-0 shadow-xs">
+              <span class="inline-flex items-center gap-1 px-1.5 py-0.5 bg-red-600 text-white font-black text-[9px] rounded uppercase tracking-wider animate-pulse shrink-0 shadow-xs">
                 <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span> 🔴 LIVE
               </span>
             </div>
-            <div class="text-[10px] font-bold text-amber-700 tracking-wider uppercase hidden sm:block">
+            <div class="text-[9px] sm:text-[10px] font-bold text-amber-700 tracking-wider uppercase hidden md:block">
               Official Player Auction Arena Broadcast
             </div>
           </div>
         </div>
 
-        <!-- Center: Prominent Sold / Unsold / Queue Overview & View Switcher -->
-        <div class="flex items-center gap-2 sm:gap-4">
-          <!-- Overview Stats Bar -->
-          <div class="hidden md:flex items-center gap-2 px-3 py-1 bg-slate-100 border border-slate-200/90 rounded-xl text-xs font-mono font-bold shadow-2xs">
-            <span class="text-slate-700">👥 <strong id="proj-stat-total" class="text-slate-950 font-black">117</strong> Total</span>
-            <span class="text-slate-300">|</span>
-            <span class="text-emerald-700">✅ <strong id="proj-stat-sold" class="font-black">0</strong> Sold</span>
-            <span class="text-slate-300">|</span>
-            <span class="text-rose-700">❌ <strong id="proj-stat-unsold" class="font-black">0</strong> Unsold</span>
-            <span class="text-slate-300">|</span>
-            <span class="text-amber-800">⏳ <strong id="proj-stat-queue" class="font-black">0</strong> In Queue</span>
+        <!-- Center: Prominent Black BG Stats Bar & Compact View Buttons -->
+        <div class="flex items-center gap-1.5 sm:gap-3">
+          <!-- Sold / Unsold / Queue Stats in Solid Black Background -->
+          <div class="hidden md:flex items-center gap-2 px-2.5 sm:px-3 py-1 bg-black text-white border border-slate-800 rounded-xl text-xs font-mono font-bold shadow-sm shrink-0">
+            <span class="text-slate-200">👥 <strong id="proj-stat-total" class="text-white font-black">117</strong></span>
+            <span class="text-slate-700">|</span>
+            <span class="text-emerald-400">✅ <strong id="proj-stat-sold" class="font-black">0</strong> Sold</span>
+            <span class="text-slate-700">|</span>
+            <span class="text-rose-400">❌ <strong id="proj-stat-unsold" class="font-black">0</strong> Unsold</span>
+            <span class="text-slate-700">|</span>
+            <span class="text-amber-400">⏳ <strong id="proj-stat-queue" class="font-black">0</strong> In Queue</span>
           </div>
 
-          <!-- View Mode Switcher -->
-          <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
-            <button id="proj-tab-stage-btn" class="px-2.5 sm:px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${activeProjectorTab === 'stage' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'}">
+          <!-- View Mode Switcher (Smaller Buttons) -->
+          <div class="flex items-center gap-0.5 bg-slate-100 p-0.5 rounded-lg border border-slate-200 shrink-0">
+            <button id="proj-tab-stage-btn" class="px-2 py-0.5 rounded text-[11px] font-black transition-all cursor-pointer ${activeProjectorTab === 'stage' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'}">
               🔨 Arena
             </button>
-            <button id="proj-tab-history-btn" class="px-2.5 sm:px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${activeProjectorTab === 'history' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'}">
+            <button id="proj-tab-history-btn" class="px-2 py-0.5 rounded text-[11px] font-black transition-all cursor-pointer ${activeProjectorTab === 'history' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'}">
               📜 History
             </button>
-            <button id="proj-tab-teams-btn" class="px-2.5 sm:px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${activeProjectorTab === 'teams' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'}">
+            <button id="proj-tab-teams-btn" class="px-2 py-0.5 rounded text-[11px] font-black transition-all cursor-pointer ${activeProjectorTab === 'teams' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'}">
               👥 Squads
             </button>
           </div>
 
-          <!-- Auto-Tour Toggle -->
-          <button id="proj-auto-tour-toggle-btn" class="px-2.5 sm:px-3 py-1 rounded-xl border text-xs font-black flex items-center gap-1 transition-all cursor-pointer shadow-2xs ${isAutoTourEnabled ? 'bg-emerald-50 border-emerald-300 text-emerald-900' : 'bg-slate-100 border-slate-200 text-slate-500'}" title="Toggle Automatic Rotation between Stage, History & Squads after sale (A)">
-            <span>🔄 Auto Tour:</span> <strong id="proj-auto-tour-label">${isAutoTourEnabled ? 'ON 🟢' : 'OFF ⚪'}</strong>
+          <!-- Auto-Tour Toggle (Smaller Button) -->
+          <button id="proj-auto-tour-toggle-btn" class="px-2 py-0.5 rounded-lg border text-[11px] font-black flex items-center gap-1 transition-all cursor-pointer shadow-2xs shrink-0 ${isAutoTourEnabled ? 'bg-emerald-50 border-emerald-300 text-emerald-900' : 'bg-slate-100 border-slate-200 text-slate-500'}" title="Toggle Automatic Rotation between Stage, History & Squads after sale (A)">
+            <span>🔄</span> <strong id="proj-auto-tour-label">${isAutoTourEnabled ? 'Auto ON' : 'Auto OFF'}</strong>
           </button>
 
           <!-- Live Digital Clock -->
-          <div class="px-2.5 sm:px-3 py-1 bg-amber-50 border border-amber-300 rounded-xl text-xs sm:text-sm font-mono font-black text-amber-900 flex items-center gap-1.5 shadow-2xs">
+          <div class="px-2 py-0.5 bg-amber-50 border border-amber-300 rounded-lg text-xs font-mono font-black text-amber-900 flex items-center gap-1 shadow-2xs shrink-0">
             <span>⏰</span> <span id="proj-live-clock">--:--:--</span>
           </div>
         </div>
 
-        <!-- Right: Audio, Fullscreen & Close Controls -->
-        <div class="flex items-center gap-1.5 sm:gap-2">
-          <button id="proj-audio-toggle-btn" class="px-2.5 sm:px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 rounded-xl border border-slate-200 text-xs font-bold flex items-center gap-1 transition-all cursor-pointer select-none" title="Toggle Sound FX (M)">
-            <span id="proj-audio-icon">${isMuted ? '🔇' : '🔊'}</span> <span class="hidden sm:inline" id="proj-audio-label">${isMuted ? 'Muted' : 'Sound'}</span>
+        <!-- Right: Pure SVG-Only Icon Buttons (Sound, Fullscreen, Exit) -->
+        <div class="flex items-center gap-1 sm:gap-1.5 shrink-0">
+          <!-- Sound Toggle SVG -->
+          <button id="proj-audio-toggle-btn" class="w-8 h-8 sm:w-8.5 sm:h-8.5 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-lg border border-slate-200 flex items-center justify-center transition-all cursor-pointer select-none shadow-2xs" title="Toggle Sound FX (M)">
+            <span id="proj-audio-icon-wrap" class="flex items-center justify-center pointer-events-none">
+              ${isMuted ? `
+                <svg class="w-4 h-4 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M11 5L6 9H2v6h4l5 4V5z"></path>
+                  <line x1="23" y1="9" x2="17" y2="15"></line>
+                  <line x1="17" y1="9" x2="23" y2="15"></line>
+                </svg>
+              ` : `
+                <svg class="w-4 h-4 text-slate-800" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+                  <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+                </svg>
+              `}
+            </span>
           </button>
-          <button id="proj-fullscreen-toggle-btn" class="px-2.5 sm:px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-amber-800 hover:text-amber-900 rounded-xl border border-slate-300 text-xs font-black flex items-center gap-1 transition-all cursor-pointer select-none" title="Toggle Fullscreen (F)">
-            <span>⛶</span> <span class="hidden sm:inline">Fullscreen</span>
+
+          <!-- Fullscreen Toggle SVG (Square Icon) -->
+          <button id="proj-fullscreen-toggle-btn" class="w-8 h-8 sm:w-8.5 sm:h-8.5 bg-slate-100 hover:bg-slate-200 text-slate-800 hover:text-amber-800 rounded-lg border border-slate-300 flex items-center justify-center transition-all cursor-pointer select-none shadow-2xs" title="Toggle Fullscreen (F)">
+            <svg class="w-4 h-4 text-slate-800" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"></path>
+            </svg>
           </button>
-          <button id="proj-close-btn" class="px-2.5 sm:px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-900 rounded-xl border border-rose-200 text-xs font-black flex items-center gap-1 transition-all cursor-pointer select-none" title="Exit Projector (Esc)">
-            <span>✖</span> <span class="hidden sm:inline">Exit</span>
+
+          <!-- Exit SVG (Close 'X' Icon) -->
+          <button id="proj-close-btn" class="w-8 h-8 sm:w-8.5 sm:h-8.5 bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-900 rounded-lg border border-rose-200 flex items-center justify-center transition-all cursor-pointer select-none shadow-2xs" title="Exit Projector (Esc)">
+            <svg class="w-4 h-4 text-rose-700" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18"></line>
+              <line x1="6" y1="6" x2="18" y2="18"></line>
+            </svg>
           </button>
         </div>
       </header>
@@ -5154,9 +5177,9 @@ export function openLiveAuctionProjectorView() {
     const histOverlay = document.getElementById('proj-history-overlay');
     const teamsOverlay = document.getElementById('proj-teams-overlay');
 
-    if (stageBtn) stageBtn.className = `px-2.5 sm:px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${tab === 'stage' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`;
-    if (histBtn) histBtn.className = `px-2.5 sm:px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${tab === 'history' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`;
-    if (teamsBtn) teamsBtn.className = `px-2.5 sm:px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${tab === 'teams' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`;
+    if (stageBtn) stageBtn.className = `px-2 py-0.5 rounded text-[11px] font-black transition-all cursor-pointer ${tab === 'stage' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`;
+    if (histBtn) histBtn.className = `px-2 py-0.5 rounded text-[11px] font-black transition-all cursor-pointer ${tab === 'history' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`;
+    if (teamsBtn) teamsBtn.className = `px-2 py-0.5 rounded text-[11px] font-black transition-all cursor-pointer ${tab === 'teams' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`;
 
     if (arenaView) arenaView.classList.toggle('hidden', tab !== 'stage');
     if (histOverlay) histOverlay.classList.toggle('hidden', tab !== 'history');
@@ -5179,8 +5202,8 @@ export function openLiveAuctionProjectorView() {
     const btn = document.getElementById('proj-auto-tour-toggle-btn');
     const label = document.getElementById('proj-auto-tour-label');
     if (btn && label) {
-      btn.className = `px-2.5 sm:px-3 py-1 rounded-xl border text-xs font-black flex items-center gap-1 transition-all cursor-pointer shadow-2xs ${isAutoTourEnabled ? 'bg-emerald-50 border-emerald-300 text-emerald-900' : 'bg-slate-100 border-slate-200 text-slate-500'}`;
-      label.textContent = isAutoTourEnabled ? 'ON 🟢' : 'OFF ⚪';
+      btn.className = `px-2 py-0.5 rounded-lg border text-[11px] font-black flex items-center gap-1 transition-all cursor-pointer shadow-2xs shrink-0 ${isAutoTourEnabled ? 'bg-emerald-50 border-emerald-300 text-emerald-900' : 'bg-slate-100 border-slate-200 text-slate-500'}`;
+      label.textContent = isAutoTourEnabled ? 'Auto ON' : 'Auto OFF';
     }
     if (!isAutoTourEnabled && projectorAutoTourTimer) {
       clearTimeout(projectorAutoTourTimer);
@@ -5223,10 +5246,21 @@ export function openLiveAuctionProjectorView() {
   document.getElementById('proj-audio-toggle-btn')?.addEventListener('click', () => {
     isMuted = !isMuted;
     localStorage.setItem('jsl_projector_sound_muted', String(isMuted));
-    const iconEl = document.getElementById('proj-audio-icon');
-    const labelEl = document.getElementById('proj-audio-label');
-    if (iconEl) iconEl.textContent = isMuted ? '🔇' : '🔊';
-    if (labelEl) labelEl.textContent = isMuted ? 'Muted' : 'Sound';
+    const iconWrap = document.getElementById('proj-audio-icon-wrap');
+    if (iconWrap) {
+      iconWrap.innerHTML = isMuted ? `
+        <svg class="w-4 h-4 text-slate-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M11 5L6 9H2v6h4l5 4V5z"></path>
+          <line x1="23" y1="9" x2="17" y2="15"></line>
+          <line x1="17" y1="9" x2="23" y2="15"></line>
+        </svg>
+      ` : `
+        <svg class="w-4 h-4 text-slate-800" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"></path>
+        </svg>
+      `;
+    }
   });
 
   // Fullscreen Toggle
@@ -5656,14 +5690,14 @@ export function openLiveAuctionProjectorView() {
             </div>
           </div>
 
-          <!-- Bottom Mega High-Impact Live Bid Panel -->
+          <!-- Bottom Mega High-Impact Live Bid Panel (Bright Dark Red Bid Price) -->
           <div class="mt-2 sm:mt-3 h-20 sm:h-24 bg-gradient-to-r ${isUnsoldState ? 'from-rose-950 via-slate-950 to-rose-950 border-rose-500' : isSoldState ? 'from-emerald-950 via-slate-950 to-emerald-950 border-emerald-400' : 'from-slate-950 via-slate-900 to-slate-950 border-amber-400'} border-2 sm:border-3 rounded-2xl sm:rounded-3xl p-3 sm:p-4 flex items-center justify-between shadow-xl shrink-0">
-            <!-- Left: Current High Bid Amount -->
+            <!-- Left: Current High Bid Amount (Bright Dark Red) -->
             <div class="flex flex-col justify-center">
               <span id="proj-bid-status-label" class="text-[10px] sm:text-xs font-black ${isUnsoldState ? 'text-rose-300' : isSoldState ? 'text-emerald-300' : 'text-amber-300'} uppercase tracking-widest block">
                 ${isSoldState ? 'AUCTION RESULT 🏆' : isUnsoldState ? 'AUCTION RESULT ⚡' : 'CURRENT HIGH BID'}
               </span>
-              <div id="proj-mega-bid-display" class="text-3xl sm:text-5xl lg:text-6xl font-black ${isSoldState ? 'text-emerald-400' : isUnsoldState ? 'text-rose-400' : 'text-red-500 live-bid-ambient-blink'} font-mono leading-none mt-0.5 drop-shadow-[0_4px_18px_rgba(239,68,68,0.85)]">
+              <div id="proj-mega-bid-display" class="text-3xl sm:text-5xl lg:text-6xl font-black ${isSoldState ? 'text-emerald-400' : isUnsoldState ? 'text-rose-400' : 'text-[#DC2626] live-bid-ambient-blink'} font-mono leading-none mt-0.5 drop-shadow-[0_4px_22px_rgba(220,38,38,0.95)]">
                 ${isSoldState ? '🔨 SOLD' : isUnsoldState ? '❌ UNSOLD' : '₹ ' + currentBidVal.toLocaleString('en-IN')}
               </div>
             </div>
@@ -5766,7 +5800,7 @@ export function openLiveAuctionProjectorView() {
           if (statusLabel) statusLabel.textContent = 'CURRENT HIGH BID';
           if (bidEl) {
             bidEl.textContent = `₹ ${currentBidVal.toLocaleString('en-IN')}`;
-            bidEl.className = 'text-3xl sm:text-5xl lg:text-6xl font-black text-red-500 font-mono leading-none mt-0.5 drop-shadow-[0_4px_18px_rgba(239,68,68,0.85)] live-bid-ambient-blink';
+            bidEl.className = 'text-3xl sm:text-5xl lg:text-6xl font-black text-[#DC2626] font-mono leading-none mt-0.5 drop-shadow-[0_4px_22px_rgba(220,38,38,0.95)] live-bid-ambient-blink';
             if (lastProjectorLiveBid !== currentBidVal) {
               lastProjectorLiveBid = currentBidVal;
               bidEl.classList.remove('bid-pulse-flash');
