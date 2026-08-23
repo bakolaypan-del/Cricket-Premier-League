@@ -321,6 +321,11 @@ export async function fetchCloudData() {
 
 
 
+        let rawProfiles = [];
+        if (data.player_profiles) {
+          rawProfiles = Array.isArray(data.player_profiles) ? data.player_profiles : Object.values(data.player_profiles);
+        }
+
         const players = rawPlayers
           .filter(p => p && p.id && !deletedPlayerIds.includes(p.id))
           .sort((a, b) => getPlayerTimestamp(a) - getPlayerTimestamp(b))
