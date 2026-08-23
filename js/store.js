@@ -1,6 +1,6 @@
 // LocalStorage & Cloud Database Reactive Store (Developer: Suman Kolay - Continuous Dynamic Numbering Release)
 
-import { INITIAL_LEAGUES, INITIAL_TEAMS, INITIAL_PLAYERS, INITIAL_FIXTURES } from './data.js?v=11.4.1';
+import { INITIAL_LEAGUES, INITIAL_TEAMS, INITIAL_PLAYERS, INITIAL_FIXTURES } from './data.js?v=11.4.2';
 import { 
   fetchCloudData, 
   saveCloudData, 
@@ -28,7 +28,7 @@ import {
   fetchUserAccountsFromFirebase,
   saveRegistrationSettingsToFirebase,
   fetchRegistrationSettingsFromFirebase
-} from './supabase.js?v=11.4.1';
+} from './supabase.js?v=11.4.2';
 
 const FIREBASE_DB_URL = "https://cpl-jsl-2026-default-rtdb.firebaseio.com";
 
@@ -486,7 +486,6 @@ class Store {
   getPlayers() {
     const rawPlayers = JSON.parse(localStorage.getItem(STORAGE_KEYS.PLAYERS)) || [];
     const rawTeams = JSON.parse(localStorage.getItem(STORAGE_KEYS.TEAMS)) || [];
-    rawPlayers.sort((a, b) => getPlayerTimestamp(a) - getPlayerTimestamp(b));
 
     // Deduplicate players by unique ID to preserve all distinct registrations
     const uniqueMap = new Map();
@@ -496,11 +495,16 @@ class Store {
     }
 
     const uniquePlayers = Array.from(uniqueMap.values());
-    uniquePlayers.sort((a, b) => getPlayerTimestamp(a) - getPlayerTimestamp(b));
+    uniquePlayers.sort((a, b) => {
+      const sA = Number(a.serialNo) || (a.displayRegistrationNumber ? Number(a.displayRegistrationNumber) : 9999);
+      const sB = Number(b.serialNo) || (b.displayRegistrationNumber ? Number(b.displayRegistrationNumber) : 9999);
+      if (sA !== sB) return sA - sB;
+      return getPlayerTimestamp(a) - getPlayerTimestamp(b);
+    });
 
     return uniquePlayers.map((p, idx) => {
-      const displayNo = idx + 1;
-      const regId = `JSL2026-${String(displayNo).padStart(4, '0')}`;
+      const displayNo = p.serialNo ? Number(p.serialNo) : (idx + 1);
+      const regId = p.registrationId || `JSL2026-${String(displayNo).padStart(4, '0')}`;
 
       let validPhoto = p.photoUrl || p.player_photo_url || '';
       if (!validPhoto || validPhoto.includes('[Image Stored In Cloud]') || validPhoto.includes('unsplash.com') || (!validPhoto.startsWith('http') && !validPhoto.startsWith('data:image'))) {
