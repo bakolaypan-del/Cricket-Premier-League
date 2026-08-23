@@ -328,19 +328,28 @@ export async function fetchCloudData() {
 
         const players = rawPlayers
           .filter(p => p && p.id && !deletedPlayerIds.includes(p.id))
-          .sort((a, b) => getPlayerTimestamp(a) - getPlayerTimestamp(b))
-          .map((p, idx) => ({
-            ...p,
-            serialNo: idx + 1,
-            displayRegistrationNumber: idx + 1,
-            registrationId: `JSL2026-${String(idx + 1).padStart(4, '0')}`
-          }));
+          .sort((a, b) => {
+            const sA = Number(a.serialNo) || (a.displayRegistrationNumber ? Number(a.displayRegistrationNumber) : 9999);
+            const sB = Number(b.serialNo) || (b.displayRegistrationNumber ? Number(b.displayRegistrationNumber) : 9999);
+            if (sA !== sB) return sA - sB;
+            return getPlayerTimestamp(a) - getPlayerTimestamp(b);
+          })
+          .map((p, idx) => {
+            const serial = p.serialNo ? Number(p.serialNo) : (idx + 1);
+            return {
+              ...p,
+              serialNo: serial,
+              displayRegistrationNumber: serial,
+              registrationId: p.registrationId || `JSL2026-${String(serial).padStart(4, '0')}`
+            };
+          });
 
         const teams = rawTeams
           .filter(t => t && t.id && !deletedTeamIds.includes(t.id))
+          .sort((a, b) => (Number(a.serialNo) || 9999) - (Number(b.serialNo) || 9999))
           .map((t, idx) => ({
             ...t,
-            serialNo: idx + 1
+            serialNo: t.serialNo ? Number(t.serialNo) : (idx + 1)
           }));
 
         const fixtures = rawFixtures.filter(f => f && f.id);
@@ -367,7 +376,7 @@ export async function fetchCloudData() {
   return { players: [], teams: [], fixtures: [], playerProfiles: [], auctionSettings: { defaultBasePrice: 300, defaultPurseBudget: 8000 }, registrationSettings: { isJslRegistrationOpen: true, isPlayerRegOpen: true, isTeamRegOpen: true, closedReason: "JSL 2026 Registration is currently closed by the Master Admin." }, clearedAt: 0, teamsClearedAt: 0, deletedPlayerIds: [], deletedTeamIds: [] };
 }
 
-// --- ATOMIC REALTIME CLOUD DATA OPERATIONS (KEY-VALUE OBJECT MAP MERGE VIA PATCH) ---
+// --- ATOMIC REALTIME CLOUD DATA OPERATIONS (AUTHORITATIVE REPLACEMENT VIA PUT) ---
 export async function saveFullPlayersListToFirebase(playersList) {
   try {
     if (!Array.isArray(playersList)) return;
@@ -377,13 +386,13 @@ export async function saveFullPlayersListToFirebase(playersList) {
         playersMap[p.id] = p;
       }
     }
-    // Using PATCH to merge rather than destructive PUT
+    // Using authoritative PUT to avoid accumulating orphaned/stale keys
     await fetch(`${FIREBASE_DB_URL}/cpl_master/players.json`, {
-      method: 'PATCH',
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(playersMap)
     });
-    console.log("Merged players list as key-value map to Realtime Database.");
+    console.log("Authoritatively saved players list to Realtime Database.");
   } catch (err) {
     console.warn("Atomic players list save notice:", err);
   }
@@ -398,13 +407,13 @@ export async function saveFullTeamsListToFirebase(teamsList) {
         teamsMap[t.id] = t;
       }
     }
-    // Using PATCH to merge rather than destructive PUT
+    // Using authoritative PUT to avoid accumulating duplicate slug teams
     await fetch(`${FIREBASE_DB_URL}/cpl_master/teams.json`, {
-      method: 'PATCH',
+      method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(teamsMap)
     });
-    console.log("Merged teams list as key-value map to Realtime Database.");
+    console.log("Authoritatively saved teams list to Realtime Database.");
   } catch (err) {
     console.warn("Atomic teams list save notice:", err);
   }
