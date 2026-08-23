@@ -1,6 +1,6 @@
 // LocalStorage & Cloud Database Reactive Store (Developer: Suman Kolay - Continuous Dynamic Numbering Release)
 
-import { INITIAL_LEAGUES, INITIAL_TEAMS, INITIAL_PLAYERS, INITIAL_FIXTURES } from './data.js?v=11.6.1';
+import { INITIAL_LEAGUES, INITIAL_TEAMS, INITIAL_PLAYERS, INITIAL_FIXTURES } from './data.js?v=11.6.2';
 import { 
   fetchCloudData, 
   saveCloudData, 
@@ -28,7 +28,7 @@ import {
   fetchUserAccountsFromFirebase,
   saveRegistrationSettingsToFirebase,
   fetchRegistrationSettingsFromFirebase
-} from './supabase.js?v=11.6.1';
+} from './supabase.js?v=11.6.2';
 
 const FIREBASE_DB_URL = "https://cpl-jsl-2026-default-rtdb.firebaseio.com";
 
@@ -619,7 +619,6 @@ class Store {
         player_photo_url: playerData.photoUrl || playerData.player_photo_url || players[existingIdx].player_photo_url,
       };
       safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
-      saveCloudData(players, this.getTeams());
       savePlayerToFirebase(players[existingIdx]);
       syncPlayerToSupabase(players[existingIdx]);
       this.notify('players_updated');
@@ -673,7 +672,6 @@ class Store {
 
     players.push(newPlayer);
     safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
-    saveCloudData(players, this.getTeams());
     savePlayerToFirebase(newPlayer);
     syncPlayerToSupabase(newPlayer);
     this.notify('players_updated');
@@ -695,7 +693,6 @@ class Store {
       savePlayerToFirebase(players[idx]);
       patchPlayerInFirebase(players[idx].id, players[idx]);
       syncPlayerToSupabase(players[idx]);
-      saveCloudData(players, this.getTeams());
       this.notify('players_updated');
       return players[idx];
     }
@@ -795,7 +792,8 @@ class Store {
       player.updated_at = now;
 
       safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
-      saveCloudData(players, this.getTeams());
+      savePlayerToFirebase(player);
+      patchPlayerInFirebase(player.id, player);
       syncPlayerToSupabase(player);
       this.notify('players_updated');
     }
@@ -826,7 +824,6 @@ class Store {
     });
     if (count > 0) {
       safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
-      saveCloudData(players, this.getTeams());
       this.notify('players_updated');
     }
     return count;
@@ -872,7 +869,6 @@ class Store {
       patchTeamInFirebase(team.id, team);
       syncPlayerToSupabase(player);
       syncTeamToSupabase(team);
-      saveCloudData(players, teams);
       this.notify('players_updated');
       this.notify('teams_updated');
       this.notify('live_auction_updated');
@@ -899,7 +895,6 @@ class Store {
     savePlayerToFirebase(player);
     patchPlayerInFirebase(player.id, player);
     syncPlayerToSupabase(player);
-    saveCloudData(players, this.getTeams());
     this.notify('players_updated');
     this.notify('live_auction_updated');
     return true;
@@ -957,7 +952,6 @@ class Store {
     savePlayerToFirebase(player);
     patchPlayerInFirebase(player.id, player);
     syncPlayerToSupabase(player);
-    saveCloudData(players, teams);
     this.notify('players_updated');
     this.notify('teams_updated');
     this.notify('live_auction_updated');
@@ -1153,7 +1147,6 @@ class Store {
 
     if (changed) {
       safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
-      saveCloudData(players, this.getTeams());
       this.notify('players_updated');
     }
   }
@@ -1188,7 +1181,6 @@ class Store {
 
     if (changed) {
       safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
-      saveCloudData(players, teams);
       this.notify('players_updated');
     }
   }
@@ -1217,8 +1209,7 @@ class Store {
     });
     
     safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
-
-    saveCloudData(this.getPlayers(), teams);
+    saveTeamToFirebase(newTeam);
     syncTeamToSupabase(newTeam);
     this.syncIconPlayerAllocation(null, newTeam);
     this.notify('teams_updated');
@@ -1237,7 +1228,6 @@ class Store {
       safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
       saveTeamToFirebase(teams[idx]);
       patchTeamInFirebase(teams[idx].id, teams[idx]);
-      saveFullTeamsListToFirebase(teams);
       syncTeamToSupabase(teams[idx]);
       this.syncIconPlayerAllocation(oldTeam, teams[idx]);
       this.notify('teams_updated');
@@ -1272,7 +1262,6 @@ class Store {
 
     safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
     safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
-    saveCloudData(players, teams);
     deleteTeamFromSupabase(teamId);
     this.notify('teams_updated');
     this.notify('players_updated');

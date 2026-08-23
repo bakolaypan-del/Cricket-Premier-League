@@ -431,23 +431,15 @@ export async function fetchCloudData() {
   return { players: [], teams: [], fixtures: [], playerProfiles: [], auctionSettings: { defaultBasePrice: 300, defaultPurseBudget: 8000 }, registrationSettings: { isJslRegistrationOpen: true, isPlayerRegOpen: true, isTeamRegOpen: true, closedReason: "JSL 2026 Registration is currently closed by the Master Admin." }, clearedAt: 0, teamsClearedAt: 0, deletedPlayerIds: [], deletedTeamIds: [] };
 }
 
-// --- ATOMIC REALTIME CLOUD DATA OPERATIONS (AUTHORITATIVE REPLACEMENT VIA PUT) ---
+// --- ATOMIC REALTIME CLOUD DATA OPERATIONS (SAFE PER-RECORD SYNC) ---
 export async function saveFullPlayersListToFirebase(playersList) {
   try {
     if (!Array.isArray(playersList)) return;
-    const playersMap = {};
     for (const p of playersList) {
       if (p && p.id) {
-        playersMap[p.id] = p;
+        savePlayerToFirebase(p);
       }
     }
-    // Using authoritative PUT to avoid accumulating orphaned/stale keys
-    await fetch(`${FIREBASE_DB_URL}/cpl_master/players.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(playersMap)
-    });
-    console.log("Authoritatively saved players list to Realtime Database.");
   } catch (err) {
     console.warn("Atomic players list save notice:", err);
   }
@@ -456,19 +448,11 @@ export async function saveFullPlayersListToFirebase(playersList) {
 export async function saveFullTeamsListToFirebase(teamsList) {
   try {
     if (!Array.isArray(teamsList)) return;
-    const teamsMap = {};
     for (const t of teamsList) {
       if (t && t.id) {
-        teamsMap[t.id] = t;
+        saveTeamToFirebase(t);
       }
     }
-    // Using authoritative PUT to avoid accumulating duplicate slug teams
-    await fetch(`${FIREBASE_DB_URL}/cpl_master/teams.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(teamsMap)
-    });
-    console.log("Authoritatively saved teams list to Realtime Database.");
   } catch (err) {
     console.warn("Atomic teams list save notice:", err);
   }
