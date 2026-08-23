@@ -343,10 +343,10 @@ class Store {
           };
         });
 
-        const localPlayersStr = localStorage.getItem(STORAGE_KEYS.PLAYERS) || '[]';
-        const cleanCloudPlayersStr = JSON.stringify(sanitizeForStorage(reindexedPlayers));
+        const localSanitized = sanitizeForStorage(this.getPlayers());
+        const cleanCloudSanitized = sanitizeForStorage(reindexedPlayers);
         
-        if (localPlayersStr !== cleanCloudPlayersStr) {
+        if (JSON.stringify(localSanitized) !== JSON.stringify(cleanCloudSanitized)) {
           safeSetLocalStorage(STORAGE_KEYS.PLAYERS, reindexedPlayers);
           this.notify('players_updated');
         }
@@ -383,10 +383,10 @@ class Store {
           serialNo: idx + 1
         }));
 
-        const localTeamsStr = localStorage.getItem(STORAGE_KEYS.TEAMS) || '[]';
-        const cleanCloudTeamsStr = JSON.stringify(sanitizeForStorage(reindexedTeams));
+        const localTeamsSanitized = sanitizeForStorage(localTeams);
+        const cleanCloudTeamsSanitized = sanitizeForStorage(reindexedTeams);
         
-        if (localTeamsStr !== cleanCloudTeamsStr) {
+        if (JSON.stringify(localTeamsSanitized) !== JSON.stringify(cleanCloudTeamsSanitized)) {
           safeSetLocalStorage(STORAGE_KEYS.TEAMS, reindexedTeams);
           this.syncAllIconPlayers();
           this.notify('teams_updated');

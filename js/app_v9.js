@@ -131,19 +131,34 @@ function initApp() {
   // Initialize Real-time Registered Player Toast Widget
   initRealtimePlayerToast();
 
-  let renderDebounceTimer = null;
   const safeRenderCurrentView = () => {
     // PROTECT ACTIVE USER FORMS: Only prevent re-render if user is filling player/team registration forms
     const isUserFillingForm = document.getElementById('player-reg-modal') || document.getElementById('team-reg-modal') || document.getElementById('edit-player-modal');
     if (isUserFillingForm) return;
 
-    // IF ON AUCTION TAB, NEVER WIPE THE AUCTION VIEW! Let pollActiveAuctionState() handle smooth in-place updates!
+    // IF ON HOME/LANDING PAGE, NEVER WIPE OR FLASH THE SCREEN: Smooth in-place updates only
+    if (currentRoute === 'landing') {
+      const regCountEl = document.getElementById('landing-registered-count');
+      if (regCountEl) regCountEl.textContent = store.getPlayers().length;
+      return;
+    }
+
+    // IF ON AUCTION TAB, NEVER WIPE THE AUCTION VIEW: Let pollActiveAuctionState() handle smooth in-place updates
     if (currentRoute === 'auction') {
       const activeBlock = document.getElementById('auction-active-block-container');
       if (activeBlock) {
         pollActiveAuctionState();
         return;
       }
+    }
+
+    // IF ON JSL-HUB TAB, NEVER WIPE CAROUSEL OR POSTER: Smooth in-place counter updates
+    if (currentRoute === 'jsl-hub') {
+      const pCountEl = document.getElementById('jsl-hub-players-count');
+      const tCountEl = document.getElementById('jsl-hub-teams-count');
+      if (pCountEl) pCountEl.textContent = store.getPlayers().length;
+      if (tCountEl) tCountEl.textContent = store.getTeams().length;
+      return;
     }
 
     if (renderDebounceTimer) clearTimeout(renderDebounceTimer);
@@ -155,7 +170,7 @@ function initApp() {
       if (openSquadModal && window.currentViewingTeamId) {
         openTeamPurchasedSquadModal(window.currentViewingTeamId);
       }
-    }, 150);
+    }, 250);
   };
 
   window.addEventListener('leagues_updated', safeRenderCurrentView);
@@ -1148,7 +1163,7 @@ function renderFirstPageLanding(containerEl) {
           <span class="p-1 sm:p-1.5 bg-blue-100 text-blue-800 rounded-xl text-[10px] sm:text-xs border border-blue-300 shrink-0 leading-none">🏏</span>
           <div class="flex flex-col">
             <span class="text-[8px] sm:text-[10px] font-black text-blue-800 uppercase tracking-wider whitespace-nowrap leading-none">Registered</span>
-            <span class="text-xs sm:text-base font-black text-slate-900 font-mono leading-tight mt-0.5">${players.length}</span>
+            <span id="landing-registered-count" class="text-xs sm:text-base font-black text-slate-900 font-mono leading-tight mt-0.5">${players.length}</span>
           </div>
         </div>
       </div>
@@ -1733,7 +1748,7 @@ function renderJSLHub(containerEl) {
         <!-- CARD 1: REGISTERED TEAMS -->
         <div class="relative glass-card p-3 sm:p-5 text-center border-2 border-sky-300 bg-white flex flex-col justify-between items-center hover:border-sky-500 shadow-md rounded-2xl overflow-hidden">
           <!-- TOP-RIGHT CORNER COUNTER BADGE -->
-          <div class="absolute top-1.5 right-1.5 w-6 h-6 sm:w-8 sm:h-8 bg-sky-600 text-white text-xs sm:text-sm font-black rounded-full flex items-center justify-center border-2 border-white shadow-md z-10" title="Total Teams">
+          <div id="jsl-hub-teams-count" class="absolute top-1.5 right-1.5 w-6 h-6 sm:w-8 sm:h-8 bg-sky-600 text-white text-xs sm:text-sm font-black rounded-full flex items-center justify-center border-2 border-white shadow-md z-10" title="Total Teams">
             ${teams.length}
           </div>
 
@@ -1755,7 +1770,7 @@ function renderJSLHub(containerEl) {
         <!-- CARD 2: REGISTERED PLAYERS -->
         <div class="relative glass-card p-3 sm:p-5 text-center border-2 border-emerald-300 bg-white flex flex-col justify-between items-center hover:border-emerald-500 shadow-md rounded-2xl overflow-hidden">
           <!-- TOP-RIGHT CORNER COUNTER BADGE -->
-          <div class="absolute top-1.5 right-1.5 w-6 h-6 sm:w-8 sm:h-8 bg-emerald-600 text-white text-xs sm:text-sm font-black rounded-full flex items-center justify-center border-2 border-white shadow-md z-10" title="Total Players">
+          <div id="jsl-hub-players-count" class="absolute top-1.5 right-1.5 w-6 h-6 sm:w-8 sm:h-8 bg-emerald-600 text-white text-xs sm:text-sm font-black rounded-full flex items-center justify-center border-2 border-white shadow-md z-10" title="Total Players">
             ${players.length}
           </div>
 
