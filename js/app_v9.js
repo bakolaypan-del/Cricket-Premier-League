@@ -21,6 +21,7 @@ window.addEventListener('beforeinstallprompt', (e) => {
 let currentRoute = 'landing'; // landing, jsl-hub, admin, fixtures, auction, career, profile, shop-detail
 let selectedShopId = '';
 let introScreenInitialized = false;
+let renderDebounceTimer = null;
 
 function bootApp() {
   initIntroLoadingScreen();
