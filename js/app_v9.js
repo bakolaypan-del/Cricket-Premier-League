@@ -1,10 +1,10 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=11.5.2';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, printDigitalPass, openUserGuidePDF } from './export.js?v=11.5.2';
-import { renderAdminDashboard } from './admin.js?v=11.5.2';
-import { uploadHDImage, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats } from './supabase.js?v=11.5.2';
-import { shops } from './shopsData.js?v=11.5.2';
+import { store } from './store.js?v=11.5.3';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, printDigitalPass, openUserGuidePDF } from './export.js?v=11.5.3';
+import { renderAdminDashboard } from './admin.js?v=11.5.3';
+import { uploadHDImage, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats } from './supabase.js?v=11.5.3';
+import { shops } from './shopsData.js?v=11.5.3';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
 let latestVisitorStats = { liveCount: 1, totalVisits: 286 };
@@ -159,6 +159,11 @@ function initApp() {
       const tCountEl = document.getElementById('jsl-hub-teams-count');
       if (pCountEl) pCountEl.textContent = store.getPlayers().length;
       if (tCountEl) tCountEl.textContent = store.getTeams().length;
+      return;
+    }
+
+    // IF ON ADMIN TAB, NEVER WIPE THE ENTIRE DASHBOARD ON REALTIME EVENTS (PREVENTS FLICKER):
+    if (currentRoute === 'admin') {
       return;
     }
 
@@ -4867,7 +4872,7 @@ function renderLiveAuctionView(container) {
   auctionPollInterval = setInterval(pollActiveAuctionState, 5000);
 }
 
-// --- 📽️ WORLD-CLASS LIVE AUCTION PROJECTOR SCREEN (SINGLE NON-SCROLLABLE BROADCAST VIEW) ---
+// --- 📽️ WORLD-CLASS LIVE AUCTION PROJECTOR SCREEN (OFF-WHITE THEME & SINGLE NON-SCROLLABLE BROADCAST VIEW) ---
 let projectorPollInterval = null;
 let projectorClockInterval = null;
 
@@ -4877,11 +4882,13 @@ export function openLiveAuctionProjectorView() {
   if (projectorClockInterval) { clearInterval(projectorClockInterval); projectorClockInterval = null; }
 
   let isMuted = localStorage.getItem('jsl_projector_sound_muted') === 'true';
-  let lastProjectorBid = null;
   let lastProjectorPlayerId = undefined;
   let lastProjectorStatus = undefined;
   let lastProjectorLiveBid = null;
   let lastAudioFiredForBid = null;
+  let lastProjectorPursesHash = '';
+  let activeProjectorTab = 'stage'; // 'stage', 'history', 'teams'
+  let historySubTab = 'sold'; // 'sold', 'unsold'
 
   // Web Audio API Synthesizer (Instant & 100% Offline)
   const playAudioCue = (type) => {
@@ -4932,88 +4939,152 @@ export function openLiveAuctionProjectorView() {
   };
 
   const modalHtml = `
-    <div id="live-auction-projector-view-modal" class="fixed inset-0 z-[99999] bg-[#070B14] text-white flex flex-col h-screen w-screen overflow-hidden select-none font-sans animate-fade-in">
+    <div id="live-auction-projector-view-modal" class="fixed inset-0 z-[99999] bg-[#F1F5F9] text-slate-900 flex flex-col h-screen w-screen overflow-hidden select-none font-sans animate-fade-in">
       
-      <!-- 1. TOP BROADCAST HEADER (Height: 52px, Shrink-0) -->
-      <header class="h-13 sm:h-14 px-3 sm:px-6 bg-slate-950/95 border-b border-slate-800/90 flex items-center justify-between shrink-0 shadow-2xl z-20">
+      <!-- 1. TOP BROADCAST HEADER (Height: 52px, Shrink-0, Off-White Theme) -->
+      <header class="h-13 sm:h-14 px-3 sm:px-6 bg-white border-b-2 border-slate-200/90 flex items-center justify-between shrink-0 shadow-xs z-30">
         <!-- Left: Tournament Title & Live Indicator -->
         <div class="flex items-center gap-2.5 sm:gap-3.5 min-w-0">
-          <img src="assets/jsl_logo.jpg" class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl object-cover border-2 border-amber-400 shadow-md shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+          <img src="assets/jsl_logo.jpg" class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl object-cover border-2 border-amber-400 shadow-xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
           <div class="min-w-0">
             <div class="flex items-center gap-2">
-              <h1 class="text-xs sm:text-base font-black tracking-tight text-white uppercase truncate">
+              <h1 class="text-xs sm:text-base font-black tracking-tight text-slate-950 uppercase truncate">
                 JHANKRA SUPER LEAGUE 2026
               </h1>
               <span class="inline-flex items-center gap-1 px-2 py-0.5 bg-red-600 text-white font-black text-[9px] sm:text-[10px] rounded-md uppercase tracking-wider animate-pulse shrink-0 shadow-xs">
                 <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span> 🔴 LIVE
               </span>
             </div>
-            <div class="text-[10px] font-bold text-amber-400 tracking-wider uppercase hidden sm:block">
+            <div class="text-[10px] font-bold text-amber-700 tracking-wider uppercase hidden sm:block">
               Official Player Auction Arena Broadcast
             </div>
           </div>
         </div>
 
-        <!-- Center: Live Statistics & Digital Clock -->
-        <div class="flex items-center gap-2.5 sm:gap-5">
-          <div class="hidden md:flex items-center gap-2.5 px-3 py-1 bg-slate-900/90 border border-slate-800 rounded-xl text-xs font-bold font-mono shadow-inner">
-            <span class="text-slate-300">👥 <strong id="proj-stat-total" class="text-white">115</strong></span>
-            <span class="text-slate-600">|</span>
-            <span class="text-emerald-400">✅ <strong id="proj-stat-sold">0</strong> Sold</span>
-            <span class="text-slate-600">|</span>
-            <span class="text-rose-400">❌ <strong id="proj-stat-unsold">0</strong> Unsold</span>
-            <span class="text-slate-600">|</span>
-            <span class="text-amber-300">⏳ <strong id="proj-stat-queue">0</strong> Queue</span>
+        <!-- Center: Quick View Navigation & Digital Clock -->
+        <div class="flex items-center gap-2 sm:gap-4">
+          <!-- View Mode Switcher -->
+          <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+            <button id="proj-tab-stage-btn" class="px-2.5 sm:px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${activeProjectorTab === 'stage' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'}">
+              🔨 Live Arena
+            </button>
+            <button id="proj-tab-history-btn" class="px-2.5 sm:px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${activeProjectorTab === 'history' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'}">
+              📜 History
+            </button>
+            <button id="proj-tab-teams-btn" class="px-2.5 sm:px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${activeProjectorTab === 'teams' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'}">
+              👥 Franchise Squads
+            </button>
           </div>
-          <div class="px-2.5 sm:px-3 py-1 bg-slate-900 border border-amber-400/40 rounded-xl text-xs sm:text-sm font-mono font-black text-amber-400 flex items-center gap-1.5 shadow-inner">
+
+          <!-- Live Clock -->
+          <div class="px-2.5 sm:px-3 py-1 bg-amber-50 border border-amber-300 rounded-xl text-xs sm:text-sm font-mono font-black text-amber-900 flex items-center gap-1.5 shadow-2xs">
             <span>⏰</span> <span id="proj-live-clock">--:--:--</span>
           </div>
         </div>
 
         <!-- Right: Audio, Fullscreen & Close Controls -->
         <div class="flex items-center gap-1.5 sm:gap-2">
-          <button id="proj-audio-toggle-btn" class="px-2.5 sm:px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-slate-300 hover:text-white rounded-xl border border-slate-800 text-xs font-bold flex items-center gap-1 transition-all cursor-pointer select-none" title="Toggle Sound FX (M)">
+          <button id="proj-audio-toggle-btn" class="px-2.5 sm:px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 hover:text-slate-900 rounded-xl border border-slate-200 text-xs font-bold flex items-center gap-1 transition-all cursor-pointer select-none" title="Toggle Sound FX (M)">
             <span id="proj-audio-icon">${isMuted ? '🔇' : '🔊'}</span> <span class="hidden sm:inline" id="proj-audio-label">${isMuted ? 'Muted' : 'Sound On'}</span>
           </button>
-          <button id="proj-fullscreen-toggle-btn" class="px-2.5 sm:px-3 py-1.5 bg-slate-900 hover:bg-slate-800 text-amber-400 hover:text-amber-300 rounded-xl border border-slate-700 text-xs font-black flex items-center gap-1 transition-all cursor-pointer select-none" title="Toggle Fullscreen (F)">
+          <button id="proj-fullscreen-toggle-btn" class="px-2.5 sm:px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-amber-800 hover:text-amber-900 rounded-xl border border-slate-300 text-xs font-black flex items-center gap-1 transition-all cursor-pointer select-none" title="Toggle Fullscreen (F)">
             <span>⛶</span> <span class="hidden sm:inline">Fullscreen</span>
           </button>
-          <button id="proj-close-btn" class="px-2.5 sm:px-3 py-1.5 bg-rose-950/80 hover:bg-rose-900 text-rose-300 hover:text-white rounded-xl border border-rose-800 text-xs font-black flex items-center gap-1 transition-all cursor-pointer select-none" title="Exit Projector (Esc)">
+          <button id="proj-close-btn" class="px-2.5 sm:px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-900 rounded-xl border border-rose-200 text-xs font-black flex items-center gap-1 transition-all cursor-pointer select-none" title="Exit Projector (Esc)">
             <span>✖</span> <span class="hidden sm:inline">Exit</span>
           </button>
         </div>
       </header>
 
-      <!-- 2. MAIN STAGE (100% Height - flex-1, overflow-hidden, Strictly No Scroll) -->
-      <main class="flex-1 grid grid-cols-12 gap-3 sm:gap-4 p-2 sm:p-4 overflow-hidden min-h-0">
+      <!-- 2. MAIN STAGE (100% Height - flex-1, overflow-hidden, Off-White Theme) -->
+      <main class="flex-1 overflow-hidden min-h-0 relative">
         
-        <!-- LEFT / CENTER: Active Player Spotlight & Mega Bid Card (7 cols on regular, 8 on wide) -->
-        <section class="col-span-12 lg:col-span-7 xl:col-span-8 h-full flex flex-col justify-between overflow-hidden min-h-0" id="proj-hero-player-container">
-          <!-- Injected dynamically -->
-        </section>
+        <!-- VIEW 1: LIVE ARENA STAGE (Active Bidding + 8 Franchises) -->
+        <div id="proj-main-arena-view" class="h-full w-full grid grid-cols-12 gap-3 sm:gap-4 p-2 sm:p-4 overflow-hidden min-h-0">
+          
+          <!-- LEFT / CENTER: Active Player Spotlight & Mega Bid Card -->
+          <section class="col-span-12 lg:col-span-7 xl:col-span-8 h-full flex flex-col justify-between overflow-hidden min-h-0" id="proj-hero-player-container">
+            <!-- Injected dynamically -->
+          </section>
 
-        <!-- RIGHT COLUMN: All 8 Franchise Purses & Squad Status (5 cols on regular, 4 on wide) -->
-        <aside class="col-span-12 lg:col-span-5 xl:col-span-4 h-full flex flex-col justify-between overflow-hidden min-h-0 bg-gradient-to-b from-slate-900/95 via-slate-950/95 to-slate-900/95 border-2 border-slate-800/90 rounded-2xl sm:rounded-3xl p-2.5 sm:p-3.5 shadow-2xl">
-          <!-- Header -->
-          <div class="flex items-center justify-between pb-2 border-b border-slate-800 shrink-0">
-            <div class="flex items-center gap-2">
-              <span class="w-6 h-6 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center text-xs font-black">🛡️</span>
-              <h2 class="text-xs sm:text-sm font-black text-amber-400 uppercase tracking-wider">FRANCHISE PURSES</h2>
+          <!-- RIGHT COLUMN: All 8 Franchise Purses & Squad Status -->
+          <aside class="col-span-12 lg:col-span-5 xl:col-span-4 h-full flex flex-col justify-between overflow-hidden min-h-0 bg-white border-2 border-slate-200/90 rounded-2xl sm:rounded-3xl p-2.5 sm:p-3.5 shadow-xs">
+            <!-- Header -->
+            <div class="flex items-center justify-between pb-2 border-b border-slate-100 shrink-0">
+              <div class="flex items-center gap-2">
+                <span class="w-6 h-6 rounded-lg bg-amber-100 text-amber-800 flex items-center justify-center text-xs font-black">🛡️</span>
+                <h2 class="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-wider">FRANCHISE PURSES</h2>
+              </div>
+              <span class="text-[10px] sm:text-xs font-bold text-slate-500 font-mono">Target: 13 Players</span>
             </div>
-            <span class="text-[10px] sm:text-xs font-bold text-slate-400 font-mono">Target: 13 Players</span>
+
+            <!-- 8 Teams Grid (8 rows fitting 100% of height without scrollbar, ZERO flicker) -->
+            <div class="flex-1 grid grid-rows-8 gap-1 sm:gap-1.5 py-1.5 min-h-0" id="proj-franchise-list">
+              <!-- Rendered dynamically -->
+            </div>
+
+            <!-- Footer Info Bar -->
+            <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-[10px] sm:text-[11px] text-slate-600 font-bold shrink-0">
+              <span class="truncate">💰 League Spent: <strong id="proj-total-spent" class="text-emerald-700 font-mono font-black">₹0</strong></span>
+              <span class="text-slate-400 font-mono">JSL 2026 Live Arena</span>
+            </div>
+          </aside>
+
+        </div>
+
+        <!-- VIEW 2: 📜 AUCTION HISTORY OVERLAY -->
+        <div id="proj-history-overlay" class="hidden absolute inset-0 bg-white/98 z-20 flex flex-col p-3 sm:p-6 overflow-hidden">
+          <div class="flex justify-between items-center pb-3 border-b border-slate-200 shrink-0">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-2xl bg-blue-50 text-blue-700 flex items-center justify-center font-black text-lg">📜</div>
+              <div>
+                <h2 class="text-base sm:text-xl font-black text-slate-900 uppercase tracking-tight">Live Auction History & Record Log</h2>
+                <p class="text-xs text-slate-500 font-bold">Complete log of all signed and unsold player transactions</p>
+              </div>
+            </div>
+            
+            <div class="flex items-center gap-2">
+              <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
+                <button id="proj-hist-tab-sold" class="px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${historySubTab === 'sold' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-700'}">
+                  ✅ Sold Players (<span id="proj-hist-sold-count">0</span>)
+                </button>
+                <button id="proj-hist-tab-unsold" class="px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${historySubTab === 'unsold' ? 'bg-rose-600 text-white shadow-xs' : 'text-slate-700'}">
+                  ❌ Unsold Pool (<span id="proj-hist-unsold-count">0</span>)
+                </button>
+              </div>
+              <button id="proj-close-history-btn" class="p-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-black rounded-xl border border-slate-300 text-xs cursor-pointer">
+                ✖ Close History
+              </button>
+            </div>
           </div>
 
-          <!-- 8 Teams Grid (8 rows fitting 100% of height without scrollbar) -->
-          <div class="flex-1 grid grid-rows-8 gap-1 sm:gap-1.5 py-1.5 min-h-0" id="proj-franchise-list">
+          <!-- History Content Container (Scrollable internally) -->
+          <div class="flex-1 overflow-y-auto mt-3 border border-slate-200 rounded-2xl p-2 bg-slate-50 min-h-0" id="proj-history-content-box">
             <!-- Rendered dynamically -->
           </div>
+        </div>
 
-          <!-- Footer Info Bar -->
-          <div class="pt-2 border-t border-slate-800 flex items-center justify-between text-[10px] sm:text-[11px] text-slate-400 font-bold shrink-0">
-            <span class="truncate">💰 League Spent: <strong id="proj-total-spent" class="text-emerald-400 font-mono font-black">₹0</strong></span>
-            <span class="text-slate-500 font-mono">JSL 2026 Live Arena</span>
+        <!-- VIEW 3: 👥 ALL 8 FRANCHISE SQUADS OVERLAY -->
+        <div id="proj-teams-overlay" class="hidden absolute inset-0 bg-white/98 z-20 flex flex-col p-3 sm:p-6 overflow-hidden">
+          <div class="flex justify-between items-center pb-3 border-b border-slate-200 shrink-0">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-2xl bg-amber-50 text-amber-800 flex items-center justify-center font-black text-lg">🛡️</div>
+              <div>
+                <h2 class="text-base sm:text-xl font-black text-slate-900 uppercase tracking-tight">Official Franchise Squad Rosters</h2>
+                <p class="text-xs text-slate-500 font-bold">All 8 franchise teams, purchased auction players, and remaining purse balances</p>
+              </div>
+            </div>
+            
+            <button id="proj-close-teams-btn" class="p-2 px-3.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-black rounded-xl border border-slate-300 text-xs cursor-pointer">
+              ✖ Close Squads
+            </button>
           </div>
-        </aside>
+
+          <!-- Teams Grid Container (Scrollable internally) -->
+          <div class="flex-1 overflow-y-auto mt-3 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3.5 min-h-0" id="proj-teams-content-box">
+            <!-- Rendered dynamically -->
+          </div>
+        </div>
 
       </main>
     </div>
@@ -5022,7 +5093,7 @@ export function openLiveAuctionProjectorView() {
   document.body.insertAdjacentHTML('beforeend', modalHtml);
   if (window.lucide) window.lucide.createIcons();
 
-  // Digital Clock Updater (every 1 second)
+  // Digital Clock Updater
   const updateClock = () => {
     const clockEl = document.getElementById('proj-live-clock');
     if (clockEl) {
@@ -5032,6 +5103,48 @@ export function openLiveAuctionProjectorView() {
   };
   updateClock();
   projectorClockInterval = setInterval(updateClock, 1000);
+
+  // Tab Switcher Functions
+  const setProjectorTab = (tab) => {
+    activeProjectorTab = tab;
+    const stageBtn = document.getElementById('proj-tab-stage-btn');
+    const histBtn = document.getElementById('proj-tab-history-btn');
+    const teamsBtn = document.getElementById('proj-tab-teams-btn');
+    const arenaView = document.getElementById('proj-main-arena-view');
+    const histOverlay = document.getElementById('proj-history-overlay');
+    const teamsOverlay = document.getElementById('proj-teams-overlay');
+
+    if (stageBtn) stageBtn.className = `px-2.5 sm:px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${tab === 'stage' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`;
+    if (histBtn) histBtn.className = `px-2.5 sm:px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${tab === 'history' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`;
+    if (teamsBtn) teamsBtn.className = `px-2.5 sm:px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${tab === 'teams' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'text-slate-600 hover:text-slate-900'}`;
+
+    if (arenaView) arenaView.classList.toggle('hidden', tab !== 'stage');
+    if (histOverlay) histOverlay.classList.toggle('hidden', tab !== 'history');
+    if (teamsOverlay) teamsOverlay.classList.toggle('hidden', tab !== 'teams');
+
+    if (tab === 'history') renderHistoryOverlay();
+    if (tab === 'teams') renderTeamsOverlay();
+  };
+
+  document.getElementById('proj-tab-stage-btn')?.addEventListener('click', () => setProjectorTab('stage'));
+  document.getElementById('proj-tab-history-btn')?.addEventListener('click', () => setProjectorTab('history'));
+  document.getElementById('proj-tab-teams-btn')?.addEventListener('click', () => setProjectorTab('teams'));
+  document.getElementById('proj-close-history-btn')?.addEventListener('click', () => setProjectorTab('stage'));
+  document.getElementById('proj-close-teams-btn')?.addEventListener('click', () => setProjectorTab('stage'));
+
+  document.getElementById('proj-hist-tab-sold')?.addEventListener('click', () => {
+    historySubTab = 'sold';
+    document.getElementById('proj-hist-tab-sold').className = 'px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer bg-emerald-600 text-white shadow-xs';
+    document.getElementById('proj-hist-tab-unsold').className = 'px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer text-slate-700 hover:text-slate-900';
+    renderHistoryOverlay();
+  });
+
+  document.getElementById('proj-hist-tab-unsold')?.addEventListener('click', () => {
+    historySubTab = 'unsold';
+    document.getElementById('proj-hist-tab-unsold').className = 'px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer bg-rose-600 text-white shadow-xs';
+    document.getElementById('proj-hist-tab-sold').className = 'px-3 py-1 rounded-lg text-xs font-black transition-all cursor-pointer text-slate-700 hover:text-slate-900';
+    renderHistoryOverlay();
+  });
 
   // Audio Toggle
   document.getElementById('proj-audio-toggle-btn')?.addEventListener('click', () => {
@@ -5066,7 +5179,13 @@ export function openLiveAuctionProjectorView() {
 
   // Keyboard Shortcuts
   const handleKeyShortcuts = (e) => {
-    if (e.key === 'Escape') closeProjectorView();
+    if (e.key === 'Escape') {
+      if (activeProjectorTab !== 'stage') {
+        setProjectorTab('stage');
+      } else {
+        closeProjectorView();
+      }
+    }
     if (e.key === 'f' || e.key === 'F') {
       if (!document.fullscreenElement) {
         document.documentElement.requestFullscreen().catch(() => {});
@@ -5074,11 +5193,156 @@ export function openLiveAuctionProjectorView() {
         document.exitFullscreen().catch(() => {});
       }
     }
+    if (e.key === 'h' || e.key === 'H') {
+      setProjectorTab(activeProjectorTab === 'history' ? 'stage' : 'history');
+    }
+    if (e.key === 't' || e.key === 'T') {
+      setProjectorTab(activeProjectorTab === 'teams' ? 'stage' : 'teams');
+    }
     if (e.key === 'm' || e.key === 'M') {
       document.getElementById('proj-audio-toggle-btn')?.click();
     }
   };
   window.addEventListener('keydown', handleKeyShortcuts);
+
+  // --- RENDER HISTORY OVERLAY ---
+  const renderHistoryOverlay = () => {
+    const box = document.getElementById('proj-history-content-box');
+    if (!box) return;
+    const allPlayers = store.getPlayers();
+    const teams = store.getTeams();
+
+    const soldPlayers = allPlayers.filter(p => p.teamId || p.auctionStatus === 'SOLD');
+    const unsoldPlayers = allPlayers.filter(p => p.auctionStatus === 'UNSOLD' && !p.teamId);
+
+    const soldCountEl = document.getElementById('proj-hist-sold-count');
+    const unsoldCountEl = document.getElementById('proj-hist-unsold-count');
+    if (soldCountEl) soldCountEl.textContent = String(soldPlayers.length);
+    if (unsoldCountEl) unsoldCountEl.textContent = String(unsoldPlayers.length);
+
+    if (historySubTab === 'sold') {
+      if (soldPlayers.length === 0) {
+        box.innerHTML = `<div class="py-12 text-center text-slate-400 font-bold italic">No players sold in the auction yet.</div>`;
+        return;
+      }
+      box.innerHTML = `
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+          ${soldPlayers.map(p => {
+            const team = teams.find(t => t.id === p.teamId) || { name: p.teamName || 'Unknown Franchise' };
+            const isIcon = (p.isIcon || p.isIconPlayer);
+            return `
+              <div class="p-3 bg-white border border-slate-200/90 rounded-xl shadow-2xs flex items-center justify-between gap-3">
+                <div class="flex items-center gap-2.5 min-w-0">
+                  <img src="${p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png'}" class="w-11 h-11 rounded-xl object-cover border border-slate-200 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                  <div class="min-w-0">
+                    <h4 class="font-black text-slate-900 text-xs sm:text-sm truncate">${p.name}</h4>
+                    <div class="text-[10px] text-slate-500 font-bold">🏏 ${p.category || 'All Rounder'} • 📍 ${p.village || 'Jhankra'}</div>
+                    <div class="text-[11px] font-black text-sky-800 truncate mt-0.5">🛡️ ${team.name}</div>
+                  </div>
+                </div>
+                <div class="text-right shrink-0">
+                  <span class="px-2.5 py-1 rounded-xl text-xs font-mono font-black ${isIcon ? 'bg-amber-100 text-amber-900 border border-amber-300' : 'bg-emerald-100 text-emerald-900 border border-emerald-300'}">
+                    ${isIcon ? '⭐ ₹1,000' : '₹' + Number(p.soldPrice || 0).toLocaleString('en-IN')}
+                  </span>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    } else {
+      if (unsoldPlayers.length === 0) {
+        box.innerHTML = `<div class="py-12 text-center text-slate-400 font-bold italic">No unsold players in this round.</div>`;
+        return;
+      }
+      box.innerHTML = `
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+          ${unsoldPlayers.map(p => `
+            <div class="p-3 bg-white border border-rose-200 rounded-xl shadow-2xs flex items-center justify-between gap-3">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <img src="${p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png'}" class="w-11 h-11 rounded-xl object-cover border border-slate-200 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                <div class="min-w-0">
+                  <h4 class="font-black text-slate-900 text-xs sm:text-sm truncate">${p.name}</h4>
+                  <div class="text-[10px] text-slate-500 font-bold">🏏 ${p.category || 'All Rounder'} • 📍 ${p.village || 'Jhankra'}</div>
+                  <span class="inline-block mt-0.5 text-[9px] font-black text-rose-700 bg-rose-50 px-2 py-0.2 rounded border border-rose-200">❌ UNSOLD (ROUND 1)</span>
+                </div>
+              </div>
+              <div class="text-right shrink-0">
+                <span class="text-xs font-mono font-black text-slate-600 block">Base</span>
+                <span class="text-xs font-mono font-black text-slate-900">₹${p.basePrice || 300}</span>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+    }
+  };
+
+  // --- RENDER FRANCHISE SQUADS OVERLAY ---
+  const renderTeamsOverlay = () => {
+    const box = document.getElementById('proj-teams-content-box');
+    if (!box) return;
+    const allPlayers = store.getPlayers();
+    const teams = store.getTeams();
+
+    box.innerHTML = teams.slice(0, 8).map(t => {
+      const hasIcon = !!((t.iconPlayerName && t.iconPlayerName.trim()) || (t.iconName && t.iconName.trim()));
+      const iconName = t.iconPlayerName || t.iconName;
+      const totalPurse = Number(t.purseBudget || t.purse || 8000);
+      const purchasedPlayers = allPlayers.filter(p => {
+        const isMatch = (p.teamId === t.id) || (p.teamName && (p.teamName || '').trim().toLowerCase() === (t.name || '').trim().toLowerCase());
+        const isSoldStatus = (p.auctionStatus === 'SOLD' || p.isSold === true || !!p.teamId);
+        return isMatch && isSoldStatus;
+      });
+      const iconPlayer = purchasedPlayers.find(p => (p.isIcon || p.isIconPlayer) || ((p.name || '').trim().toLowerCase() === (iconName || '').trim().toLowerCase()));
+      const nonIconPlayers = purchasedPlayers.filter(p => p !== iconPlayer);
+      const spent = (hasIcon ? 1000 : 0) + nonIconPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || 0), 0);
+      const left = Math.max(0, totalPurse - spent);
+
+      return `
+        <div class="p-3.5 bg-white border-2 border-slate-200/90 rounded-2xl shadow-xs flex flex-col justify-between">
+          <!-- Team Header -->
+          <div class="flex items-center justify-between gap-2 pb-2.5 border-b border-slate-100">
+            <div class="flex items-center gap-2 min-w-0">
+              <img src="${t.logoUrl || t.teamLogoUrl || 'assets/card_jsl_user.png'}" class="w-8 h-8 rounded-xl object-cover border border-slate-200 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+              <div class="min-w-0">
+                <h3 class="font-black text-slate-900 text-xs sm:text-sm truncate">${t.name}</h3>
+                <div class="text-[10px] text-slate-500 font-bold truncate">Owner: ${t.ownerName || 'Owner'}</div>
+              </div>
+            </div>
+            <span class="px-2 py-0.5 bg-sky-50 text-sky-800 font-mono font-black text-[11px] rounded-lg border border-sky-200 shrink-0">
+              ${(hasIcon ? 1 : 0) + nonIconPlayers.length}/13
+            </span>
+          </div>
+
+          <!-- Squad Roster List -->
+          <div class="py-2 space-y-1.5 flex-1 min-h-[140px] max-h-[220px] overflow-y-auto pr-1">
+            ${hasIcon ? `
+              <div class="p-1.5 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 text-[11px] font-bold flex items-center justify-between">
+                <span class="truncate">⭐ Icon: ${iconName}</span>
+                <span class="font-mono font-black text-amber-800 shrink-0">₹1,000</span>
+              </div>
+            ` : ''}
+
+            ${nonIconPlayers.length > 0 ? nonIconPlayers.map(p => `
+              <div class="p-1.5 rounded-lg bg-slate-50 border border-slate-200 text-slate-900 text-[11px] font-bold flex items-center justify-between">
+                <span class="truncate">${p.name}</span>
+                <span class="font-mono font-black text-emerald-700 shrink-0">₹${Number(p.soldPrice || 0).toLocaleString('en-IN')}</span>
+              </div>
+            `).join('') : `
+              <div class="text-[10px] text-slate-400 italic py-4 text-center">No auction players bought yet</div>
+            `}
+          </div>
+
+          <!-- Team Footer Purse Balance -->
+          <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
+            <span class="font-bold text-slate-500 text-[11px]">Purse Left:</span>
+            <span class="font-mono font-black text-emerald-700">₹ ${left.toLocaleString('en-IN')} <span class="text-[10px] text-slate-400 font-normal">/ ₹${totalPurse.toLocaleString('en-IN')}</span></span>
+          </div>
+        </div>
+      `;
+    }).join('');
+  };
 
   // --- PROJECTOR HERO & FRANCHISE UPDATER ---
   const updateProjectorDisplay = (state, teams, allPlayers) => {
@@ -5088,23 +5352,11 @@ export function openLiveAuctionProjectorView() {
 
     // 1. Update Top League Statistics
     const soldList = allPlayers.filter(p => p.teamId || p.auctionStatus === 'SOLD');
-    const unsoldList = allPlayers.filter(p => p.auctionStatus === 'UNSOLD' && !p.teamId);
-    const pendingList = allPlayers.filter(p => !p.teamId && p.auctionStatus !== 'SOLD' && p.auctionStatus !== 'UNSOLD');
     const totalSpent = soldList.reduce((sum, p) => sum + (Number(p.soldPrice) || (p.isIcon ? 1000 : 0) || 0), 0);
-
-    const totalEl = document.getElementById('proj-stat-total');
-    const soldEl = document.getElementById('proj-stat-sold');
-    const unsoldEl = document.getElementById('proj-stat-unsold');
-    const queueEl = document.getElementById('proj-stat-queue');
     const totalSpentEl = document.getElementById('proj-total-spent');
-
-    if (totalEl) totalEl.textContent = String(allPlayers.length);
-    if (soldEl) soldEl.textContent = String(soldList.length);
-    if (unsoldEl) unsoldEl.textContent = String(unsoldList.length);
-    if (queueEl) queueEl.textContent = String(pendingList.length);
     if (totalSpentEl) totalSpentEl.textContent = `₹ ${totalSpent.toLocaleString('en-IN')}`;
 
-    // 2. Render Hero Player Spotlight
+    // 2. Render Hero Player Spotlight (With In-Place Update & Zero Flicker)
     if (state && state.active_player_id) {
       const bidderTeam = teams.find(t => t.id === state.highest_bidder_team_id);
       const isSoldState = (state.status === 'SOLD' || state.is_sold);
@@ -5128,7 +5380,7 @@ export function openLiveAuctionProjectorView() {
         const playerPhoto = getOptimizedImageUrl(state.photoUrl, 700, 700) || 'assets/card_jsl_user.png';
 
         heroContainer.innerHTML = `
-          <div id="proj-player-card-box" class="flex-1 relative rounded-2xl sm:rounded-3xl border-2 ${isSoldState ? 'border-emerald-500' : isUnsoldState ? 'border-rose-500' : 'border-amber-400/70'} overflow-hidden bg-slate-950 shadow-2xl flex flex-col justify-between p-3 sm:p-4 min-h-0 relative animate-fade-in">
+          <div id="proj-player-card-box" class="flex-1 relative rounded-2xl sm:rounded-3xl border-2 ${isSoldState ? 'border-emerald-500' : isUnsoldState ? 'border-rose-500' : 'border-slate-300'} overflow-hidden bg-slate-900 shadow-lg flex flex-col justify-between p-3 sm:p-4 min-h-0 relative animate-fade-in">
             <!-- Full Crystal Clear Player Photo -->
             <img id="proj-player-photo" src="${playerPhoto}" class="absolute inset-0 w-full h-full object-cover md:object-contain object-top" alt="${state.name}" onerror="this.src='assets/card_jsl_user.png'" />
 
@@ -5190,13 +5442,13 @@ export function openLiveAuctionProjectorView() {
 
             <!-- Top Right Full Registration Badge -->
             <div class="relative z-10 flex justify-end items-center w-full">
-              <span class="px-4 py-1.5 bg-red-600 text-white font-black font-mono text-xs sm:text-sm rounded-xl border-2 border-red-400 shadow-xl tracking-wider">
+              <span class="px-4 py-1.5 bg-red-600 text-white font-black font-mono text-xs sm:text-sm rounded-xl border-2 border-red-400 shadow-md tracking-wider">
                 ${state.registrationId || state.regNo || ('JSL2026-' + String(state.displayRegistrationNumber || state.serialNo || 1).padStart(4, '0'))}
               </span>
             </div>
 
             <!-- Bottom Player Information Glass Card -->
-            <div class="relative z-10 mt-auto p-3 sm:p-3.5 bg-slate-950/90 backdrop-blur-md rounded-2xl border border-white/20 shadow-2xl space-y-1">
+            <div class="relative z-10 mt-auto p-3 sm:p-3.5 bg-slate-950/90 backdrop-blur-md rounded-2xl border border-white/20 shadow-xl space-y-1">
               <div class="flex items-center justify-between gap-3">
                 <h2 class="text-xl sm:text-3xl font-black text-white tracking-tight truncate leading-tight">
                   ${state.name}
@@ -5222,7 +5474,7 @@ export function openLiveAuctionProjectorView() {
           </div>
 
           <!-- Bottom Mega High-Impact Live Bid Panel -->
-          <div class="mt-2 sm:mt-3 h-20 sm:h-24 bg-gradient-to-r ${isUnsoldState ? 'from-rose-950/95 via-slate-950 to-rose-950/95 border-rose-500' : isSoldState ? 'from-emerald-950/95 via-slate-950 to-emerald-950/95 border-emerald-400' : 'from-slate-950/95 via-slate-900 to-slate-950/95 border-amber-400'} border-2 sm:border-3 rounded-2xl sm:rounded-3xl p-3 sm:p-4 flex items-center justify-between shadow-2xl shrink-0">
+          <div class="mt-2 sm:mt-3 h-20 sm:h-24 bg-gradient-to-r ${isUnsoldState ? 'from-rose-950 via-slate-950 to-rose-950 border-rose-500' : isSoldState ? 'from-emerald-950 via-slate-950 to-emerald-950 border-emerald-400' : 'from-slate-950 via-slate-900 to-slate-950 border-amber-400'} border-2 sm:border-3 rounded-2xl sm:rounded-3xl p-3 sm:p-4 flex items-center justify-between shadow-xl shrink-0">
             <!-- Left: Current High Bid Amount -->
             <div class="flex flex-col justify-center">
               <span id="proj-bid-status-label" class="text-[10px] sm:text-xs font-black ${isUnsoldState ? 'text-rose-300' : isSoldState ? 'text-emerald-300' : 'text-amber-300'} uppercase tracking-widest block">
@@ -5344,75 +5596,85 @@ export function openLiveAuctionProjectorView() {
         }
       }
     } else {
-      // Waiting / Idle State
+      // Waiting / Idle State (Off-White Theme)
       if (lastProjectorPlayerId !== null || !document.getElementById('proj-waiting-stage-box')) {
         lastProjectorPlayerId = null;
         lastProjectorStatus = null;
         lastProjectorLiveBid = null;
 
         heroContainer.innerHTML = `
-          <div id="proj-waiting-stage-box" class="flex-1 rounded-2xl sm:rounded-3xl border-2 border-slate-800 bg-gradient-to-b from-slate-900/90 via-slate-950 to-slate-900/90 p-6 sm:p-10 flex flex-col items-center justify-center text-center shadow-2xl relative overflow-hidden animate-fade-in">
-            <!-- Background Glow Effect -->
-            <div class="absolute w-96 h-96 bg-amber-500/10 rounded-full blur-3xl pointer-events-none"></div>
+          <div id="proj-waiting-stage-box" class="flex-1 rounded-2xl sm:rounded-3xl border-2 border-slate-200/90 bg-white p-6 sm:p-10 flex flex-col items-center justify-center text-center shadow-xs relative overflow-hidden animate-fade-in">
+            <div class="absolute w-96 h-96 bg-amber-500/5 rounded-full blur-3xl pointer-events-none"></div>
 
-            <img src="assets/jsl_logo.jpg" class="w-24 h-24 sm:w-32 sm:h-32 rounded-3xl object-cover border-4 border-amber-400 shadow-2xl mb-4 animate-bounce" onerror="this.src='assets/card_jsl_user.png'" />
-            <h2 class="text-2xl sm:text-4xl font-black text-white tracking-tight uppercase">
+            <img src="assets/jsl_logo.jpg" class="w-24 h-24 sm:w-32 sm:h-32 rounded-3xl object-cover border-4 border-amber-400 shadow-md mb-4 animate-bounce" onerror="this.src='assets/card_jsl_user.png'" />
+            <h2 class="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight uppercase">
               JHANKRA SUPER LEAGUE 2026
             </h2>
-            <div class="inline-flex items-center gap-2 px-4 py-1.5 bg-amber-500/20 text-amber-300 font-mono font-black text-sm rounded-full border border-amber-500/40 my-3 shadow-md">
+            <div class="inline-flex items-center gap-2 px-4 py-1.5 bg-amber-100 text-amber-900 font-mono font-black text-sm rounded-full border border-amber-300 my-3 shadow-2xs">
               <span>🔨 LIVE AUCTION ARENA</span>
             </div>
-            <p class="text-sm sm:text-base text-slate-400 font-bold max-w-lg mx-auto">
-              Waiting for the auctioneer to place the next player on the block. Live bids and franchise purse standings will appear on this screen automatically.
+            <p class="text-sm sm:text-base text-slate-500 font-bold max-w-lg mx-auto">
+              Waiting for the auctioneer to place the next player on the block. Real-time bids and franchise purse standings will appear on this screen automatically.
             </p>
           </div>
         `;
       }
     }
 
-    // 3. Render 8 Franchise Team Cards (Grid Rows 8 - Perfectly Fit Without Scrolling)
+    // 3. Render 8 Franchise Team Cards (Off-White Theme, ZERO FLICKER DIFF GUARD)
     const activeBidderId = (state && state.status === 'BIDDING') ? state.highest_bidder_team_id : null;
-    
-    franchiseList.innerHTML = teams.slice(0, 8).map(t => {
-      const hasIcon = !!((t.iconPlayerName && t.iconPlayerName.trim()) || (t.iconName && t.iconName.trim()));
-      const iconDeduction = hasIcon ? 1000 : 0;
-      const totalPurse = Number(t.purseBudget || t.purse || 8000);
-      const purchasedNonIconPlayers = allPlayers.filter(p => p.teamId === t.id && !p.isIcon && !p.isIconPlayer && (p.auctionStatus === 'SOLD' || p.isSold === true));
-      const auctionSpent = purchasedNonIconPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || 0), 0);
-      const spent = iconDeduction + auctionSpent;
-      const left = Math.max(0, totalPurse - spent);
-      const squadCount = (hasIcon ? 1 : 0) + purchasedNonIconPlayers.length;
-      const ratio = Math.min(100, Math.max(0, (left / totalPurse) * 100));
-      const isLeaderNow = (activeBidderId && activeBidderId === t.id);
+    const currentPursesHash = teams.slice(0, 8).map(t => `${t.id}:${t.remainingPurse}:${t.squadCount}`).join('|') + '||' + activeBidderId;
 
-      return `
-        <div class="px-2.5 sm:px-3 py-1 rounded-xl transition-all duration-300 flex items-center justify-between gap-2 select-none ${isLeaderNow ? 'bg-gradient-to-r from-amber-950/90 via-amber-900/80 to-amber-950/90 border-2 border-amber-400 shadow-[0_0_18px_rgba(251,191,36,0.4)] ring-1 ring-amber-400 scale-[1.01]' : 'bg-slate-950/70 border border-slate-800/80 hover:border-slate-700'}">
-          <!-- Logo & Team Name -->
-          <div class="flex items-center gap-2 min-w-0 flex-1">
-            <img src="${t.logoUrl || t.teamLogoUrl || 'assets/card_jsl_user.png'}" class="w-6 h-6 sm:w-7 sm:h-7 rounded-lg object-cover border border-slate-700 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
-            <div class="min-w-0">
-              <div class="font-black text-white text-[11px] sm:text-xs truncate flex items-center gap-1">
-                <span class="truncate">${t.name}</span>
-                ${isLeaderNow ? '<span class="px-1.5 py-0.2 bg-amber-500 text-slate-950 font-mono text-[8px] font-black rounded uppercase animate-pulse shrink-0">🔥 BID</span>' : ''}
+    if (currentPursesHash !== lastProjectorPursesHash || franchiseList.children.length === 0) {
+      lastProjectorPursesHash = currentPursesHash;
+      
+      franchiseList.innerHTML = teams.slice(0, 8).map(t => {
+        const hasIcon = !!((t.iconPlayerName && t.iconPlayerName.trim()) || (t.iconName && t.iconName.trim()));
+        const iconDeduction = hasIcon ? 1000 : 0;
+        const totalPurse = Number(t.purseBudget || t.purse || 8000);
+        const purchasedNonIconPlayers = allPlayers.filter(p => {
+          const isMatch = (p.teamId === t.id) || (p.teamName && (p.teamName || '').trim().toLowerCase() === (t.name || '').trim().toLowerCase());
+          const isSoldStatus = (p.auctionStatus === 'SOLD' || p.isSold === true || !!p.teamId);
+          const iconPlayerName = (t.iconPlayerName || t.iconName || '').trim().toLowerCase();
+          const isIcon = hasIcon && ((p.name || '').trim().toLowerCase() === iconPlayerName || (t.iconPlayerId && p.id === t.iconPlayerId));
+          return isMatch && isSoldStatus && !isIcon;
+        });
+        const auctionSpent = purchasedNonIconPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || 0), 0);
+        const spent = iconDeduction + auctionSpent;
+        const left = Math.max(0, totalPurse - spent);
+        const squadCount = (hasIcon ? 1 : 0) + purchasedNonIconPlayers.length;
+        const ratio = Math.min(100, Math.max(0, (left / totalPurse) * 100));
+        const isLeaderNow = (activeBidderId && activeBidderId === t.id);
+
+        return `
+          <div class="px-2.5 sm:px-3 py-1 rounded-xl transition-all duration-300 flex items-center justify-between gap-2 select-none ${isLeaderNow ? 'bg-gradient-to-r from-amber-100 via-amber-50 to-amber-100 border-2 border-amber-500 shadow-md ring-2 ring-amber-400/60 scale-[1.01]' : 'bg-slate-50 border border-slate-200/90 hover:bg-slate-100/80'}">
+            <!-- Logo & Team Name -->
+            <div class="flex items-center gap-2 min-w-0 flex-1">
+              <img src="${t.logoUrl || t.teamLogoUrl || 'assets/card_jsl_user.png'}" class="w-6 h-6 sm:w-7 sm:h-7 rounded-lg object-cover border border-slate-200 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+              <div class="min-w-0">
+                <div class="font-black text-slate-950 text-[11px] sm:text-xs truncate flex items-center gap-1">
+                  <span class="truncate">${t.name}</span>
+                  ${isLeaderNow ? '<span class="px-1.5 py-0.2 bg-amber-500 text-slate-950 font-mono text-[8px] font-black rounded uppercase animate-pulse shrink-0 shadow-2xs">🔥 BID</span>' : ''}
+                </div>
+                <div class="text-[9px] text-slate-500 font-mono font-bold">
+                  Squad: <strong class="text-sky-700">${squadCount}/13</strong> ${hasIcon ? '• ⭐ Icon' : ''}
+                </div>
               </div>
-              <div class="text-[9px] text-slate-400 font-mono font-semibold">
-                Squad: <strong class="text-sky-300">${squadCount}/13</strong> ${hasIcon ? '• ⭐ Icon' : ''}
+            </div>
+
+            <!-- Purse Balance & Mini Progress Bar -->
+            <div class="text-right shrink-0">
+              <div class="font-mono font-black text-xs sm:text-sm text-emerald-700 leading-tight">
+                ₹ ${left.toLocaleString('en-IN')}
+              </div>
+              <div class="w-16 sm:w-20 bg-slate-200 h-1 rounded-full overflow-hidden mt-0.5 border border-slate-200 ml-auto">
+                <div class="bg-gradient-to-r from-teal-500 to-emerald-600 h-full rounded-full" style="width: ${ratio}%"></div>
               </div>
             </div>
           </div>
-
-          <!-- Purse Balance & Mini Progress Bar -->
-          <div class="text-right shrink-0">
-            <div class="font-mono font-black text-xs sm:text-sm text-emerald-400 leading-tight">
-              ₹ ${left.toLocaleString('en-IN')}
-            </div>
-            <div class="w-16 sm:w-20 bg-slate-800 h-1 rounded-full overflow-hidden mt-0.5 border border-slate-700 ml-auto">
-              <div class="bg-gradient-to-r from-teal-400 to-emerald-500 h-full rounded-full" style="width: ${ratio}%"></div>
-            </div>
-          </div>
-        </div>
-      `;
-    }).join('');
+        `;
+      }).join('');
+    }
   };
 
   // Immediate Initial Render
@@ -5431,6 +5693,8 @@ export function openLiveAuctionProjectorView() {
     const teams = store.getTeams();
     const allPlayers = store.getPlayers();
     updateProjectorDisplay(state, teams, allPlayers);
+    if (activeProjectorTab === 'history') renderHistoryOverlay();
+    if (activeProjectorTab === 'teams') renderTeamsOverlay();
   };
 
   projectorPollInterval = setInterval(pollProjector, 1200);
