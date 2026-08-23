@@ -2932,7 +2932,7 @@ export function renderActiveAuctionBlock() {
         <button id="auction-mark-unsold-btn" class="py-2.5 bg-slate-800 hover:bg-slate-700 text-rose-400 font-black text-xs rounded-xl border border-slate-700 flex items-center justify-center gap-1.5 cursor-pointer">
           <i data-lucide="x-circle" class="w-4 h-4"></i> ❌ UNSOLD
         </button>
-        <button id="auction-open-projector-btn" class="py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs rounded-xl shadow-lg flex items-center justify-center gap-1.5 cursor-pointer col-span-2 sm:col-span-1">
+        <button id="auction-open-projector-btn" onclick="window.openLiveAuctionProjectorView ? window.openLiveAuctionProjectorView() : (typeof openAuctionProjectorModal === 'function' ? openAuctionProjectorModal() : null)" class="py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs rounded-xl shadow-lg flex items-center justify-center gap-1.5 cursor-pointer col-span-2 sm:col-span-1">
           <i data-lucide="tv" class="w-4 h-4"></i> 📽️ Projector
         </button>
       </div>
@@ -3149,7 +3149,11 @@ export function renderActiveAuctionBlock() {
 
   // Attach Projector View Button
   document.getElementById('auction-open-projector-btn')?.addEventListener('click', () => {
-    openAuctionProjectorModal();
+    if (window.openLiveAuctionProjectorView) {
+      window.openLiveAuctionProjectorView();
+    } else {
+      openAuctionProjectorModal();
+    }
   });
 }
 

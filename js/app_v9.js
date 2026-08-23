@@ -4129,7 +4129,7 @@ function renderLiveAuctionView(container) {
           </div>
         </div>
         <div class="flex items-center gap-2">
-          <button id="auction-open-projector-view-btn" class="px-3.5 py-2 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-md flex items-center gap-1.5 transition-all hover:scale-105 border border-amber-300 cursor-pointer active:scale-95 select-none" title="Open Single-Screen Live Projector View">
+          <button id="auction-open-projector-view-btn" onclick="window.openLiveAuctionProjectorView ? window.openLiveAuctionProjectorView() : null" class="px-3.5 py-2 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-md flex items-center gap-1.5 transition-all hover:scale-105 border border-amber-300 cursor-pointer active:scale-95 select-none" title="Open Single-Screen Live Projector View">
             <span class="text-base">📽️</span> <span>Projector Screen</span>
           </button>
           <span class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 font-extrabold text-xs rounded-xl border border-emerald-200 shadow-2xs">
@@ -4876,6 +4876,7 @@ let projectorClockInterval = null;
 let projectorAutoTourTimer = null;
 
 export function openLiveAuctionProjectorView() {
+  window.openLiveAuctionProjectorView = openLiveAuctionProjectorView;
   document.getElementById('live-auction-projector-view-modal')?.remove();
   if (projectorPollInterval) { clearInterval(projectorPollInterval); projectorPollInterval = null; }
   if (projectorClockInterval) { clearInterval(projectorClockInterval); projectorClockInterval = null; }
