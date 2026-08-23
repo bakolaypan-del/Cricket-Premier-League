@@ -1,6 +1,6 @@
 // LocalStorage & Cloud Database Reactive Store (Developer: Suman Kolay - Continuous Dynamic Numbering Release)
 
-import { INITIAL_LEAGUES, INITIAL_TEAMS, INITIAL_PLAYERS, INITIAL_FIXTURES } from './data.js?v=11.5.8';
+import { INITIAL_LEAGUES, INITIAL_TEAMS, INITIAL_PLAYERS, INITIAL_FIXTURES } from './data.js?v=11.5.9';
 import { 
   fetchCloudData, 
   saveCloudData, 
@@ -28,7 +28,7 @@ import {
   fetchUserAccountsFromFirebase,
   saveRegistrationSettingsToFirebase,
   fetchRegistrationSettingsFromFirebase
-} from './supabase.js?v=11.5.8';
+} from './supabase.js?v=11.5.9';
 
 const FIREBASE_DB_URL = "https://cpl-jsl-2026-default-rtdb.firebaseio.com";
 
