@@ -351,21 +351,35 @@ export async function fetchCloudData() {
         }
         const dedupedPlayerIds = new Set(Array.from(namePhoneDedup.values()).map(p => p.id));
         
+        const getCanonicalRank = (p) => {
+          if (p.id && p.id.startsWith('ply-1787000000000-')) {
+            const num = parseInt(p.id.replace('ply-1787000000000-', ''), 10);
+            if (!isNaN(num) && num > 0) return num;
+          }
+          if (p.serialNo && Number(p.serialNo) > 0) return Number(p.serialNo);
+          if (p.displayRegistrationNumber && Number(p.displayRegistrationNumber) > 0) return Number(p.displayRegistrationNumber);
+          return 999999;
+        };
+
         const players = rawPlayers
           .filter(p => p && p.id && !deletedPlayerIds.includes(p.id) && dedupedPlayerIds.has(p.id))
           .sort((a, b) => {
-            const sA = Number(a.serialNo) || (a.displayRegistrationNumber ? Number(a.displayRegistrationNumber) : 9999);
-            const sB = Number(b.serialNo) || (b.displayRegistrationNumber ? Number(b.displayRegistrationNumber) : 9999);
-            if (sA !== sB) return sA - sB;
+            const rA = getCanonicalRank(a);
+            const rB = getCanonicalRank(b);
+            if (rA !== rB) return rA - rB;
             return getPlayerTimestamp(a) - getPlayerTimestamp(b);
           })
           .map((p, idx) => {
-            const serial = p.serialNo ? Number(p.serialNo) : (idx + 1);
+            const canonicalSl = (p.id && p.id.startsWith('ply-1787000000000-')) 
+              ? parseInt(p.id.replace('ply-1787000000000-', ''), 10)
+              : (p.serialNo ? Number(p.serialNo) : (idx + 1));
+            const serial = (!isNaN(canonicalSl) && canonicalSl > 0) ? canonicalSl : (idx + 1);
             return {
               ...p,
               serialNo: serial,
               displayRegistrationNumber: serial,
-              registrationId: p.registrationId || `JSL2026-${String(serial).padStart(4, '0')}`
+              registrationId: `JSL2026-${String(serial).padStart(4, '0')}`,
+              regNo: `JSL2026-${String(serial).padStart(4, '0')}`
             };
           });
 

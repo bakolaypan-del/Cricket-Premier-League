@@ -1,6 +1,6 @@
 // LocalStorage & Cloud Database Reactive Store (Developer: Suman Kolay - Continuous Dynamic Numbering Release)
 
-import { INITIAL_LEAGUES, INITIAL_TEAMS, INITIAL_PLAYERS, INITIAL_FIXTURES } from './data.js?v=11.5.3';
+import { INITIAL_LEAGUES, INITIAL_TEAMS, INITIAL_PLAYERS, INITIAL_FIXTURES } from './data.js?v=11.5.4';
 import { 
   fetchCloudData, 
   saveCloudData, 
@@ -28,7 +28,7 @@ import {
   fetchUserAccountsFromFirebase,
   saveRegistrationSettingsToFirebase,
   fetchRegistrationSettingsFromFirebase
-} from './supabase.js?v=11.5.3';
+} from './supabase.js?v=11.5.4';
 
 const FIREBASE_DB_URL = "https://cpl-jsl-2026-default-rtdb.firebaseio.com";
 
@@ -530,16 +530,30 @@ class Store {
     }
 
     const uniquePlayers = Array.from(uniqueMap.values());
+    const getCanonicalRank = (p) => {
+      if (p.id && p.id.startsWith('ply-1787000000000-')) {
+        const num = parseInt(p.id.replace('ply-1787000000000-', ''), 10);
+        if (!isNaN(num) && num > 0) return num;
+      }
+      if (p.serialNo && Number(p.serialNo) > 0) return Number(p.serialNo);
+      if (p.displayRegistrationNumber && Number(p.displayRegistrationNumber) > 0) return Number(p.displayRegistrationNumber);
+      return 999999;
+    };
+
     uniquePlayers.sort((a, b) => {
-      const sA = Number(a.serialNo) || (a.displayRegistrationNumber ? Number(a.displayRegistrationNumber) : 9999);
-      const sB = Number(b.serialNo) || (b.displayRegistrationNumber ? Number(b.displayRegistrationNumber) : 9999);
-      if (sA !== sB) return sA - sB;
+      const rA = getCanonicalRank(a);
+      const rB = getCanonicalRank(b);
+      if (rA !== rB) return rA - rB;
       return getPlayerTimestamp(a) - getPlayerTimestamp(b);
     });
 
     return uniquePlayers.map((p, idx) => {
-      const displayNo = p.serialNo ? Number(p.serialNo) : (idx + 1);
-      const regId = p.registrationId || `JSL2026-${String(displayNo).padStart(4, '0')}`;
+      const canonicalSl = (p.id && p.id.startsWith('ply-1787000000000-')) 
+        ? parseInt(p.id.replace('ply-1787000000000-', ''), 10)
+        : (p.serialNo ? Number(p.serialNo) : (idx + 1));
+      
+      const displayNo = (!isNaN(canonicalSl) && canonicalSl > 0) ? canonicalSl : (idx + 1);
+      const regId = `JSL2026-${String(displayNo).padStart(4, '0')}`;
 
       let validPhoto = p.photoUrl || p.player_photo_url || '';
       if (!validPhoto || validPhoto.includes('[Image Stored In Cloud]') || validPhoto.includes('unsplash.com') || (!validPhoto.startsWith('http') && !validPhoto.startsWith('data:image'))) {
