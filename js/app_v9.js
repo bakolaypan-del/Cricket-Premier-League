@@ -1,10 +1,10 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=11.5.0';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, printDigitalPass, openUserGuidePDF } from './export.js?v=11.5.0';
-import { renderAdminDashboard } from './admin.js?v=11.5.0';
-import { uploadHDImage, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats } from './supabase.js?v=11.5.0';
-import { shops } from './shopsData.js?v=11.5.0';
+import { store } from './store.js?v=11.5.1';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, printDigitalPass, openUserGuidePDF } from './export.js?v=11.5.1';
+import { renderAdminDashboard } from './admin.js?v=11.5.1';
+import { uploadHDImage, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats } from './supabase.js?v=11.5.1';
+import { shops } from './shopsData.js?v=11.5.1';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
 let latestVisitorStats = { liveCount: 1, totalVisits: 286 };
@@ -4853,6 +4853,10 @@ function renderLiveAuctionView(container) {
       lastRenderedTableHash = currentTableHash;
       renderPlayerStatusTable();
     }
+
+    // 3. Render / Update Franchise Purses ONLY when teams or player purchases changed
+    renderFranchisePurses(teams, allPlayers);
+  };
 
   // Attach Projector View Button Listener
   document.getElementById('auction-open-projector-view-btn')?.addEventListener('click', () => {
