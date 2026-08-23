@@ -191,6 +191,8 @@ class Store {
 
   // --- STABLE CLOUD SYNC WITH DYNAMIC CONTINUOUS RE-INDEXING & CROSS-DEVICE CLEAR SYNC ---
   async syncWithCloud() {
+    if (this._isSyncingWithCloud) return;
+    this._isSyncingWithCloud = true;
     try {
       const cloudData = await fetchCloudData();
       
@@ -213,13 +215,6 @@ class Store {
 
       // 1. Sync Players ONLY if valid array received from cloud
       if (Array.isArray(cloudData.players)) {
-        // DATA LOSS PREVENTION SAFEGUARD: Only restore cloud if NO admin clear action occurred
-        if (cloudData.players.length === 0 && localPlayers.length > 0 && !cloudData.clearedAt) {
-          console.warn("Cloud data was empty! Restoring cloud database from local players backup...");
-          saveCloudData(localPlayers, this.getTeams());
-          return;
-        }
-
         // If admin cleared all in cloud, enforce empty local array
         if (cloudData.players.length === 0 && cloudData.clearedAt > 0) {
           if (localPlayers.length > 0) {
@@ -344,6 +339,8 @@ class Store {
       }
     } catch (err) {
       console.warn("Cloud sync error:", err);
+    } finally {
+      this._isSyncingWithCloud = false;
     }
   }
 
