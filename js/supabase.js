@@ -324,6 +324,56 @@ export async function fetchCloudData() {
           rawProfiles = Array.isArray(data.player_profiles) ? data.player_profiles : Object.values(data.player_profiles);
         }
 
+        // Automatic Profile-Recovery Safety Net: If any registered profile is missing from players array, rescue it!
+        const existingPhones = new Set(rawPlayers.map(p => (p.phone || p.mobile || '').replace(/\D/g, '')));
+        const existingNames = new Set(rawPlayers.map(p => (p.name || '').trim().toLowerCase()));
+
+        for (const prof of rawProfiles) {
+          if (!prof) continue;
+          const ph = (prof.phone || '').replace(/\D/g, '');
+          const nm = (prof.name || '').trim().toLowerCase();
+          if (ph && !existingPhones.has(ph) && nm && !existingNames.has(nm) && ph !== '123654' && ph !== '123455678') {
+            const pTs = new Date(prof.created_at || Date.now()).getTime();
+            rawPlayers.push({
+              id: prof.id ? prof.id.replace('prof-', 'ply-') : ('ply-' + pTs + '-' + Math.random().toString(36).substring(2, 7)),
+              profileId: prof.id,
+              name: (prof.name || 'Unknown').trim(),
+              fatherName: prof.fatherName || 'N/A',
+              dob: prof.dob || '2000-01-01',
+              age: prof.age || 24,
+              phone: prof.phone || '',
+              alternateMobile: prof.alternateMobile || '',
+              village: (prof.village || 'Jhankra').trim(),
+              district: (prof.district || 'Paschim Medinipur').trim(),
+              state: prof.state || 'West Bengal',
+              category: prof.category || prof.role || 'All-rounder',
+              role: prof.category || prof.role || 'All-rounder',
+              playingType: prof.category || prof.role || 'All-rounder',
+              battingStyle: prof.battingStyle || 'Right Hand Bat',
+              bowlingStyle: prof.bowlingStyle || 'Right Hand Fast',
+              isWicketKeeper: !!prof.isWicketKeeper,
+              teamPreference: 'Any Team',
+              photoUrl: prof.photoUrl || '',
+              player_photo_url: prof.photoUrl || '',
+              paymentStatus: 'PENDING',
+              registrationStatus: 'PENDING',
+              auctionStatus: 'PENDING',
+              isSold: false,
+              isUnsold: false,
+              isIcon: false,
+              basePrice: 300,
+              soldPrice: 0,
+              teamId: null,
+              teamName: '',
+              createdTime: pTs,
+              regTimestamp: pTs,
+              updated_at: Date.now()
+            });
+            existingPhones.add(ph);
+            existingNames.add(nm);
+          }
+        }
+
         const players = rawPlayers
           .filter(p => p && p.id && !deletedPlayerIds.includes(p.id))
           .sort((a, b) => getPlayerTimestamp(a) - getPlayerTimestamp(b))
@@ -411,14 +461,30 @@ export async function saveFullTeamsListToFirebase(teamsList) {
 export async function savePlayerToFirebase(player) {
   if (!player || !player.id) return;
   try {
+    const pData = { ...player, updated_at: player.updated_at || Date.now() };
     await fetch(`${FIREBASE_DB_URL}/cpl_master/players/${player.id}.json`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(player)
+      body: JSON.stringify(pData)
     });
     console.log("Saved player atomically to Realtime Database:", player.name);
   } catch (err) {
     console.warn("Atomic player save notice:", err);
+  }
+}
+
+export async function patchPlayerInFirebase(playerId, delta) {
+  if (!playerId || !delta) return;
+  try {
+    const payload = { ...delta, updated_at: delta.updated_at || Date.now() };
+    await fetch(`${FIREBASE_DB_URL}/cpl_master/players/${playerId}.json`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    console.log("Patched player atomically in Realtime Database:", playerId);
+  } catch (err) {
+    console.warn("Atomic player patch notice:", err);
   }
 }
 
@@ -443,14 +509,30 @@ export async function deletePlayerFromFirebase(playerId) {
 export async function saveTeamToFirebase(team) {
   if (!team || !team.id) return;
   try {
+    const tData = { ...team, updated_at: team.updated_at || Date.now() };
     await fetch(`${FIREBASE_DB_URL}/cpl_master/teams/${team.id}.json`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(team)
+      body: JSON.stringify(tData)
     });
     console.log("Saved team atomically to Realtime Database:", team.name);
   } catch (err) {
     console.warn("Atomic team save notice:", err);
+  }
+}
+
+export async function patchTeamInFirebase(teamId, delta) {
+  if (!teamId || !delta) return;
+  try {
+    const payload = { ...delta, updated_at: delta.updated_at || Date.now() };
+    await fetch(`${FIREBASE_DB_URL}/cpl_master/teams/${teamId}.json`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    console.log("Patched team atomically in Realtime Database:", teamId);
+  } catch (err) {
+    console.warn("Atomic team patch notice:", err);
   }
 }
 
@@ -553,10 +635,11 @@ export async function saveAuctionSettingsToFirebase(settings) {
 
 export async function saveLiveAuctionToFirebase(state) {
   try {
+    const payload = state ? { ...state, updated_at: state.updated_at || Date.now() } : null;
     await fetch(`${FIREBASE_DB_URL}/cpl_master/liveAuction.json`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(state || null)
+      body: JSON.stringify(payload)
     });
   } catch (err) {
     console.warn("Live auction state save error:", err);

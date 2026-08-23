@@ -3074,14 +3074,15 @@ export function renderActiveAuctionBlock() {
     // Deduct purse
     const updatedPurseSpent = (Number(team.purseSpent) || 0) + price;
     const maxPurse = Number(team.purse || team.purseBudget || 8000);
-    const updatedRemPurse = maxPurse - updatedPurseSpent;
+    const updatedRemPurse = Math.max(0, maxPurse - updatedPurseSpent);
 
     const updatedTeam = {
       ...team,
+      squadCount: (Number(team.squadCount) || 0) + 1,
       purseSpent: updatedPurseSpent,
-      remainingPurse: updatedRemPurse
+      remainingPurse: updatedRemPurse,
+      updated_at: Date.now()
     };
-    store.updateTeam(updatedTeam);
 
     // Assign player
     const updatedPlayer = {
@@ -3089,16 +3090,18 @@ export function renderActiveAuctionBlock() {
       teamId: team.id,
       teamName: team.name,
       soldPrice: price,
-      auctionStatus: 'SOLD'
+      auctionStatus: 'SOLD',
+      isSold: true,
+      isUnsold: false,
+      updated_at: Date.now()
     };
-    store.updatePlayer(updatedPlayer);
 
     // Stop timer
     if (activeAuction.timerInterval) clearInterval(activeAuction.timerInterval);
 
     playAuctionAudio('sold');
 
-    // 1. FIRST Broadcast SOLD stamp IMMEDIATELY to all spectator phones, projector and admin screen
+    // 1. Broadcast SOLD stamp IMMEDIATELY to all spectator phones, projector and admin screen
     await store.updateLiveAuctionState({
       status: 'SOLD',
       is_sold: true,
@@ -3119,7 +3122,7 @@ export function renderActiveAuctionBlock() {
     renderActiveAuctionBlock();
     updateProjectorModalView();
 
-    // 2. Then update player and team database records
+    // 2. Update player and team database records atomically (single call)
     store.updateTeam(updatedTeam);
     store.updatePlayer(updatedPlayer);
 

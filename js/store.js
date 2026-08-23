@@ -13,7 +13,9 @@ import {
   clearAllPlayersFromFirebase,
   clearAllTeamsFromFirebase,
   savePlayerToFirebase,
+  patchPlayerInFirebase,
   saveTeamToFirebase,
+  patchTeamInFirebase,
   saveFixtureToFirebase,
   deleteFixtureFromFirebase,
   saveAuctionSettingsToFirebase,
@@ -26,7 +28,7 @@ import {
   fetchUserAccountsFromFirebase,
   saveRegistrationSettingsToFirebase,
   fetchRegistrationSettingsFromFirebase
-} from './supabase.js?v=11.3.5';
+} from './supabase.js?v=11.3.6';
 
 const FIREBASE_DB_URL = "https://cpl-jsl-2026-default-rtdb.firebaseio.com";
 
@@ -309,7 +311,15 @@ class Store {
           }
         }
 
-        // 2. Only retain cloud players as authoritative when cloudData has players
+        // 2. UNION-MERGE: Also retain any valid locally registered player not yet present in cloudData
+        for (const [lId, localP] of localPlayerMap.entries()) {
+          if (!mergedMap.has(lId) && !deletedIdsSet.has(lId)) {
+            mergedMap.set(lId, localP);
+            // Non-destructively ensure cloud has this local player
+            savePlayerToFirebase(localP);
+          }
+        }
+
         let mergedPlayers = Array.from(mergedMap.values());
 
         // If cloud database is empty, fallback to valid local players
@@ -771,18 +781,9 @@ class Store {
         updated_at: now
       };
       
-      // Re-index serials
-      players.forEach((p, i) => {
-        const dNo = i + 1;
-        p.serialNo = dNo;
-        p.displayRegistrationNumber = dNo;
-        p.registrationId = `JSL2026-${String(dNo).padStart(4, '0')}`;
-        p.regNo = p.registrationId;
-      });
-
       safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
-      saveCloudData(players, this.getTeams());
       savePlayerToFirebase(players[idx]);
+      patchPlayerInFirebase(players[idx].id, players[idx]);
       syncPlayerToSupabase(players[idx]);
       this.notify('players_updated');
       return players[idx];
@@ -938,13 +939,23 @@ class Store {
 
       player.teamId = teamId;
       player.soldPrice = Number(soldPrice) || player.basePrice || 0;
+      player.teamName = team.name;
+      player.auctionStatus = 'SOLD';
+      player.isSold = true;
+      player.isUnsold = false;
+      player.updated_at = Date.now();
       
       team.squadCount += 1;
       team.purseSpent += player.soldPrice;
+      team.remainingPurse = Math.max(0, (Number(team.purseBudget) || 8000) - team.purseSpent);
+      team.updated_at = Date.now();
 
       safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
       safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
-      saveCloudData(players, teams);
+      savePlayerToFirebase(player);
+      saveTeamToFirebase(team);
+      patchPlayerInFirebase(player.id, player);
+      patchTeamInFirebase(team.id, team);
       syncPlayerToSupabase(player);
       syncTeamToSupabase(team);
       this.notify('players_updated');
@@ -971,6 +982,9 @@ class Store {
           team.playerIds = team.playerIds.filter(id => id !== playerId);
         }
         team.updated_at = now;
+        safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
+        saveTeamToFirebase(team);
+        patchTeamInFirebase(team.id, team);
         syncTeamToSupabase(team);
       }
     }
@@ -998,8 +1012,8 @@ class Store {
     }
 
     safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
-    safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
-    saveCloudData(players, teams);
+    savePlayerToFirebase(player);
+    patchPlayerInFirebase(player.id, player);
     syncPlayerToSupabase(player);
     this.notify('players_updated');
     this.notify('teams_updated');
@@ -1010,6 +1024,7 @@ class Store {
 
   resetAuctionData() {
     const players = this.getPlayers();
+    const now = Date.now();
     players.forEach(p => {
       p.teamId = null;
       p.teamName = null;
@@ -1017,13 +1032,23 @@ class Store {
       p.auctionStatus = 'PENDING';
       p.isSold = false;
       p.boughtByTeamId = null;
+      p.updated_at = now;
+      patchPlayerInFirebase(p.id, {
+        teamId: null,
+        teamName: null,
+        soldPrice: 0,
+        auctionStatus: 'PENDING',
+        isSold: false,
+        boughtByTeamId: null,
+        updated_at: now
+      });
     });
 
     const teams = (JSON.parse(localStorage.getItem(STORAGE_KEYS.TEAMS)) || []).map((t, idx) => {
       const hasIcon = !!(t.iconPlayerName || t.iconName);
       const iconDeduction = hasIcon ? 1000 : 0;
       const budget = Number(t.purseBudget || t.purse || 8000);
-      return {
+      const resetT = {
         ...t,
         serialNo: idx + 1,
         purseBudget: budget,
@@ -1031,8 +1056,11 @@ class Store {
         remainingPurse: Math.max(0, budget - iconDeduction),
         squadCount: hasIcon ? 1 : 0,
         playersCount: hasIcon ? 1 : 0,
-        playerIds: []
+        playerIds: [],
+        updated_at: now
       };
+      saveTeamToFirebase(resetT);
+      return resetT;
     });
 
     this.updateLiveAuctionState({
@@ -1042,12 +1070,12 @@ class Store {
       highest_bidder_team_id: null,
       last_sold_player_id: null,
       last_sold_price: 0,
-      last_sold_team_id: null
+      last_sold_team_id: null,
+      updated_at: now
     });
 
     safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
     safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
-    saveCloudData(players, teams);
     
     if (typeof syncTeamToSupabase === 'function') {
       teams.forEach(t => syncTeamToSupabase(t));
@@ -1388,16 +1416,6 @@ class Store {
 
   // --- LIVE AUCTION STATE ---
   async getLiveAuctionState() {
-    if (this.liveAuctionState) return this.liveAuctionState;
-
-    try {
-      const local = localStorage.getItem('cpl_live_auction_state');
-      if (local) {
-        this.liveAuctionState = JSON.parse(local);
-        return this.liveAuctionState;
-      }
-    } catch(e) {}
-
     try {
       const res = await fetch(`${FIREBASE_DB_URL}/cpl_master/liveAuction.json?_t=${Date.now()}`, {
         cache: 'no-store',
@@ -1405,13 +1423,23 @@ class Store {
       });
       if (res.ok) {
         const data = await res.json();
-        this.liveAuctionState = data;
-        if (data && data.active_player_id) {
-          safeSetLocalStorage('cpl_live_auction_state', data);
+        if (data) {
+          const incomingTime = Number(data.updated_at || data.timestamp || 0);
+          const currentTime = Number(this.liveAuctionState?.updated_at || this.liveAuctionState?.timestamp || 0);
+          // Monotonic Version Guard: Only accept if incoming state is newer or equal
+          if (incomingTime >= currentTime || !this.liveAuctionState) {
+            this.liveAuctionState = data;
+            if (data.active_player_id) {
+              safeSetLocalStorage('cpl_live_auction_state', data);
+            } else {
+              localStorage.removeItem('cpl_live_auction_state');
+            }
+          }
         } else {
+          this.liveAuctionState = null;
           localStorage.removeItem('cpl_live_auction_state');
         }
-        return data;
+        return this.liveAuctionState;
       }
     } catch (e) {
       console.warn("Live auction state fetch error:", e);
@@ -1432,13 +1460,16 @@ class Store {
   }
 
   async updateLiveAuctionState(state) {
-    this.liveAuctionState = state;
-    if (state && state.active_player_id) {
-      safeSetLocalStorage('cpl_live_auction_state', state);
+    const now = Date.now();
+    const currentTs = Number(this.liveAuctionState?.updated_at || 0);
+    const updatedState = state ? { ...state, updated_at: Math.max(now, currentTs + 1) } : null;
+    this.liveAuctionState = updatedState;
+    if (updatedState && updatedState.active_player_id) {
+      safeSetLocalStorage('cpl_live_auction_state', updatedState);
     } else {
       localStorage.removeItem('cpl_live_auction_state');
     }
-    await saveLiveAuctionToFirebase(state);
+    await saveLiveAuctionToFirebase(updatedState);
     this.notify('live_auction_updated');
   }
 

@@ -4379,213 +4379,29 @@ function renderLiveAuctionView(container) {
     `;
   };
 
-  // Pre-calculate counts on load
-  renderPlayerStatusTable();
-
-  let lastAuctionSyncTimestamp = 0;
-  let lastAuctionCloudHeartbeat = 0;
-  let lastRenderedTableHash = '';
-  let lastRenderedPursesHash = '';
-  let lastRenderedLiveBid = null;
-
-  const pollActiveAuctionState = async () => {
-    if (currentRoute !== 'auction') {
-      if (auctionPollInterval) {
-        clearInterval(auctionPollInterval);
-        auctionPollInterval = null;
-      }
-      return;
-    }
-
-    const state = await store.getLiveAuctionState();
-    if (currentRoute !== 'auction') return;
-
-    const now = Date.now();
-    const stateUpdatedAt = Number(state?.updated_at || state?.timestamp || 0);
-
-    // If state version changed OR periodic heartbeat (every 6s), sync cloud data
-    if (stateUpdatedAt > lastAuctionSyncTimestamp || (now - lastAuctionCloudHeartbeat > 6000)) {
-      lastAuctionSyncTimestamp = stateUpdatedAt;
-      lastAuctionCloudHeartbeat = now;
-      try {
-        await store.syncWithCloud();
-      } catch (err) {
-        console.warn("Auction cloud sync notice:", err);
-      }
-    }
-
-    const teams = store.getTeams();
-    const allPlayers = store.getPlayers();
+  const renderActiveBlock = (state, teams, allPlayers) => {
     const activeBlockWrapper = document.getElementById('auction-active-block-container');
-    const pursesWrapper = document.getElementById('auction-franchise-purses-list');
+    if (!activeBlockWrapper) return;
 
-    // 1. Render / Update Active Bidding Block
-    if (activeBlockWrapper) {
-      if (state && state.active_player_id) {
-        const bidderTeam = teams.find(t => t.id === state.highest_bidder_team_id);
-        const isUnsoldState = (state.status === 'UNSOLD' || state.is_unsold);
-        const isSoldState = (state.status === 'SOLD' || state.is_sold);
-        const isNewPlayer = (lastActivePlayerId !== state.active_player_id);
-        const playerCardEl = document.getElementById('auction-player-card-box');
+    if (state && state.active_player_id) {
+      const bidderTeam = teams.find(t => t.id === state.highest_bidder_team_id);
+      const isUnsoldState = (state.status === 'UNSOLD' || state.is_unsold);
+      const isSoldState = (state.status === 'SOLD' || state.is_sold);
+      const isNewPlayer = (lastActivePlayerId !== state.active_player_id);
+      const playerCardEl = document.getElementById('auction-player-card-box');
 
-        if (isNewPlayer || !playerCardEl) {
-          lastActivePlayerId = state.active_player_id;
-          lastActiveStatus = state.status;
-          const playerPhoto = getOptimizedImageUrl(state.photoUrl, 600, 600) || 'assets/card_jsl_user.png';
+      if (isNewPlayer || !playerCardEl) {
+        lastActivePlayerId = state.active_player_id;
+        lastActiveStatus = state.status;
+        const playerPhoto = getOptimizedImageUrl(state.photoUrl, 600, 600) || 'assets/card_jsl_user.png';
 
-          activeBlockWrapper.innerHTML = `
-            <div id="auction-player-card-box" class="relative rounded-3xl overflow-hidden shadow-2xl border-2 ${isSoldState ? 'border-emerald-500' : isUnsoldState ? 'border-rose-500' : 'border-emerald-500/40'} min-h-[460px] sm:min-h-[540px] md:min-h-[580px] max-w-2xl mx-auto flex flex-col justify-between p-3 sm:p-4 bg-slate-900 animate-fade-in">
-              <!-- Full Crystal Clear Real Player Photo (Zero Dark Shading/Light Overlay) -->
-              <img id="auction-player-photo-img" src="${playerPhoto}" class="absolute inset-0 w-full h-full object-cover sm:object-contain object-top" alt="${state.name}" onerror="this.src='assets/card_jsl_user.png'" />
+        activeBlockWrapper.innerHTML = `
+          <div id="auction-player-card-box" class="relative rounded-3xl overflow-hidden shadow-2xl border-2 ${isSoldState ? 'border-emerald-500' : isUnsoldState ? 'border-rose-500' : 'border-emerald-500/40'} min-h-[460px] sm:min-h-[540px] md:min-h-[580px] max-w-2xl mx-auto flex flex-col justify-between p-3 sm:p-4 bg-slate-900 animate-fade-in">
+            <!-- Full Crystal Clear Real Player Photo (Zero Dark Shading/Light Overlay) -->
+            <img id="auction-player-photo-img" src="${playerPhoto}" class="absolute inset-0 w-full h-full object-cover sm:object-contain object-top" alt="${state.name}" onerror="this.src='assets/card_jsl_user.png'" />
 
-              <div id="auction-stamp-slot">
-                ${isSoldState ? `
-                  <div id="auction-stamp-overlay" class="absolute inset-0 z-30 flex items-center justify-center pointer-events-none bg-slate-950/20">
-                    <svg viewBox="0 0 300 300" class="w-60 h-60 sm:w-80 sm:h-80 stamp-slam-animate select-none drop-shadow-2xl" xmlns="http://www.w3.org/2000/svg">
-                      <g transform="rotate(-13 150 150)">
-                        <circle cx="150" cy="150" r="140" fill="none" stroke="#059669" stroke-width="7" stroke-dasharray="20 4 15 3 25 5" />
-                        <circle cx="150" cy="150" r="128" fill="none" stroke="#059669" stroke-width="2.5" />
-                        <path id="sold-arc-top-v9" d="M 35,150 A 115,115 0 0,1 265,150" fill="none" />
-                        <text fill="#059669" font-size="22" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="6">
-                          <textPath href="#sold-arc-top-v9" startOffset="50%" text-anchor="middle">JSL 2026 AUCTION</textPath>
-                        </text>
-                        <text x="105" y="94" fill="#059669" font-size="20" text-anchor="middle">★</text>
-                        <text x="150" y="82" fill="#059669" font-size="28" text-anchor="middle">★</text>
-                        <text x="195" y="94" fill="#059669" font-size="20" text-anchor="middle">★</text>
-                        <text x="105" y="222" fill="#059669" font-size="20" text-anchor="middle">★</text>
-                        <text x="150" y="234" fill="#059669" font-size="28" text-anchor="middle">★</text>
-                        <text x="195" y="222" fill="#059669" font-size="20" text-anchor="middle">★</text>
-                        <path id="sold-arc-bottom-v9" d="M 265,150 A 115,115 0 0,1 35,150" fill="none" />
-                        <text fill="#059669" font-size="20" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="6">
-                          <textPath href="#sold-arc-bottom-v9" startOffset="50%" text-anchor="middle">OFFICIALLY SIGNED</textPath>
-                        </text>
-                        <rect x="5" y="106" width="290" height="88" rx="16" fill="#059669" stroke="#ffffff" stroke-width="4" />
-                        <text x="150" y="152" fill="#ffffff" font-size="46" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="8" text-anchor="middle">SOLD</text>
-                        <text x="150" y="178" fill="#fef08a" font-size="14" font-weight="900" font-family="'Arial', sans-serif" text-anchor="middle">${bidderTeam ? bidderTeam.name + ' • ' : ''}₹ ${Number(state.sold_price || state.current_bid || 300).toLocaleString('en-IN')}</text>
-                      </g>
-                    </svg>
-                  </div>
-                ` : isUnsoldState ? `
-                  <div id="auction-stamp-overlay" class="absolute inset-0 z-30 flex items-center justify-center pointer-events-none bg-slate-950/20">
-                    <svg viewBox="0 0 300 300" class="w-60 h-60 sm:w-80 sm:h-80 stamp-slam-animate select-none drop-shadow-2xl" xmlns="http://www.w3.org/2000/svg">
-                      <g transform="rotate(-15 150 150)">
-                        <circle cx="150" cy="150" r="140" fill="none" stroke="#C5221F" stroke-width="7" stroke-dasharray="18 4 12 3 24 5" />
-                        <circle cx="150" cy="150" r="128" fill="none" stroke="#C5221F" stroke-width="2.5" />
-                        <path id="unsold-arc-top-v9" d="M 35,150 A 115,115 0 0,1 265,150" fill="none" />
-                        <text fill="#C5221F" font-size="28" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="14">
-                          <textPath href="#unsold-arc-top-v9" startOffset="50%" text-anchor="middle">UNSOLD</textPath>
-                        </text>
-                        <text x="105" y="94" fill="#C5221F" font-size="20" text-anchor="middle">★</text>
-                        <text x="150" y="82" fill="#C5221F" font-size="28" text-anchor="middle">★</text>
-                        <text x="195" y="94" fill="#C5221F" font-size="20" text-anchor="middle">★</text>
-                        <text x="105" y="222" fill="#C5221F" font-size="20" text-anchor="middle">★</text>
-                        <text x="150" y="234" fill="#C5221F" font-size="28" text-anchor="middle">★</text>
-                        <text x="195" y="222" fill="#C5221F" font-size="20" text-anchor="middle">★</text>
-                        <path id="unsold-arc-bottom-v9" d="M 265,150 A 115,115 0 0,1 35,150" fill="none" />
-                        <text fill="#C5221F" font-size="24" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="12">
-                          <textPath href="#unsold-arc-bottom-v9" startOffset="50%" text-anchor="middle">UNSOLD</textPath>
-                        </text>
-                        <rect x="5" y="110" width="290" height="80" rx="16" fill="#C5221F" stroke="#ffffff" stroke-width="4" />
-                        <text x="150" y="167" fill="#ffffff" font-size="52" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="6" text-anchor="middle">UNSOLD</text>
-                      </g>
-                    </svg>
-                  </div>
-                ` : ''}
-              </div>
-
-              <!-- TOP ROW: Upper Right Red Box with Full JSL Serial ID -->
-              <div class="relative z-10 flex justify-end items-center w-full">
-                <span class="px-3.5 py-1.5 bg-red-600 text-white font-black font-mono text-xs sm:text-sm rounded-xl border-2 border-red-400 shadow-lg tracking-wider">
-                  ${state.registrationId || state.regNo || ('JSL2026-' + String(state.displayRegistrationNumber || state.serialNo || 1).padStart(4, '0'))}
-                </span>
-              </div>
-
-              <!-- LOWEST PORTION: Compact Player Details Box & Bid Shape (Max Image Visibility) -->
-              <div class="relative z-10 mt-auto space-y-1.5">
-                
-                <!-- Compact Details Box with Larger Name & Category, SVG Icons -->
-                <div class="p-2 sm:p-2.5 bg-white/95 backdrop-blur-md rounded-2xl border border-white/80 shadow-md space-y-0.5">
-                  <div class="flex items-center justify-between gap-2">
-                    <h2 class="text-lg sm:text-2xl font-black text-slate-950 tracking-tight leading-tight truncate">
-                      ${state.name}
-                    </h2>
-                    <span class="px-2.5 py-0.5 bg-emerald-600 text-white font-black text-xs sm:text-sm rounded-lg uppercase tracking-wider shrink-0 shadow-2xs">
-                      🏏 ${state.category || 'All Rounder'}
-                    </span>
-                  </div>
-
-                  <div class="flex items-center justify-between text-[10px] sm:text-xs text-slate-700 font-bold border-t border-slate-200/80 pt-1 flex-wrap gap-x-2 gap-y-0.5">
-                    <div class="flex items-center gap-2 flex-wrap min-w-0">
-                      <!-- Red Pin SVG + Address -->
-                      <span class="inline-flex items-center gap-0.5 truncate text-slate-800">
-                        <svg class="w-3.5 h-3.5 text-red-500 fill-red-500 shrink-0 inline-block" viewBox="0 0 24 24">
-                          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
-                        </svg>
-                        ${state.village || 'Paschim Medinipur'}
-                      </span>
-
-                      <!-- SVG Bat + Batting Style -->
-                      <span class="inline-flex items-center gap-0.5 truncate text-slate-700">
-                        <svg class="w-3.5 h-3.5 text-amber-600 shrink-0 inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <path d="m14 13-7.5 7.5c-.83.83-2.17.83-3 0 0 0 0 0 0 0-.83-.83-.83-2.17 0-3L11 10"/>
-                          <path d="m16 16 6-6"/>
-                        </svg>
-                        ${state.battingStyle || 'Right Hand Bat'}
-                      </span>
-
-                      <!-- SVG Ball + Bowling Style -->
-                      ${state.bowlingStyle && state.bowlingStyle !== 'None' ? `
-                        <span class="inline-flex items-center gap-0.5 truncate text-slate-700">
-                          <svg class="w-3.5 h-3.5 text-rose-600 shrink-0 inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                            <circle cx="12" cy="12" r="9"/>
-                            <path d="m4.93 4.93 4.24 4.24"/>
-                            <path d="m14.83 14.83 4.24 4.24"/>
-                          </svg>
-                          ${state.bowlingStyle}
-                        </span>
-                      ` : ''}
-                    </div>
-
-                    <!-- Base Price -->
-                    <span class="text-amber-800 font-mono font-black shrink-0 ml-auto text-xs sm:text-sm">Base: ₹${state.basePrice || 300}</span>
-                  </div>
-                </div>
-
-                <!-- High-Impact Bold Bid Shape (Red High-Glow Amount & LEADER BIDDER 🔥) -->
-                <div class="grid grid-cols-2 gap-2 ${isUnsoldState ? 'bg-rose-950/95 border-2 sm:border-3 border-rose-500' : 'bg-slate-950/95 border-2 sm:border-3 border-amber-400'} backdrop-blur-2xl p-2.5 sm:p-3 rounded-2xl sm:rounded-3xl shadow-2xl">
-                  <!-- LEFT: CURRENT HIGH BID (Massive Glowing RED Display) -->
-                  <div class="flex flex-col justify-center">
-                    <span id="auction-status-label" class="text-[9px] sm:text-[11px] font-black ${isUnsoldState ? 'text-rose-300' : 'text-amber-300'} uppercase tracking-widest block">
-                      ${isSoldState ? 'AUCTION RESULT' : isUnsoldState ? 'Auction Status' : 'CURRENT HIGH BID'}
-                    </span>
-                    <div id="auction-live-bid-display" class="text-3xl sm:text-5xl md:text-6xl font-black ${isSoldState ? 'text-emerald-400' : isUnsoldState ? 'text-rose-400' : 'text-red-500 live-bid-ambient-blink'} font-mono leading-none mt-0.5 drop-shadow-[0_4px_18px_rgba(239,68,68,0.85)]">
-                      ${isSoldState ? '🔨 SOLD' : isUnsoldState ? '❌ UNSOLD' : '₹ ' + Number(state.current_bid || state.basePrice || 300).toLocaleString('en-IN')}
-                    </div>
-                  </div>
-                  
-                  <!-- RIGHT: LEADER BIDDER 🔥 & TEAM NAME -->
-                  <div class="text-right border-l border-slate-800/90 pl-2.5 flex flex-col justify-center">
-                    <span id="auction-bidder-label" class="text-[9px] sm:text-[11px] font-black ${isSoldState ? 'text-emerald-400' : isUnsoldState ? 'text-rose-400' : 'text-amber-400'} uppercase tracking-widest flex items-center justify-end gap-1">
-                      ${isSoldState ? 'WINNING FRANCHISE 🏆' : isUnsoldState ? 'ROUND 2 STATUS ⚡' : 'LEADER BIDDER 🔥'}
-                    </span>
-                    <span id="auction-leading-bidder-display" class="text-lg sm:text-2xl md:text-3xl font-black text-white block mt-0.5 truncate leading-tight tracking-wide">
-                      ${isSoldState ? (bidderTeam ? '🛡️ ' + bidderTeam.name : 'Sold') : isUnsoldState ? 'Eligible for Re-Bid' : (bidderTeam ? '🛡️ ' + bidderTeam.name : 'No bids yet')}
-                    </span>
-                  </div>
-                </div>
-
-              </div>
-            </div>
-          `;
-          if (window.lucide) window.lucide.createIcons();
-        } else {
-          // SAME PLAYER ALREADY SHOWN: SMOOTH IN-PLACE UPDATES WITHOUT TOUCHING PHOTO!
-          const stampSlot = document.getElementById('auction-stamp-slot');
-          const stampOverlay = document.getElementById('auction-stamp-overlay');
-
-          if (isSoldState) {
-            if (!stampOverlay && stampSlot) {
-              stampSlot.innerHTML = `
+            <div id="auction-stamp-slot">
+              ${isSoldState ? `
                 <div id="auction-stamp-overlay" class="absolute inset-0 z-30 flex items-center justify-center pointer-events-none bg-slate-950/20">
                   <svg viewBox="0 0 300 300" class="w-60 h-60 sm:w-80 sm:h-80 stamp-slam-animate select-none drop-shadow-2xl" xmlns="http://www.w3.org/2000/svg">
                     <g transform="rotate(-13 150 150)">
@@ -4611,22 +4427,7 @@ function renderLiveAuctionView(container) {
                     </g>
                   </svg>
                 </div>
-              `;
-            }
-            const statusLabel = document.getElementById('auction-status-label');
-            const bidEl = document.getElementById('auction-live-bid-display');
-            const bidderLabel = document.getElementById('auction-bidder-label');
-            const teamEl = document.getElementById('auction-leading-bidder-display');
-            if (statusLabel) statusLabel.textContent = 'AUCTION RESULT';
-            if (bidEl) {
-              bidEl.textContent = '🔨 SOLD';
-              bidEl.className = 'text-3xl sm:text-5xl md:text-6xl font-black text-emerald-400 font-mono leading-none mt-0.5 drop-shadow-[0_4px_16px_rgba(16,185,129,0.5)]';
-            }
-            if (bidderLabel) bidderLabel.textContent = 'WINNING FRANCHISE 🏆';
-            if (teamEl) teamEl.textContent = bidderTeam ? '🛡️ ' + bidderTeam.name : 'Sold';
-          } else if (isUnsoldState) {
-            if (!stampOverlay && stampSlot) {
-              stampSlot.innerHTML = `
+              ` : isUnsoldState ? `
                 <div id="auction-stamp-overlay" class="absolute inset-0 z-30 flex items-center justify-center pointer-events-none bg-slate-950/20">
                   <svg viewBox="0 0 300 300" class="w-60 h-60 sm:w-80 sm:h-80 stamp-slam-animate select-none drop-shadow-2xl" xmlns="http://www.w3.org/2000/svg">
                     <g transform="rotate(-15 150 150)">
@@ -4651,72 +4452,372 @@ function renderLiveAuctionView(container) {
                     </g>
                   </svg>
                 </div>
-              `;
-            }
-            const statusLabel = document.getElementById('auction-status-label');
-            const bidEl = document.getElementById('auction-live-bid-display');
-            const bidderLabel = document.getElementById('auction-bidder-label');
-            const teamEl = document.getElementById('auction-leading-bidder-display');
-            if (statusLabel) statusLabel.textContent = 'Auction Status';
-            if (bidEl) {
-              bidEl.textContent = '❌ UNSOLD';
-              bidEl.className = 'text-3xl sm:text-5xl md:text-6xl font-black text-rose-400 font-mono leading-none mt-0.5 drop-shadow-[0_4px_16px_rgba(244,63,94,0.5)]';
-            }
-            if (bidderLabel) bidderLabel.textContent = 'ROUND 2 STATUS ⚡';
-            if (teamEl) teamEl.textContent = 'Eligible for Re-Bid';
-          } else {
-            // NORMAL BIDDING IN PROGRESS: Update text only + trigger pulse flash animation on change!
-            if (stampOverlay && stampSlot) stampSlot.innerHTML = '';
-            const statusLabel = document.getElementById('auction-status-label');
-            const bidEl = document.getElementById('auction-live-bid-display');
-            const bidderLabel = document.getElementById('auction-bidder-label');
-            const teamEl = document.getElementById('auction-leading-bidder-display');
-            if (statusLabel) statusLabel.textContent = 'CURRENT HIGH BID';
-            if (bidEl) {
-              const currentBidVal = Number(state.current_bid || state.basePrice || 300);
-              bidEl.textContent = `₹ ${currentBidVal.toLocaleString('en-IN')}`;
-              bidEl.className = 'text-3xl sm:text-5xl md:text-6xl font-black text-red-500 font-mono leading-none mt-0.5 drop-shadow-[0_4px_18px_rgba(239,68,68,0.85)] live-bid-ambient-blink';
-              
-              if (lastRenderedLiveBid !== currentBidVal) {
-                lastRenderedLiveBid = currentBidVal;
-                bidEl.classList.remove('bid-pulse-flash');
-                void bidEl.offsetWidth; // Force CSS reflow to replay flash
-                bidEl.classList.add('bid-pulse-flash');
-              }
-            }
-            if (bidderLabel) bidderLabel.innerHTML = 'LEADER BIDDER <span class="text-amber-400">🔥</span>';
-            if (teamEl) teamEl.textContent = bidderTeam ? '🛡️ ' + bidderTeam.name : 'No bids yet';
-          }
-        }
-      } else {
-        if (lastActivePlayerId !== null || !document.getElementById('auction-waiting-block-box')) {
-          lastActivePlayerId = null;
-          lastActiveStatus = null;
-          const isAuctionCompleted = (state && state.status === 'COMPLETED');
+              ` : ''}
+            </div>
 
-          activeBlockWrapper.innerHTML = `
-            <div id="auction-waiting-block-box" class="text-center p-6 sm:p-8 ${isAuctionCompleted ? 'bg-gradient-to-br from-amber-500/10 to-emerald-500/10 border-2 border-amber-400/60' : 'bg-white border-2 border-dashed border-slate-300'} rounded-2xl sm:rounded-3xl shadow-xs animate-fade-in">
-              <div class="w-12 h-12 rounded-2xl ${isAuctionCompleted ? 'bg-amber-100 text-amber-600' : 'bg-blue-50 text-blue-500'} flex items-center justify-center mx-auto mb-3 shadow-2xs">
-                <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="m14 13-7.5 7.5c-.83.83-2.17.83-3 0 0 0 0 0 0 0-.83-.83-.83-2.17 0-3L11 10"/>
-                  <path d="m16 16 6-6"/>
-                  <path d="m8 8 6-6"/>
-                  <path d="m9 7 8 8"/>
-                  <path d="m21 11-8-8"/>
+            <!-- TOP ROW: Upper Right Red Box with Full JSL Serial ID -->
+            <div class="relative z-10 flex justify-end items-center w-full">
+              <span class="px-3.5 py-1.5 bg-red-600 text-white font-black font-mono text-xs sm:text-sm rounded-xl border-2 border-red-400 shadow-lg tracking-wider">
+                ${state.registrationId || state.regNo || ('JSL2026-' + String(state.displayRegistrationNumber || state.serialNo || 1).padStart(4, '0'))}
+              </span>
+            </div>
+
+            <!-- LOWEST PORTION: Compact Player Details Box & Bid Shape (Max Image Visibility) -->
+            <div class="relative z-10 mt-auto space-y-1.5">
+              
+              <!-- Compact Details Box with Larger Name & Category, SVG Icons -->
+              <div class="p-2 sm:p-2.5 bg-white/95 backdrop-blur-md rounded-2xl border border-white/80 shadow-md space-y-0.5">
+                <div class="flex items-center justify-between gap-2">
+                  <h2 class="text-lg sm:text-2xl font-black text-slate-950 tracking-tight leading-tight truncate">
+                    ${state.name}
+                  </h2>
+                  <span class="px-2.5 py-0.5 bg-emerald-600 text-white font-black text-xs sm:text-sm rounded-lg uppercase tracking-wider shrink-0 shadow-2xs">
+                    🏏 ${state.category || 'All Rounder'}
+                  </span>
+                </div>
+
+                <div class="flex items-center justify-between text-[10px] sm:text-xs text-slate-700 font-bold border-t border-slate-200/80 pt-1 flex-wrap gap-x-2 gap-y-0.5">
+                  <div class="flex items-center gap-2 flex-wrap min-w-0">
+                    <!-- Red Pin SVG + Address -->
+                    <span class="inline-flex items-center gap-0.5 truncate text-slate-800">
+                      <svg class="w-3.5 h-3.5 text-red-500 fill-red-500 shrink-0 inline-block" viewBox="0 0 24 24">
+                        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
+                      </svg>
+                      ${state.village || 'Paschim Medinipur'}
+                    </span>
+
+                    <!-- SVG Bat + Batting Style -->
+                    <span class="inline-flex items-center gap-0.5 truncate text-slate-700">
+                      <svg class="w-3.5 h-3.5 text-amber-600 shrink-0 inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="m14 13-7.5 7.5c-.83.83-2.17.83-3 0 0 0 0 0 0 0-.83-.83-.83-2.17 0-3L11 10"/>
+                        <path d="m16 16 6-6"/>
+                      </svg>
+                      ${state.battingStyle || 'Right Hand Bat'}
+                    </span>
+
+                    <!-- SVG Ball + Bowling Style -->
+                    ${state.bowlingStyle && state.bowlingStyle !== 'None' ? `
+                      <span class="inline-flex items-center gap-0.5 truncate text-slate-700">
+                        <svg class="w-3.5 h-3.5 text-rose-600 shrink-0 inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                          <circle cx="12" cy="12" r="9"/>
+                          <path d="m4.93 4.93 4.24 4.24"/>
+                          <path d="m14.83 14.83 4.24 4.24"/>
+                        </svg>
+                        ${state.bowlingStyle}
+                      </span>
+                    ` : ''}
+                  </div>
+
+                  <!-- Base Price -->
+                  <span class="text-amber-800 font-mono font-black shrink-0 ml-auto text-xs sm:text-sm">Base: ₹${state.basePrice || 300}</span>
+                </div>
+              </div>
+
+              <!-- High-Impact Bold Bid Shape (Red High-Glow Amount & LEADER BIDDER 🔥) -->
+              <div class="grid grid-cols-2 gap-2 ${isUnsoldState ? 'bg-rose-950/95 border-2 sm:border-3 border-rose-500' : 'bg-slate-950/95 border-2 sm:border-3 border-amber-400'} backdrop-blur-2xl p-2.5 sm:p-3 rounded-2xl sm:rounded-3xl shadow-2xl">
+                <!-- LEFT: CURRENT HIGH BID (Massive Glowing RED Display) -->
+                <div class="flex flex-col justify-center">
+                  <span id="auction-status-label" class="text-[9px] sm:text-[11px] font-black ${isUnsoldState ? 'text-rose-300' : 'text-amber-300'} uppercase tracking-widest block">
+                    ${isSoldState ? 'AUCTION RESULT' : isUnsoldState ? 'Auction Status' : 'CURRENT HIGH BID'}
+                  </span>
+                  <div id="auction-live-bid-display" class="text-3xl sm:text-5xl md:text-6xl font-black ${isSoldState ? 'text-emerald-400' : isUnsoldState ? 'text-rose-400' : 'text-red-500 live-bid-ambient-blink'} font-mono leading-none mt-0.5 drop-shadow-[0_4px_18px_rgba(239,68,68,0.85)]">
+                    ${isSoldState ? '🔨 SOLD' : isUnsoldState ? '❌ UNSOLD' : '₹ ' + Number(state.current_bid || state.basePrice || 300).toLocaleString('en-IN')}
+                  </div>
+                </div>
+                
+                <!-- RIGHT: LEADER BIDDER 🔥 & TEAM NAME -->
+                <div class="text-right border-l border-slate-800/90 pl-2.5 flex flex-col justify-center">
+                  <span id="auction-bidder-label" class="text-[9px] sm:text-[11px] font-black ${isSoldState ? 'text-emerald-400' : isUnsoldState ? 'text-rose-400' : 'text-amber-400'} uppercase tracking-widest flex items-center justify-end gap-1">
+                    ${isSoldState ? 'WINNING FRANCHISE 🏆' : isUnsoldState ? 'ROUND 2 STATUS ⚡' : 'LEADER BIDDER 🔥'}
+                  </span>
+                  <span id="auction-leading-bidder-display" class="text-lg sm:text-2xl md:text-3xl font-black text-white block mt-0.5 truncate leading-tight tracking-wide">
+                    ${isSoldState ? (bidderTeam ? '🛡️ ' + bidderTeam.name : 'Sold') : isUnsoldState ? 'Eligible for Re-Bid' : (bidderTeam ? '🛡️ ' + bidderTeam.name : 'No bids yet')}
+                  </span>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        `;
+        if (window.lucide) window.lucide.createIcons();
+      } else {
+        // SAME PLAYER ALREADY SHOWN: SMOOTH IN-PLACE UPDATES WITHOUT TOUCHING PHOTO!
+        const stampSlot = document.getElementById('auction-stamp-slot');
+        const stampOverlay = document.getElementById('auction-stamp-overlay');
+
+        if (isSoldState) {
+          if (!stampOverlay && stampSlot) {
+            stampSlot.innerHTML = `
+              <div id="auction-stamp-overlay" class="absolute inset-0 z-30 flex items-center justify-center pointer-events-none bg-slate-950/20">
+                <svg viewBox="0 0 300 300" class="w-60 h-60 sm:w-80 sm:h-80 stamp-slam-animate select-none drop-shadow-2xl" xmlns="http://www.w3.org/2000/svg">
+                  <g transform="rotate(-13 150 150)">
+                    <circle cx="150" cy="150" r="140" fill="none" stroke="#059669" stroke-width="7" stroke-dasharray="20 4 15 3 25 5" />
+                    <circle cx="150" cy="150" r="128" fill="none" stroke="#059669" stroke-width="2.5" />
+                    <path id="sold-arc-top-v9" d="M 35,150 A 115,115 0 0,1 265,150" fill="none" />
+                    <text fill="#059669" font-size="22" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="6">
+                      <textPath href="#sold-arc-top-v9" startOffset="50%" text-anchor="middle">JSL 2026 AUCTION</textPath>
+                    </text>
+                    <text x="105" y="94" fill="#059669" font-size="20" text-anchor="middle">★</text>
+                    <text x="150" y="82" fill="#059669" font-size="28" text-anchor="middle">★</text>
+                    <text x="195" y="94" fill="#059669" font-size="20" text-anchor="middle">★</text>
+                    <text x="105" y="222" fill="#059669" font-size="20" text-anchor="middle">★</text>
+                    <text x="150" y="234" fill="#059669" font-size="28" text-anchor="middle">★</text>
+                    <text x="195" y="222" fill="#059669" font-size="20" text-anchor="middle">★</text>
+                    <path id="sold-arc-bottom-v9" d="M 265,150 A 115,115 0 0,1 35,150" fill="none" />
+                    <text fill="#059669" font-size="20" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="6">
+                      <textPath href="#sold-arc-bottom-v9" startOffset="50%" text-anchor="middle">OFFICIALLY SIGNED</textPath>
+                    </text>
+                    <rect x="5" y="106" width="290" height="88" rx="16" fill="#059669" stroke="#ffffff" stroke-width="4" />
+                    <text x="150" y="152" fill="#ffffff" font-size="46" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="8" text-anchor="middle">SOLD</text>
+                    <text x="150" y="178" fill="#fef08a" font-size="14" font-weight="900" font-family="'Arial', sans-serif" text-anchor="middle">${bidderTeam ? bidderTeam.name + ' • ' : ''}₹ ${Number(state.sold_price || state.current_bid || 300).toLocaleString('en-IN')}</text>
+                  </g>
                 </svg>
               </div>
-              <h3 class="text-slate-900 font-black text-base sm:text-lg">
-                ${isAuctionCompleted ? '🏆 JSL 2026 Live Auction Concluded!' : 'Waiting for Auctioneer to Place Player on Block...'}
-              </h3>
-              <p class="text-xs text-slate-500 mt-1 max-w-md mx-auto">
-                ${isAuctionCompleted ? 'All approved franchise squad selections are complete. Review the final sold rosters below.' : 'Live bids will appear here automatically when the next player is auctioned.'}
-              </p>
-            </div>
-          `;
-          if (window.lucide) window.lucide.createIcons();
+            `;
+          }
+          const statusLabel = document.getElementById('auction-status-label');
+          const bidEl = document.getElementById('auction-live-bid-display');
+          const bidderLabel = document.getElementById('auction-bidder-label');
+          const teamEl = document.getElementById('auction-leading-bidder-display');
+          if (statusLabel) statusLabel.textContent = 'AUCTION RESULT';
+          if (bidEl) {
+            bidEl.textContent = '🔨 SOLD';
+            bidEl.className = 'text-3xl sm:text-5xl md:text-6xl font-black text-emerald-400 font-mono leading-none mt-0.5 drop-shadow-[0_4px_16px_rgba(16,185,129,0.5)]';
+          }
+          if (bidderLabel) bidderLabel.textContent = 'WINNING FRANCHISE 🏆';
+          if (teamEl) teamEl.textContent = bidderTeam ? '🛡️ ' + bidderTeam.name : 'Sold';
+        } else if (isUnsoldState) {
+          if (!stampOverlay && stampSlot) {
+            stampSlot.innerHTML = `
+              <div id="auction-stamp-overlay" class="absolute inset-0 z-30 flex items-center justify-center pointer-events-none bg-slate-950/20">
+                <svg viewBox="0 0 300 300" class="w-60 h-60 sm:w-80 sm:h-80 stamp-slam-animate select-none drop-shadow-2xl" xmlns="http://www.w3.org/2000/svg">
+                  <g transform="rotate(-15 150 150)">
+                    <circle cx="150" cy="150" r="140" fill="none" stroke="#C5221F" stroke-width="7" stroke-dasharray="18 4 12 3 24 5" />
+                    <circle cx="150" cy="150" r="128" fill="none" stroke="#C5221F" stroke-width="2.5" />
+                    <path id="unsold-arc-top-v9" d="M 35,150 A 115,115 0 0,1 265,150" fill="none" />
+                    <text fill="#C5221F" font-size="28" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="14">
+                      <textPath href="#unsold-arc-top-v9" startOffset="50%" text-anchor="middle">UNSOLD</textPath>
+                    </text>
+                    <text x="105" y="94" fill="#C5221F" font-size="20" text-anchor="middle">★</text>
+                    <text x="150" y="82" fill="#C5221F" font-size="28" text-anchor="middle">★</text>
+                    <text x="195" y="94" fill="#C5221F" font-size="20" text-anchor="middle">★</text>
+                    <text x="105" y="222" fill="#C5221F" font-size="20" text-anchor="middle">★</text>
+                    <text x="150" y="234" fill="#C5221F" font-size="28" text-anchor="middle">★</text>
+                    <text x="195" y="222" fill="#C5221F" font-size="20" text-anchor="middle">★</text>
+                    <path id="unsold-arc-bottom-v9" d="M 265,150 A 115,115 0 0,1 35,150" fill="none" />
+                    <text fill="#C5221F" font-size="24" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="12">
+                      <textPath href="#unsold-arc-bottom-v9" startOffset="50%" text-anchor="middle">UNSOLD</textPath>
+                    </text>
+                    <rect x="5" y="110" width="290" height="80" rx="16" fill="#C5221F" stroke="#ffffff" stroke-width="4" />
+                    <text x="150" y="167" fill="#ffffff" font-size="52" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="6" text-anchor="middle">UNSOLD</text>
+                  </g>
+                </svg>
+              </div>
+            `;
+          }
+          const statusLabel = document.getElementById('auction-status-label');
+          const bidEl = document.getElementById('auction-live-bid-display');
+          const bidderLabel = document.getElementById('auction-bidder-label');
+          const teamEl = document.getElementById('auction-leading-bidder-display');
+          if (statusLabel) statusLabel.textContent = 'Auction Status';
+          if (bidEl) {
+            bidEl.textContent = '❌ UNSOLD';
+            bidEl.className = 'text-3xl sm:text-5xl md:text-6xl font-black text-rose-400 font-mono leading-none mt-0.5 drop-shadow-[0_4px_16px_rgba(244,63,94,0.5)]';
+          }
+          if (bidderLabel) bidderLabel.textContent = 'ROUND 2 STATUS ⚡';
+          if (teamEl) teamEl.textContent = 'Eligible for Re-Bid';
+        } else {
+          // NORMAL BIDDING IN PROGRESS: Update text only + trigger pulse flash animation on change!
+          if (stampOverlay && stampSlot) stampSlot.innerHTML = '';
+          const statusLabel = document.getElementById('auction-status-label');
+          const bidEl = document.getElementById('auction-live-bid-display');
+          const bidderLabel = document.getElementById('auction-bidder-label');
+          const teamEl = document.getElementById('auction-leading-bidder-display');
+          if (statusLabel) statusLabel.textContent = 'CURRENT HIGH BID';
+          if (bidEl) {
+            const currentBidVal = Number(state.current_bid || state.basePrice || 300);
+            bidEl.textContent = `₹ ${currentBidVal.toLocaleString('en-IN')}`;
+            bidEl.className = 'text-3xl sm:text-5xl md:text-6xl font-black text-red-500 font-mono leading-none mt-0.5 drop-shadow-[0_4px_18px_rgba(239,68,68,0.85)] live-bid-ambient-blink';
+            
+            if (lastRenderedLiveBid !== currentBidVal) {
+              lastRenderedLiveBid = currentBidVal;
+              bidEl.classList.remove('bid-pulse-flash');
+              void bidEl.offsetWidth; // Force CSS reflow to replay flash
+              bidEl.classList.add('bid-pulse-flash');
+            }
+          }
+          if (bidderLabel) bidderLabel.innerHTML = 'LEADER BIDDER <span class="text-amber-400">🔥</span>';
+          if (teamEl) teamEl.textContent = bidderTeam ? '🛡️ ' + bidderTeam.name : 'No bids yet';
         }
       }
+    } else {
+      if (lastActivePlayerId !== null || !document.getElementById('auction-waiting-block-box')) {
+        lastActivePlayerId = null;
+        lastActiveStatus = null;
+        const isAuctionCompleted = (state && state.status === 'COMPLETED');
+
+        activeBlockWrapper.innerHTML = `
+          <div id="auction-waiting-block-box" class="text-center p-6 sm:p-8 ${isAuctionCompleted ? 'bg-gradient-to-br from-amber-500/10 to-emerald-500/10 border-2 border-amber-400/60' : 'bg-white border-2 border-dashed border-slate-300'} rounded-2xl sm:rounded-3xl shadow-xs animate-fade-in">
+            <div class="w-12 h-12 rounded-2xl ${isAuctionCompleted ? 'bg-amber-100 text-amber-600' : 'bg-blue-50 text-blue-500'} flex items-center justify-center mx-auto mb-3 shadow-2xs">
+              <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="m14 13-7.5 7.5c-.83.83-2.17.83-3 0 0 0 0 0 0 0-.83-.83-.83-2.17 0-3L11 10"/>
+                <path d="m16 16 6-6"/>
+                <path d="m8 8 6-6"/>
+                <path d="m9 7 8 8"/>
+                <path d="m21 11-8-8"/>
+              </svg>
+            </div>
+            <h3 class="text-slate-900 font-black text-base sm:text-lg">
+              ${isAuctionCompleted ? '🏆 JSL 2026 Live Auction Concluded!' : 'Waiting for Auctioneer to Place Player on Block...'}
+            </h3>
+            <p class="text-xs text-slate-500 mt-1 max-w-md mx-auto">
+              ${isAuctionCompleted ? 'All approved franchise squad selections are complete. Review the final sold rosters below.' : 'Live bids will appear here automatically when the next player is auctioned.'}
+            </p>
+          </div>
+        `;
+        if (window.lucide) window.lucide.createIcons();
+      }
     }
+  };
+
+  const renderFranchisePurses = (teams, allPlayers) => {
+    const pursesWrapper = document.getElementById('auction-franchise-purses-list');
+    if (!pursesWrapper) return;
+
+    const currentTableHash = allPlayers.map(p => p.id + ':' + (p.auctionStatus || '') + ':' + (p.teamId || '') + ':' + (p.soldPrice || 0)).join('|');
+    const currentPursesHash = teams.map(t => t.id + ':' + (t.remainingPurse || 0) + ':' + (t.squadCount || 0) + ':' + (t.purseSpent || 0)).join('|') + '||' + currentTableHash;
+    
+    if (currentPursesHash === lastRenderedPursesHash && pursesWrapper.children.length > 0) return;
+    lastRenderedPursesHash = currentPursesHash;
+
+    pursesWrapper.innerHTML = teams.map(t => {
+      const hasIcon = !!((t.iconPlayerName && t.iconPlayerName.trim()) || (t.iconName && t.iconName.trim()));
+      const iconDeduction = hasIcon ? 1000 : 0;
+      const totalPurse = Number(t.purseBudget || t.purse || 8000);
+      const purchasedNonIconPlayers = allPlayers.filter(p => p.teamId === t.id && !p.isIcon && !p.isIconPlayer && (p.auctionStatus === 'SOLD' || p.isSold === true));
+      const auctionSpent = purchasedNonIconPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || 0), 0);
+      const spent = iconDeduction + auctionSpent;
+      const left = Math.max(0, totalPurse - spent);
+      const squadCount = (hasIcon ? 1 : 0) + purchasedNonIconPlayers.length;
+      const totalRequired = 13;
+      const ratio = Math.min(100, Math.max(0, (left / totalPurse) * 100));
+
+      return `
+        <div data-team-id="${t.id}" class="franchise-purse-card p-3 sm:p-3.5 bg-white border-2 border-slate-200/90 hover:border-amber-400 rounded-2xl sm:rounded-3xl shadow-xs hover:shadow-md transition-all flex flex-col justify-between gap-2.5 cursor-pointer group">
+          <div class="flex justify-between items-center gap-2">
+            <div class="flex items-center gap-2.5 min-w-0">
+              <img src="${t.logoUrl || t.teamLogoUrl || 'assets/card_jsl_user.png'}" class="w-8 h-8 rounded-xl object-cover border border-slate-200 shrink-0 group-hover:border-amber-400 transition-colors" onerror="this.src='assets/card_jsl_user.png'" />
+              <span class="font-black text-slate-900 text-xs sm:text-sm truncate group-hover:text-amber-800 transition-colors" title="${t.name}">${t.name}</span>
+            </div>
+            <span class="px-2.5 py-0.5 bg-sky-50 text-sky-800 font-mono font-black text-[11px] rounded-lg border border-sky-200 shrink-0">
+              Squad: <strong class="text-teal-700 font-black">${squadCount}/${totalRequired}</strong>
+            </span>
+          </div>
+          
+          ${hasIcon ? `
+            <div class="text-[11px] text-amber-900 bg-amber-50 px-3 py-1 rounded-xl border border-amber-200/90 font-bold flex items-center justify-between">
+              <span class="truncate">⭐ Icon: ${t.iconPlayerName || t.iconName}</span>
+              <span class="text-amber-700 font-mono text-[10px] font-black shrink-0">-₹1,000</span>
+            </div>
+          ` : ''}
+
+          <!-- Real-Time Purchased Player Chips under this team -->
+          ${purchasedNonIconPlayers.length > 0 ? `
+            <div class="flex flex-wrap gap-1 pt-0.5">
+              ${purchasedNonIconPlayers.map(pl => `
+                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-50 border border-slate-200 rounded text-[9px] font-bold text-slate-800 truncate max-w-[140px]" title="${pl.name} (₹${pl.soldPrice || 0})">
+                  <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
+                  ${pl.name}
+                </span>
+              `).join('')}
+            </div>
+          ` : `
+            <div class="text-[10px] text-slate-400 italic">No auction players purchased yet</div>
+          `}
+
+          <div class="flex justify-between items-center text-xs pt-1 border-t border-slate-100">
+            <span class="text-[11px] font-bold text-slate-500">Purse Left:</span>
+            <span class="font-black text-emerald-700 font-mono text-xs">
+              ₹ ${Number(left).toLocaleString('en-IN')} 
+              <span class="text-[10px] text-slate-400 font-normal">/ ₹${Number(totalPurse).toLocaleString('en-IN')}</span>
+            </span>
+          </div>
+
+          <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden border border-slate-200">
+            <div class="bg-gradient-to-r from-teal-500 to-emerald-600 h-full rounded-full transition-all duration-500" style="width: ${ratio}%"></div>
+          </div>
+
+          <div class="flex items-center justify-between text-[10px] text-slate-400 font-bold pt-1 group-hover:text-amber-700 transition-colors">
+            <span class="flex items-center gap-1">
+              <i data-lucide="users" class="w-3 h-3 text-amber-500"></i> Full Squad Details
+            </span>
+            <span class="text-amber-600 font-black">➔</span>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    pursesWrapper.querySelectorAll('.franchise-purse-card').forEach(card => {
+      card.addEventListener('click', (e) => {
+        const teamId = e.currentTarget.getAttribute('data-team-id');
+        if (teamId) {
+          openTeamPurchasedSquadModal(teamId);
+        }
+      });
+    });
+  };
+
+  let lastAuctionSyncTimestamp = 0;
+  let lastAuctionCloudHeartbeat = 0;
+  let lastRenderedTableHash = '';
+  let lastRenderedPursesHash = '';
+  let lastRenderedLiveBid = null;
+
+  // --- IMMEDIATE 0ms SYNCHRONOUS FIRST RENDER ---
+  const initialTeams = store.getTeams();
+  const initialPlayers = store.getPlayers();
+  const initialLiveState = store.getLiveAuctionStateSync();
+
+  renderActiveBlock(initialLiveState, initialTeams, initialPlayers);
+  renderFranchisePurses(initialTeams, initialPlayers);
+  renderPlayerStatusTable();
+
+  const pollActiveAuctionState = async () => {
+    if (currentRoute !== 'auction') {
+      if (auctionPollInterval) {
+        clearInterval(auctionPollInterval);
+        auctionPollInterval = null;
+      }
+      return;
+    }
+
+    const state = await store.getLiveAuctionState();
+    if (currentRoute !== 'auction') return;
+
+    const now = Date.now();
+    const stateUpdatedAt = Number(state?.updated_at || state?.timestamp || 0);
+
+    // MONOTONIC VERSION GUARD: Discard any stale in-flight packet older than what we already rendered
+    if (stateUpdatedAt < lastAuctionSyncTimestamp && stateUpdatedAt > 0) {
+      return;
+    }
+    lastAuctionSyncTimestamp = Math.max(lastAuctionSyncTimestamp, stateUpdatedAt);
+
+    // If state version changed OR periodic heartbeat (every 10s), sync cloud data
+    if (now - lastAuctionCloudHeartbeat > 10000) {
+      lastAuctionCloudHeartbeat = now;
+      try {
+        await store.syncWithCloud();
+      } catch (err) {
+        console.warn("Auction cloud sync notice:", err);
+      }
+    }
+
+    const teams = store.getTeams();
+    const allPlayers = store.getPlayers();
+
+    // 1. Render / Update Active Bidding Block
+    renderActiveBlock(state, teams, allPlayers);
 
     // 2. Real-time update of player status table ONLY when data actually changed
     const currentTableHash = allPlayers.map(p => p.id + ':' + (p.auctionStatus || '') + ':' + (p.teamId || '') + ':' + (p.soldPrice || 0)).join('|');
@@ -4726,89 +4827,11 @@ function renderLiveAuctionView(container) {
     }
 
     // 3. Render / Update Franchise Purses ONLY when teams or player purchases changed
-    const currentPursesHash = teams.map(t => t.id + ':' + (t.remainingPurse || 0) + ':' + (t.squadCount || 0) + ':' + (t.purseSpent || 0)).join('|') + '||' + currentTableHash;
-    if (pursesWrapper && currentPursesHash !== lastRenderedPursesHash) {
-      lastRenderedPursesHash = currentPursesHash;
-      pursesWrapper.innerHTML = teams.map(t => {
-        const hasIcon = !!((t.iconPlayerName && t.iconPlayerName.trim()) || (t.iconName && t.iconName.trim()));
-        const iconDeduction = hasIcon ? 1000 : 0;
-        const totalPurse = Number(t.purseBudget || t.purse || 8000);
-        const purchasedNonIconPlayers = allPlayers.filter(p => p.teamId === t.id && !p.isIcon && !p.isIconPlayer && (p.auctionStatus === 'SOLD' || p.isSold === true));
-        const auctionSpent = purchasedNonIconPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || 0), 0);
-        const spent = iconDeduction + auctionSpent;
-        const left = Math.max(0, totalPurse - spent);
-        const squadCount = (hasIcon ? 1 : 0) + purchasedNonIconPlayers.length;
-        const totalRequired = 13;
-        const ratio = Math.min(100, Math.max(0, (left / totalPurse) * 100));
-
-        return `
-          <div data-team-id="${t.id}" class="franchise-purse-card p-3 sm:p-3.5 bg-white border-2 border-slate-200/90 hover:border-amber-400 rounded-2xl sm:rounded-3xl shadow-xs hover:shadow-md transition-all flex flex-col justify-between gap-2.5 cursor-pointer group">
-            <div class="flex justify-between items-center gap-2">
-              <div class="flex items-center gap-2.5 min-w-0">
-                <img src="${t.logoUrl || t.teamLogoUrl || 'assets/card_jsl_user.png'}" class="w-8 h-8 rounded-xl object-cover border border-slate-200 shrink-0 group-hover:border-amber-400 transition-colors" onerror="this.src='assets/card_jsl_user.png'" />
-                <span class="font-black text-slate-900 text-xs sm:text-sm truncate group-hover:text-amber-800 transition-colors" title="${t.name}">${t.name}</span>
-              </div>
-              <span class="px-2.5 py-0.5 bg-sky-50 text-sky-800 font-mono font-black text-[11px] rounded-lg border border-sky-200 shrink-0">
-                Squad: <strong class="text-teal-700 font-black">${squadCount}/${totalRequired}</strong>
-              </span>
-            </div>
-            
-            ${hasIcon ? `
-              <div class="text-[11px] text-amber-900 bg-amber-50 px-3 py-1 rounded-xl border border-amber-200/90 font-bold flex items-center justify-between">
-                <span class="truncate">⭐ Icon: ${t.iconPlayerName || t.iconName}</span>
-                <span class="text-amber-700 font-mono text-[10px] font-black shrink-0">-₹1,000</span>
-              </div>
-            ` : ''}
-
-            <!-- Real-Time Purchased Player Chips under this team -->
-            ${purchasedNonIconPlayers.length > 0 ? `
-              <div class="flex flex-wrap gap-1 pt-0.5">
-                ${purchasedNonIconPlayers.map(pl => `
-                  <span class="inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-50 border border-slate-200 rounded text-[9px] font-bold text-slate-800 truncate max-w-[140px]" title="${pl.name} (₹${pl.soldPrice || 0})">
-                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
-                    ${pl.name}
-                  </span>
-                `).join('')}
-              </div>
-            ` : `
-              <div class="text-[10px] text-slate-400 italic">No auction players purchased yet</div>
-            `}
-
-            <div class="flex justify-between items-center text-xs pt-1 border-t border-slate-100">
-              <span class="text-[11px] font-bold text-slate-500">Purse Left:</span>
-              <span class="font-black text-emerald-700 font-mono text-xs">
-                ₹ ${Number(left).toLocaleString('en-IN')} 
-                <span class="text-[10px] text-slate-400 font-normal">/ ₹${Number(totalPurse).toLocaleString('en-IN')}</span>
-              </span>
-            </div>
-
-            <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden border border-slate-200">
-              <div class="bg-gradient-to-r from-teal-500 to-emerald-600 h-full rounded-full transition-all duration-500" style="width: ${ratio}%"></div>
-            </div>
-
-            <div class="flex items-center justify-between text-[10px] text-slate-400 font-bold pt-1 group-hover:text-amber-700 transition-colors">
-              <span class="flex items-center gap-1">
-                <i data-lucide="users" class="w-3 h-3 text-amber-500"></i> Full Squad Details
-              </span>
-              <span class="text-amber-600 font-black">➔</span>
-            </div>
-          </div>
-        `;
-      }).join('');
-
-      pursesWrapper.querySelectorAll('.franchise-purse-card').forEach(card => {
-        card.addEventListener('click', (e) => {
-          const teamId = e.currentTarget.getAttribute('data-team-id');
-          if (teamId) {
-            openTeamPurchasedSquadModal(teamId);
-          }
-        });
-      });
-    }
+    renderFranchisePurses(teams, allPlayers);
   };
 
   pollActiveAuctionState();
-  auctionPollInterval = setInterval(pollActiveAuctionState, 1000);
+  auctionPollInterval = setInterval(pollActiveAuctionState, 5000);
 }
 
 // --- FRANCHISE SQUAD & PURCHASED PLAYERS MODAL ---
