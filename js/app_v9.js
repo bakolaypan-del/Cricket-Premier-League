@@ -1,10 +1,10 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=11.6.0';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, printDigitalPass, openUserGuidePDF } from './export.js?v=11.6.0';
-import { renderAdminDashboard } from './admin.js?v=11.6.0';
-import { uploadHDImage, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats } from './supabase.js?v=11.6.0';
-import { shops } from './shopsData.js?v=11.6.0';
+import { store } from './store.js?v=11.6.1';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, printDigitalPass, openUserGuidePDF } from './export.js?v=11.6.1';
+import { renderAdminDashboard } from './admin.js?v=11.6.1';
+import { uploadHDImage, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats } from './supabase.js?v=11.6.1';
+import { shops } from './shopsData.js?v=11.6.1';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
 let latestVisitorStats = { liveCount: 1, totalVisits: 286 };
@@ -1853,7 +1853,7 @@ function openRegisteredTeamsModal(allTeams) {
             const iconPlayerName = t.iconPlayerName || t.iconName || '';
             const iconPlayerPhoto = t.iconPlayerPhotoUrl || t.iconPhotoUrl || t.iconPhoto || '';
 
-            const squadCount = store.getPlayers().filter(p => p.teamId === t.id && (p.isIcon || p.isIconPlayer || p.auctionStatus === 'SOLD' || p.isSold === true)).length;
+            const squadCount = store.getPlayers().filter(p => (p.teamId === t.id || (p.teamName && p.teamName.trim().toLowerCase() === t.name.trim().toLowerCase())) && (p.isIcon || p.isIconPlayer || p.auctionStatus === 'SOLD' || p.isSold === true || !!p.teamId)).length;
 
             return `
               <div class="bg-white rounded-2xl sm:rounded-3xl border-2 border-slate-300 hover:border-indigo-600 shadow-md hover:shadow-xl transition-all overflow-hidden flex flex-col justify-between text-center">
@@ -4725,9 +4725,7 @@ function renderLiveAuctionView(container) {
 
     pursesWrapper.innerHTML = teams.map(t => {
       const hasIcon = !!((t.iconPlayerName && t.iconPlayerName.trim()) || (t.iconName && t.iconName.trim()));
-      const iconDeduction = hasIcon ? 1000 : 0;
-      const totalPurse = Number(t.purseBudget || t.purse || 8000);
-      const purchasedNonIconPlayers = allPlayers.filter(p => p.teamId === t.id && !p.isIcon && !p.isIconPlayer && (p.auctionStatus === 'SOLD' || p.isSold === true));
+      const purchasedNonIconPlayers = allPlayers.filter(p => (p.teamId === t.id || (p.teamName && p.teamName.trim().toLowerCase() === t.name.trim().toLowerCase())) && !p.isIcon && !p.isIconPlayer && (p.auctionStatus === 'SOLD' || p.isSold === true || !!p.teamId));
       const auctionSpent = purchasedNonIconPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || 0), 0);
       const spent = iconDeduction + auctionSpent;
       const left = Math.max(0, totalPurse - spent);
@@ -5932,7 +5930,7 @@ export function openTeamPurchasedSquadModal(teamId) {
   const iconDeduction = hasIcon ? 1000 : 0;
 
   // Find purchased players (excluding icon player to avoid double charging)
-  const purchasedNonIconPlayers = allPlayers.filter(p => p.teamId === team.id && !p.isIcon && !p.isIconPlayer && (p.auctionStatus === 'SOLD' || p.isSold === true));
+  const purchasedNonIconPlayers = allPlayers.filter(p => (p.teamId === team.id || (p.teamName && p.teamName.trim().toLowerCase() === team.name.trim().toLowerCase())) && !p.isIcon && !p.isIconPlayer && (p.auctionStatus === 'SOLD' || p.isSold === true || !!p.teamId));
   const auctionSpent = purchasedNonIconPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || 0), 0);
   const totalPurse = Number(team.purseBudget || team.purse || 8000);
   const totalSpent = iconDeduction + auctionSpent;
