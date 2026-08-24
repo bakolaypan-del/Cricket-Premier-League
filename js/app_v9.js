@@ -1,7 +1,7 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
 import { store } from './store.js?v=11.6.4';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, printDigitalPass, openUserGuidePDF } from './export.js?v=11.6.4';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, printDigitalPass, openUserGuidePDF } from './export.js?v=11.6.4';
 import { renderAdminDashboard } from './admin.js?v=11.6.4';
 import { uploadHDImage, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats } from './supabase.js?v=11.6.4';
 import { shops } from './shopsData.js?v=11.6.4';
@@ -1036,38 +1036,43 @@ function renderCurrentView() {
   const container = document.getElementById('main-content');
   if (!container) return;
 
-  switch (currentRoute) {
-    case 'landing':
+  if (currentRoute === 'landing') {
+    renderFirstPageLanding(container);
+  } else if (currentRoute === 'jsl-hub') {
+    renderJSLHub(container);
+    checkAndPromptWhatsAppGroup();
+  } else if (currentRoute === 'admin') {
+    renderAdminDashboard(container);
+  } else if (currentRoute === 'fixtures') {
+    renderFixturesView(container);
+  } else if (currentRoute === 'auction') {
+    renderLiveAuctionView(container);
+  } else if (currentRoute === 'auction-projector') {
+    renderLiveAuctionView(container);
+    setTimeout(() => openLiveAuctionProjectorView(), 50);
+  } else if (currentRoute === 'career') {
+    renderCareerHubView(container);
+  } else if (currentRoute === 'profile') {
+    renderPlayerProfileView(container);
+  } else if (currentRoute === 'shop-detail') {
+    renderShopDetailsView(container);
+  } else if (currentRoute === 'create-tournament-trial') {
+    renderFirstPageLanding(container);
+    setTimeout(() => openTournamentCreationWizard(true), 100);
+  } else if (currentRoute.startsWith('reg-')) {
+    const slug = currentRoute.replace(/^reg-/, '');
+    renderFirstPageLanding(container);
+    setTimeout(() => openDynamicTournamentRegistrationModal(slug), 100);
+  } else if (currentRoute.startsWith('t/')) {
+    const slug = currentRoute.replace(/^t\//, '');
+    const tourney = store.getCustomTournamentById(slug);
+    if (tourney) {
+      renderCustomTournamentHub(container, tourney);
+    } else {
       renderFirstPageLanding(container);
-      break;
-    case 'jsl-hub':
-      renderJSLHub(container);
-      checkAndPromptWhatsAppGroup();
-      break;
-    case 'admin':
-      renderAdminDashboard(container);
-      break;
-    case 'fixtures':
-      renderFixturesView(container);
-      break;
-    case 'auction':
-      renderLiveAuctionView(container);
-      break;
-    case 'auction-projector':
-      renderLiveAuctionView(container);
-      setTimeout(() => openLiveAuctionProjectorView(), 50);
-      break;
-    case 'career':
-      renderCareerHubView(container);
-      break;
-    case 'profile':
-      renderPlayerProfileView(container);
-      break;
-    case 'shop-detail':
-      renderShopDetailsView(container);
-      break;
-    default:
-      renderFirstPageLanding(container);
+    }
+  } else {
+    renderFirstPageLanding(container);
   }
 
   if (window.lucide) window.lucide.createIcons();
@@ -1190,7 +1195,7 @@ function renderFirstPageLanding(containerEl) {
               <span class="w-1.5 h-1.5 rounded-full bg-red-600 animate-ping"></span>
               <span>🏆 MEGA TOURNAMENT KICKOFF</span>
             </div>
-            <h3 class="text-xs sm:text-base font-black text-slate-900 tracking-tight leading-tight">30 AUGUST 2026 • 9:00 AM IST</h3>
+            <h3 class="text-xs sm:text-base font-black text-slate-900 tracking-tight leading-tight">31 AUGUST 2026 • 9:00 AM IST</h3>
             <p class="text-[10px] sm:text-[11px] text-emerald-700 font-bold flex items-center justify-center sm:justify-start gap-1">
               <span>📍 Jhankra School Stadium Ground</span>
               <span>•</span>
@@ -1220,87 +1225,6 @@ function renderFirstPageLanding(containerEl) {
               <div id="cd-secs" class="text-base sm:text-2xl font-black text-rose-600 font-mono leading-none animate-pulse">00</div>
               <div class="text-[8px] sm:text-[9px] font-black text-rose-600 uppercase tracking-wider mt-0.5">Secs</div>
             </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- 🔨 LIVE PLAYER AUCTION NOTIFICATION BANNER (COMPACT, MOBILE-PERFECT & RICH SVG BACKGROUND) -->
-      <div id="live-auction-banner-notice" class="w-full max-w-3xl mx-auto bg-gradient-to-br from-slate-950 via-[#180507] to-slate-950 border-2 border-red-500/90 hover:border-amber-400 p-3 sm:p-4 rounded-2xl sm:rounded-3xl shadow-2xl text-white animate-fade-in relative overflow-hidden transition-all duration-300 hover:scale-[1.01] group cursor-pointer">
-        
-        <!-- RICH VECTOR BACKGROUND: AUCTION GAVEL & MONEY COINS -->
-        <div class="absolute inset-0 pointer-events-none overflow-hidden opacity-10">
-          <!-- Background Gavel SVG Left -->
-          <svg class="absolute -left-4 -top-4 w-32 h-32 text-amber-400 transform -rotate-12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="m14 13-7.5 7.5c-.83.83-2.17.83-3 0 0 0 0 0 0 0-.83-.83-.83-2.17 0-3L11 10"/>
-            <path d="m16 16 6-6"/>
-            <path d="m8 8 6-6"/>
-            <path d="m9 7 8 8"/>
-            <path d="m21 11-8-8"/>
-          </svg>
-          <!-- Background Money Bag & Rupee SVGs Right -->
-          <svg class="absolute -right-4 -bottom-4 w-28 h-28 text-emerald-400 transform rotate-12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <path d="M6 3h12l1 6H5l1-6z"/>
-            <path d="M12 9v12"/>
-            <path d="M19 9a7 7 0 1 1-14 0"/>
-            <path d="M9 14h6"/>
-          </svg>
-          <!-- Floating Coin / Currency SVGs Center -->
-          <svg class="absolute left-1/2 -top-4 w-20 h-20 text-yellow-300 transform -translate-x-1/2 opacity-60" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-            <circle cx="12" cy="12" r="9"/>
-            <path d="M9 8h6M9 12h6M9 8v8M13 12c1.5 0 2.5 1 2.5 2.5S14.5 17 13 17H9"/>
-          </svg>
-        </div>
-
-        <div class="relative z-10 flex flex-col gap-2 sm:gap-2.5">
-          <!-- TOP ROW: BADGE + TITLE & SUBTITLE -->
-          <div class="flex items-center justify-between gap-2 flex-wrap">
-            <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-red-500/20 text-red-400 border border-red-500/50 rounded-full text-[9px] sm:text-[10px] font-black tracking-wider uppercase shadow-2xs">
-              <span class="w-1.5 h-1.5 rounded-full bg-red-500 animate-ping"></span>
-              <span>🔴 LIVE PLAYER AUCTION</span>
-            </div>
-            <div class="text-[9px] sm:text-[10px] font-black text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full border border-amber-400/30 flex items-center gap-1">
-              <span>💰 JSL 2026</span>
-            </div>
-          </div>
-
-          <!-- MIDDLE: HEADLINE -->
-          <div>
-            <h3 class="text-sm sm:text-lg font-black text-white tracking-tight leading-snug">
-              Live Player Auction of JSL Starts at <span class="text-amber-400 font-mono font-black text-base sm:text-xl">3:00 PM</span>
-            </h3>
-            <p class="text-[10px] sm:text-xs text-slate-300 font-medium leading-tight mt-0.5">
-              Watch real-time bidding, official team squads & sold stamps live
-            </p>
-          </div>
-
-          <!-- BOTTOM ROW: COUNTDOWN CLOCK & BUTTON -->
-          <div id="auc-cd-box" class="flex items-center justify-between gap-2 pt-1 border-t border-slate-800/80">
-            <!-- 3-Unit Vibrant Countdown Clock Grid -->
-            <div class="flex items-center gap-1 sm:gap-1.5 shrink-0">
-              <!-- Hours -->
-              <div class="bg-slate-900/90 border border-amber-400/60 rounded-xl px-2 py-1 min-w-[38px] sm:min-w-[46px] text-center shadow-xs">
-                <div id="auc-cd-hrs" class="text-xs sm:text-base font-black text-amber-400 font-mono leading-none">00</div>
-                <div class="text-[7px] sm:text-[8px] font-black text-slate-400 uppercase tracking-wider mt-0.5">Hours</div>
-              </div>
-              <span class="text-amber-400 font-black text-xs">:</span>
-              <!-- Mins -->
-              <div class="bg-slate-900/90 border border-amber-400/60 rounded-xl px-2 py-1 min-w-[38px] sm:min-w-[46px] text-center shadow-xs">
-                <div id="auc-cd-mins" class="text-xs sm:text-base font-black text-amber-400 font-mono leading-none">00</div>
-                <div class="text-[7px] sm:text-[8px] font-black text-slate-400 uppercase tracking-wider mt-0.5">Mins</div>
-              </div>
-              <span class="text-red-400 font-black text-xs animate-pulse">:</span>
-              <!-- Secs (Pulsing Red) -->
-              <div class="bg-red-950/90 border border-red-500/80 rounded-xl px-2 py-1 min-w-[38px] sm:min-w-[46px] text-center shadow-xs">
-                <div id="auc-cd-secs" class="text-xs sm:text-base font-black text-red-400 font-mono leading-none animate-pulse">00</div>
-                <div class="text-[7px] sm:text-[8px] font-black text-red-400 uppercase tracking-wider mt-0.5">Secs</div>
-              </div>
-            </div>
-
-            <!-- CLICK HERE BUTTON -->
-            <button id="live-auction-click-btn" class="flex-1 sm:flex-initial px-3.5 py-1.5 sm:py-2 bg-gradient-to-r from-red-600 via-rose-600 to-amber-500 hover:from-red-500 hover:to-amber-400 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg border border-red-400 flex items-center justify-center gap-1 uppercase tracking-wider cursor-pointer group-hover:shadow-red-500/60 transition-all active:scale-95">
-              <span>Click Here</span>
-              <span class="text-xs sm:text-sm group-hover:translate-x-1 transition-transform">➔</span>
-            </button>
           </div>
         </div>
       </div>
@@ -1368,207 +1292,113 @@ function renderFirstPageLanding(containerEl) {
 
       </div>
 
-      <!-- LOWER PORTION: JSL CONFIRM TEAMS -->
-      <div class="w-full max-w-4xl mx-auto space-y-2 pt-2">
-        
-        <!-- CENTERED TITLE ONLY -->
-        <div class="text-center py-1">
-          <h2 class="text-base sm:text-xl font-black text-slate-900 tracking-wide uppercase">
-            JSL Registered Team List (<span id="confirmed-teams-total-count">7</span>)
-          </h2>
-          <p id="confirmed-team-caption" class="text-xs sm:text-sm font-black text-amber-800 transition-all duration-300 min-h-[20px]">
-            🥇 1ST CONFIRMED TEAM: KHIRPAI HURRICANES
-          </p>
-        </div>
-
-        <!-- STYLISH CAROUSEL CARD -->
-        <div id="confirmed-teams-carousel-card" class="relative bg-white rounded-3xl p-2 sm:p-4 shadow-xl border border-slate-200 overflow-hidden">
-          
-          <!-- SLIDER TRACK -->
-          <div id="confirmed-teams-slider" class="flex transition-transform duration-500 ease-out w-full">
-            
-            <!-- SLIDE 1: KHIRPAI HURRICANES (1ST CONFIRM TEAM) -->
-            <div class="w-full flex-shrink-0 relative cursor-pointer slide-item px-1" data-slide-index="0" data-img-src="assets/team_confirm_1_khirpai_hurricanes.jpg" data-team-name="1ST CONFIRM TEAM - KHIRPAI HURRICANES">
-              <img src="assets/team_confirm_1_khirpai_hurricanes.jpg" alt="1st Confirm Team - KHIRPAI HURRICANES" class="w-full h-auto max-h-72 sm:max-h-96 object-contain mx-auto rounded-2xl border-4 border-white shadow-xl" />
+      <!-- CONDITIONAL HOST YOUR OWN TOURNAMENT SAAS BANNER -->
+      ${store.isHostTournamentEnabled() ? `
+        <div class="w-full max-w-4xl mx-auto px-2 pt-2">
+          <div class="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 rounded-2xl sm:rounded-3xl p-4 sm:p-5 text-slate-950 shadow-xl border-2 border-amber-300 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
+            <div class="space-y-1 text-center sm:text-left">
+              <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-slate-950 text-amber-400 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-wider">
+                <span>🏆 CRICKET SAAS ENGINE</span>
+              </div>
+              <h3 class="text-base sm:text-lg font-black text-slate-950 tracking-tight leading-tight">
+                Want to Host Your Own Cricket Tournament?
+              </h3>
+              <p class="text-[11px] sm:text-xs text-slate-900 font-bold max-w-md">
+                Create player registration forms, run live player auctions with projector screens, and manage ball-by-ball scoring instantly.
+              </p>
             </div>
-
-            <!-- SLIDE 2: ANIKET XI (2ND CONFIRM TEAM) -->
-            <div class="w-full flex-shrink-0 relative cursor-pointer slide-item px-1" data-slide-index="1" data-img-src="assets/team_confirm_2_aniket_xi.jpg" data-team-name="2ND CONFIRM TEAM - ANIKET XI">
-              <img src="assets/team_confirm_2_aniket_xi.jpg" alt="2nd Confirm Team - ANIKET XI" class="w-full h-auto max-h-72 sm:max-h-96 object-contain mx-auto rounded-2xl border-4 border-white shadow-xl" />
-            </div>
-
-            <!-- SLIDE 3: SRS BROTHERS (3RD CONFIRM TEAM) -->
-            <div class="w-full flex-shrink-0 relative cursor-pointer slide-item px-1" data-slide-index="2" data-img-src="assets/team_confirm_3_srs_brothers.jpg" data-team-name="3RD CONFIRM TEAM - SRS BROTHER'S">
-              <img src="assets/team_confirm_3_srs_brothers.jpg" alt="3rd Confirm Team - SRS BROTHER'S" class="w-full h-auto max-h-72 sm:max-h-96 object-contain mx-auto rounded-2xl border-4 border-white shadow-xl" />
-            </div>
-
-            <!-- SLIDE 4: SHIV SHAKTI EKADASH (4TH CONFIRM TEAM) -->
-            <div class="w-full flex-shrink-0 relative cursor-pointer slide-item px-1" data-slide-index="3" data-img-src="assets/team_confirm_4_shiv_shakti_ekadash.jpg" data-team-name="4TH CONFIRM TEAM - SHIV SHAKTI EKADASH">
-              <img src="assets/team_confirm_4_shiv_shakti_ekadash.jpg" alt="4th Confirm Team - SHIV SHAKTI EKADASH" class="w-full h-auto max-h-72 sm:max-h-96 object-contain mx-auto rounded-2xl border-4 border-white shadow-xl" />
-            </div>
-
-            <!-- SLIDE 5: AVD ELEVEN (5TH CONFIRM TEAM) -->
-            <div class="w-full flex-shrink-0 relative cursor-pointer slide-item px-1" data-slide-index="4" data-img-src="assets/team_confirm_5_avd_eleven.jpg" data-team-name="5TH CONFIRM TEAM - AVD ELEVEN">
-              <img src="assets/team_confirm_5_avd_eleven.jpg" alt="5th Confirm Team - AVD ELEVEN" class="w-full h-auto max-h-72 sm:max-h-96 object-contain mx-auto rounded-2xl border-4 border-white shadow-xl" />
-            </div>
-
-            <!-- SLIDE 6: CCC (6TH CONFIRM TEAM) -->
-            <div class="w-full flex-shrink-0 relative cursor-pointer slide-item px-1" data-slide-index="5" data-img-src="assets/team_confirm_6_ccc.jpg" data-team-name="6TH CONFIRM TEAM - CCC">
-              <img src="assets/team_confirm_6_ccc.jpg" alt="6th Confirm Team - CCC" class="w-full h-auto max-h-72 sm:max-h-96 object-contain mx-auto rounded-2xl border-4 border-white shadow-xl" />
-            </div>
-
-            <!-- SLIDE 7: ATRIKA & FRIEND X1 (7TH CONFIRM TEAM) -->
-            <div class="w-full flex-shrink-0 relative cursor-pointer slide-item px-1" data-slide-index="6" data-img-src="assets/team_confirm_7_atrika_friend_xi.jpg" data-team-name="7TH CONFIRM TEAM - ATRIKA & FRIEND X1">
-              <img src="assets/team_confirm_7_atrika_friend_xi.jpg" alt="7th Confirm Team - ATRIKA & FRIEND X1" class="w-full h-auto max-h-72 sm:max-h-96 object-contain mx-auto rounded-2xl border-4 border-white shadow-xl" />
-            </div>
-
-          </div>
-
-        </div>
-      </div>
-
-      <!-- ANNOUNCEMENT SCROLLING MARQUEE TICKER STRIP (LOCATED AT THE VERY BOTTOM BELOW TEAM PICTURES) -->
-      <div class="w-full max-w-4xl mx-auto bg-red-600 border-2 border-red-500 py-2 px-3 rounded-2xl flex items-center gap-2.5 sm:gap-3 shadow-lg overflow-hidden text-white animate-fade-in">
-        
-        <!-- FIXED ANNOUNCEMENT BADGE -->
-        <span class="px-3 py-1 bg-white text-red-600 font-black text-[10px] sm:text-xs rounded-xl shadow-md uppercase shrink-0 flex items-center gap-1 z-10 border border-red-100">
-          <i data-lucide="bell" class="w-3.5 h-3.5 text-red-600 animate-bounce"></i>
-          <span>NOTICE</span>
-        </span>
-
-        <!-- SCROLLING MARQUEE TEXT -->
-        <div class="overflow-hidden whitespace-nowrap w-full relative">
-          <div class="animate-continuous-marquee text-xs sm:text-sm font-black text-white tracking-wide">
-            <span class="px-4">📢 Stay Tuned! 🏏 Grand Tournament starts on 30 August 2026 at 9:00 AM! Player Auction & Match Fixtures will be published live on this website.</span>
-            <span class="text-amber-300 font-extrabold px-2">•</span>
-            <span class="px-4">📢 Stay Tuned! 🏏 Grand Tournament starts on 30 August 2026 at 9:00 AM! Player Auction & Match Fixtures will be published live on this website.</span>
-            <span class="text-amber-300 font-extrabold px-2">•</span>
+            <button id="btn-home-create-tourney" class="w-full sm:w-auto px-5 py-2.5 bg-slate-950 hover:bg-slate-900 text-amber-400 font-black text-xs sm:text-sm rounded-xl shadow-lg border border-amber-400 flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-105 shrink-0 uppercase tracking-wider">
+              <span>+ Create Your Tournament ➔</span>
+            </button>
           </div>
         </div>
-
-      </div>
+      ` : ''}
 
     </div>
 
     </div>
   `;
 
-  // START COUNTDOWN TIMERS
+  // START COUNTDOWN TIMER (31 AUGUST 2026)
   initTournamentCountdown();
-  initAuctionNoticeCountdown();
-
-  // ATTACH LIVE AUCTION BANNER CLICK LISTENERS
-  document.getElementById('live-auction-banner-notice')?.addEventListener('click', () => navigate('auction'));
-  document.getElementById('live-auction-click-btn')?.addEventListener('click', (e) => {
-    e.stopPropagation();
-    navigate('auction');
-  });
 
   // ATTACH CARD CLICK LISTENERS
   document.getElementById('btn-click-jpl')?.addEventListener('click', () => openComingSoonModal('JPL', 'Jhankra Premier League', 'assets/jpl_logo_white.jpg'));
   document.getElementById('btn-click-kpl')?.addEventListener('click', () => openComingSoonModal('KPL', 'Kota Premier League', 'assets/kpl_logo_white.jpg'));
   document.getElementById('btn-click-jsl')?.addEventListener('click', () => navigate('jsl-hub'));
-
-  // ATTACH CONFIRMED TEAMS LOOPING CAROUSEL EVENT LISTENERS & AUTO-PLAY
-  const slider = document.getElementById('confirmed-teams-slider');
-  const counter = document.getElementById('confirmed-teams-counter');
-  const captionEl = document.getElementById('confirmed-team-caption');
-  const carouselCard = document.getElementById('confirmed-teams-carousel-card');
-
-  const teamCaptions = [
-    '🥇 1ST CONFIRMED TEAM: KHIRPAI HURRICANES',
-    '🥈 2ND CONFIRMED TEAM: ANIKET XI',
-    '🥉 3RD CONFIRMED TEAM: SRS BROTHER\'S',
-    '🏆 4TH CONFIRMED TEAM: SHIV SHAKTI EKADASH',
-    '🏆 5TH CONFIRMED TEAM: AVD ELEVEN',
-    '🏆 6TH CONFIRMED TEAM: CCC',
-    '🏆 7TH CONFIRMED TEAM: ATRIKA & FRIEND X1'
-  ];
-
-  let currentSlide = 0;
-  const totalSlides = 7;
-
-  const updateSlide = (index) => {
-    currentSlide = (index + totalSlides) % totalSlides;
-    if (slider) {
-      slider.style.transform = `translateX(-${currentSlide * 100}%)`;
-    }
-    if (counter) {
-      counter.textContent = `${currentSlide + 1} / ${totalSlides}`;
-    }
-    if (captionEl) {
-      captionEl.textContent = teamCaptions[currentSlide];
-    }
-
-    // Update dot styles
-    const dots = document.querySelectorAll('#confirmed-teams-dots button');
-    dots.forEach((dot, idx) => {
-      if (idx === currentSlide) {
-        dot.className = 'w-7 h-2 rounded-full bg-amber-400 transition-all duration-300';
-      } else {
-        dot.className = 'w-2.5 h-2 rounded-full bg-slate-700 hover:bg-slate-500 transition-all duration-300';
-      }
-    });
-  };
-
-  const nextSlide = () => updateSlide(currentSlide + 1);
-  const prevSlide = () => updateSlide(currentSlide - 1);
-
-  document.getElementById('confirmed-teams-next-btn')?.addEventListener('click', nextSlide);
-  document.getElementById('confirmed-teams-prev-btn')?.addEventListener('click', prevSlide);
-
-  document.querySelectorAll('#confirmed-teams-dots button').forEach(dotBtn => {
-    dotBtn.addEventListener('click', (e) => {
-      const idx = parseInt(e.currentTarget.getAttribute('data-dot-index'), 10);
-      updateSlide(idx);
-    });
-  });
-
-  // Tap on slide image to open HD photo zoom modal
-  document.querySelectorAll('.slide-item').forEach(slide => {
-    slide.addEventListener('click', (e) => {
-      const imgSrc = e.currentTarget.getAttribute('data-img-src');
-      const teamName = e.currentTarget.getAttribute('data-team-name');
-      if (imgSrc) {
-        openHDPhotoZoomModal(imgSrc, teamName);
-      }
-    });
-  });
-
-  // Auto-play loop every 3.5 seconds
-  let autoPlayTimer = setInterval(nextSlide, 3500);
-
-  // Pause autoplay on mouse enter / touch start and resume on leave / end
-  if (carouselCard) {
-    carouselCard.addEventListener('mouseenter', () => clearInterval(autoPlayTimer));
-    carouselCard.addEventListener('mouseleave', () => {
-      clearInterval(autoPlayTimer);
-      autoPlayTimer = setInterval(nextSlide, 3500);
-    });
-
-    // Touch swipe support for mobile phone screens
-    let touchStartX = 0;
-    let touchEndX = 0;
-
-    carouselCard.addEventListener('touchstart', (e) => {
-      touchStartX = e.changedTouches[0].screenX;
-      clearInterval(autoPlayTimer);
-    }, { passive: true });
-
-    carouselCard.addEventListener('touchend', (e) => {
-      touchEndX = e.changedTouches[0].screenX;
-      if (touchStartX - touchEndX > 35) {
-        nextSlide();
-      } else if (touchEndX - touchStartX > 35) {
-        prevSlide();
-      }
-      clearInterval(autoPlayTimer);
-      autoPlayTimer = setInterval(nextSlide, 3500);
-    }, { passive: true });
-  }
+  document.getElementById('btn-home-create-tourney')?.addEventListener('click', () => openTournamentCreationWizard(false));
 }
 
-// --- LIVE TOURNAMENT COUNTDOWN CLOCK (30 AUGUST 2026, 9:00 AM IST) ---
+// --- DEDICATED CUSTOM TOURNAMENT HUB VIEW ---
+export function renderCustomTournamentHub(container, tourney) {
+  if (!container || !tourney) return;
+  const isAuction = (tourney.mode === 'AUCTION_LEAGUE');
+
+  container.innerHTML = `
+    <div class="w-full max-w-4xl mx-auto space-y-5 sm:space-y-6 animate-fade-in py-4 px-2 sm:px-4 text-slate-900">
+      
+      <!-- HERO CARD -->
+      <div class="bg-white border-2 border-slate-200 rounded-3xl p-5 sm:p-6 shadow-md relative overflow-hidden space-y-4">
+        <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div class="flex items-center gap-3.5">
+            <span class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl ${isAuction ? 'bg-amber-100 text-amber-900 border-amber-300' : 'bg-emerald-100 text-emerald-900 border-emerald-300'} border flex items-center justify-center text-2xl sm:text-3xl font-black shrink-0 shadow-xs">
+              ${isAuction ? '🔨' : '🏏'}
+            </span>
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-full border border-emerald-300 uppercase">
+                  ${tourney.shortCode || 'LEAGUE'} • ${isAuction ? 'AUCTION LEAGUE' : 'FIXTURES'}
+                </span>
+                <span class="text-xs text-slate-400 font-bold">📍 ${tourney.venue || 'Cricket Ground'}</span>
+              </div>
+              <h1 class="text-lg sm:text-2xl font-black text-slate-900 tracking-tight mt-0.5">
+                ${tourney.name}
+              </h1>
+              <p class="text-xs text-slate-500 font-bold">Organizer: ${tourney.organizer?.name || 'Tournament Committee'} (📱 ${tourney.organizer?.phone || 'N/A'})</p>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2 w-full sm:w-auto">
+            <button id="btn-custom-hub-back" class="w-full sm:w-auto px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl border border-slate-300 cursor-pointer">
+              ← Back Home
+            </button>
+            ${isAuction ? `
+              <button id="btn-custom-open-reg" class="w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-xs rounded-xl shadow-xs border border-emerald-400 cursor-pointer">
+                📝 Register Player
+              </button>
+            ` : ''}
+          </div>
+        </div>
+
+        <!-- KEY STATS ROW -->
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2 border-t border-slate-100 text-center">
+          <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+            <span class="text-[9px] font-black text-slate-500 uppercase block">Winner Prize</span>
+            <span class="text-sm sm:text-base font-black text-slate-900 font-mono">₹ ${Number(tourney.prizeWinner || 35000).toLocaleString('en-IN')}</span>
+          </div>
+          <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+            <span class="text-[9px] font-black text-slate-500 uppercase block">Entry Fee</span>
+            <span class="text-sm sm:text-base font-black text-emerald-700 font-mono">₹ ${tourney.entryFee || 300}</span>
+          </div>
+          <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+            <span class="text-[9px] font-black text-slate-500 uppercase block">Team Purse</span>
+            <span class="text-sm sm:text-base font-black text-amber-800 font-mono">₹ ${tourney.teamPurse || 8000}</span>
+          </div>
+          <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+            <span class="text-[9px] font-black text-slate-500 uppercase block">Status</span>
+            <span class="text-xs sm:text-sm font-black text-emerald-800 font-mono">🟢 ACTIVE</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  `;
+
+  document.getElementById('btn-custom-hub-back')?.addEventListener('click', () => navigate('landing'));
+  document.getElementById('btn-custom-open-reg')?.addEventListener('click', () => openDynamicTournamentRegistrationModal(tourney.slug));
+}
+
+// --- LIVE TOURNAMENT COUNTDOWN CLOCK (31 AUGUST 2026, 9:00 AM IST) ---
 export async function initTournamentCountdown() {
   const card = document.getElementById('tournament-countdown-card');
   if (!card) return;
@@ -1586,7 +1416,7 @@ export async function initTournamentCountdown() {
     console.warn('Countdown settings fetch fallback:', err);
   }
 
-  const targetDate = new Date("2026-08-30T09:00:00+05:30").getTime();
+  const targetDate = new Date("2026-08-31T09:00:00+05:30").getTime();
 
   const update = () => {
     const now = Date.now();
@@ -1802,28 +1632,426 @@ function renderJSLHub(containerEl) {
 
       </div>
 
-      <!-- LOWER PORTION: COMPACT REGISTER BUTTON & LIVE AUCTION HUB -->
-      <div class="flex flex-wrap items-center justify-center gap-3 pt-2 sm:pt-3">
-        ${isRegOpen ? `
-          <button id="jsl-right-reg-btn" class="btn-blink-always px-6 sm:px-8 py-2.5 bg-gradient-to-r from-red-600 to-rose-700 hover:from-red-500 hover:to-rose-600 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg flex items-center justify-center gap-2 border border-red-400 transition-all cursor-pointer">
-            <i data-lucide="edit-3" class="w-4 h-4 text-amber-300"></i> Register Now
+      <!-- 📜 PREVIOUS AUCTION SUMMARY & JSL AUCTION SUMMARY (CLEAN WHITE BACKGROUND) -->
+      <div class="w-full bg-white border-2 border-slate-200 hover:border-amber-400 p-3.5 sm:p-4 rounded-2xl sm:rounded-3xl shadow-md text-slate-900 space-y-2.5 relative overflow-hidden animate-fade-in transition-all">
+        <div class="flex items-center justify-between flex-wrap gap-2">
+          <div class="flex items-center gap-2.5">
+            <span class="w-10 h-10 bg-amber-100 text-amber-800 rounded-2xl text-lg border border-amber-300 flex items-center justify-center shrink-0 shadow-2xs font-black">
+              📜
+            </span>
+            <div>
+              <div class="text-[9.5px] sm:text-[10px] font-black uppercase text-amber-800 tracking-wider flex items-center gap-1.5 flex-wrap">
+                <span>PREVIOUS AUCTION SUMMARY</span>
+                <span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[8.5px] font-mono rounded-full border border-emerald-300 font-bold">🔒 5-YEAR ARCHIVE</span>
+              </div>
+              <h3 class="text-xs sm:text-base font-black text-slate-900 leading-tight mt-0.5">
+                JSL 2026 Final Auction Summary & Roster Archives
+              </h3>
+            </div>
+          </div>
+          <div class="text-right">
+            <span class="px-2.5 py-1 bg-emerald-50 text-emerald-700 font-bold text-[10px] sm:text-xs rounded-xl border border-emerald-200 flex items-center gap-1">
+              <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Auction Completed
+            </span>
+          </div>
+        </div>
+
+        <p class="text-[11px] sm:text-xs text-slate-600 font-medium">
+          All 8 franchise squads, player sold values, icon player ⭐ allocations, and purse balances are permanently preserved in the JSL Master Archive.
+        </p>
+
+        <div class="flex flex-wrap items-center gap-2 pt-0.5">
+          <button id="jsl-open-auction-summary-modal-btn" class="flex-1 sm:flex-initial px-4 py-2 bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-500 hover:to-yellow-500 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-amber-300">
+            <span>🏆 View Final Auction Summary</span>
           </button>
-        ` : `
-          <button id="jsl-right-reg-btn" class="px-6 sm:px-8 py-2.5 bg-gradient-to-r from-slate-800 to-slate-900 hover:from-slate-700 hover:to-slate-800 text-slate-300 font-black text-xs sm:text-sm rounded-xl shadow-lg flex items-center justify-center gap-2 border border-red-500/60 transition-all cursor-pointer" title="Registration Closed by Master Admin">
-            <i data-lucide="lock" class="w-4 h-4 text-red-400"></i> Registration Closed
+          <button id="jsl-download-all-squads-pdf-hub-btn" class="flex-1 sm:flex-initial px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm rounded-xl border border-emerald-500 shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer">
+            <span>📄 All Squads PDF</span>
           </button>
-        `}
-        <button id="jsl-hub-auction-btn" class="px-5 sm:px-7 py-2.5 bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-600 hover:from-amber-400 hover:to-yellow-500 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-lg flex items-center justify-center gap-2 border border-amber-300 transition-all hover:scale-105">
-          <span>🔨 Live Auction Hub</span>
-        </button>
+          <button id="jsl-download-json-archive-hub-btn" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs sm:text-sm rounded-xl border border-slate-300 shadow-2xs flex items-center justify-center gap-1.5 transition-all cursor-pointer" title="Download Master JSON Archive">
+            <span>📥 JSON Backup</span>
+          </button>
+        </div>
       </div>
 
     </div>
   `;
 
-  document.getElementById('jsl-right-reg-btn')?.addEventListener('click', openRegistrationTypeModal);
   document.getElementById('open-teams-modal-btn')?.addEventListener('click', () => openRegisteredTeamsModal(teams));
   document.getElementById('open-players-modal-btn')?.addEventListener('click', () => openRegisteredPlayersModal(players));
+  document.getElementById('jsl-open-auction-summary-modal-btn')?.addEventListener('click', openJslAuctionSummaryModal);
+  document.getElementById('jsl-download-all-squads-pdf-hub-btn')?.addEventListener('click', () => exportAllTeamsFinalSquadsToPDF(teams, players));
+  document.getElementById('jsl-download-json-archive-hub-btn')?.addEventListener('click', downloadAuctionArchiveJSON);
+}
+
+// --- HELPER: DOWNLOAD OFFICIAL JSON ARCHIVE RECORD (FOR 5+ YEARS PRESERVATION) ---
+function downloadAuctionArchiveJSON() {
+  const archive = store.getAuctionPermanentArchive();
+  const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(archive, null, 2));
+  const downloadAnchor = document.createElement('a');
+  downloadAnchor.setAttribute("href", dataStr);
+  downloadAnchor.setAttribute("download", `JSL_2026_Official_Auction_Archive.json`);
+  document.body.appendChild(downloadAnchor);
+  downloadAnchor.click();
+  downloadAnchor.remove();
+}
+
+// --- OFFICIAL FINAL AUCTION SUMMARY & 5-YEAR RECORD VAULT MODAL (VIBRANT COLORFUL WHITE THEME) ---
+function openJslAuctionSummaryModal() {
+  const archive = store.getAuctionPermanentArchive();
+  const allPlayers = store.getPlayers();
+  const teams = store.getTeams();
+  let activeTab = 'overview'; // 'overview', 'teams', 'roster'
+  let selectedTeamId = teams[0]?.id || '';
+
+  const modalHtml = `
+    <div id="jsl-auction-summary-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-2 sm:p-4 animate-fade-in bg-slate-950/70 backdrop-blur-sm">
+      <div class="bg-white text-slate-900 max-w-4xl w-full max-h-[92vh] flex flex-col rounded-2xl sm:rounded-3xl border-2 border-amber-400 shadow-2xl overflow-hidden">
+        
+        <!-- MODAL HEADER (COLORFUL LIGHT AMBER GRADIENT) -->
+        <div class="p-3 sm:p-4 bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50 border-b-2 border-amber-200 flex items-center justify-between gap-2 shrink-0">
+          <div class="flex items-center gap-2.5">
+            <span class="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-400 to-yellow-500 text-slate-950 border border-amber-300 flex items-center justify-center text-xl shrink-0 shadow-md">
+              🏆
+            </span>
+            <div>
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="text-[9px] sm:text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-amber-200/90 text-amber-950 border border-amber-300 shadow-2xs">
+                  PERMANENT 5-YEAR RECORD
+                </span>
+                <span class="text-[9px] font-mono text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300 font-bold">🔒 LOCKED & PRESERVED</span>
+              </div>
+              <h2 class="text-base sm:text-xl font-black text-slate-900 tracking-tight leading-tight mt-0.5">
+                JSL 2026 Official Final Auction Summary
+              </h2>
+            </div>
+          </div>
+          
+          <button id="close-jsl-auction-summary-modal-btn" class="w-8 h-8 rounded-full bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-950 border border-slate-300 flex items-center justify-center text-sm font-black transition-all shadow-xs cursor-pointer">
+            ✕
+          </button>
+        </div>
+
+        <!-- NAVIGATION TABS & EXPORT BUTTONS BAR (CLEAN WHITE/SLATE STRIP) -->
+        <div class="p-2 sm:p-3 bg-slate-50 border-b border-slate-200 flex items-center justify-between flex-wrap gap-2 shrink-0">
+          <div class="flex items-center gap-1.5 bg-white p-1 rounded-xl border border-slate-200 shadow-2xs">
+            <button id="tab-btn-summary-overview" class="px-3 py-1.5 text-xs font-bold rounded-lg transition-all text-slate-700 hover:bg-slate-100">
+              📊 Overview & Top Buys
+            </button>
+            <button id="tab-btn-summary-teams" class="px-3 py-1.5 text-xs font-bold rounded-lg transition-all text-slate-700 hover:bg-slate-100">
+              🛡️ Team Squads (${teams.length})
+            </button>
+            <button id="tab-btn-summary-roster" class="px-3 py-1.5 text-xs font-bold rounded-lg transition-all text-slate-700 hover:bg-slate-100">
+              📋 All Players (${archive.totalRegisteredPlayers})
+            </button>
+          </div>
+
+          <div class="flex items-center gap-1.5 flex-wrap">
+            <button id="summary-download-pdf-btn" class="px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white text-xs font-black rounded-xl shadow-xs flex items-center gap-1 transition-all cursor-pointer border border-emerald-400">
+              <span>📄 All Squads PDF</span>
+            </button>
+            <button id="summary-download-json-btn" class="px-3 py-1.5 bg-gradient-to-r from-amber-400 to-yellow-400 hover:from-amber-500 hover:to-yellow-500 text-slate-950 text-xs font-black rounded-xl shadow-xs flex items-center gap-1 transition-all cursor-pointer border border-amber-300" title="Download Master JSON Archive">
+              <span>📥 JSON Archive</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- MODAL BODY CONTAINER (WHITE BACKGROUND) -->
+        <div id="jsl-auction-summary-tab-content" class="p-3 sm:p-5 overflow-y-auto flex-1 space-y-4 bg-white">
+          <!-- Content dynamically rendered below -->
+        </div>
+
+        <!-- MODAL FOOTER (CLEAN SLATE BAR) -->
+        <div class="p-2.5 sm:p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-[10px] text-slate-600 shrink-0 font-bold">
+          <span>🏛️ Jhankra Super League 2026 Archive Record Vault</span>
+          <span>System Architect: Suman Kolay</span>
+        </div>
+
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+  const renderTab = (tab) => {
+    activeTab = tab;
+    const content = document.getElementById('jsl-auction-summary-tab-content');
+    if (!content) return;
+
+    // Highlight active tab
+    ['overview', 'teams', 'roster'].forEach(t => {
+      const btn = document.getElementById(`tab-btn-summary-${t}`);
+      if (btn) {
+        if (t === tab) {
+          btn.className = 'px-3 py-1.5 text-xs font-black rounded-lg bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 shadow-sm border border-amber-300';
+        } else {
+          btn.className = 'px-3 py-1.5 text-xs font-bold rounded-lg text-slate-700 hover:bg-slate-100 border border-transparent';
+        }
+      }
+    });
+
+    if (tab === 'overview') {
+      content.innerHTML = `
+        <div class="space-y-4 animate-fade-in">
+          <!-- 4 VIBRANT COLORFUL STAT CARDS ON WHITE -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 sm:gap-3.5">
+            <!-- 1. Total Purse: Gold/Amber -->
+            <div class="bg-gradient-to-b from-amber-50 to-amber-100/80 border-2 border-amber-300 p-3 rounded-2xl text-center shadow-xs">
+              <span class="text-[9.5px] font-black text-amber-800 uppercase tracking-wider block">TOTAL PURSE</span>
+              <span class="text-base sm:text-2xl font-black text-amber-950 font-mono mt-0.5 block">₹ ${archive.financials.totalTournamentPurse.toLocaleString('en-IN')}</span>
+            </div>
+            <!-- 2. Total Spent: Rose/Red -->
+            <div class="bg-gradient-to-b from-rose-50 to-rose-100/80 border-2 border-rose-300 p-3 rounded-2xl text-center shadow-xs">
+              <span class="text-[9.5px] font-black text-rose-800 uppercase tracking-wider block">TOTAL AUCTION SPENT</span>
+              <span class="text-base sm:text-2xl font-black text-rose-700 font-mono mt-0.5 block">₹ ${archive.financials.totalTournamentSpent.toLocaleString('en-IN')}</span>
+            </div>
+            <!-- 3. Remaining Purse: Emerald/Green -->
+            <div class="bg-gradient-to-b from-emerald-50 to-emerald-100/80 border-2 border-emerald-300 p-3 rounded-2xl text-center shadow-xs">
+              <span class="text-[9.5px] font-black text-emerald-800 uppercase tracking-wider block">TOTAL REMAINING PURSE</span>
+              <span class="text-base sm:text-2xl font-black text-emerald-700 font-mono mt-0.5 block">₹ ${archive.financials.totalRemainingPurse.toLocaleString('en-IN')}</span>
+            </div>
+            <!-- 4. Players Sold: Blue/Indigo -->
+            <div class="bg-gradient-to-b from-blue-50 to-blue-100/80 border-2 border-blue-300 p-3 rounded-2xl text-center shadow-xs">
+              <span class="text-[9.5px] font-black text-blue-800 uppercase tracking-wider block">SQUAD PLAYERS SOLD</span>
+              <span class="text-base sm:text-2xl font-black text-blue-700 font-mono mt-0.5 block">${archive.totalSoldSquadPlayers} / ${archive.totalRegisteredPlayers}</span>
+            </div>
+          </div>
+
+          <!-- TOP BUYS OF JSL 2026 (COLORFUL WHITE CARDS) -->
+          <div class="bg-slate-50/80 border-2 border-slate-200 rounded-2xl sm:rounded-3xl p-3.5 sm:p-4 space-y-3 shadow-xs">
+            <div class="flex items-center justify-between border-b border-slate-200 pb-2">
+              <h3 class="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                <span>🔥 Top Highest Buys of JSL 2026 Auction</span>
+              </h3>
+              <span class="text-[10px] font-bold text-slate-500 font-mono bg-white px-2 py-0.5 rounded-full border border-slate-200">Top 8 Bids</span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              ${archive.topBuys.map((p, idx) => `
+                <div class="bg-white border-2 border-slate-200 hover:border-amber-400 p-2.5 rounded-2xl flex items-center justify-between gap-2.5 shadow-sm transition-all hover:shadow-md">
+                  <div class="flex items-center gap-2.5 min-w-0">
+                    <span class="w-7 h-7 rounded-xl ${idx === 0 ? 'bg-amber-400 text-slate-950 shadow-xs' : (idx === 1 ? 'bg-slate-200 text-slate-900' : (idx === 2 ? 'bg-amber-700 text-white' : 'bg-blue-100 text-blue-900 border border-blue-200'))} font-black text-xs flex items-center justify-center shrink-0 font-mono">
+                      #${idx + 1}
+                    </span>
+                    <div class="w-11 h-11 rounded-xl overflow-hidden bg-slate-100 shrink-0 border-2 border-slate-200 shadow-2xs">
+                      <img src="${p.photoUrl || 'assets/card_jsl_user.png'}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
+                    </div>
+                    <div class="min-w-0">
+                      <div class="text-xs sm:text-sm font-black text-slate-900 truncate">${p.name}</div>
+                      <div class="text-[10.5px] text-amber-800 font-extrabold truncate flex items-center gap-1">
+                        <span>🛡️ ${p.teamName}</span>
+                      </div>
+                      <div class="text-[9.5px] text-slate-500 font-bold">🏏 ${p.category}</div>
+                    </div>
+                  </div>
+                  <div class="text-right shrink-0">
+                    <div class="text-xs sm:text-base font-black text-emerald-700 font-mono leading-tight">₹ ${p.soldPrice.toLocaleString('en-IN')}</div>
+                    <span class="text-[8.5px] font-black text-slate-400 uppercase tracking-wider block">FINAL BID</span>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        </div>
+      `;
+    } else if (tab === 'teams') {
+      const currentTeam = archive.teams.find(t => t.teamId === selectedTeamId) || archive.teams[0];
+      content.innerHTML = `
+        <div class="space-y-3.5 animate-fade-in">
+          <!-- COLORFUL TEAM SELECTOR CHIPS -->
+          <div class="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+            ${archive.teams.map(t => `
+              <button class="team-chip-btn px-3 py-1.5 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${t.teamId === currentTeam.teamId ? 'bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-black shadow-md border border-amber-300' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'}" data-team-id="${t.teamId}">
+                ${t.teamName}
+              </button>
+            `).join('')}
+          </div>
+
+          <!-- SELECTED TEAM HEADER BANNER (COLORFUL DEEP NAVY / GOLD) -->
+          <div class="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 border-2 border-amber-400 p-3.5 rounded-2xl flex items-center justify-between flex-wrap gap-2 text-white shadow-md">
+            <div>
+              <div class="text-[9px] font-black text-amber-300 uppercase tracking-wider">FRANCHISE ROSTER</div>
+              <h3 class="text-base sm:text-lg font-black text-white leading-tight">${currentTeam.teamName}</h3>
+              <div class="text-xs text-amber-300 font-bold mt-0.5">👑 Owner: <span class="text-white">${currentTeam.ownerName}</span> ${currentTeam.ownerPhone !== 'N/A' ? `<span class="text-slate-300 text-[10px]">(📞 ${currentTeam.ownerPhone})</span>` : ''}</div>
+            </div>
+            <div class="flex items-center gap-2.5">
+              <div class="text-right bg-slate-950/80 px-3 py-1.5 rounded-xl border border-slate-700">
+                <div class="text-xs sm:text-sm font-black text-emerald-400 font-mono">₹ ${currentTeam.remainingPurse.toLocaleString('en-IN')} Left</div>
+                <div class="text-[9px] text-slate-300">Spent: ₹ ${currentTeam.totalSpent.toLocaleString('en-IN')}</div>
+              </div>
+              <button id="download-selected-team-pdf-btn" class="px-3 py-2 bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-500 hover:to-yellow-500 text-slate-950 border border-amber-300 rounded-xl text-xs font-black flex items-center gap-1 cursor-pointer shadow-sm">
+                <span>📄 PDF</span>
+              </button>
+            </div>
+          </div>
+
+          <!-- SQUAD PLAYERS GRID (WHITE BACKGROUND CARDS) -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <!-- Icon Player (Golden Highlight on White) -->
+            ${currentTeam.iconPlayer ? `
+              <div class="p-3 rounded-2xl bg-gradient-to-r from-amber-50 to-yellow-50 border-2 border-amber-400 flex items-center justify-between gap-2.5 shadow-sm">
+                <div class="flex items-center gap-2.5 min-w-0">
+                  <div class="w-11 h-11 rounded-xl overflow-hidden bg-white border-2 border-amber-400 shrink-0 shadow-xs">
+                    <img src="${currentTeam.iconPlayer.photoUrl || 'assets/card_jsl_user.png'}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
+                  </div>
+                  <div class="min-w-0">
+                    <div class="text-xs sm:text-sm font-black text-amber-950 flex items-center gap-1">
+                      <span>⭐ ${currentTeam.iconPlayer.name}</span>
+                      <span class="px-1.5 py-0.2 bg-amber-500 text-slate-950 font-black text-[8px] rounded">ICON</span>
+                    </div>
+                    <div class="text-[10px] text-amber-800 font-bold">📞 ${currentTeam.iconPlayer.phone} • 📍 ${currentTeam.iconPlayer.village}</div>
+                    <div class="text-[9px] text-amber-700">🏏 ${currentTeam.iconPlayer.category}</div>
+                  </div>
+                </div>
+                <div class="text-right shrink-0">
+                  <div class="text-xs sm:text-sm font-black text-amber-900 font-mono">₹ 1,000</div>
+                  <div class="text-[8px] text-amber-700 font-bold uppercase">Icon Fee</div>
+                </div>
+              </div>
+            ` : ''}
+
+            <!-- Auctioned Players (Clean White Cards) -->
+            ${currentTeam.auctionedPlayers.map(p => `
+              <div class="p-3 rounded-2xl bg-white border-2 border-slate-200 hover:border-slate-300 flex items-center justify-between gap-2.5 shadow-xs transition-all">
+                <div class="flex items-center gap-2.5 min-w-0">
+                  <div class="w-11 h-11 rounded-xl overflow-hidden bg-slate-100 border border-slate-200 shrink-0 shadow-2xs">
+                    <img src="${p.photoUrl || 'assets/card_jsl_user.png'}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
+                  </div>
+                  <div class="min-w-0">
+                    <div class="text-xs sm:text-sm font-black text-slate-900 truncate">#${p.slNo} ${p.name}</div>
+                    <div class="text-[10px] text-blue-700 font-bold truncate">🏏 ${p.category}</div>
+                    <div class="text-[9.5px] text-slate-500 truncate">📞 ${p.phone} • 📍 ${p.village}</div>
+                  </div>
+                </div>
+                <div class="text-right shrink-0">
+                  <div class="text-xs sm:text-sm font-black text-emerald-700 font-mono">₹ ${p.soldPrice.toLocaleString('en-IN')}</div>
+                  <div class="text-[8px] text-slate-400 font-bold uppercase">Auction Sold</div>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+
+      // Team chip listeners
+      content.querySelectorAll('.team-chip-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          selectedTeamId = btn.getAttribute('data-team-id');
+          renderTab('teams');
+        });
+      });
+
+      document.getElementById('download-selected-team-pdf-btn')?.addEventListener('click', () => {
+        const tObj = teams.find(t => t.id === currentTeam.teamId) || currentTeam;
+        exportTeamFinalSquadToPDF(tObj, allPlayers);
+      });
+    } else if (tab === 'roster') {
+      content.innerHTML = `
+        <div class="space-y-3 animate-fade-in">
+          <div class="flex items-center justify-between gap-2">
+            <input type="text" id="archive-roster-search" placeholder="🔍 Search by player name, team, or village..." class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-amber-400 font-medium" />
+          </div>
+
+          <div class="overflow-x-auto rounded-2xl border-2 border-slate-200 shadow-xs">
+            <table class="w-full text-left text-xs">
+              <thead class="bg-slate-900 text-white font-black text-[10px] uppercase border-b border-slate-300">
+                <tr>
+                  <th class="p-2.5">Player</th>
+                  <th class="p-2.5">Role</th>
+                  <th class="p-2.5">Assigned Team</th>
+                  <th class="p-2.5">Village</th>
+                  <th class="p-2.5 text-right">Sold Price</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-200 text-[11px] bg-white" id="archive-roster-tbody">
+                ${archive.masterPlayerRoster.map(p => `
+                  <tr class="hover:bg-amber-50/60 transition-colors">
+                    <td class="p-2.5 flex items-center gap-2">
+                      <div class="w-8 h-8 rounded-lg overflow-hidden bg-slate-100 shrink-0 border border-slate-200">
+                        <img src="${p.photoUrl || 'assets/card_jsl_user.png'}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
+                      </div>
+                      <div>
+                        <div class="font-bold text-slate-900">${p.name}</div>
+                        <div class="text-[9.5px] text-slate-500 font-mono">${p.displayRegistrationNumber}</div>
+                      </div>
+                    </td>
+                    <td class="p-2.5 text-slate-700 font-bold">${p.category}</td>
+                    <td class="p-2.5">
+                      ${p.teamName ? `<span class="px-2 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 font-black rounded-md text-[10px]">${p.teamName}</span>` : `<span class="text-slate-400">Unassigned</span>`}
+                    </td>
+                    <td class="p-2.5 text-slate-600">${p.village}</td>
+                    <td class="p-2.5 text-right font-mono font-black ${p.soldPrice ? 'text-emerald-700' : 'text-slate-400'}">
+                      ${p.soldPrice ? `₹ ${Number(p.soldPrice).toLocaleString('en-IN')}` : '—'}
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      `;
+
+      // Live search filter
+      document.getElementById('archive-roster-search')?.addEventListener('input', (e) => {
+        const q = e.target.value.toLowerCase().trim();
+        const rows = archive.masterPlayerRoster.filter(p => 
+          p.name.toLowerCase().includes(q) || 
+          (p.teamName && p.teamName.toLowerCase().includes(q)) || 
+          (p.village && p.village.toLowerCase().includes(q)) ||
+          (p.category && p.category.toLowerCase().includes(q))
+        );
+        const tbody = document.getElementById('archive-roster-tbody');
+        if (tbody) {
+          tbody.innerHTML = rows.map(p => `
+            <tr class="hover:bg-amber-50/60 transition-colors">
+              <td class="p-2.5 flex items-center gap-2">
+                <div class="w-8 h-8 rounded-lg overflow-hidden bg-slate-100 shrink-0 border border-slate-200">
+                  <img src="${p.photoUrl || 'assets/card_jsl_user.png'}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
+                </div>
+                <div>
+                  <div class="font-bold text-slate-900">${p.name}</div>
+                  <div class="text-[9.5px] text-slate-500 font-mono">${p.displayRegistrationNumber}</div>
+                </div>
+              </td>
+              <td class="p-2.5 text-slate-700 font-bold">${p.category}</td>
+              <td class="p-2.5">
+                ${p.teamName ? `<span class="px-2 py-0.5 bg-amber-100 text-amber-900 border border-amber-300 font-black rounded-md text-[10px]">${p.teamName}</span>` : `<span class="text-slate-400">Unassigned</span>`}
+              </td>
+              <td class="p-2.5 text-slate-600">${p.village}</td>
+              <td class="p-2.5 text-right font-mono font-black ${p.soldPrice ? 'text-emerald-700' : 'text-slate-400'}">
+                ${p.soldPrice ? `₹ ${Number(p.soldPrice).toLocaleString('en-IN')}` : '—'}
+              </td>
+            </tr>
+          `).join('');
+        }
+      });
+    }
+  };
+
+  // Close handlers
+  const handleClose = () => {
+    document.getElementById('jsl-auction-summary-modal')?.remove();
+  };
+
+  document.getElementById('close-jsl-auction-summary-modal-btn')?.addEventListener('click', handleClose);
+  document.getElementById('jsl-auction-summary-modal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'jsl-auction-summary-modal') handleClose();
+  });
+
+  // Tab switch listeners
+  document.getElementById('tab-btn-summary-overview')?.addEventListener('click', () => renderTab('overview'));
+  document.getElementById('tab-btn-summary-teams')?.addEventListener('click', () => renderTab('teams'));
+  document.getElementById('tab-btn-summary-roster')?.addEventListener('click', () => renderTab('roster'));
+
+  // Export handlers
+  document.getElementById('summary-download-pdf-btn')?.addEventListener('click', () => {
+    exportAllTeamsFinalSquadsToPDF(teams, allPlayers);
+  });
+  document.getElementById('summary-download-json-btn')?.addEventListener('click', () => {
+    downloadAuctionArchiveJSON();
+  });
+
+  // Initial render
+  renderTab('overview');
 }
 
 // --- REGISTERED TEAMS MODAL WITH 2PX CRISP BORDERS & PRO CRICKET SVG ---
@@ -4109,6 +4337,54 @@ function renderLiveAuctionView(container) {
     auctionPollInterval = null;
   }
 
+  const liveState = store.getLiveAuctionStateSync();
+  const hasActivePlayer = liveState && liveState.active_player_id;
+
+  if (!hasActivePlayer) {
+    container.innerHTML = `
+      <div class="space-y-6 animate-fade-in pb-16 max-w-2xl mx-auto px-2 sm:px-4 py-8 sm:py-12">
+        <div class="bg-white border-2 border-slate-200 rounded-3xl p-6 sm:p-8 text-center space-y-4 shadow-md">
+          <div class="w-16 h-16 bg-amber-100 text-amber-800 rounded-3xl mx-auto flex items-center justify-center text-3xl shadow-xs font-black">
+            🔨
+          </div>
+          
+          <div class="space-y-2">
+            <span class="inline-block px-3 py-1 bg-emerald-100 text-emerald-800 text-xs font-black rounded-full border border-emerald-300">
+              ✅ AUCTION CONCLUDED & ARCHIVED
+            </span>
+            <h2 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
+              No Live Auction in Session
+            </h2>
+            <p class="text-xs sm:text-sm text-slate-600 max-w-md mx-auto leading-relaxed">
+              The Jhankra Super League (JSL 2026) player auction has completed. All 8 franchise squads, player sold records, icon player allocations, and financial ledgers are securely archived under the <strong>JSL Hub</strong>.
+            </p>
+          </div>
+
+          <div class="pt-2 flex flex-wrap items-center justify-center gap-3">
+            <button id="auction-go-to-jsl-hub-btn" class="px-5 py-2.5 bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-500 hover:to-yellow-500 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-xs flex items-center justify-center gap-1.5 border border-amber-300 cursor-pointer transition-all">
+              <span>📜 Visit JSL Hub & View Auction Summary</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+
+    document.getElementById('auction-go-to-jsl-hub-btn')?.addEventListener('click', () => {
+      navigate('jsl-hub');
+    });
+
+    // Check periodically if admin starts an auction
+    auctionPollInterval = setInterval(async () => {
+      const state = await store.fetchLiveAuctionState();
+      if (state && state.active_player_id) {
+        clearInterval(auctionPollInterval);
+        renderLiveAuctionView(container);
+      }
+    }, 4000);
+
+    return;
+  }
+
   let playerSearchQuery = '';
   let activeStatusTab = 'all'; // 'all', 'sold', 'unsold', 'pending'
 
@@ -5957,9 +6233,14 @@ export function openTeamPurchasedSquadModal(teamId) {
               <p class="text-[11px] text-slate-500 font-bold">Owner: <span class="text-slate-800">${team.ownerName || 'Franchise Owner'}</span></p>
             </div>
           </div>
-          <button id="close-team-squad-modal-btn" class="p-1.5 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-all cursor-pointer">
-            <i data-lucide="x" class="w-5 h-5"></i>
-          </button>
+          <div class="flex items-center gap-1.5">
+            <button id="download-team-squad-pdf-modal-btn" class="px-2.5 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-xs flex items-center gap-1 transition-all cursor-pointer" title="Download Final Auction Squad PDF">
+              <i data-lucide="file-down" class="w-3.5 h-3.5"></i> <span class="hidden sm:inline">Squad PDF</span>
+            </button>
+            <button id="close-team-squad-modal-btn" class="p-1.5 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded-xl transition-all cursor-pointer">
+              <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+          </div>
         </div>
 
         <!-- Budget & Squad Statistics Ribbon -->
@@ -6041,9 +6322,12 @@ export function openTeamPurchasedSquadModal(teamId) {
         </div>
 
         <!-- Footer -->
-        <div class="pt-3 border-t border-slate-100 mt-3 text-center">
-          <button id="dismiss-team-squad-btn" class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl shadow-md transition-all cursor-pointer">
-            Close Squad Window
+        <div class="pt-3 border-t border-slate-100 mt-3 flex items-center gap-2">
+          <button id="download-team-squad-pdf-modal-footer-btn" class="flex-1 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer">
+            <i data-lucide="file-down" class="w-4 h-4"></i> Download Squad PDF
+          </button>
+          <button id="dismiss-team-squad-btn" class="px-5 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl shadow-md transition-all cursor-pointer">
+            Close
           </button>
         </div>
 
@@ -6059,6 +6343,12 @@ export function openTeamPurchasedSquadModal(teamId) {
     document.getElementById('team-squad-modal')?.remove();
   };
 
+  const handleDownloadPDF = () => {
+    exportTeamFinalSquadToPDF(team, allPlayers);
+  };
+
+  document.getElementById('download-team-squad-pdf-modal-btn')?.addEventListener('click', handleDownloadPDF);
+  document.getElementById('download-team-squad-pdf-modal-footer-btn')?.addEventListener('click', handleDownloadPDF);
   document.getElementById('close-team-squad-modal-btn')?.addEventListener('click', handleClose);
   document.getElementById('dismiss-team-squad-btn')?.addEventListener('click', handleClose);
   document.getElementById('team-squad-modal')?.addEventListener('click', (e) => {
@@ -7738,3 +8028,661 @@ window.openSquareImageCropModal = openSquareImageCropModal;
 window.compressImage = compressImage;
 window.openYouTubePromoModal = openYouTubePromoModal;
 window.openLiveAuctionProjectorView = openLiveAuctionProjectorView;
+
+// --- MULTI-TENANT TOURNAMENT SAAS CREATION WIZARD (MODE A & MODE B) ---
+export function openTournamentCreationWizard(isTrialMode = false) {
+  let currentStep = 1;
+  let selectedMode = 'AUCTION_LEAGUE'; // 'AUCTION_LEAGUE' (Mode A) or 'FIXTURE_ONLY' (Mode B)
+  let uploadedPosterBase64 = '';
+  let uploadedQrBase64 = '';
+
+  const modalHtml = `
+    <div id="tournament-creation-wizard-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-2 sm:p-4 animate-fade-in bg-slate-950/75 backdrop-blur-sm">
+      <div class="bg-white text-slate-900 max-w-2xl w-full max-h-[92vh] flex flex-col rounded-2xl sm:rounded-3xl border-2 border-amber-400 shadow-2xl overflow-hidden">
+        
+        <!-- MODAL HEADER -->
+        <div class="p-3.5 sm:p-4 bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50 border-b-2 border-amber-200 flex items-center justify-between gap-2 shrink-0">
+          <div class="flex items-center gap-2.5">
+            <span class="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-400 to-yellow-500 text-slate-950 border border-amber-300 flex items-center justify-center text-xl shrink-0 shadow-md font-black">
+              🏆
+            </span>
+            <div>
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="text-[9.5px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-amber-200/90 text-amber-950 border border-amber-300">
+                  ${isTrialMode ? '🧪 TRIAL / DRAFT MODE' : 'HOST TOURNAMENT'}
+                </span>
+                <span class="text-[9px] font-mono text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300 font-bold">SAAS CREATOR</span>
+              </div>
+              <h2 class="text-base sm:text-lg font-black text-slate-900 tracking-tight leading-tight mt-0.5">
+                Create & Host Your Cricket Tournament
+              </h2>
+            </div>
+          </div>
+          
+          <button id="close-tourney-wizard-btn" class="w-8 h-8 rounded-full bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-950 border border-slate-300 flex items-center justify-center text-sm font-black transition-all shadow-xs cursor-pointer">
+            ✕
+          </button>
+        </div>
+
+        <!-- PROGRESS STEPS BAR -->
+        <div class="p-2 sm:p-3 bg-slate-50 border-b border-slate-200 flex items-center justify-around text-xs font-black shrink-0">
+          <div id="step-pill-1" class="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-400 text-slate-950 shadow-xs border border-amber-300">
+            <span>1</span> <span>Identity</span>
+          </div>
+          <span class="text-slate-300">➔</span>
+          <div id="step-pill-2" class="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white text-slate-500 border border-slate-200">
+            <span>2</span> <span>Mode & Rules</span>
+          </div>
+          <span class="text-slate-300">➔</span>
+          <div id="step-pill-3" class="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white text-slate-500 border border-slate-200">
+            <span>3</span> <span>Organizer & Launch</span>
+          </div>
+        </div>
+
+        <!-- WIZARD BODY CONTAINER -->
+        <div id="tourney-wizard-content" class="p-4 sm:p-6 overflow-y-auto flex-1 space-y-4 bg-white">
+          <!-- Step 1: Basic Identity -->
+          <div id="wizard-step-1" class="space-y-4 animate-fade-in">
+            <div>
+              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Tournament Full Name *</label>
+              <input type="text" id="wiz-tourney-name" placeholder="e.g. Medinipur Super Trophy 2026" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400" />
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Short Code / URL Slug *</label>
+                <input type="text" id="wiz-tourney-slug" placeholder="e.g. MST2026" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-amber-400 uppercase" />
+                <span class="text-[9px] text-slate-400 block mt-0.5">Generates link: yourdomain.com/#t/mst2026</span>
+              </div>
+              <div>
+                <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Venue / Ground Location *</label>
+                <input type="text" id="wiz-tourney-venue" placeholder="e.g. Town Club Ground, Medinipur" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400" />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Kickoff Date & Time *</label>
+                <input type="datetime-local" id="wiz-tourney-date" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400" />
+              </div>
+              <div>
+                <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Winner Prize (₹)</label>
+                <input type="number" id="wiz-tourney-prize" placeholder="e.g. 35000" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400 font-mono" />
+              </div>
+            </div>
+
+            <div>
+              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Tournament Poster / Banner (Optional)</label>
+              <input type="file" id="wiz-poster-file" accept="image/*" class="w-full text-xs text-slate-600 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-black file:bg-slate-900 file:text-white hover:file:bg-slate-800 cursor-pointer" />
+            </div>
+          </div>
+
+          <!-- Step 2: Choose Mode & Rules (Hidden by Default) -->
+          <div id="wizard-step-2" class="space-y-4 hidden animate-fade-in">
+            <label class="block text-xs font-black text-slate-700 uppercase tracking-wider">Select Operating Mode *</label>
+            
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <!-- Mode A: Full Auction -->
+              <div id="select-mode-a" class="p-3.5 rounded-2xl border-2 border-amber-400 bg-amber-50/50 cursor-pointer shadow-xs transition-all flex flex-col justify-between space-y-2">
+                <div class="space-y-1">
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs font-black text-amber-950 flex items-center gap-1.5">
+                      <span>🔨 Mode A: Full Auction</span>
+                    </span>
+                    <span class="w-4 h-4 rounded-full bg-amber-400 text-slate-950 text-[10px] font-black flex items-center justify-center">✓</span>
+                  </div>
+                  <p class="text-[11px] text-slate-600">
+                    Open player registration form + Custom UPI QR code + Live Auction Projector screen with franchise purse tracking.
+                  </p>
+                </div>
+                <span class="text-[9.5px] font-black text-amber-800 uppercase tracking-wider">RECOMMENDED (JSL MODEL)</span>
+              </div>
+
+              <!-- Mode B: Quick Fixtures -->
+              <div id="select-mode-b" class="p-3.5 rounded-2xl border-2 border-slate-200 bg-white hover:border-slate-300 cursor-pointer shadow-xs transition-all flex flex-col justify-between space-y-2">
+                <div class="space-y-1">
+                  <div class="flex items-center justify-between">
+                    <span class="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                      <span>🏏 Mode B: Quick Fixtures</span>
+                    </span>
+                    <span class="w-4 h-4 rounded-full bg-slate-200 text-slate-500 text-[10px] font-black flex items-center justify-center"></span>
+                  </div>
+                  <p class="text-[11px] text-slate-600">
+                    No public player registration. Direct team squad entry, 1-click fixture generation, and ball-by-ball live scoring.
+                  </p>
+                </div>
+                <span class="text-[9.5px] font-black text-slate-400 uppercase tracking-wider">CLUB / KNOCKOUT MODEL</span>
+              </div>
+            </div>
+
+            <!-- Mode A Specific Fields -->
+            <div id="mode-a-config-block" class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+              <h4 class="text-xs font-black text-amber-900 uppercase tracking-wider">Mode A Auction & Registration Settings</h4>
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div>
+                  <label class="block text-[10px] font-black text-slate-600 uppercase mb-1">Player Entry Fee (₹)</label>
+                  <input type="number" id="wiz-entry-fee" value="300" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold font-mono" />
+                </div>
+                <div>
+                  <label class="block text-[10px] font-black text-slate-600 uppercase mb-1">Team Purse (₹)</label>
+                  <input type="number" id="wiz-team-purse" value="8000" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold font-mono" />
+                </div>
+                <div>
+                  <label class="block text-[10px] font-black text-slate-600 uppercase mb-1">Base Price (₹)</label>
+                  <input type="number" id="wiz-base-price" value="300" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold font-mono" />
+                </div>
+              </div>
+
+              <div>
+                <label class="block text-[10px] font-black text-slate-600 uppercase mb-1">Organizer UPI ID (For Direct Payments) *</label>
+                <input type="text" id="wiz-upi-id" placeholder="e.g. organizer@okaxis or 8972214416@paytm" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold font-mono" />
+              </div>
+
+              <div>
+                <label class="block text-[10px] font-black text-slate-600 uppercase mb-1">Upload Organizer Payment QR Code Image *</label>
+                <input type="file" id="wiz-qr-file" accept="image/*" class="w-full text-xs text-slate-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[11px] file:font-black file:bg-emerald-600 file:text-white hover:file:bg-emerald-500 cursor-pointer" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 3: Organizer Contact & Launch (Hidden by Default) -->
+          <div id="wizard-step-3" class="space-y-4 hidden animate-fade-in">
+            <h4 class="text-xs font-black text-slate-900 uppercase tracking-wider">Organizer Admin Account Setup</h4>
+            
+            <div>
+              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Organizer / President Name *</label>
+              <input type="text" id="wiz-org-name" placeholder="e.g. Suman Kolay" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400" />
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Organizer WhatsApp Number *</label>
+                <input type="tel" id="wiz-org-phone" placeholder="e.g. 8972214416" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-amber-400" />
+              </div>
+              <div>
+                <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Admin Password *</label>
+                <input type="password" id="wiz-org-password" placeholder="Create Secret Password" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-amber-400" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Success Launch View (Hidden by Default) -->
+          <div id="wizard-step-success" class="space-y-4 hidden animate-fade-in text-center py-2">
+            <div class="w-14 h-14 rounded-3xl bg-emerald-100 text-emerald-800 mx-auto flex items-center justify-center text-2xl font-black shadow-xs">
+              🎉
+            </div>
+            <div class="space-y-1">
+              <span class="px-3 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-full border border-emerald-300 uppercase">
+                TOURNAMENT CREATED SUCCESSFULLY
+              </span>
+              <h3 id="wiz-success-title" class="text-base sm:text-lg font-black text-slate-900">Tournament Name</h3>
+              <p class="text-xs text-slate-600">Your dedicated tournament portal and player registration links are live!</p>
+            </div>
+
+            <div class="bg-slate-50 border-2 border-slate-200 p-3.5 rounded-2xl text-left space-y-2.5 text-xs">
+              <div>
+                <span class="text-[10px] font-black text-slate-500 uppercase block">Public Tournament Hub Link:</span>
+                <div class="flex items-center justify-between gap-2 mt-0.5">
+                  <span id="wiz-success-hub-link" class="font-mono text-[11px] text-blue-700 font-bold truncate">...</span>
+                  <button type="button" id="wiz-copy-hub-btn" class="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg text-[10px] font-black shrink-0 cursor-pointer">Copy</button>
+                </div>
+              </div>
+
+              <div id="wiz-success-reg-container">
+                <span class="text-[10px] font-black text-slate-500 uppercase block">Player Registration Link:</span>
+                <div class="flex items-center justify-between gap-2 mt-0.5">
+                  <span id="wiz-success-reg-link" class="font-mono text-[11px] text-emerald-700 font-bold truncate">...</span>
+                  <button type="button" id="wiz-copy-reg-btn" class="px-2.5 py-1 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 rounded-lg text-[10px] font-black shrink-0 cursor-pointer">Copy</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- MODAL FOOTER BUTTONS -->
+        <div class="p-3 sm:p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-2 shrink-0">
+          <button type="button" id="wiz-prev-btn" class="px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-xl border border-slate-300 cursor-pointer hidden">
+            ← Back
+          </button>
+          <div class="flex-1"></div>
+          <button type="button" id="wiz-next-btn" class="px-6 py-2.5 bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-500 hover:to-yellow-500 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-xs border border-amber-300 cursor-pointer transition-all">
+            Continue →
+          </button>
+        </div>
+
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+  // Mode Selection Handlers
+  const modeABox = document.getElementById('select-mode-a');
+  const modeBBox = document.getElementById('select-mode-b');
+  const modeAConfig = document.getElementById('mode-a-config-block');
+
+  modeABox?.addEventListener('click', () => {
+    selectedMode = 'AUCTION_LEAGUE';
+    modeABox.className = 'p-3.5 rounded-2xl border-2 border-amber-400 bg-amber-50/50 cursor-pointer shadow-xs transition-all flex flex-col justify-between space-y-2';
+    modeBBox.className = 'p-3.5 rounded-2xl border-2 border-slate-200 bg-white hover:border-slate-300 cursor-pointer shadow-xs transition-all flex flex-col justify-between space-y-2';
+    if (modeAConfig) modeAConfig.classList.remove('hidden');
+  });
+
+  modeBBox?.addEventListener('click', () => {
+    selectedMode = 'FIXTURE_ONLY';
+    modeBBox.className = 'p-3.5 rounded-2xl border-2 border-emerald-500 bg-emerald-50/50 cursor-pointer shadow-xs transition-all flex flex-col justify-between space-y-2';
+    modeABox.className = 'p-3.5 rounded-2xl border-2 border-slate-200 bg-white hover:border-slate-300 cursor-pointer shadow-xs transition-all flex flex-col justify-between space-y-2';
+    if (modeAConfig) modeAConfig.classList.add('hidden');
+  });
+
+  // Poster File handler
+  document.getElementById('wiz-poster-file')?.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (ev) => { uploadedPosterBase64 = ev.target.result; };
+      reader.readAsDataURL(file);
+    }
+  });
+
+  // QR File handler
+  document.getElementById('wiz-qr-file')?.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (ev) => { uploadedQrBase64 = ev.target.result; };
+      reader.readAsDataURL(file);
+    }
+  });
+
+  const updateStepsUI = () => {
+    [1, 2, 3].forEach(s => {
+      const stepDiv = document.getElementById(`wizard-step-${s}`);
+      const pill = document.getElementById(`step-pill-${s}`);
+      if (stepDiv) stepDiv.classList.toggle('hidden', s !== currentStep);
+      if (pill) {
+        if (s === currentStep) {
+          pill.className = 'flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-400 text-slate-950 font-black shadow-xs border border-amber-300';
+        } else if (s < currentStep) {
+          pill.className = 'flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-100 text-emerald-900 font-bold border border-emerald-300';
+        } else {
+          pill.className = 'flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white text-slate-500 border border-slate-200';
+        }
+      }
+    });
+
+    const prevBtn = document.getElementById('wiz-prev-btn');
+    const nextBtn = document.getElementById('wiz-next-btn');
+    if (prevBtn) prevBtn.classList.toggle('hidden', currentStep <= 1 || currentStep > 3);
+    if (nextBtn) {
+      if (currentStep === 3) {
+        nextBtn.textContent = '🚀 Launch & Create Tournament';
+      } else if (currentStep > 3) {
+        nextBtn.textContent = 'Done & View Portal';
+      } else {
+        nextBtn.textContent = 'Continue →';
+      }
+    }
+  };
+
+  document.getElementById('wiz-prev-btn')?.addEventListener('click', () => {
+    if (currentStep > 1) {
+      currentStep--;
+      updateStepsUI();
+    }
+  });
+
+  document.getElementById('wiz-next-btn')?.addEventListener('click', async () => {
+    if (currentStep === 1) {
+      const name = document.getElementById('wiz-tourney-name')?.value.trim();
+      const slug = document.getElementById('wiz-tourney-slug')?.value.trim();
+      const venue = document.getElementById('wiz-tourney-venue')?.value.trim();
+      if (!name || !slug || !venue) {
+        alert("⚠️ Please fill Tournament Name, Slug, and Venue.");
+        return;
+      }
+      currentStep = 2;
+      updateStepsUI();
+    } else if (currentStep === 2) {
+      currentStep = 3;
+      updateStepsUI();
+    } else if (currentStep === 3) {
+      const name = document.getElementById('wiz-tourney-name')?.value.trim();
+      const slug = document.getElementById('wiz-tourney-slug')?.value.trim().toLowerCase();
+      const venue = document.getElementById('wiz-tourney-venue')?.value.trim();
+      const date = document.getElementById('wiz-tourney-date')?.value;
+      const prize = document.getElementById('wiz-tourney-prize')?.value || 35000;
+      const orgName = document.getElementById('wiz-org-name')?.value.trim();
+      const orgPhone = document.getElementById('wiz-org-phone')?.value.trim();
+      const orgPass = document.getElementById('wiz-org-password')?.value.trim();
+
+      if (!orgName || !orgPhone || !orgPass) {
+        alert("⚠️ Please fill Organizer Name, WhatsApp Number, and Admin Password.");
+        return;
+      }
+
+      const nextBtn = document.getElementById('wiz-next-btn');
+      if (nextBtn) { nextBtn.disabled = true; nextBtn.textContent = 'Creating Tournament...'; }
+
+      const tourneyRecord = {
+        id: `t_${slug}`,
+        name,
+        slug,
+        shortCode: slug.toUpperCase(),
+        venue,
+        kickoffDate: date || new Date().toISOString(),
+        prizeWinner: Number(prize),
+        mode: selectedMode,
+        posterUrl: uploadedPosterBase64 || '',
+        entryFee: Number(document.getElementById('wiz-entry-fee')?.value || 300),
+        teamPurse: Number(document.getElementById('wiz-team-purse')?.value || 8000),
+        basePrice: Number(document.getElementById('wiz-base-price')?.value || 300),
+        upiId: document.getElementById('wiz-upi-id')?.value.trim() || '',
+        paymentQrUrl: uploadedQrBase64 || '',
+        organizer: {
+          name: orgName,
+          phone: orgPhone,
+          password: orgPass
+        },
+        status: 'ACTIVE'
+      };
+
+      await store.saveCustomTournament(tourneyRecord);
+
+      // Show Success step
+      currentStep = 4;
+      document.getElementById('wizard-step-1')?.classList.add('hidden');
+      document.getElementById('wizard-step-2')?.classList.add('hidden');
+      document.getElementById('wizard-step-3')?.classList.add('hidden');
+      document.getElementById('wizard-step-success')?.classList.remove('hidden');
+
+      document.getElementById('wiz-success-title').textContent = name;
+      const hostUrl = window.location.origin + window.location.pathname;
+      const hubUrl = `${hostUrl}#t/${slug}`;
+      const regUrl = `${hostUrl}#reg-${slug}`;
+
+      document.getElementById('wiz-success-hub-link').textContent = hubUrl;
+      document.getElementById('wiz-success-reg-link').textContent = regUrl;
+
+      if (selectedMode === 'FIXTURE_ONLY') {
+        document.getElementById('wiz-success-reg-container')?.classList.add('hidden');
+      }
+
+      document.getElementById('wiz-copy-hub-btn')?.addEventListener('click', () => {
+        navigator.clipboard.writeText(hubUrl);
+        alert("✅ Tournament Hub link copied to clipboard!");
+      });
+      document.getElementById('wiz-copy-reg-btn')?.addEventListener('click', () => {
+        navigator.clipboard.writeText(regUrl);
+        alert("✅ Registration Link copied to clipboard!");
+      });
+
+      if (nextBtn) {
+        nextBtn.disabled = false;
+        nextBtn.textContent = 'Done & View Portal';
+        nextBtn.onclick = () => {
+          document.getElementById('tournament-creation-wizard-modal')?.remove();
+          navigate(`t/${slug}`);
+        };
+      }
+    }
+  });
+
+  const handleClose = () => {
+    document.getElementById('tournament-creation-wizard-modal')?.remove();
+  };
+  document.getElementById('close-tourney-wizard-btn')?.addEventListener('click', handleClose);
+}
+
+// --- DYNAMIC TOURNAMENT REGISTRATION MODAL WITH 1-SECOND UNIVERSAL PHONE AUTO-FILL ---
+export function openDynamicTournamentRegistrationModal(tourneyIdOrSlug) {
+  const tourney = store.getCustomTournamentById(tourneyIdOrSlug) || {
+    id: 'jsl_2026',
+    name: 'Jhankra Super League (JSL 2026)',
+    entryFee: 300,
+    upiId: '8972214416@paytm',
+    paymentQrUrl: 'assets/payment_qr_code.jpg'
+  };
+
+  let uploadedPhotoBase64 = '';
+  let uploadedReceiptBase64 = '';
+
+  const modalHtml = `
+    <div id="dynamic-tournament-reg-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-2 sm:p-4 animate-fade-in bg-slate-950/75 backdrop-blur-sm">
+      <div class="bg-white text-slate-900 max-w-xl w-full max-h-[92vh] flex flex-col rounded-2xl sm:rounded-3xl border-2 border-emerald-400 shadow-2xl overflow-hidden">
+        
+        <!-- HEADER -->
+        <div class="p-3.5 sm:p-4 bg-gradient-to-r from-emerald-50 via-teal-50 to-green-50 border-b-2 border-emerald-200 flex items-center justify-between gap-2 shrink-0">
+          <div class="flex items-center gap-2.5">
+            <span class="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center text-xl shrink-0 shadow-md font-black">
+              🏏
+            </span>
+            <div>
+              <span class="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-emerald-200/90 text-emerald-950 border border-emerald-300">
+                OFFICIAL PLAYER REGISTRATION
+              </span>
+              <h2 class="text-base sm:text-lg font-black text-slate-900 tracking-tight leading-tight mt-0.5">
+                ${tourney.name}
+              </h2>
+            </div>
+          </div>
+          
+          <button id="close-dynamic-reg-modal-btn" class="w-8 h-8 rounded-full bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-950 border border-slate-300 flex items-center justify-center text-sm font-black transition-all shadow-xs cursor-pointer">
+            ✕
+          </button>
+        </div>
+
+        <!-- BODY -->
+        <form id="dynamic-reg-form" class="p-4 sm:p-5 overflow-y-auto flex-1 space-y-4 bg-white">
+          
+          <!-- SMART 1-SECOND PHONE NUMBER LOOKUP -->
+          <div class="bg-gradient-to-r from-blue-50 to-indigo-50/80 border-2 border-blue-200 p-3 rounded-2xl space-y-1.5">
+            <label class="block text-xs font-black text-blue-950 uppercase tracking-wider flex items-center justify-between">
+              <span>📱 10-Digit Mobile / WhatsApp Number *</span>
+              <span class="text-[9px] font-mono text-blue-700 font-bold bg-white px-2 py-0.5 rounded-full border border-blue-200">⚡ AUTO-FILL ENGINE</span>
+            </label>
+            <input type="tel" id="dyn-reg-phone" maxlength="10" placeholder="Enter 10-digit mobile number..." class="w-full bg-white border-2 border-blue-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-mono font-black focus:outline-none focus:border-blue-500" required />
+            <div id="dyn-autofill-notice" class="text-[10px] font-bold text-blue-800 hidden flex items-center gap-1">
+              <span>✨ Welcome back! Your cricket profile has been auto-populated.</span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Full Name *</label>
+              <input type="text" id="dyn-reg-name" placeholder="Player Full Name" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-400" required />
+            </div>
+            <div>
+              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Playing Role *</label>
+              <select id="dyn-reg-role" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-400">
+                <option value="All Rounder">All Rounder</option>
+                <option value="Batsman">Batsman</option>
+                <option value="Bowler">Bowler</option>
+                <option value="Wicket Keeper">Wicket Keeper</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Batting Style</label>
+              <select id="dyn-reg-batting" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-400">
+                <option value="Right Hand Bat">Right Hand Bat</option>
+                <option value="Left Hand Bat">Left Hand Bat</option>
+              </select>
+            </div>
+            <div>
+              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Bowling Style</label>
+              <select id="dyn-reg-bowling" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-400">
+                <option value="Right Arm Medium">Right Arm Medium</option>
+                <option value="Right Arm Fast">Right Arm Fast</option>
+                <option value="Right Arm Spin">Right Arm Spin</option>
+                <option value="Left Arm Fast">Left Arm Fast</option>
+                <option value="Left Arm Spin">Left Arm Spin</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Village / Town *</label>
+              <input type="text" id="dyn-reg-village" placeholder="e.g. Jhankra" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-400" required />
+            </div>
+            <div>
+              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">District</label>
+              <input type="text" id="dyn-reg-district" value="Paschim Medinipur" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-400" />
+            </div>
+          </div>
+
+          <!-- PHOTO UPLOAD & PREVIEW -->
+          <div class="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-200">
+            <div class="w-12 h-12 rounded-xl bg-slate-200 overflow-hidden shrink-0 border border-slate-300">
+              <img id="dyn-preview-photo" src="assets/card_jsl_user.png" class="w-full h-full object-cover" />
+            </div>
+            <div class="flex-1">
+              <label class="block text-[10px] font-black text-slate-700 uppercase mb-1">Player HD Photo</label>
+              <input type="file" id="dyn-photo-file" accept="image/*" class="w-full text-xs text-slate-600 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:bg-slate-900 file:text-white hover:file:bg-slate-800 cursor-pointer" />
+            </div>
+          </div>
+
+          <!-- TOURNAMENT UPI PAYMENT & QR CODE SECTION -->
+          <div class="p-3.5 rounded-2xl bg-gradient-to-br from-amber-50 to-yellow-50/80 border-2 border-amber-300 space-y-2.5 text-center">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-black text-amber-950 uppercase tracking-wider">Tournament Entry Fee</span>
+              <span class="text-base font-black text-emerald-700 font-mono">₹ ${tourney.entryFee || 300}</span>
+            </div>
+
+            ${tourney.paymentQrUrl ? `
+              <div class="w-36 h-36 mx-auto bg-white p-2 rounded-2xl border-2 border-amber-300 shadow-sm">
+                <img src="${tourney.paymentQrUrl}" class="w-full h-full object-contain" alt="Tournament UPI QR Code" />
+              </div>
+            ` : ''}
+
+            ${tourney.upiId ? `
+              <div class="text-[11px] font-bold text-amber-900">
+                <span>UPI ID: </span><span class="font-mono font-black text-slate-950">${tourney.upiId}</span>
+              </div>
+            ` : ''}
+
+            <p class="text-[10px] text-slate-600">Scan QR Code using PhonePe / GPay, pay ₹${tourney.entryFee || 300}, and upload payment screenshot below:</p>
+
+            <div class="text-left bg-white p-2.5 rounded-xl border border-amber-200">
+              <label class="block text-[10px] font-black text-slate-700 uppercase mb-1">Payment Receipt Screenshot *</label>
+              <input type="file" id="dyn-receipt-file" accept="image/*" class="w-full text-xs text-slate-600 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:bg-emerald-600 file:text-white cursor-pointer" required />
+            </div>
+          </div>
+
+          <!-- SUBMIT BUTTON -->
+          <div class="pt-2">
+            <button type="submit" id="dyn-submit-reg-btn" class="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-xs sm:text-sm rounded-xl shadow-md flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-emerald-400">
+              <span>Submit Registration to ${tourney.shortCode || 'League'} ➔</span>
+            </button>
+          </div>
+
+        </form>
+
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+  // 1-Second Smart Auto-Fill on Mobile Input
+  const phoneInput = document.getElementById('dyn-reg-phone');
+  phoneInput?.addEventListener('input', (e) => {
+    const val = e.target.value.trim().replace(/[^0-9]/g, '');
+    if (val.length === 10) {
+      const existing = store.getUniversalPlayerByPhone(val);
+      if (existing) {
+        document.getElementById('dyn-reg-name').value = existing.name || '';
+        document.getElementById('dyn-reg-role').value = existing.category || 'All Rounder';
+        document.getElementById('dyn-reg-batting').value = existing.battingStyle || 'Right Hand Bat';
+        document.getElementById('dyn-reg-bowling').value = existing.bowlingStyle || 'Right Arm Medium';
+        document.getElementById('dyn-reg-village').value = existing.village || '';
+        document.getElementById('dyn-reg-district').value = existing.district || 'Paschim Medinipur';
+        if (existing.photoUrl) {
+          uploadedPhotoBase64 = existing.photoUrl;
+          document.getElementById('dyn-preview-photo').src = existing.photoUrl;
+        }
+        document.getElementById('dyn-autofill-notice')?.classList.remove('hidden');
+      } else {
+        document.getElementById('dyn-autofill-notice')?.classList.add('hidden');
+      }
+    } else {
+      document.getElementById('dyn-autofill-notice')?.classList.add('hidden');
+    }
+  });
+
+  // Photo change
+  document.getElementById('dyn-photo-file')?.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        uploadedPhotoBase64 = ev.target.result;
+        document.getElementById('dyn-preview-photo').src = uploadedPhotoBase64;
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+
+  // Receipt change
+  document.getElementById('dyn-receipt-file')?.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (ev) => { uploadedReceiptBase64 = ev.target.result; };
+      reader.readAsDataURL(file);
+    }
+  });
+
+  // Form submit
+  document.getElementById('dynamic-reg-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const btn = document.getElementById('dyn-submit-reg-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Submitting Registration...'; }
+
+    const phone = document.getElementById('dyn-reg-phone').value.trim();
+    const name = document.getElementById('dyn-reg-name').value.trim();
+    const category = document.getElementById('dyn-reg-role').value;
+    const battingStyle = document.getElementById('dyn-reg-batting').value;
+    const bowlingStyle = document.getElementById('dyn-reg-bowling').value;
+    const village = document.getElementById('dyn-reg-village').value.trim();
+    const district = document.getElementById('dyn-reg-district').value.trim();
+
+    const playerData = {
+      id: `p_${phone}_${Date.now()}`,
+      name,
+      phone,
+      category,
+      battingStyle,
+      bowlingStyle,
+      village,
+      district,
+      tournamentId: tourney.id,
+      tournamentSlug: tourney.slug,
+      tournamentName: tourney.name,
+      photoUrl: uploadedPhotoBase64 || '',
+      paymentReceiptUrl: uploadedReceiptBase64 || '',
+      registrationStatus: 'PENDING_VERIFICATION',
+      paymentStatus: 'PENDING_VERIFICATION',
+      createdAt: Date.now()
+    };
+
+    // Save locally and globally
+    await store.saveUniversalPlayer(playerData);
+    await store.addPlayer(playerData);
+
+    alert(`🎉 Registration Submitted Successfully for ${tourney.name}!\n\nYour application is sent to the tournament organizer for payment verification.`);
+    document.getElementById('dynamic-tournament-reg-modal')?.remove();
+  });
+
+  const handleClose = () => {
+    document.getElementById('dynamic-tournament-reg-modal')?.remove();
+  };
+  document.getElementById('close-dynamic-reg-modal-btn')?.addEventListener('click', handleClose);
+}
+
+window.openTournamentCreationWizard = openTournamentCreationWizard;
+window.openDynamicTournamentRegistrationModal = openDynamicTournamentRegistrationModal;

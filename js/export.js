@@ -557,3 +557,708 @@ export function openUserGuidePDF() {
     alert("Please allow popups to open the User Guide PDF.");
   }
 }
+
+// HELPER: Ultra-Lightweight Image Compressor for PDF Print (Reduces PDF size from 50MB+ down to < 300KB)
+async function convertImageToLightweightBase64(url, maxDim = 100, quality = 0.70, fallbackSrc = 'assets/card_jsl_user.png') {
+  if (!url || typeof url !== 'string') return fallbackSrc;
+
+  // Helper to draw image to canvas and export compressed JPEG
+  const compressFromImgElement = (imgSource) => {
+    return new Promise((resolve) => {
+      try {
+        const canvas = document.createElement('canvas');
+        let width = imgSource.naturalWidth || imgSource.width || maxDim;
+        let height = imgSource.naturalHeight || imgSource.height || maxDim;
+
+        if (width > height) {
+          if (width > maxDim) {
+            height = Math.round((height * maxDim) / width);
+            width = maxDim;
+          }
+        } else {
+          if (height > maxDim) {
+            width = Math.round((width * maxDim) / height);
+            height = maxDim;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.fillStyle = '#FFFFFF';
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(imgSource, 0, 0, width, height);
+
+        const compressed = canvas.toDataURL('image/jpeg', quality);
+        resolve(compressed);
+      } catch (e) {
+        resolve(url);
+      }
+    });
+  };
+
+  try {
+    let sourceToLoad = url;
+    let objectUrlToRevoke = null;
+
+    // If HTTP URL, fetch as blob first to prevent CORS tainted canvas
+    if (url.startsWith('http')) {
+      try {
+        const res = await fetch(url, { cache: 'force-cache' });
+        if (res.ok) {
+          const blob = await res.blob();
+          sourceToLoad = URL.createObjectURL(blob);
+          objectUrlToRevoke = sourceToLoad;
+        }
+      } catch (fetchErr) {
+        sourceToLoad = url;
+      }
+    }
+
+    return await new Promise((resolve) => {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+
+      const timer = setTimeout(() => {
+        if (objectUrlToRevoke) URL.revokeObjectURL(objectUrlToRevoke);
+        resolve(url);
+      }, 2000);
+
+      img.onload = async () => {
+        clearTimeout(timer);
+        const result = await compressFromImgElement(img);
+        if (objectUrlToRevoke) URL.revokeObjectURL(objectUrlToRevoke);
+        resolve(result);
+      };
+
+      img.onerror = () => {
+        clearTimeout(timer);
+        if (objectUrlToRevoke) URL.revokeObjectURL(objectUrlToRevoke);
+        resolve(fallbackSrc);
+      };
+
+      img.src = sourceToLoad;
+    });
+  } catch (err) {
+    return url;
+  }
+}
+
+// HELPER: Prepare structured squad data for a team
+export function getTeamFinalSquadData(team, allPlayers) {
+  const hasIcon = !!((team.iconPlayerName && team.iconPlayerName.trim()) || (team.iconName && team.iconName.trim()) || (team.iconPlayerId && team.iconPlayerId.trim()));
+  const iconRawName = (team.iconPlayerName || team.iconName || '').trim();
+  const iconPlayerId = team.iconPlayerId || '';
+  
+  // Match icon player against registered players
+  let iconPlayerObj = allPlayers.find(p => (iconPlayerId && p.id === iconPlayerId) || (iconRawName && p.name && p.name.trim().toLowerCase() === iconRawName.toLowerCase()));
+
+  let iconItem = null;
+  if (hasIcon || iconPlayerObj) {
+    iconItem = {
+      isIcon: true,
+      slNo: 1,
+      id: (iconPlayerObj && iconPlayerObj.id) || 'icon-player',
+      name: (iconPlayerObj && iconPlayerObj.name) || iconRawName || 'Official Icon Player',
+      photoUrl: (iconPlayerObj && (iconPlayerObj.hdPhotoUrl || iconPlayerObj.photoUrl || iconPlayerObj.player_photo_url)) || team.iconPlayerPhotoUrl || team.iconPhotoUrl || team.iconPhoto || '',
+      phone: (iconPlayerObj && (iconPlayerObj.phone || iconPlayerObj.mobile)) || team.iconPhone || team.iconPlayerPhone || 'N/A',
+      village: (iconPlayerObj && (iconPlayerObj.village ? `${iconPlayerObj.village}${iconPlayerObj.district ? ', ' + iconPlayerObj.district : ''}` : iconPlayerObj.address)) || team.iconVillage || team.iconPlayerVillage || 'Paschim Medinipur',
+      category: (iconPlayerObj && (iconPlayerObj.category || iconPlayerObj.playingType || iconPlayerObj.role)) || 'Icon Player',
+      price: 1000,
+      priceLabel: '₹ 1,000 (Icon Allocation)'
+    };
+  }
+
+  // Find non-icon purchased squad players
+  const purchasedNonIconPlayers = allPlayers.filter(p => {
+    const isThisTeam = (p.teamId === team.id || (p.teamName && p.teamName.trim().toLowerCase() === team.name.trim().toLowerCase()));
+    if (!isThisTeam) return false;
+    if (iconItem && ((iconPlayerObj && p.id === iconPlayerObj.id) || (iconRawName && p.name && p.name.trim().toLowerCase() === iconRawName.toLowerCase()))) {
+      return false;
+    }
+    if (p.isIcon || p.isIconPlayer) return false;
+    return (p.auctionStatus === 'SOLD' || p.isSold === true || !!p.teamId);
+  });
+
+  const totalPurse = Number(team.purseBudget || team.purse || 8000);
+  const iconDeduction = iconItem ? 1000 : 0;
+  const auctionSpent = purchasedNonIconPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || 0), 0);
+  const totalSpent = iconDeduction + auctionSpent;
+  const remainingPurse = Math.max(0, totalPurse - totalSpent);
+
+  return {
+    team,
+    iconItem,
+    purchasedNonIconPlayers,
+    totalPurse,
+    iconDeduction,
+    auctionSpent,
+    totalSpent,
+    remainingPurse
+  };
+}
+
+// HELPER: Format timestamp like 'Sun, 23 Aug, 2026, 09:27 pm'
+function getFormattedPDFTimestamp() {
+  const now = new Date();
+  const days = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const dayName = days[now.getDay()];
+  const day = now.getDate();
+  const monthName = months[now.getMonth()];
+  const year = now.getFullYear();
+  let hours = now.getHours();
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  const ampm = hours >= 12 ? 'pm' : 'am';
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  const strHours = String(hours).padStart(2, '0');
+  return `${dayName}, ${day} ${monthName}, ${year}, ${strHours}:${minutes} ${ampm}`;
+}
+
+// HELPER: Build single-page HTML for a team squad
+function generateTeamSinglePageHtml(team, allPlayers, processedIconItem, processedPlayers, teamIdx = 0, totalTeamsCount = 8, formattedTimestamp = '') {
+  const squadData = getTeamFinalSquadData(team, allPlayers);
+  const { totalPurse, iconDeduction, auctionSpent, totalSpent, remainingPurse } = squadData;
+  const iconItem = processedIconItem;
+  const squadCount = (iconItem ? 1 : 0) + processedPlayers.length;
+
+  let rowsHtml = '';
+  let currentSl = 1;
+
+  // Row 1: Icon Player (Highlight + ⭐)
+  if (iconItem) {
+    rowsHtml += `
+      <tr style="background-color: #FEF3C7; border-left: 3.5px solid #F59E0B; height: 38px;">
+        <td style="text-align: center; vertical-align: middle; padding: 2px;">
+          <span style="background: #F59E0B; color: #FFFFFF; font-weight: 900; font-family: monospace; font-size: 10px; padding: 2px 5px; border-radius: 6px; letter-spacing: 0.5px;">#1 ⭐</span>
+        </td>
+        <td style="text-align: center; vertical-align: middle; padding: 2px; width: 44px;">
+          <div style="width: 36px; height: 36px; background-color: #FFFFFF; border: 2px solid #F59E0B; border-radius: 7px; margin: 0 auto; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+            ${iconItem.photoBase64 ? `<img src="${iconItem.photoBase64}" style="width: 100%; height: 100%; object-fit: cover;" />` : `<div style="font-size: 18px;">⭐</div>`}
+          </div>
+        </td>
+        <td style="vertical-align: middle; padding: 2px 6px;">
+          <div style="font-size: 13px; font-weight: 900; color: #78350F; display: flex; align-items: center; gap: 4px;">
+            <span>⭐ ${iconItem.name}</span>
+            <span style="background: #B45309; color: white; font-size: 8px; padding: 1px 4px; border-radius: 3px; font-weight: 900;">ICON</span>
+          </div>
+        </td>
+        <td style="font-family: monospace; font-weight: 800; color: #0284C7; font-size: 11.5px; vertical-align: middle; padding: 2px 6px; white-space: nowrap;">
+          📞 ${iconItem.phone || 'N/A'}
+        </td>
+        <td style="font-size: 11px; color: #334155; font-weight: 600; vertical-align: middle; padding: 2px 6px;">
+          📍 ${iconItem.village || 'Paschim Medinipur'}
+        </td>
+        <td style="color: #0F172A; font-weight: 800; font-size: 11px; vertical-align: middle; padding: 2px 6px;">
+          🏏 ${iconItem.category || 'Icon Player'}
+        </td>
+        <td style="text-align: right; font-weight: 900; color: #92400E; font-size: 12px; font-family: monospace; vertical-align: middle; padding: 2px 8px; white-space: nowrap;">
+          ₹ 1,000
+        </td>
+      </tr>
+    `;
+    currentSl++;
+  }
+
+  // Rows 2 to 13: Auctioned Squad Players
+  processedPlayers.forEach((p, idx) => {
+    const isEven = idx % 2 === 0;
+    rowsHtml += `
+      <tr style="background-color: ${isEven ? '#FFFFFF' : '#F8FAFC'}; height: 38px; border-bottom: 1px solid #E2E8F0;">
+        <td style="text-align: center; vertical-align: middle; font-weight: bold; font-family: monospace; font-size: 11.5px; color: #475569; padding: 2px;">
+          #${currentSl}
+        </td>
+        <td style="text-align: center; vertical-align: middle; padding: 2px; width: 44px;">
+          <div style="width: 36px; height: 36px; background-color: #FFFFFF; border: 1.5px solid #0F172A; border-radius: 7px; margin: 0 auto; overflow: hidden; display: flex; align-items: center; justify-content: center;">
+            ${p.photoBase64 ? `<img src="${p.photoBase64}" style="width: 100%; height: 100%; object-fit: cover;" />` : `<div style="font-size: 16px;">🏏</div>`}
+          </div>
+        </td>
+        <td style="vertical-align: middle; padding: 2px 6px;">
+          <div style="font-size: 12.5px; font-weight: 800; color: #0F172A;">${p.name}</div>
+          <div style="font-size: 9.5px; color: #64748B; font-weight: 600;">Reg No: <span style="font-family: monospace; font-weight: bold;">${p.displayRegistrationNumber || p.serialNo || p.registrationId || 'N/A'}</span></div>
+        </td>
+        <td style="font-family: monospace; font-weight: 800; color: #0284C7; font-size: 11.5px; vertical-align: middle; padding: 2px 6px; white-space: nowrap;">
+          📞 ${p.phone || p.mobile || 'N/A'}
+        </td>
+        <td style="font-size: 11px; color: #334155; font-weight: 600; vertical-align: middle; padding: 2px 6px;">
+          📍 ${p.village ? `${p.village}${p.district ? ', ' + p.district : ''}` : p.address || 'Paschim Medinipur'}
+        </td>
+        <td style="color: #0F172A; font-weight: 700; font-size: 11px; vertical-align: middle; padding: 2px 6px;">
+          🏏 ${p.category || p.playingType || p.role || 'All Rounder'}
+        </td>
+        <td style="text-align: right; font-weight: 900; color: #059669; font-size: 12.5px; font-family: monospace; vertical-align: middle; padding: 2px 8px; white-space: nowrap;">
+          ₹ ${Number(p.soldPrice || p.basePrice || 300).toLocaleString('en-IN')}
+        </td>
+      </tr>
+    `;
+    currentSl++;
+  });
+
+  // Remaining slots up to 13 if squad has less than 13 players
+  while (currentSl <= 13) {
+    rowsHtml += `
+      <tr style="background-color: #F8FAFC; height: 32px; border-bottom: 1px dashed #E2E8F0;">
+        <td style="text-align: center; vertical-align: middle; font-weight: bold; font-family: monospace; font-size: 11px; color: #94A3B8; padding: 2px;">#${currentSl}</td>
+        <td style="text-align: center; vertical-align: middle; padding: 2px; width: 44px;">
+          <div style="width: 34px; height: 26px; border: 1px dashed #CBD5E1; border-radius: 5px; margin: 0 auto; display: flex; align-items: center; justify-content: center; color: #94A3B8; font-size: 9px; font-weight: bold;">
+            #${currentSl}
+          </div>
+        </td>
+        <td style="vertical-align: middle; padding: 2px 6px; color: #94A3B8; font-style: italic; font-weight: 600; font-size: 11px;">[Reserve / Vacant Slot #${currentSl}]</td>
+        <td style="text-align: center; color: #CBD5E1; font-size: 11px; vertical-align: middle;">—</td>
+        <td style="text-align: center; color: #CBD5E1; font-size: 11px; vertical-align: middle;">—</td>
+        <td style="text-align: center; color: #CBD5E1; font-size: 11px; vertical-align: middle;">—</td>
+        <td style="text-align: right; color: #94A3B8; font-family: monospace; font-size: 11px; vertical-align: middle; padding: 2px 8px;">₹ 0</td>
+      </tr>
+    `;
+    currentSl++;
+  }
+
+  return `
+    <div class="team-page" style="${teamIdx > 0 ? 'page-break-before: always;' : ''}">
+      <!-- 1. TOP HEADER -->
+      <div class="header-box">
+        <h1 class="tournament-name">Jhankra Super League 2026</h1>
+        <div class="doc-subtitle">Official Final Auction Squad & Roster</div>
+        <div class="doc-meta">📅 Generated: ${formattedTimestamp} • Team ${teamIdx + 1} of ${totalTeamsCount}</div>
+      </div>
+
+      <!-- 2. TEAM BAR (NO TEAM LOGO, CENTER TEAM NAME, RIGHT OWNER NAME) -->
+      <div class="team-banner">
+        <div class="team-tag">🛡️ SQUAD ROSTER</div>
+        <div class="team-title-center">${team.name}</div>
+        <div class="team-owner-right">
+          👑 Owner: <strong>${team.ownerName || 'Partho Ghosh'}</strong>
+          ${team.ownerPhone ? `<span style="font-size: 10px; color: #FEF08A; font-family: monospace;"> (📞 ${team.ownerPhone})</span>` : ''}
+        </div>
+      </div>
+
+      <!-- 3. FINANCIAL SUMMARY BAR (COMPACT 5 STATS) -->
+      <div class="finance-bar">
+        <div class="fin-pill">
+          <span class="fin-lbl">Purse Budget:</span>
+          <span class="fin-num">₹ ${totalPurse.toLocaleString('en-IN')}</span>
+        </div>
+        <div class="fin-pill">
+          <span class="fin-lbl">Icon Deduction:</span>
+          <span class="fin-num" style="color: #D97706;">₹ ${iconDeduction.toLocaleString('en-IN')}</span>
+        </div>
+        <div class="fin-pill">
+          <span class="fin-lbl">Auction Spend:</span>
+          <span class="fin-num" style="color: #DC2626;">₹ ${auctionSpent.toLocaleString('en-IN')}</span>
+        </div>
+        <div class="fin-pill fin-balance">
+          <span class="fin-lbl" style="color: #047857;">Purse Balance Left:</span>
+          <span class="fin-num" style="color: #047857; font-size: 13px;">₹ ${remainingPurse.toLocaleString('en-IN')}</span>
+        </div>
+        <div class="fin-pill">
+          <span class="fin-lbl">Squad Count:</span>
+          <span class="fin-num" style="color: #0284C7;">${squadCount} / 13 Players</span>
+        </div>
+      </div>
+
+      <!-- 4. 13 SQUAD MEMBERS TABLE -->
+      <div class="table-container">
+        <table class="squad-table">
+          <thead>
+            <tr>
+              <th style="width: 38px; text-align: center;">SL</th>
+              <th style="width: 44px; text-align: center;">PHOTO</th>
+              <th>PLAYER NAME & REGISTRATION</th>
+              <th style="width: 110px;">PHONE NUMBER</th>
+              <th>ADDRESS / VILLAGE</th>
+              <th style="width: 105px;">ROLE / CATEGORY</th>
+              <th style="width: 85px; text-align: right;">SOLD PRICE</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rowsHtml}
+          </tbody>
+        </table>
+      </div>
+
+      <!-- 5. LOWER SIGNATURES & RECORD FOOTER -->
+      <div class="lower-section">
+        <div class="signatures-row">
+          <div class="sig-col">
+            <div class="sig-line"></div>
+            <div class="sig-text">Owner Signature: <span style="font-weight: bold; color: #0F172A;">${team.ownerName || team.name}</span></div>
+          </div>
+          <div class="sig-col" style="text-align: right;">
+            <div class="sig-line"></div>
+            <div class="sig-text">JSL Organiser Signature</div>
+          </div>
+        </div>
+
+        <div class="footer-credit">
+          Jhankra Super League (JSL 2026) • Official Auction Roster Record • System Architect: Suman Kolay
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// GENERATE PROFESSIONAL PRINTABLE PDF FOR A SINGLE TEAM'S FINAL AUCTION SQUAD
+export async function exportTeamFinalSquadToPDF(team, allPlayers) {
+  if (!team) {
+    alert("Invalid team selected for PDF export.");
+    return;
+  }
+
+  // Handle ARJO XI name replacement if present
+  if (team.name && (team.name.trim().toLowerCase() === 'arjo xi' || team.name.trim().toLowerCase() === 'arjo' || team.name.trim().toLowerCase() === 'arjo 11')) {
+    team.name = 'SWEETY JEWELLERS';
+    team.ownerName = 'Partho Ghosh';
+    team.shortCode = 'SJ';
+  }
+
+  const teams = store.getTeams();
+  let tIdx = teams.findIndex(t => t.id === team.id);
+  if (tIdx === -1) tIdx = 0;
+
+  // Show loading overlay
+  const loadingOverlayHtml = `
+    <div id="team-pdf-loading-overlay" class="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center p-5 text-center space-y-3 animate-fade-in border-2 border-amber-500/60 shadow-2xl">
+      <div class="w-14 h-14 border-4 border-amber-400 border-t-transparent rounded-full animate-spin mx-auto"></div>
+      <div class="space-y-1">
+        <span class="px-3 py-1 bg-amber-950 text-amber-300 text-[10px] font-black rounded-full border border-amber-800 uppercase tracking-widest">
+          🏆 Final Squad PDF Generator
+        </span>
+        <h3 class="text-base sm:text-xl font-black text-white">Generating ${team.name} Squad PDF...</h3>
+        <p class="text-xs text-slate-300 max-w-xs mx-auto">
+          Syncing real player HD photos, Icon player badge, auction sold values & team balance.
+        </p>
+        <div id="team-pdf-fetch-progress" class="text-amber-400 font-mono text-xs font-black pt-2">
+          Processing photos...
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.insertAdjacentHTML('beforeend', loadingOverlayHtml);
+
+  try {
+    const squadData = getTeamFinalSquadData(team, allPlayers);
+    const { iconItem, purchasedNonIconPlayers } = squadData;
+
+    // Convert Icon Photo to Lightweight Base64 (~4KB)
+    if (iconItem) {
+      const progressElem = document.getElementById('team-pdf-fetch-progress');
+      if (progressElem) progressElem.innerText = `Compressing Icon photo: ${iconItem.name}...`;
+      iconItem.photoBase64 = await convertImageToLightweightBase64(iconItem.photoUrl, 100, 0.70, 'assets/card_jsl_user.png');
+    }
+
+    // Convert Non-Icon Players Photos to Lightweight Base64 (~4KB)
+    const processedPlayers = [];
+    for (let i = 0; i < purchasedNonIconPlayers.length; i++) {
+      const p = purchasedNonIconPlayers[i];
+      const progressElem = document.getElementById('team-pdf-fetch-progress');
+      if (progressElem) progressElem.innerText = `Compressing squad photo ${i + 1} of ${purchasedNonIconPlayers.length}: ${p.name}...`;
+      const photoSrc = p.hdPhotoUrl || p.photoUrl || p.player_photo_url || '';
+      const photoBase64 = await convertImageToLightweightBase64(photoSrc, 100, 0.70, 'assets/card_jsl_user.png');
+      processedPlayers.push({ ...p, photoBase64 });
+    }
+
+    document.getElementById('team-pdf-loading-overlay')?.remove();
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert("Please allow popups in your browser to view and print the PDF.");
+      return;
+    }
+
+    const formattedTimestamp = getFormattedPDFTimestamp();
+    const pageHtml = generateTeamSinglePageHtml(team, allPlayers, iconItem, processedPlayers, tIdx, teams.length || 8, formattedTimestamp);
+
+    const html = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>JSL 2026 - Final Auction Squad: ${team.name}</title>
+        <style>
+          * { box-sizing: border-box; margin: 0; padding: 0; }
+          body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+            padding: 10px 14px; 
+            color: #0F172A; 
+            background: #FFFFFF; 
+          }
+          
+          /* ACTION TOOLBAR (Hidden during print) */
+          .toolbar { display: flex; justify-content: space-between; align-items: center; background: #0F172A; color: white; padding: 10px 16px; border-radius: 12px; margin-bottom: 14px; box-shadow: 0 4px 10px rgba(0,0,0,0.15); }
+          .toolbar-title { font-weight: 900; font-size: 13px; letter-spacing: 0.5px; }
+          .toolbar-btn { background: #059669; color: white; border: none; padding: 7px 15px; border-radius: 8px; font-weight: 800; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+          .toolbar-btn:hover { background: #047857; }
+
+          /* SINGLE-PAGE CONTAINER (Exact A4 Fit) */
+          .team-page { 
+            box-sizing: border-box; 
+            height: 100vh; 
+            max-height: 285mm; 
+            display: flex; 
+            flex-direction: column; 
+            justify-content: space-between; 
+            page-break-inside: avoid; 
+            page-break-after: always; 
+          }
+          .team-page:last-child { page-break-after: auto; }
+
+          /* 1. HEADER */
+          .header-box { text-align: center; border-bottom: 2.5px solid #0F172A; padding-bottom: 6px; margin-bottom: 6px; }
+          .tournament-name { font-size: 21px; font-weight: 900; color: #0B192C; letter-spacing: 0.5px; text-transform: uppercase; margin: 0; }
+          .doc-subtitle { font-size: 13px; font-weight: 800; color: #D97706; text-transform: uppercase; margin-top: 1px; letter-spacing: 0.5px; }
+          .doc-meta { font-size: 10px; color: #475569; font-weight: 700; margin-top: 2px; }
+
+          /* 2. TEAM BANNER (NO LOGO, CENTER TEAM NAME, RIGHT OWNER NAME) */
+          .team-banner { 
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between; 
+            background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%); 
+            color: white; 
+            border-radius: 10px; 
+            padding: 6px 14px; 
+            margin-bottom: 6px; 
+            border: 1.5px solid #D97706; 
+          }
+          .team-tag { font-size: 9.5px; font-weight: 900; background: #D97706; color: #0F172A; padding: 2px 7px; border-radius: 5px; text-transform: uppercase; letter-spacing: 0.5px; shrink-0; }
+          .team-title-center { font-size: 19px; font-weight: 900; color: #FFFFFF; text-align: center; flex: 1; letter-spacing: 0.5px; text-transform: uppercase; }
+          .team-owner-right { font-size: 11.5px; font-weight: 800; color: #FDE047; text-align: right; shrink-0; }
+
+          /* 3. FINANCIAL SUMMARY BAR */
+          .finance-bar { display: flex; justify-content: space-between; gap: 6px; margin-bottom: 6px; }
+          .fin-pill { flex: 1; background: #F8FAFC; border: 1px solid #CBD5E1; border-radius: 8px; padding: 4px 6px; text-align: center; }
+          .fin-lbl { display: block; font-size: 8.5px; font-weight: 800; text-transform: uppercase; color: #64748B; letter-spacing: 0.3px; }
+          .fin-num { font-size: 11.5px; font-weight: 900; font-family: monospace; color: #0F172A; margin-top: 1px; }
+          .fin-balance { background: #ECFDF5; border-color: #10B981; }
+
+          /* 4. SQUAD TABLE */
+          .table-container { flex: 1; margin-bottom: 6px; }
+          table.squad-table { width: 100%; border-collapse: collapse; font-size: 11px; table-layout: fixed; }
+          table.squad-table th { background-color: #0F172A; color: white; font-weight: 900; text-align: left; text-transform: uppercase; font-size: 10px; padding: 5px 6px; border: 1px solid #0F172A; letter-spacing: 0.3px; }
+          table.squad-table td { border: 1px solid #CBD5E1; padding: 2px 6px; vertical-align: middle; }
+
+          /* 5. LOWER SIGNATURES & RECORD FOOTER */
+          .lower-section { margin-top: 2px; }
+          .signatures-row { display: flex; justify-content: space-between; padding: 4px 20px; }
+          .sig-col { width: 230px; }
+          .sig-line { border-bottom: 1.5px solid #0F172A; height: 26px; margin-bottom: 3px; }
+          .sig-text { font-size: 10px; font-weight: 800; color: #0F172A; }
+          .footer-credit { margin-top: 5px; text-align: center; font-size: 9.5px; color: #94A3B8; border-top: 1px solid #E2E8F0; padding-top: 4px; font-weight: bold; }
+
+          @media print {
+            body { padding: 0; background: white; }
+            .toolbar { display: none !important; }
+            @page { size: A4 portrait; margin: 6mm 7mm 4mm 7mm; }
+            .team-page { height: 100vh; max-height: 284mm; }
+            tr { page-break-inside: avoid; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="toolbar">
+          <div class="toolbar-title">🏆 JSL 2026 Final Auction Squad Document — ${team.name}</div>
+          <button class="toolbar-btn" onclick="window.print()">🖨️ Print / Save as PDF</button>
+        </div>
+
+        ${pageHtml}
+      </body>
+      </html>
+    `;
+
+    printWindow.document.open();
+    printWindow.document.write(html);
+    printWindow.document.close();
+
+    printWindow.onload = () => {
+      setTimeout(() => {
+        printWindow.focus();
+        printWindow.print();
+      }, 400);
+    };
+  } catch (err) {
+    document.getElementById('team-pdf-loading-overlay')?.remove();
+    console.error("Team PDF Export Error:", err);
+    alert("An error occurred while generating the Team PDF: " + err.message);
+  }
+}
+
+// GENERATE PROFESSIONAL MULTI-PAGE PRINTABLE PDF FOR ALL REGISTERED TEAMS FINAL SQUADS
+export async function exportAllTeamsFinalSquadsToPDF(teams, allPlayers) {
+  if (!teams || teams.length === 0) {
+    alert("No teams available for PDF export.");
+    return;
+  }
+
+  // Auto-migrate ARJO XI team name if present
+  teams.forEach(t => {
+    if (t.name && (t.name.trim().toLowerCase() === 'arjo xi' || t.name.trim().toLowerCase() === 'arjo' || t.name.trim().toLowerCase() === 'arjo 11')) {
+      t.name = 'SWEETY JEWELLERS';
+      t.ownerName = 'Partho Ghosh';
+      t.shortCode = 'SJ';
+    }
+  });
+
+  const loadingOverlayHtml = `
+    <div id="all-teams-pdf-loading-overlay" class="fixed inset-0 z-50 bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center p-5 text-center space-y-3 animate-fade-in border-2 border-amber-500/60 shadow-2xl">
+      <div class="w-14 h-14 border-4 border-amber-400 border-t-transparent rounded-full animate-spin mx-auto"></div>
+      <div class="space-y-1">
+        <span class="px-3 py-1 bg-amber-950 text-amber-300 text-[10px] font-black rounded-full border border-amber-800 uppercase tracking-widest">
+          🏆 Complete Tournament Squads PDF
+        </span>
+        <h3 class="text-base sm:text-xl font-black text-white">Generating All Teams (${teams.length}) Squad PDFs...</h3>
+        <p class="text-xs text-slate-300 max-w-xs mx-auto">
+          Compiling all 1-page franchise squads, HD photos, Icon badges & team purse balances into a master document.
+        </p>
+        <div id="all-teams-pdf-progress" class="text-amber-400 font-mono text-xs font-black pt-2">
+          Starting document compilation...
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.insertAdjacentHTML('beforeend', loadingOverlayHtml);
+
+  try {
+    const pagesHtmlList = [];
+    const formattedTimestamp = getFormattedPDFTimestamp();
+    const totalTeams = teams.length;
+
+    for (let tIdx = 0; tIdx < totalTeams; tIdx++) {
+      const team = teams[tIdx];
+      const progressElem = document.getElementById('all-teams-pdf-progress');
+      if (progressElem) progressElem.innerText = `Processing Team ${tIdx + 1} of ${totalTeams}: ${team.name}...`;
+
+      const squadData = getTeamFinalSquadData(team, allPlayers);
+      const { iconItem, purchasedNonIconPlayers } = squadData;
+
+      if (iconItem) {
+        iconItem.photoBase64 = await convertImageToLightweightBase64(iconItem.photoUrl, 100, 0.70, 'assets/card_jsl_user.png');
+      }
+
+      const processedPlayers = [];
+      for (let i = 0; i < purchasedNonIconPlayers.length; i++) {
+        const p = purchasedNonIconPlayers[i];
+        const photoSrc = p.hdPhotoUrl || p.photoUrl || p.player_photo_url || '';
+        const photoBase64 = await convertImageToLightweightBase64(photoSrc, 100, 0.70, 'assets/card_jsl_user.png');
+        processedPlayers.push({ ...p, photoBase64 });
+      }
+
+      const pageHtml = generateTeamSinglePageHtml(team, allPlayers, iconItem, processedPlayers, tIdx, totalTeams, formattedTimestamp);
+      pagesHtmlList.push(pageHtml);
+    }
+
+    document.getElementById('all-teams-pdf-loading-overlay')?.remove();
+
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      alert("Please allow popups in your browser to view and print the PDF.");
+      return;
+    }
+
+    const masterHtml = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>JSL 2026 - All Teams Final Auction Squads PDF</title>
+        <style>
+          * { box-sizing: border-box; margin: 0; padding: 0; }
+          body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; 
+            padding: 10px 14px; 
+            color: #0F172A; 
+            background: #FFFFFF; 
+          }
+          
+          .toolbar { display: flex; justify-content: space-between; align-items: center; background: #0F172A; color: white; padding: 10px 16px; border-radius: 12px; margin-bottom: 14px; box-shadow: 0 4px 10px rgba(0,0,0,0.15); }
+          .toolbar-title { font-weight: 900; font-size: 13px; letter-spacing: 0.5px; }
+          .toolbar-btn { background: #059669; color: white; border: none; padding: 7px 15px; border-radius: 8px; font-weight: 800; font-size: 12px; cursor: pointer; display: flex; align-items: center; gap: 6px; }
+          .toolbar-btn:hover { background: #047857; }
+
+          .team-page { 
+            box-sizing: border-box; 
+            height: 100vh; 
+            max-height: 285mm; 
+            display: flex; 
+            flex-direction: column; 
+            justify-content: space-between; 
+            page-break-inside: avoid; 
+            page-break-after: always; 
+          }
+          .team-page:last-child { page-break-after: auto; }
+
+          .header-box { text-align: center; border-bottom: 2.5px solid #0F172A; padding-bottom: 6px; margin-bottom: 6px; }
+          .tournament-name { font-size: 21px; font-weight: 900; color: #0B192C; letter-spacing: 0.5px; text-transform: uppercase; margin: 0; }
+          .doc-subtitle { font-size: 13px; font-weight: 800; color: #D97706; text-transform: uppercase; margin-top: 1px; letter-spacing: 0.5px; }
+          .doc-meta { font-size: 10px; color: #475569; font-weight: 700; margin-top: 2px; }
+
+          .team-banner { 
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between; 
+            background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%); 
+            color: white; 
+            border-radius: 10px; 
+            padding: 6px 14px; 
+            margin-bottom: 6px; 
+            border: 1.5px solid #D97706; 
+          }
+          .team-tag { font-size: 9.5px; font-weight: 900; background: #D97706; color: #0F172A; padding: 2px 7px; border-radius: 5px; text-transform: uppercase; letter-spacing: 0.5px; shrink-0; }
+          .team-title-center { font-size: 19px; font-weight: 900; color: #FFFFFF; text-align: center; flex: 1; letter-spacing: 0.5px; text-transform: uppercase; }
+          .team-owner-right { font-size: 11.5px; font-weight: 800; color: #FDE047; text-align: right; shrink-0; }
+
+          .finance-bar { display: flex; justify-content: space-between; gap: 6px; margin-bottom: 6px; }
+          .fin-pill { flex: 1; background: #F8FAFC; border: 1px solid #CBD5E1; border-radius: 8px; padding: 4px 6px; text-align: center; }
+          .fin-lbl { display: block; font-size: 8.5px; font-weight: 800; text-transform: uppercase; color: #64748B; letter-spacing: 0.3px; }
+          .fin-num { font-size: 11.5px; font-weight: 900; font-family: monospace; color: #0F172A; margin-top: 1px; }
+          .fin-balance { background: #ECFDF5; border-color: #10B981; }
+
+          .table-container { flex: 1; margin-bottom: 6px; }
+          table.squad-table { width: 100%; border-collapse: collapse; font-size: 11px; table-layout: fixed; }
+          table.squad-table th { background-color: #0F172A; color: white; font-weight: 900; text-align: left; text-transform: uppercase; font-size: 10px; padding: 5px 6px; border: 1px solid #0F172A; letter-spacing: 0.3px; }
+          table.squad-table td { border: 1px solid #CBD5E1; padding: 2px 6px; vertical-align: middle; }
+
+          .lower-section { margin-top: 2px; }
+          .signatures-row { display: flex; justify-content: space-between; padding: 4px 20px; }
+          .sig-col { width: 230px; }
+          .sig-line { border-bottom: 1.5px solid #0F172A; height: 26px; margin-bottom: 3px; }
+          .sig-text { font-size: 10px; font-weight: 800; color: #0F172A; }
+          .footer-credit { margin-top: 5px; text-align: center; font-size: 9.5px; color: #94A3B8; border-top: 1px solid #E2E8F0; padding-top: 4px; font-weight: bold; }
+
+          @media print {
+            body { padding: 0; background: white; }
+            .toolbar { display: none !important; }
+            @page { size: A4 portrait; margin: 6mm 7mm 4mm 7mm; }
+            .team-page { height: 100vh; max-height: 284mm; page-break-after: always; }
+            .team-page:last-child { page-break-after: auto; }
+            tr { page-break-inside: avoid; }
+          }
+        </style>
+      </head>
+      <body>
+        <div class="toolbar">
+          <div class="toolbar-title">🏆 JSL 2026 Complete Tournament Final Squads (${totalTeams} Teams)</div>
+          <button class="toolbar-btn" onclick="window.print()">🖨️ Print / Save Complete PDF</button>
+        </div>
+
+        ${pagesHtmlList.join('')}
+      </body>
+      </html>
+    `;
+
+    printWindow.document.open();
+    printWindow.document.write(masterHtml);
+    printWindow.document.close();
+
+    printWindow.onload = () => {
+      setTimeout(() => {
+        printWindow.focus();
+        printWindow.print();
+      }, 500);
+    };
+  } catch (err) {
+    document.getElementById('all-teams-pdf-loading-overlay')?.remove();
+    console.error("All Teams PDF Export Error:", err);
+    alert("An error occurred while generating All Teams PDF: " + err.message);
+  }
+}
+

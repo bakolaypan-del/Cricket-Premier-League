@@ -1,7 +1,7 @@
 // Admin Master Data & Payment Verification Panel with Single Source Cloud Control (Developer: Suman Kolay)
 
 import { store } from './store.js?v=11.6.4';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF } from './export.js?v=11.6.4';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF } from './export.js?v=11.6.4';
 import { saveAdSettingsToFirebase, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, savePopupSettingsToFirebase, uploadHDImage, getOptimizedImageUrl } from './supabase.js?v=11.6.4';
 import { shops } from './shopsData.js?v=11.6.4';
 
@@ -71,13 +71,16 @@ export function renderAdminDashboard(containerEl) {
             <a href="cpl_project_handbook.html" target="_blank" class="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold rounded-xl border border-emerald-300 flex items-center gap-1.5 transition-colors shadow-2xs no-underline">
               <i data-lucide="book-open" class="w-4 h-4 text-emerald-600"></i> Handbook
             </a>
-            <button id="export-master-csv-btn" class="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl border border-slate-300 flex items-center gap-1.5 transition-all shadow-2xs">
+            <button id="export-master-csv-btn" class="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl border border-slate-300 flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer">
               <i data-lucide="download" class="w-4 h-4 text-emerald-600"></i> Export CSV
             </button>
-            <button id="export-master-pdf-btn" class="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold rounded-xl border border-red-300 flex items-center gap-1.5 transition-all shadow-2xs">
+            <button id="export-master-pdf-btn" class="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold rounded-xl border border-red-300 flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer">
               <i data-lucide="file-text" class="w-4 h-4 text-red-600"></i> Export PDF
             </button>
-            <button id="purge-verified-docs-btn" class="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-800 text-xs font-bold rounded-xl border border-sky-300 flex items-center gap-1.5 transition-all shadow-2xs" title="Delete Aadhaar & Payment Receipts for Approved Players to save cloud memory">
+            <button id="export-team-squads-pdf-btn" class="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-black rounded-xl border border-amber-300 flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer" title="Download Final Auction Squad PDF for any or all teams">
+              <i data-lucide="trophy" class="w-4 h-4 text-amber-600"></i> Squads PDF
+            </button>
+            <button id="purge-verified-docs-btn" class="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-800 text-xs font-bold rounded-xl border border-sky-300 flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer" title="Delete Aadhaar & Payment Receipts for Approved Players to save cloud memory">
               <i data-lucide="shield-check" class="w-4 h-4 text-sky-600"></i> Purge Docs
             </button>
           ` : ''}
@@ -145,6 +148,9 @@ export function renderAdminDashboard(containerEl) {
           </button>
           <button data-tab="owners" class="admin-tab-btn ${activeAdminTab === 'owners' ? 'active bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 font-bold'} px-3.5 sm:px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all">
             <i data-lucide="crown" class="w-3.5 h-3.5"></i> 👑 Tournament Owners
+          </button>
+          <button data-tab="saas-tournaments" class="admin-tab-btn ${activeAdminTab === 'saas-tournaments' ? 'active bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 font-bold'} px-3.5 sm:px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all">
+            <i data-lucide="trophy" class="w-3.5 h-3.5"></i> 🏆 Host League SaaS & Trial
           </button>
         ` : ''}
       </div>
@@ -268,10 +274,18 @@ export function renderAdminDashboard(containerEl) {
         <!-- 3. Registered Teams Tab -->
         <div id="tab-teams-view" class="${activeAdminTab === 'teams' ? '' : 'hidden'} space-y-4">
           <div class="p-4 sm:p-5 bg-white border-2 border-slate-200 rounded-3xl shadow-sm">
-            <div class="flex justify-between items-center mb-3">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
               <div>
                 <h3 class="text-base sm:text-lg font-black text-slate-900">Registered Teams (${teams.length})</h3>
-                <p class="text-xs text-slate-500">Manage franchise teams & squad allocations.</p>
+                <p class="text-xs text-slate-500">Manage franchise teams, squad allocations & print official auction rosters.</p>
+              </div>
+              <div class="flex items-center gap-2 flex-wrap">
+                <button id="download-all-teams-squad-pdf-btn" class="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer transition-all">
+                  <i data-lucide="file-down" class="w-4 h-4 text-slate-950"></i> 📄 Download All Squads PDF
+                </button>
+                <button id="export-teams-csv-btn" class="px-3 py-2 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl border border-slate-300 flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer">
+                  <i data-lucide="download" class="w-3.5 h-3.5 text-emerald-600"></i> Teams CSV
+                </button>
               </div>
             </div>
 
@@ -287,9 +301,9 @@ export function renderAdminDashboard(containerEl) {
                   const spent = Number(t.purseSpent || 0);
                   const remPurse = (t.remainingPurse !== undefined) ? Number(t.remainingPurse) : (maxPurse - spent);
                   return `
-                  <div class="p-3.5 flex flex-col justify-between border-2 border-slate-200 bg-white rounded-2xl hover:border-sky-500 transition-all shadow-xs">
+                  <div class="p-3.5 flex flex-col justify-between border-2 border-slate-200 bg-white rounded-2xl hover:border-amber-500 transition-all shadow-xs">
                     <div class="flex items-start gap-3 mb-2.5">
-                      <img src="${t.logoUrl || t.teamLogoUrl || 'assets/jsl_logo.jpg'}" class="w-12 h-12 rounded-xl object-cover border-2 border-sky-500/60 shadow-xs shrink-0" onerror="this.src='assets/jsl_logo.jpg'" />
+                      <img src="${t.logoUrl || t.teamLogoUrl || 'assets/jsl_logo.jpg'}" class="w-12 h-12 rounded-xl object-cover border-2 border-amber-500/60 shadow-xs shrink-0" onerror="this.src='assets/jsl_logo.jpg'" />
                       <div class="flex-1 min-w-0">
                         <div class="font-black text-slate-900 text-sm truncate">${t.name}</div>
                         <div class="text-[11px] text-sky-700 font-bold">Owner: ${t.ownerName || 'N/A'} <span class="text-slate-500">(${t.ownerPhone || 'N/A'})</span></div>
@@ -297,12 +311,15 @@ export function renderAdminDashboard(containerEl) {
                         <div class="text-[10px] text-slate-700 font-bold mt-0.5">Purse: <span class="text-emerald-700 font-extrabold">₹${remPurse}</span> / ₹${maxPurse}</div>
                       </div>
                     </div>
-                    <div class="flex justify-between items-center pt-2.5 border-t border-slate-100 gap-2">
-                      <button data-edit-team-id="${t.id}" class="edit-team-btn flex-1 py-1.5 px-3 bg-sky-600 hover:bg-sky-500 text-white font-black text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer">
-                        <i data-lucide="edit-3" class="w-3.5 h-3.5"></i> Edit Team
+                    <div class="flex items-center pt-2.5 border-t border-slate-100 gap-1.5">
+                      <button data-download-team-squad-pdf-id="${t.id}" class="download-team-squad-pdf-btn flex-1 py-1.5 px-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1 cursor-pointer" title="Download Official Final Auction Squad PDF for ${t.name}">
+                        <i data-lucide="file-down" class="w-3.5 h-3.5"></i> Squad PDF
                       </button>
-                      <button data-delete-team-id="${t.id}" class="delete-team-btn py-1.5 px-3 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-xl border border-rose-300 transition-all flex items-center gap-1 cursor-pointer">
-                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Delete
+                      <button data-edit-team-id="${t.id}" class="edit-team-btn py-1.5 px-2.5 bg-sky-600 hover:bg-sky-500 text-white font-black text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1 cursor-pointer">
+                        <i data-lucide="edit-3" class="w-3.5 h-3.5"></i> Edit
+                      </button>
+                      <button data-delete-team-id="${t.id}" class="delete-team-btn py-1.5 px-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-xl border border-rose-300 transition-all flex items-center gap-1 cursor-pointer" title="Delete Team">
+                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
                       </button>
                     </div>
                   </div>
@@ -429,6 +446,30 @@ export function renderAdminDashboard(containerEl) {
                 <i data-lucide="gavel" class="w-5 h-5 text-amber-600"></i> Active Auction Console
               </h3>
               <div id="admin-active-auction-block" class="space-y-3"></div>
+            </div>
+          </div>
+
+          <!-- 🏆 Final Auction Squads PDF Export Banner -->
+          <div class="p-3.5 bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-3xl flex flex-col sm:flex-row items-center justify-between gap-3 shadow-xs">
+            <div class="flex items-center gap-3">
+              <div class="w-10 h-10 rounded-2xl bg-amber-200 text-amber-800 flex items-center justify-center font-black text-lg shadow-2xs shrink-0">
+                🏆
+              </div>
+              <div>
+                <div class="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                  <span>Final Auction Squads & Printable PDFs</span>
+                  <span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[9px] font-black rounded-md border border-emerald-300">AUCTION COMPLETE</span>
+                </div>
+                <div class="text-[11px] text-slate-600 font-medium">Download individual team or all 13-player squad rosters with real HD photos & balance sheets.</div>
+              </div>
+            </div>
+            <div class="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+              <button type="button" id="admin-sync-permanent-archive-btn" class="flex-1 sm:flex-none px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-amber-300 font-bold text-xs rounded-xl shadow-xs border border-amber-400/40 flex items-center justify-center gap-1.5 cursor-pointer transition-all" title="Sync & Lock Permanent 5-Year Auction Record in Cloud">
+                <i data-lucide="shield-check" class="w-4 h-4 text-emerald-400"></i> Sync 5-Year Vault
+              </button>
+              <button type="button" id="auction-tab-download-all-pdf-btn" class="flex-1 sm:flex-none px-4 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all">
+                <i data-lucide="file-down" class="w-4 h-4 text-slate-950"></i> Download All Teams PDFs
+              </button>
             </div>
           </div>
 
@@ -870,6 +911,63 @@ export function renderAdminDashboard(containerEl) {
           </div>
         </div>
 
+        <!-- 10. Multi-Tournament SaaS & Platform Controls Tab -->
+        <div id="tab-saas-tournaments-view" class="${activeAdminTab === 'saas-tournaments' ? '' : 'hidden'} space-y-4 animate-fade-in">
+          <div class="p-4 sm:p-5 bg-white border-2 border-slate-200 rounded-3xl shadow-sm space-y-4">
+            <div class="flex items-center justify-between gap-3 pb-3 border-b border-slate-100 flex-wrap">
+              <div class="flex items-center gap-3">
+                <span class="p-2.5 bg-amber-100 text-amber-900 rounded-2xl border border-amber-300 shadow-2xs text-lg font-black">
+                  🏆
+                </span>
+                <div>
+                  <h3 class="text-base font-black text-slate-900">Multi-Tournament SaaS & Platform Controls</h3>
+                  <p class="text-xs text-slate-500 font-bold">Control public visibility on homepage & test tournament creator in private draft mode.</p>
+                </div>
+              </div>
+
+              <!-- Master Trial Button -->
+              <button type="button" id="admin-launch-trial-wizard-btn" class="px-4 py-2 bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-500 hover:to-yellow-500 text-slate-950 font-black text-xs rounded-xl shadow-xs border border-amber-300 flex items-center gap-1.5 cursor-pointer transition-all hover:scale-105">
+                <span>🧪 Open Creation Wizard (Trial Mode)</span>
+              </button>
+            </div>
+
+            <!-- Master Feature Flag Toggle Card -->
+            <div class="p-4 bg-gradient-to-r from-slate-900 to-slate-950 rounded-2xl text-white border border-slate-800 flex items-center justify-between flex-wrap gap-3">
+              <div class="space-y-1 max-w-md">
+                <div class="flex items-center gap-2">
+                  <span id="admin-host-tourney-status-badge" class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${store.isHostTournamentEnabled() ? 'bg-emerald-500 text-slate-950' : 'bg-amber-400 text-slate-950'}">
+                    ${store.isHostTournamentEnabled() ? '🟢 PUBLICLY ACTIVE' : '🔒 DRAFT / ADMIN TRIAL ONLY'}
+                  </span>
+                  <h4 class="text-sm font-black text-white">Public "Create Tournament" Banner on Homepage</h4>
+                </div>
+                <p class="text-[11px] text-slate-400">When OFF, the "Host Your Own Tournament" button is hidden from normal visitors on the homepage, allowing you to test freely.</p>
+              </div>
+
+              <div class="flex items-center gap-3">
+                <label class="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" id="admin-host-tourney-feature-toggle" class="sr-only peer" ${store.isHostTournamentEnabled() ? 'checked' : ''}>
+                  <div class="w-12 h-6 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+                </label>
+              </div>
+            </div>
+
+            <!-- Created Tournaments Directory List -->
+            <div class="space-y-3 pt-2">
+              <div class="flex items-center justify-between">
+                <h4 class="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                  <span>Directory of Created Tournaments</span>
+                  <span id="admin-custom-tourneys-count-badge" class="px-2 py-0.2 bg-slate-100 text-slate-700 text-[10px] rounded-full font-mono font-bold">0</span>
+                </h4>
+              </div>
+
+              <div id="admin-custom-tourneys-table-container" class="border border-slate-200 rounded-2xl overflow-hidden shadow-2xs bg-slate-50/50">
+                <!-- Populated by JS -->
+              </div>
+            </div>
+
+          </div>
+        </div>
+
       </div>
     </div>
   `;
@@ -897,6 +995,7 @@ export function renderAdminDashboard(containerEl) {
       document.getElementById('tab-reg-settings-view')?.classList.add('hidden');
       document.getElementById('tab-shop-ads-view')?.classList.add('hidden');
       document.getElementById('tab-owners-view')?.classList.add('hidden');
+      document.getElementById('tab-saas-tournaments-view')?.classList.add('hidden');
 
       if (activeAdminTab === 'payments') document.getElementById('tab-payments-view').classList.remove('hidden');
       if (activeAdminTab === 'all-players') document.getElementById('tab-all-players-view').classList.remove('hidden');
@@ -923,6 +1022,10 @@ export function renderAdminDashboard(containerEl) {
       }
       if (activeAdminTab === 'owners') {
         document.getElementById('tab-owners-view')?.classList.remove('hidden');
+      }
+      if (activeAdminTab === 'saas-tournaments') {
+        document.getElementById('tab-saas-tournaments-view')?.classList.remove('hidden');
+        renderAdminSaasTournamentsPanel();
       }
     });
   });
@@ -1212,6 +1315,22 @@ export function renderAdminDashboard(containerEl) {
   // Export & Action Listeners
   document.getElementById('export-master-csv-btn')?.addEventListener('click', () => exportPlayersToCSV(store.getPlayers()));
   document.getElementById('export-master-pdf-btn')?.addEventListener('click', () => openPDFExportFilterModal());
+  document.getElementById('export-team-squads-pdf-btn')?.addEventListener('click', () => openTeamFinalSquadPDFModal());
+  document.getElementById('download-all-teams-squad-pdf-btn')?.addEventListener('click', () => exportAllTeamsFinalSquadsToPDF(store.getTeams(), store.getPlayers()));
+  document.getElementById('export-teams-csv-btn')?.addEventListener('click', () => exportTeamsToCSV(store.getTeams()));
+  document.getElementById('auction-tab-download-all-pdf-btn')?.addEventListener('click', () => exportAllTeamsFinalSquadsToPDF(store.getTeams(), store.getPlayers()));
+  document.getElementById('admin-sync-permanent-archive-btn')?.addEventListener('click', async () => {
+    const btn = document.getElementById('admin-sync-permanent-archive-btn');
+    if (btn) btn.innerHTML = '<span>⏳ Syncing...</span>';
+    try {
+      await store.commitAndSyncAuctionPermanentArchive();
+      alert("✅ JSL 2026 Final Auction Record Vault Synced!\n\nAll 8 team squads, player bids, icon fees, and financial balances have been permanently locked and archived in Firebase Cloud and Local Storage for 5+ years.");
+    } catch(e) {
+      alert("Archive sync notice: " + (e.message || e));
+    }
+    if (btn) btn.innerHTML = '<i data-lucide="shield-check" class="w-4 h-4 text-emerald-400"></i> Vault Synced';
+  });
+
   document.getElementById('admin-logout-btn')?.addEventListener('click', () => {
     store.logoutAdmin();
     renderAdminDashboard(containerEl);
@@ -1253,6 +1372,19 @@ export function renderAdminDashboard(containerEl) {
       adminSearchInput.addEventListener(evt, filterAdminPlayers);
     });
   }
+
+  // --- TEAM SQUAD PDF DOWNLOAD LISTENERS ---
+  containerEl.querySelectorAll('.download-team-squad-pdf-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const teamId = e.currentTarget.getAttribute('data-download-team-squad-pdf-id');
+      const team = store.getTeamById(teamId);
+      if (team) {
+        exportTeamFinalSquadToPDF(team, store.getPlayers());
+      } else {
+        alert("Team not found!");
+      }
+    });
+  });
 
   // --- TEAM EDIT & DELETE LISTENERS ---
   containerEl.querySelectorAll('.edit-team-btn').forEach(btn => {
@@ -1394,7 +1526,7 @@ export function sendWhatsAppPlayerApproval(player) {
 📍 *Location:* ${player.village || ''}, ${player.district || 'Paschim Medinipur'}
 💰 *Base Price:* ₹${player.basePrice || 300}
 
-🏆 *Grand Tournament Starts:* 30 August 2026, 9:00 AM IST
+🏆 *Grand Tournament Starts:* 31 August 2026, 9:00 AM IST
 📍 *Venue:* Jhankra School Stadium Ground
 
 🌐 *Live Portal:* https://cricket-league.vercel.app
@@ -3478,7 +3610,7 @@ export async function renderAdminShopAdsPanel() {
                 <span>Live Tournament Countdown Banner (Homepage Top)</span>
                 <span class="px-2 py-0.5 bg-amber-500/20 text-amber-400 font-mono text-[9px] rounded-full">TOP BANNER</span>
               </p>
-              <p class="text-[10px] text-slate-400 mt-0.5">SHOW or HIDE the 30 August 2026 Tournament Countdown Clock at the top of the homepage.</p>
+              <p class="text-[10px] text-slate-400 mt-0.5">SHOW or HIDE the 31 August 2026 Tournament Countdown Clock at the top of the homepage.</p>
             </div>
             <label class="relative inline-flex items-center cursor-pointer">
               <input type="checkbox" id="admin-countdown-banner-toggle" class="sr-only peer" ${settings.isCountdownEnabled !== false ? 'checked' : ''}>
@@ -3900,6 +4032,85 @@ function openPDFExportFilterModal() {
 
     removeModal();
     exportPlayersToPDF(filteredList, label);
+  });
+}
+
+// --- INTERACTIVE TEAM FINAL AUCTION SQUAD PDF SELECTOR MODAL ---
+export function openTeamFinalSquadPDFModal() {
+  if (document.getElementById('admin-team-squad-pdf-modal')) return;
+
+  const teams = store.getTeams();
+  const allPlayers = store.getPlayers();
+
+  const modalHtml = `
+    <div id="admin-team-squad-pdf-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3 bg-slate-950/80 backdrop-blur-sm animate-fade-in">
+      <div class="bg-slate-900 border-2 border-amber-500 max-w-sm sm:max-w-md w-full p-4 sm:p-5 relative space-y-4 rounded-2xl shadow-2xl text-white modal-content-container">
+        
+        <button id="close-team-squad-pdf-modal-btn" class="absolute top-3 right-3 text-slate-400 hover:text-white p-1 cursor-pointer">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+
+        <div class="flex items-center gap-2.5 border-b border-slate-800 pb-3">
+          <div class="p-2.5 bg-amber-950/80 rounded-xl border border-amber-700 text-amber-400">
+            <i data-lucide="trophy" class="w-6 h-6"></i>
+          </div>
+          <div>
+            <h3 class="text-base sm:text-lg font-black text-white">Final Auction Squad PDF</h3>
+            <p class="text-xs text-slate-400">Download official 13-member squad with real HD photos & balances</p>
+          </div>
+        </div>
+
+        <form id="team-squad-pdf-form" class="space-y-3.5">
+          <div class="space-y-1.5">
+            <label class="block text-xs font-bold text-amber-400 uppercase tracking-wide">Select Franchise Team</label>
+            <select id="team-squad-pdf-select" class="w-full bg-slate-950 border border-slate-700 text-white text-xs sm:text-sm rounded-xl p-2.5 focus:outline-none focus:border-amber-500 font-bold">
+              <option value="__ALL__">🏆 All Teams (Complete Multi-Page Tournament PDF)</option>
+              ${teams.map((t, idx) => `
+                <option value="${t.id}">🛡️ Team #${idx + 1}: ${t.name} (${t.ownerName || 'Owner'})</option>
+              `).join('')}
+            </select>
+          </div>
+
+          <div class="bg-slate-950 p-3 rounded-xl border border-slate-800 space-y-1 text-xs text-slate-300">
+            <div class="font-bold text-amber-400">📄 PDF Document Structure:</div>
+            <ul class="list-disc list-inside space-y-0.5 text-[11px] text-slate-400">
+              <li>Header with Team Name, Short Code & Team Logo</li>
+              <li>Owner Name, Phone Number & Co-Owners</li>
+              <li>13 Squad Slots: #1 Icon Player (⭐ highlighted) + Auctioned Players</li>
+              <li>Real HD Photos, Player Phone Numbers & Addresses</li>
+              <li>Sold Prices, Purse Budget, Total Spent & Balance Left</li>
+            </ul>
+          </div>
+
+          <button type="submit" class="w-full py-3 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-lg flex items-center justify-center gap-2 border border-amber-400 transition-all cursor-pointer">
+            <i data-lucide="file-down" class="w-4 h-4"></i> Download Final Squad PDF
+          </button>
+        </form>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  if (window.lucide) window.lucide.createIcons();
+
+  const removeModal = () => document.getElementById('admin-team-squad-pdf-modal')?.remove();
+  document.getElementById('close-team-squad-pdf-modal-btn')?.addEventListener('click', removeModal);
+
+  document.getElementById('team-squad-pdf-form')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    const selectedVal = document.getElementById('team-squad-pdf-select')?.value;
+    removeModal();
+
+    if (selectedVal === '__ALL__') {
+      exportAllTeamsFinalSquadsToPDF(teams, allPlayers);
+    } else {
+      const team = teams.find(t => t.id === selectedVal);
+      if (team) {
+        exportTeamFinalSquadToPDF(team, allPlayers);
+      } else {
+        alert("Team not found.");
+      }
+    }
   });
 }
 
@@ -4357,28 +4568,164 @@ export function openEditTeamModal(team, onSaved) {
   });
 }
 
-// Global Store Event Listener for Admin Auction Realtime Synchronization
-store.subscribe((event) => {
-  if (event === 'live_auction_updated') {
-    const liveState = store.getLiveAuctionStateSync();
-    if (liveState && liveState.active_player_id) {
-      const p = store.getPlayerById(liveState.active_player_id);
-      if (p && (!activeAuction.player || activeAuction.player.id !== p.id || activeAuction.currentBid !== liveState.current_bid)) {
-        activeAuction.player = p;
-        activeAuction.currentBid = Number(liveState.current_bid) || Number(p.basePrice) || 300;
-        activeAuction.leadingTeam = liveState.highest_bidder_team_id ? store.getTeamById(liveState.highest_bidder_team_id) : null;
-        activeAuction.timerSecs = Number(liveState.timer_left) || 30;
-        renderActiveAuctionBlock();
-        updateProjectorModalView();
+// --- MULTI-TENANT TOURNAMENT SAAS & TRIAL PANEL CONTROLLER ---
+export function renderAdminSaasTournamentsPanel() {
+  const container = document.getElementById('admin-custom-tourneys-table-container');
+  const countBadge = document.getElementById('admin-custom-tourneys-count-badge');
+  const statusBadge = document.getElementById('admin-host-tourney-status-badge');
+  const toggleInput = document.getElementById('admin-host-tourney-feature-toggle');
+  const trialBtn = document.getElementById('admin-launch-trial-wizard-btn');
+
+  // 1. Wire up Master Feature Flag Switch
+  if (toggleInput) {
+    toggleInput.onchange = async (e) => {
+      const isEnabled = e.target.checked;
+      await store.updatePlatformSettings({ isHostTournamentEnabled: isEnabled });
+      if (statusBadge) {
+        statusBadge.className = `px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${isEnabled ? 'bg-emerald-500 text-slate-950' : 'bg-amber-400 text-slate-950'}`;
+        statusBadge.textContent = isEnabled ? '🟢 PUBLICLY ACTIVE' : '🔒 DRAFT / ADMIN TRIAL ONLY';
       }
-    } else if (!liveState || !liveState.active_player_id) {
-      if (activeAuction.player && !activeAuction.isSold && !activeAuction.isUnsold) {
-        activeAuction.player = null;
-        renderActiveAuctionBlock();
-        updateProjectorModalView();
-      }
-    }
+      alert(isEnabled 
+        ? "✅ Public Tournament Creation is now ACTIVE on the homepage! Visitors can create their own leagues."
+        : "🔒 Public Tournament Creation is now in DRAFT MODE. The 'Create Tournament' button is hidden from normal visitors on the homepage."
+      );
+    };
   }
-});
+
+  // 2. Wire up Master Trial Launch Button
+  if (trialBtn) {
+    trialBtn.onclick = () => {
+      if (window.openTournamentCreationWizard) {
+        window.openTournamentCreationWizard(true);
+      }
+    };
+  }
+
+  // 3. Render Tournaments Directory Table
+  const tourneys = store.getCustomTournaments();
+  if (countBadge) countBadge.textContent = String(tourneys.length);
+
+  if (!container) return;
+
+  if (tourneys.length === 0) {
+    container.innerHTML = `
+      <div class="p-8 text-center space-y-3 bg-white">
+        <div class="w-12 h-12 rounded-2xl bg-amber-50 text-amber-800 mx-auto flex items-center justify-center text-xl font-black border border-amber-200">
+          🏆
+        </div>
+        <div class="space-y-1">
+          <h4 class="text-xs sm:text-sm font-black text-slate-900">No Custom Tournaments Created Yet</h4>
+          <p class="text-[11px] text-slate-500 max-w-sm mx-auto">Click below to test the Tournament Creation Wizard in Trial Mode (Safe & Private).</p>
+        </div>
+        <button type="button" onclick="window.openTournamentCreationWizard ? window.openTournamentCreationWizard(true) : null" class="px-4 py-2 bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-black text-xs rounded-xl shadow-xs border border-amber-300 cursor-pointer">
+          + Create First Trial Tournament
+        </button>
+      </div>
+    `;
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="overflow-x-auto bg-white">
+      <table class="w-full text-left text-xs text-slate-700">
+        <thead class="bg-slate-50 text-[10px] font-black uppercase text-slate-500 border-b border-slate-200 tracking-wider">
+          <tr>
+            <th class="py-2.5 px-3">TOURNAMENT</th>
+            <th class="py-2.5 px-2.5">MODE</th>
+            <th class="py-2.5 px-2.5">ORGANIZER</th>
+            <th class="py-2.5 px-2.5">ENTRY / PURSE</th>
+            <th class="py-2.5 px-3 text-right">ACTIONS</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100 font-semibold">
+          ${tourneys.map(t => {
+            const isAuction = (t.mode === 'AUCTION_LEAGUE');
+            return `
+              <tr class="hover:bg-slate-50/80 transition-colors">
+                <td class="py-2.5 px-3">
+                  <div class="flex items-center gap-2">
+                    <span class="w-7 h-7 rounded-lg ${isAuction ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'} flex items-center justify-center text-xs font-black shrink-0">
+                      ${isAuction ? '🔨' : '🏏'}
+                    </span>
+                    <div class="min-w-0">
+                      <div class="font-black text-slate-900 text-xs truncate">${t.name}</div>
+                      <div class="text-[9px] text-slate-400 font-mono font-bold">Slug: #${t.slug || t.id} • 📍 ${t.venue || 'Venue'}</div>
+                    </div>
+                  </div>
+                </td>
+
+                <td class="py-2.5 px-2.5">
+                  <span class="px-2 py-0.5 rounded text-[9.5px] font-black uppercase ${isAuction ? 'bg-amber-50 text-amber-900 border border-amber-300' : 'bg-emerald-50 text-emerald-800 border border-emerald-300'}">
+                    ${isAuction ? 'Mode A: Auction' : 'Mode B: Fixtures'}
+                  </span>
+                </td>
+
+                <td class="py-2.5 px-2.5">
+                  <div class="text-xs font-bold text-slate-900">${t.organizer?.name || 'Organizer'}</div>
+                  <div class="text-[9px] text-slate-500 font-mono">📱 ${t.organizer?.phone || 'N/A'}</div>
+                </td>
+
+                <td class="py-2.5 px-2.5 font-mono text-xs">
+                  ${isAuction ? `
+                    <div class="text-emerald-700 font-black">₹${t.entryFee || 300} Entry</div>
+                    <div class="text-[9px] text-slate-400">Purse: ₹${t.teamPurse || 8000}</div>
+                  ` : `
+                    <span class="text-slate-500 text-[10px]">Direct Teams</span>
+                  `}
+                </td>
+
+                <td class="py-2.5 px-3 text-right">
+                  <div class="flex items-center justify-end gap-1.5 flex-wrap">
+                    ${isAuction ? `
+                      <button type="button" class="btn-test-reg-modal px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-[10px] font-black cursor-pointer" data-slug="${t.slug}">
+                        📝 Test Reg
+                      </button>
+                    ` : ''}
+                    <button type="button" class="btn-open-hub-link px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-300 rounded-lg text-[10px] font-black cursor-pointer" data-slug="${t.slug}">
+                      🌐 Hub
+                    </button>
+                    <button type="button" class="btn-delete-tourney px-1.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-[10px] font-black cursor-pointer" data-id="${t.id}" data-name="${t.name}">
+                      ✕
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+
+  // Attach Table Action Listeners
+  container.querySelectorAll('.btn-test-reg-modal').forEach(b => {
+    b.addEventListener('click', (e) => {
+      const slug = e.currentTarget.getAttribute('data-slug');
+      if (window.openDynamicTournamentRegistrationModal) {
+        window.openDynamicTournamentRegistrationModal(slug);
+      }
+    });
+  });
+
+  container.querySelectorAll('.btn-open-hub-link').forEach(b => {
+    b.addEventListener('click', (e) => {
+      const slug = e.currentTarget.getAttribute('data-slug');
+      if (window.location.hash.startsWith('#admin')) {
+        window.location.hash = `#t/${slug}`;
+      }
+    });
+  });
+
+  container.querySelectorAll('.btn-delete-tourney').forEach(b => {
+    b.addEventListener('click', async (e) => {
+      const id = e.currentTarget.getAttribute('data-id');
+      const name = e.currentTarget.getAttribute('data-name');
+      if (confirm(`⚠️ Are you sure you want to delete tournament "${name}"?`)) {
+        await store.deleteCustomTournament(id);
+        renderAdminSaasTournamentsPanel();
+      }
+    });
+  });
+}
 
 

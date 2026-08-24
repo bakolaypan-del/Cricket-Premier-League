@@ -646,6 +646,31 @@ export async function saveLiveAuctionToFirebase(state) {
   }
 }
 
+export async function saveAuctionPermanentArchiveToFirebase(archiveData) {
+  try {
+    const payload = archiveData ? { ...archiveData, lastArchivedAt: Date.now() } : null;
+    await fetch(`${FIREBASE_DB_URL}/cpl_master/auction_archive_jsl_2026.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+  } catch (err) {
+    console.warn("Auction permanent archive cloud save error:", err);
+  }
+}
+
+export async function fetchAuctionPermanentArchiveFromFirebase() {
+  try {
+    const res = await fetch(`${FIREBASE_DB_URL}/cpl_master/auction_archive_jsl_2026.json`, { cache: 'no-store' });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (err) {
+    console.warn("Auction permanent archive fetch fallback:", err);
+  }
+  return null;
+}
+
 export async function saveLiveMatchToFirebase(matchId, state) {
   try {
     await fetch(`${FIREBASE_DB_URL}/cpl_master/liveMatches/${matchId}.json`, {
@@ -954,6 +979,106 @@ export async function initVisitorTracking(onStatsChange) {
   } catch (err) {
     console.warn("Visitor tracking notice:", err);
   }
+}
+
+// --- MULTI-TENANT TOURNAMENT SAAS & PLATFORM SETTINGS ENGINE ---
+export async function savePlatformSettingsToFirebase(settings) {
+  try {
+    const payload = { ...settings, updated_at: Date.now() };
+    await fetch(`${FIREBASE_DB_URL}/cpl_master/platform_settings.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+  } catch (err) {
+    console.warn("Platform settings save error:", err);
+  }
+}
+
+export async function fetchPlatformSettingsFromFirebase() {
+  try {
+    const res = await fetch(`${FIREBASE_DB_URL}/cpl_master/platform_settings.json?_t=${Date.now()}`, { cache: 'no-store' });
+    if (res.ok) {
+      return await res.json();
+    }
+  } catch (err) {
+    console.warn("Platform settings fetch notice:", err);
+  }
+  return null;
+}
+
+export async function saveCustomTournamentToFirebase(tourney) {
+  try {
+    if (!tourney || !tourney.id) return;
+    const payload = { ...tourney, updated_at: Date.now() };
+    await fetch(`${FIREBASE_DB_URL}/cpl_master/tournaments/${tourney.id}/meta.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+  } catch (err) {
+    console.warn("Custom tournament save error:", err);
+  }
+}
+
+export async function fetchCustomTournamentsFromFirebase() {
+  try {
+    const res = await fetch(`${FIREBASE_DB_URL}/cpl_master/tournaments.json?_t=${Date.now()}`, { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      if (!data) return [];
+      const list = [];
+      Object.keys(data).forEach(key => {
+        const item = data[key];
+        if (item) {
+          list.push(item.meta || item);
+        }
+      });
+      return list;
+    }
+  } catch (err) {
+    console.warn("Custom tournaments fetch notice:", err);
+  }
+  return [];
+}
+
+export async function deleteCustomTournamentFromFirebase(tourneyId) {
+  try {
+    if (!tourneyId) return;
+    await fetch(`${FIREBASE_DB_URL}/cpl_master/tournaments/${tourneyId}.json`, {
+      method: 'DELETE'
+    });
+  } catch (err) {
+    console.warn("Custom tournament delete error:", err);
+  }
+}
+
+export async function saveUniversalPlayerToFirebase(profile) {
+  try {
+    const phone = (profile.phone || profile.mobile || '').trim().replace(/[^0-9]/g, '');
+    if (!phone || phone.length < 10) return;
+    const payload = { ...profile, updated_at: Date.now() };
+    await fetch(`${FIREBASE_DB_URL}/cpl_master/universal_players/${phone}.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+  } catch (err) {
+    console.warn("Universal player save error:", err);
+  }
+}
+
+export async function fetchUniversalPlayersFromFirebase() {
+  try {
+    const res = await fetch(`${FIREBASE_DB_URL}/cpl_master/universal_players.json?_t=${Date.now()}`, { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      return data || {};
+    }
+  } catch (err) {
+    console.warn("Universal players fetch notice:", err);
+  }
+  return {};
 }
 
 export async function fetchVisitorStats(callback) {

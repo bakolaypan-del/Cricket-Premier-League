@@ -27,7 +27,16 @@ import {
   fetchTournamentOwnersFromFirebase,
   fetchUserAccountsFromFirebase,
   saveRegistrationSettingsToFirebase,
-  fetchRegistrationSettingsFromFirebase
+  fetchRegistrationSettingsFromFirebase,
+  saveAuctionPermanentArchiveToFirebase,
+  fetchAuctionPermanentArchiveFromFirebase,
+  savePlatformSettingsToFirebase,
+  fetchPlatformSettingsFromFirebase,
+  saveCustomTournamentToFirebase,
+  fetchCustomTournamentsFromFirebase,
+  deleteCustomTournamentFromFirebase,
+  saveUniversalPlayerToFirebase,
+  fetchUniversalPlayersFromFirebase
 } from './supabase.js?v=11.6.4';
 
 const FIREBASE_DB_URL = "https://cpl-jsl-2026-default-rtdb.firebaseio.com";
@@ -45,7 +54,11 @@ const STORAGE_KEYS = {
   CURRENT_USER: 'cpl_current_user_v8',
   TOURNAMENT_OWNERS: 'cpl_tournament_owners_v8',
   USER_ACCOUNTS: 'cpl_user_accounts_v8',
-  REGISTRATION_SETTINGS: 'cpl_registration_settings_v8'
+  REGISTRATION_SETTINGS: 'cpl_registration_settings_v8',
+  AUCTION_ARCHIVE_JSL_2026: 'cpl_auction_archive_jsl_2026',
+  PLATFORM_SETTINGS: 'cpl_platform_settings_v8',
+  CUSTOM_TOURNAMENTS: 'cpl_custom_tournaments_v8',
+  UNIVERSAL_PLAYERS: 'cpl_universal_players_v8'
 };
 
 const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23059669'/%3E%3Ctext x='50' y='62' font-size='45' text-anchor='middle' fill='white'%3E🏏%3C/text%3E%3C/svg%3E";
@@ -1035,6 +1048,11 @@ class Store {
     const deduped = [];
     for (const t of teams) {
       if (!t || !t.id) continue;
+      if (t.name && (t.name.trim().toLowerCase() === 'arjo xi' || t.name.trim().toLowerCase() === 'arjo' || t.name.trim().toLowerCase() === 'arjo 11' || t.name.trim().toLowerCase() === 'team arjo xi')) {
+        t.name = 'SWEETY JEWELLERS';
+        t.ownerName = 'Partho Ghosh';
+        t.shortCode = 'SJ';
+      }
       const normName = (t.name || '').trim().toLowerCase();
       if (!normName) { deduped.push(t); continue; }
       
@@ -1442,6 +1460,313 @@ class Store {
     }
     await saveLiveAuctionToFirebase(updatedState);
     this.notify('live_auction_updated');
+  }
+
+  // --- PERMANENT 5-YEAR AUCTION ARCHIVE & RECORD VAULT (JSL 2026) ---
+  generateAuctionPermanentArchiveSnapshot() {
+    const teams = this.getTeams();
+    const allPlayers = this.getPlayers();
+
+    const teamSummaries = teams.map((team, idx) => {
+      const hasIcon = !!((team.iconPlayerName && team.iconPlayerName.trim()) || (team.iconName && team.iconName.trim()) || (team.iconPlayerId && team.iconPlayerId.trim()));
+      const iconRawName = (team.iconPlayerName || team.iconName || '').trim();
+      const iconPlayerId = team.iconPlayerId || '';
+      const iconPlayerObj = allPlayers.find(p => (iconPlayerId && p.id === iconPlayerId) || (iconRawName && p.name && p.name.trim().toLowerCase() === iconRawName.toLowerCase()));
+
+      let iconRecord = null;
+      if (hasIcon || iconPlayerObj) {
+        iconRecord = {
+          isIcon: true,
+          slNo: 1,
+          id: (iconPlayerObj && iconPlayerObj.id) || 'icon-player',
+          name: (iconPlayerObj && iconPlayerObj.name) || iconRawName || 'Official Icon Player',
+          photoUrl: (iconPlayerObj && (iconPlayerObj.hdPhotoUrl || iconPlayerObj.photoUrl || iconPlayerObj.player_photo_url)) || team.iconPlayerPhotoUrl || team.iconPhotoUrl || '',
+          phone: (iconPlayerObj && (iconPlayerObj.phone || iconPlayerObj.mobile)) || team.iconPhone || 'N/A',
+          village: (iconPlayerObj && (iconPlayerObj.village ? `${iconPlayerObj.village}${iconPlayerObj.district ? ', ' + iconPlayerObj.district : ''}` : iconPlayerObj.address)) || team.iconVillage || 'Paschim Medinipur',
+          category: (iconPlayerObj && (iconPlayerObj.category || iconPlayerObj.playingType || iconPlayerObj.role)) || 'Icon Player',
+          price: 1000,
+          priceLabel: '₹ 1,000 (Icon Allocation)'
+        };
+      }
+
+      const normTeamName = (team.name || '').trim().toLowerCase();
+      const purchasedPlayers = allPlayers.filter(p => {
+        if (!p) return false;
+        const isMatch = (p.teamId === team.id) || (p.teamName && (p.teamName || '').trim().toLowerCase() === normTeamName);
+        if (!isMatch) return false;
+        if (iconRecord && p.name && p.name.trim().toLowerCase() === iconRecord.name.toLowerCase()) return false;
+        return true;
+      }).map((p, pIdx) => ({
+        slNo: (iconRecord ? 2 : 1) + pIdx,
+        id: p.id,
+        name: p.name,
+        displayRegistrationNumber: p.displayRegistrationNumber || p.serialNo || p.registrationId || 'N/A',
+        photoUrl: p.hdPhotoUrl || p.photoUrl || p.player_photo_url || '',
+        phone: p.phone || p.mobile || 'N/A',
+        village: p.village ? `${p.village}${p.district ? ', ' + p.district : ''}` : p.address || 'Paschim Medinipur',
+        category: p.category || p.playingType || p.role || 'All Rounder',
+        soldPrice: Number(p.soldPrice || p.basePrice || 300),
+        soldAt: p.soldAt || p.auctionTimestamp || null
+      }));
+
+      const totalPurse = Number(team.purse || 8000);
+      const iconDeduction = iconRecord ? 1000 : 0;
+      const auctionSpent = purchasedPlayers.reduce((sum, p) => sum + (p.soldPrice || 0), 0);
+      const totalSpent = iconDeduction + auctionSpent;
+      const remainingPurse = Math.max(0, totalPurse - totalSpent);
+
+      return {
+        teamId: team.id,
+        teamName: team.name,
+        shortCode: team.shortCode || 'JSL',
+        ownerName: team.ownerName || 'Franchise Owner',
+        ownerPhone: team.ownerPhone || 'N/A',
+        coOwners: [team.coOwnerName, team.coOwner1Name, team.coOwner2Name].filter(Boolean).join(', ') || null,
+        totalPurse,
+        iconDeduction,
+        auctionSpent,
+        totalSpent,
+        remainingPurse,
+        squadCount: (iconRecord ? 1 : 0) + purchasedPlayers.length,
+        iconPlayer: iconRecord,
+        auctionedPlayers: purchasedPlayers
+      };
+    });
+
+    const allSoldPlayersList = [];
+    teamSummaries.forEach(t => {
+      if (t.iconPlayer) {
+        allSoldPlayersList.push({
+          ...t.iconPlayer,
+          teamName: t.teamName,
+          teamId: t.teamId,
+          isIcon: true,
+          soldPrice: 1000
+        });
+      }
+      t.auctionedPlayers.forEach(p => {
+        allSoldPlayersList.push({
+          ...p,
+          teamName: t.teamName,
+          teamId: t.teamId,
+          isIcon: false
+        });
+      });
+    });
+
+    const topBuys = [...allSoldPlayersList]
+      .filter(p => !p.isIcon)
+      .sort((a, b) => (b.soldPrice || 0) - (a.soldPrice || 0))
+      .slice(0, 8);
+
+    const totalTournamentPurse = teamSummaries.reduce((sum, t) => sum + t.totalPurse, 0);
+    const totalTournamentSpent = teamSummaries.reduce((sum, t) => sum + t.totalSpent, 0);
+    const totalRemainingPurse = teamSummaries.reduce((sum, t) => sum + t.remainingPurse, 0);
+
+    const snapshot = {
+      archiveId: 'JSL_2026_AUCTION_VAULT',
+      tournament: 'Jhankra Super League (JSL 2026)',
+      season: '2026',
+      status: 'AUCTION COMPLETED & ARCHIVED',
+      venue: 'Jhankra High School Ground',
+      archivedTimestamp: Date.now(),
+      archivedDate: new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
+      totalTeams: teamSummaries.length,
+      totalRegisteredPlayers: allPlayers.length,
+      totalSoldSquadPlayers: allSoldPlayersList.length,
+      financials: {
+        totalTournamentPurse,
+        totalTournamentSpent,
+        totalRemainingPurse,
+        defaultBasePrice: 300,
+        defaultTeamPurse: 8000
+      },
+      topBuys,
+      teams: teamSummaries,
+      masterPlayerRoster: allPlayers.map(p => ({
+        id: p.id,
+        name: p.name,
+        displayRegistrationNumber: p.displayRegistrationNumber || p.serialNo || p.registrationId || 'N/A',
+        category: p.category || p.playingType || p.role || 'All Rounder',
+        phone: p.phone || p.mobile || 'N/A',
+        village: p.village || p.address || 'Paschim Medinipur',
+        photoUrl: p.hdPhotoUrl || p.photoUrl || p.player_photo_url || '',
+        teamName: p.teamName || null,
+        teamId: p.teamId || null,
+        soldPrice: p.soldPrice || null,
+        auctionStatus: p.teamId || p.soldPrice ? 'SOLD' : (p.auctionStatus || 'UNSOLD')
+      }))
+    };
+
+    safeSetLocalStorage(STORAGE_KEYS.AUCTION_ARCHIVE_JSL_2026, snapshot);
+    return snapshot;
+  }
+
+  getAuctionPermanentArchive() {
+    try {
+      const local = localStorage.getItem(STORAGE_KEYS.AUCTION_ARCHIVE_JSL_2026);
+      if (local) {
+        return JSON.parse(local);
+      }
+    } catch(e) {}
+    return this.generateAuctionPermanentArchiveSnapshot();
+  }
+
+  async commitAndSyncAuctionPermanentArchive() {
+    const snapshot = this.generateAuctionPermanentArchiveSnapshot();
+    await saveAuctionPermanentArchiveToFirebase(snapshot);
+    this.notify('auction_archive_synced');
+    return snapshot;
+  }
+
+  // --- MULTI-TENANT TOURNAMENT SAAS & PLATFORM SETTINGS ENGINE ---
+  getPlatformSettings() {
+    try {
+      const local = localStorage.getItem(STORAGE_KEYS.PLATFORM_SETTINGS);
+      if (local) return JSON.parse(local);
+    } catch(e) {}
+    return {
+      isHostTournamentEnabled: false, // Default to FALSE (Trial / Draft mode for Master Admin)
+      allowPublicRegistrationModeA: true,
+      allowQuickFixturesModeB: true,
+      maxTeamsDefault: 16
+    };
+  }
+
+  async updatePlatformSettings(settings) {
+    const current = this.getPlatformSettings();
+    const updated = { ...current, ...settings, updated_at: Date.now() };
+    safeSetLocalStorage(STORAGE_KEYS.PLATFORM_SETTINGS, updated);
+    await savePlatformSettingsToFirebase(updated);
+    this.notify('platform_settings_updated');
+    return updated;
+  }
+
+  isHostTournamentEnabled() {
+    const settings = this.getPlatformSettings();
+    return settings.isHostTournamentEnabled === true;
+  }
+
+  getCustomTournaments() {
+    try {
+      const local = localStorage.getItem(STORAGE_KEYS.CUSTOM_TOURNAMENTS);
+      if (local) return JSON.parse(local);
+    } catch(e) {}
+    return [];
+  }
+
+  getCustomTournamentById(idOrSlug) {
+    if (!idOrSlug) return null;
+    const clean = idOrSlug.trim().toLowerCase();
+    return this.getCustomTournaments().find(t => 
+      (t.id && t.id.toLowerCase() === clean) || 
+      (t.slug && t.slug.toLowerCase() === clean) ||
+      (t.shortCode && t.shortCode.toLowerCase() === clean)
+    ) || null;
+  }
+
+  async saveCustomTournament(tourneyData) {
+    if (!tourneyData) return null;
+    const list = this.getCustomTournaments();
+    const id = tourneyData.id || `tourney_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+    const slug = (tourneyData.slug || tourneyData.shortCode || id).toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+    
+    const record = {
+      ...tourneyData,
+      id,
+      slug,
+      created_at: tourneyData.created_at || Date.now(),
+      status: tourneyData.status || 'ACTIVE'
+    };
+
+    const existingIdx = list.findIndex(t => t.id === id || t.slug === slug);
+    if (existingIdx >= 0) {
+      list[existingIdx] = record;
+    } else {
+      list.unshift(record);
+    }
+
+    safeSetLocalStorage(STORAGE_KEYS.CUSTOM_TOURNAMENTS, list);
+    await saveCustomTournamentToFirebase(record);
+    this.notify('custom_tournaments_updated');
+    return record;
+  }
+
+  async deleteCustomTournament(tourneyId) {
+    if (!tourneyId) return false;
+    let list = this.getCustomTournaments();
+    list = list.filter(t => t.id !== tourneyId && t.slug !== tourneyId);
+    safeSetLocalStorage(STORAGE_KEYS.CUSTOM_TOURNAMENTS, list);
+    await deleteCustomTournamentFromFirebase(tourneyId);
+    this.notify('custom_tournaments_updated');
+    return true;
+  }
+
+  // --- UNIVERSAL PLAYER DIRECTORY & 1-SECOND SMART AUTOFILL ---
+  getUniversalPlayerByPhone(phone) {
+    const cleanPhone = (phone || '').trim().replace(/[^0-9]/g, '');
+    if (!cleanPhone || cleanPhone.length < 10) return null;
+    
+    // 1. Check local universal cache
+    try {
+      const local = localStorage.getItem(STORAGE_KEYS.UNIVERSAL_PLAYERS);
+      if (local) {
+        const pool = JSON.parse(local);
+        if (pool[cleanPhone]) return pool[cleanPhone];
+      }
+    } catch(e) {}
+
+    // 2. Fallback check from existing players across all current databases
+    const allExistingPlayers = this.getPlayers();
+    const found = allExistingPlayers.find(p => {
+      const pPhone = (p.phone || p.mobile || '').replace(/[^0-9]/g, '');
+      return pPhone === cleanPhone || (pPhone.endsWith(cleanPhone) && cleanPhone.length >= 10);
+    });
+
+    if (found) {
+      return {
+        phone: cleanPhone,
+        name: found.name || '',
+        photoUrl: found.hdPhotoUrl || found.photoUrl || found.player_photo_url || '',
+        category: found.category || found.playingType || found.role || 'All Rounder',
+        battingStyle: found.battingStyle || found.batting_style || 'Right Hand Bat',
+        bowlingStyle: found.bowlingStyle || found.bowling_style || 'Right Arm Medium',
+        village: found.village || found.address || '',
+        district: found.district || 'Paschim Medinipur',
+        age: found.age || '',
+        isVerified: true
+      };
+    }
+    return null;
+  }
+
+  async saveUniversalPlayer(playerData) {
+    const phone = (playerData.phone || playerData.mobile || '').trim().replace(/[^0-9]/g, '');
+    if (!phone || phone.length < 10) return;
+
+    let pool = {};
+    try {
+      const local = localStorage.getItem(STORAGE_KEYS.UNIVERSAL_PLAYERS);
+      if (local) pool = JSON.parse(local);
+    } catch(e) {}
+
+    const profile = {
+      phone,
+      name: playerData.name || '',
+      photoUrl: playerData.hdPhotoUrl || playerData.photoUrl || playerData.player_photo_url || '',
+      category: playerData.category || playerData.playingType || playerData.role || 'All Rounder',
+      battingStyle: playerData.battingStyle || playerData.batting_style || 'Right Hand Bat',
+      bowlingStyle: playerData.bowlingStyle || playerData.bowling_style || 'Right Arm Medium',
+      village: playerData.village || playerData.address || '',
+      district: playerData.district || 'Paschim Medinipur',
+      age: playerData.age || '',
+      updated_at: Date.now()
+    };
+
+    pool[phone] = profile;
+    safeSetLocalStorage(STORAGE_KEYS.UNIVERSAL_PLAYERS, pool);
+    await saveUniversalPlayerToFirebase(profile);
+    return profile;
   }
 
   // --- PLAYER PROFILES ---

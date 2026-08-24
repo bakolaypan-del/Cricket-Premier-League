@@ -172,6 +172,24 @@ export const INITIAL_TEAMS = [
     paymentStatus: "APPROVED",
     purse: 8000,
     remainingPurse: 8000
+  },
+  {
+    id: "team-sweety-jewellers",
+    leagueId: "leg-jsl",
+    serialNo: 8,
+    name: "SWEETY JEWELLERS",
+    shortCode: "SJ",
+    ownerName: "Partho Ghosh",
+    ownerPhone: "9800000008",
+    captainName: "Partho Ghosh",
+    iconPlayerName: "",
+    iconName: "",
+    logoUrl: "assets/jsl_logo.jpg",
+    teamLogoUrl: "assets/jsl_logo.jpg",
+    registrationStatus: "APPROVED",
+    paymentStatus: "APPROVED",
+    purse: 8000,
+    remainingPurse: 8000
   }
 ];
 
