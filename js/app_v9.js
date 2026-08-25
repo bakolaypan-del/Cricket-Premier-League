@@ -4934,13 +4934,42 @@ export function openMatchCenterModal(fixtureId) {
   document.body.insertAdjacentHTML('beforeend', modalHtml);
   if (window.lucide) window.lucide.createIcons();
 
-  const removeModal = () => document.getElementById('match-center-modal')?.remove();
+  let mcPollTimer = null;
+  let mcLiveHandler = null;
+  const removeModal = () => {
+    if (mcPollTimer) { clearInterval(mcPollTimer); mcPollTimer = null; }
+    if (mcLiveHandler) {
+      window.removeEventListener('fixtures_updated', mcLiveHandler);
+      window.removeEventListener('live_auction_updated', mcLiveHandler);
+      mcLiveHandler = null;
+    }
+    if (window.renderActiveMatchCenter === renderMatchCenterContent) window.renderActiveMatchCenter = null;
+    document.getElementById('match-center-modal')?.remove();
+  };
   document.getElementById('close-match-center-btn')?.addEventListener('click', removeModal);
 
   const contentArea = document.getElementById('mc-tab-content-area');
 
   function renderMatchCenterContent() {
     if (!contentArea) return;
+
+    // LIVE REFRESH: re-read the freshest fixture every render so spectators see
+    // real-time score updates instead of a stale open-time snapshot.
+    const fixture = store.getFixtures().find(f => f.id === fixtureId) || {};
+    const state = fixture.liveMatchState || {};
+    const pStats = state.playerStats || {};
+    const isLive = fixture.status === 'LIVE';
+    const isCompleted = fixture.status === 'COMPLETED';
+    const teamAObj = store.getTeamById(fixture.teamAId) || {};
+    const teamBObj = store.getTeamById(fixture.teamBId) || {};
+    const logoA = teamAObj.logoUrl || teamAObj.teamLogoUrl || 'assets/card_jsl_user.png';
+    const logoB = teamBObj.logoUrl || teamBObj.teamLogoUrl || 'assets/card_jsl_user.png';
+    const teamAPlayers = store.getPlayers().filter(p => p.teamId === fixture.teamAId);
+    const teamBPlayers = store.getPlayers().filter(p => p.teamId === fixture.teamBId);
+    const pxiA = fixture.playingXI?.[fixture.teamAId] || { playing11Ids: teamAPlayers.slice(0, 11).map(p => p.id), twelfthManId: teamAPlayers[11]?.id || '' };
+    const pxiB = fixture.playingXI?.[fixture.teamBId] || { playing11Ids: teamBPlayers.slice(0, 11).map(p => p.id), twelfthManId: teamBPlayers[11]?.id || '' };
+    const playing11A = teamAPlayers.filter(p => (pxiA.playing11Ids || []).includes(p.id));
+    const playing11B = teamBPlayers.filter(p => (pxiB.playing11Ids || []).includes(p.id));
 
     // 1. SUMMARY TAB
     if (activeTab === 'summary') {
@@ -5533,6 +5562,18 @@ export function openMatchCenterModal(fixtureId) {
   });
 
   window.renderActiveMatchCenter = renderMatchCenterContent;
+
+  // --- REAL-TIME LIVE UPDATES while the Match Centre is open ---
+  // Redraw on every cloud fixture change (SSE → 'fixtures_updated'), and poll the
+  // cloud every few seconds as a reliable fallback for spectator devices.
+  mcLiveHandler = () => { if (document.getElementById('match-center-modal')) renderMatchCenterContent(); };
+  window.addEventListener('fixtures_updated', mcLiveHandler);
+  window.addEventListener('live_auction_updated', mcLiveHandler);
+  mcPollTimer = setInterval(() => {
+    if (!document.getElementById('match-center-modal')) { removeModal(); return; }
+    Promise.resolve(store.syncWithCloud()).then(() => renderMatchCenterContent()).catch(() => renderMatchCenterContent());
+  }, 4000);
+
   renderMatchCenterContent();
 }
 
