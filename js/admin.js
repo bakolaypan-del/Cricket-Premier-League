@@ -3300,13 +3300,21 @@ function processScorerBall(runsScored) {
   let totalBallRuns = runsScored;
 
   if (isWide) {
-    ballLabel = 'WD';
     ballType = 'wide';
     totalBallRuns += 1;
+    // Wide + runs run shows the total (e.g. 2 run wide -> "2wd")
+    ballLabel = runsScored > 0 ? `${runsScored}wd` : 'wd';
   } else if (isNoBall) {
-    ballLabel = 'NB';
     ballType = 'noball';
     totalBallRuns += 1;
+    // No-ball + runs off the bat shows both (e.g. six off a no-ball -> "6nb")
+    ballLabel = runsScored > 0 ? `${runsScored}nb` : 'nb';
+  } else if (isBye) {
+    ballType = 'bye';
+    ballLabel = `${runsScored}b`;
+  } else if (isLegBye) {
+    ballType = 'legbye';
+    ballLabel = `${runsScored}lb`;
   } else if (runsScored === 4) {
     ballLabel = '4';
     ballType = 'four';
@@ -3447,6 +3455,31 @@ function openScorerWicketModal() {
   const batPlayers = store.getPlayers().filter(p => p.teamId === battingTeamId);
   const bowlPlayers = store.getPlayers().filter(p => p.teamId === bowlingTeamId);
 
+  // A wicket may fall on a wide / no-ball / bye / leg-bye — read the extra checkboxes
+  // so the penalty, ball-count and allowed dismissal types are applied correctly.
+  const wIsWide = document.getElementById('scorer-extra-wide')?.checked || false;
+  const wIsNoBall = document.getElementById('scorer-extra-noball')?.checked || false;
+  const wIsBye = document.getElementById('scorer-extra-bye')?.checked || false;
+  const wIsLegBye = document.getElementById('scorer-extra-legbye')?.checked || false;
+  const wDelivery = wIsNoBall ? 'NO_BALL' : (wIsWide ? 'WIDE' : (wIsBye ? 'BYE' : (wIsLegBye ? 'LEG_BYE' : 'LEGAL')));
+  const ALL_DISMISSALS = [
+    { v: 'BOWLED', t: 'Bowled' }, { v: 'CAUGHT', t: 'Caught Out' }, { v: 'LBW', t: 'L.B.W.' },
+    { v: 'RUN_OUT', t: 'Run Out' }, { v: 'STUMPED', t: 'Stumped' }, { v: 'HIT_WICKET', t: 'Hit Wicket' }
+  ];
+  const allowedByDelivery = {
+    LEGAL: ['BOWLED', 'CAUGHT', 'LBW', 'RUN_OUT', 'STUMPED', 'HIT_WICKET'],
+    WIDE: ['RUN_OUT', 'STUMPED', 'HIT_WICKET'],
+    NO_BALL: ['RUN_OUT'],
+    BYE: ['RUN_OUT', 'HIT_WICKET'],
+    LEG_BYE: ['RUN_OUT', 'HIT_WICKET']
+  };
+  const allowedTypes = allowedByDelivery[wDelivery] || allowedByDelivery.LEGAL;
+  const dismissalOptions = ALL_DISMISSALS.filter(d => allowedTypes.includes(d.v));
+  const deliveryBanner = wDelivery === 'LEGAL' ? '' : `
+    <div class="text-[11px] font-black px-3 py-2 rounded-xl border ${(wDelivery === 'NO_BALL' || wDelivery === 'WIDE') ? 'bg-amber-50 text-amber-900 border-amber-300' : 'bg-slate-50 text-slate-700 border-slate-200'}">
+      ⚠️ Wicket on a <strong>${wDelivery.replace('_', '-').toLowerCase()}</strong> — allowed: ${allowedTypes.map(t => t.replace('_', ' ')).join(' / ')}.${(wDelivery === 'WIDE' || wDelivery === 'NO_BALL') ? ' +1 penalty run counts and the ball is re-bowled (over does not advance).' : ''}
+    </div>`;
+
   document.getElementById('scorer-wicket-modal')?.remove();
 
   const modalHtml = `
@@ -3474,15 +3507,22 @@ function openScorerWicketModal() {
           </select>
         </div>
 
+        ${deliveryBanner}
+
         <div>
           <label class="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1">2. Dismissal Type</label>
           <select id="wicket-select-type" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold shadow-2xs">
-            <option value="BOWLED">Bowled</option>
-            <option value="CAUGHT">Caught Out</option>
-            <option value="LBW">L.B.W.</option>
-            <option value="RUN_OUT">Run Out</option>
-            <option value="STUMPED">Stumped</option>
-            <option value="HIT_WICKET">Hit Wicket</option>
+            ${dismissalOptions.map(d => `<option value="${d.v}">${d.t}</option>`).join('')}
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1">Runs completed before dismissal (run out)</label>
+          <select id="wicket-runs-completed" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold shadow-2xs">
+            <option value="0">0 runs</option>
+            <option value="1">1 run</option>
+            <option value="2">2 runs</option>
+            <option value="3">3 runs</option>
           </select>
         </div>
 
@@ -3517,8 +3557,26 @@ function openScorerWicketModal() {
     const dismissedId = document.getElementById('wicket-select-dismissed').value;
     const type = document.getElementById('wicket-select-type').value;
     const fielderId = document.getElementById('wicket-select-fielder').value;
+    const runsCompleted = Number(document.getElementById('wicket-runs-completed')?.value) || 0;
+    const wIsLegalDelivery = !wIsWide && !wIsNoBall;
+    const wPenalty = (wIsWide || wIsNoBall) ? 1 : 0;
 
     state.wickets += 1;
+
+    // Runs on this delivery = extra penalty (wide/no-ball) + runs physically completed
+    const teamRunsToAdd = wPenalty + runsCompleted;
+    state.runs += teamRunsToAdd;
+
+    // Credit completed runs to the striker only on a legal, off-the-bat delivery
+    const wStrikerId = state.strikerId;
+    if (wStrikerId && !state.playerStats[wStrikerId]) {
+      state.playerStats[wStrikerId] = { runs: 0, balls: 0, fours: 0, sixes: 0, wickets: 0, runsConceded: 0, ballsBowled: 0, dismissed: false };
+    }
+    if (wIsLegalDelivery && !wIsBye && !wIsLegBye && runsCompleted > 0 && wStrikerId) {
+      state.playerStats[wStrikerId].runs += runsCompleted;
+    }
+    // Striker faces a ball unless it is a wide
+    if (!wIsWide && wStrikerId) state.playerStats[wStrikerId].balls += 1;
 
     if (!state.playerStats) state.playerStats = {};
     if (!state.playerStats[dismissedId]) {
@@ -3532,13 +3590,27 @@ function openScorerWicketModal() {
       if (!state.playerStats[bowlerId]) {
         state.playerStats[bowlerId] = { runs: 0, balls: 0, fours: 0, sixes: 0, wickets: 0, runsConceded: 0, ballsBowled: 0, dismissed: false };
       }
+      // Bowler gets the wicket for everything except a run out (stumped/hit-wicket off a wide still count)
       if (type !== 'RUN_OUT') {
         state.playerStats[bowlerId].wickets = (state.playerStats[bowlerId].wickets || 0) + 1;
       }
+      // Runs charged to the bowler: wide -> penalty + runs; no-ball -> penalty; legal off-bat -> runs; byes -> 0
+      let bowlerCharge = 0;
+      if (wIsWide) bowlerCharge = 1 + runsCompleted;
+      else if (wIsNoBall) bowlerCharge = 1;
+      else if (!wIsBye && !wIsLegBye) bowlerCharge = runsCompleted;
+      state.playerStats[bowlerId].runsConceded += bowlerCharge;
+      if (wIsLegalDelivery) state.playerStats[bowlerId].ballsBowled += 1;
     }
     
+    let wktLabel = 'W';
+    if (wIsWide) wktLabel = 'W+wd';
+    else if (wIsNoBall) wktLabel = 'W+nb';
+    else if (wIsBye) wktLabel = runsCompleted > 0 ? `W+${runsCompleted}b` : 'W+b';
+    else if (wIsLegBye) wktLabel = runsCompleted > 0 ? `W+${runsCompleted}lb` : 'W+lb';
+
     state.overBalls.push({
-      label: 'W',
+      label: wktLabel,
       type: 'wicket'
     });
 
@@ -3553,9 +3625,9 @@ function openScorerWicketModal() {
     state.ballHistory.unshift({
       innings: state.innings || 1,
       overNum: `${state.overs}.${state.balls}`,
-      label: 'W',
+      label: wktLabel,
       type: 'wicket',
-      runs: 0,
+      runs: teamRunsToAdd,
       bowlerName: bowlerName,
       batterName: dismissedName,
       commentary: `${bowlerName} to ${dismissedName} — ${wktCommentary}`,
@@ -3563,14 +3635,16 @@ function openScorerWicketModal() {
     });
 
     let overCompletedNow = false;
-    // Run-out completing the over does not count as a legal ball differently here;
-    // a normal dismissal still uses up one delivery of the over.
-    state.balls += 1;
-    if (state.balls >= 6) {
-      state.overs += 1;
-      state.balls = 0;
-      state.overBalls = [];
-      overCompletedNow = true;
+    // Wide / no-ball are re-bowled — the over does not advance on them. A wicket on a
+    // legal delivery (incl. bye/leg-bye) uses up one ball of the over.
+    if (wIsLegalDelivery) {
+      state.balls += 1;
+      if (state.balls >= 6) {
+        state.overs += 1;
+        state.balls = 0;
+        state.overBalls = [];
+        overCompletedNow = true;
+      }
     }
 
     // Remember which crease slot the dismissed batter vacated
@@ -3587,6 +3661,12 @@ function openScorerWicketModal() {
     } else {
       fixture.teamAScore = { runs: state.runs, wickets: state.wickets, overs: state.overs, balls: state.balls };
     }
+
+    // Clear the extra checkboxes so the next delivery starts clean
+    ['scorer-extra-wide', 'scorer-extra-noball', 'scorer-extra-bye', 'scorer-extra-legbye'].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.checked = false;
+    });
 
     store.updateFixture(fixture);
     removeModal();
