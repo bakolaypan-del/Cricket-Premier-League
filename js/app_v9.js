@@ -4858,8 +4858,8 @@ export function openMatchCenterModal(fixtureId) {
   const logoA = teamAObj.logoUrl || teamAObj.teamLogoUrl || 'assets/card_jsl_user.png';
   const logoB = teamBObj.logoUrl || teamBObj.teamLogoUrl || 'assets/card_jsl_user.png';
 
-  const teamAPlayers = store.getPlayers().filter(p => p.teamId === fixture.teamAId && (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED'));
-  const teamBPlayers = store.getPlayers().filter(p => p.teamId === fixture.teamBId && (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED'));
+  const teamAPlayers = store.getPlayers().filter(p => p.teamId === fixture.teamAId);
+  const teamBPlayers = store.getPlayers().filter(p => p.teamId === fixture.teamBId);
 
   const pxiA = fixture.playingXI?.[fixture.teamAId] || { playing11Ids: teamAPlayers.slice(0, 11).map(p => p.id), twelfthManId: teamAPlayers[11]?.id || '' };
   const pxiB = fixture.playingXI?.[fixture.teamBId] || { playing11Ids: teamBPlayers.slice(0, 11).map(p => p.id), twelfthManId: teamBPlayers[11]?.id || '' };
@@ -5542,8 +5542,8 @@ export function openMatchPlayingXIModal(fixtureId) {
   const fixture = store.getFixtures().find(f => f.id === fixtureId);
   if (!fixture) return;
 
-  const teamAPlayers = store.getPlayers().filter(p => p.teamId === fixture.teamAId && (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED'));
-  const teamBPlayers = store.getPlayers().filter(p => p.teamId === fixture.teamBId && (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED'));
+  const teamAPlayers = store.getPlayers().filter(p => p.teamId === fixture.teamAId);
+  const teamBPlayers = store.getPlayers().filter(p => p.teamId === fixture.teamBId);
 
   const pxiA = fixture.playingXI?.[fixture.teamAId] || { playing11Ids: teamAPlayers.slice(0, 11).map(p => p.id), twelfthManId: teamAPlayers[11]?.id || '' };
   const pxiB = fixture.playingXI?.[fixture.teamBId] || { playing11Ids: teamBPlayers.slice(0, 11).map(p => p.id), twelfthManId: teamBPlayers[11]?.id || '' };

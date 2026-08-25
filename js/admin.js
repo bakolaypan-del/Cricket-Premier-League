@@ -2643,8 +2643,8 @@ function renderScorerMatchesList() {
     const battingTeamName = battingTeamId === fixture.teamAId ? fixture.teamAName : fixture.teamBName;
     const bowlingTeamName = bowlingTeamId === fixture.teamAId ? fixture.teamAName : fixture.teamBName;
 
-    const allBatPlayers = store.getPlayers().filter(p => p.teamId === battingTeamId && (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED'));
-    const allBowlPlayers = store.getPlayers().filter(p => p.teamId === bowlingTeamId && (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED'));
+    const allBatPlayers = store.getPlayers().filter(p => p.teamId === battingTeamId);
+    const allBowlPlayers = store.getPlayers().filter(p => p.teamId === bowlingTeamId);
 
     const batPXI = fixture.playingXI?.[battingTeamId]?.playing11Ids;
     const bowlPXI = fixture.playingXI?.[bowlingTeamId]?.playing11Ids;
@@ -2791,8 +2791,8 @@ function renderScorerActivePanel() {
   const battingTeamName = battingTeamId === fixture.teamAId ? fixture.teamAName : fixture.teamBName;
   const bowlingTeamName = bowlingTeamId === fixture.teamAId ? fixture.teamAName : fixture.teamBName;
 
-  const allBatPlayers = store.getPlayers().filter(p => p.teamId === battingTeamId && (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED'));
-  const allBowlPlayers = store.getPlayers().filter(p => p.teamId === bowlingTeamId && (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED'));
+  const allBatPlayers = store.getPlayers().filter(p => p.teamId === battingTeamId);
+  const allBowlPlayers = store.getPlayers().filter(p => p.teamId === bowlingTeamId);
 
   const batPXI = fixture.playingXI?.[battingTeamId]?.playing11Ids;
   const bowlPXI = fixture.playingXI?.[bowlingTeamId]?.playing11Ids;
@@ -3151,8 +3151,8 @@ function processScorerBall(runsScored) {
 
   const battingTeamId = state.innings === 2 ? fixture.teamBId : fixture.teamAId;
   const bowlingTeamId = state.innings === 2 ? fixture.teamAId : fixture.teamBId;
-  const allBatPlayers = store.getPlayers().filter(p => p.teamId === battingTeamId && (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED'));
-  const allBowlPlayers = store.getPlayers().filter(p => p.teamId === bowlingTeamId && (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED'));
+  const allBatPlayers = store.getPlayers().filter(p => p.teamId === battingTeamId);
+  const allBowlPlayers = store.getPlayers().filter(p => p.teamId === bowlingTeamId);
 
   const battingTeamName = battingTeamId === fixture.teamAId ? fixture.teamAName : fixture.teamBName;
   const bowlingTeamName = bowlingTeamId === fixture.teamAId ? fixture.teamAName : fixture.teamBName;
@@ -3334,8 +3334,8 @@ function openScorerWicketModal() {
   const battingTeamId = state.innings === 2 ? fixture.teamBId : fixture.teamAId;
   const bowlingTeamId = state.innings === 2 ? fixture.teamAId : fixture.teamBId;
 
-  const batPlayers = store.getPlayers().filter(p => p.teamId === battingTeamId && (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED'));
-  const bowlPlayers = store.getPlayers().filter(p => p.teamId === bowlingTeamId && (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED'));
+  const batPlayers = store.getPlayers().filter(p => p.teamId === battingTeamId);
+  const bowlPlayers = store.getPlayers().filter(p => p.teamId === bowlingTeamId);
 
   document.getElementById('scorer-wicket-modal')?.remove();
 
@@ -3664,8 +3664,8 @@ function openTossSelectionModal(fixture, onComplete) {
 export function openPlayingXIModal(fixture, onComplete) {
   document.getElementById('playing-xi-modal')?.remove();
 
-  const teamAPlayers = store.getPlayers().filter(p => p.teamId === fixture.teamAId && (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED'));
-  const teamBPlayers = store.getPlayers().filter(p => p.teamId === fixture.teamBId && (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED'));
+  const teamAPlayers = store.getPlayers().filter(p => p.teamId === fixture.teamAId);
+  const teamBPlayers = store.getPlayers().filter(p => p.teamId === fixture.teamBId);
 
   if (!fixture.playingXI) fixture.playingXI = {};
   if (!fixture.playingXI[fixture.teamAId]) {
@@ -3911,8 +3911,8 @@ export function openPlayingXIModal(fixture, onComplete) {
 export function openEditMatchModal(fixture, onComplete) {
   document.getElementById('edit-match-modal')?.remove();
 
-  const teamAPlayers = store.getPlayers().filter(p => p.teamId === fixture.teamAId && (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED'));
-  const teamBPlayers = store.getPlayers().filter(p => p.teamId === fixture.teamBId && (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED'));
+  const teamAPlayers = store.getPlayers().filter(p => p.teamId === fixture.teamAId);
+  const teamBPlayers = store.getPlayers().filter(p => p.teamId === fixture.teamBId);
 
   if (!fixture.playingXI) fixture.playingXI = {};
   if (!fixture.playingXI[fixture.teamAId]) {
