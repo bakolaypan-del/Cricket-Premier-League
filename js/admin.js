@@ -3141,6 +3141,12 @@ function processScorerBall(runsScored) {
 
   const state = fixture.liveMatchState;
 
+  // Firebase Realtime DB strips empty arrays/objects, so a resumed/synced match
+  // can come back missing these. Re-initialize defensively before any .push()/writes.
+  if (!Array.isArray(state.overBalls)) state.overBalls = [];
+  if (!Array.isArray(state.ballHistory)) state.ballHistory = [];
+  if (!state.playerStats || typeof state.playerStats !== 'object') state.playerStats = {};
+
   // Capture Real-time Match Start Timestamp on first delivery
   if (!fixture.startedAtTimestamp) {
     fixture.startedAtTimestamp = Date.now();
@@ -3331,6 +3337,10 @@ function openScorerWicketModal() {
   if (!fixture) return;
 
   const state = fixture.liveMatchState;
+  // Firebase strips empty arrays/objects; re-init defensively before wicket writes.
+  if (!Array.isArray(state.overBalls)) state.overBalls = [];
+  if (!Array.isArray(state.ballHistory)) state.ballHistory = [];
+  if (!state.playerStats || typeof state.playerStats !== 'object') state.playerStats = {};
   const battingTeamId = state.innings === 2 ? fixture.teamBId : fixture.teamAId;
   const bowlingTeamId = state.innings === 2 ? fixture.teamAId : fixture.teamBId;
 
