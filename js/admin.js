@@ -2870,11 +2870,17 @@ function renderScorerActivePanel() {
   const activeBowlerSel = document.getElementById('scorer-active-bowler-sel');
 
   if (activeStrikerSel && activeNonStrikerSel && activeBowlerSel) {
-    activeStrikerSel.innerHTML = batPlayers.map(p => `
+    const isOut = (id) => !!(state.playerStats && state.playerStats[id] && state.playerStats[id].dismissed === true);
+    // Striker list: exclude out batters and the current non-striker (but always keep the current striker visible)
+    const strikerOpts = batPlayers.filter(p => p.id === state.strikerId || (!isOut(p.id) && p.id !== state.nonStrikerId));
+    // Non-striker list: exclude out batters and the current striker (but always keep the current non-striker visible)
+    const nonStrikerOpts = batPlayers.filter(p => p.id === state.nonStrikerId || (!isOut(p.id) && p.id !== state.strikerId));
+
+    activeStrikerSel.innerHTML = strikerOpts.map(p => `
       <option value="${p.id}" ${state.strikerId === p.id ? 'selected' : ''}>🏏 ${p.name}</option>
     `).join('');
 
-    activeNonStrikerSel.innerHTML = batPlayers.map(p => `
+    activeNonStrikerSel.innerHTML = nonStrikerOpts.map(p => `
       <option value="${p.id}" ${state.nonStrikerId === p.id ? 'selected' : ''}>🏏 ${p.name}</option>
     `).join('');
 
@@ -3132,6 +3138,57 @@ function renderScorerActivePanel() {
   }
 }
 
+// Auto-close innings 1 (set target, start innings 2) or finish the match after innings 2.
+function endInningsOrFinishMatch(fixture) {
+  const s = fixture.liveMatchState;
+  if (!s) return;
+
+  if (s.innings === 1) {
+    const target = (s.runs || 0) + 1;
+    // Innings-1 final total is already stored in teamAScore by the caller.
+    s.innings = 2;
+    s.target = target;
+    s.strikerId = '';
+    s.nonStrikerId = '';
+    s.bowlerId = '';
+    s.runs = 0;
+    s.wickets = 0;
+    s.overs = 0;
+    s.balls = 0;
+    s.overBalls = [];
+    if (!Array.isArray(s.ballHistory)) s.ballHistory = [];
+    fixture.liveMatchState = s;
+    fixture.status = 'LIVE';
+    store.updateFixture(fixture);
+    renderScorerActivePanel();
+    if (window.renderActiveMatchCenter) window.renderActiveMatchCenter();
+    if (window.refreshFixturesViewContent) window.refreshFixturesViewContent();
+    setTimeout(() => alert(`🏁 Innings 1 complete!\n\nTarget for the chasing team: ${target} runs.\nNow select the opening batters & bowler for Innings 2.`), 120);
+    return;
+  }
+
+  // Innings 2 over -> decide the result
+  const teamAScore = fixture.teamAScore || { runs: 0, wickets: 0 };
+  const teamBScore = fixture.teamBScore || { runs: 0, wickets: 0 };
+  let winnerId = null, resultTxt = 'Match Tied';
+  if (teamAScore.runs > teamBScore.runs) {
+    winnerId = fixture.teamAId;
+    resultTxt = `${fixture.teamAName} won by ${teamAScore.runs - teamBScore.runs} runs`;
+  } else if (teamBScore.runs > teamAScore.runs) {
+    winnerId = fixture.teamBId;
+    resultTxt = `${fixture.teamBName} won by ${10 - (teamBScore.wickets || 0)} wickets`;
+  }
+  fixture.status = 'COMPLETED';
+  fixture.endedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  fixture.result = resultTxt;
+  fixture.winnerTeamId = winnerId;
+  store.updateFixture(fixture);
+  renderScorerActivePanel();
+  if (window.renderActiveMatchCenter) window.renderActiveMatchCenter();
+  if (window.refreshFixturesViewContent) window.refreshFixturesViewContent();
+  setTimeout(() => alert(`🎉 Match Completed!\n\nResult: ${resultTxt}`), 120);
+}
+
 function processScorerBall(runsScored) {
   console.log('[SCORER DEBUG] processScorerBall CALLED with runsScored:', runsScored);
   console.log('[SCORER DEBUG] activeScoringMatchId:', activeScoringMatchId);
@@ -3356,17 +3413,22 @@ function processScorerBall(runsScored) {
   if (window.renderActiveMatchCenter) window.renderActiveMatchCenter();
   if (window.refreshFixturesViewContent) window.refreshFixturesViewContent();
 
-  // After an over completes, prompt for the next bowler (no consecutive overs)
-  if (overJustCompleted) {
-    openSelectNextBowlerModal(fixture);
+  // Auto-close the innings the moment the overs limit is reached
+  const oversLimit = Number(fixture.oversLimit) || 16;
+  if (state.overs >= oversLimit) {
+    endInningsOrFinishMatch(fixture);
+    return;
   }
 
-  // Check 2nd Innings Target Chased
+  // 2nd innings target chased -> finish the match immediately
   if (state.innings === 2 && state.target && state.runs >= state.target) {
-    const battingTeamName = fixture.teamBName;
-    setTimeout(() => {
-      alert(`🏆 Target reached! ${battingTeamName} won the match! Click "Finish Match" to complete.`);
-    }, 150);
+    endInningsOrFinishMatch(fixture);
+    return;
+  }
+
+  // After an over completes (innings continues), prompt for the next bowler
+  if (overJustCompleted) {
+    openSelectNextBowlerModal(fixture);
   }
 }
 
@@ -3530,9 +3592,10 @@ function openScorerWicketModal() {
     removeModal();
     renderScorerActivePanel();
 
-    // All out? Stop here and let the scorer close the innings / finish the match.
-    if (state.wickets >= 10) {
-      alert("⚠️ All Out! 10 wickets have fallen. Please Close Innings or Finish Match.");
+    // All out, or overs limit reached on this ball -> auto-close the innings/match.
+    const oversLimit = Number(fixture.oversLimit) || 16;
+    if (state.wickets >= 10 || state.overs >= oversLimit) {
+      endInningsOrFinishMatch(fixture);
       return;
     }
 
