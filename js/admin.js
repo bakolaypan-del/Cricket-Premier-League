@@ -2977,12 +2977,16 @@ function renderScorerActivePanel() {
 
     document.getElementById('scorer-reset-match-btn')?.addEventListener('click', () => {
       if (confirm("🔄 Reset Match Confirmation:\n\nClear all recorded balls, runs, and wickets and return this match to SCHEDULED status?")) {
-        delete fixture.liveMatchState;
+        // Must set to null, not delete: store.updateFixture shallow-merges
+        // {...old, ...new}, so a deleted key keeps the old value. null overrides.
+        fixture.liveMatchState = null;
         fixture.status = 'SCHEDULED';
-        delete fixture.teamAScore;
-        delete fixture.teamBScore;
-        delete fixture.result;
-        delete fixture.winnerTeamId;
+        fixture.teamAScore = { runs: 0, wickets: 0, overs: 0, balls: 0 };
+        fixture.teamBScore = { runs: 0, wickets: 0, overs: 0, balls: 0 };
+        fixture.result = null;
+        fixture.winnerTeamId = null;
+        fixture.startedAt = null;
+        fixture.startedAtTimestamp = null;
         store.updateFixture(fixture);
         document.getElementById('scorer-active-panel')?.classList.add('hidden');
         renderScorerMatchesList();
@@ -3248,13 +3252,15 @@ function processScorerBall(runsScored) {
   state.runs += totalBallRuns;
 
   const isValidBall = !isWide && !isNoBall;
+  let overJustCompleted = false;
   if (isValidBall) {
     state.balls += 1;
     if (state.balls >= 6) {
       state.overs += 1;
       state.balls = 0;
       state.overBalls = [];
-      
+      overJustCompleted = true;
+
       const temp = state.strikerId;
       state.strikerId = state.nonStrikerId;
       state.nonStrikerId = temp;
@@ -3322,6 +3328,11 @@ function processScorerBall(runsScored) {
 
   if (window.renderActiveMatchCenter) window.renderActiveMatchCenter();
   if (window.refreshFixturesViewContent) window.refreshFixturesViewContent();
+
+  // After an over completes, prompt for the next bowler (no consecutive overs)
+  if (overJustCompleted) {
+    openSelectNextBowlerModal(fixture);
+  }
 
   // Check 2nd Innings Target Chased
   if (state.innings === 2 && state.target && state.runs >= state.target) {
@@ -3462,15 +3473,20 @@ function openScorerWicketModal() {
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     });
 
+    let overCompletedNow = false;
+    // Run-out completing the over does not count as a legal ball differently here;
+    // a normal dismissal still uses up one delivery of the over.
     state.balls += 1;
     if (state.balls >= 6) {
       state.overs += 1;
       state.balls = 0;
       state.overBalls = [];
-      alert(" Over completed! Strike changes & select Bowler.");
+      overCompletedNow = true;
     }
 
-    if (dismissedId === state.strikerId) {
+    // Remember which crease slot the dismissed batter vacated
+    const vacantRole = (dismissedId === state.strikerId) ? 'striker' : 'nonStriker';
+    if (vacantRole === 'striker') {
       state.strikerId = '';
     } else {
       state.nonStrikerId = '';
@@ -3486,7 +3502,135 @@ function openScorerWicketModal() {
     store.updateFixture(fixture);
     removeModal();
     renderScorerActivePanel();
-    alert("✅ Wicket recorded! Please select the new incoming batter.");
+
+    // All out? Stop here and let the scorer close the innings / finish the match.
+    if (state.wickets >= 10) {
+      alert("⚠️ All Out! 10 wickets have fallen. Please Close Innings or Finish Match.");
+      return;
+    }
+
+    // Prompt for the new incoming batter; if the over also ended, chain the bowler prompt.
+    openSelectNextBatterModal(fixture, vacantRole, () => {
+      if (overCompletedNow) openSelectNextBowlerModal(fixture);
+    });
+  });
+}
+
+// --- SELECT NEXT INCOMING BATTER (after a wicket) ---
+function openSelectNextBatterModal(fixture, vacantRole, onDone) {
+  const state = fixture.liveMatchState;
+  if (!state) { if (onDone) onDone(); return; }
+  if (!state.playerStats || typeof state.playerStats !== 'object') state.playerStats = {};
+
+  const battingTeamId = state.innings === 2 ? fixture.teamBId : fixture.teamAId;
+  const batPlayers = store.getPlayers().filter(p => p.teamId === battingTeamId);
+
+  // The batter still at the crease occupies the other slot
+  const stillInId = vacantRole === 'striker' ? state.nonStrikerId : state.strikerId;
+  const available = batPlayers.filter(p =>
+    p.id !== stillInId && !(state.playerStats[p.id] && state.playerStats[p.id].dismissed)
+  );
+
+  if (available.length === 0) {
+    alert("ℹ️ No remaining batters available to come in. Close the innings if needed.");
+    if (onDone) onDone();
+    return;
+  }
+
+  document.getElementById('scorer-next-batter-modal')?.remove();
+  const roleLabel = vacantRole === 'striker' ? 'Striker' : 'Non-Striker';
+  const modalHtml = `
+    <div id="scorer-next-batter-modal" class="fixed inset-0 z-[75] modal-overlay flex items-center justify-center p-3 bg-slate-950/80 backdrop-blur-md animate-fade-in">
+      <div class="bg-white border-2 border-emerald-500 max-w-md w-full p-5 sm:p-6 relative space-y-4 rounded-3xl shadow-2xl text-slate-900 text-left">
+        <div class="flex items-center gap-2.5 border-b border-slate-100 pb-3">
+          <span class="p-2 bg-emerald-50 text-emerald-600 rounded-2xl border border-emerald-200 text-base font-black">🏏</span>
+          <div>
+            <span class="px-2 py-0.5 bg-emerald-50 text-emerald-800 font-mono text-[9px] font-black rounded border border-emerald-200 uppercase">NEW BATTER IN</span>
+            <h3 class="text-base font-black text-slate-900 leading-tight mt-0.5">Select Incoming Batter (${roleLabel})</h3>
+          </div>
+        </div>
+        <div>
+          <label class="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1">Choose Next Batter</label>
+          <select id="next-batter-select" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold shadow-2xs">
+            ${available.map(p => `<option value="${p.id}">🏏 ${p.name}</option>`).join('')}
+          </select>
+        </div>
+        <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
+          <button id="next-batter-confirm-btn" type="button" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl shadow-xs cursor-pointer">Send to Crease</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+  document.getElementById('next-batter-confirm-btn')?.addEventListener('click', () => {
+    const newId = document.getElementById('next-batter-select').value;
+    if (!newId) return;
+    if (vacantRole === 'striker') state.strikerId = newId; else state.nonStrikerId = newId;
+    if (!state.playerStats[newId]) {
+      state.playerStats[newId] = { runs: 0, balls: 0, fours: 0, sixes: 0, wickets: 0, runsConceded: 0, ballsBowled: 0, dismissed: false };
+    }
+    fixture.liveMatchState = state;
+    store.updateFixture(fixture);
+    document.getElementById('scorer-next-batter-modal')?.remove();
+    renderScorerActivePanel();
+    if (onDone) onDone();
+  });
+}
+
+// --- SELECT NEXT BOWLER (after an over completes) ---
+function openSelectNextBowlerModal(fixture, onDone) {
+  const state = fixture.liveMatchState;
+  if (!state) { if (onDone) onDone(); return; }
+  if (!state.playerStats || typeof state.playerStats !== 'object') state.playerStats = {};
+
+  const bowlingTeamId = state.innings === 2 ? fixture.teamAId : fixture.teamBId;
+  const bowlPlayers = store.getPlayers().filter(p => p.teamId === bowlingTeamId);
+
+  const lastBowlerId = state.bowlerId;
+  // A bowler cannot bowl two overs back to back; exclude the previous bowler
+  let available = bowlPlayers.filter(p => p.id !== lastBowlerId);
+  if (available.length === 0) available = bowlPlayers; // single-bowler safety fallback
+
+  if (available.length === 0) { if (onDone) onDone(); return; }
+
+  document.getElementById('scorer-next-bowler-modal')?.remove();
+  const modalHtml = `
+    <div id="scorer-next-bowler-modal" class="fixed inset-0 z-[75] modal-overlay flex items-center justify-center p-3 bg-slate-950/80 backdrop-blur-md animate-fade-in">
+      <div class="bg-white border-2 border-sky-500 max-w-md w-full p-5 sm:p-6 relative space-y-4 rounded-3xl shadow-2xl text-slate-900 text-left">
+        <div class="flex items-center gap-2.5 border-b border-slate-100 pb-3">
+          <span class="p-2 bg-sky-50 text-sky-600 rounded-2xl border border-sky-200 text-base font-black">⚾</span>
+          <div>
+            <span class="px-2 py-0.5 bg-sky-50 text-sky-800 font-mono text-[9px] font-black rounded border border-sky-200 uppercase">END OF OVER</span>
+            <h3 class="text-base font-black text-slate-900 leading-tight mt-0.5">Select Next Over's Bowler</h3>
+          </div>
+        </div>
+        <div>
+          <label class="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1">Choose Bowler</label>
+          <select id="next-bowler-select" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold shadow-2xs">
+            ${available.map(p => `<option value="${p.id}">⚾ ${p.name}</option>`).join('')}
+          </select>
+        </div>
+        <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
+          <button id="next-bowler-confirm-btn" type="button" class="px-5 py-2 bg-sky-600 hover:bg-sky-500 text-white font-black text-xs rounded-xl shadow-xs cursor-pointer">Start New Over</button>
+        </div>
+      </div>
+    </div>
+  `;
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+  document.getElementById('next-bowler-confirm-btn')?.addEventListener('click', () => {
+    const newId = document.getElementById('next-bowler-select').value;
+    if (!newId) return;
+    state.bowlerId = newId;
+    if (!state.playerStats[newId]) {
+      state.playerStats[newId] = { runs: 0, balls: 0, fours: 0, sixes: 0, wickets: 0, runsConceded: 0, ballsBowled: 0, dismissed: false };
+    }
+    fixture.liveMatchState = state;
+    store.updateFixture(fixture);
+    document.getElementById('scorer-next-bowler-modal')?.remove();
+    renderScorerActivePanel();
+    if (onDone) onDone();
   });
 }
 
