@@ -2629,7 +2629,27 @@ function renderScorerMatchesList() {
           <div><span class="text-[9px] text-slate-400 block uppercase">Schedule</span>🗓️ ${fixture.date} (${fixture.time || '09:00 AM'})</div>
           <div><span class="text-[9px] text-slate-400 block uppercase">Toss Decision</span>🪙 ${fixture.tossDetails || 'Toss not updated'}</div>
         </div>
+        <div class="pt-2 mt-1 border-t border-emerald-100 flex flex-wrap items-center gap-2">
+          <button type="button" id="scorer-set-toss-pxi-btn" class="px-3 py-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-[11px] rounded-xl shadow-2xs cursor-pointer flex items-center gap-1" title="Set toss winner + bat/bowl decision, then each team's Playing XI and 12th man">
+            🪙 Set Toss &amp; Playing XI ${fixture.tossDetails ? '<span class="text-[9px] font-bold text-emerald-800">(update)</span>' : '<span class="text-[9px] font-bold text-rose-700">(required)</span>'}
+          </button>
+          <span class="text-[10px] font-bold text-slate-500">Sets batting order + squads — shown live in Match Corner.</span>
+        </div>
       `;
+
+      document.getElementById('scorer-set-toss-pxi-btn')?.addEventListener('click', () => {
+        // Toss modal sets winner/decision, reorders the batting side, then chains into
+        // the Playing XI + 12th man modal. All of it saves to the fixture (and cloud),
+        // which the public Match Corner already reads and displays.
+        const s = fixture.liveMatchState;
+        const hasProgress = s && (Number(s.runs) > 0 || Number(s.overs) > 0 ||
+          (Array.isArray(s.overBalls) && s.overBalls.length > 0) ||
+          (Array.isArray(s.ballHistory) && s.ballHistory.length > 0));
+        if (hasProgress && !confirm("⚠️ This match already has scoring in progress. Re-setting the toss will RESET the live score to 0/0. Continue?")) return;
+        openTossSelectionModal(fixture, () => {
+          onMatchSelected(fixture.id);
+        });
+      });
     }
 
     // Reveal Step 2 Lineup Block
@@ -2719,6 +2739,13 @@ function renderScorerMatchesList() {
 
       const fixture = store.getFixtures().find(f => f.id === matchId);
       if (!fixture) return;
+
+      // Require the toss (which also chains Playing XI) before scoring can begin
+      if (!fixture.tossDetails) {
+        alert("🪙 Please complete the Toss & Playing XI selection first (use the amber button above).");
+        openTossSelectionModal(fixture, () => { onMatchSelected(fixture.id); });
+        return;
+      }
 
       const strikerId = document.getElementById('scorer-select-striker')?.value;
       const nonStrikerId = document.getElementById('scorer-select-non-striker')?.value;
