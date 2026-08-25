@@ -16,7 +16,7 @@ export function renderAdminDashboard(containerEl) {
     return;
   }
 
-  const leagues = store.getLeagues();
+  const leagues = store.getAccessibleLeagues();
   const players = store.getPlayers();
   const teams = store.getTeams();
 
@@ -33,6 +33,38 @@ export function renderAdminDashboard(containerEl) {
   const currentUser = store.getCurrentUser();
   const regSettings = store.getRegistrationSettings();
   const isRegOpen = store.isJslRegistrationOpen();
+  
+  const initialLeagueCode = (leagues[0]?.code || leagues[0]?.category || 'JSL').toUpperCase();
+  const initialFormat = store.getTournamentFormat(initialLeagueCode);
+  const initialFmt = initialFormat.format || 'TWO_GROUPS';
+  let initialStageOptionsHtml = '';
+  if (initialFmt === 'TWO_GROUPS') {
+    initialStageOptionsHtml = `
+      <option value="GROUP_A">🟢 Group A Match</option>
+      <option value="GROUP_B">🔵 Group B Match</option>
+      <option value="SEMI_FINAL_1">🏆 Semi-Final 1 (1st Group A vs 2nd Group B)</option>
+      <option value="SEMI_FINAL_2">🏆 Semi-Final 2 (1st Group B vs 2nd Group A)</option>
+      <option value="FINAL">👑 Grand Final</option>
+    `;
+  } else if (initialFmt === 'FOUR_GROUPS') {
+    initialStageOptionsHtml = `
+      <option value="GROUP_A">🟢 Group A Match</option>
+      <option value="GROUP_B">🔵 Group B Match</option>
+      <option value="GROUP_C">🟡 Group C Match</option>
+      <option value="GROUP_D">🟣 Group D Match</option>
+      <option value="SEMI_FINAL_1">🏆 Semi-Final 1</option>
+      <option value="SEMI_FINAL_2">🏆 Semi-Final 2</option>
+      <option value="FINAL">👑 Grand Final</option>
+    `;
+  } else {
+    initialStageOptionsHtml = `
+      <option value="LEAGUE">⚔️ Regular League Match</option>
+      <option value="SEMI_FINAL_1">🏆 Semi-Final 1 (1st vs 4th)</option>
+      <option value="SEMI_FINAL_2">🏆 Semi-Final 2 (2nd vs 3rd)</option>
+      <option value="FINAL">👑 Grand Final</option>
+    `;
+  }
+
   const panelTitle = isMaster ? 'Master Admin Control Panel' : 'JSL 2026 Tournament Control Console';
   const panelSubtitle = isMaster 
     ? 'Log ID: <strong class="text-amber-400">bakolaypan@gmail.com</strong> • Single Source Supabase & Realtime Cloud Database'
@@ -604,6 +636,66 @@ export function renderAdminDashboard(containerEl) {
 
         <!-- 5. Match Scheduler Tab -->
         <div id="tab-fixtures-view" class="${activeAdminTab === 'fixtures' ? '' : 'hidden'} space-y-4 animate-fade-in">
+          
+          <!-- 5a. TOURNAMENT FORMAT & GROUP STAGE MANAGER CARD -->
+          <div class="p-4 sm:p-5 bg-white border-2 border-emerald-300 rounded-3xl shadow-sm space-y-4">
+            <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+              <div class="flex items-center gap-3">
+                <span class="p-2.5 bg-emerald-50 text-emerald-700 rounded-2xl border border-emerald-200">
+                  <i data-lucide="trophy" class="w-5 h-5"></i>
+                </span>
+                <div>
+                  <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
+                    Tournament Format & Group Stages Manager
+                    <span class="px-2 py-0.5 bg-emerald-600 text-white rounded-full text-[9px] font-black uppercase">Live Config</span>
+                  </h3>
+                  <p class="text-xs text-slate-500">Configure 2 Groups (Group A & B), 4 Groups (A, B, C, D), or Single League. Conduct live lottery & auto-generate fixtures.</p>
+                </div>
+              </div>
+
+              <!-- Action Buttons -->
+              <div class="flex flex-wrap items-center gap-2">
+                <button id="admin-randomize-groups-btn" class="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer transition-all border border-amber-300" title="Randomize and split teams evenly into groups">
+                  🎲 Live Lottery / Random Draw
+                </button>
+                <button id="admin-auto-fixtures-btn" class="px-3.5 py-2 bg-gradient-to-r from-sky-600 to-indigo-700 hover:from-sky-500 hover:to-indigo-600 text-white font-black text-xs rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer transition-all border border-sky-400" title="Automatically generate intra-group round-robin fixtures">
+                  ⚡ 1-Click Auto Fixtures
+                </button>
+              </div>
+            </div>
+
+            <!-- Format Settings Form Bar -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200 text-xs">
+              <div>
+                <label class="block text-[10px] font-black text-slate-600 uppercase tracking-wider mb-1">Target Tournament</label>
+                <select id="group-mgr-league-select" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2 font-bold cursor-pointer">
+                  ${leagues.map(l => `<option value="${(l.code || l.category || 'JSL').toUpperCase()}">${l.name || l.code}</option>`).join('')}
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-[10px] font-black text-slate-600 uppercase tracking-wider mb-1">Tournament Format</label>
+                <select id="group-mgr-format-select" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2 font-bold cursor-pointer">
+                  <option value="TWO_GROUPS">2 Groups (Group A & Group B - 4+4 Teams)</option>
+                  <option value="FOUR_GROUPS">4 Groups (Groups A, B, C, D - 16 Teams)</option>
+                  <option value="SINGLE_TABLE">Single League Table (All Teams in 1 Table)</option>
+                </select>
+              </div>
+
+              <div>
+                <label class="block text-[10px] font-black text-slate-600 uppercase tracking-wider mb-1">Qualification Rule</label>
+                <select id="group-mgr-knockout-select" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2 font-bold cursor-pointer">
+                  <option value="SEMIFINALS">Top 2 of Each Group ➔ Semifinals (1st A vs 2nd B, 1st B vs 2nd A)</option>
+                  <option value="QUARTERFINALS">Top 2 of Each Group ➔ Quarterfinals ➔ SF ➔ Final</option>
+                  <option value="FINAL_ONLY">Top 1 of Each Group ➔ Direct Grand Final</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Visual Group Breakdown Arena Container -->
+            <div id="admin-group-breakdown-arena"></div>
+          </div>
+
           <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
             <!-- Create Fixture Form -->
             <div class="p-4 sm:p-5 bg-white border-2 border-slate-200 rounded-3xl shadow-sm space-y-3.5 md:col-span-1">
@@ -613,24 +705,28 @@ export function renderAdminDashboard(containerEl) {
               <form id="admin-create-fixture-form" class="space-y-3">
                 <div>
                   <label class="block text-[10px] font-bold text-slate-600 mb-1">TOURNAMENT LEAGUE</label>
-                  <select id="fixture-league-category" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5">
-                    <option value="JSL">JHANKRA SUPER LEAGUE (JSL)</option>
-                    <option value="JPL">JHANKRA PREMIER LEAGUE (JPL)</option>
-                    <option value="KPL">KOTA PREMIER LEAGUE (KPL)</option>
+                  <select id="fixture-league-category" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold">
+                    ${leagues.map(l => `<option value="${(l.code || l.category || 'JSL').toUpperCase()}">${l.name || l.code}</option>`).join('')}
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-[10px] font-bold text-slate-600 mb-1">MATCH STAGE / GROUP</label>
+                  <select id="fixture-stage-select" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold">
+                    ${initialStageOptionsHtml}
                   </select>
                 </div>
                 <div>
                   <label class="block text-[10px] font-bold text-slate-600 mb-1">TEAM A</label>
                   <select id="fixture-team-a" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5" required>
                     <option value="">-- Select Team --</option>
-                    ${teams.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}
+                    ${teams.map(t => `<option value="${t.id}">[Group ${t.group || 'A'}] ${t.name}</option>`).join('')}
                   </select>
                 </div>
                 <div>
                   <label class="block text-[10px] font-bold text-slate-600 mb-1">TEAM B</label>
                   <select id="fixture-team-b" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5" required>
                     <option value="">-- Select Team --</option>
-                    ${teams.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}
+                    ${teams.map(t => `<option value="${t.id}">[Group ${t.group || 'A'}] ${t.name}</option>`).join('')}
                   </select>
                 </div>
                 <div class="grid grid-cols-2 gap-2">
@@ -647,9 +743,15 @@ export function renderAdminDashboard(containerEl) {
                   <label class="block text-[10px] font-bold text-slate-600 mb-1">VENUE</label>
                   <input type="text" id="fixture-venue" value="JHANKRA SCHOOL GROUND" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-medium" required />
                 </div>
-                <div>
-                  <label class="block text-[10px] font-bold text-slate-600 mb-1">TOTAL OVERS</label>
-                  <input type="number" id="fixture-overs" value="16" min="1" max="50" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold" required />
+                <div class="grid grid-cols-2 gap-2">
+                  <div>
+                    <label class="block text-[10px] font-bold text-slate-600 mb-1">MATCH NO. (e.g. 1, 2, 3)</label>
+                    <input type="number" id="fixture-match-no" placeholder="Auto (#)" min="1" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold" />
+                  </div>
+                  <div>
+                    <label class="block text-[10px] font-bold text-slate-600 mb-1">TOTAL OVERS</label>
+                    <input type="number" id="fixture-overs" value="16" min="1" max="50" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold" required />
+                  </div>
                 </div>
                 <button type="submit" class="w-full py-2.5 bg-sky-600 hover:bg-sky-500 text-white font-black text-xs rounded-xl shadow-xs cursor-pointer">
                   Schedule Fixture
@@ -667,6 +769,7 @@ export function renderAdminDashboard(containerEl) {
                   <thead class="bg-slate-100 text-[10px] uppercase text-slate-700 font-black border-b border-slate-200">
                     <tr>
                       <th class="py-3 px-3">Teams</th>
+                      <th class="py-3 px-3">Stage / Group</th>
                       <th class="py-3 px-3">Date / Venue</th>
                       <th class="py-3 px-3">Overs</th>
                       <th class="py-3 px-3">Status</th>
@@ -682,101 +785,163 @@ export function renderAdminDashboard(containerEl) {
 
         <!-- 6. Live Match Scorer Tab -->
         <div id="tab-scorer-view" class="${activeAdminTab === 'scorer' ? '' : 'hidden'} space-y-4 animate-fade-in">
+          
+          <!-- STEP 1: CHOOSE MATCH & TOSS DETAILS -->
           <div class="p-4 sm:p-5 bg-white border-2 border-slate-200 rounded-3xl shadow-sm space-y-3.5">
-            <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
-              <i data-lucide="gamepad-2" class="w-5 h-5 text-emerald-600"></i> Scorer Control Console
-            </h3>
+            <div class="flex items-center justify-between border-b border-slate-100 pb-2 flex-wrap gap-2">
+              <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
+                <span class="w-7 h-7 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center font-mono font-black text-xs shadow-2xs">1</span>
+                <span>Select Match to Score</span>
+              </h3>
+              <span class="text-[10px] text-slate-400 font-bold uppercase">Step 1 of 3</span>
+            </div>
 
-            <!-- Match Selector -->
-            <div id="scorer-match-selector-block" class="space-y-3">
-              <div class="flex flex-col sm:flex-row gap-3 items-end">
-                <div class="flex-grow">
-                  <label class="block text-xs font-bold text-slate-600 mb-1">SELECT MATCH TO SCORE</label>
-                  <select id="scorer-select-match" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-medium">
-                    <option value="">-- Choose Match --</option>
-                  </select>
-                </div>
-                <button id="scorer-start-btn" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl shadow-xs cursor-pointer">
-                  Load Scoring Panel
-                </button>
+            <div>
+              <label class="block text-xs font-black text-slate-700 mb-1.5 uppercase tracking-wider">CHOOSE FIXTURE</label>
+              <select id="scorer-select-match" class="w-full bg-slate-50 border-2 border-slate-300 text-slate-900 text-xs sm:text-sm rounded-2xl p-3 font-bold cursor-pointer hover:border-emerald-500 transition-colors">
+                <option value="">-- Choose Match --</option>
+              </select>
+            </div>
+
+            <!-- Selected Match Info Banner (Shown after match selected) -->
+            <div id="scorer-selected-match-card" class="hidden bg-emerald-50/70 border-2 border-emerald-300 p-3.5 rounded-2xl text-slate-900 space-y-2"></div>
+          </div>
+
+          <!-- STEP 2: SELECT STRIKER, NON-STRIKER & OPENING BOWLER -->
+          <div id="scorer-lineup-step-block" class="hidden p-4 sm:p-5 bg-white border-2 border-slate-200 rounded-3xl shadow-sm space-y-4 animate-fade-in">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-2 flex-wrap gap-2">
+              <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
+                <span class="w-7 h-7 rounded-xl bg-sky-100 text-sky-800 flex items-center justify-center font-mono font-black text-xs shadow-2xs">2</span>
+                <span>Select Opening Batsmen & Bowler</span>
+              </h3>
+              <span class="text-[10px] text-slate-400 font-bold uppercase">Step 2 of 3</span>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+              <!-- Striker -->
+              <div class="p-3 bg-emerald-50/50 border border-emerald-200 rounded-2xl space-y-1.5">
+                <label class="block text-[11px] font-black text-emerald-950 uppercase tracking-wider flex items-center justify-between">
+                  <span>🏏 Batsman 1 (Strike)</span>
+                  <span class="text-[9px] bg-emerald-600 text-white px-1.5 py-0.2 rounded font-black">Facing</span>
+                </label>
+                <select id="scorer-select-striker" class="w-full bg-white border-2 border-emerald-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold cursor-pointer shadow-2xs"></select>
+                <span class="text-[10px] text-slate-500 block">Will face the first delivery of the over.</span>
+              </div>
+
+              <!-- Non-Striker -->
+              <div class="p-3 bg-teal-50/50 border border-teal-200 rounded-2xl space-y-1.5">
+                <label class="block text-[11px] font-black text-teal-950 uppercase tracking-wider flex items-center justify-between">
+                  <span>🏏 Batsman 2 (Non-Strike)</span>
+                  <span class="text-[9px] bg-teal-600 text-white px-1.5 py-0.2 rounded font-black">Runner</span>
+                </label>
+                <select id="scorer-select-non-striker" class="w-full bg-white border-2 border-teal-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold cursor-pointer shadow-2xs"></select>
+                <span class="text-[10px] text-slate-500 block">Opening partner at bowler's end.</span>
+              </div>
+
+              <!-- Bowler -->
+              <div class="p-3 bg-indigo-50/50 border border-indigo-200 rounded-2xl space-y-1.5">
+                <label class="block text-[11px] font-black text-indigo-950 uppercase tracking-wider flex items-center justify-between">
+                  <span>⚾ Opening Bowler</span>
+                  <span class="text-[9px] bg-indigo-600 text-white px-1.5 py-0.2 rounded font-black">Over 1</span>
+                </label>
+                <select id="scorer-select-bowler" class="w-full bg-white border-2 border-indigo-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold cursor-pointer shadow-2xs"></select>
+                <span class="text-[10px] text-slate-500 block">Delivering Over #1 of the innings.</span>
               </div>
             </div>
 
-            <!-- Active Scorer Panel -->
-            <div id="scorer-active-panel" class="hidden border-t border-slate-100 pt-3.5 space-y-4">
-              <!-- Active match status summary card -->
-              <div id="scorer-match-status-summary"></div>
+            <!-- Big Start Match Action Button -->
+            <button type="button" id="scorer-start-match-action-btn" class="w-full py-3.5 px-4 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-sm rounded-2xl shadow-md cursor-pointer transition-all hover:scale-[1.01] active:scale-95 flex items-center justify-center gap-2">
+              <span class="text-lg">🚀</span>
+              <span id="scorer-start-match-btn-txt">START MATCH & OPEN LIVE SCORING PANEL</span>
+            </button>
+          </div>
+
+          <!-- STEP 3: LIVE BALL-BY-BALL SCORING PANEL -->
+          <div id="scorer-active-panel" class="hidden p-4 sm:p-5 bg-white border-2 border-emerald-500 rounded-3xl shadow-lg space-y-4 animate-fade-in">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-2 flex-wrap gap-2">
+              <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
+                <span class="w-7 h-7 rounded-xl bg-emerald-600 text-white flex items-center justify-center font-mono font-black text-xs">3</span>
+                <span class="w-2.5 h-2.5 rounded-full bg-rose-600 animate-ping"></span>
+                <span>Live Ball-by-Ball Scoring Engine</span>
+              </h3>
+              <span class="text-[10px] bg-rose-50 text-rose-700 border border-rose-200 px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider animate-pulse">🔴 LIVE MATCH RUNNING</span>
+            </div>
+
+            <!-- Active match status summary card -->
+            <div id="scorer-match-status-summary"></div>
+            
+            <!-- In-Play Batsmen & Bowler Quick Switcher -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3 bg-slate-50 p-3 rounded-2xl border border-slate-200">
+              <div>
+                <label class="block text-[10px] font-black text-slate-600 mb-1 uppercase tracking-wider">Current Striker 🏏</label>
+                <select id="scorer-active-striker-sel" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2 font-bold"></select>
+              </div>
+              <div>
+                <label class="block text-[10px] font-black text-slate-600 mb-1 uppercase tracking-wider">Current Non-Striker 🏏</label>
+                <select id="scorer-active-non-striker-sel" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2 font-bold"></select>
+              </div>
+              <div>
+                <label class="block text-[10px] font-black text-slate-600 mb-1 uppercase tracking-wider">Current Bowler ⚾</label>
+                <select id="scorer-active-bowler-sel" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2 font-bold"></select>
+              </div>
+            </div>
+
+            <!-- Ball Scoring Inputs -->
+            <div class="bg-slate-50 p-3.5 sm:p-4 rounded-2xl border-2 border-slate-200 space-y-3">
+              <div class="font-black text-xs text-slate-900 uppercase tracking-wider flex items-center justify-between">
+                <span>⚡ Scoring Actions (Click ball outcome)</span>
+                <span class="text-[10px] text-emerald-700 font-bold">Auto-syncs live to Match Corner</span>
+              </div>
               
-              <!-- Setup striker, non-striker and bowler -->
-              <div class="grid grid-cols-1 md:grid-cols-3 gap-3 bg-slate-50 p-3.5 rounded-2xl border border-slate-200">
-                <div>
-                  <label class="block text-[10px] font-black text-slate-600 mb-1 uppercase tracking-wider">Batsman 1 (On Strike 🏏)</label>
-                  <select id="scorer-select-striker" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2"></select>
+              <!-- Runs & Wicket Buttons Grid -->
+              <div class="grid grid-cols-3 sm:grid-cols-7 gap-2">
+                <button type="button" data-runs="0" onclick="window.processScorerBall(0)" class="scorer-ball-act-btn py-3 bg-white hover:bg-slate-100 text-slate-800 border-2 border-slate-300 font-black text-sm rounded-2xl shadow-2xs cursor-pointer active:scale-95 transition-all">0 Runs</button>
+                <button type="button" data-runs="1" onclick="window.processScorerBall(1)" class="scorer-ball-act-btn py-3 bg-white hover:bg-slate-100 text-slate-800 border-2 border-slate-300 font-black text-sm rounded-2xl shadow-2xs cursor-pointer active:scale-95 transition-all">1 Run</button>
+                <button type="button" data-runs="2" onclick="window.processScorerBall(2)" class="scorer-ball-act-btn py-3 bg-white hover:bg-slate-100 text-slate-800 border-2 border-slate-300 font-black text-sm rounded-2xl shadow-2xs cursor-pointer active:scale-95 transition-all">2 Runs</button>
+                <button type="button" data-runs="3" onclick="window.processScorerBall(3)" class="scorer-ball-act-btn py-3 bg-white hover:bg-slate-100 text-slate-800 border-2 border-slate-300 font-black text-sm rounded-2xl shadow-2xs cursor-pointer active:scale-95 transition-all">3 Runs</button>
+                <button type="button" data-runs="4" onclick="window.processScorerBall(4)" class="scorer-ball-act-btn py-3 bg-blue-600 hover:bg-blue-500 text-white font-black text-sm rounded-2xl shadow-2xs cursor-pointer active:scale-95 transition-all">4 (FOUR)</button>
+                <button type="button" data-runs="6" onclick="window.processScorerBall(6)" class="scorer-ball-act-btn py-3 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm rounded-2xl shadow-2xs cursor-pointer active:scale-95 transition-all">6 (SIX)</button>
+                <button type="button" id="scorer-wicket-btn" onclick="window.openScorerWicketModal()" class="py-3 bg-rose-600 hover:bg-rose-500 text-white font-black text-sm rounded-2xl shadow-2xs cursor-pointer active:scale-95 transition-all">WICKET</button>
+              </div>
+
+              <!-- Extras & Dismissal details -->
+              <div class="flex flex-wrap gap-4 text-xs font-bold pt-2 border-t border-slate-200 text-slate-700">
+                <div class="flex items-center gap-1.5 cursor-pointer">
+                  <input type="checkbox" id="scorer-extra-wide" class="w-4 h-4 accent-amber-500 cursor-pointer" />
+                  <label for="scorer-extra-wide" class="cursor-pointer">Wide Ball (WD)</label>
                 </div>
-                <div>
-                  <label class="block text-[10px] font-black text-slate-600 mb-1 uppercase tracking-wider">Batsman 2 (Non-Strike)</label>
-                  <select id="scorer-select-non-striker" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2"></select>
+                <div class="flex items-center gap-1.5 cursor-pointer">
+                  <input type="checkbox" id="scorer-extra-noball" class="w-4 h-4 accent-amber-500 cursor-pointer" />
+                  <label for="scorer-extra-noball" class="cursor-pointer">No Ball (NB)</label>
                 </div>
-                <div>
-                  <label class="block text-[10px] font-black text-slate-600 mb-1 uppercase tracking-wider">Active Bowler ⚾</label>
-                  <select id="scorer-select-bowler" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2"></select>
+                <div class="flex items-center gap-1.5 cursor-pointer">
+                  <input type="checkbox" id="scorer-extra-bye" class="w-4 h-4 accent-amber-500 cursor-pointer" />
+                  <label for="scorer-extra-bye" class="cursor-pointer">Byes (B)</label>
+                </div>
+                <div class="flex items-center gap-1.5 cursor-pointer">
+                  <input type="checkbox" id="scorer-extra-legbye" class="w-4 h-4 accent-amber-500 cursor-pointer" />
+                  <label for="scorer-extra-legbye" class="cursor-pointer">Leg Byes (LB)</label>
                 </div>
               </div>
 
-              <!-- Ball Scoring Inputs -->
-              <div class="bg-slate-50 p-3.5 rounded-2xl border border-slate-200 space-y-3">
-                <div class="font-black text-xs text-slate-700 uppercase tracking-wider">Scoring Actions</div>
-                
-                <!-- Runs & Wicket Buttons Grid -->
-                <div class="grid grid-cols-3 sm:grid-cols-7 gap-2">
-                  <button data-runs="0" class="scorer-ball-act-btn py-2.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 font-black text-sm rounded-xl shadow-2xs">0 Runs</button>
-                  <button data-runs="1" class="scorer-ball-act-btn py-2.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 font-black text-sm rounded-xl shadow-2xs">1 Run</button>
-                  <button data-runs="2" class="scorer-ball-act-btn py-2.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 font-black text-sm rounded-xl shadow-2xs">2 Runs</button>
-                  <button data-runs="3" class="scorer-ball-act-btn py-2.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 font-black text-sm rounded-xl shadow-2xs">3 Runs</button>
-                  <button data-runs="4" class="scorer-ball-act-btn py-2.5 bg-blue-600 hover:bg-blue-500 text-white font-black text-sm rounded-xl shadow-2xs">4 (FOUR)</button>
-                  <button data-runs="6" class="scorer-ball-act-btn py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-sm rounded-xl shadow-2xs">6 (SIX)</button>
-                  <button id="scorer-wicket-btn" class="py-2.5 bg-rose-600 hover:bg-rose-500 text-white font-black text-sm rounded-xl shadow-2xs">WICKET</button>
-                </div>
+              <!-- Current Over Logs -->
+              <div class="flex items-center justify-between pt-2 border-t border-slate-200 text-xs">
+                <span class="text-slate-500 font-bold">This Over Deliveries:</span>
+                <div id="scorer-this-over-balls" class="flex gap-1.5 flex-wrap"></div>
+              </div>
 
-                <!-- Extras & Dismissal details -->
-                <div class="flex flex-wrap gap-4 text-xs font-bold pt-2 border-t border-slate-200 text-slate-700">
-                  <div class="flex items-center gap-1.5 cursor-pointer">
-                    <input type="checkbox" id="scorer-extra-wide" class="w-4 h-4 accent-amber-500" />
-                    <label for="scorer-extra-wide">Wide Ball (WD)</label>
-                  </div>
-                  <div class="flex items-center gap-1.5 cursor-pointer">
-                    <input type="checkbox" id="scorer-extra-noball" class="w-4 h-4 accent-amber-500" />
-                    <label for="scorer-extra-noball">No Ball (NB)</label>
-                  </div>
-                  <div class="flex items-center gap-1.5 cursor-pointer">
-                    <input type="checkbox" id="scorer-extra-bye" class="w-4 h-4 accent-amber-500" />
-                    <label for="scorer-extra-bye">Byes (B)</label>
-                  </div>
-                  <div class="flex items-center gap-1.5 cursor-pointer">
-                    <input type="checkbox" id="scorer-extra-legbye" class="w-4 h-4 accent-amber-500" />
-                    <label for="scorer-extra-legbye">Leg Byes (LB)</label>
-                  </div>
-                </div>
-
-                <!-- Current Over Logs -->
-                <div class="flex items-center justify-between pt-2 border-t border-slate-200 text-xs">
-                  <span class="text-slate-500 font-bold">This Over:</span>
-                  <div id="scorer-this-over-balls" class="flex gap-1.5"></div>
-                </div>
-
-                <!-- Submit and Innings controls -->
-                <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-200">
-                  <button id="scorer-swap-strike-btn" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl border border-slate-300">
-                    🔄 Swap Strike manually
+              <!-- Submit and Innings controls -->
+              <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-200">
+                <button type="button" id="scorer-swap-strike-btn" onclick="window.swapStrikeManually()" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl border border-slate-300 cursor-pointer transition-all">
+                  🔄 Swap Strike manually
+                </button>
+                <div class="flex items-center gap-2">
+                  <button type="button" id="scorer-end-innings-btn" onclick="window.closeInningsManually()" class="px-3.5 py-2 bg-purple-100 hover:bg-purple-200 text-purple-900 font-black text-xs rounded-xl border border-purple-300 cursor-pointer transition-all">
+                    🌓 Close Innings
                   </button>
-                  <div class="flex items-center gap-2">
-                    <button id="scorer-end-innings-btn" class="px-3.5 py-2 bg-purple-100 hover:bg-purple-200 text-purple-900 font-black text-xs rounded-xl border border-purple-300">
-                      🌓 Close Innings
-                    </button>
-                    <button id="scorer-finish-match-btn" class="px-3.5 py-2 bg-rose-100 hover:bg-rose-200 text-rose-900 font-black text-xs rounded-xl border border-rose-300">
-                      🏆 Finish Match & Set Winner
-                    </button>
-                  </div>
+                  <button type="button" id="scorer-finish-match-btn" onclick="window.finishMatchManually()" class="px-3.5 py-2 bg-rose-100 hover:bg-rose-200 text-rose-900 font-black text-xs rounded-xl border border-rose-300 cursor-pointer transition-all">
+                    🏆 Finish Match & Set Winner
+                  </button>
                 </div>
               </div>
             </div>
@@ -1007,6 +1172,7 @@ export function renderAdminDashboard(containerEl) {
       }
       if (activeAdminTab === 'fixtures') {
         document.getElementById('tab-fixtures-view')?.classList.remove('hidden');
+        renderAdminGroupArena();
         renderAdminFixturesList();
       }
       if (activeAdminTab === 'scorer') {
@@ -1176,6 +1342,149 @@ export function renderAdminDashboard(containerEl) {
     }
   });
 
+  // --- GROUP STAGES & FORMAT MANAGER LISTENERS ---
+  const groupLeagueSel = document.getElementById('group-mgr-league-select');
+  const groupFormatSel = document.getElementById('group-mgr-format-select');
+  const groupKnockoutSel = document.getElementById('group-mgr-knockout-select');
+
+  groupLeagueSel?.addEventListener('change', () => {
+    const selectedLeague = groupLeagueSel.value;
+    const fixtureLeagueSel = document.getElementById('fixture-league-category');
+    if (fixtureLeagueSel) fixtureLeagueSel.value = selectedLeague;
+    renderAdminGroupArena();
+    updateFixtureStageOptions();
+  });
+
+  groupFormatSel?.addEventListener('change', async () => {
+    const leagueCode = groupLeagueSel ? groupLeagueSel.value : 'JSL';
+    const fmt = groupFormatSel.value;
+    let groups = ['A', 'B'];
+    if (fmt === 'FOUR_GROUPS') groups = ['A', 'B', 'C', 'D'];
+    if (fmt === 'SINGLE_TABLE') groups = ['ALL'];
+
+    await store.saveTournamentFormat(leagueCode, { format: fmt, groups });
+    renderAdminGroupArena();
+    updateFixtureStageOptions();
+  });
+
+  groupKnockoutSel?.addEventListener('change', async () => {
+    const leagueCode = groupLeagueSel ? groupLeagueSel.value : 'JSL';
+    await store.saveTournamentFormat(leagueCode, { knockoutType: groupKnockoutSel.value });
+    updateFixtureStageOptions();
+  });
+
+  // Randomize / Lottery Draw Button
+  document.getElementById('admin-randomize-groups-btn')?.addEventListener('click', () => {
+    const leagueCode = groupLeagueSel ? groupLeagueSel.value : 'JSL';
+    const fmt = groupFormatSel ? groupFormatSel.value : 'TWO_GROUPS';
+    let groupNames = ['A', 'B'];
+    if (fmt === 'FOUR_GROUPS') groupNames = ['A', 'B', 'C', 'D'];
+
+    if (confirm(`🎲 Run Live Tournament Lottery Draw for ${leagueCode}?\n\nThis will randomly shuffle all confirmed teams into ${groupNames.length} balanced groups (Groups ${groupNames.join(', ')}) live!`)) {
+      const assignments = store.randomizeTeamGroups(leagueCode, groupNames);
+      alert(`🎉 Live Lottery Draw Completed!\n\n${assignments.length} teams have been randomly split into Groups ${groupNames.join(', ')} and synced to the cloud!`);
+      renderAdminGroupArena();
+      updateFixtureStageOptions();
+    }
+  });
+
+  // Auto-generate Group Fixtures Button
+  document.getElementById('admin-auto-fixtures-btn')?.addEventListener('click', () => {
+    const leagueCode = groupLeagueSel ? groupLeagueSel.value : 'JSL';
+    const overs = prompt(`⚡ Auto-Generate All Intra-Group Matches for ${leagueCode}?\n\nEnter Total Overs per match:`, "16");
+    if (overs !== null) {
+      const venue = prompt("Enter Match Venue:", "JHANKRA SCHOOL GROUND") || "JHANKRA SCHOOL GROUND";
+      const startDate = prompt("Enter Start Date (YYYY-MM-DD):", new Date().toISOString().split('T')[0]) || new Date().toISOString().split('T')[0];
+      const generated = store.autoGenerateGroupFixtures(leagueCode, { overs: Number(overs) || 16, venue, startDate });
+      alert(`✅ Success! Generated ${generated.length} group stage matches for ${leagueCode}!`);
+      renderAdminFixturesList();
+      renderAdminDashboard(containerEl);
+    }
+  });
+
+  function updateFixtureStageOptions() {
+    const stageSelect = document.getElementById('fixture-stage-select');
+    if (!stageSelect) return;
+
+    const leagueCode = (document.getElementById('fixture-league-category')?.value || 'JSL').toUpperCase();
+    const format = store.getTournamentFormat(leagueCode);
+    const fmt = format.format || 'TWO_GROUPS';
+    const currentVal = stageSelect.value;
+
+    let stageOptions = [];
+    if (fmt === 'TWO_GROUPS') {
+      stageOptions = [
+        { value: 'GROUP_A', label: '🟢 Group A Match' },
+        { value: 'GROUP_B', label: '🔵 Group B Match' },
+        { value: 'SEMI_FINAL_1', label: '🏆 Semi-Final 1 (1st Group A vs 2nd Group B)' },
+        { value: 'SEMI_FINAL_2', label: '🏆 Semi-Final 2 (1st Group B vs 2nd Group A)' },
+        { value: 'FINAL', label: '👑 Grand Final' }
+      ];
+    } else if (fmt === 'FOUR_GROUPS') {
+      stageOptions = [
+        { value: 'GROUP_A', label: '🟢 Group A Match' },
+        { value: 'GROUP_B', label: '🔵 Group B Match' },
+        { value: 'GROUP_C', label: '🟡 Group C Match' },
+        { value: 'GROUP_D', label: '🟣 Group D Match' },
+        { value: 'SEMI_FINAL_1', label: '🏆 Semi-Final 1' },
+        { value: 'SEMI_FINAL_2', label: '🏆 Semi-Final 2' },
+        { value: 'FINAL', label: '👑 Grand Final' }
+      ];
+    } else { // SINGLE_TABLE
+      stageOptions = [
+        { value: 'LEAGUE', label: '⚔️ Regular League Match' },
+        { value: 'SEMI_FINAL_1', label: '🏆 Semi-Final 1 (1st vs 4th)' },
+        { value: 'SEMI_FINAL_2', label: '🏆 Semi-Final 2 (2nd vs 3rd)' },
+        { value: 'FINAL', label: '👑 Grand Final' }
+      ];
+    }
+
+    stageSelect.innerHTML = stageOptions.map(opt => `
+      <option value="${opt.value}" ${currentVal === opt.value ? 'selected' : ''}>${opt.label}</option>
+    `).join('');
+
+    if (!stageOptions.some(opt => opt.value === stageSelect.value)) {
+      stageSelect.value = stageOptions[0].value;
+    }
+
+    updateFixtureTeamDropdowns();
+  }
+
+  function updateFixtureTeamDropdowns() {
+    const leagueCode = (document.getElementById('fixture-league-category')?.value || 'JSL').toUpperCase();
+    const stage = document.getElementById('fixture-stage-select')?.value || 'GROUP_A';
+    const allLeagueTeams = store.getTeams().filter(t => {
+      const code = (t.leagueCode || (t.leagueId === 'leg-jsl' ? 'JSL' : (t.leagueId === 'leg-jpl' ? 'JPL' : (t.leagueId === 'leg-kpl' ? 'KPL' : 'JSL'))));
+      return code === leagueCode;
+    });
+
+    let filteredTeams = allLeagueTeams;
+    if (stage === 'GROUP_A') filteredTeams = allLeagueTeams.filter(t => (t.group || 'A').toUpperCase() === 'A');
+    else if (stage === 'GROUP_B') filteredTeams = allLeagueTeams.filter(t => (t.group || 'B').toUpperCase() === 'B');
+    else if (stage === 'GROUP_C') filteredTeams = allLeagueTeams.filter(t => (t.group || 'C').toUpperCase() === 'C');
+    else if (stage === 'GROUP_D') filteredTeams = allLeagueTeams.filter(t => (t.group || 'D').toUpperCase() === 'D');
+    
+    if (filteredTeams.length === 0) filteredTeams = allLeagueTeams;
+
+    const teamASel = document.getElementById('fixture-team-a');
+    const teamBSel = document.getElementById('fixture-team-b');
+    if (teamASel && teamBSel) {
+      const optionsHtml = `<option value="">-- Select Team --</option>` + filteredTeams.map(t => `<option value="${t.id}">[Group ${t.group || 'A'}] ${t.name}</option>`).join('');
+      teamASel.innerHTML = optionsHtml;
+      teamBSel.innerHTML = optionsHtml;
+    }
+  }
+
+  document.getElementById('fixture-stage-select')?.addEventListener('change', updateFixtureTeamDropdowns);
+  document.getElementById('fixture-league-category')?.addEventListener('change', () => {
+    const fLeague = document.getElementById('fixture-league-category').value;
+    if (groupLeagueSel) groupLeagueSel.value = fLeague;
+    renderAdminGroupArena();
+    updateFixtureStageOptions();
+  });
+
+  updateFixtureStageOptions();
+
   // Bind Create Fixture Form Submit
   document.getElementById('admin-create-fixture-form')?.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -1184,8 +1493,23 @@ export function renderAdminDashboard(containerEl) {
     if (teamAId === teamBId) return alert("Team A and Team B cannot be the same!");
     const teamA = store.getTeamById(teamAId);
     const teamB = store.getTeamById(teamBId);
+    const stageVal = document.getElementById('fixture-stage-select')?.value || 'GROUP_A';
+    let grpCode = null;
+    if (stageVal === 'GROUP_A') grpCode = 'A';
+    else if (stageVal === 'GROUP_B') grpCode = 'B';
+    else if (stageVal === 'GROUP_C') grpCode = 'C';
+    else if (stageVal === 'GROUP_D') grpCode = 'D';
+
+    const lCode = document.getElementById('fixture-league-category').value;
+    const matchNoInput = document.getElementById('fixture-match-no')?.value;
+    const existingLeagueFix = store.getFixtures().filter(f => (f.leagueCode || 'JSL').toUpperCase() === lCode.toUpperCase());
+    const matchNo = matchNoInput ? Number(matchNoInput) : (existingLeagueFix.length + 1);
+
     store.registerFixture({
-      leagueCode: document.getElementById('fixture-league-category').value,
+      leagueCode: lCode,
+      matchNo: matchNo,
+      stage: stageVal,
+      groupCode: grpCode,
       teamAId,
       teamBId,
       teamAName: teamA ? teamA.name : 'Team A',
@@ -1196,121 +1520,10 @@ export function renderAdminDashboard(containerEl) {
       oversLimit: Number(document.getElementById('fixture-overs').value) || 16,
       status: 'SCHEDULED'
     });
-    alert("Match scheduled successfully!");
+    alert(`Match #${matchNo} scheduled successfully!`);
     renderAdminDashboard(containerEl);
   });
 
-  // Bind Scorer match start
-  document.getElementById('scorer-start-btn')?.addEventListener('click', () => {
-    const matchId = document.getElementById('scorer-select-match').value;
-    if (!matchId) return alert("Select a match to score!");
-    activeScoringMatchId = matchId;
-    const fixtures = store.getFixtures();
-    const fixture = fixtures.find(f => f.id === matchId);
-    if (fixture) {
-      if (!fixture.liveMatchState) {
-        openTossSelectionModal(fixture, () => {
-          currentScoringState = fixture.liveMatchState;
-          document.getElementById('scorer-active-panel').classList.remove('hidden');
-          renderScorerActivePanel();
-        });
-      } else {
-        currentScoringState = fixture.liveMatchState;
-        document.getElementById('scorer-active-panel').classList.remove('hidden');
-        renderScorerActivePanel();
-      }
-    }
-  });
-
-  // Bind Scorer Ball Actions
-  document.querySelectorAll('.scorer-ball-act-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const runs = Number(e.currentTarget.getAttribute('data-runs')) || 0;
-      processScorerBall(runs);
-    });
-  });
-
-  // Bind Scorer Wicket btn
-  document.getElementById('scorer-wicket-btn')?.addEventListener('click', () => {
-    openScorerWicketModal();
-  });
-
-  // Bind Swap Strike
-  document.getElementById('scorer-swap-strike-btn')?.addEventListener('click', () => {
-    const fixture = store.getFixtures().find(f => f.id === activeScoringMatchId);
-    if (fixture && fixture.liveMatchState) {
-      const temp = fixture.liveMatchState.strikerId;
-      fixture.liveMatchState.strikerId = fixture.liveMatchState.nonStrikerId;
-      fixture.liveMatchState.nonStrikerId = temp;
-      store.updateFixture(fixture);
-      renderScorerActivePanel();
-      alert("Strike swapped manually!");
-    }
-  });
-
-  // Bind Close Innings
-  document.getElementById('scorer-end-innings-btn')?.addEventListener('click', () => {
-    const fixture = store.getFixtures().find(f => f.id === activeScoringMatchId);
-    if (fixture && fixture.liveMatchState) {
-      if (fixture.liveMatchState.innings === 2) {
-        return alert("Innings 2 is already in progress or completed!");
-      }
-      if (confirm("Confirm Close Innings 1? This will calculate target and setup Innings 2.")) {
-        fixture.liveMatchState.innings = 2;
-        fixture.liveMatchState.target = fixture.liveMatchState.runs + 1;
-        fixture.liveMatchState.strikerId = '';
-        fixture.liveMatchState.nonStrikerId = '';
-        fixture.liveMatchState.bowlerId = '';
-        fixture.liveMatchState.runs = 0;
-        fixture.liveMatchState.wickets = 0;
-        fixture.liveMatchState.overs = 0;
-        fixture.liveMatchState.balls = 0;
-        fixture.liveMatchState.overBalls = [];
-        store.updateFixture(fixture);
-        renderScorerActivePanel();
-        alert(`Innings 1 closed! Target set to ${fixture.liveMatchState.target}. Please choose new batsmen and bowler for Innings 2.`);
-      }
-    }
-  });
-
-  // Bind Finish Match
-  document.getElementById('scorer-finish-match-btn')?.addEventListener('click', () => {
-    const fixture = store.getFixtures().find(f => f.id === activeScoringMatchId);
-    if (fixture && fixture.liveMatchState) {
-      const state = fixture.liveMatchState;
-      let resultText = "";
-      let winnerTeamId = "";
-      
-      const teamAScore = state.innings === 2 ? fixture.teamAScore?.runs : state.runs;
-      const teamBScore = state.innings === 2 ? state.runs : 0;
-
-      if (state.innings === 2) {
-        if (teamBScore >= state.target) {
-          resultText = `${fixture.teamBName} won by ${10 - state.wickets} wickets`;
-          winnerTeamId = fixture.teamBId;
-        } else {
-          const runsMargin = (state.target - 1) - teamBScore;
-          resultText = `${fixture.teamAName} won by ${runsMargin} runs`;
-          winnerTeamId = fixture.teamAId;
-        }
-      } else {
-        resultText = `${fixture.teamAName} won (Opponent conceded)`;
-        winnerTeamId = fixture.teamAId;
-      }
-
-      const finalResult = prompt("Confirm Match Outcome:", resultText);
-      if (finalResult !== null) {
-        fixture.status = 'COMPLETED';
-        fixture.result = finalResult;
-        fixture.winnerTeamId = winnerTeamId;
-        fixture.teamAScore = { runs: teamAScore, wickets: state.innings === 2 ? (fixture.teamAScore?.wickets || 0) : state.wickets, overs: state.innings === 2 ? (fixture.teamAScore?.overs || 16) : state.overs, balls: state.innings === 2 ? (fixture.teamAScore?.balls || 0) : state.balls };
-        fixture.teamBScore = { runs: teamBScore, wickets: state.innings === 2 ? state.wickets : 0, overs: state.innings === 2 ? state.overs : 0, balls: state.innings === 2 ? state.balls : 0 };
-        store.updateFixture(fixture);
-        alert("Match finalized successfully!");
-        renderAdminDashboard(containerEl);
-      }
-    }
-  });
 
   // Export & Action Listeners
   document.getElementById('export-master-csv-btn')?.addEventListener('click', () => exportPlayersToCSV(store.getPlayers()));
@@ -1663,6 +1876,7 @@ function bindAdminTableActions(containerEl) {
   if (activeAdminTab === 'auction') {
     renderActiveAuctionBlock();
   } else if (activeAdminTab === 'fixtures') {
+    renderAdminGroupArena();
     renderAdminFixturesList();
   } else if (activeAdminTab === 'scorer') {
     renderScorerMatchesList();
@@ -2158,54 +2372,204 @@ let currentScoringState = null;
 
 
 
+function renderAdminGroupArena() {
+  const container = document.getElementById('admin-group-breakdown-arena');
+  if (!container) return;
+
+  const leagueSelect = document.getElementById('group-mgr-league-select');
+  const leagueCode = (leagueSelect ? leagueSelect.value : 'JSL').toUpperCase();
+
+  const format = store.getTournamentFormat(leagueCode);
+  const formatSelect = document.getElementById('group-mgr-format-select');
+  if (formatSelect && format.format) {
+    formatSelect.value = format.format;
+  }
+
+  const knockoutSelect = document.getElementById('group-mgr-knockout-select');
+  if (knockoutSelect && format.knockoutType) {
+    knockoutSelect.value = format.knockoutType;
+  }
+
+  const allTeams = store.getTeams().filter(t => {
+    const code = (t.leagueCode || (t.leagueId === 'leg-jsl' ? 'JSL' : (t.leagueId === 'leg-jpl' ? 'JPL' : (t.leagueId === 'leg-kpl' ? 'KPL' : 'JSL'))));
+    return code === leagueCode;
+  });
+
+  const activeFormat = formatSelect ? formatSelect.value : (format.format || 'TWO_GROUPS');
+  let groups = ['A', 'B'];
+  if (activeFormat === 'FOUR_GROUPS') groups = ['A', 'B', 'C', 'D'];
+  if (activeFormat === 'SINGLE_TABLE') groups = ['ALL'];
+
+  if (activeFormat === 'SINGLE_TABLE') {
+    container.innerHTML = `
+      <div class="col-span-full p-4 bg-slate-50 border border-slate-200 rounded-2xl text-center space-y-2">
+        <div class="font-black text-slate-800 text-sm">🌟 Single Unified League Table Active</div>
+        <p class="text-xs text-slate-500">All ${allTeams.length} teams compete together in one combined Points Table.</p>
+      </div>
+    `;
+    return;
+  }
+
+  const groupColors = {
+    A: { border: 'border-emerald-300', bg: 'bg-emerald-50/50', badge: 'bg-emerald-600 text-white', text: 'text-emerald-950', title: '🟢 GROUP A' },
+    B: { border: 'border-sky-300', bg: 'bg-sky-50/50', badge: 'bg-sky-600 text-white', text: 'text-sky-950', title: '🔵 GROUP B' },
+    C: { border: 'border-amber-300', bg: 'bg-amber-50/50', badge: 'bg-amber-600 text-white', text: 'text-amber-950', title: '🟡 GROUP C' },
+    D: { border: 'border-purple-300', bg: 'bg-purple-50/50', badge: 'bg-purple-600 text-white', text: 'text-purple-950', title: '🟣 GROUP D' }
+  };
+
+  container.className = `grid grid-cols-1 ${groups.length > 2 ? 'sm:grid-cols-2 md:grid-cols-4' : 'sm:grid-cols-2'} gap-3.5`;
+
+  container.innerHTML = groups.map(grp => {
+    const styling = groupColors[grp] || groupColors.A;
+    const groupTeams = allTeams.filter(t => (t.group || 'A').toUpperCase() === grp);
+
+    return `
+      <div class="p-3.5 sm:p-4 rounded-2xl border-2 ${styling.border} ${styling.bg} space-y-2.5 shadow-2xs">
+        <div class="flex items-center justify-between pb-2 border-b border-slate-200">
+          <div class="flex items-center gap-2">
+            <span class="text-xs sm:text-sm font-black ${styling.text}">${styling.title}</span>
+            <span class="px-2 py-0.5 rounded-full text-[10px] font-black ${styling.badge}">
+              ${groupTeams.length} Teams
+            </span>
+          </div>
+          <span class="text-[10px] font-bold text-slate-500">Top 2 ➔ Semifinals</span>
+        </div>
+
+        <div class="space-y-2">
+          ${groupTeams.length === 0 ? `
+            <div class="py-4 text-center text-xs text-slate-400 font-semibold italic">No teams assigned to Group ${grp} yet.</div>
+          ` : groupTeams.map((t, idx) => `
+            <div class="bg-white p-2.5 rounded-xl border border-slate-200 shadow-2xs flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <span class="w-6 h-6 rounded-lg bg-slate-100 border border-slate-300 flex items-center justify-center font-mono font-black text-xs text-slate-700 shrink-0">
+                  ${idx + 1}
+                </span>
+                <div class="min-w-0">
+                  <div class="text-xs font-black text-slate-900 truncate">${t.name}</div>
+                  <div class="text-[10px] text-slate-500 truncate">${t.ownerName ? `Owner: ${t.ownerName}` : (t.captainName ? `Cap: ${t.captainName}` : '')}</div>
+                </div>
+              </div>
+
+              <!-- Group Switcher Dropdown -->
+              <div class="shrink-0 flex items-center gap-1">
+                <span class="text-[10px] font-bold text-slate-400">Move:</span>
+                <select class="admin-team-group-switch-select bg-slate-50 border border-slate-300 text-slate-900 text-[11px] font-bold rounded-lg p-1 cursor-pointer" data-team-id="${t.id}">
+                  ${groups.map(g => `<option value="${g}" ${grp === g ? 'selected' : ''}>Group ${g}</option>`).join('')}
+                </select>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  // Bind change listeners on group switches
+  container.querySelectorAll('.admin-team-group-switch-select').forEach(sel => {
+    sel.addEventListener('change', (e) => {
+      const teamId = e.target.getAttribute('data-team-id');
+      const newGroup = e.target.value;
+      store.setTeamGroup(teamId, newGroup);
+      renderAdminGroupArena();
+    });
+  });
+}
+
 function renderAdminFixturesList() {
   const tbody = document.getElementById('admin-fixtures-list');
   if (!tbody) return;
 
-  const fixtures = store.getFixtures();
+  const accessibleLeagues = store.getAccessibleLeagues();
+  const accessibleCodes = accessibleLeagues.map(l => (l.code || l.category || 'JSL').toUpperCase());
+  const fixtures = store.getFixtures().filter(f => store.isMasterAdmin() || accessibleCodes.includes((f.leagueCode || 'JSL').toUpperCase()));
   if (fixtures.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="5" class="py-8 text-center text-xs text-slate-500">No matches scheduled yet.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-xs text-slate-500">No matches scheduled yet.</td></tr>`;
     return;
   }
 
-  tbody.innerHTML = fixtures.map(f => `
-    <tr class="hover:bg-slate-950/60">
+  tbody.innerHTML = fixtures.map(f => {
+    let stageBadge = '<span class="px-1.5 py-0.5 bg-slate-100 text-slate-700 font-mono text-[9px] font-bold rounded border border-slate-300">League</span>';
+    if (f.stage === 'GROUP_A' || f.groupCode === 'A') {
+      stageBadge = '<span class="px-1.5 py-0.5 bg-emerald-100 text-emerald-800 font-mono text-[9px] font-black rounded border border-emerald-300">🟢 Group A</span>';
+    } else if (f.stage === 'GROUP_B' || f.groupCode === 'B') {
+      stageBadge = '<span class="px-1.5 py-0.5 bg-sky-100 text-sky-800 font-mono text-[9px] font-black rounded border border-sky-300">🔵 Group B</span>';
+    } else if (f.stage === 'GROUP_C' || f.groupCode === 'C') {
+      stageBadge = '<span class="px-1.5 py-0.5 bg-amber-100 text-amber-800 font-mono text-[9px] font-black rounded border border-amber-300">🟡 Group C</span>';
+    } else if (f.stage === 'GROUP_D' || f.groupCode === 'D') {
+      stageBadge = '<span class="px-1.5 py-0.5 bg-purple-100 text-purple-800 font-mono text-[9px] font-black rounded border border-purple-300">🟣 Group D</span>';
+    } else if (f.stage === 'SEMI_FINAL_1' || f.stage === 'SEMI_FINAL_2') {
+      stageBadge = '<span class="px-1.5 py-0.5 bg-amber-100 text-amber-900 font-mono text-[9px] font-black rounded border border-amber-400 shadow-2xs">🏆 Semi-Final</span>';
+    } else if (f.stage === 'FINAL') {
+      stageBadge = '<span class="px-1.5 py-0.5 bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 font-mono text-[9px] font-black rounded border border-amber-300 shadow-xs">👑 Final</span>';
+    }
+
+    return `
+    <tr class="hover:bg-slate-50">
       <td class="py-3 px-3">
-        <div class="font-bold text-white text-xs sm:text-sm flex items-center gap-1.5">
-          <span class="px-1.5 py-0.5 bg-slate-900 text-sky-400 font-mono text-[9px] rounded border border-sky-500/30">${f.leagueCode || 'JSL'}</span>
-          <span>${f.teamAName} <span class="text-slate-500 font-semibold">vs</span> ${f.teamBName}</span>
+        <div class="font-bold text-slate-900 text-xs sm:text-sm flex items-center gap-1.5">
+          <span class="px-1.5 py-0.5 bg-slate-100 text-slate-700 font-mono text-[9px] font-black rounded border border-slate-200">${f.leagueCode || 'JSL'}</span>
+          <span>${f.teamAName} <span class="text-slate-400 font-semibold">vs</span> ${f.teamBName}</span>
         </div>
       </td>
       <td class="py-3 px-3 text-xs">
-        <div class="text-slate-200 font-semibold">${f.date} at ${f.time}</div>
+        ${stageBadge}
+      </td>
+      <td class="py-3 px-3 text-xs">
+        <div class="text-slate-800 font-bold">${f.date} at ${f.time}</div>
         <div class="text-slate-500 text-[10px]">📍 ${f.venue}</div>
       </td>
-      <td class="py-3 px-3 text-xs text-slate-300 font-bold">${f.oversLimit || 16} Overs</td>
+      <td class="py-3 px-3 text-xs text-slate-700 font-bold">${f.oversLimit || 16} Overs</td>
       <td class="py-3 px-3 text-xs">
         ${f.status === 'LIVE' ? `
-          <span class="px-2 py-0.5 bg-emerald-950 text-emerald-400 rounded-full font-black text-[9px] border border-emerald-800 animate-pulse uppercase">LIVE</span>
+          <span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full font-black text-[9px] border border-emerald-300 animate-pulse uppercase">LIVE</span>
         ` : f.status === 'COMPLETED' ? `
-          <span class="px-2 py-0.5 bg-slate-900 text-slate-400 rounded-full font-black text-[9px] border border-slate-800 uppercase">COMPLETED</span>
+          <span class="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-full font-black text-[9px] border border-slate-300 uppercase">COMPLETED</span>
         ` : `
-          <span class="px-2 py-0.5 bg-slate-900 text-sky-400 rounded-full font-black text-[9px] border border-slate-800 uppercase">SCHEDULED</span>
+          <span class="px-2 py-0.5 bg-sky-100 text-sky-800 rounded-full font-black text-[9px] border border-sky-300 uppercase">SCHEDULED</span>
         `}
       </td>
       <td class="py-3 px-3 text-right">
-        <button data-delete-fixture-id="${f.id}" class="admin-delete-fixture-btn px-2 py-1 bg-red-950 hover:bg-red-900 text-red-300 font-extrabold text-[10px] rounded-lg border border-red-800 shadow">
-          Cancel
-        </button>
+        <div class="flex items-center justify-end gap-1.5">
+          <button data-edit-fixture-id="${f.id}" class="admin-edit-fixture-btn px-2.5 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 hover:text-sky-900 font-black text-xs rounded-xl border border-sky-300 shadow-2xs flex items-center gap-1 cursor-pointer transition-all" title="Edit match, overs, date, venue or lineups">
+            ✏️ Edit
+          </button>
+          <button data-delete-fixture-id="${f.id}" class="admin-delete-fixture-btn px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-900 font-black text-xs rounded-xl border border-rose-300 shadow-2xs flex items-center gap-1 cursor-pointer transition-all" title="Delete match">
+            🗑️ Delete
+          </button>
+        </div>
       </td>
     </tr>
-  `).join('');
+    `;
+  }).join('');
 
   if (window.lucide) window.lucide.createIcons();
+
+  tbody.querySelectorAll('.admin-edit-fixture-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const fId = e.currentTarget.getAttribute('data-edit-fixture-id');
+      const allFixtures = store.getFixtures();
+      const f = allFixtures.find(x => x.id === fId);
+      if (f) {
+        openEditMatchModal(f, () => {
+          renderAdminFixturesList();
+          renderScorerMatchesList();
+        });
+      }
+    });
+  });
 
   tbody.querySelectorAll('.admin-delete-fixture-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       const fId = e.currentTarget.getAttribute('data-delete-fixture-id');
-      if (confirm("Delete this scheduled match?")) {
+      const allFixtures = store.getFixtures();
+      const f = allFixtures.find(x => x.id === fId);
+      const matchLabel = f ? `[${f.leagueCode || 'JSL'}] ${f.teamAName} vs ${f.teamBName}` : 'this match';
+      
+      if (confirm(`🗑️ Delete Match Confirmation:\n\nAre you sure you want to permanently delete "${matchLabel}"?\n\nThis will completely remove the match from scheduled fixtures, scoring console, and cloud storage.`)) {
         store.deleteFixture(fId);
         renderAdminFixturesList();
+        renderScorerMatchesList();
+        alert("✅ Match has been deleted successfully!");
       }
     });
   });
@@ -2215,17 +2579,204 @@ function renderScorerMatchesList() {
   const selectEl = document.getElementById('scorer-select-match');
   if (!selectEl) return;
 
-  const fixtures = store.getFixtures();
+  const accessibleLeagues = store.getAccessibleLeagues();
+  const accessibleCodes = accessibleLeagues.map(l => (l.code || l.category || 'JSL').toUpperCase());
+  const fixtures = store.getFixtures().filter(f => store.isMasterAdmin() || accessibleCodes.includes((f.leagueCode || 'JSL').toUpperCase()));
   const selectables = fixtures.filter(f => f.status !== 'COMPLETED');
 
   selectEl.innerHTML = `
-    <option value="">-- Choose Match --</option>
+    <option value="">-- Choose Match to Score --</option>
     ${selectables.map(f => `
       <option value="${f.id}" ${activeScoringMatchId === f.id ? 'selected' : ''}>
-        [${f.leagueCode || 'JSL'}] ${f.teamAName} vs ${f.teamBName} (${f.date} ${f.time}) - Status: ${f.status}
+        [${f.leagueCode || 'JSL'}] ${f.teamAName} vs ${f.teamBName} (${f.date} ${f.time}) • Status: ${f.status}
       </option>
     `).join('')}
   `;
+
+  const setupStepBlock = document.getElementById('scorer-lineup-step-block');
+  const matchCardEl = document.getElementById('scorer-selected-match-card');
+  const activePanelEl = document.getElementById('scorer-active-panel');
+
+  const onMatchSelected = (matchId) => {
+    if (!matchId) {
+      if (setupStepBlock) setupStepBlock.classList.add('hidden');
+      if (matchCardEl) matchCardEl.classList.add('hidden');
+      if (activePanelEl) activePanelEl.classList.add('hidden');
+      return;
+    }
+
+    activeScoringMatchId = matchId;
+    const fixture = store.getFixtures().find(f => f.id === matchId);
+    if (!fixture) return;
+
+    // Show Match Preview Card in Step 1
+    if (matchCardEl) {
+      matchCardEl.classList.remove('hidden');
+      matchCardEl.innerHTML = `
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-200 pb-2">
+          <div class="font-black text-slate-900 text-sm flex items-center gap-2">
+            <span>🛡️ ${fixture.teamAName}</span>
+            <span class="text-xs text-slate-500 font-semibold">vs</span>
+            <span>🛡️ ${fixture.teamBName}</span>
+          </div>
+          <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${fixture.status === 'LIVE' ? 'bg-rose-600 text-white animate-pulse' : 'bg-sky-100 text-sky-800 border border-sky-300'}">
+            ${fixture.status}
+          </span>
+        </div>
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-bold text-slate-700 pt-1">
+          <div><span class="text-[9px] text-slate-400 block uppercase">Format / Overs</span>⏱️ T${fixture.oversLimit || 16} (${fixture.oversLimit || 16} Overs)</div>
+          <div><span class="text-[9px] text-slate-400 block uppercase">Stage</span>🏆 ${fixture.stage || 'League Match'}</div>
+          <div><span class="text-[9px] text-slate-400 block uppercase">Schedule</span>🗓️ ${fixture.date} (${fixture.time || '09:00 AM'})</div>
+          <div><span class="text-[9px] text-slate-400 block uppercase">Toss Decision</span>🪙 ${fixture.tossDetails || 'Toss not updated'}</div>
+        </div>
+      `;
+    }
+
+    // Reveal Step 2 Lineup Block
+    if (setupStepBlock) {
+      setupStepBlock.classList.remove('hidden');
+    }
+
+    // Populate Opening Batsmen and Bowler Dropdowns
+    const battingTeamId = fixture.liveMatchState?.innings === 2 ? fixture.teamBId : fixture.teamAId;
+    const bowlingTeamId = fixture.liveMatchState?.innings === 2 ? fixture.teamAId : fixture.teamBId;
+    const battingTeamName = battingTeamId === fixture.teamAId ? fixture.teamAName : fixture.teamBName;
+    const bowlingTeamName = bowlingTeamId === fixture.teamAId ? fixture.teamAName : fixture.teamBName;
+
+    const allBatPlayers = store.getPlayers().filter(p => p.teamId === battingTeamId && (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED'));
+    const allBowlPlayers = store.getPlayers().filter(p => p.teamId === bowlingTeamId && (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED'));
+
+    const batPXI = fixture.playingXI?.[battingTeamId]?.playing11Ids;
+    const bowlPXI = fixture.playingXI?.[bowlingTeamId]?.playing11Ids;
+
+    let batPlayers = (batPXI && batPXI.length > 0) ? allBatPlayers.filter(p => batPXI.includes(p.id)) : allBatPlayers;
+    let bowlPlayers = (bowlPXI && bowlPXI.length > 0) ? allBowlPlayers.filter(p => bowlPXI.includes(p.id)) : allBowlPlayers;
+
+    if (batPlayers.length === 0) {
+      batPlayers = Array.from({ length: 11 }, (_, i) => ({
+        id: `${battingTeamId}-ply-${i+1}`,
+        name: `${battingTeamName} Player ${i+1}`,
+        teamId: battingTeamId
+      }));
+    }
+    if (bowlPlayers.length === 0) {
+      bowlPlayers = Array.from({ length: 11 }, (_, i) => ({
+        id: `${bowlingTeamId}-ply-${i+1}`,
+        name: `${bowlingTeamName} Bowler ${i+1}`,
+        teamId: bowlingTeamId
+      }));
+    }
+
+    const state = fixture.liveMatchState || {};
+    const strikerId = state.strikerId || batPlayers[0]?.id;
+    const nonStrikerId = state.nonStrikerId || (batPlayers[1]?.id || batPlayers[0]?.id);
+    const bowlerId = state.bowlerId || bowlPlayers[0]?.id;
+
+    const strikerSel = document.getElementById('scorer-select-striker');
+    const nonStrikerSel = document.getElementById('scorer-select-non-striker');
+    const bowlerSel = document.getElementById('scorer-select-bowler');
+
+    if (strikerSel) {
+      strikerSel.innerHTML = batPlayers.map(p => `<option value="${p.id}" ${strikerId === p.id ? 'selected' : ''}>🏏 ${p.name}</option>`).join('');
+    }
+    if (nonStrikerSel) {
+      nonStrikerSel.innerHTML = batPlayers.map(p => `<option value="${p.id}" ${nonStrikerId === p.id ? 'selected' : ''}>🏏 ${p.name}</option>`).join('');
+    }
+    if (bowlerSel) {
+      bowlerSel.innerHTML = bowlPlayers.map(p => `<option value="${p.id}" ${bowlerId === p.id ? 'selected' : ''}>⚾ ${p.name}</option>`).join('');
+    }
+
+    const isMatchLive = fixture.status === 'LIVE' || (fixture.liveMatchState && (fixture.liveMatchState.runs > 0 || fixture.liveMatchState.overs > 0 || (fixture.liveMatchState.ballHistory && fixture.liveMatchState.ballHistory.length > 0)));
+
+    const startBtnTxt = document.getElementById('scorer-start-match-btn-txt');
+    if (startBtnTxt) {
+      startBtnTxt.textContent = isMatchLive ? "✅ MATCH IS LIVE (SCORING PANEL ACTIVE)" : "🚀 START MATCH & OPEN LIVE SCORING PANEL";
+    }
+
+    if (isMatchLive) {
+      if (activePanelEl) activePanelEl.classList.remove('hidden');
+      renderScorerActivePanel();
+    } else {
+      if (activePanelEl) activePanelEl.classList.add('hidden');
+    }
+  };
+
+  selectEl.onchange = (e) => {
+    onMatchSelected(e.target.value);
+  };
+
+  if (activeScoringMatchId) {
+    selectEl.value = activeScoringMatchId;
+    onMatchSelected(activeScoringMatchId);
+  }
+
+  // Bind Start Match Button (Step 2 -> Step 3)
+  const startActionBtn = document.getElementById('scorer-start-match-action-btn');
+  if (startActionBtn) {
+    startActionBtn.onclick = () => {
+      const matchId = document.getElementById('scorer-select-match')?.value || activeScoringMatchId;
+      if (!matchId) return alert("⚠️ Please select a match in Step 1 first!");
+
+      const fixture = store.getFixtures().find(f => f.id === matchId);
+      if (!fixture) return;
+
+      const strikerId = document.getElementById('scorer-select-striker')?.value;
+      const nonStrikerId = document.getElementById('scorer-select-non-striker')?.value;
+      const bowlerId = document.getElementById('scorer-select-bowler')?.value;
+
+      if (!strikerId || !nonStrikerId || !bowlerId) {
+        return alert("⚠️ Please choose Batsman 1, Batsman 2, and Opening Bowler first!");
+      }
+
+      if (strikerId === nonStrikerId) {
+        return alert("⚠️ Striker and Non-Striker cannot be the same player!");
+      }
+
+      fixture.status = 'LIVE';
+      if (!fixture.startedAtTimestamp) fixture.startedAtTimestamp = Date.now();
+      if (!fixture.startedAt) fixture.startedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      if (!fixture.liveMatchState) {
+        fixture.liveMatchState = {
+          innings: 1,
+          runs: 0,
+          wickets: 0,
+          overs: 0,
+          balls: 0,
+          overBalls: [],
+          ballHistory: [],
+          playerStats: {}
+        };
+      }
+
+      fixture.liveMatchState.strikerId = strikerId;
+      fixture.liveMatchState.nonStrikerId = nonStrikerId;
+      fixture.liveMatchState.bowlerId = bowlerId;
+
+      if (!fixture.liveMatchState.playerStats) fixture.liveMatchState.playerStats = {};
+      [strikerId, nonStrikerId, bowlerId].forEach(pId => {
+        if (pId && !fixture.liveMatchState.playerStats[pId]) {
+          fixture.liveMatchState.playerStats[pId] = { runs: 0, balls: 0, fours: 0, sixes: 0, wickets: 0, runsConceded: 0, ballsBowled: 0, dismissed: false };
+        }
+      });
+
+      store.updateFixture(fixture);
+
+      document.getElementById('scorer-active-panel')?.classList.remove('hidden');
+      renderScorerActivePanel();
+
+      const startBtnTxt = document.getElementById('scorer-start-match-btn-txt');
+      if (startBtnTxt) startBtnTxt.textContent = "✅ MATCH IS LIVE (SCORING PANEL ACTIVE)";
+
+      // Scroll to Step 3 smoothly
+      document.getElementById('scorer-active-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+      if (window.renderActiveMatchCenter) window.renderActiveMatchCenter();
+      if (window.refreshFixturesViewContent) window.refreshFixturesViewContent();
+
+      alert(`🚀 Match Started!\n\n${fixture.teamAName} vs ${fixture.teamBName} is now LIVE!\nBall-by-ball scoring actions are active below.`);
+    };
+  }
 }
 
 function renderScorerActivePanel() {
@@ -2240,25 +2791,115 @@ function renderScorerActivePanel() {
   const battingTeamName = battingTeamId === fixture.teamAId ? fixture.teamAName : fixture.teamBName;
   const bowlingTeamName = bowlingTeamId === fixture.teamAId ? fixture.teamAName : fixture.teamBName;
 
-  const batPlayers = store.getPlayers().filter(p => p.teamId === battingTeamId && (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED'));
-  const bowlPlayers = store.getPlayers().filter(p => p.teamId === bowlingTeamId && (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED'));
+  const allBatPlayers = store.getPlayers().filter(p => p.teamId === battingTeamId && (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED'));
+  const allBowlPlayers = store.getPlayers().filter(p => p.teamId === bowlingTeamId && (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED'));
 
-  const strikerSel = document.getElementById('scorer-select-striker');
-  const nonStrikerSel = document.getElementById('scorer-select-non-striker');
-  const bowlerSel = document.getElementById('scorer-select-bowler');
+  const batPXI = fixture.playingXI?.[battingTeamId]?.playing11Ids;
+  const bowlPXI = fixture.playingXI?.[bowlingTeamId]?.playing11Ids;
 
-  if (strikerSel && nonStrikerSel && bowlerSel) {
-    strikerSel.innerHTML = `<option value="">-- Choose Striker --</option>` + batPlayers.map(p => `
-      <option value="${p.id}" ${state.strikerId === p.id ? 'selected' : ''}>${p.name}</option>
+  let batPlayers = (batPXI && batPXI.length > 0) ? allBatPlayers.filter(p => batPXI.includes(p.id)) : allBatPlayers;
+  let bowlPlayers = (bowlPXI && bowlPXI.length > 0) ? allBowlPlayers.filter(p => bowlPXI.includes(p.id)) : allBowlPlayers;
+
+  if (batPlayers.length === 0) {
+    batPlayers = Array.from({ length: 11 }, (_, i) => ({
+      id: `${battingTeamId}-ply-${i+1}`,
+      name: `${battingTeamName} Player ${i+1}`,
+      teamId: battingTeamId
+    }));
+  }
+  if (bowlPlayers.length === 0) {
+    bowlPlayers = Array.from({ length: 11 }, (_, i) => ({
+      id: `${bowlingTeamId}-ply-${i+1}`,
+      name: `${bowlingTeamName} Bowler ${i+1}`,
+      teamId: bowlingTeamId
+    }));
+  }
+
+  // Auto-assign default striker, non-striker and bowler if unset
+  if (!state.strikerId || !batPlayers.some(p => p.id === state.strikerId)) {
+    state.strikerId = batPlayers[0]?.id || '';
+  }
+  if (!state.nonStrikerId || state.nonStrikerId === state.strikerId || !batPlayers.some(p => p.id === state.nonStrikerId)) {
+    const nonStriker = batPlayers.find(p => p.id !== state.strikerId) || batPlayers[1] || batPlayers[0];
+    state.nonStrikerId = nonStriker?.id || '';
+  }
+  if (!state.bowlerId || !bowlPlayers.some(p => p.id === state.bowlerId)) {
+    state.bowlerId = bowlPlayers[0]?.id || '';
+  }
+
+  if (!state.playerStats) state.playerStats = {};
+  [state.strikerId, state.nonStrikerId, state.bowlerId].forEach(pId => {
+    if (pId && !state.playerStats[pId]) {
+      state.playerStats[pId] = { runs: 0, balls: 0, fours: 0, sixes: 0, wickets: 0, runsConceded: 0, ballsBowled: 0, dismissed: false };
+    }
+  });
+
+  fixture.liveMatchState = state;
+  store.updateFixture(fixture);
+
+  // Sync in-play dropdowns in Step 3
+  const activeStrikerSel = document.getElementById('scorer-active-striker-sel');
+  const activeNonStrikerSel = document.getElementById('scorer-active-non-striker-sel');
+  const activeBowlerSel = document.getElementById('scorer-active-bowler-sel');
+
+  if (activeStrikerSel && activeNonStrikerSel && activeBowlerSel) {
+    activeStrikerSel.innerHTML = batPlayers.map(p => `
+      <option value="${p.id}" ${state.strikerId === p.id ? 'selected' : ''}>🏏 ${p.name}</option>
     `).join('');
 
-    nonStrikerSel.innerHTML = `<option value="">-- Choose Non-Striker --</option>` + batPlayers.map(p => `
-      <option value="${p.id}" ${state.nonStrikerId === p.id ? 'selected' : ''}>${p.name}</option>
+    activeNonStrikerSel.innerHTML = batPlayers.map(p => `
+      <option value="${p.id}" ${state.nonStrikerId === p.id ? 'selected' : ''}>🏏 ${p.name}</option>
     `).join('');
 
-    bowlerSel.innerHTML = `<option value="">-- Choose Bowler --</option>` + bowlPlayers.map(p => `
-      <option value="${p.id}" ${state.bowlerId === p.id ? 'selected' : ''}>${p.name}</option>
+    activeBowlerSel.innerHTML = bowlPlayers.map(p => `
+      <option value="${p.id}" ${state.bowlerId === p.id ? 'selected' : ''}>⚾ ${p.name}</option>
     `).join('');
+
+    activeStrikerSel.onchange = (e) => {
+      const val = e.target.value;
+      if (val && val === state.nonStrikerId) {
+        alert("⚠️ Striker and Non-Striker cannot be the same player!");
+        e.target.value = state.strikerId || '';
+        return;
+      }
+      state.strikerId = val;
+      if (!state.playerStats[val]) {
+        state.playerStats[val] = { runs: 0, balls: 0, fours: 0, sixes: 0, wickets: 0, runsConceded: 0, ballsBowled: 0, dismissed: false };
+      }
+      fixture.liveMatchState = state;
+      store.updateFixture(fixture);
+      if (window.renderActiveMatchCenter) window.renderActiveMatchCenter();
+      if (window.refreshFixturesViewContent) window.refreshFixturesViewContent();
+    };
+
+    activeNonStrikerSel.onchange = (e) => {
+      const val = e.target.value;
+      if (val && val === state.strikerId) {
+        alert("⚠️ Striker and Non-Striker cannot be the same player!");
+        e.target.value = state.nonStrikerId || '';
+        return;
+      }
+      state.nonStrikerId = val;
+      if (!state.playerStats[val]) {
+        state.playerStats[val] = { runs: 0, balls: 0, fours: 0, sixes: 0, wickets: 0, runsConceded: 0, ballsBowled: 0, dismissed: false };
+      }
+      fixture.liveMatchState = state;
+      store.updateFixture(fixture);
+      if (window.renderActiveMatchCenter) window.renderActiveMatchCenter();
+      if (window.refreshFixturesViewContent) window.refreshFixturesViewContent();
+    };
+
+    activeBowlerSel.onchange = (e) => {
+      const val = e.target.value;
+      state.bowlerId = val;
+      if (!state.playerStats[val]) {
+        state.playerStats[val] = { runs: 0, balls: 0, fours: 0, sixes: 0, wickets: 0, runsConceded: 0, ballsBowled: 0, dismissed: false };
+      }
+      fixture.liveMatchState = state;
+      store.updateFixture(fixture);
+      if (window.renderActiveMatchCenter) window.renderActiveMatchCenter();
+      if (window.refreshFixturesViewContent) window.refreshFixturesViewContent();
+    };
   }
 
   // Summary card render
@@ -2272,62 +2913,272 @@ function renderScorerActivePanel() {
       const totalOversBalls = fixture.oversLimit * 6;
       const remainingBalls = totalOversBalls - totalBalls;
       targetTxt = `
-        <div class="text-xs font-black text-amber-400 mt-1">
-          Target: ${state.target} | Need ${runsNeeded} runs in ${remainingBalls} balls remaining
+        <div class="text-xs font-black text-amber-900 bg-amber-100 border border-amber-300 p-2 rounded-xl mt-1.5 shadow-2xs">
+          🎯 Target: ${state.target} | Need ${runsNeeded} runs in ${remainingBalls} balls remaining
         </div>
       `;
     }
 
     summaryContainer.innerHTML = `
-      <div class="bg-slate-950 p-4 rounded-xl border border-slate-800 flex justify-between items-center">
+      <div class="bg-white p-4 sm:p-5 rounded-3xl border-2 border-emerald-500 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md text-slate-900">
         <div>
-          <div class="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
-            Innings ${state.innings} Batting: <span class="text-emerald-400 font-extrabold">${battingTeamName}</span>
+          <div class="flex flex-wrap items-center gap-2">
+            <span class="text-[10px] font-black text-slate-500 uppercase tracking-wider">
+              Innings ${state.innings} Batting: <strong class="text-emerald-700 font-black">${battingTeamName}</strong>
+            </span>
+            ${state.tossDetails ? `<span class="text-[9px] bg-amber-50 text-amber-900 border border-amber-300 px-2.5 py-0.5 rounded-full font-bold">🪙 ${state.tossDetails}</span>` : ''}
           </div>
-          <div class="text-2xl font-black text-white mt-1">
-            ${state.runs}/${state.wickets} <span class="text-xs text-slate-400 font-normal">(${state.overs}.${state.balls} / ${fixture.oversLimit} Overs)</span>
+          <div class="text-3xl font-black text-slate-900 font-mono mt-1">
+            <span class="text-emerald-700">${state.runs}</span><span class="text-slate-400 text-xl font-bold">/${state.wickets}</span>
+            <span class="text-xs text-slate-500 font-sans font-bold">(${state.overs}.${state.balls} / ${fixture.oversLimit} Overs)</span>
           </div>
           ${targetTxt}
         </div>
-        <div class="text-right">
-          <div class="text-xs font-bold text-slate-350">Run Rate: ${runRate}</div>
-          <div class="text-[9px] text-slate-500 font-semibold mt-1">Bowling: ${bowlingTeamName}</div>
+        <div class="flex sm:flex-col items-center sm:items-end justify-between gap-2 border-t sm:border-t-0 border-slate-100 pt-2 sm:pt-0">
+          <div class="text-right">
+            <div class="text-xs font-bold text-slate-600">Run Rate: <span class="text-emerald-700 font-black">${runRate}</span></div>
+            <div class="text-[11px] text-slate-700 font-bold mt-0.5">Bowling: <strong class="text-sky-700 font-black">${bowlingTeamName}</strong></div>
+          </div>
+          <!-- Emergency Match Actions (Delete / Reset / Edit Playing 11 / Edit Match / Match Centre) -->
+          <div class="flex flex-wrap items-center gap-1.5 pt-1">
+            <button id="scorer-preview-mc-btn" class="px-2.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-[10px] rounded-xl shadow-2xs cursor-pointer transition-all flex items-center gap-1" title="Open Live Match Centre Modal">
+              📊 Match Centre
+            </button>
+            <button id="scorer-edit-match-btn" class="px-2.5 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-800 border border-sky-300 font-black text-[10px] rounded-xl shadow-2xs cursor-pointer transition-all flex items-center gap-1" title="Edit Overs, Match Info, or In-Play Substitutions">
+              ✏️ Edit Match / Overs
+            </button>
+            <button id="scorer-edit-pxi-btn" class="px-2.5 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 font-black text-[10px] rounded-xl shadow-2xs cursor-pointer transition-all flex items-center gap-1" title="Set or Modify Playing 11 & 12th Man">
+              📋 Playing 11
+            </button>
+            <button id="scorer-reset-match-btn" class="px-2.5 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-300 font-black text-[10px] rounded-xl shadow-2xs cursor-pointer transition-all" title="Reset score to 0/0 and return to Scheduled">
+              🔄 Reset Score
+            </button>
+            <button id="scorer-delete-match-btn" class="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-800 border border-rose-300 font-black text-[10px] rounded-xl shadow-2xs cursor-pointer transition-all" title="Permanently delete this match">
+              🗑️ Delete Match
+            </button>
+          </div>
         </div>
       </div>
     `;
+
+    document.getElementById('scorer-preview-mc-btn')?.addEventListener('click', () => {
+      if (window.openMatchCenterModal) {
+        window.openMatchCenterModal(fixture.id);
+      }
+    });
+
+    document.getElementById('scorer-edit-match-btn')?.addEventListener('click', () => {
+      openEditMatchModal(fixture, () => renderScorerActivePanel());
+    });
+
+    document.getElementById('scorer-edit-pxi-btn')?.addEventListener('click', () => {
+      openPlayingXIModal(fixture, () => renderScorerActivePanel());
+    });
+
+    document.getElementById('scorer-reset-match-btn')?.addEventListener('click', () => {
+      if (confirm("🔄 Reset Match Confirmation:\n\nClear all recorded balls, runs, and wickets and return this match to SCHEDULED status?")) {
+        delete fixture.liveMatchState;
+        fixture.status = 'SCHEDULED';
+        delete fixture.teamAScore;
+        delete fixture.teamBScore;
+        delete fixture.result;
+        delete fixture.winnerTeamId;
+        store.updateFixture(fixture);
+        document.getElementById('scorer-active-panel')?.classList.add('hidden');
+        renderScorerMatchesList();
+        renderAdminFixturesList();
+        alert("✅ Match has been reset to SCHEDULED status!");
+      }
+    });
+
+    document.getElementById('scorer-delete-match-btn')?.addEventListener('click', () => {
+      if (confirm(`🗑️ Delete Wrong Match Confirmation:\n\nAre you sure you want to permanently delete this match (${fixture.teamAName} vs ${fixture.teamBName})?`)) {
+        store.deleteFixture(fixture.id);
+        document.getElementById('scorer-active-panel')?.classList.add('hidden');
+        renderScorerMatchesList();
+        renderAdminFixturesList();
+        alert("✅ Match deleted successfully!");
+      }
+    });
   }
 
   // Render current over balls ticker
   const overBallsTicker = document.getElementById('scorer-this-over-balls');
   if (overBallsTicker) {
     const list = state.overBalls || [];
-    overBallsTicker.innerHTML = list.length === 0 ? `<span class="text-slate-500 italic">No balls in this over yet</span>` : list.map(b => {
-      let colorClass = 'bg-slate-800 text-slate-300';
-      if (b.type === 'four') colorClass = 'bg-blue-900 text-white font-bold';
-      if (b.type === 'six') colorClass = 'bg-amber-500 text-slate-950 font-bold';
-      if (b.type === 'wicket') colorClass = 'bg-red-650 text-white font-bold';
-      if (b.type === 'wide' || b.type === 'noball') colorClass = 'bg-slate-900 text-amber-500 font-semibold';
-      return `<span class="px-2 py-0.5 text-[10px] rounded ${colorClass}">${b.label}</span>`;
+    overBallsTicker.innerHTML = list.length === 0 ? `<span class="text-slate-400 italic">No balls in this over yet</span>` : list.map(b => {
+      let colorClass = 'bg-slate-100 text-slate-800 border border-slate-300';
+      if (b.type === 'four') colorClass = 'bg-blue-600 text-white font-bold';
+      if (b.type === 'six') colorClass = 'bg-amber-400 text-slate-950 font-bold';
+      if (b.type === 'wicket') colorClass = 'bg-rose-600 text-white font-bold';
+      if (b.type === 'wide' || b.type === 'noball') colorClass = 'bg-amber-100 text-amber-900 border border-amber-400 font-semibold';
+      return `<span class="px-2 py-0.5 text-xs rounded-lg ${colorClass} shadow-2xs font-mono font-black">${b.label}</span>`;
     }).join('');
+  }
+
+  // Bind All Scoring Action Buttons directly to ensure 100% responsiveness
+  document.querySelectorAll('.scorer-ball-act-btn').forEach(btn => {
+    btn.onclick = (e) => {
+      const runs = Number(e.currentTarget.getAttribute('data-runs')) || 0;
+      processScorerBall(runs);
+    };
+  });
+
+  const wicketBtn = document.getElementById('scorer-wicket-btn');
+  if (wicketBtn) {
+    wicketBtn.onclick = () => openScorerWicketModal();
+  }
+
+  const swapStrikeBtn = document.getElementById('scorer-swap-strike-btn');
+  if (swapStrikeBtn) {
+    swapStrikeBtn.onclick = () => {
+      if (fixture && fixture.liveMatchState) {
+        const temp = fixture.liveMatchState.strikerId;
+        fixture.liveMatchState.strikerId = fixture.liveMatchState.nonStrikerId;
+        fixture.liveMatchState.nonStrikerId = temp;
+        store.updateFixture(fixture);
+        renderScorerActivePanel();
+      }
+    };
+  }
+
+  const endInningsBtn = document.getElementById('scorer-end-innings-btn');
+  if (endInningsBtn) {
+    endInningsBtn.onclick = () => {
+      if (fixture && fixture.liveMatchState) {
+        if (fixture.liveMatchState.innings === 2) {
+          return alert("Innings 2 is already in progress or completed!");
+        }
+        if (confirm(`Confirm Close Innings 1?\n\n${battingTeamName} scored ${state.runs}/${state.wickets} in ${state.overs}.${state.balls} overs.\nTarget for ${bowlingTeamName} will be ${state.runs + 1} runs.`)) {
+          fixture.liveMatchState.innings = 2;
+          fixture.liveMatchState.target = fixture.liveMatchState.runs + 1;
+          fixture.liveMatchState.strikerId = '';
+          fixture.liveMatchState.nonStrikerId = '';
+          fixture.liveMatchState.bowlerId = '';
+          fixture.liveMatchState.runs = 0;
+          fixture.liveMatchState.wickets = 0;
+          fixture.liveMatchState.overs = 0;
+          fixture.liveMatchState.balls = 0;
+          fixture.liveMatchState.overBalls = [];
+          store.updateFixture(fixture);
+          renderScorerActivePanel();
+          alert(`✅ Innings 1 Closed! Target set to ${fixture.liveMatchState.target}. Now select new opening batsmen and bowler for Innings 2.`);
+        }
+      }
+    };
+  }
+
+  const finishMatchBtn = document.getElementById('scorer-finish-match-btn');
+  if (finishMatchBtn) {
+    finishMatchBtn.onclick = () => {
+      if (confirm("🏆 Are you sure you want to finalize this match and record the official result?")) {
+        let winnerId = null;
+        let resultTxt = 'Match Tied';
+
+        const teamAScore = fixture.teamAScore || { runs: 0, wickets: 0 };
+        const teamBScore = fixture.teamBScore || { runs: 0, wickets: 0 };
+
+        if (teamAScore.runs > teamBScore.runs) {
+          winnerId = fixture.teamAId;
+          resultTxt = `${fixture.teamAName} won by ${teamAScore.runs - teamBScore.runs} runs`;
+        } else if (teamBScore.runs > teamAScore.runs) {
+          winnerId = fixture.teamBId;
+          resultTxt = `${fixture.teamBName} won by ${10 - teamBScore.wickets} wickets`;
+        }
+
+        fixture.status = 'COMPLETED';
+        fixture.endedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        fixture.result = resultTxt;
+        fixture.winnerTeamId = winnerId;
+        
+        store.updateFixture(fixture);
+        document.getElementById('scorer-active-panel')?.classList.add('hidden');
+        renderScorerMatchesList();
+        renderAdminFixturesList();
+        alert(`🎉 Match Completed!\n\nResult: ${resultTxt}`);
+      }
+    };
   }
 }
 
 function processScorerBall(runsScored) {
-  const fixture = store.getFixtures().find(f => f.id === activeScoringMatchId);
-  if (!fixture) return;
+  console.log('[SCORER DEBUG] processScorerBall CALLED with runsScored:', runsScored);
+  console.log('[SCORER DEBUG] activeScoringMatchId:', activeScoringMatchId);
+  if (!activeScoringMatchId) {
+    activeScoringMatchId = document.getElementById('scorer-select-match')?.value;
+    console.log('[SCORER DEBUG] Fallback activeScoringMatchId from dropdown:', activeScoringMatchId);
+  }
+  let fixture = store.getFixtures().find(f => f.id === activeScoringMatchId);
+  console.log('[SCORER DEBUG] fixture found:', !!fixture, fixture?.teamAName, 'vs', fixture?.teamBName, 'status:', fixture?.status);
+  if (!fixture) {
+    const allLive = store.getFixtures().filter(f => f.status === 'LIVE' || f.status === 'SCHEDULED');
+    console.log('[SCORER DEBUG] Fallback allLive fixtures count:', allLive.length);
+    if (allLive.length > 0) {
+      fixture = allLive[0];
+      activeScoringMatchId = fixture.id;
+    }
+  }
+  if (!fixture) {
+    console.log('[SCORER DEBUG] NO FIXTURE FOUND - aborting');
+    return alert("⚠️ Please select a match in Step 1 and click 'Start Match' first!");
+  }
+  console.log('[SCORER DEBUG] liveMatchState exists:', !!fixture.liveMatchState);
 
-  const state = fixture.liveMatchState;
-  
-  const strikerId = document.getElementById('scorer-select-striker').value;
-  const nonStrikerId = document.getElementById('scorer-select-non-striker').value;
-  const bowlerId = document.getElementById('scorer-select-bowler').value;
 
-  if (!strikerId || !nonStrikerId || !bowlerId) {
-    return alert("Please select Striker, Non-Striker and Bowler first!");
+  if (!fixture.liveMatchState) {
+    fixture.status = 'LIVE';
+    fixture.liveMatchState = {
+      innings: 1,
+      runs: 0,
+      wickets: 0,
+      overs: 0,
+      balls: 0,
+      overBalls: [],
+      ballHistory: [],
+      playerStats: {}
+    };
   }
 
-  if (strikerId === nonStrikerId) {
-    return alert("Striker and Non-Striker cannot be the same player!");
+  const state = fixture.liveMatchState;
+
+  // Capture Real-time Match Start Timestamp on first delivery
+  if (!fixture.startedAtTimestamp) {
+    fixture.startedAtTimestamp = Date.now();
+  }
+  if (!fixture.startedAt) {
+    fixture.startedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  const battingTeamId = state.innings === 2 ? fixture.teamBId : fixture.teamAId;
+  const bowlingTeamId = state.innings === 2 ? fixture.teamAId : fixture.teamBId;
+  const allBatPlayers = store.getPlayers().filter(p => p.teamId === battingTeamId && (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED'));
+  const allBowlPlayers = store.getPlayers().filter(p => p.teamId === bowlingTeamId && (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED'));
+
+  const battingTeamName = battingTeamId === fixture.teamAId ? fixture.teamAName : fixture.teamBName;
+  const bowlingTeamName = bowlingTeamId === fixture.teamAId ? fixture.teamAName : fixture.teamBName;
+
+  let batPlayers = allBatPlayers.length > 0 ? allBatPlayers : Array.from({ length: 11 }, (_, i) => ({
+    id: `${battingTeamId}-ply-${i+1}`,
+    name: `${battingTeamName} Player ${i+1}`
+  }));
+  let bowlPlayers = allBowlPlayers.length > 0 ? allBowlPlayers : Array.from({ length: 11 }, (_, i) => ({
+    id: `${bowlingTeamId}-ply-${i+1}`,
+    name: `${bowlingTeamName} Bowler ${i+1}`
+  }));
+
+  let strikerId = document.getElementById('scorer-active-striker-sel')?.value || document.getElementById('scorer-select-striker')?.value || state.strikerId || batPlayers[0]?.id;
+  let nonStrikerId = document.getElementById('scorer-active-non-striker-sel')?.value || document.getElementById('scorer-select-non-striker')?.value || state.nonStrikerId || batPlayers[1]?.id;
+  let bowlerId = document.getElementById('scorer-active-bowler-sel')?.value || document.getElementById('scorer-select-bowler')?.value || state.bowlerId || bowlPlayers[0]?.id;
+
+  if (!strikerId || !nonStrikerId || !bowlerId) {
+    strikerId = batPlayers[0]?.id || `${battingTeamId}-ply-1`;
+    nonStrikerId = batPlayers[1]?.id || `${battingTeamId}-ply-2`;
+    bowlerId = bowlPlayers[0]?.id || `${bowlingTeamId}-ply-1`;
+  }
+
+  if (strikerId === nonStrikerId && batPlayers.length > 1) {
+    const alt = batPlayers.find(p => p.id !== strikerId);
+    if (alt) nonStrikerId = alt.id;
   }
 
   state.strikerId = strikerId;
@@ -2336,19 +3187,19 @@ function processScorerBall(runsScored) {
 
   if (!state.playerStats) state.playerStats = {};
   if (!state.playerStats[strikerId]) {
-    state.playerStats[strikerId] = { runs: 0, balls: 0, wickets: 0, runsConceded: 0, ballsBowled: 0, dismissed: false };
+    state.playerStats[strikerId] = { runs: 0, balls: 0, fours: 0, sixes: 0, wickets: 0, runsConceded: 0, ballsBowled: 0, dismissed: false };
   }
   if (!state.playerStats[nonStrikerId]) {
-    state.playerStats[nonStrikerId] = { runs: 0, balls: 0, wickets: 0, runsConceded: 0, ballsBowled: 0, dismissed: false };
+    state.playerStats[nonStrikerId] = { runs: 0, balls: 0, fours: 0, sixes: 0, wickets: 0, runsConceded: 0, ballsBowled: 0, dismissed: false };
   }
   if (!state.playerStats[bowlerId]) {
-    state.playerStats[bowlerId] = { runs: 0, balls: 0, wickets: 0, runsConceded: 0, ballsBowled: 0, dismissed: false };
+    state.playerStats[bowlerId] = { runs: 0, balls: 0, fours: 0, sixes: 0, wickets: 0, runsConceded: 0, ballsBowled: 0, dismissed: false };
   }
 
-  const isWide = document.getElementById('scorer-extra-wide').checked;
-  const isNoBall = document.getElementById('scorer-extra-noball').checked;
-  const isBye = document.getElementById('scorer-extra-bye').checked;
-  const isLegBye = document.getElementById('scorer-extra-legbye').checked;
+  const isWide = document.getElementById('scorer-extra-wide')?.checked;
+  const isNoBall = document.getElementById('scorer-extra-noball')?.checked;
+  const isBye = document.getElementById('scorer-extra-bye')?.checked;
+  const isLegBye = document.getElementById('scorer-extra-legbye')?.checked;
 
   let ballLabel = runsScored.toString();
   let ballType = 'ball';
@@ -2373,6 +3224,8 @@ function processScorerBall(runsScored) {
   // Update striker details
   if (!isWide && !isBye && !isLegBye) {
     state.playerStats[strikerId].runs += runsScored;
+    if (runsScored === 4) state.playerStats[strikerId].fours = (state.playerStats[strikerId].fours || 0) + 1;
+    if (runsScored === 6) state.playerStats[strikerId].sixes = (state.playerStats[strikerId].sixes || 0) + 1;
   }
   if (!isWide) {
     state.playerStats[strikerId].balls += 1;
@@ -2399,7 +3252,6 @@ function processScorerBall(runsScored) {
       const temp = state.strikerId;
       state.strikerId = state.nonStrikerId;
       state.nonStrikerId = temp;
-      alert("Over completed! Swap Strike automatically & select new Bowler.");
     } else {
       if (runsScored === 1 || runsScored === 3) {
         const temp = state.strikerId;
@@ -2414,11 +3266,41 @@ function processScorerBall(runsScored) {
     type: ballType
   });
 
+  // Track Rich Ball Commentary in ballHistory
+  if (!state.ballHistory) state.ballHistory = [];
+
+  const strikerName = store.getPlayerById(strikerId)?.name || 'Striker';
+  const bowlerName = store.getPlayerById(bowlerId)?.name || 'Bowler';
+
+  let commentaryDesc = `${totalBallRuns} runs scored.`;
+  if (isWide) commentaryDesc = `Wide delivery from ${bowlerName}. 1 extra run conceded.`;
+  else if (isNoBall) commentaryDesc = `No ball delivery from ${bowlerName}! Free hit upcoming.`;
+  else if (isBye) commentaryDesc = `Byes! ${runsScored} extra run${runsScored !== 1 ? 's' : ''} taken.`;
+  else if (isLegBye) commentaryDesc = `Leg bye! Deflected off the pad for ${runsScored} run${runsScored !== 1 ? 's' : ''}.`;
+  else if (runsScored === 0) commentaryDesc = `Dot ball. Tight delivery on good length by ${bowlerName}.`;
+  else if (runsScored === 1) commentaryDesc = `Single run. ${strikerName} pushes into the gap and rotates strike.`;
+  else if (runsScored === 2) commentaryDesc = `Two runs! Nicely placed, quick running between the wickets.`;
+  else if (runsScored === 3) commentaryDesc = `Three runs! Deep into the outfield, batsmen run well.`;
+  else if (runsScored === 4) commentaryDesc = `FOUR! Beautifully timed boundary by ${strikerName}!`;
+  else if (runsScored === 6) commentaryDesc = `SIX! Huge maximum! ${strikerName} sends it soaring into the stands!`;
+
+  state.ballHistory.unshift({
+    innings: state.innings || 1,
+    overNum: `${state.overs}.${state.balls}`,
+    label: ballLabel,
+    type: ballType,
+    runs: totalBallRuns,
+    bowlerName: bowlerName,
+    batterName: strikerName,
+    commentary: `${bowlerName} to ${strikerName} — ${commentaryDesc}`,
+    timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+  });
+
   // Reset checkboxes
-  document.getElementById('scorer-extra-wide').checked = false;
-  document.getElementById('scorer-extra-noball').checked = false;
-  document.getElementById('scorer-extra-bye').checked = false;
-  document.getElementById('scorer-extra-legbye').checked = false;
+  if (document.getElementById('scorer-extra-wide')) document.getElementById('scorer-extra-wide').checked = false;
+  if (document.getElementById('scorer-extra-noball')) document.getElementById('scorer-extra-noball').checked = false;
+  if (document.getElementById('scorer-extra-bye')) document.getElementById('scorer-extra-bye').checked = false;
+  if (document.getElementById('scorer-extra-legbye')) document.getElementById('scorer-extra-legbye').checked = false;
 
   fixture.liveMatchState = state;
   
@@ -2431,6 +3313,17 @@ function processScorerBall(runsScored) {
 
   store.updateFixture(fixture);
   renderScorerActivePanel();
+
+  if (window.renderActiveMatchCenter) window.renderActiveMatchCenter();
+  if (window.refreshFixturesViewContent) window.refreshFixturesViewContent();
+
+  // Check 2nd Innings Target Chased
+  if (state.innings === 2 && state.target && state.runs >= state.target) {
+    const battingTeamName = fixture.teamBName;
+    setTimeout(() => {
+      alert(`🏆 Target reached! ${battingTeamName} won the match! Click "Finish Match" to complete.`);
+    }, 150);
+  }
 }
 
 function openScorerWicketModal() {
@@ -2447,43 +3340,56 @@ function openScorerWicketModal() {
   document.getElementById('scorer-wicket-modal')?.remove();
 
   const modalHtml = `
-    <div id="scorer-wicket-modal" class="fixed inset-0 z-[70] modal-overlay flex items-center justify-center p-3 bg-slate-950/80 backdrop-blur-md">
-      <div class="bg-slate-900 border-2 border-red-500/80 max-w-md w-full p-4 relative space-y-3 animate-fade-in rounded-2xl shadow-2xl text-white text-left">
-        <h3 class="text-base font-black text-red-400">Record Wicket Dismissal</h3>
+    <div id="scorer-wicket-modal" class="fixed inset-0 z-[70] modal-overlay flex items-center justify-center p-3 bg-slate-950/80 backdrop-blur-md animate-fade-in">
+      <div class="bg-white border-2 border-rose-500 max-w-md w-full p-5 sm:p-6 relative space-y-4 animate-fade-in rounded-3xl shadow-2xl text-slate-900 text-left">
+        <!-- Header -->
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div class="flex items-center gap-2.5">
+            <span class="p-2 bg-rose-50 text-rose-600 rounded-2xl border border-rose-200 text-base shadow-2xs font-black">☝️</span>
+            <div>
+              <span class="px-2 py-0.5 bg-rose-50 text-rose-800 font-mono text-[9px] font-black rounded border border-rose-200 uppercase">WICKET DISMISSAL</span>
+              <h3 class="text-base font-black text-slate-900 leading-tight mt-0.5">Record Wicket Out</h3>
+            </div>
+          </div>
+          <button id="cancel-wicket-top-btn" class="p-1.5 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all cursor-pointer">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
         
         <div>
-          <label class="block text-[10px] font-bold text-slate-400 mb-1">DISMISSED BATTER</label>
-          <select id="wicket-select-dismissed" class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-xl p-2.5">
+          <label class="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1">1. Dismissed Batter</label>
+          <select id="wicket-select-dismissed" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold shadow-2xs">
             <option value="${state.strikerId}">Striker: ${store.getPlayerById(state.strikerId)?.name || 'Striker'}</option>
             <option value="${state.nonStrikerId}">Non-Striker: ${store.getPlayerById(state.nonStrikerId)?.name || 'Non-Striker'}</option>
           </select>
         </div>
 
         <div>
-          <label class="block text-[10px] font-bold text-slate-400 mb-1">DISMISSAL TYPE</label>
-          <select id="wicket-select-type" class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-xl p-2.5">
+          <label class="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1">2. Dismissal Type</label>
+          <select id="wicket-select-type" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold shadow-2xs">
             <option value="BOWLED">Bowled</option>
             <option value="CAUGHT">Caught Out</option>
             <option value="LBW">L.B.W.</option>
             <option value="RUN_OUT">Run Out</option>
             <option value="STUMPED">Stumped</option>
+            <option value="HIT_WICKET">Hit Wicket</option>
           </select>
         </div>
 
         <div>
-          <label class="block text-[10px] font-bold text-slate-400 mb-1">FIELDER (IF CAUGHT/RUN OUT/STUMPED)</label>
-          <select id="wicket-select-fielder" class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-xl p-2.5">
-            <option value="">-- Choose Fielder --</option>
+          <label class="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1">3. Fielder / Catcher (Optional)</label>
+          <select id="wicket-select-fielder" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold shadow-2xs">
+            <option value="">-- Direct Bowler / No Fielder --</option>
             ${bowlPlayers.map(p => `<option value="${p.id}">${p.name}</option>`).join('')}
           </select>
         </div>
 
-        <div class="flex justify-end gap-2 pt-2">
-          <button id="cancel-wicket-btn" type="button" class="px-3 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl border border-slate-700">
+        <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
+          <button id="cancel-wicket-btn" type="button" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl cursor-pointer">
             Cancel
           </button>
-          <button id="confirm-wicket-btn" type="button" class="px-4 py-2 bg-red-600 hover:bg-red-500 text-white font-black text-xs rounded-xl border border-red-400 shadow">
-            Out!
+          <button id="confirm-wicket-btn" type="button" class="px-5 py-2 bg-rose-600 hover:bg-rose-500 text-white font-black text-xs rounded-xl shadow-xs cursor-pointer">
+            Confirm Out!
           </button>
         </div>
       </div>
@@ -2491,9 +3397,11 @@ function openScorerWicketModal() {
   `;
 
   document.body.insertAdjacentHTML('beforeend', modalHtml);
+  if (window.lucide) window.lucide.createIcons();
 
   const removeModal = () => document.getElementById('scorer-wicket-modal')?.remove();
   document.getElementById('cancel-wicket-btn')?.addEventListener('click', removeModal);
+  document.getElementById('cancel-wicket-top-btn')?.addEventListener('click', removeModal);
 
   document.getElementById('confirm-wicket-btn')?.addEventListener('click', () => {
     const dismissedId = document.getElementById('wicket-select-dismissed').value;
@@ -2504,17 +3412,18 @@ function openScorerWicketModal() {
 
     if (!state.playerStats) state.playerStats = {};
     if (!state.playerStats[dismissedId]) {
-      state.playerStats[dismissedId] = { runs: 0, balls: 0, wickets: 0, runsConceded: 0, ballsBowled: 0, dismissed: false };
+      state.playerStats[dismissedId] = { runs: 0, balls: 0, fours: 0, sixes: 0, wickets: 0, runsConceded: 0, ballsBowled: 0, dismissed: false };
     }
     state.playerStats[dismissedId].dismissed = true;
+    state.playerStats[dismissedId].dismissalInfo = type;
 
     const bowlerId = state.bowlerId;
     if (bowlerId) {
       if (!state.playerStats[bowlerId]) {
-        state.playerStats[bowlerId] = { runs: 0, balls: 0, wickets: 0, runsConceded: 0, ballsBowled: 0, dismissed: false };
+        state.playerStats[bowlerId] = { runs: 0, balls: 0, fours: 0, sixes: 0, wickets: 0, runsConceded: 0, ballsBowled: 0, dismissed: false };
       }
       if (type !== 'RUN_OUT') {
-        state.playerStats[bowlerId].wickets += 1;
+        state.playerStats[bowlerId].wickets = (state.playerStats[bowlerId].wickets || 0) + 1;
       }
     }
     
@@ -2523,12 +3432,32 @@ function openScorerWicketModal() {
       type: 'wicket'
     });
 
+    if (!state.ballHistory) state.ballHistory = [];
+    const dismissedName = store.getPlayerById(dismissedId)?.name || 'Batter';
+    const bowlerName = store.getPlayerById(bowlerId)?.name || 'Bowler';
+    const fielderName = fielderId ? store.getPlayerById(fielderId)?.name : '';
+    
+    let wktCommentary = `OUT! ${dismissedName} dismissed (${type.replace('_', ' ').toLowerCase()}).`;
+    if (fielderName) wktCommentary = `OUT! ${dismissedName} caught by ${fielderName} off ${bowlerName}.`;
+
+    state.ballHistory.unshift({
+      innings: state.innings || 1,
+      overNum: `${state.overs}.${state.balls}`,
+      label: 'W',
+      type: 'wicket',
+      runs: 0,
+      bowlerName: bowlerName,
+      batterName: dismissedName,
+      commentary: `${bowlerName} to ${dismissedName} — ${wktCommentary}`,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    });
+
     state.balls += 1;
     if (state.balls >= 6) {
       state.overs += 1;
       state.balls = 0;
       state.overBalls = [];
-      alert("Over completed! Strike changes & select Bowler.");
+      alert(" Over completed! Strike changes & select Bowler.");
     }
 
     if (dismissedId === state.strikerId) {
@@ -2547,36 +3476,81 @@ function openScorerWicketModal() {
     store.updateFixture(fixture);
     removeModal();
     renderScorerActivePanel();
-    alert("Wicket recorded! Select the new batter on strike.");
+    alert("✅ Wicket recorded! Please select the new incoming batter.");
   });
 }
 
 function openTossSelectionModal(fixture, onComplete) {
   document.getElementById('toss-select-modal')?.remove();
 
+  let selectedDecision = 'BAT'; // 'BAT' or 'BOWL'
+  const originalTeamAId = fixture.teamAId;
+  const originalTeamAName = fixture.teamAName;
+  const originalTeamBId = fixture.teamBId;
+  const originalTeamBName = fixture.teamBName;
+
   const modalHtml = `
-    <div id="toss-select-modal" class="fixed inset-0 z-[70] modal-overlay flex items-center justify-center p-3 bg-slate-950/80 backdrop-blur-md">
-      <div class="bg-slate-900 border-2 border-amber-500/80 max-w-md w-full p-5 relative space-y-4 animate-fade-in rounded-2xl shadow-2xl text-white text-left">
-        <div>
-          <span class="px-2 py-0.5 bg-amber-950 text-amber-400 font-mono text-[9px] font-black rounded border border-amber-800 uppercase">MATCH DAY TOSS</span>
-          <h3 class="text-base font-black text-white mt-1">Select Toss & First Batting Team</h3>
-          <p class="text-xs text-slate-400 leading-snug mt-1">Select the team that won the toss and decided to bat first for: ${fixture.teamAName} vs ${fixture.teamBName}.</p>
+    <div id="toss-select-modal" class="fixed inset-0 z-[70] modal-overlay flex items-center justify-center p-3 bg-slate-950/80 backdrop-blur-md animate-fade-in">
+      <div class="bg-white border-2 border-amber-400 max-w-md w-full p-5 sm:p-6 relative space-y-4 animate-fade-in rounded-3xl shadow-2xl text-slate-900 text-left">
+        <!-- Header -->
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div class="flex items-center gap-2.5">
+            <span class="p-2.5 bg-amber-400 text-slate-950 rounded-2xl font-black text-base shadow-2xs">🪙</span>
+            <div>
+              <span class="px-2 py-0.5 bg-amber-50 text-amber-900 font-mono text-[9px] font-black rounded border border-amber-300 uppercase">MATCH DAY TOSS</span>
+              <h3 class="text-base font-black text-slate-900 leading-tight mt-0.5">Official Toss Decision</h3>
+            </div>
+          </div>
+          <span class="text-xs font-mono text-slate-600 font-bold bg-slate-100 px-2.5 py-1 rounded-xl border border-slate-200">${fixture.leagueCode || 'JSL'}</span>
         </div>
 
-        <div class="space-y-2">
-          <label class="block text-[10px] font-bold text-slate-400 uppercase">First Batting Team</label>
-          <select id="toss-first-batting-select" class="w-full bg-slate-950 border border-slate-800 text-white text-xs rounded-xl p-3 focus:outline-none focus:border-amber-500">
-            <option value="${fixture.teamAId}">${fixture.teamAName}</option>
-            <option value="${fixture.teamBId}">${fixture.teamBName}</option>
+        <!-- Match Teams Banner -->
+        <div class="bg-slate-50 p-3 rounded-2xl border border-slate-200 flex items-center justify-between text-xs font-black">
+          <div class="text-emerald-700 truncate w-5/12 text-left">${originalTeamAName}</div>
+          <span class="text-[10px] text-amber-800 px-2.5 py-0.5 bg-amber-100 rounded-full border border-amber-300 font-mono font-black">VS</span>
+          <div class="text-sky-700 truncate w-5/12 text-right">${originalTeamBName}</div>
+        </div>
+
+        <!-- Step 1: Who won the toss? -->
+        <div class="space-y-1.5">
+          <label class="block text-[11px] font-black text-slate-700 uppercase tracking-wider">1. Toss Winner Team</label>
+          <select id="toss-winner-select" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-3 font-bold focus:outline-none focus:border-amber-500 cursor-pointer shadow-2xs">
+            <option value="${originalTeamAId}">${originalTeamAName}</option>
+            <option value="${originalTeamBId}">${originalTeamBName}</option>
           </select>
         </div>
 
-        <div class="flex justify-end gap-2.5 pt-2 border-t border-slate-800/80">
-          <button id="cancel-toss-btn" class="px-3.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold rounded-xl border border-slate-700">
+        <!-- Step 2: Elected to Bat or Bowl? -->
+        <div class="space-y-1.5">
+          <label class="block text-[11px] font-black text-slate-700 uppercase tracking-wider">2. Toss Decision (Elected To)</label>
+          <div class="grid grid-cols-2 gap-2">
+            <button type="button" id="toss-opt-bat" class="toss-decision-btn py-2.5 px-3 rounded-xl border-2 border-emerald-500 bg-emerald-50 text-emerald-900 font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs transition-all" data-decision="BAT">
+              🏏 Elect to BAT First
+            </button>
+            <button type="button" id="toss-opt-bowl" class="toss-decision-btn py-2.5 px-3 rounded-xl border border-slate-300 bg-slate-50 text-slate-600 hover:text-slate-900 font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs transition-all" data-decision="BOWL">
+              ⚾ Elect to BOWL First
+            </button>
+          </div>
+        </div>
+
+        <!-- Live Dynamic Outcome Summary Box -->
+        <div id="toss-summary-preview" class="p-3 bg-amber-50/80 border border-amber-200 rounded-2xl text-xs space-y-1.5 shadow-inner">
+          <div class="font-black text-amber-950 flex items-center gap-1.5">
+            <span>📢</span> <span id="toss-announcement-text">${originalTeamAName} won the toss and elected to BAT first</span>
+          </div>
+          <div class="text-[10px] text-slate-600 flex justify-between pt-1.5 border-t border-amber-200/80">
+            <span>1st Batting: <strong id="toss-batting-first-name" class="text-emerald-700 font-black">${originalTeamAName}</strong></span>
+            <span>1st Bowling: <strong id="toss-bowling-first-name" class="text-sky-700 font-black">${originalTeamBName}</strong></span>
+          </div>
+        </div>
+
+        <!-- Modal Actions -->
+        <div class="flex justify-end gap-2.5 pt-2 border-t border-slate-100">
+          <button id="cancel-toss-btn" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl cursor-pointer">
             Cancel
           </button>
-          <button id="confirm-toss-btn" class="px-4 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl border border-amber-300 shadow">
-            Start Match Scoring
+          <button id="confirm-toss-btn" class="px-5 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl border border-amber-400 shadow-xs cursor-pointer transition-all">
+            ⚡ Confirm Toss & Start Match
           </button>
         </div>
       </div>
@@ -2588,17 +3562,78 @@ function openTossSelectionModal(fixture, onComplete) {
   const removeModal = () => document.getElementById('toss-select-modal')?.remove();
   document.getElementById('cancel-toss-btn')?.addEventListener('click', removeModal);
 
+  const tossWinnerSel = document.getElementById('toss-winner-select');
+  const batBtn = document.getElementById('toss-opt-bat');
+  const bowlBtn = document.getElementById('toss-opt-bowl');
+  const announceText = document.getElementById('toss-announcement-text');
+  const batNameEl = document.getElementById('toss-batting-first-name');
+  const bowlNameEl = document.getElementById('toss-bowling-first-name');
+
+  function updateTossPreview() {
+    const winnerId = tossWinnerSel.value;
+    const isTeamA = winnerId === originalTeamAId;
+    const winnerName = isTeamA ? originalTeamAName : originalTeamBName;
+    const loserName = isTeamA ? originalTeamBName : originalTeamAName;
+
+    const firstBatName = selectedDecision === 'BAT' ? winnerName : loserName;
+    const firstBowlName = selectedDecision === 'BAT' ? loserName : winnerName;
+
+    if (announceText) {
+      announceText.textContent = `${winnerName} won the toss and elected to ${selectedDecision === 'BAT' ? 'BAT' : 'BOWL'} first`;
+    }
+    if (batNameEl) batNameEl.textContent = firstBatName;
+    if (bowlNameEl) bowlNameEl.textContent = firstBowlName;
+
+    if (selectedDecision === 'BAT') {
+      batBtn.className = "toss-decision-btn py-2.5 px-3 rounded-xl border-2 border-emerald-500 bg-emerald-50 text-emerald-900 font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs transition-all";
+      bowlBtn.className = "toss-decision-btn py-2.5 px-3 rounded-xl border border-slate-300 bg-slate-50 text-slate-600 hover:text-slate-900 font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs transition-all";
+    } else {
+      bowlBtn.className = "toss-decision-btn py-2.5 px-3 rounded-xl border-2 border-sky-500 bg-sky-50 text-sky-900 font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs transition-all";
+      batBtn.className = "toss-decision-btn py-2.5 px-3 rounded-xl border border-slate-300 bg-slate-50 text-slate-600 hover:text-slate-900 font-black text-xs flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs transition-all";
+    }
+  }
+
+  tossWinnerSel?.addEventListener('change', updateTossPreview);
+  batBtn?.addEventListener('click', () => {
+    selectedDecision = 'BAT';
+    updateTossPreview();
+  });
+  bowlBtn?.addEventListener('click', () => {
+    selectedDecision = 'BOWL';
+    updateTossPreview();
+  });
+
   document.getElementById('confirm-toss-btn')?.addEventListener('click', () => {
-    const firstBattingId = document.getElementById('toss-first-batting-select').value;
-    
-    const otherTeamId = firstBattingId === fixture.teamAId ? fixture.teamBId : fixture.teamAId;
-    const otherTeamName = firstBattingId === fixture.teamAId ? fixture.teamBName : fixture.teamAName;
-    const firstBattingName = firstBattingId === fixture.teamAId ? fixture.teamAName : fixture.teamBName;
+    const tossWinnerId = tossWinnerSel.value;
+    const isTeamA = tossWinnerId === originalTeamAId;
+    const tossWinnerName = isTeamA ? originalTeamAName : originalTeamBName;
+    const otherTeamId = isTeamA ? originalTeamBId : originalTeamAId;
+    const otherTeamName = isTeamA ? originalTeamBName : originalTeamAName;
+
+    let firstBattingId, firstBattingName, firstBowlingId, firstBowlingName;
+    if (selectedDecision === 'BAT') {
+      firstBattingId = tossWinnerId;
+      firstBattingName = tossWinnerName;
+      firstBowlingId = otherTeamId;
+      firstBowlingName = otherTeamName;
+    } else {
+      firstBattingId = otherTeamId;
+      firstBattingName = otherTeamName;
+      firstBowlingId = tossWinnerId;
+      firstBowlingName = tossWinnerName;
+    }
+
+    const tossSummary = `${tossWinnerName} won the toss and elected to ${selectedDecision.toLowerCase()} first`;
+
+    fixture.tossWinnerId = tossWinnerId;
+    fixture.tossWinnerName = tossWinnerName;
+    fixture.tossDecision = selectedDecision;
+    fixture.tossDetails = tossSummary;
 
     fixture.teamAId = firstBattingId;
     fixture.teamAName = firstBattingName;
-    fixture.teamBId = otherTeamId;
-    fixture.teamBName = otherTeamName;
+    fixture.teamBId = firstBowlingId;
+    fixture.teamBName = firstBowlingName;
 
     fixture.liveMatchState = {
       strikerId: '',
@@ -2610,17 +3645,490 @@ function openTossSelectionModal(fixture, onComplete) {
       balls: 0,
       innings: 1,
       target: null,
+      tossDetails: tossSummary,
       overBalls: [],
       recentBalls: [],
       playerStats: {}
     };
     fixture.status = 'LIVE';
+    const nowTimeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+    if (!fixture.startedAt) fixture.startedAt = nowTimeStr;
+    if (!fixture.startedAtISO) fixture.startedAtISO = new Date().toISOString();
     
     store.updateFixture(fixture);
     removeModal();
-    onComplete();
+    openPlayingXIModal(fixture, onComplete);
   });
 }
+
+export function openPlayingXIModal(fixture, onComplete) {
+  document.getElementById('playing-xi-modal')?.remove();
+
+  const teamAPlayers = store.getPlayers().filter(p => p.teamId === fixture.teamAId && (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED'));
+  const teamBPlayers = store.getPlayers().filter(p => p.teamId === fixture.teamBId && (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED'));
+
+  if (!fixture.playingXI) fixture.playingXI = {};
+  if (!fixture.playingXI[fixture.teamAId]) {
+    fixture.playingXI[fixture.teamAId] = {
+      playing11Ids: teamAPlayers.slice(0, 11).map(p => p.id),
+      twelfthManId: teamAPlayers[11] ? teamAPlayers[11].id : ''
+    };
+  }
+  if (!fixture.playingXI[fixture.teamBId]) {
+    fixture.playingXI[fixture.teamBId] = {
+      playing11Ids: teamBPlayers.slice(0, 11).map(p => p.id),
+      twelfthManId: teamBPlayers[11] ? teamBPlayers[11].id : ''
+    };
+  }
+
+  let activeTab = 'teamA'; // 'teamA' or 'teamB'
+
+  const modalHtml = `
+    <div id="playing-xi-modal" class="fixed inset-0 z-[80] modal-overlay flex items-center justify-center p-2 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
+      <div class="bg-white border-2 border-emerald-500 max-w-2xl w-full p-4 sm:p-6 relative space-y-4 animate-fade-in rounded-3xl shadow-2xl text-slate-900 text-left max-h-[92vh] flex flex-col justify-between">
+        
+        <!-- Header -->
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3 shrink-0">
+          <div class="flex items-center gap-3">
+            <span class="p-2.5 bg-emerald-100 text-emerald-700 border border-emerald-300 rounded-2xl font-black text-base shadow-2xs">📋</span>
+            <div>
+              <span class="px-2 py-0.5 bg-emerald-50 text-emerald-800 font-mono text-[9px] font-black rounded border border-emerald-200 uppercase">OFFICIAL MATCH LINEUPS</span>
+              <h3 class="text-base font-black text-slate-900 leading-tight mt-0.5">Select Playing 11 & 12th Man</h3>
+            </div>
+          </div>
+          <button id="close-pxi-btn" class="p-1.5 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-xl cursor-pointer transition-all">
+            <i data-lucide="x" class="w-4 h-4"></i>
+          </button>
+        </div>
+
+        <!-- Team Selector Tabs -->
+        <div class="grid grid-cols-2 gap-2 bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shrink-0">
+          <button id="pxi-tab-teama" class="py-2.5 px-3 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-2 cursor-pointer bg-emerald-600 text-white shadow-xs">
+            🏏 ${fixture.teamAName} (<span id="teama-selected-count">0</span>/11)
+          </button>
+          <button id="pxi-tab-teamb" class="py-2.5 px-3 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-2 cursor-pointer bg-white text-slate-700 border border-slate-200 hover:bg-slate-50">
+            🏏 ${fixture.teamBName} (<span id="teamb-selected-count">0</span>/11)
+          </button>
+        </div>
+
+        <!-- Quick 1-Click Auto Select & 12th Man bar -->
+        <div class="flex flex-wrap items-center justify-between gap-2 px-1 text-xs shrink-0 bg-slate-50 p-2.5 rounded-2xl border border-slate-200">
+          <div class="flex items-center gap-2">
+            <label class="text-[11px] font-black text-slate-700">🛡️ 12th Man / Sub:</label>
+            <select id="pxi-12th-man-select" class="bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl px-3 py-1.5 focus:outline-none focus:border-emerald-500 cursor-pointer shadow-2xs"></select>
+          </div>
+          <button id="pxi-autoselect-btn" class="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-black text-xs rounded-xl border border-emerald-300 cursor-pointer shadow-2xs flex items-center gap-1 transition-all">
+            ⚡ Auto-Select Top 11
+          </button>
+        </div>
+
+        <!-- Scrollable Squad Roster Grid -->
+        <div id="pxi-squad-list" class="space-y-2 overflow-y-auto max-h-[46vh] pr-1 scrollbar-thin"></div>
+
+        <!-- Footer Actions -->
+        <div class="flex items-center justify-between pt-3 border-t border-slate-100 shrink-0">
+          <span class="text-[11px] text-slate-500 font-bold hidden sm:inline">Select exactly 11 players per team</span>
+          <div class="flex items-center gap-2">
+            <button id="cancel-pxi-btn" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl cursor-pointer">
+              Cancel
+            </button>
+            <button id="save-pxi-btn" class="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-xs rounded-xl shadow cursor-pointer transition-all">
+              💾 Confirm Lineups & Start Scoring
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  if (window.lucide) window.lucide.createIcons();
+
+  const removeModal = () => document.getElementById('playing-xi-modal')?.remove();
+  document.getElementById('close-pxi-btn')?.addEventListener('click', removeModal);
+  document.getElementById('cancel-pxi-btn')?.addEventListener('click', removeModal);
+
+  const tabA = document.getElementById('pxi-tab-teama');
+  const tabB = document.getElementById('pxi-tab-teamb');
+  const squadListEl = document.getElementById('pxi-squad-list');
+  const twelfthSel = document.getElementById('pxi-12th-man-select');
+  const autoSelectBtn = document.getElementById('pxi-autoselect-btn');
+  const countAEl = document.getElementById('teama-selected-count');
+  const countBEl = document.getElementById('teamb-selected-count');
+
+  let selectedA = new Set(fixture.playingXI[fixture.teamAId]?.playing11Ids || []);
+  let selectedB = new Set(fixture.playingXI[fixture.teamBId]?.playing11Ids || []);
+  let twelfthA = fixture.playingXI[fixture.teamAId]?.twelfthManId || '';
+  let twelfthB = fixture.playingXI[fixture.teamBId]?.twelfthManId || '';
+
+  // Clean initial duplicate if twelfth is in selected
+  if (selectedA.has(twelfthA)) twelfthA = '';
+  if (selectedB.has(twelfthB)) twelfthB = '';
+
+  function renderSquadList() {
+    const isTeamA = activeTab === 'teamA';
+    const players = isTeamA ? teamAPlayers : teamBPlayers;
+    const currentSelected = isTeamA ? selectedA : selectedB;
+    let currentTwelfth = isTeamA ? twelfthA : twelfthB;
+
+    if (currentSelected.has(currentTwelfth)) {
+      if (isTeamA) twelfthA = '';
+      else twelfthB = '';
+      currentTwelfth = '';
+    }
+
+    if (countAEl) countAEl.textContent = selectedA.size;
+    if (countBEl) countBEl.textContent = selectedB.size;
+
+    // Filter ONLY bench players for the 12th man selector!
+    const benchPlayers = players.filter(p => !currentSelected.has(p.id));
+
+    if (twelfthSel) {
+      twelfthSel.innerHTML = `<option value="">-- Choose 12th Man (from Bench) --</option>` + benchPlayers.map(p => `
+        <option value="${p.id}" ${currentTwelfth === p.id ? 'selected' : ''}>${p.name} (${p.category || 'Player'})</option>
+      `).join('');
+    }
+
+    if (players.length === 0) {
+      squadListEl.innerHTML = `
+        <div class="p-6 text-center text-slate-400 text-xs bg-slate-50 rounded-2xl border border-slate-200">
+          No registered players assigned to this team yet.
+        </div>
+      `;
+      return;
+    }
+
+    squadListEl.innerHTML = players.map((p) => {
+      const isSelected = currentSelected.has(p.id);
+      const isTwelfth = currentTwelfth === p.id;
+      const photo = p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png';
+
+      return `
+        <div class="flex items-center justify-between p-2.5 rounded-2xl border ${isSelected ? 'bg-emerald-50/80 border-emerald-500 shadow-2xs' : (isTwelfth ? 'bg-amber-50/80 border-amber-400 shadow-2xs' : 'bg-white border-slate-200 hover:border-slate-300')} transition-all cursor-pointer pxi-player-row" data-player-id="${p.id}">
+          <div class="flex items-center gap-3">
+            <input type="checkbox" class="w-4 h-4 rounded text-emerald-600 focus:ring-0 cursor-pointer pxi-player-check" data-player-id="${p.id}" ${isSelected ? 'checked' : ''} />
+            <img src="${photo}" class="w-10 h-10 rounded-xl object-cover border border-slate-200 bg-slate-50 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+            <div>
+              <div class="text-xs font-black text-slate-900 flex items-center gap-1.5">
+                <span>${p.name}</span>
+                ${isTwelfth ? `<span class="px-1.5 py-0.5 bg-amber-400 text-slate-950 font-mono text-[9px] font-black rounded-md uppercase">12th Man</span>` : ''}
+              </div>
+              <div class="text-[10px] text-slate-500 font-bold">
+                ${p.category || 'All Rounder'} • ${p.village || 'Jhankra'}
+              </div>
+            </div>
+          </div>
+          <span class="text-[10px] font-black ${isSelected ? 'text-emerald-700' : (isTwelfth ? 'text-amber-700' : 'text-slate-400')}">
+            ${isSelected ? '✓ In XI' : (isTwelfth ? '🛡️ 12th Man' : 'Bench')}
+          </span>
+        </div>
+      `;
+    }).join('');
+
+    squadListEl.querySelectorAll('.pxi-player-row').forEach(row => {
+      row.addEventListener('click', (e) => {
+        if (e.target.tagName === 'INPUT') return;
+        const pId = row.getAttribute('data-player-id');
+        togglePlayerInXI(pId);
+      });
+    });
+
+    squadListEl.querySelectorAll('.pxi-player-check').forEach(chk => {
+      chk.addEventListener('change', (e) => {
+        const pId = chk.getAttribute('data-player-id');
+        togglePlayerInXI(pId);
+      });
+    });
+  }
+
+  function togglePlayerInXI(pId) {
+    const currentSelected = activeTab === 'teamA' ? selectedA : selectedB;
+    if (currentSelected.has(pId)) {
+      currentSelected.delete(pId);
+    } else {
+      if (currentSelected.size >= 11) {
+        alert("⚠️ Maximum 11 players can be in the Playing XI. Please uncheck another player first.");
+        return;
+      }
+      currentSelected.add(pId);
+      if (activeTab === 'teamA' && twelfthA === pId) twelfthA = '';
+      if (activeTab === 'teamB' && twelfthB === pId) twelfthB = '';
+    }
+    renderSquadList();
+  }
+
+  tabA?.addEventListener('click', () => {
+    activeTab = 'teamA';
+    tabA.className = "py-2.5 px-3 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-2 cursor-pointer bg-emerald-600 text-white shadow-xs";
+    tabB.className = "py-2.5 px-3 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-2 cursor-pointer bg-white text-slate-700 border border-slate-200 hover:bg-slate-50";
+    renderSquadList();
+  });
+
+  tabB?.addEventListener('click', () => {
+    activeTab = 'teamB';
+    tabB.className = "py-2.5 px-3 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-2 cursor-pointer bg-sky-600 text-white shadow-xs";
+    tabA.className = "py-2.5 px-3 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-2 cursor-pointer bg-white text-slate-700 border border-slate-200 hover:bg-slate-50";
+    renderSquadList();
+  });
+
+  twelfthSel?.addEventListener('change', () => {
+    if (activeTab === 'teamA') twelfthA = twelfthSel.value;
+    else twelfthB = twelfthSel.value;
+    renderSquadList();
+  });
+
+  autoSelectBtn?.addEventListener('click', () => {
+    const isTeamA = activeTab === 'teamA';
+    const players = isTeamA ? teamAPlayers : teamBPlayers;
+    const currentSelected = isTeamA ? selectedA : selectedB;
+    currentSelected.clear();
+    players.slice(0, 11).forEach(p => currentSelected.add(p.id));
+    if (isTeamA) twelfthA = players[11] ? players[11].id : '';
+    if (!isTeamA) twelfthB = players[11] ? players[11].id : '';
+    renderSquadList();
+  });
+
+  renderSquadList();
+
+  document.getElementById('save-pxi-btn')?.addEventListener('click', () => {
+    fixture.playingXI = {
+      [fixture.teamAId]: {
+        playing11Ids: Array.from(selectedA),
+        twelfthManId: twelfthA
+      },
+      [fixture.teamBId]: {
+        playing11Ids: Array.from(selectedB),
+        twelfthManId: twelfthB
+      }
+    };
+
+    store.updateFixture(fixture);
+    removeModal();
+    if (typeof onComplete === 'function') onComplete();
+  });
+}
+
+export function openEditMatchModal(fixture, onComplete) {
+  document.getElementById('edit-match-modal')?.remove();
+
+  const teamAPlayers = store.getPlayers().filter(p => p.teamId === fixture.teamAId && (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED'));
+  const teamBPlayers = store.getPlayers().filter(p => p.teamId === fixture.teamBId && (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED'));
+
+  if (!fixture.playingXI) fixture.playingXI = {};
+  if (!fixture.playingXI[fixture.teamAId]) {
+    fixture.playingXI[fixture.teamAId] = {
+      playing11Ids: teamAPlayers.slice(0, 11).map(p => p.id),
+      twelfthManId: teamAPlayers[11] ? teamAPlayers[11].id : ''
+    };
+  }
+  if (!fixture.playingXI[fixture.teamBId]) {
+    fixture.playingXI[fixture.teamBId] = {
+      playing11Ids: teamBPlayers.slice(0, 11).map(p => p.id),
+      twelfthManId: teamBPlayers[11] ? teamBPlayers[11].id : ''
+    };
+  }
+
+  const pxiAIds = fixture.playingXI[fixture.teamAId]?.playing11Ids || [];
+  const pxiBIds = fixture.playingXI[fixture.teamBId]?.playing11Ids || [];
+  const benchA = teamAPlayers.filter(p => !pxiAIds.includes(p.id));
+  const benchB = teamBPlayers.filter(p => !pxiBIds.includes(p.id));
+
+  const modalHtml = `
+    <div id="edit-match-modal" class="fixed inset-0 z-[80] modal-overlay flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
+      <div class="bg-white border-2 border-sky-500 max-w-xl w-full p-5 sm:p-6 relative space-y-4 animate-fade-in rounded-3xl shadow-2xl text-slate-900 max-h-[92vh] flex flex-col justify-between">
+        
+        <!-- Header -->
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3 shrink-0">
+          <div class="flex items-center gap-2.5">
+            <span class="p-2 bg-sky-50 text-sky-600 rounded-2xl border border-sky-200 text-base shadow-2xs font-black">✏️</span>
+            <div>
+              <span class="px-2 py-0.5 bg-sky-50 text-sky-800 font-mono text-[9px] font-black rounded border border-sky-200 uppercase">MATCH MANAGEMENT</span>
+              <h3 class="text-base font-black text-slate-900 leading-tight mt-0.5">Edit Match, Overs & In-Play Substitutes</h3>
+            </div>
+          </div>
+          <button id="close-edit-match-btn" class="p-1.5 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all cursor-pointer">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+
+        <!-- Scrollable Form Body -->
+        <div class="space-y-3.5 overflow-y-auto max-h-[62vh] pr-1 scrollbar-thin">
+          
+          <!-- Match Teams Banner -->
+          <div class="bg-slate-50 border border-slate-200 p-3 rounded-2xl flex items-center justify-between font-black text-xs">
+            <span class="text-emerald-700 font-black">${fixture.teamAName}</span>
+            <span class="text-slate-400">VS</span>
+            <span class="text-sky-700 font-black">${fixture.teamBName}</span>
+          </div>
+
+          <!-- Overs Reduction / Modification Tool -->
+          <div class="p-3.5 bg-amber-50/70 border border-amber-300 rounded-2xl space-y-2">
+            <div class="flex items-center justify-between">
+              <label class="text-xs font-black text-amber-950 flex items-center gap-1.5">
+                <span>⚡</span> Match Total Overs (Reduce for Rain / Short Match)
+              </label>
+              <span class="text-xs font-mono font-black text-amber-900 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-lg">
+                Current: ${fixture.oversLimit || 16} Overs
+              </span>
+            </div>
+            <div class="grid grid-cols-5 gap-1.5">
+              <button type="button" class="preset-overs-btn py-1.5 px-2 bg-white border border-amber-300 text-amber-950 hover:bg-amber-100 font-black text-xs rounded-xl shadow-2xs cursor-pointer" data-overs="6">6 Overs</button>
+              <button type="button" class="preset-overs-btn py-1.5 px-2 bg-white border border-amber-300 text-amber-950 hover:bg-amber-100 font-black text-xs rounded-xl shadow-2xs cursor-pointer" data-overs="8">8 Overs</button>
+              <button type="button" class="preset-overs-btn py-1.5 px-2 bg-white border border-amber-300 text-amber-950 hover:bg-amber-100 font-black text-xs rounded-xl shadow-2xs cursor-pointer" data-overs="10">10 Overs</button>
+              <button type="button" class="preset-overs-btn py-1.5 px-2 bg-white border border-amber-300 text-amber-950 hover:bg-amber-100 font-black text-xs rounded-xl shadow-2xs cursor-pointer" data-overs="12">12 Overs</button>
+              <button type="button" class="preset-overs-btn py-1.5 px-2 bg-white border border-amber-300 text-amber-950 hover:bg-amber-100 font-black text-xs rounded-xl shadow-2xs cursor-pointer" data-overs="16">16 Overs</button>
+            </div>
+            <div class="flex items-center gap-2 pt-1">
+              <label class="text-[11px] text-amber-900 font-bold">Custom Overs:</label>
+              <input type="number" id="edit-match-overs" min="1" max="50" value="${fixture.oversLimit || 16}" class="w-24 bg-white border border-amber-300 text-slate-900 text-xs rounded-xl p-2 font-black shadow-inner" />
+            </div>
+          </div>
+
+          <!-- Match No & Stage -->
+          <div class="grid grid-cols-2 gap-2.5">
+            <div>
+              <label class="block text-[11px] font-black text-slate-700 mb-1">Match Number</label>
+              <input type="number" id="edit-match-no" min="1" value="${fixture.matchNo || 1}" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold shadow-2xs" />
+            </div>
+            <div>
+              <label class="block text-[11px] font-black text-slate-700 mb-1">Stage / Group</label>
+              <select id="edit-match-stage" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold shadow-2xs">
+                <option value="GROUP_A" ${fixture.stage === 'GROUP_A' ? 'selected' : ''}>🟢 Group A</option>
+                <option value="GROUP_B" ${fixture.stage === 'GROUP_B' ? 'selected' : ''}>🔵 Group B</option>
+                <option value="GROUP_C" ${fixture.stage === 'GROUP_C' ? 'selected' : ''}>🟡 Group C</option>
+                <option value="GROUP_D" ${fixture.stage === 'GROUP_D' ? 'selected' : ''}>🟣 Group D</option>
+                <option value="SEMI_FINAL_1" ${fixture.stage === 'SEMI_FINAL_1' ? 'selected' : ''}>🏆 Semi-Final 1</option>
+                <option value="SEMI_FINAL_2" ${fixture.stage === 'SEMI_FINAL_2' ? 'selected' : ''}>🏆 Semi-Final 2</option>
+                <option value="FINAL" ${fixture.stage === 'FINAL' ? 'selected' : ''}>👑 Grand Final</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Date, Time & Venue -->
+          <div class="grid grid-cols-2 gap-2.5">
+            <div>
+              <label class="block text-[11px] font-black text-slate-700 mb-1">Match Date</label>
+              <input type="date" id="edit-match-date" value="${fixture.date || ''}" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold shadow-2xs" />
+            </div>
+            <div>
+              <label class="block text-[11px] font-black text-slate-700 mb-1">Start Time</label>
+              <input type="time" id="edit-match-time" value="${fixture.time || '09:00'}" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold shadow-2xs" />
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-black text-slate-700 mb-1">Match Venue</label>
+            <input type="text" id="edit-match-venue" value="${fixture.venue || 'JHANKRA SCHOOL GROUND'}" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold shadow-2xs" />
+          </div>
+
+          <!-- 12th Man & Mid-Game Injury Switch Section -->
+          <div class="p-3.5 bg-emerald-50/70 border border-emerald-300 rounded-2xl space-y-3">
+            <div class="flex items-center justify-between">
+              <label class="text-xs font-black text-emerald-950 flex items-center gap-1.5">
+                <span>🛡️</span> 12th Man & In-Play Substitute / Injury Switch
+              </label>
+              <button type="button" id="edit-open-full-pxi-btn" class="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[10px] rounded-lg shadow-2xs cursor-pointer">
+                📋 Full Lineup Roster
+              </button>
+            </div>
+            
+            <!-- Team A 12th Man & Switch (Bench Players only) -->
+            <div class="p-2.5 bg-white border border-emerald-200 rounded-xl space-y-1.5 shadow-2xs">
+              <div class="flex items-center justify-between text-[11px] font-black text-emerald-900">
+                <span>${fixture.teamAName} 12th Man:</span>
+                <select id="edit-12th-man-a" class="bg-slate-50 border border-slate-300 text-slate-900 text-xs font-bold rounded-lg p-1.5">
+                  <option value="">-- Choose 12th Man (from Bench) --</option>
+                  ${benchA.map(p => `<option value="${p.id}" ${fixture.playingXI[fixture.teamAId]?.twelfthManId === p.id ? 'selected' : ''}>${p.name} (${p.category || 'Player'})</option>`).join('')}
+                </select>
+              </div>
+            </div>
+
+            <!-- Team B 12th Man & Switch (Bench Players only) -->
+            <div class="p-2.5 bg-white border border-sky-200 rounded-xl space-y-1.5 shadow-2xs">
+              <div class="flex items-center justify-between text-[11px] font-black text-sky-900">
+                <span>${fixture.teamBName} 12th Man:</span>
+                <select id="edit-12th-man-b" class="bg-slate-50 border border-slate-300 text-slate-900 text-xs font-bold rounded-lg p-1.5">
+                  <option value="">-- Choose 12th Man (from Bench) --</option>
+                  ${benchB.map(p => `<option value="${p.id}" ${fixture.playingXI[fixture.teamBId]?.twelfthManId === p.id ? 'selected' : ''}>${p.name} (${p.category || 'Player'})</option>`).join('')}
+                </select>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Footer -->
+        <div class="pt-3 border-t border-slate-100 flex items-center justify-between shrink-0">
+          <button id="cancel-edit-match-btn" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl cursor-pointer">
+            Cancel
+          </button>
+          <button id="save-edit-match-btn" class="px-6 py-2.5 bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-500 hover:to-blue-600 text-white font-black text-xs rounded-xl shadow-xs cursor-pointer transition-all">
+            💾 Save Match Changes
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  if (window.lucide) window.lucide.createIcons();
+
+  const removeModal = () => document.getElementById('edit-match-modal')?.remove();
+  document.getElementById('close-edit-match-btn')?.addEventListener('click', removeModal);
+  document.getElementById('cancel-edit-match-btn')?.addEventListener('click', removeModal);
+
+  // Preset overs buttons
+  document.querySelectorAll('.preset-overs-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const ov = e.currentTarget.getAttribute('data-overs');
+      const input = document.getElementById('edit-match-overs');
+      if (input) input.value = ov;
+    });
+  });
+
+  // Reopen full Playing 11 roster
+  document.getElementById('edit-open-full-pxi-btn')?.addEventListener('click', () => {
+    removeModal();
+    openPlayingXIModal(fixture, () => openEditMatchModal(fixture, onComplete));
+  });
+
+  // Save changes
+  document.getElementById('save-edit-match-btn')?.addEventListener('click', () => {
+    const oversVal = Number(document.getElementById('edit-match-overs')?.value) || 16;
+    const matchNoVal = Number(document.getElementById('edit-match-no')?.value) || 1;
+    const stageVal = document.getElementById('edit-match-stage')?.value || 'GROUP_A';
+    const dateVal = document.getElementById('edit-match-date')?.value || fixture.date;
+    const timeVal = document.getElementById('edit-match-time')?.value || fixture.time;
+    const venueVal = document.getElementById('edit-match-venue')?.value || fixture.venue;
+    const twelfthA = document.getElementById('edit-12th-man-a')?.value || '';
+    const twelfthB = document.getElementById('edit-12th-man-b')?.value || '';
+
+    fixture.oversLimit = oversVal;
+    fixture.matchNo = matchNoVal;
+    fixture.stage = stageVal;
+    if (stageVal === 'GROUP_A') fixture.groupCode = 'A';
+    else if (stageVal === 'GROUP_B') fixture.groupCode = 'B';
+    else if (stageVal === 'GROUP_C') fixture.groupCode = 'C';
+    else if (stageVal === 'GROUP_D') fixture.groupCode = 'D';
+
+    fixture.date = dateVal;
+    fixture.time = timeVal;
+    fixture.venue = venueVal;
+
+    if (!fixture.playingXI) fixture.playingXI = {};
+    if (!fixture.playingXI[fixture.teamAId]) fixture.playingXI[fixture.teamAId] = {};
+    if (!fixture.playingXI[fixture.teamBId]) fixture.playingXI[fixture.teamBId] = {};
+
+    fixture.playingXI[fixture.teamAId].twelfthManId = twelfthA;
+    fixture.playingXI[fixture.teamBId].twelfthManId = twelfthB;
+
+    store.updateFixture(fixture);
+    removeModal();
+    if (typeof onComplete === 'function') onComplete();
+    alert("✅ Match settings, overs and lineups updated successfully!");
+  });
+}
+window.openEditMatchModal = openEditMatchModal;
 
 // ============================================================================
 // --- 🔨 LIVE AUCTION ARENA, PROJECTOR FULLSCREEN MODE & AUDIO SYNTHESIZER ---
@@ -4722,10 +6230,83 @@ export function renderAdminSaasTournamentsPanel() {
       const name = e.currentTarget.getAttribute('data-name');
       if (confirm(`⚠️ Are you sure you want to delete tournament "${name}"?`)) {
         await store.deleteCustomTournament(id);
-        renderAdminSaasTournamentsPanel();
       }
     });
   });
 }
+
+console.log('[ADMIN.JS MODULE] Setting window.processScorerBall now...');
+window.processScorerBall = processScorerBall;
+window.openScorerWicketModal = openScorerWicketModal;
+window.renderScorerActivePanel = renderScorerActivePanel;
+console.log('[ADMIN.JS MODULE] window.processScorerBall is:', typeof window.processScorerBall);
+
+
+window.swapStrikeManually = function() {
+  const fixture = store.getFixtures().find(f => f.id === activeScoringMatchId);
+  if (fixture && fixture.liveMatchState) {
+    const temp = fixture.liveMatchState.strikerId;
+    fixture.liveMatchState.strikerId = fixture.liveMatchState.nonStrikerId;
+    fixture.liveMatchState.nonStrikerId = temp;
+    store.updateFixture(fixture);
+    renderScorerActivePanel();
+  }
+};
+
+window.closeInningsManually = function() {
+  const fixture = store.getFixtures().find(f => f.id === activeScoringMatchId);
+  if (!fixture || !fixture.liveMatchState) return;
+  const state = fixture.liveMatchState;
+  const battingTeamName = state.innings === 2 ? fixture.teamBName : fixture.teamAName;
+  const bowlingTeamName = state.innings === 2 ? fixture.teamAName : fixture.teamBName;
+  if (state.innings === 2) {
+    return alert("Innings 2 is already in progress or completed!");
+  }
+  if (confirm(`Confirm Close Innings 1?\n\n${battingTeamName} scored ${state.runs}/${state.wickets} in ${state.overs}.${state.balls} overs.\nTarget for ${bowlingTeamName} will be ${state.runs + 1} runs.`)) {
+    fixture.liveMatchState.innings = 2;
+    fixture.liveMatchState.target = fixture.liveMatchState.runs + 1;
+    fixture.liveMatchState.strikerId = '';
+    fixture.liveMatchState.nonStrikerId = '';
+    fixture.liveMatchState.bowlerId = '';
+    fixture.liveMatchState.runs = 0;
+    fixture.liveMatchState.wickets = 0;
+    fixture.liveMatchState.overs = 0;
+    fixture.liveMatchState.balls = 0;
+    fixture.liveMatchState.overBalls = [];
+    store.updateFixture(fixture);
+    renderScorerActivePanel();
+    alert(`✅ Innings 1 Closed! Target set to ${fixture.liveMatchState.target}. Now select new opening batsmen and bowler for Innings 2.`);
+  }
+};
+
+window.finishMatchManually = function() {
+  const fixture = store.getFixtures().find(f => f.id === activeScoringMatchId);
+  if (!fixture) return;
+  if (confirm("🏆 Are you sure you want to finalize this match and record the official result?")) {
+    let winnerId = null;
+    let resultTxt = 'Match Tied';
+    const teamAScore = fixture.teamAScore || { runs: 0, wickets: 0 };
+    const teamBScore = fixture.teamBScore || { runs: 0, wickets: 0 };
+
+    if (teamAScore.runs > teamBScore.runs) {
+      winnerId = fixture.teamAId;
+      resultTxt = `${fixture.teamAName} won by ${teamAScore.runs - teamBScore.runs} runs`;
+    } else if (teamBScore.runs > teamAScore.runs) {
+      winnerId = fixture.teamBId;
+      resultTxt = `${fixture.teamBName} won by ${10 - teamBScore.wickets} wickets`;
+    }
+
+    fixture.status = 'COMPLETED';
+    fixture.endedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    fixture.result = resultTxt;
+    fixture.winnerTeamId = winnerId;
+    
+    store.updateFixture(fixture);
+    document.getElementById('scorer-active-panel')?.classList.add('hidden');
+    renderScorerMatchesList();
+    renderAdminFixturesList();
+    alert(`🎉 Match Completed!\n\nResult: ${resultTxt}`);
+  }
+};
 
 

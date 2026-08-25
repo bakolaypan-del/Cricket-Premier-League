@@ -1081,6 +1081,33 @@ export async function fetchUniversalPlayersFromFirebase() {
   return {};
 }
 
+export async function saveTournamentFormatToFirebase(leagueCode, formatConfig) {
+  try {
+    if (!leagueCode) return;
+    const cleanCode = leagueCode.toUpperCase();
+    const payload = { ...formatConfig, updated_at: Date.now() };
+    await fetch(`${FIREBASE_DB_URL}/cpl_master/tournament_formats/${cleanCode}.json`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+  } catch (err) {
+    console.warn("Tournament format save error:", err);
+  }
+}
+
+export async function fetchTournamentFormatsFromFirebase() {
+  try {
+    const res = await fetch(`${FIREBASE_DB_URL}/cpl_master/tournament_formats.json?_t=${Date.now()}`, { cache: 'no-store' });
+    if (res.ok) {
+      return await res.json() || {};
+    }
+  } catch (err) {
+    console.warn("Tournament formats fetch notice:", err);
+  }
+  return {};
+}
+
 export async function fetchVisitorStats(callback) {
   try {
     const res = await fetch(`${FIREBASE_DB_URL}/cpl_master.json?_t=${Date.now()}`, { cache: 'no-store' });
@@ -1104,3 +1131,4 @@ export async function fetchVisitorStats(callback) {
     return { totalVisits: 286, liveCount: 1 };
   }
 }
+

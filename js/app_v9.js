@@ -167,6 +167,14 @@ function initApp() {
       return;
     }
 
+    // IF ON FIXTURES / MATCH CORNER TAB, NEVER WIPE THE SCREEN: Smooth in-place updates only
+    if (currentRoute === 'fixtures') {
+      if (typeof window.refreshFixturesViewContent === 'function') {
+        window.refreshFixturesViewContent();
+        return;
+      }
+    }
+
     if (renderDebounceTimer) clearTimeout(renderDebounceTimer);
     renderDebounceTimer = setTimeout(() => {
       renderCurrentView();
@@ -837,7 +845,7 @@ function renderNavbar() {
       <div class="hidden lg:flex items-center gap-4 xl:gap-6 text-xs font-bold tracking-widest text-emerald-100">
         <button id="nav-home-btn" class="hover:text-white transition-colors py-1 ${currentRoute === 'landing' ? 'text-white border-b-2 border-emerald-300 font-black' : ''}">HOME</button>
         <button id="nav-tournaments-btn" class="hover:text-white transition-colors py-1">TOURNAMENTS</button>
-        <button id="nav-schedule-btn" class="hover:text-white transition-colors py-1 ${currentRoute === 'fixtures' ? 'text-white border-b-2 border-emerald-300 font-black' : ''}">SCHEDULE</button>
+        <button id="nav-schedule-btn" class="hover:text-white transition-colors py-1 ${currentRoute === 'fixtures' ? 'text-white border-b-2 border-emerald-300 font-black' : ''}">MATCH CORNER</button>
         <button id="nav-auction-btn" class="hover:text-amber-300 transition-colors py-1 flex items-center gap-1 ${currentRoute === 'auction' ? 'text-amber-300 border-b-2 border-amber-300 font-black' : ''}">🔨 AUCTION</button>
         <button id="nav-career-btn" class="hover:text-emerald-300 transition-colors py-1 flex items-center gap-1 ${currentRoute === 'career' ? 'text-emerald-300 border-b-2 border-emerald-300 font-black' : ''}">📊 PLAYER STATS</button>
         <button id="nav-teams-btn" class="hover:text-white transition-colors py-1">TEAMS</button>
@@ -1001,7 +1009,7 @@ function renderMobileNav() {
   const isUserLoggedIn = !!store.getCurrentUser();
   bottomNavEl.innerHTML = `
     ${getTabItem('mob-nav-home', 'home', 'Home', 'landing')}
-    ${getTabItem('mob-nav-fixtures', 'fixtures', 'Schedule', 'fixtures')}
+    ${getTabItem('mob-nav-fixtures', 'fixtures', 'Match Corner', 'fixtures')}
     ${getTabItem('mob-nav-auction', 'auction', 'Auction', 'auction')}
     ${getTabItem('mob-nav-career', 'career', 'Player Stats', 'career')}
     ${getTabItem('mob-nav-profile', 'profile', isUserLoggedIn ? 'Profile' : 'Login', 'profile')}
@@ -3937,27 +3945,15 @@ function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
 
 // --- VISITOR VIEWS: MATCH CENTER, LIVE AUCTION & CAREER HUB ---
 
+let activeFixtureCategory = sessionStorage.getItem('cpl_active_fixture_cat') || 'JSL';
+let activeFixtureSubTab = sessionStorage.getItem('cpl_active_fixture_subtab') || 'matches'; // 'matches' or 'table'
+let activeFixtureGroupFilter = sessionStorage.getItem('cpl_active_fixture_grp_filter') || 'ALL'; // 'ALL', 'A', 'B', 'C', 'D', 'KNOCKOUT'
+
 function renderFixturesView(container) {
-  let selectedCategory = 'JSL';
-  let activeSubTab = 'matches'; // 'matches' or 'table'
-  
-  const drawFixtures = () => {
-    const fixtures = store.getFixtures().filter(f => f.leagueCode === selectedCategory);
-    const liveMatches = fixtures.filter(f => f.status === 'LIVE');
-    const scheduledMatches = fixtures.filter(f => f.status === 'SCHEDULED');
-    const completedMatches = fixtures.filter(f => f.status === 'COMPLETED');
-
-    // Filter teams strictly by selected tournament category
-    const leagueTeams = store.getTeams().filter(t => {
-      const code = (t.leagueCode || (t.leagueId === 'leg-jsl' ? 'JSL' : (t.leagueId === 'leg-jpl' ? 'JPL' : (t.leagueId === 'leg-kpl' ? 'KPL' : 'JSL'))));
-      return code === selectedCategory;
-    });
-
-    // Standings points compilation (dynamic calculation from matches)
-    const standings = leagueTeams.map(t => {
+  const computeTeamStandings = (teamList, categoryFixtures) => {
+    const standings = teamList.map(t => {
       const teamId = t.id;
-      // Get all completed games for this category involving this team
-      const teamFixtures = store.getFixtures().filter(f => f.status === 'COMPLETED' && f.leagueCode === selectedCategory && (f.teamAId === teamId || f.teamBId === teamId));
+      const teamFixtures = categoryFixtures.filter(f => f.status === 'COMPLETED' && (f.teamAId === teamId || f.teamBId === teamId));
       
       let played = teamFixtures.length;
       let won = 0;
@@ -4009,7 +4005,9 @@ function renderFixturesView(container) {
       const nrrVal = myRR - oppRR;
 
       return {
+        id: t.id,
         name: t.name,
+        group: (t.group || 'A').toUpperCase(),
         played,
         won,
         lost,
@@ -4025,235 +4023,647 @@ function renderFixturesView(container) {
       return b.won - a.won;
     });
 
+    return standings;
+  };
+
+  const drawFixtures = () => {
+    const selectedCategory = activeFixtureCategory || 'JSL';
+    const rawFixtures = store.getFixtures().filter(f => (f.leagueCode || 'JSL').toUpperCase() === selectedCategory.toUpperCase());
+    
+    // Apply Match Group Filter
+    let filteredFixtures = rawFixtures;
+    if (activeFixtureGroupFilter === 'A') {
+      filteredFixtures = rawFixtures.filter(f => f.stage === 'GROUP_A' || f.groupCode === 'A');
+    } else if (activeFixtureGroupFilter === 'B') {
+      filteredFixtures = rawFixtures.filter(f => f.stage === 'GROUP_B' || f.groupCode === 'B');
+    } else if (activeFixtureGroupFilter === 'C') {
+      filteredFixtures = rawFixtures.filter(f => f.stage === 'GROUP_C' || f.groupCode === 'C');
+    } else if (activeFixtureGroupFilter === 'D') {
+      filteredFixtures = rawFixtures.filter(f => f.stage === 'GROUP_D' || f.groupCode === 'D');
+    } else if (activeFixtureGroupFilter === 'KNOCKOUT') {
+      filteredFixtures = rawFixtures.filter(f => f.stage === 'SEMI_FINAL_1' || f.stage === 'SEMI_FINAL_2' || f.stage === 'FINAL' || f.stage === 'QUARTER_FINAL');
+    }
+
+    const liveMatches = filteredFixtures.filter(f => f.status === 'LIVE');
+    const scheduledMatches = filteredFixtures.filter(f => f.status === 'SCHEDULED' || (!f.status && !f.result));
+    const completedMatches = filteredFixtures.filter(f => f.status === 'COMPLETED' || f.result);
+
+    // Filter teams strictly by selected tournament category
+    const leagueTeams = store.getTeams().filter(t => {
+      const code = (t.leagueCode || (t.leagueId === 'leg-jsl' ? 'JSL' : (t.leagueId === 'leg-jpl' ? 'JPL' : (t.leagueId === 'leg-kpl' ? 'KPL' : 'JSL'))));
+      return code.toUpperCase() === selectedCategory.toUpperCase();
+    });
+
+    const format = store.getTournamentFormat(selectedCategory);
+    const isMultiGroup = format.format === 'TWO_GROUPS' || format.format === 'FOUR_GROUPS';
+
     let mainContentHtml = '';
 
-    if (activeSubTab === 'matches') {
+    if (activeFixtureSubTab === 'matches') {
       mainContentHtml = `
-        <!-- 1. LIVE MATCHES (IF ANY) -->
-        ${liveMatches.length > 0 ? `
-          <div class="space-y-2.5">
-            <div class="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white px-3 py-2 rounded-xl shadow-xs flex items-center justify-between">
-              <h2 class="text-xs font-black uppercase tracking-wider flex items-center gap-1.5">
-                <span class="w-2.5 h-2.5 rounded-full bg-red-400 animate-ping"></span> 🔴 Live Match Scoreboard
-              </h2>
-              <span class="px-2 py-0.5 bg-white/20 backdrop-blur-sm text-white font-mono text-[9px] font-black rounded border border-white/30">
-                LIVE
-              </span>
-            </div>
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-              ${liveMatches.map(m => {
-                const state = m.liveMatchState || {};
-                const batTeamName = state.innings === 2 ? m.teamBName : m.teamAName;
-                const totalBalls = (state.overs * 6) + state.balls;
-                const rr = totalBalls > 0 ? ((state.runs / totalBalls) * 6).toFixed(2) : '0.00';
-                
-                let secondInningsTarget = '';
-                if (state.innings === 2 && state.target) {
-                  const runsReq = state.target - state.runs;
-                  const remainingBalls = (m.oversLimit * 6) - totalBalls;
-                  secondInningsTarget = `<div class="text-[11px] font-black text-amber-800 bg-amber-50 border border-amber-200 p-1.5 rounded-lg mt-1.5 text-center">🎯 Target: ${state.target} | Need ${runsReq} runs off ${remainingBalls} balls</div>`;
-                }
-
-                return `
-                  <div class="bg-white border-2 border-emerald-500 rounded-2xl shadow-sm p-3.5 flex flex-col justify-between">
-                    <div class="flex justify-between items-center pb-2 border-b border-slate-100">
-                      <span class="text-[9px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-full font-black uppercase flex items-center gap-1">
-                        <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span> Live
-                      </span>
-                      <span class="text-[10px] text-slate-600 font-bold bg-slate-50 border border-slate-200 px-2 py-0.5 rounded">📍 ${m.venue}</span>
-                    </div>
-
-                    <div class="py-2 space-y-1.5">
-                      <div class="flex justify-between items-center">
-                        <span class="font-black text-slate-900 text-base">${batTeamName}</span>
-                        <span class="font-black text-2xl text-emerald-600 font-mono">${state.runs} / ${state.wickets}</span>
-                      </div>
-                      <div class="flex justify-between items-center text-[11px] text-slate-600 font-bold bg-slate-50 p-1.5 rounded-lg border border-slate-200">
-                        <span>Overs: <strong class="text-slate-900">${state.overs}.${state.balls}</strong> / ${m.oversLimit}</span>
-                        <span>Run Rate: <strong class="text-emerald-700">${rr}</strong></span>
-                      </div>
-                      ${secondInningsTarget}
-                    </div>
-
-                    <!-- Batter / Bowler partner logs -->
-                    <div class="bg-slate-50 p-2 rounded-xl border border-slate-200 space-y-1 text-[11px]">
-                      <div class="flex justify-between text-slate-700 font-bold">
-                        <span>🏏 <strong class="text-slate-900">${store.getPlayerById(state.strikerId)?.name || 'Striking'}</strong></span>
-                        <span>⚾ <strong class="text-slate-900">${store.getPlayerById(state.bowlerId)?.name || 'Bowling'}</strong></span>
-                      </div>
-                      <div class="flex items-center gap-1.5 pt-1 border-t border-slate-200 text-[9px]">
-                        <span class="text-slate-500 uppercase font-black">This Over:</span>
-                        <div class="flex gap-1 flex-wrap">
-                          ${(state.overBalls || []).map(b => `<span class="px-1.5 py-0.5 bg-white border border-slate-300 text-slate-800 rounded font-black shadow-2xs">${b.label}</span>`).join('')}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                `;
-              }).join('')}
-            </div>
+        <!-- MATCH STAGE & GROUP FILTER PILLS -->
+        ${isMultiGroup ? `
+          <div class="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none bg-white p-2 rounded-2xl border border-slate-200/90 shadow-2xs">
+            <button class="match-grp-filter-btn px-3 py-1.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer ${activeFixtureGroupFilter === 'ALL' ? 'bg-slate-900 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}" data-grp="ALL">
+              All Matches (${rawFixtures.length})
+            </button>
+            <button class="match-grp-filter-btn px-3 py-1.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer ${activeFixtureGroupFilter === 'A' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}" data-grp="A">
+              🟢 Group A Matches
+            </button>
+            <button class="match-grp-filter-btn px-3 py-1.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer ${activeFixtureGroupFilter === 'B' ? 'bg-sky-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}" data-grp="B">
+              🔵 Group B Matches
+            </button>
+            ${format.format === 'FOUR_GROUPS' ? `
+              <button class="match-grp-filter-btn px-3 py-1.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer ${activeFixtureGroupFilter === 'C' ? 'bg-amber-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}" data-grp="C">
+                🟡 Group C
+              </button>
+              <button class="match-grp-filter-btn px-3 py-1.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer ${activeFixtureGroupFilter === 'D' ? 'bg-purple-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}" data-grp="D">
+                🟣 Group D
+              </button>
+            ` : ''}
+            <button class="match-grp-filter-btn px-3 py-1.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer ${activeFixtureGroupFilter === 'KNOCKOUT' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}" data-grp="KNOCKOUT">
+              🏆 Semi-Finals & Final
+            </button>
           </div>
         ` : ''}
 
-        <!-- 2. UPCOMING MATCH FIXTURES (COMPACT) -->
-        <div class="space-y-2">
-          <div class="bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-xl shadow-2xs flex items-center justify-between">
-            <h2 class="text-xs font-black text-blue-900 uppercase tracking-wider flex items-center gap-1.5">
-              <span>📅</span> Scheduled Fixtures (${selectedCategory})
-            </h2>
-            <span class="px-2 py-0.5 bg-blue-600 text-white text-[9px] font-black rounded uppercase">
-              ${scheduledMatches.length} Matches
-            </span>
-          </div>
-
-          ${scheduledMatches.length === 0 ? `
-            <div class="bg-white border border-blue-200/80 rounded-2xl p-3 sm:p-4 flex items-center gap-3 shadow-2xs">
-              <div class="w-9 h-9 rounded-xl bg-blue-100 text-blue-700 border border-blue-200 flex items-center justify-center shrink-0 text-base shadow-2xs">
-                📅
-              </div>
-              <div class="text-left">
-                <h4 class="text-xs font-black text-slate-800 leading-tight">No Upcoming Fixtures Scheduled Yet</h4>
-                <p class="text-[10px] text-slate-500 mt-0.5">The match schedule for ${selectedCategory} 2026 will appear here once finalized.</p>
-              </div>
-            </div>
-          ` : `
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-              ${scheduledMatches.map(m => `
-                <div class="bg-white border border-blue-200 hover:border-blue-400 rounded-2xl p-3 shadow-2xs flex flex-col justify-between hover:shadow-xs transition-all">
-                  <div class="flex justify-between items-center pb-1.5 border-b border-slate-100 text-[10px]">
-                    <span class="font-black uppercase text-blue-800 bg-blue-100 px-2 py-0.5 rounded text-[9px]">${m.leagueCode} Match</span>
-                    <span class="font-bold text-slate-600">🗓️ ${m.date} • ${m.time}</span>
-                  </div>
-                  <div class="py-2.5 flex justify-between items-center font-black text-slate-900 text-xs sm:text-sm">
-                    <div class="w-5/12 text-left truncate">${m.teamAName}</div>
-                    <div class="w-2/12 flex justify-center">
-                      <span class="text-[9px] text-amber-800 font-black px-1.5 py-0.5 bg-amber-100 border border-amber-300 rounded-full">VS</span>
-                    </div>
-                    <div class="w-5/12 text-right truncate">${m.teamBName}</div>
-                  </div>
-                  <div class="text-[10px] text-slate-600 pt-1.5 border-t border-slate-100 flex justify-between font-bold bg-slate-50 p-1.5 rounded-lg">
-                    <span class="text-indigo-700">⚡ ${m.oversLimit} Overs</span>
-                    <span class="text-slate-800">📍 ${m.venue}</span>
-                  </div>
+        <!-- DYNAMIC MATCH SECTIONS: LIVE, SCHEDULED, COMPLETED -->
+        ${(() => {
+          if (filteredFixtures.length === 0) {
+            return `
+              <div class="bg-white border-2 border-dashed border-slate-200 rounded-3xl p-8 text-center space-y-2 shadow-2xs">
+                <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center mx-auto text-xl shadow-2xs">
+                  🏏
                 </div>
-              `).join('')}
-            </div>
-          `}
-        </div>
-
-        <!-- 3. COMPLETED MATCH RESULTS (COMPACT) -->
-        <div class="space-y-2">
-          <div class="bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-xl shadow-2xs flex items-center justify-between">
-            <h2 class="text-xs font-black text-emerald-900 uppercase tracking-wider flex items-center gap-1.5">
-              <span>🏆</span> Match Results (${selectedCategory})
-            </h2>
-            <span class="px-2 py-0.5 bg-emerald-600 text-white text-[9px] font-black rounded uppercase">
-              ${completedMatches.length} Completed
-            </span>
-          </div>
-
-          ${completedMatches.length === 0 ? `
-            <div class="bg-white border border-emerald-200/80 rounded-2xl p-3 sm:p-4 flex items-center gap-3 shadow-2xs">
-              <div class="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 border border-emerald-200 flex items-center justify-center shrink-0 text-base shadow-2xs">
-                🏆
+                <h4 class="text-sm font-black text-slate-800">No Matches Scheduled Yet</h4>
+                <p class="text-xs text-slate-500 max-w-sm mx-auto">Fixtures for ${selectedCategory} 2026 are being scheduled and will appear here shortly.</p>
               </div>
-              <div class="text-left">
-                <h4 class="text-xs font-black text-slate-800 leading-tight">No Completed Matches Yet</h4>
-                <p class="text-[10px] text-slate-500 mt-0.5">Match scorecards and awards for ${selectedCategory} 2026 will appear here live during play.</p>
-              </div>
-            </div>
-          ` : `
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-              ${completedMatches.map(m => `
-                <div class="bg-white border border-emerald-200 hover:border-emerald-400 rounded-2xl p-3 shadow-2xs hover:shadow-xs transition-all">
-                  <div class="flex justify-between items-center pb-1.5 border-b border-slate-100 text-[10px]">
-                    <span class="font-black text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded text-[9px] uppercase">Completed</span>
-                    <span class="font-bold text-slate-600">🗓️ ${m.date}</span>
-                  </div>
-                  <div class="py-2 flex justify-between items-center font-black text-slate-900 text-xs">
-                    <div>
-                      <div class="text-slate-900 font-black">${m.teamAName}</div>
-                      <div class="text-[10px] text-emerald-700 font-mono font-black">${m.teamAScore ? `${m.teamAScore.runs}/${m.teamAScore.wickets} (${m.teamAScore.overs}.${m.teamAScore.balls} ov)` : ''}</div>
-                    </div>
-                    <span class="text-slate-400 font-extrabold px-1.5 text-[10px]">VS</span>
-                    <div class="text-right">
-                      <div class="text-slate-900 font-black">${m.teamBName}</div>
-                      <div class="text-[10px] text-emerald-700 font-mono font-black">${m.teamBScore ? `${m.teamBScore.runs}/${m.teamBScore.wickets} (${m.teamBScore.overs}.${m.teamBScore.balls} ov)` : ''}</div>
-                    </div>
-                  </div>
-                  <div class="text-[10px] bg-emerald-50 border border-emerald-200 text-emerald-900 font-black p-1.5 rounded-lg text-center mt-1.5 uppercase tracking-wide">
-                    🏆 ${m.result || 'Match Completed'}
-                  </div>
+            `;
+          }
+
+          const sections = [];
+
+          const getMatchBadgeInfo = (m, idx = 1) => {
+            const matchNum = m.matchNo || idx;
+            let label = `Match #${matchNum}`;
+            let pillClass = 'bg-slate-800 text-white';
+            let borderClass = 'border-slate-200 hover:border-slate-400';
+
+            if (m.stage === 'GROUP_A' || m.groupCode === 'A') {
+              label = `🟢 Group A • Match ${matchNum}`;
+              pillClass = 'bg-emerald-100 text-emerald-900 border border-emerald-300';
+              borderClass = 'border-emerald-200 hover:border-emerald-400';
+            } else if (m.stage === 'GROUP_B' || m.groupCode === 'B') {
+              label = `🔵 Group B • Match ${matchNum}`;
+              pillClass = 'bg-sky-100 text-sky-900 border border-sky-300';
+              borderClass = 'border-sky-200 hover:border-sky-400';
+            } else if (m.stage === 'GROUP_C' || m.groupCode === 'C') {
+              label = `🟡 Group C • Match ${matchNum}`;
+              pillClass = 'bg-amber-100 text-amber-900 border border-amber-300';
+              borderClass = 'border-amber-200 hover:border-amber-400';
+            } else if (m.stage === 'GROUP_D' || m.groupCode === 'D') {
+              label = `🟣 Group D • Match ${matchNum}`;
+              pillClass = 'bg-purple-100 text-purple-900 border border-purple-300';
+              borderClass = 'border-purple-200 hover:border-purple-400';
+            } else {
+              label = `${m.leagueCode || 'JSL'} • Match ${matchNum}`;
+            }
+
+            return { label, pillClass, borderClass, matchNum };
+          };
+
+          // 1. LIVE MATCH SCOREBOARD (ONLY IF LIVE MATCHES EXIST)
+          if (liveMatches.length > 0) {
+            sections.push(`
+              <div class="space-y-3">
+                <div class="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white px-4 py-2.5 rounded-2xl shadow-sm flex items-center justify-between">
+                  <h2 class="text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-red-400 animate-ping"></span> 🔴 Live Match Scoreboard
+                  </h2>
+                  <span class="px-3 py-0.5 bg-white/20 backdrop-blur-sm text-white font-mono text-[10px] font-black rounded-full border border-white/30">
+                    LIVE NOW
+                  </span>
                 </div>
-              `).join('')}
-            </div>
-          `}
-        </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  ${liveMatches.map((m, idx) => {
+                    const state = m.liveMatchState || {};
+                    const teamAObj = store.getTeamById(m.teamAId);
+                    const teamBObj = store.getTeamById(m.teamBId);
+                    const logoA = teamAObj?.logoUrl || teamAObj?.teamLogoUrl || 'assets/card_jsl_user.png';
+                    const logoB = teamBObj?.logoUrl || teamBObj?.teamLogoUrl || 'assets/card_jsl_user.png';
+
+                    const isBattingTeamA = state.innings !== 2;
+                    const teamAScoreTxt = isBattingTeamA ? `${state.runs}/${state.wickets} (${state.overs}.${state.balls})` : (m.teamAScore ? `${m.teamAScore.runs}/${m.teamAScore.wickets}` : '-');
+                    const teamBScoreTxt = !isBattingTeamA ? `${state.runs}/${state.wickets} (${state.overs}.${state.balls})` : (m.teamBScore ? `${m.teamBScore.runs}/${m.teamBScore.wickets}` : '-');
+
+                    const startTs = m.startedAtTimestamp || Date.now();
+                    const startClock = m.startedAt || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+                    return `
+                      <div class="cpl-match-card bg-white border-2 border-slate-200 hover:border-emerald-500 rounded-3xl p-4 sm:p-5 shadow-xs hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between space-y-3 relative group" data-fixture-id="${m.id}" onclick="window.openMatchCenterModal('${m.id}')">
+                        <!-- Top Line: Stage, Start Time & Real-time Live Running Duration -->
+                        <div class="flex items-center justify-between gap-2 text-xs">
+                          <div class="font-medium text-slate-600 truncate flex items-center gap-1.5 min-w-0">
+                            <span class="font-black text-slate-900">${m.group ? `GROUP ${m.group} Match ${m.matchNo || idx + 1}` : `Match ${m.matchNo || idx + 1}`}</span>
+                            <span>•</span>
+                            <span class="font-bold text-slate-700">T${m.oversLimit || 16}</span>
+                            <span>•</span>
+                            <span class="text-slate-500 truncate">🗓️ Started: ${startClock} (⏱️ <span class="cpl-live-match-timer font-mono font-black text-emerald-700" data-start="${startTs}">0m 0s</span>)</span>
+                          </div>
+                          <div class="shrink-0">
+                            <span class="text-rose-600 font-black tracking-wider uppercase text-xs flex items-center gap-1.5 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
+                              <span class="w-2 h-2 rounded-full bg-rose-600 animate-ping"></span> LIVE
+                            </span>
+                          </div>
+                        </div>
+
+                        <!-- Teams List with Circular Logos & Live Scores -->
+                        <div class="space-y-2.5 py-1">
+                          <div class="flex items-center justify-between gap-3">
+                            <div class="flex items-center gap-3 min-w-0">
+                              <img src="${logoA}" class="w-9 h-9 rounded-full object-cover border border-slate-200 bg-slate-50 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                              <span class="font-black text-slate-900 text-sm sm:text-base tracking-wide uppercase truncate leading-tight group-hover:text-emerald-700 transition-colors">
+                                ${m.teamAName}
+                              </span>
+                            </div>
+                            <div class="text-xs sm:text-sm font-black font-mono ${isBattingTeamA ? 'text-emerald-700' : 'text-slate-500'} shrink-0">
+                              ${teamAScoreTxt}
+                            </div>
+                          </div>
+
+                          <div class="flex items-center justify-between gap-3">
+                            <div class="flex items-center gap-3 min-w-0">
+                              <img src="${logoB}" class="w-9 h-9 rounded-full object-cover border border-slate-200 bg-slate-50 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                              <span class="font-black text-slate-900 text-sm sm:text-base tracking-wide uppercase truncate leading-tight group-hover:text-emerald-700 transition-colors">
+                                ${m.teamBName}
+                              </span>
+                            </div>
+                            <div class="text-xs sm:text-sm font-black font-mono ${!isBattingTeamA ? 'text-emerald-700' : 'text-slate-500'} shrink-0">
+                              ${teamBScoreTxt}
+                            </div>
+                          </div>
+                        </div>
+
+                        <!-- Toss / Target Equation if any -->
+                        ${state.innings === 2 && state.target ? `
+                          <div class="bg-amber-50 border border-amber-200 text-amber-900 text-[11px] font-black p-2 rounded-xl text-center shadow-2xs">
+                            🎯 Target: ${state.target} | Need ${state.target - state.runs} runs off ${(m.oversLimit * 6) - ((state.overs * 6) + state.balls)} balls
+                          </div>
+                        ` : ((m.tossDetails || state.tossDetails) ? `
+                          <div class="bg-slate-50 border border-slate-200 text-slate-700 text-[10px] font-bold p-1.5 rounded-xl truncate flex items-center gap-1">
+                            <span>🪙</span> <span class="truncate">${m.tossDetails || state.tossDetails}</span>
+                          </div>
+                        ` : '')}
+
+                        <!-- Footer: Tournament Name & Direct Match Centre Prompt -->
+                        <div class="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
+                          <div class="min-w-0">
+                            <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider truncate">
+                              ${m.leagueCode || selectedCategory} PREMIER LEAGUE • ${m.venue || 'JHANKRA SCHOOL GROUND'}
+                            </div>
+                            <div class="text-xs font-black text-emerald-700 group-hover:text-emerald-800 transition-colors flex items-center gap-1 mt-0.5">
+                              View Match Centre <span class="text-emerald-600 font-bold transition-transform group-hover:translate-x-1">→</span>
+                            </div>
+                          </div>
+                          <span class="text-[11px] font-black bg-emerald-50 text-emerald-800 border border-emerald-300 px-3 py-1 rounded-xl shadow-2xs">
+                            📊 Tap for Scorecard
+                          </span>
+                        </div>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+            `);
+          }
+
+          // 2. UPCOMING MATCH FIXTURES (ONLY IF SCHEDULED MATCHES EXIST)
+          if (scheduledMatches.length > 0) {
+            sections.push(`
+              <div class="space-y-3">
+                <div class="bg-gradient-to-r from-blue-600 via-sky-600 to-indigo-700 text-white px-4 py-2.5 rounded-2xl shadow-sm flex items-center justify-between">
+                  <h2 class="text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-2">
+                    <span>📅</span> Scheduled Fixtures (${selectedCategory})
+                  </h2>
+                  <span class="px-3 py-0.5 bg-white/20 backdrop-blur-sm text-white font-mono text-[10px] font-black rounded-full border border-white/30">
+                    ${scheduledMatches.length} MATCHES
+                  </span>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  ${scheduledMatches.map((m, idx) => {
+                    const teamAObj = store.getTeamById(m.teamAId);
+                    const teamBObj = store.getTeamById(m.teamBId);
+                    const logoA = teamAObj?.logoUrl || teamAObj?.teamLogoUrl || 'assets/card_jsl_user.png';
+                    const logoB = teamBObj?.logoUrl || teamBObj?.teamLogoUrl || 'assets/card_jsl_user.png';
+
+                    return `
+                      <div class="cpl-match-card bg-white border-2 border-slate-200 hover:border-emerald-500 rounded-3xl p-4 sm:p-5 shadow-xs hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between space-y-3 relative group" data-fixture-id="${m.id}" onclick="window.openMatchCenterModal('${m.id}')">
+                        <!-- Top Line: Stage, T20/T16, Time & Status -->
+                        <div class="flex items-center justify-between gap-2 text-xs">
+                          <div class="font-medium text-slate-600 truncate flex items-center gap-1.5">
+                            <span class="font-black text-slate-900">${m.group ? `GROUP ${m.group} Match ${m.matchNo || idx + 1}` : `Match ${m.matchNo || idx + 1}`}</span>
+                            <span>•</span>
+                            <span class="font-bold text-slate-700">T${m.oversLimit || 16}</span>
+                            <span>•</span>
+                            <span class="text-slate-500">🗓️ ${m.date || 'Today'} ${m.time ? `(${m.time})` : ''}</span>
+                          </div>
+                          <div class="shrink-0">
+                            <span class="text-sky-700 font-black tracking-wider uppercase text-xs bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full">
+                              SCHEDULED
+                            </span>
+                          </div>
+                        </div>
+
+                        <!-- Teams List with Circular Logos -->
+                        <div class="space-y-2.5 py-1">
+                          <div class="flex items-center justify-between gap-3">
+                            <div class="flex items-center gap-3 min-w-0">
+                              <img src="${logoA}" class="w-9 h-9 rounded-full object-cover border border-slate-200 bg-slate-50 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                              <span class="font-black text-slate-900 text-sm sm:text-base tracking-wide uppercase truncate leading-tight group-hover:text-emerald-700 transition-colors">
+                                ${m.teamAName}
+                              </span>
+                            </div>
+                            <span class="text-xs font-bold text-slate-400 font-mono shrink-0">-</span>
+                          </div>
+
+                          <div class="flex items-center justify-between gap-3">
+                            <div class="flex items-center gap-3 min-w-0">
+                              <img src="${logoB}" class="w-9 h-9 rounded-full object-cover border border-slate-200 bg-slate-50 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                              <span class="font-black text-slate-900 text-sm sm:text-base tracking-wide uppercase truncate leading-tight group-hover:text-emerald-700 transition-colors">
+                                ${m.teamBName}
+                              </span>
+                            </div>
+                            <span class="text-xs font-bold text-slate-400 font-mono shrink-0">-</span>
+                          </div>
+                        </div>
+
+                        <!-- Footer: Tournament Name & Click Action -->
+                        <div class="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
+                          <div class="min-w-0">
+                            <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider truncate">
+                              ${m.leagueCode || selectedCategory} PREMIER LEAGUE • ${m.venue || 'JHANKRA SCHOOL GROUND'}
+                            </div>
+                            <div class="text-xs font-black text-emerald-700 group-hover:text-emerald-800 transition-colors flex items-center gap-1 mt-0.5">
+                              View Match Centre <span class="text-emerald-600 font-bold transition-transform group-hover:translate-x-1">→</span>
+                            </div>
+                          </div>
+                          <span class="text-[11px] font-black bg-slate-100 text-slate-800 border border-slate-300 px-3 py-1 rounded-xl shadow-2xs">
+                            📊 Tap for Preview
+                          </span>
+                        </div>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+            `);
+          }
+
+          // 3. COMPLETED MATCH RESULTS (ONLY IF COMPLETED MATCHES EXIST)
+          if (completedMatches.length > 0) {
+            sections.push(`
+              <div class="space-y-3">
+                <div class="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white px-4 py-2.5 rounded-2xl shadow-sm flex items-center justify-between">
+                  <h2 class="text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-2">
+                    <span>🏆</span> Match Results (${selectedCategory})
+                  </h2>
+                  <span class="px-3 py-0.5 bg-white/20 backdrop-blur-sm text-white font-mono text-[10px] font-black rounded-full border border-white/30">
+                    ${completedMatches.length} COMPLETED
+                  </span>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  ${completedMatches.map((m, idx) => {
+                    const teamAObj = store.getTeamById(m.teamAId);
+                    const teamBObj = store.getTeamById(m.teamBId);
+                    const logoA = teamAObj?.logoUrl || teamAObj?.teamLogoUrl || 'assets/card_jsl_user.png';
+                    const logoB = teamBObj?.logoUrl || teamBObj?.teamLogoUrl || 'assets/card_jsl_user.png';
+
+                    return `
+                      <div class="cpl-match-card bg-white border-2 border-slate-200 hover:border-emerald-500 rounded-3xl p-4 sm:p-5 shadow-xs hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between space-y-3 relative group" data-fixture-id="${m.id}" onclick="window.openMatchCenterModal('${m.id}')">
+                        <!-- Top Line: Stage & Duration -->
+                        <div class="flex items-center justify-between gap-2 text-xs">
+                          <div class="font-medium text-slate-600 truncate flex items-center gap-1.5">
+                            <span class="font-black text-slate-900">${m.group ? `GROUP ${m.group} Match ${m.matchNo || idx + 1}` : `Match ${m.matchNo || idx + 1}`}</span>
+                            <span>•</span>
+                            <span class="font-bold text-slate-700">T${m.oversLimit || 16}</span>
+                            <span>•</span>
+                            <span class="text-slate-500">⏱️ ${m.startedAt || '09:00 AM'} - ${m.endedAt || 'Finished'}</span>
+                          </div>
+                          <div class="shrink-0">
+                            <span class="text-emerald-700 font-black tracking-wider uppercase text-xs bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
+                              COMPLETED
+                            </span>
+                          </div>
+                        </div>
+
+                        <!-- Teams List with Circular Logos & Final Scores -->
+                        <div class="space-y-2.5 py-1">
+                          <div class="flex items-center justify-between gap-3">
+                            <div class="flex items-center gap-3 min-w-0">
+                              <img src="${logoA}" class="w-9 h-9 rounded-full object-cover border border-slate-200 bg-slate-50 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                              <span class="font-black text-slate-900 text-sm sm:text-base tracking-wide uppercase truncate leading-tight group-hover:text-emerald-700 transition-colors">
+                                ${m.teamAName}
+                              </span>
+                            </div>
+                            <div class="text-xs sm:text-sm font-black font-mono text-slate-900 shrink-0">
+                              ${m.teamAScore ? `${m.teamAScore.runs}/${m.teamAScore.wickets} (${m.teamAScore.overs}.${m.teamAScore.balls} ov)` : '-'}
+                            </div>
+                          </div>
+
+                          <div class="flex items-center justify-between gap-3">
+                            <div class="flex items-center gap-3 min-w-0">
+                              <img src="${logoB}" class="w-9 h-9 rounded-full object-cover border border-slate-200 bg-slate-50 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                              <span class="font-black text-slate-900 text-sm sm:text-base tracking-wide uppercase truncate leading-tight group-hover:text-emerald-700 transition-colors">
+                                ${m.teamBName}
+                              </span>
+                            </div>
+                            <div class="text-xs sm:text-sm font-black font-mono text-slate-900 shrink-0">
+                              ${m.teamBScore ? `${m.teamBScore.runs}/${m.teamBScore.wickets} (${m.teamBScore.overs}.${m.teamBScore.balls} ov)` : '-'}
+                            </div>
+                          </div>
+                        </div>
+
+                        <!-- Result Banner -->
+                        <div class="text-xs bg-emerald-50 border border-emerald-300 text-emerald-950 font-black p-2 rounded-xl text-center shadow-2xs uppercase tracking-wide flex items-center justify-center gap-1.5">
+                          <span>🏆</span> <span>${m.result || 'Match Completed'}</span>
+                        </div>
+
+                        <!-- Footer: Tournament Name & Click Action -->
+                        <div class="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
+                          <div class="min-w-0">
+                            <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider truncate">
+                              ${m.leagueCode || selectedCategory} PREMIER LEAGUE • ${m.venue || 'JHANKRA SCHOOL GROUND'}
+                            </div>
+                            <div class="text-xs font-black text-emerald-700 group-hover:text-emerald-800 transition-colors flex items-center gap-1 mt-0.5">
+                              View Match Centre <span class="text-emerald-600 font-bold transition-transform group-hover:translate-x-1">→</span>
+                            </div>
+                          </div>
+                          <span class="text-[11px] font-black bg-emerald-50 text-emerald-800 border border-emerald-300 px-3 py-1 rounded-xl shadow-2xs">
+                            📊 View Summary
+                          </span>
+                        </div>
+                      </div>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+            `);
+          }
+
+          return `<div class="space-y-4">${sections.join('')}</div>`;
+        })()}
       `;
     } else {
-      if (standings.length === 0) {
+      // Standings / Points Table Subtab
+      if (leagueTeams.length === 0) {
         mainContentHtml = `
-          <div class="bg-white border-2 border-emerald-200 rounded-2xl p-6 text-center shadow-xs space-y-2 animate-fade-in">
-            <div class="w-12 h-12 rounded-xl bg-amber-100 text-amber-700 border border-amber-200 flex items-center justify-center mx-auto text-2xl">
+          <div class="bg-white border-2 border-emerald-200 rounded-3xl p-8 text-center shadow-sm space-y-2 animate-fade-in">
+            <div class="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 border border-amber-200 flex items-center justify-center mx-auto text-2xl">
               🏏
             </div>
             <h3 class="text-sm font-black text-slate-900">${selectedCategory} Tournament Standings Coming Soon</h3>
             <p class="text-[11px] text-slate-500 max-w-sm mx-auto">Franchise teams and standings for ${selectedCategory} 2026 will be updated live as matches are played.</p>
           </div>
         `;
-      } else {
+      } else if (isMultiGroup) {
+        // Multi-Group Standings View (Group A & Group B + Playoff Bracket)
+        const groups = (format.groups && format.groups.length > 0) ? format.groups : ['A', 'B'];
+        const groupColors = {
+          A: { border: 'border-emerald-300', bg: 'bg-emerald-50', badge: 'bg-emerald-600 text-white', text: 'text-emerald-950', title: '🟢 GROUP A' },
+          B: { border: 'border-sky-300', bg: 'bg-sky-50', badge: 'bg-sky-600 text-white', text: 'text-sky-950', title: '🔵 GROUP B' },
+          C: { border: 'border-amber-300', bg: 'bg-amber-50', badge: 'bg-amber-600 text-white', text: 'text-amber-950', title: '🟡 GROUP C' },
+          D: { border: 'border-purple-300', bg: 'bg-purple-50', badge: 'bg-purple-600 text-white', text: 'text-purple-950', title: '🟣 GROUP D' }
+        };
+
+        const groupStandingsMap = {};
+        groups.forEach(g => {
+          const gTeams = leagueTeams.filter(t => (t.group || 'A').toUpperCase() === g);
+          groupStandingsMap[g] = computeTeamStandings(gTeams, rawFixtures);
+        });
+
+        const grpAStandings = groupStandingsMap['A'] || [];
+        const grpBStandings = groupStandingsMap['B'] || [];
+
         mainContentHtml = `
-          <div class="space-y-2.5 animate-fade-in">
-            <!-- Table Header Bar (Clean White / Colorful Emerald Theme, NO Black) -->
-            <div class="flex flex-wrap items-center justify-between gap-2 bg-emerald-50 border-2 border-emerald-300 p-2.5 rounded-xl text-slate-900 shadow-2xs">
-              <h2 class="text-xs font-black text-emerald-950 uppercase tracking-wider flex items-center gap-1.5">
+          <div class="space-y-4 animate-fade-in">
+            ${groups.map(g => {
+              const styling = groupColors[g] || groupColors.A;
+              const gStandings = groupStandingsMap[g] || [];
+
+              return `
+                <div class="space-y-2">
+                  <!-- Group Header Bar -->
+                  <div class="flex flex-wrap items-center justify-between gap-2 ${styling.bg} border-2 ${styling.border} p-3 rounded-2xl text-slate-900 shadow-2xs">
+                    <h2 class="text-xs sm:text-sm font-black ${styling.text} uppercase tracking-wider flex items-center gap-1.5">
+                      <span>${styling.title}</span> Points Table (${gStandings.length} Teams)
+                    </h2>
+                    <span class="inline-flex items-center gap-1 px-3 py-1 ${styling.badge} rounded-full font-black text-[10px] uppercase shadow-2xs">
+                      ⭐ Top 2 Qualify for Semifinals
+                    </span>
+                  </div>
+
+                  <!-- Professional Colorful Points Table on White Background -->
+                  <div class="bg-white border-2 border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+                    <table class="w-full text-left text-xs text-slate-800">
+                      <thead class="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 font-black text-[10px] uppercase text-white border-b border-slate-800">
+                        <tr>
+                          <th class="py-3 px-2.5 text-center w-8 sm:w-12">#</th>
+                          <th class="py-3 px-3 text-left">Franchise Team</th>
+                          <th class="py-3 px-2 text-center w-8 sm:w-12 text-slate-200" title="Played">P</th>
+                          <th class="py-3 px-2 text-center w-8 sm:w-12 text-emerald-400 font-black" title="Won">W</th>
+                          <th class="py-3 px-2 text-center w-8 sm:w-12 text-rose-400 font-bold" title="Lost">L</th>
+                          <th class="py-3 px-2.5 text-center w-12 sm:w-16 text-amber-400 font-black" title="Points">PTS</th>
+                          <th class="py-3 px-3 text-right w-16 sm:w-24 font-mono text-sky-300" title="Net Run Rate">NRR</th>
+                        </tr>
+                      </thead>
+                      <tbody class="divide-y divide-slate-100 font-semibold">
+                        ${gStandings.map((t, idx) => {
+                          const isQualSpot = idx < 2;
+                          const teamObj = store.getTeamById(t.id);
+                          const teamLogo = teamObj?.logoUrl || teamObj?.teamLogoUrl || 'assets/card_jsl_user.png';
+                          const rowBg = isQualSpot ? 'bg-emerald-50/50 hover:bg-emerald-100/60 border-l-4 border-emerald-500' : 'bg-white hover:bg-slate-50 border-l-4 border-transparent';
+                          
+                          return `
+                            <tr class="${rowBg} transition-colors">
+                              <td class="py-3 px-2.5 text-center font-black">
+                                <span class="inline-flex w-6 h-6 rounded-lg ${idx === 0 ? 'bg-amber-400 text-slate-950 shadow-xs' : (idx === 1 ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 border border-slate-200')} items-center justify-center text-[10px] font-black">
+                                  ${idx + 1}
+                                </span>
+                              </td>
+                              <td class="py-3 px-3 font-black text-slate-900">
+                                <div class="flex items-center gap-2.5 min-w-0">
+                                  <img src="${teamLogo}" class="w-7 h-7 rounded-lg object-cover border border-slate-200 bg-slate-50 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                                  <span class="text-xs font-black truncate tracking-tight">${t.name}</span>
+                                  ${isQualSpot ? `<span class="px-1.5 py-0.2 text-[9px] bg-emerald-600 text-white rounded-md font-black tracking-tight" title="Qualified for Semifinals">Q</span>` : ''}
+                                </div>
+                              </td>
+                              <td class="py-3 px-2 text-center font-mono text-xs text-slate-700 font-bold">${t.played}</td>
+                              <td class="py-3 px-2 text-center font-mono text-xs text-emerald-700 font-black">${t.won}</td>
+                              <td class="py-3 px-2 text-center font-mono text-xs text-rose-600 font-bold">${t.lost}</td>
+                              <td class="py-3 px-2.5 text-center font-mono">
+                                <span class="inline-block px-2.5 py-0.5 bg-blue-600 text-white rounded-md font-black text-xs shadow-2xs">
+                                  ${t.points}
+                                </span>
+                              </td>
+                              <td class="py-3 px-3 text-right font-mono text-xs font-black ${parseFloat(t.nrr) >= 0 ? 'text-emerald-700' : 'text-rose-600'}">
+                                ${parseFloat(t.nrr) > 0 ? '+' : ''}${t.nrr}
+                              </td>
+                            </tr>
+                          `;
+                        }).join('')}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+
+            <!-- DYNAMIC PLAYOFF / KNOCKOUT BRACKET VISUALIZER -->
+            <div class="p-4 sm:p-5 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-950 text-white rounded-3xl border-2 border-amber-400/80 shadow-xl space-y-4">
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-700/80 pb-3">
+                <div class="flex items-center gap-2.5">
+                  <span class="p-2 bg-amber-400 text-slate-950 rounded-2xl font-black text-base shadow">🏆</span>
+                  <div>
+                    <h3 class="text-sm sm:text-base font-black text-white uppercase tracking-wide">${selectedCategory} Knockout Stage / Playoff Bracket</h3>
+                    <p class="text-[10px] sm:text-xs text-slate-400">Cross-Over Playoff: 1st Group A vs 2nd Group B & 1st Group B vs 2nd Group A</p>
+                  </div>
+                </div>
+                <span class="self-start sm:self-auto px-2.5 py-1 bg-amber-400/20 text-amber-300 border border-amber-400/40 rounded-full font-mono text-[9px] font-black uppercase">
+                  ⭐ Finals Road
+                </span>
+              </div>
+
+              <!-- Bracket Visual Tree Grid -->
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <!-- SF 1 Card -->
+                <div class="bg-slate-800/90 border border-slate-700/90 rounded-2xl p-3 space-y-2.5 shadow-md">
+                  <div class="flex justify-between items-center text-[10px] font-black text-amber-400 uppercase pb-1.5 border-b border-slate-700">
+                    <span class="flex items-center gap-1">🏆 Semi-Final 1</span>
+                    <span class="text-slate-400 font-mono">Knockout</span>
+                  </div>
+                  <div class="space-y-1.5 text-xs font-bold">
+                    <div class="flex justify-between items-center p-2 rounded-xl bg-emerald-950/80 border border-emerald-700 text-emerald-300">
+                      <span class="truncate font-black">${grpAStandings[0] ? grpAStandings[0].name : '1st Place (Group A)'}</span>
+                      <span class="text-[9px] font-black px-1.5 py-0.5 bg-emerald-600 text-white rounded font-mono">1st A</span>
+                    </div>
+                    <div class="text-center text-[9px] font-black text-amber-400">VS</div>
+                    <div class="flex justify-between items-center p-2 rounded-xl bg-sky-950/80 border border-sky-700 text-sky-300">
+                      <span class="truncate font-black">${grpBStandings[1] ? grpBStandings[1].name : '2nd Place (Group B)'}</span>
+                      <span class="text-[9px] font-black px-1.5 py-0.5 bg-sky-600 text-white rounded font-mono">2nd B</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- SF 2 Card -->
+                <div class="bg-slate-800/90 border border-slate-700/90 rounded-2xl p-3 space-y-2.5 shadow-md">
+                  <div class="flex justify-between items-center text-[10px] font-black text-amber-400 uppercase pb-1.5 border-b border-slate-700">
+                    <span class="flex items-center gap-1">🏆 Semi-Final 2</span>
+                    <span class="text-slate-400 font-mono">Knockout</span>
+                  </div>
+                  <div class="space-y-1.5 text-xs font-bold">
+                    <div class="flex justify-between items-center p-2 rounded-xl bg-sky-950/80 border border-sky-700 text-sky-300">
+                      <span class="truncate font-black">${grpBStandings[0] ? grpBStandings[0].name : '1st Place (Group B)'}</span>
+                      <span class="text-[9px] font-black px-1.5 py-0.5 bg-sky-600 text-white rounded font-mono">1st B</span>
+                    </div>
+                    <div class="text-center text-[9px] font-black text-amber-400">VS</div>
+                    <div class="flex justify-between items-center p-2 rounded-xl bg-emerald-950/80 border border-emerald-700 text-emerald-300">
+                      <span class="truncate font-black">${grpAStandings[1] ? grpAStandings[1].name : '2nd Place (Group A)'}</span>
+                      <span class="text-[9px] font-black px-1.5 py-0.5 bg-emerald-600 text-white rounded font-mono">2nd A</span>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Grand Final Card -->
+                <div class="bg-gradient-to-b from-amber-500/25 to-amber-950/50 border-2 border-amber-400 rounded-2xl p-3 space-y-2.5 shadow-lg">
+                  <div class="flex justify-between items-center text-[10px] font-black text-amber-300 uppercase pb-1.5 border-b border-amber-500/40">
+                    <span class="flex items-center gap-1">👑 Grand Final 2026</span>
+                    <span class="text-amber-400 font-mono">Championship</span>
+                  </div>
+                  <div class="space-y-1.5 text-xs font-bold">
+                    <div class="flex justify-between items-center p-2 rounded-xl bg-slate-900 border border-amber-400/50 text-white">
+                      <span class="truncate font-black">Winner Semi-Final 1</span>
+                      <span class="text-[9px] font-black px-1.5 py-0.5 bg-amber-500 text-slate-950 rounded font-mono">SF1</span>
+                    </div>
+                    <div class="text-center text-[9px] font-black text-amber-300">⚡ CHAMPIONSHIP TROPHY ⚡</div>
+                    <div class="flex justify-between items-center p-2 rounded-xl bg-slate-900 border border-amber-400/50 text-white">
+                      <span class="truncate font-black">Winner Semi-Final 2</span>
+                      <span class="text-[9px] font-black px-1.5 py-0.5 bg-amber-500 text-slate-950 rounded font-mono">SF2</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Footer Legend -->
+            <div class="bg-white border border-slate-200 rounded-2xl p-3 flex flex-wrap items-center justify-between text-[10px] text-slate-600 font-bold gap-2 shadow-2xs">
+              <span class="flex items-center gap-1 text-emerald-700 font-black">
+                <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Q: Semifinal Qualifier (Rank 1 & 2 in each group)
+              </span>
+              <span class="text-slate-400 font-mono">P = Played | W = Won | L = Lost | PTS = Points | NRR = Net Run Rate</span>
+            </div>
+          </div>
+        `;
+      } else {
+        // Single Table Standings View
+        const unifiedStandings = computeTeamStandings(leagueTeams, rawFixtures);
+        mainContentHtml = `
+          <div class="space-y-3 animate-fade-in">
+            <!-- Table Header Bar -->
+            <div class="flex flex-wrap items-center justify-between gap-2 bg-emerald-50 border-2 border-emerald-300 p-3 rounded-2xl text-slate-900 shadow-2xs">
+              <h2 class="text-xs sm:text-sm font-black text-emerald-950 uppercase tracking-wider flex items-center gap-1.5">
                 <span>🏆</span> ${selectedCategory} Franchise Standings Table
               </h2>
-              <span class="inline-flex items-center gap-1 px-2.5 py-0.5 bg-emerald-600 text-white rounded-full font-black text-[10px] uppercase shadow-2xs">
+              <span class="inline-flex items-center gap-1 px-3 py-1 bg-emerald-600 text-white rounded-full font-black text-[10px] uppercase shadow-2xs">
                 ⭐ Top 4 Qualify for Semifinal
               </span>
             </div>
 
-            <!-- Single-Display Mobile-Friendly Colorful Points Table on Clean White Background -->
+            <!-- Points Table -->
             <div class="bg-white border-2 border-slate-200 rounded-2xl overflow-hidden shadow-xs">
               <table class="w-full text-left text-xs text-slate-800">
-                <thead class="bg-slate-50 font-black text-[10px] uppercase text-slate-700 border-b border-slate-200">
+                <thead class="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 font-black text-[10px] uppercase text-white border-b border-slate-800">
                   <tr>
-                    <th class="py-2.5 px-2 text-center w-7 sm:w-10">#</th>
-                    <th class="py-2.5 px-2 text-left">Team Name</th>
-                    <th class="py-2.5 px-1 text-center w-6 sm:w-10" title="Played">P</th>
-                    <th class="py-2.5 px-1 text-center w-6 sm:w-10 text-emerald-700 font-black" title="Won">W</th>
-                    <th class="py-2.5 px-1 text-center w-6 sm:w-10 text-rose-600 font-bold" title="Lost">L</th>
-                    <th class="py-2.5 px-2 text-center w-10 sm:w-14 text-blue-700 font-black" title="Points">PTS</th>
-                    <th class="py-2.5 px-2 sm:px-3 text-right w-14 sm:w-20 font-mono" title="Net Run Rate">NRR</th>
+                    <th class="py-3 px-2.5 text-center w-8 sm:w-12">#</th>
+                    <th class="py-3 px-3 text-left">Franchise Team</th>
+                    <th class="py-3 px-2 text-center w-8 sm:w-12 text-slate-200" title="Played">P</th>
+                    <th class="py-3 px-2 text-center w-8 sm:w-12 text-emerald-400 font-black" title="Won">W</th>
+                    <th class="py-3 px-2 text-center w-8 sm:w-12 text-rose-400 font-bold" title="Lost">L</th>
+                    <th class="py-3 px-2.5 text-center w-12 sm:w-16 text-amber-400 font-black" title="Points">PTS</th>
+                    <th class="py-3 px-3 text-right w-16 sm:w-24 font-mono text-sky-300" title="Net Run Rate">NRR</th>
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100 font-semibold">
-                  ${standings.map((t, idx) => {
+                  ${unifiedStandings.map((t, idx) => {
                     const isSemiSpot = idx < 4;
-                    const rowBg = isSemiSpot ? 'bg-emerald-50/40 hover:bg-emerald-50/80' : 'bg-white hover:bg-slate-50';
+                    const teamObj = store.getTeamById(t.id);
+                    const teamLogo = teamObj?.logoUrl || teamObj?.teamLogoUrl || 'assets/card_jsl_user.png';
+                    const rowBg = isSemiSpot ? 'bg-emerald-50/50 hover:bg-emerald-100/60 border-l-4 border-emerald-500' : 'bg-white hover:bg-slate-50 border-l-4 border-transparent';
+                    
                     return `
                       <tr class="${rowBg} transition-colors">
-                        <td class="py-2.5 px-2 text-center font-black">
-                          <span class="inline-flex w-5 h-5 rounded-lg ${isSemiSpot ? 'bg-emerald-600 text-white shadow-2xs' : 'bg-slate-100 text-slate-600 border border-slate-200'} items-center justify-center text-[10px] font-black">
+                        <td class="py-3 px-2.5 text-center font-black">
+                          <span class="inline-flex w-6 h-6 rounded-lg ${idx < 2 ? 'bg-amber-400 text-slate-950 shadow-xs' : (isSemiSpot ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 border border-slate-200')} items-center justify-center text-[10px] font-black">
                             ${idx + 1}
                           </span>
                         </td>
-                        <td class="py-2.5 px-2 font-black text-slate-900">
-                          <div class="flex items-center gap-1.5 min-w-0">
-                            ${isSemiSpot ? `<span class="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" title="In Semifinal Zone"></span>` : ''}
+                        <td class="py-3 px-3 font-black text-slate-900">
+                          <div class="flex items-center gap-2.5 min-w-0">
+                            <img src="${teamLogo}" class="w-7 h-7 rounded-lg object-cover border border-slate-200 bg-slate-50 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
                             <span class="text-xs font-black truncate tracking-tight">${t.name}</span>
+                            ${isSemiSpot ? `<span class="px-1.5 py-0.2 text-[9px] bg-emerald-600 text-white rounded-md font-black tracking-tight" title="Qualified">Q</span>` : ''}
                           </div>
                         </td>
-                        <td class="py-2.5 px-1 text-center font-mono text-xs text-slate-700 font-bold">${t.played}</td>
-                        <td class="py-2.5 px-1 text-center font-mono text-xs text-emerald-700 font-black">${t.won}</td>
-                        <td class="py-2.5 px-1 text-center font-mono text-xs text-rose-600 font-bold">${t.lost}</td>
-                        <td class="py-2.5 px-2 text-center font-mono">
-                          <span class="inline-block px-2 py-0.5 bg-blue-600 text-white rounded-md font-black text-xs shadow-2xs">
+                        <td class="py-3 px-2 text-center font-mono text-xs text-slate-700 font-bold">${t.played}</td>
+                        <td class="py-3 px-2 text-center font-mono text-xs text-emerald-700 font-black">${t.won}</td>
+                        <td class="py-3 px-2 text-center font-mono text-xs text-rose-600 font-bold">${t.lost}</td>
+                        <td class="py-3 px-2.5 text-center font-mono">
+                          <span class="inline-block px-2.5 py-0.5 bg-blue-600 text-white rounded-md font-black text-xs shadow-2xs">
                             ${t.points}
                           </span>
                         </td>
-                        <td class="py-2.5 px-2 sm:px-3 text-right font-mono text-[11px] font-black ${parseFloat(t.nrr) >= 0 ? 'text-emerald-700' : 'text-slate-500'}">
+                        <td class="py-3 px-3 text-right font-mono text-xs font-black ${parseFloat(t.nrr) >= 0 ? 'text-emerald-700' : 'text-rose-600'}">
                           ${parseFloat(t.nrr) > 0 ? '+' : ''}${t.nrr}
                         </td>
                       </tr>
@@ -4263,8 +4673,8 @@ function renderFixturesView(container) {
               </table>
             </div>
 
-            <!-- Mobile-Friendly Footer Legend -->
-            <div class="bg-white border border-slate-200 rounded-xl p-2 flex flex-wrap items-center justify-between text-[10px] text-slate-600 font-bold gap-1 shadow-2xs">
+            <!-- Footer Legend -->
+            <div class="bg-white border border-slate-200 rounded-2xl p-3 flex flex-wrap items-center justify-between text-[10px] text-slate-600 font-bold gap-2 shadow-2xs">
               <span class="flex items-center gap-1 text-emerald-700 font-black">
                 <span class="w-2 h-2 rounded-full bg-emerald-500"></span> 1-4 Rank: Semifinal Qualifier
               </span>
@@ -4275,27 +4685,69 @@ function renderFixturesView(container) {
       }
     }
 
+    const contentArea = document.getElementById('fixture-view-content-area');
+    if (contentArea) {
+      contentArea.innerHTML = mainContentHtml;
+      
+      // Update Category Button active classes
+      container.querySelectorAll('.fixture-cat-btn').forEach(btn => {
+        const cat = btn.getAttribute('data-cat');
+        const isActive = activeFixtureCategory === cat;
+        btn.className = `fixture-cat-btn ${isActive ? (cat === 'JSL' ? 'bg-emerald-600 text-white font-black shadow-xs' : (cat === 'JPL' ? 'bg-blue-600 text-white font-black shadow-xs' : 'bg-purple-600 text-white font-black shadow-xs')) : 'text-slate-700 hover:text-slate-900 font-bold'} px-3 py-1 text-[11px] rounded-lg transition-all cursor-pointer`;
+      });
+
+      // Update Subtab Button active classes
+      const matchSubtabBtn = document.getElementById('fixture-subtab-matches');
+      const tableSubtabBtn = document.getElementById('fixture-subtab-table');
+      if (matchSubtabBtn) {
+        matchSubtabBtn.className = `text-xs font-black py-2 px-3 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${activeFixtureSubTab === 'matches' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`;
+      }
+      if (tableSubtabBtn) {
+        tableSubtabBtn.className = `text-xs font-black py-2 px-3 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${activeFixtureSubTab === 'table' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`;
+      }
+
+      // Re-bind match group filter buttons inside the newly updated content area
+      contentArea.querySelectorAll('.match-grp-filter-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          activeFixtureGroupFilter = e.currentTarget.getAttribute('data-grp') || 'ALL';
+          sessionStorage.setItem('cpl_active_fixture_grp_filter', activeFixtureGroupFilter);
+          drawFixtures();
+        });
+      });
+
+      // Re-bind View Playing 11 buttons inside content area
+      contentArea.querySelectorAll('.view-match-lineups-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          const fId = e.currentTarget.getAttribute('data-fixture-id');
+          openMatchPlayingXIModal(fId);
+        });
+      });
+
+      if (window.lucide) window.lucide.createIcons();
+      return;
+    }
+
     container.innerHTML = `
       <div class="space-y-3 animate-fade-in pb-16">
-        <!-- Compact Header & Category Selector: Live Match Corner -->
+        <!-- Compact Header & Category Selector: Match Corner -->
         <div class="bg-white border-2 border-emerald-500/20 px-3.5 py-2.5 rounded-2xl shadow-sm flex items-center justify-between gap-2">
           <div class="flex items-center gap-2">
             <span class="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center shadow-xs text-sm">🏏</span>
-            <h1 class="text-sm sm:text-base font-black text-slate-900 leading-none">Live Match Corner</h1>
+            <h1 class="text-sm sm:text-base font-black text-slate-900 leading-none">Match Corner</h1>
           </div>
           <div class="flex border border-slate-200 rounded-xl overflow-hidden bg-slate-100 p-0.5 shadow-inner gap-0.5">
-            <button data-cat="JSL" class="fixture-cat-btn ${selectedCategory === 'JSL' ? 'bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-700 hover:text-slate-900 font-bold'} px-3 py-1 text-[11px] rounded-lg transition-all cursor-pointer">JSL</button>
-            <button data-cat="JPL" class="fixture-cat-btn ${selectedCategory === 'JPL' ? 'bg-blue-600 text-white font-black shadow-xs' : 'text-slate-700 hover:text-slate-900 font-bold'} px-3 py-1 text-[11px] rounded-lg transition-all cursor-pointer">JPL</button>
-            <button data-cat="KPL" class="fixture-cat-btn ${selectedCategory === 'KPL' ? 'bg-purple-600 text-white font-black shadow-xs' : 'text-slate-700 hover:text-slate-900 font-bold'} px-3 py-1 text-[11px] rounded-lg transition-all cursor-pointer">KPL</button>
+            <button data-cat="JSL" class="fixture-cat-btn ${activeFixtureCategory === 'JSL' ? 'bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-700 hover:text-slate-900 font-bold'} px-3 py-1 text-[11px] rounded-lg transition-all cursor-pointer">JSL</button>
+            <button data-cat="JPL" class="fixture-cat-btn ${activeFixtureCategory === 'JPL' ? 'bg-blue-600 text-white font-black shadow-xs' : 'text-slate-700 hover:text-slate-900 font-bold'} px-3 py-1 text-[11px] rounded-lg transition-all cursor-pointer">JPL</button>
+            <button data-cat="KPL" class="fixture-cat-btn ${activeFixtureCategory === 'KPL' ? 'bg-purple-600 text-white font-black shadow-xs' : 'text-slate-700 hover:text-slate-900 font-bold'} px-3 py-1 text-[11px] rounded-lg transition-all cursor-pointer">KPL</button>
           </div>
         </div>
 
-        <!-- Sub-Tabs Navigation (Renamed to Matches & Points Table) -->
+        <!-- Sub-Tabs Navigation (Matches vs Points Table) -->
         <div class="grid grid-cols-2 gap-1.5 bg-white border border-slate-200 p-1 rounded-xl shadow-2xs">
-          <button id="fixture-subtab-matches" class="text-xs font-black py-2 px-3 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${activeSubTab === 'matches' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}">
+          <button id="fixture-subtab-matches" class="text-xs font-black py-2 px-3 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${activeFixtureSubTab === 'matches' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}">
             🏏 Matches
           </button>
-          <button id="fixture-subtab-table" class="text-xs font-black py-2 px-3 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${activeSubTab === 'table' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}">
+          <button id="fixture-subtab-table" class="text-xs font-black py-2 px-3 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${activeFixtureSubTab === 'table' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}">
             📊 Points Table (Standings)
           </button>
         </div>
@@ -4310,26 +4762,1032 @@ function renderFixturesView(container) {
     // Bind Category switching buttons
     container.querySelectorAll('.fixture-cat-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
-        selectedCategory = e.currentTarget.getAttribute('data-cat');
+        activeFixtureCategory = e.currentTarget.getAttribute('data-cat') || 'JSL';
+        sessionStorage.setItem('cpl_active_fixture_cat', activeFixtureCategory);
+        activeFixtureGroupFilter = 'ALL';
+        sessionStorage.setItem('cpl_active_fixture_grp_filter', 'ALL');
+        drawFixtures();
+      });
+    });
+
+    // Bind Match Group filter buttons
+    container.querySelectorAll('.match-grp-filter-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        activeFixtureGroupFilter = e.currentTarget.getAttribute('data-grp') || 'ALL';
+        sessionStorage.setItem('cpl_active_fixture_grp_filter', activeFixtureGroupFilter);
         drawFixtures();
       });
     });
 
     // Bind Subtab events
     document.getElementById('fixture-subtab-matches')?.addEventListener('click', () => {
-      activeSubTab = 'matches';
+      activeFixtureSubTab = 'matches';
+      sessionStorage.setItem('cpl_active_fixture_subtab', 'matches');
       drawFixtures();
     });
     document.getElementById('fixture-subtab-table')?.addEventListener('click', () => {
-      activeSubTab = 'table';
+      activeFixtureSubTab = 'table';
+      sessionStorage.setItem('cpl_active_fixture_subtab', 'table');
       drawFixtures();
     });
+
+    // Bind Clickable Match Cards (clicking anywhere on card opens Match Centre directly)
+    container.querySelectorAll('.cpl-match-card').forEach(card => {
+      card.addEventListener('click', (e) => {
+        const fId = e.currentTarget.getAttribute('data-fixture-id');
+        if (fId) {
+          openMatchCenterModal(fId);
+        }
+      });
+    });
+
+    // Bind View Playing 11 buttons
+    container.querySelectorAll('.view-match-lineups-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation(); // Prevent triggering card click
+        const fId = e.currentTarget.getAttribute('data-fixture-id');
+        openMatchPlayingXIModal(fId);
+      });
+    });
+
+    // Bind Open Match Centre buttons
+    container.querySelectorAll('.open-match-center-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const fId = e.currentTarget.getAttribute('data-fixture-id');
+        openMatchCenterModal(fId);
+      });
+    });
+
+    // Live Match Duration Timer Interval Loop (counts up every 1s)
+    if (window.__matchTimerInterval) clearInterval(window.__matchTimerInterval);
+    const updateLiveTimers = () => {
+      const now = Date.now();
+      container.querySelectorAll('.cpl-live-match-timer').forEach(timerEl => {
+        const start = Number(timerEl.getAttribute('data-start')) || now;
+        const diffMs = Math.max(0, now - start);
+        const diffSecs = Math.floor(diffMs / 1000);
+        const mins = Math.floor(diffSecs / 60);
+        const secs = diffSecs % 60;
+        timerEl.textContent = `${mins}m ${secs}s`;
+      });
+    };
+    updateLiveTimers();
+    window.__matchTimerInterval = setInterval(updateLiveTimers, 1000);
 
     if (window.lucide) window.lucide.createIcons();
   };
 
+  window.refreshFixturesViewContent = () => {
+    if (currentRoute === 'fixtures') {
+      drawFixtures();
+    }
+  };
+
   drawFixtures();
 }
+
+export function openMatchCenterModal(fixtureId) {
+  document.getElementById('match-center-modal')?.remove();
+
+  const fixture = store.getFixtures().find(f => f.id === fixtureId);
+  if (!fixture) return;
+
+  const teamAObj = store.getTeamById(fixture.teamAId) || {};
+  const teamBObj = store.getTeamById(fixture.teamBId) || {};
+  const logoA = teamAObj.logoUrl || teamAObj.teamLogoUrl || 'assets/card_jsl_user.png';
+  const logoB = teamBObj.logoUrl || teamBObj.teamLogoUrl || 'assets/card_jsl_user.png';
+
+  const teamAPlayers = store.getPlayers().filter(p => p.teamId === fixture.teamAId && (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED'));
+  const teamBPlayers = store.getPlayers().filter(p => p.teamId === fixture.teamBId && (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED'));
+
+  const pxiA = fixture.playingXI?.[fixture.teamAId] || { playing11Ids: teamAPlayers.slice(0, 11).map(p => p.id), twelfthManId: teamAPlayers[11]?.id || '' };
+  const pxiB = fixture.playingXI?.[fixture.teamBId] || { playing11Ids: teamBPlayers.slice(0, 11).map(p => p.id), twelfthManId: teamBPlayers[11]?.id || '' };
+
+  const playing11A = teamAPlayers.filter(p => (pxiA.playing11Ids || []).includes(p.id));
+  const playing11B = teamBPlayers.filter(p => (pxiB.playing11Ids || []).includes(p.id));
+
+  const state = fixture.liveMatchState || {};
+  const isLive = fixture.status === 'LIVE';
+  const isCompleted = fixture.status === 'COMPLETED';
+  const currentInnings = state.innings || (isCompleted ? 2 : 1);
+  const pStats = state.playerStats || {};
+
+  let activeTab = 'summary'; // 'summary', 'scorecard', 'balls', 'superstars', 'info'
+  let activeScorecardInnings = currentInnings;
+  let activeBallsInnings = currentInnings;
+  let activeSuperStarsFilter = 'ALL';
+
+  const modalHtml = `
+    <div id="match-center-modal" class="fixed inset-0 z-[80] modal-overlay flex items-center justify-center p-2 sm:p-4 bg-slate-950/85 backdrop-blur-md animate-fade-in">
+      <div class="bg-white border-2 border-emerald-500 max-w-3xl w-full h-[95vh] sm:h-[90vh] relative flex flex-col justify-between rounded-3xl shadow-2xl text-slate-900 overflow-hidden">
+        
+        <!-- Top App Bar (Mobile & Desktop) -->
+        <div class="bg-gradient-to-r from-slate-900 via-slate-950 to-slate-900 text-white p-3.5 sm:p-4 flex items-center justify-between border-b border-slate-800 shrink-0">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <button id="close-match-center-btn" class="p-2 bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl transition-all cursor-pointer flex items-center justify-center shrink-0">
+              <i data-lucide="arrow-left" class="w-5 h-5"></i>
+            </button>
+            <div class="min-w-0">
+              <div class="flex items-center gap-2">
+                <span class="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-mono font-black rounded-md uppercase shrink-0">
+                  ${fixture.leagueCode || 'JSL'} • MATCH ${fixture.matchNo || 1}
+                </span>
+                ${isLive ? `<span class="px-2 py-0.5 bg-red-500 text-white text-[9px] font-black rounded-md uppercase animate-pulse shrink-0">🔴 LIVE</span>` : (isCompleted ? `<span class="px-2 py-0.5 bg-emerald-500 text-slate-950 text-[9px] font-black rounded-md uppercase shrink-0">COMPLETED</span>` : `<span class="px-2 py-0.5 bg-amber-400 text-slate-950 text-[9px] font-black rounded-md uppercase shrink-0">SCHEDULED</span>`)}
+              </div>
+              <h2 class="text-sm sm:text-base font-black text-white leading-tight mt-0.5 truncate">
+                ${fixture.teamAName} vs ${fixture.teamBName}
+              </h2>
+            </div>
+          </div>
+          <span class="text-[10px] text-slate-400 font-bold bg-slate-800/70 border border-slate-700 px-2.5 py-1 rounded-xl hidden sm:inline-block shrink-0">
+            📍 ${fixture.venue || 'School Ground'}
+          </span>
+        </div>
+
+        <!-- Sticky Navigation Tabs (Mobile-Scrollable) -->
+        <div class="bg-slate-100 border-b border-slate-200 px-2 sm:px-4 py-1.5 flex gap-1.5 overflow-x-auto scrollbar-none shrink-0 text-xs font-black">
+          <button class="mc-nav-tab py-2 px-3 rounded-xl transition-all cursor-pointer shrink-0 ${activeTab === 'summary' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-white'}" data-tab="summary">
+            📌 Summary
+          </button>
+          <button class="mc-nav-tab py-2 px-3 rounded-xl transition-all cursor-pointer shrink-0 ${activeTab === 'scorecard' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-white'}" data-tab="scorecard">
+            📊 Scorecard
+          </button>
+          <button class="mc-nav-tab py-2 px-3 rounded-xl transition-all cursor-pointer shrink-0 ${activeTab === 'balls' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-white'}" data-tab="balls">
+            ⚾ Balls (Log)
+          </button>
+          <button class="mc-nav-tab py-2 px-3 rounded-xl transition-all cursor-pointer shrink-0 ${activeTab === 'superstars' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-white'}" data-tab="superstars">
+            ⭐ Super Stars & Field
+          </button>
+          <button class="mc-nav-tab py-2 px-3 rounded-xl transition-all cursor-pointer shrink-0 ${activeTab === 'info' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-white'}" data-tab="info">
+            ℹ️ Match Info
+          </button>
+        </div>
+
+        <!-- Scrollable Tab Content Container -->
+        <div id="mc-tab-content-area" class="p-3 sm:p-5 overflow-y-auto flex-grow space-y-4 scrollbar-thin bg-slate-50/50"></div>
+
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  if (window.lucide) window.lucide.createIcons();
+
+  const removeModal = () => document.getElementById('match-center-modal')?.remove();
+  document.getElementById('close-match-center-btn')?.addEventListener('click', removeModal);
+
+  const contentArea = document.getElementById('mc-tab-content-area');
+
+  function renderMatchCenterContent() {
+    if (!contentArea) return;
+
+    // 1. SUMMARY TAB
+    if (activeTab === 'summary') {
+      const batTeamId = state.innings === 2 ? fixture.teamBId : fixture.teamAId;
+      const bowlTeamId = state.innings === 2 ? fixture.teamAId : fixture.teamBId;
+      const batTeamName = batTeamId === fixture.teamAId ? fixture.teamAName : fixture.teamBName;
+      const bowlTeamName = bowlTeamId === fixture.teamAId ? fixture.teamAName : fixture.teamBName;
+      const batLogo = store.getTeamById(batTeamId)?.logoUrl || 'assets/card_jsl_user.png';
+
+      const totalBalls = (state.overs * 6) + (state.balls || 0);
+      const crr = totalBalls > 0 ? ((state.runs / totalBalls) * 6).toFixed(2) : '0.00';
+      
+      let targetEquation = '';
+      let reqRR = '0.00';
+      if (state.innings === 2 && state.target) {
+        const runsReq = state.target - state.runs;
+        const remBalls = (fixture.oversLimit * 6) - totalBalls;
+        reqRR = remBalls > 0 ? ((runsReq / remBalls) * 6).toFixed(2) : '0.00';
+        targetEquation = `
+          <div class="bg-amber-100 border border-amber-300 text-amber-950 p-2.5 rounded-2xl text-center text-xs font-black shadow-2xs">
+            🎯 Need ${runsReq > 0 ? runsReq : 0} Runs off ${remBalls > 0 ? remBalls : 0} Balls (Req RR: ${reqRR})
+          </div>
+        `;
+      }
+
+      // Active Batsmen & Bowler rows with full fallback resolution
+      const allRegisteredPlayers = store.getPlayers();
+      const strikerP = store.getPlayerById(state.strikerId) || allRegisteredPlayers.find(p => String(p.id) === String(state.strikerId));
+      const nonStrikerP = store.getPlayerById(state.nonStrikerId) || allRegisteredPlayers.find(p => String(p.id) === String(state.nonStrikerId));
+      const bowlerP = store.getPlayerById(state.bowlerId) || allRegisteredPlayers.find(p => String(p.id) === String(state.bowlerId));
+
+      const strikerStat = pStats[state.strikerId] || { runs: 0, balls: 0, fours: 0, sixes: 0 };
+      const nonStrikerStat = pStats[state.nonStrikerId] || { runs: 0, balls: 0, fours: 0, sixes: 0 };
+      const bowlerStat = pStats[state.bowlerId] || { ballsBowled: 0, runsConceded: 0, wickets: 0 };
+
+      const bBalls = bowlerStat.ballsBowled || 0;
+      const bOvs = `${Math.floor(bBalls / 6)}.${bBalls % 6}`;
+      const totalOversDec = bBalls / 6;
+      const bowlerEco = totalOversDec > 0 ? ((bowlerStat.runsConceded || 0) / totalOversDec).toFixed(2) : '0.00';
+
+      const strikerSR = (strikerStat.balls > 0) ? (((strikerStat.runs || 0) / strikerStat.balls) * 100).toFixed(1) : '0.0';
+      const nonStrikerSR = (nonStrikerStat.balls > 0) ? (((nonStrikerStat.runs || 0) / nonStrikerStat.balls) * 100).toFixed(1) : '0.0';
+
+      const pshipRuns = (strikerStat.runs || 0) + (nonStrikerStat.runs || 0);
+      const pshipBalls = (strikerStat.balls || 0) + (nonStrikerStat.balls || 0);
+
+      contentArea.innerHTML = `
+        <div class="space-y-3.5 animate-fade-in">
+          <!-- Main Big Score Hero Card -->
+          <div class="bg-white border-2 border-emerald-500 rounded-3xl p-4 sm:p-5 shadow-md space-y-3">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <img src="${batLogo}" class="w-10 h-10 rounded-2xl object-cover border border-slate-200 shadow-2xs bg-slate-50 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                <div class="truncate">
+                  <h3 class="font-black text-slate-900 text-sm sm:text-base leading-tight truncate">${batTeamName}</h3>
+                  <span class="text-[10px] text-emerald-700 font-bold uppercase tracking-wider">Innings ${state.innings || 1} Batting</span>
+                </div>
+              </div>
+              <div class="text-right">
+                <div class="text-3xl sm:text-4xl font-black text-slate-900 font-mono leading-none">
+                  <span class="text-emerald-700">${state.runs || 0}</span><span class="text-slate-400 text-xl">/${state.wickets || 0}</span>
+                </div>
+                <div class="text-xs text-slate-500 font-mono font-bold mt-1">
+                  ${state.overs || 0}.${state.balls || 0} / ${fixture.oversLimit || 16} Overs
+                </div>
+              </div>
+            </div>
+
+            ${(fixture.tossDetails || state.tossDetails) ? `
+              <div class="bg-amber-50 border border-amber-200 text-amber-900 px-3 py-1.5 rounded-2xl text-[11px] font-bold flex items-center gap-2 shadow-2xs">
+                <span>🪙</span> <span>${fixture.tossDetails || state.tossDetails}</span>
+              </div>
+            ` : ''}
+
+            ${targetEquation}
+
+            <!-- Match Metric Badges Grid (Extras, Overs, CRR, Target, Req. RR, P'ship) -->
+            <div class="grid grid-cols-3 gap-2 bg-slate-50 border border-slate-200 p-2.5 rounded-2xl text-center font-mono">
+              <div class="p-1.5 bg-white border border-slate-200/80 rounded-xl shadow-2xs">
+                <div class="text-[9px] text-slate-400 font-bold uppercase">Extras</div>
+                <div class="text-xs font-black text-slate-800">${(state.extras || 0)}</div>
+              </div>
+              <div class="p-1.5 bg-white border border-slate-200/80 rounded-xl shadow-2xs">
+                <div class="text-[9px] text-slate-400 font-bold uppercase">Overs</div>
+                <div class="text-xs font-black text-slate-800">${state.overs || 0}.${state.balls || 0} / ${fixture.oversLimit || 16}</div>
+              </div>
+              <div class="p-1.5 bg-white border border-slate-200/80 rounded-xl shadow-2xs">
+                <div class="text-[9px] text-slate-400 font-bold uppercase">CRR</div>
+                <div class="text-xs font-black text-emerald-700">${crr}</div>
+              </div>
+              ${state.innings === 2 && state.target ? `
+                <div class="p-1.5 bg-amber-50 border border-amber-200 rounded-xl shadow-2xs">
+                  <div class="text-[9px] text-amber-800 font-bold uppercase">Target</div>
+                  <div class="text-xs font-black text-amber-950">${state.target}</div>
+                </div>
+                <div class="p-1.5 bg-amber-50 border border-amber-200 rounded-xl shadow-2xs">
+                  <div class="text-[9px] text-amber-800 font-bold uppercase">Req. RR</div>
+                  <div class="text-xs font-black text-amber-950">${reqRR}</div>
+                </div>
+              ` : ''}
+              <div class="p-1.5 bg-white border border-slate-200/80 rounded-xl shadow-2xs ${state.innings === 2 && state.target ? '' : 'col-span-3'}">
+                <div class="text-[9px] text-slate-400 font-bold uppercase">Partnership</div>
+                <div class="text-xs font-black text-slate-800">${pshipRuns} (${pshipBalls} balls)</div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Live Batsman Table -->
+          <div class="bg-white border-2 border-slate-200 rounded-3xl p-3.5 sm:p-4 shadow-sm space-y-2">
+            <h4 class="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center justify-between">
+              <span>🏏 Batsmen in Play</span>
+              <span class="text-[10px] text-slate-400 font-normal">Live In-Play</span>
+            </h4>
+            
+            <div class="overflow-x-auto">
+              <table class="w-full text-xs text-left">
+                <thead>
+                  <tr class="text-[10px] font-black text-slate-400 uppercase border-b border-slate-100">
+                    <th class="py-1.5 px-2">Batsman</th>
+                    <th class="py-1.5 px-2 text-center font-mono">R</th>
+                    <th class="py-1.5 px-2 text-center font-mono">B</th>
+                    <th class="py-1.5 px-2 text-center font-mono">4s</th>
+                    <th class="py-1.5 px-2 text-center font-mono">6s</th>
+                    <th class="py-1.5 px-2 text-right font-mono">SR</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 font-bold">
+                  <tr class="bg-emerald-50/60">
+                    <td class="py-2.5 px-2">
+                      <div class="flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span>
+                        <span class="text-slate-950 font-black">${strikerP ? strikerP.name : 'Striker (Not Selected)'} *</span>
+                      </div>
+                    </td>
+                    <td class="py-2.5 px-2 text-center text-emerald-800 font-black font-mono">${strikerStat.runs || 0}</td>
+                    <td class="py-2.5 px-2 text-center text-slate-700 font-mono">${strikerStat.balls || 0}</td>
+                    <td class="py-2.5 px-2 text-center text-slate-700 font-mono">${strikerStat.fours || 0}</td>
+                    <td class="py-2.5 px-2 text-center text-slate-700 font-mono">${strikerStat.sixes || 0}</td>
+                    <td class="py-2.5 px-2 text-right text-slate-700 font-mono">${strikerSR}</td>
+                  </tr>
+                  <tr>
+                    <td class="py-2.5 px-2">
+                      <div class="flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-teal-500"></span>
+                        <span class="text-slate-900">${nonStrikerP ? nonStrikerP.name : 'Non-Striker (Not Selected)'}</span>
+                      </div>
+                    </td>
+                    <td class="py-2.5 px-2 text-center text-teal-800 font-black font-mono">${nonStrikerStat.runs || 0}</td>
+                    <td class="py-2.5 px-2 text-center text-slate-700 font-mono">${nonStrikerStat.balls || 0}</td>
+                    <td class="py-2.5 px-2 text-center text-slate-700 font-mono">${nonStrikerStat.fours || 0}</td>
+                    <td class="py-2.5 px-2 text-center text-slate-700 font-mono">${nonStrikerStat.sixes || 0}</td>
+                    <td class="py-2.5 px-2 text-right text-slate-700 font-mono">${nonStrikerSR}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Live Bowler Table -->
+          <div class="bg-white border-2 border-slate-200 rounded-3xl p-3.5 sm:p-4 shadow-sm space-y-2">
+            <h4 class="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center justify-between">
+              <span>⚾ Active Bowler</span>
+              <span class="text-[10px] text-slate-400 font-normal">Current Spell</span>
+            </h4>
+            
+            <div class="overflow-x-auto">
+              <table class="w-full text-xs text-left">
+                <thead>
+                  <tr class="text-[10px] font-black text-slate-400 uppercase border-b border-slate-100">
+                    <th class="py-1.5 px-2">Bowler</th>
+                    <th class="py-1.5 px-2 text-center font-mono">O</th>
+                    <th class="py-1.5 px-2 text-center font-mono">M</th>
+                    <th class="py-1.5 px-2 text-center font-mono">R</th>
+                    <th class="py-1.5 px-2 text-center font-mono">W</th>
+                    <th class="py-1.5 px-2 text-right font-mono">Eco</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 font-bold">
+                  <tr class="bg-indigo-50/50">
+                    <td class="py-2.5 px-2">
+                      <div class="flex items-center gap-1.5">
+                        <span class="w-2 h-2 rounded-full bg-indigo-600 animate-pulse"></span>
+                        <span class="text-slate-950 font-black">${bowlerP ? bowlerP.name : 'Bowler (Not Selected)'}</span>
+                      </div>
+                    </td>
+                    <td class="py-2.5 px-2 text-center text-slate-800 font-mono">${bOvs}</td>
+                    <td class="py-2.5 px-2 text-center text-slate-700 font-mono">${bowlerStat.maidens || 0}</td>
+                    <td class="py-2.5 px-2 text-center text-slate-800 font-mono">${bowlerStat.runsConceded || 0}</td>
+                    <td class="py-2.5 px-2 text-center text-rose-700 font-black font-mono">${bowlerStat.wickets || 0}</td>
+                    <td class="py-2.5 px-2 text-right text-slate-700 font-mono">${bowlerEco}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- Recent Overs Ticker -->
+          <div class="bg-white border-2 border-slate-200 rounded-3xl p-3.5 sm:p-4 shadow-sm space-y-2">
+            <div class="flex items-center justify-between text-xs font-black text-slate-900 uppercase">
+              <span>⚡ Recent Deliveries</span>
+              <span class="text-[10px] text-slate-400 font-normal">This Over:</span>
+            </div>
+            <div class="flex items-center gap-1.5 flex-wrap">
+              ${(state.overBalls || []).length > 0 ? (state.overBalls || []).map(b => {
+                let pillClass = 'bg-slate-100 text-slate-800 border-slate-300';
+                if (b.type === 'four') pillClass = 'bg-blue-600 text-white border-blue-700 font-black';
+                if (b.type === 'six') pillClass = 'bg-amber-400 text-slate-950 border-amber-500 font-black';
+                if (b.type === 'wicket') pillClass = 'bg-rose-600 text-white border-rose-700 font-black';
+                if (b.type === 'wide' || b.type === 'noball') pillClass = 'bg-amber-100 text-amber-900 border-amber-300 font-semibold';
+                return `<span class="px-2 py-1 rounded-xl border font-mono font-black text-xs shadow-2xs ${pillClass}">${b.label}</span>`;
+              }).join('') : '<span class="text-slate-400 italic text-xs">No balls in this over yet</span>'}
+            </div>
+          </div>
+        </div>
+      `;
+    }
+
+    // 2. SCORECARD TAB
+    else if (activeTab === 'scorecard') {
+      const isTeamAInnings = activeScorecardInnings === 1;
+      const battingTeamId = isTeamAInnings ? fixture.teamAId : fixture.teamBId;
+      const bowlingTeamId = isTeamAInnings ? fixture.teamBId : fixture.teamAId;
+      const battingTeamName = isTeamAInnings ? fixture.teamAName : fixture.teamBName;
+      const bowlingTeamName = isTeamAInnings ? fixture.teamBName : fixture.teamAName;
+
+      const battingPlayers = isTeamAInnings ? playing11A : playing11B;
+      const bowlingPlayers = isTeamAInnings ? playing11B : playing11A;
+
+      const inningsScore = isTeamAInnings ? (fixture.teamAScore || state) : (fixture.teamBScore || state);
+
+      contentArea.innerHTML = `
+        <div class="space-y-3.5 animate-fade-in">
+          <!-- Innings Switcher Tabs -->
+          <div class="grid grid-cols-2 gap-2 bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
+            <button id="sc-tab-inn1" class="py-2 px-3 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${isTeamAInnings ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-white'}">
+              🏏 ${fixture.teamAName} (1st Inn)
+            </button>
+            <button id="sc-tab-inn2" class="py-2 px-3 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${!isTeamAInnings ? 'bg-sky-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-white'}">
+              🏏 ${fixture.teamBName} (2nd Inn)
+            </button>
+          </div>
+
+          <!-- Full Batting Scorecard Table -->
+          <div class="bg-white border-2 border-slate-200 rounded-3xl p-3.5 sm:p-4 shadow-sm space-y-3">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+              <h4 class="text-xs font-black text-slate-900 uppercase tracking-wider">
+                ${battingTeamName} Batting Scorecard
+              </h4>
+              <span class="text-xs font-black font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
+                ${inningsScore.runs || 0}/${inningsScore.wickets || 0} (${inningsScore.overs || 0}.${inningsScore.balls || 0} ov)
+              </span>
+            </div>
+
+            <div class="overflow-x-auto">
+              <table class="w-full text-xs text-left">
+                <thead>
+                  <tr class="text-[10px] font-black text-slate-400 uppercase border-b border-slate-100">
+                    <th class="py-1.5 px-2">Batsman</th>
+                    <th class="py-1.5 px-2 text-center font-mono">R</th>
+                    <th class="py-1.5 px-2 text-center font-mono">B</th>
+                    <th class="py-1.5 px-2 text-center font-mono">4s</th>
+                    <th class="py-1.5 px-2 text-center font-mono">6s</th>
+                    <th class="py-1.5 px-2 text-right font-mono">SR</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 font-bold">
+                  ${battingPlayers.map(p => {
+                    const stat = pStats[p.id] || {};
+                    const hasBatted = (stat.balls > 0 || stat.runs > 0 || stat.dismissed || state.strikerId === p.id || state.nonStrikerId === p.id);
+                    const isOut = stat.dismissed;
+                    const sr = stat.balls > 0 ? (((stat.runs || 0) / stat.balls) * 100).toFixed(1) : '-';
+                    const dismissalTxt = isOut ? `out (${stat.dismissalInfo || 'Dismissed'})` : (hasBatted ? `<span class="text-emerald-700 font-bold">not out *</span>` : `<span class="text-slate-400 font-normal">did not bat</span>`);
+
+                    return `
+                      <tr class="${hasBatted ? 'hover:bg-slate-50' : 'opacity-60'}">
+                        <td class="py-2 px-2">
+                          <div class="font-black text-slate-900">${p.name} ${p.isCaptain ? '<span class="text-[9px] bg-amber-400 text-slate-950 px-1 py-0.2 rounded">C</span>' : ''}</div>
+                          <div class="text-[10px] font-medium text-slate-500">${dismissalTxt}</div>
+                        </td>
+                        <td class="py-2 px-2 text-center font-black font-mono ${hasBatted ? 'text-slate-900' : 'text-slate-400'}">${hasBatted ? (stat.runs || 0) : '-'}</td>
+                        <td class="py-2 px-2 text-center font-mono ${hasBatted ? 'text-slate-700' : 'text-slate-400'}">${hasBatted ? (stat.balls || 0) : '-'}</td>
+                        <td class="py-2 px-2 text-center font-mono ${hasBatted ? 'text-slate-700' : 'text-slate-400'}">${hasBatted ? (stat.fours || 0) : '-'}</td>
+                        <td class="py-2 px-2 text-center font-mono ${hasBatted ? 'text-slate-700' : 'text-slate-400'}">${hasBatted ? (stat.sixes || 0) : '-'}</td>
+                        <td class="py-2 px-2 text-right font-mono ${hasBatted ? 'text-slate-700' : 'text-slate-400'}">${sr}</td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+
+            <!-- Extras & Totals Row -->
+            <div class="pt-2 border-t border-slate-200 text-xs flex justify-between items-center bg-slate-50 p-2.5 rounded-2xl font-bold">
+              <span class="text-slate-600">Extras: <strong class="text-slate-900 font-mono">${inningsScore.extras || 0}</strong></span>
+              <span class="text-slate-900">Total: <strong class="text-emerald-700 font-mono text-sm">${inningsScore.runs || 0}/${inningsScore.wickets || 0}</strong> (${inningsScore.overs || 0}.${inningsScore.balls || 0} ov)</span>
+            </div>
+          </div>
+
+          <!-- Full Bowling Scorecard Table -->
+          <div class="bg-white border-2 border-slate-200 rounded-3xl p-3.5 sm:p-4 shadow-sm space-y-3">
+            <h4 class="text-xs font-black text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2">
+              ${bowlingTeamName} Bowling Figures
+            </h4>
+
+            <div class="overflow-x-auto">
+              <table class="w-full text-xs text-left">
+                <thead>
+                  <tr class="text-[10px] font-black text-slate-400 uppercase border-b border-slate-100">
+                    <th class="py-1.5 px-2">Bowler</th>
+                    <th class="py-1.5 px-2 text-center font-mono">O</th>
+                    <th class="py-1.5 px-2 text-center font-mono">M</th>
+                    <th class="py-1.5 px-2 text-center font-mono">R</th>
+                    <th class="py-1.5 px-2 text-center font-mono">W</th>
+                    <th class="py-1.5 px-2 text-right font-mono">Eco</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 font-bold">
+                  ${bowlingPlayers.filter(p => (pStats[p.id]?.ballsBowled > 0 || state.bowlerId === p.id)).map(p => {
+                    const stat = pStats[p.id] || {};
+                    const bBalls = stat.ballsBowled || 0;
+                    const bOvs = `${Math.floor(bBalls / 6)}.${bBalls % 6}`;
+                    const totalOversDec = bBalls / 6;
+                    const eco = totalOversDec > 0 ? ((stat.runsConceded || 0) / totalOversDec).toFixed(2) : '0.00';
+
+                    return `
+                      <tr class="hover:bg-slate-50">
+                        <td class="py-2.5 px-2 font-black text-slate-900">${p.name}</td>
+                        <td class="py-2.5 px-2 text-center font-mono text-slate-800">${bOvs}</td>
+                        <td class="py-2.5 px-2 text-center font-mono text-slate-700">${stat.maidens || 0}</td>
+                        <td class="py-2.5 px-2 text-center font-mono text-slate-800">${stat.runsConceded || 0}</td>
+                        <td class="py-2.5 px-2 text-center font-mono text-rose-700 font-black">${stat.wickets || 0}</td>
+                        <td class="py-2.5 px-2 text-right font-mono text-slate-700">${eco}</td>
+                      </tr>
+                    `;
+                  }).join('') || `<tr><td colspan="6" class="py-4 text-center text-slate-400 text-xs">No bowling recorded for this innings yet.</td></tr>`}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('sc-tab-inn1')?.addEventListener('click', () => {
+        activeScorecardInnings = 1;
+        renderMatchCenterContent();
+      });
+      document.getElementById('sc-tab-inn2')?.addEventListener('click', () => {
+        activeScorecardInnings = 2;
+        renderMatchCenterContent();
+      });
+    }
+
+    // 3. BALLS TAB (COMMENTARY)
+    else if (activeTab === 'balls') {
+      const ballList = (state.ballHistory || []).filter(b => b.innings === activeBallsInnings);
+
+      contentArea.innerHTML = `
+        <div class="space-y-3.5 animate-fade-in">
+          <!-- Innings Switcher -->
+          <div class="grid grid-cols-2 gap-2 bg-slate-100 p-1.5 rounded-2xl border border-slate-200">
+            <button id="balls-tab-inn1" class="py-2 px-3 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${activeBallsInnings === 1 ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-white'}">
+              1st Innings
+            </button>
+            <button id="balls-tab-inn2" class="py-2 px-3 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer ${activeBallsInnings === 2 ? 'bg-sky-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-white'}">
+              2nd Innings
+            </button>
+          </div>
+
+          ${ballList.length === 0 ? `
+            <div class="p-8 text-center space-y-2 bg-white rounded-3xl border border-slate-200">
+              <div class="text-3xl">⚾</div>
+              <h4 class="text-xs font-black text-slate-900">No ball commentary recorded yet</h4>
+              <p class="text-[11px] text-slate-400">Balls delivered will appear here in real-time with ball-by-ball commentary.</p>
+            </div>
+          ` : `
+            <div class="space-y-2.5">
+              ${ballList.map(b => {
+                let badgeClass = 'bg-slate-100 text-slate-800 border-slate-300';
+                if (b.type === 'four') badgeClass = 'bg-blue-600 text-white border-blue-700';
+                if (b.type === 'six') badgeClass = 'bg-amber-400 text-slate-950 border-amber-500 font-black';
+                if (b.type === 'wicket') badgeClass = 'bg-rose-600 text-white border-rose-700 font-black';
+                if (b.type === 'wide' || b.type === 'noball') badgeClass = 'bg-amber-100 text-amber-900 border-amber-300';
+
+                return `
+                  <div class="p-3 bg-white border border-slate-200 rounded-2xl shadow-2xs hover:border-slate-300 transition-all flex items-start gap-3">
+                    <div class="flex flex-col items-center shrink-0 w-12">
+                      <span class="text-[10px] font-black text-slate-400 font-mono">${b.overNum}</span>
+                      <span class="w-7 h-7 rounded-xl flex items-center justify-center font-black text-xs font-mono border ${badgeClass} shadow-2xs mt-0.5">
+                        ${b.label}
+                      </span>
+                    </div>
+                    <div class="flex-grow min-w-0">
+                      <div class="text-xs font-black text-slate-900 leading-tight">
+                        ${b.bowlerName || 'Bowler'} to ${b.batterName || 'Batter'}
+                      </div>
+                      <div class="text-[11px] text-slate-600 mt-1 font-medium leading-relaxed">
+                        ${b.commentary || 'Delivery bowled.'}
+                      </div>
+                    </div>
+                    <span class="text-[9px] text-slate-400 font-mono shrink-0">${b.timestamp || ''}</span>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          `}
+        </div>
+      `;
+
+      document.getElementById('balls-tab-inn1')?.addEventListener('click', () => {
+        activeBallsInnings = 1;
+        renderMatchCenterContent();
+      });
+      document.getElementById('balls-tab-inn2')?.addEventListener('click', () => {
+        activeBallsInnings = 2;
+        renderMatchCenterContent();
+      });
+    }
+
+    // 4. SUPER STARS & 2D CRICKET GROUND
+    else if (activeTab === 'superstars') {
+      const allPlayersList = [...playing11A.map(p => ({ ...p, teamLabel: fixture.teamAName, teamColor: 'emerald' })), ...playing11B.map(p => ({ ...p, teamLabel: fixture.teamBName, teamColor: 'sky' }))];
+      const filteredPlayers = activeSuperStarsFilter === 'ALL' ? allPlayersList : (activeSuperStarsFilter === 'TEAMA' ? allPlayersList.filter(p => p.teamId === fixture.teamAId) : allPlayersList.filter(p => p.teamId === fixture.teamBId));
+
+      contentArea.innerHTML = `
+        <div class="space-y-3.5 animate-fade-in">
+          <!-- Filter Buttons -->
+          <div class="grid grid-cols-3 gap-1.5 bg-slate-100 p-1 rounded-2xl border border-slate-200">
+            <button id="ss-btn-all" class="py-1.5 px-2 rounded-xl font-black text-xs transition-all cursor-pointer ${activeSuperStarsFilter === 'ALL' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600 hover:text-slate-900'}">
+              All Players (${allPlayersList.length})
+            </button>
+            <button id="ss-btn-teama" class="py-1.5 px-2 rounded-xl font-black text-xs transition-all cursor-pointer ${activeSuperStarsFilter === 'TEAMA' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}">
+              ${fixture.teamAName}
+            </button>
+            <button id="ss-btn-teamb" class="py-1.5 px-2 rounded-xl font-black text-xs transition-all cursor-pointer ${activeSuperStarsFilter === 'TEAMB' ? 'bg-sky-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'}">
+              ${fixture.teamBName}
+            </button>
+          </div>
+
+          <!-- 2D Cricket Field Ground Canvas / Visualization -->
+          <div class="relative bg-gradient-to-b from-emerald-600 via-green-600 to-emerald-700 rounded-3xl p-4 border-4 border-white shadow-lg overflow-hidden min-h-[380px] flex flex-col justify-between items-center text-white">
+            
+            <!-- Boundary Oval Inner Ring -->
+            <div class="absolute inset-4 rounded-[100px] border-2 border-dashed border-white/40 pointer-events-none"></div>
+            
+            <!-- 30-Yard Circle Inner Oval -->
+            <div class="absolute inset-12 sm:inset-16 rounded-[80px] border-2 border-white/50 bg-emerald-500/20 pointer-events-none"></div>
+            
+            <!-- Central Pitch Strip -->
+            <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-16 sm:w-20 h-32 sm:h-36 bg-amber-100/90 rounded-xl border border-amber-300 shadow-inner flex flex-col justify-between items-center py-2 pointer-events-none">
+              <div class="w-8 h-1 bg-white border border-slate-400"></div>
+              <div class="text-[9px] font-black text-amber-900 uppercase tracking-widest font-mono">PITCH</div>
+              <div class="w-8 h-1 bg-white border border-slate-400"></div>
+            </div>
+
+            <!-- Field Top / Bowler End Jersey -->
+            <div class="z-10 text-center space-y-1">
+              ${filteredPlayers[0] ? `
+                <div class="inline-flex flex-col items-center">
+                  <div class="relative">
+                    <span class="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black text-sm shadow-md border-2 border-white">👕</span>
+                    <span class="absolute -top-2 -right-2 px-1.5 py-0.2 bg-amber-400 text-slate-950 font-black text-[9px] rounded-full shadow-2xs font-mono">⭐ 4.2</span>
+                  </div>
+                  <div class="bg-black/60 backdrop-blur-xs px-2.5 py-0.5 rounded-lg text-[10px] font-black mt-1 text-white border border-white/20">
+                    ${filteredPlayers[0].name}
+                  </div>
+                </div>
+              ` : ''}
+            </div>
+
+            <!-- Midfield / Strike End Jersey -->
+            <div class="z-10 text-center space-y-1 my-auto">
+              ${filteredPlayers[1] ? `
+                <div class="inline-flex flex-col items-center">
+                  <div class="relative">
+                    <span class="w-8 h-8 rounded-xl bg-emerald-500 text-slate-950 flex items-center justify-center font-black text-sm shadow-md border-2 border-white">👕</span>
+                    <span class="absolute -top-2 -right-2 px-1.5 py-0.2 bg-amber-400 text-slate-950 font-black text-[9px] rounded-full shadow-2xs font-mono">⭐ 4.8</span>
+                  </div>
+                  <div class="bg-black/60 backdrop-blur-xs px-2.5 py-0.5 rounded-lg text-[10px] font-black mt-1 text-white border border-white/20">
+                    ${filteredPlayers[1].name}
+                  </div>
+                </div>
+              ` : ''}
+            </div>
+
+            <!-- Wicketkeeper / Deep Field Jersey -->
+            <div class="z-10 text-center space-y-1">
+              ${filteredPlayers[2] ? `
+                <div class="inline-flex flex-col items-center">
+                  <div class="relative">
+                    <span class="w-8 h-8 rounded-xl bg-purple-600 text-white flex items-center justify-center font-black text-sm shadow-md border-2 border-white">🧤</span>
+                    <span class="absolute -top-2 -right-2 px-1.5 py-0.2 bg-amber-400 text-slate-950 font-black text-[9px] rounded-full shadow-2xs font-mono">⭐ 3.9</span>
+                  </div>
+                  <div class="bg-black/60 backdrop-blur-xs px-2.5 py-0.5 rounded-lg text-[10px] font-black mt-1 text-white border border-white/20">
+                    ${filteredPlayers[2].name}
+                  </div>
+                </div>
+              ` : ''}
+            </div>
+          </div>
+
+          <!-- Super Stars Cards List -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            ${filteredPlayers.map((p, idx) => {
+              const stat = pStats[p.id] || {};
+              const starRating = (3.0 + ((stat.runs || 0) * 0.1) + ((stat.wickets || 0) * 0.5)).toFixed(1);
+              return `
+                <div class="p-3 bg-white border border-slate-200 rounded-2xl shadow-2xs flex items-center justify-between gap-2.5">
+                  <div class="flex items-center gap-2.5 min-w-0">
+                    <img src="${p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png'}" class="w-10 h-10 rounded-xl object-cover border border-slate-200 bg-slate-50 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                    <div class="truncate">
+                      <div class="text-xs font-black text-slate-900 truncate flex items-center gap-1">
+                        <span>${p.name}</span>
+                        ${p.isCaptain ? '<span class="px-1 py-0.2 bg-amber-400 text-slate-950 text-[9px] font-black rounded">C</span>' : ''}
+                      </div>
+                      <div class="text-[10px] text-slate-500 truncate">
+                        ${p.category || 'All Rounder'} • ${p.teamLabel}
+                      </div>
+                    </div>
+                  </div>
+                  <span class="px-2.5 py-1 bg-amber-50 text-amber-950 border border-amber-300 font-mono font-black text-xs rounded-xl shadow-2xs shrink-0">
+                    ⭐ ${starRating}
+                  </span>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        </div>
+      `;
+
+      document.getElementById('ss-btn-all')?.addEventListener('click', () => {
+        activeSuperStarsFilter = 'ALL';
+        renderMatchCenterContent();
+      });
+      document.getElementById('ss-btn-teama')?.addEventListener('click', () => {
+        activeSuperStarsFilter = 'TEAMA';
+        renderMatchCenterContent();
+      });
+      document.getElementById('ss-btn-teamb')?.addEventListener('click', () => {
+        activeSuperStarsFilter = 'TEAMB';
+        renderMatchCenterContent();
+      });
+    }
+
+    // 5. INFO TAB
+    else if (activeTab === 'info') {
+      contentArea.innerHTML = `
+        <div class="space-y-3.5 animate-fade-in">
+          <div class="bg-white border-2 border-slate-200 rounded-3xl p-4 shadow-sm space-y-3">
+            <h4 class="text-xs font-black text-slate-900 uppercase tracking-wider border-b border-slate-100 pb-2">
+              Match Information & Venue
+            </h4>
+            
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                <span class="text-[10px] text-slate-400 uppercase font-black block">Tournament</span>
+                <span class="font-black text-slate-900">${fixture.leagueCode || 'JSL'} Premier League</span>
+              </div>
+              <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                <span class="text-[10px] text-slate-400 uppercase font-black block">Match Number & Stage</span>
+                <span class="font-black text-slate-900">Match #${fixture.matchNo || 1} • ${fixture.stage || 'League Stage'}</span>
+              </div>
+              <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                <span class="text-[10px] text-slate-400 uppercase font-black block">Date & Time</span>
+                <span class="font-black text-slate-900">🗓️ ${fixture.date || 'TBD'} • ⏱️ ${fixture.time || '09:00 AM'}</span>
+              </div>
+              <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                <span class="text-[10px] text-slate-400 uppercase font-black block">Venue</span>
+                <span class="font-black text-slate-900">📍 ${fixture.venue || 'JHANKRA SCHOOL GROUND'}</span>
+              </div>
+              <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200 sm:col-span-2">
+                <span class="text-[10px] text-slate-400 uppercase font-black block">Toss Decision</span>
+                <span class="font-black text-amber-900">🪙 ${fixture.tossDetails || state.tossDetails || 'Toss yet to take place'}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    }
+  }
+
+  // Bind top tabs
+  document.querySelectorAll('.mc-nav-tab').forEach(tabBtn => {
+    tabBtn.addEventListener('click', (e) => {
+      activeTab = e.currentTarget.getAttribute('data-tab');
+      document.querySelectorAll('.mc-nav-tab').forEach(b => {
+        b.className = `mc-nav-tab py-2 px-3 rounded-xl transition-all cursor-pointer shrink-0 ${b.getAttribute('data-tab') === activeTab ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-white'}`;
+      });
+      renderMatchCenterContent();
+    });
+  });
+
+  window.renderActiveMatchCenter = renderMatchCenterContent;
+  renderMatchCenterContent();
+}
+
+export function openMatchPlayingXIModal(fixtureId) {
+  document.getElementById('match-lineups-modal')?.remove();
+
+  const fixture = store.getFixtures().find(f => f.id === fixtureId);
+  if (!fixture) return;
+
+  const teamAPlayers = store.getPlayers().filter(p => p.teamId === fixture.teamAId && (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED'));
+  const teamBPlayers = store.getPlayers().filter(p => p.teamId === fixture.teamBId && (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED'));
+
+  const pxiA = fixture.playingXI?.[fixture.teamAId] || { playing11Ids: teamAPlayers.slice(0, 11).map(p => p.id), twelfthManId: teamAPlayers[11]?.id || '' };
+  const pxiB = fixture.playingXI?.[fixture.teamBId] || { playing11Ids: teamBPlayers.slice(0, 11).map(p => p.id), twelfthManId: teamBPlayers[11]?.id || '' };
+
+  const playing11A = teamAPlayers.filter(p => (pxiA.playing11Ids || []).includes(p.id));
+  const twelfthManA = (pxiA.twelfthManId && !(pxiA.playing11Ids || []).includes(pxiA.twelfthManId)) 
+    ? teamAPlayers.find(p => p.id === pxiA.twelfthManId) 
+    : teamAPlayers.find(p => !(pxiA.playing11Ids || []).includes(p.id));
+
+  const playing11B = teamBPlayers.filter(p => (pxiB.playing11Ids || []).includes(p.id));
+  const twelfthManB = (pxiB.twelfthManId && !(pxiB.playing11Ids || []).includes(pxiB.twelfthManId)) 
+    ? teamBPlayers.find(p => p.id === pxiB.twelfthManId) 
+    : teamBPlayers.find(p => !(pxiB.playing11Ids || []).includes(p.id));
+
+  const pStats = fixture.liveMatchState?.playerStats || {};
+  const liveState = fixture.liveMatchState || {};
+
+  const renderPlayerRow = (p, isTwelfth = false) => {
+    const photo = p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png';
+    const stat = pStats[p.id] || {};
+    const isStriker = liveState.strikerId === p.id;
+    const isNonStriker = liveState.nonStrikerId === p.id;
+    const isCurrentBowler = liveState.bowlerId === p.id;
+
+    const hasBatted = (stat.balls !== undefined && stat.balls > 0) || (stat.runs !== undefined && stat.runs > 0) || isStriker || isNonStriker || stat.dismissed;
+    const hasBowled = (stat.ballsBowled && stat.ballsBowled > 0) || isCurrentBowler || (stat.wickets && stat.wickets > 0);
+
+    let batBoxHtml = '';
+    if (hasBatted) {
+      const sr = (stat.balls && stat.balls > 0) ? (((stat.runs || 0) / stat.balls) * 100).toFixed(1) : '0.0';
+      const isNotOut = !stat.dismissed;
+      batBoxHtml = `
+        <div class="flex items-center gap-1.5 flex-wrap">
+          <div class="flex items-center bg-emerald-50 border border-emerald-300 px-2 py-1 rounded-xl shadow-2xs">
+            <span class="text-[9px] text-emerald-800 font-bold uppercase mr-1">R</span>
+            <span class="text-xs font-black text-emerald-950 font-mono">${stat.runs || 0}${isNotOut && (isStriker || isNonStriker) ? '*' : ''}</span>
+          </div>
+          <div class="flex items-center bg-slate-100 border border-slate-200 px-2 py-1 rounded-xl shadow-2xs">
+            <span class="text-[9px] text-slate-500 font-bold uppercase mr-1">B</span>
+            <span class="text-xs font-black text-slate-900 font-mono">${stat.balls || 0}</span>
+          </div>
+          <div class="flex items-center bg-amber-50 border border-amber-200 px-2 py-1 rounded-xl shadow-2xs">
+            <span class="text-[9px] text-amber-800 font-bold uppercase mr-1">4s</span>
+            <span class="text-xs font-black text-amber-950 font-mono">${stat.fours || 0}</span>
+          </div>
+          <div class="flex items-center bg-purple-50 border border-purple-200 px-2 py-1 rounded-xl shadow-2xs">
+            <span class="text-[9px] text-purple-800 font-bold uppercase mr-1">6s</span>
+            <span class="text-xs font-black text-purple-950 font-mono">${stat.sixes || 0}</span>
+          </div>
+          <div class="flex items-center bg-sky-50 border border-sky-200 px-2 py-1 rounded-xl shadow-2xs">
+            <span class="text-[9px] text-sky-800 font-bold uppercase mr-1">SR</span>
+            <span class="text-xs font-black text-sky-950 font-mono">${sr}</span>
+          </div>
+          ${isStriker ? `<span class="px-2 py-0.5 bg-emerald-600 text-white font-black text-[9px] rounded-lg animate-pulse shadow-2xs">🏏 ON STRIKE</span>` : ''}
+          ${isNonStriker ? `<span class="px-2 py-0.5 bg-teal-600 text-white font-black text-[9px] rounded-lg shadow-2xs">🏏 NON-STRIKER</span>` : ''}
+          ${stat.dismissed ? `<span class="px-2 py-0.5 bg-rose-100 text-rose-800 border border-rose-300 font-black text-[9px] rounded-lg shadow-2xs">OUT (${stat.dismissalInfo || 'Dismissed'})</span>` : ''}
+        </div>
+      `;
+    }
+
+    let bowlBoxHtml = '';
+    if (hasBowled) {
+      const bBalls = stat.ballsBowled || 0;
+      const bOvers = Math.floor(bBalls / 6);
+      const bRemBalls = bBalls % 6;
+      const totalOversDec = bBalls / 6;
+      const eco = totalOversDec > 0 ? ((stat.runsConceded || 0) / totalOversDec).toFixed(2) : '0.00';
+
+      bowlBoxHtml = `
+        <div class="flex items-center gap-1.5 flex-wrap mt-1">
+          <div class="flex items-center bg-indigo-50 border border-indigo-200 px-2 py-1 rounded-xl shadow-2xs">
+            <span class="text-[9px] text-indigo-800 font-bold uppercase mr-1">O</span>
+            <span class="text-xs font-black text-indigo-950 font-mono">${bOvers}.${bRemBalls}</span>
+          </div>
+          <div class="flex items-center bg-slate-100 border border-slate-200 px-2 py-1 rounded-xl shadow-2xs">
+            <span class="text-[9px] text-slate-500 font-bold uppercase mr-1">R</span>
+            <span class="text-xs font-black text-slate-900 font-mono">${stat.runsConceded || 0}</span>
+          </div>
+          <div class="flex items-center bg-rose-50 border border-rose-300 px-2 py-1 rounded-xl shadow-2xs">
+            <span class="text-[9px] text-rose-800 font-bold uppercase mr-1">W</span>
+            <span class="text-xs font-black text-rose-700 font-mono">${stat.wickets || 0}</span>
+          </div>
+          <div class="flex items-center bg-emerald-50 border border-emerald-200 px-2 py-1 rounded-xl shadow-2xs">
+            <span class="text-[9px] text-emerald-800 font-bold uppercase mr-1">ECO</span>
+            <span class="text-xs font-black text-emerald-950 font-mono">${eco}</span>
+          </div>
+          ${isCurrentBowler ? `<span class="px-2 py-0.5 bg-indigo-600 text-white font-black text-[9px] rounded-lg animate-pulse shadow-2xs">⚾ BOWLING</span>` : ''}
+        </div>
+      `;
+    }
+
+    const hasAnyLiveStat = hasBatted || hasBowled;
+
+    return `
+      <div class="p-3 bg-white border-2 ${isStriker || isCurrentBowler ? 'border-emerald-500 shadow-sm' : 'border-slate-200'} rounded-2xl shadow-2xs hover:border-emerald-400 transition-all space-y-2">
+        <div class="flex items-center justify-between gap-2">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <img src="${photo}" class="w-10 h-10 rounded-2xl object-cover border border-slate-200 shadow-2xs bg-slate-50 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+            <div class="truncate">
+              <div class="text-xs sm:text-sm font-black text-slate-900 flex items-center gap-1.5 truncate">
+                <span class="truncate">${p.name}</span>
+                ${isTwelfth ? `<span class="px-1.5 py-0.5 bg-amber-100 text-amber-950 border border-amber-300 font-mono text-[9px] font-black rounded uppercase shrink-0">12th Man</span>` : ''}
+                ${p.isCaptain ? `<span class="px-1.5 py-0.5 bg-amber-400 text-slate-950 text-[9px] font-black rounded uppercase shrink-0">C</span>` : ''}
+                ${p.isWicketKeeper ? `<span class="px-1.5 py-0.5 bg-blue-600 text-white text-[9px] font-black rounded uppercase shrink-0">WK</span>` : ''}
+              </div>
+              <div class="text-[10px] text-slate-500 font-bold truncate">
+                ${p.category || 'All Rounder'} • ${p.village || 'Jhankra'}
+              </div>
+            </div>
+          </div>
+
+          <div class="shrink-0 text-right">
+            ${isTwelfth ? `
+              <span class="px-2.5 py-1 bg-amber-50 text-amber-900 border border-amber-300 rounded-xl text-[10px] font-black shadow-2xs">
+                🛡️ Substitute
+              </span>
+            ` : `
+              <span class="px-2.5 py-1 bg-emerald-50 text-emerald-900 border border-emerald-300 rounded-xl text-[10px] font-black shadow-2xs">
+                🏏 Starting XI
+              </span>
+            `}
+          </div>
+        </div>
+
+        ${hasAnyLiveStat ? `
+          <div class="pt-2 border-t border-slate-100 space-y-1.5 bg-slate-50/70 p-2.5 rounded-xl">
+            ${batBoxHtml}
+            ${bowlBoxHtml}
+          </div>
+        ` : `
+          <div class="pt-1.5 border-t border-slate-100 flex items-center justify-between text-[10px] text-slate-400 font-bold px-1">
+            <span>Match Status</span>
+            <span class="text-slate-500 font-bold">Yet to Bat / Bowl</span>
+          </div>
+        `}
+      </div>
+    `;
+  };
+
+  const modalHtml = `
+    <div id="match-lineups-modal" class="fixed inset-0 z-[70] modal-overlay flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
+      <div class="bg-white border-2 border-emerald-500 max-w-2xl w-full p-4 sm:p-6 relative space-y-4 animate-fade-in rounded-3xl shadow-2xl text-slate-900 max-h-[90vh] flex flex-col justify-between">
+        
+        <!-- Header -->
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3 shrink-0">
+          <div class="flex items-center gap-2.5">
+            <span class="p-2.5 bg-emerald-50 text-emerald-700 rounded-2xl border border-emerald-200 text-base shadow-2xs">👥</span>
+            <div>
+              <span class="px-2 py-0.5 bg-emerald-50 text-emerald-800 font-mono text-[9px] font-black rounded border border-emerald-200 uppercase">${fixture.leagueCode || 'JSL'} MATCH LINEUPS</span>
+              <h3 class="text-base font-black text-slate-900 leading-tight mt-0.5">Playing 11 & Match Scorecard</h3>
+            </div>
+          </div>
+          <button id="close-lineups-btn" class="p-1.5 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all cursor-pointer">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+
+        <!-- Toss Details Ribbon -->
+        ${(fixture.tossDetails || fixture.liveMatchState?.tossDetails) ? `
+          <div class="bg-amber-50 border border-amber-200 text-amber-900 px-3 py-2 rounded-2xl text-xs font-bold flex items-center gap-2 shadow-2xs shrink-0">
+            <span>🪙</span> <span>${fixture.tossDetails || fixture.liveMatchState?.tossDetails}</span>
+          </div>
+        ` : ''}
+
+        <!-- Team Selector Tabs -->
+        <div class="grid grid-cols-2 gap-2 bg-slate-100 p-1.5 rounded-2xl border border-slate-200 shrink-0">
+          <button id="lineup-tab-teama" class="py-2 px-3 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer bg-emerald-600 text-white shadow-xs">
+            🏏 ${fixture.teamAName} (${playing11A.length})
+          </button>
+          <button id="lineup-tab-teamb" class="py-2 px-3 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer text-slate-600 hover:text-slate-900 hover:bg-slate-50">
+            🏏 ${fixture.teamBName} (${playing11B.length})
+          </button>
+        </div>
+
+        <!-- Lineup Content Area -->
+        <div id="lineup-roster-content" class="space-y-2.5 overflow-y-auto max-h-[48vh] pr-1 scrollbar-thin"></div>
+
+        <!-- Footer -->
+        <div class="pt-3 border-t border-slate-100 flex justify-end shrink-0">
+          <button id="close-lineups-bottom-btn" class="w-full sm:w-auto px-6 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow-xs cursor-pointer transition-all">
+            Close Lineups
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  if (window.lucide) window.lucide.createIcons();
+
+  const removeModal = () => document.getElementById('match-lineups-modal')?.remove();
+  document.getElementById('close-lineups-btn')?.addEventListener('click', removeModal);
+  document.getElementById('close-lineups-bottom-btn')?.addEventListener('click', removeModal);
+
+  const tabA = document.getElementById('lineup-tab-teama');
+  const tabB = document.getElementById('lineup-tab-teamb');
+  const rosterContent = document.getElementById('lineup-roster-content');
+
+  let activeLineupTab = 'teamA';
+
+  function renderLineupRoster() {
+    const isTeamA = activeLineupTab === 'teamA';
+    const teamName = isTeamA ? fixture.teamAName : fixture.teamBName;
+    const playing11 = isTeamA ? playing11A : playing11B;
+    const twelfth = isTeamA ? twelfthManA : twelfthManB;
+
+    if (playing11.length === 0) {
+      rosterContent.innerHTML = `
+        <div class="p-8 text-center text-slate-500 text-xs bg-slate-50 rounded-2xl border border-slate-200">
+          Playing 11 lineup for ${teamName} has not been confirmed yet.
+        </div>
+      `;
+      return;
+    }
+
+    rosterContent.innerHTML = `
+      <div class="space-y-2.5">
+        <div class="text-[11px] font-black text-slate-500 uppercase tracking-wider px-1">Starting 11 Players & Live Score:</div>
+        ${playing11.map(p => renderPlayerRow(p, false)).join('')}
+        ${twelfth ? `
+          <div class="text-[11px] font-black text-amber-700 uppercase tracking-wider px-1 pt-2 border-t border-slate-200">12th Man / Impact Substitute:</div>
+          ${renderPlayerRow(twelfth, true)}
+        ` : ''}
+      </div>
+    `;
+  }
+
+  tabA?.addEventListener('click', () => {
+    activeLineupTab = 'teamA';
+    tabA.className = "py-2 px-3 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer bg-emerald-600 text-white shadow-xs";
+    tabB.className = "py-2 px-3 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer text-slate-600 hover:text-slate-900 hover:bg-slate-50";
+    renderLineupRoster();
+  });
+
+  tabB?.addEventListener('click', () => {
+    activeLineupTab = 'teamB';
+    tabB.className = "py-2 px-3 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer bg-sky-600 text-white shadow-xs";
+    tabA.className = "py-2 px-3 rounded-xl font-black text-xs transition-all flex items-center justify-center gap-1.5 cursor-pointer text-slate-600 hover:text-slate-900 hover:bg-slate-50";
+    renderLineupRoster();
+  });
+
+  renderLineupRoster();
+}
+window.openMatchPlayingXIModal = openMatchPlayingXIModal;
 
 function renderLiveAuctionView(container) {
   if (auctionPollInterval) {
@@ -8686,3 +10144,5 @@ export function openDynamicTournamentRegistrationModal(tourneyIdOrSlug) {
 
 window.openTournamentCreationWizard = openTournamentCreationWizard;
 window.openDynamicTournamentRegistrationModal = openDynamicTournamentRegistrationModal;
+window.openMatchCenterModal = openMatchCenterModal;
+window.openMatchPlayingXIModal = openMatchPlayingXIModal;

@@ -36,7 +36,9 @@ import {
   fetchCustomTournamentsFromFirebase,
   deleteCustomTournamentFromFirebase,
   saveUniversalPlayerToFirebase,
-  fetchUniversalPlayersFromFirebase
+  fetchUniversalPlayersFromFirebase,
+  saveTournamentFormatToFirebase,
+  fetchTournamentFormatsFromFirebase
 } from './supabase.js?v=11.6.4';
 
 const FIREBASE_DB_URL = "https://cpl-jsl-2026-default-rtdb.firebaseio.com";
@@ -58,7 +60,8 @@ const STORAGE_KEYS = {
   AUCTION_ARCHIVE_JSL_2026: 'cpl_auction_archive_jsl_2026',
   PLATFORM_SETTINGS: 'cpl_platform_settings_v8',
   CUSTOM_TOURNAMENTS: 'cpl_custom_tournaments_v8',
-  UNIVERSAL_PLAYERS: 'cpl_universal_players_v8'
+  UNIVERSAL_PLAYERS: 'cpl_universal_players_v8',
+  TOURNAMENT_FORMATS: 'cpl_tournament_formats_v8'
 };
 
 const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23059669'/%3E%3Ctext x='50' y='62' font-size='45' text-anchor='middle' fill='white'%3E🏏%3C/text%3E%3C/svg%3E";
@@ -347,6 +350,15 @@ class Store {
           safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, cloudAccounts);
           this.notify('user_accounts_updated');
         }
+
+        // 6. Sync Tournament Formats (Group stages)
+        const cloudFormats = await fetchTournamentFormatsFromFirebase();
+        if (cloudFormats && typeof cloudFormats === 'object' && Object.keys(cloudFormats).length > 0) {
+          const currentFormats = this.getTournamentFormats();
+          const mergedFormats = { ...currentFormats, ...cloudFormats };
+          safeSetLocalStorage(STORAGE_KEYS.TOURNAMENT_FORMATS, mergedFormats);
+          this.notify('tournament_format_updated');
+        }
       } catch (errOwners) {
         console.warn("Owners sync notice:", errOwners);
       }
@@ -491,6 +503,48 @@ class Store {
     return JSON.parse(localStorage.getItem(STORAGE_KEYS.LEAGUES)) || [];
   }
 
+  getAccessibleLeagues() {
+    const allLeagues = this.getLeagues();
+    const currentUser = this.getCurrentUser();
+
+    // 1. Full Master Super Admin access (Suman Kolay / bakolaypan@gmail.com / SUPER_ADMIN)
+    if (this.isMasterAdmin()) {
+      return allLeagues;
+    }
+
+    // 2. Tournament Owner / Admin (e.g. Pintu Santra - 8972144166)
+    if (currentUser) {
+      const userPhone = (currentUser.phone || currentUser.mobile || '').replace(/[^0-9]/g, '');
+      const owners = this.getTournamentOwners();
+
+      const permittedTourneyIds = [];
+      for (const [tId, ownerInfo] of Object.entries(owners)) {
+        if (ownerInfo && (ownerInfo.phone || '').replace(/[^0-9]/g, '') === userPhone) {
+          permittedTourneyIds.push(tId.toUpperCase());
+        }
+      }
+
+      if (Array.isArray(currentUser.ownedTournaments)) {
+        currentUser.ownedTournaments.forEach(id => {
+          if (id && !permittedTourneyIds.includes(id.toUpperCase())) permittedTourneyIds.push(id.toUpperCase());
+        });
+      }
+
+      if (permittedTourneyIds.length > 0) {
+        const filtered = allLeagues.filter(l => {
+          const lCode = (l.code || l.category || l.shortCode || '').toUpperCase();
+          const lId = (l.id || '').toUpperCase();
+          return permittedTourneyIds.some(pid => pid.includes(lCode) || pid === lId || (lCode === 'JSL' && pid.includes('JSL')));
+        });
+        if (filtered.length > 0) return filtered;
+      }
+    }
+
+    // Default fallback for any non-master Tournament Admin: restricted to JSL 2026 only
+    const jslOnly = allLeagues.filter(l => (l.code || l.category || l.shortCode || l.name || '').toUpperCase().includes('JSL'));
+    return jslOnly.length > 0 ? jslOnly : allLeagues.slice(0, 1);
+  }
+
   getLeagueById(id) {
     return this.getLeagues().find(l => l.id === id);
   }
@@ -594,7 +648,8 @@ class Store {
   }
 
   getPlayerById(id) {
-    return this.getPlayers().find(p => p.id === id);
+    if (!id) return null;
+    return this.getPlayers().find(p => String(p.id) === String(id) || p.id == id);
   }
 
   // --- REGISTER NEW PLAYER WITH ATOMIC TIMESTAMP QUEUE & ZERO DUPLICATES ---
@@ -1105,7 +1160,9 @@ class Store {
         purseBudget: totalBudget,
         purseSpent: totalSpent,
         remainingPurse: remainingPurse,
-        squadCount: squadCount
+        squadCount: squadCount,
+        group: t.group || (idx < 4 ? 'A' : 'B'),
+        logoUrl: t.logoUrl || t.logo || 'assets/card_jsl_cartoon.png'
       };
     });
   }
@@ -1327,6 +1384,141 @@ class Store {
     safeSetLocalStorage(STORAGE_KEYS.FIXTURES, fixtures);
     deleteFixtureFromFirebase(fixtureId);
     this.notify('fixtures_updated');
+  }
+
+  // --- TOURNAMENT FORMAT & GROUP STAGES ENGINE ---
+  getTournamentFormats() {
+    try {
+      const local = localStorage.getItem(STORAGE_KEYS.TOURNAMENT_FORMATS);
+      if (local) return JSON.parse(local);
+    } catch(e) {}
+    return {
+      JSL: { format: 'TWO_GROUPS', groups: ['A', 'B'], qualifyPerGroup: 2, knockoutType: 'SEMIFINALS' },
+      JPL: { format: 'SINGLE_TABLE', groups: ['A'], qualifyPerGroup: 4, knockoutType: 'SEMIFINALS' },
+      KPL: { format: 'SINGLE_TABLE', groups: ['A'], qualifyPerGroup: 4, knockoutType: 'SEMIFINALS' }
+    };
+  }
+
+  getTournamentFormat(leagueCode = 'JSL') {
+    const formats = this.getTournamentFormats();
+    const clean = (leagueCode || 'JSL').toUpperCase();
+    return formats[clean] || { format: 'TWO_GROUPS', groups: ['A', 'B'], qualifyPerGroup: 2, knockoutType: 'SEMIFINALS' };
+  }
+
+  async saveTournamentFormat(leagueCode = 'JSL', formatConfig) {
+    const formats = this.getTournamentFormats();
+    const clean = (leagueCode || 'JSL').toUpperCase();
+    formats[clean] = { ...formats[clean], ...formatConfig, updated_at: Date.now() };
+    safeSetLocalStorage(STORAGE_KEYS.TOURNAMENT_FORMATS, formats);
+    await saveTournamentFormatToFirebase(clean, formats[clean]);
+    this.notify('tournament_format_updated');
+    this.notify('teams_updated');
+    this.notify('fixtures_updated');
+    return formats[clean];
+  }
+
+  setTeamGroup(teamId, groupCode) {
+    const teams = this.getTeams();
+    const team = teams.find(t => t.id === teamId);
+    if (team) {
+      team.group = (groupCode || '').toUpperCase().trim();
+      team.updated_at = Date.now();
+      safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
+      patchTeamInFirebase(team.id, team);
+      this.notify('teams_updated');
+      return true;
+    }
+    return false;
+  }
+
+  setBulkTeamGroups(assignments = []) {
+    const teams = this.getTeams();
+    let updatedAny = false;
+    assignments.forEach(a => {
+      const team = teams.find(t => t.id === a.teamId);
+      if (team) {
+        team.group = (a.group || '').toUpperCase().trim();
+        team.updated_at = Date.now();
+        patchTeamInFirebase(team.id, team);
+        updatedAny = true;
+      }
+    });
+    if (updatedAny) {
+      safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
+      this.notify('teams_updated');
+    }
+    return true;
+  }
+
+  randomizeTeamGroups(leagueCode = 'JSL', groupNames = ['A', 'B']) {
+    const cleanLeague = (leagueCode || 'JSL').toUpperCase();
+    const teams = this.getTeams().filter(t => {
+      const code = (t.leagueCode || (t.leagueId === 'leg-jsl' ? 'JSL' : (t.leagueId === 'leg-jpl' ? 'JPL' : (t.leagueId === 'leg-kpl' ? 'KPL' : 'JSL'))));
+      return code === cleanLeague;
+    });
+
+    if (teams.length === 0) return [];
+
+    // Fisher-Yates Shuffle
+    const shuffled = [...teams].sort(() => Math.random() - 0.5);
+    const assignments = [];
+    shuffled.forEach((team, idx) => {
+      const grp = groupNames[idx % groupNames.length];
+      assignments.push({ teamId: team.id, group: grp });
+    });
+    this.setBulkTeamGroups(assignments);
+    return assignments;
+  }
+
+  autoGenerateGroupFixtures(leagueCode = 'JSL', config = {}) {
+    const cleanLeague = (leagueCode || 'JSL').toUpperCase();
+    const teams = this.getTeams().filter(t => {
+      const code = (t.leagueCode || (t.leagueId === 'leg-jsl' ? 'JSL' : (t.leagueId === 'leg-jpl' ? 'JPL' : (t.leagueId === 'leg-kpl' ? 'KPL' : 'JSL'))));
+      return code === cleanLeague;
+    });
+
+    const format = this.getTournamentFormat(cleanLeague);
+    const groups = (format && format.groups && format.groups.length > 0) ? format.groups : ['A', 'B'];
+    const venue = config.venue || 'JHANKRA SCHOOL GROUND';
+    const oversLimit = Number(config.overs) || 16;
+    const baseDate = config.startDate || new Date().toISOString().split('T')[0];
+
+    const generated = [];
+    let dayOffset = 0;
+
+    groups.forEach(grp => {
+      const groupTeams = teams.filter(t => (t.group || 'A').toUpperCase() === grp);
+      for (let i = 0; i < groupTeams.length; i++) {
+        for (let j = i + 1; j < groupTeams.length; j++) {
+          const tA = groupTeams[i];
+          const tB = groupTeams[j];
+          
+          const mDate = new Date(baseDate);
+          mDate.setDate(mDate.getDate() + Math.floor(dayOffset / 2));
+          const dateStr = mDate.toISOString().split('T')[0];
+          const timeStr = (dayOffset % 2 === 0) ? '09:00' : '13:30';
+          dayOffset++;
+
+          const fixture = this.registerFixture({
+            leagueCode: cleanLeague,
+            teamAId: tA.id,
+            teamBId: tB.id,
+            teamAName: tA.name,
+            teamBName: tB.name,
+            stage: `GROUP_${grp}`,
+            groupCode: grp,
+            date: dateStr,
+            time: timeStr,
+            venue: venue,
+            oversLimit: oversLimit,
+            status: 'SCHEDULED'
+          });
+          generated.push(fixture);
+        }
+      }
+    });
+
+    return generated;
   }
 
   // --- AUCTION CONFIG ---
