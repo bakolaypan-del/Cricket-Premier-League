@@ -2607,7 +2607,15 @@ function renderScorerMatchesList() {
 
     activeScoringMatchId = matchId;
     const fixture = store.getFixtures().find(f => f.id === matchId);
-    if (!fixture) return;
+    if (!fixture) {
+      // Match no longer exists (e.g. just deleted) — clear the whole scorer view
+      activeScoringMatchId = null;
+      if (selectEl) selectEl.value = '';
+      if (setupStepBlock) setupStepBlock.classList.add('hidden');
+      if (matchCardEl) matchCardEl.classList.add('hidden');
+      if (activePanelEl) activePanelEl.classList.add('hidden');
+      return;
+    }
 
     // Show Match Preview Card in Step 1
     if (matchCardEl) {
@@ -2725,9 +2733,25 @@ function renderScorerMatchesList() {
     onMatchSelected(e.target.value);
   };
 
-  if (activeScoringMatchId) {
-    selectEl.value = activeScoringMatchId;
-    onMatchSelected(activeScoringMatchId);
+  // Auto-restore the scorer view: keep the last-scored match open, or if none is
+  // active, auto-attach to any LIVE match so returning to this tab reopens it with
+  // the latest state — no manual reselect/reopen needed. An in-progress match stays
+  // open until the admin closes the innings or finishes/deletes the match.
+  const fixturesNow = store.getFixtures();
+  let restoreId = (activeScoringMatchId && fixturesNow.some(f => f.id === activeScoringMatchId))
+    ? activeScoringMatchId
+    : null;
+  if (!restoreId) {
+    const liveMatch = fixturesNow.find(f => f.status === 'LIVE' &&
+      (store.isMasterAdmin() || accessibleCodes.includes((f.leagueCode || 'JSL').toUpperCase())));
+    if (liveMatch) restoreId = liveMatch.id;
+  }
+  if (restoreId) {
+    activeScoringMatchId = restoreId;
+    selectEl.value = restoreId;
+    onMatchSelected(restoreId);
+  } else {
+    onMatchSelected('');
   }
 
   // Bind Start Match Button (Step 2 -> Step 3)
@@ -3031,7 +3055,13 @@ function renderScorerActivePanel() {
     document.getElementById('scorer-delete-match-btn')?.addEventListener('click', () => {
       if (confirm(`🗑️ Delete Wrong Match Confirmation:\n\nAre you sure you want to permanently delete this match (${fixture.teamAName} vs ${fixture.teamBName})?`)) {
         store.deleteFixture(fixture.id);
+        // Fully clear the scorer view so no stale card / lineup / panel remains
+        if (activeScoringMatchId === fixture.id) activeScoringMatchId = null;
         document.getElementById('scorer-active-panel')?.classList.add('hidden');
+        document.getElementById('scorer-selected-match-card')?.classList.add('hidden');
+        document.getElementById('scorer-lineup-step-block')?.classList.add('hidden');
+        const selEl = document.getElementById('scorer-select-match');
+        if (selEl) selEl.value = '';
         renderScorerMatchesList();
         renderAdminFixturesList();
         alert("✅ Match deleted successfully!");
