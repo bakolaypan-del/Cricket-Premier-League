@@ -2984,6 +2984,7 @@ function renderScorerActivePanel() {
               Innings ${state.innings} Batting: <strong class="text-emerald-700 font-black">${battingTeamName}</strong>
             </span>
             ${state.tossDetails ? `<span class="text-[9px] bg-amber-50 text-amber-900 border border-amber-300 px-2.5 py-0.5 rounded-full font-bold">🪙 ${state.tossDetails}</span>` : ''}
+            ${state.freeHit ? `<span class="text-[9px] bg-rose-600 text-white px-2.5 py-0.5 rounded-full font-black animate-pulse">🎯 FREE HIT</span>` : ''}
           </div>
           <div class="text-3xl font-black text-slate-900 font-mono mt-1">
             <span class="text-emerald-700">${state.runs}</span><span class="text-slate-400 text-xl font-bold">/${state.wickets}</span>
@@ -3168,6 +3169,35 @@ function renderScorerActivePanel() {
   }
 }
 
+// Full-screen celebratory flash for key scoring events (four / six / wicket / wide / no-ball).
+function showScoringAnimation(kind) {
+  try {
+    const map = {
+      four:   { text: 'FOUR!',   emoji: '4️⃣', bg: 'linear-gradient(135deg,#2563eb,#1d4ed8)', color: '#ffffff' },
+      six:    { text: 'SIX!',    emoji: '6️⃣', bg: 'linear-gradient(135deg,#f59e0b,#d97706)', color: '#1e293b' },
+      wicket: { text: 'OUT!',    emoji: '🎯', bg: 'linear-gradient(135deg,#e11d48,#9f1239)', color: '#ffffff' },
+      wide:   { text: 'WIDE',    emoji: '↔️', bg: 'linear-gradient(135deg,#f59e0b,#b45309)', color: '#ffffff' },
+      noball: { text: 'NO BALL', emoji: '🚫', bg: 'linear-gradient(135deg,#f43f5e,#9f1239)', color: '#ffffff' }
+    };
+    const cfg = map[kind];
+    if (!cfg || typeof document === 'undefined') return;
+    if (!document.getElementById('scoring-anim-style')) {
+      const st = document.createElement('style');
+      st.id = 'scoring-anim-style';
+      st.textContent = '@keyframes scorepop{0%{transform:scale(.3) rotate(-8deg);opacity:0}25%{transform:scale(1.15) rotate(3deg);opacity:1}70%{transform:scale(1) rotate(0);opacity:1}100%{transform:scale(1.45);opacity:0}}';
+      document.head.appendChild(st);
+    }
+    document.getElementById('scoring-anim-overlay')?.remove();
+    const el = document.createElement('div');
+    el.id = 'scoring-anim-overlay';
+    el.style.cssText = 'position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;pointer-events:none;';
+    el.innerHTML = `<div style="font-weight:900;font-size:clamp(2.6rem,13vw,8.5rem);padding:.35em .65em;border-radius:1.4rem;background:${cfg.bg};color:${cfg.color};box-shadow:0 22px 60px rgba(0,0,0,.4);animation:scorepop 1.4s cubic-bezier(.2,.8,.2,1) forwards;display:flex;align-items:center;gap:.2em;white-space:nowrap;">${cfg.emoji} ${cfg.text}</div>`;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 1450);
+  } catch (e) { /* animation is non-critical */ }
+}
+window.showScoringAnimation = showScoringAnimation;
+
 // Auto-close innings 1 (set target, start innings 2) or finish the match after innings 2.
 function endInningsOrFinishMatch(fixture) {
   const s = fixture.liveMatchState;
@@ -3186,6 +3216,7 @@ function endInningsOrFinishMatch(fixture) {
     s.overs = 0;
     s.balls = 0;
     s.extras = 0;
+    s.freeHit = false;
     s.overBalls = [];
     if (!Array.isArray(s.ballHistory)) s.ballHistory = [];
     fixture.liveMatchState = s;
@@ -3380,6 +3411,11 @@ function processScorerBall(runsScored) {
   else if (isNoBall) state.extras += 1;            // only the no-ball penalty is an extra
   else if (isBye || isLegBye) state.extras += runsScored;
 
+  // FREE HIT: a no-ball grants a free hit on the next delivery (only run out possible).
+  // A wide does not consume it; the next legal ball clears it.
+  if (isNoBall) state.freeHit = true;
+  else if (!isWide) state.freeHit = false;
+
   const isValidBall = !isWide && !isNoBall;
   let overJustCompleted = false;
   if (isValidBall) {
@@ -3466,6 +3502,14 @@ function processScorerBall(runsScored) {
   if (window.renderActiveMatchCenter) window.renderActiveMatchCenter();
   if (window.refreshFixturesViewContent) window.refreshFixturesViewContent();
 
+  // Celebratory flash for the key events (six shown even off a no-ball)
+  let animKind = null;
+  if (runsScored === 6) animKind = 'six';
+  else if (runsScored === 4) animKind = 'four';
+  else if (isWide) animKind = 'wide';
+  else if (isNoBall) animKind = 'noball';
+  if (animKind) showScoringAnimation(animKind);
+
   // Auto-close the innings the moment the overs limit is reached
   const oversLimit = Number(fixture.oversLimit) || 16;
   if (state.overs >= oversLimit) {
@@ -3518,12 +3562,18 @@ function openScorerWicketModal() {
     BYE: ['RUN_OUT', 'HIT_WICKET'],
     LEG_BYE: ['RUN_OUT', 'HIT_WICKET']
   };
-  const allowedTypes = allowedByDelivery[wDelivery] || allowedByDelivery.LEGAL;
+  const wFreeHit = !!state.freeHit;
+  // On a free hit the batsman can only be run out, whatever the delivery is
+  const allowedTypes = wFreeHit ? ['RUN_OUT'] : (allowedByDelivery[wDelivery] || allowedByDelivery.LEGAL);
   const dismissalOptions = ALL_DISMISSALS.filter(d => allowedTypes.includes(d.v));
-  const deliveryBanner = wDelivery === 'LEGAL' ? '' : `
+  const freeHitBanner = wFreeHit ? `
+    <div class="text-[11px] font-black px-3 py-2 rounded-xl border bg-rose-50 text-rose-900 border-rose-300">
+      🎯 FREE HIT — the batsman can only be <strong>Run Out</strong> on this delivery.
+    </div>` : '';
+  const deliveryBanner = freeHitBanner + (wDelivery === 'LEGAL' ? '' : `
     <div class="text-[11px] font-black px-3 py-2 rounded-xl border ${(wDelivery === 'NO_BALL' || wDelivery === 'WIDE') ? 'bg-amber-50 text-amber-900 border-amber-300' : 'bg-slate-50 text-slate-700 border-slate-200'}">
       ⚠️ Wicket on a <strong>${wDelivery.replace('_', '-').toLowerCase()}</strong> — allowed: ${allowedTypes.map(t => t.replace('_', ' ')).join(' / ')}.${(wDelivery === 'WIDE' || wDelivery === 'NO_BALL') ? ' +1 penalty run counts and the ball is re-bowled (over does not advance).' : ''}
-    </div>`;
+    </div>`);
 
   document.getElementById('scorer-wicket-modal')?.remove();
 
@@ -3722,6 +3772,7 @@ function openScorerWicketModal() {
     store.updateFixture(fixture);
     removeModal();
     renderScorerActivePanel();
+    showScoringAnimation('wicket');
 
     // All out, or overs limit reached on this ball -> auto-close the innings/match.
     const oversLimit = Number(fixture.oversLimit) || 16;
