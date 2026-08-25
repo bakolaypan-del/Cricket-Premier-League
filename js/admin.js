@@ -3185,6 +3185,7 @@ function endInningsOrFinishMatch(fixture) {
     s.wickets = 0;
     s.overs = 0;
     s.balls = 0;
+    s.extras = 0;
     s.overBalls = [];
     if (!Array.isArray(s.ballHistory)) s.ballHistory = [];
     fixture.liveMatchState = s;
@@ -3332,19 +3333,19 @@ function processScorerBall(runsScored) {
   if (isWide) {
     ballType = 'wide';
     totalBallRuns += 1;
-    // Wide + runs run shows the total (e.g. 2 run wide -> "2wd")
-    ballLabel = runsScored > 0 ? `${runsScored}wd` : 'wd';
+    // Wide + runs run between the wickets shows as "WD+1", "WD+2"; plain wide is "WD"
+    ballLabel = runsScored > 0 ? `WD+${runsScored}` : 'WD';
   } else if (isNoBall) {
     ballType = 'noball';
     totalBallRuns += 1;
-    // No-ball + runs off the bat shows both (e.g. six off a no-ball -> "6nb")
-    ballLabel = runsScored > 0 ? `${runsScored}nb` : 'nb';
+    // No-ball + runs off the bat shows as "NB+1", "NB+6"; plain no-ball is "NB"
+    ballLabel = runsScored > 0 ? `NB+${runsScored}` : 'NB';
   } else if (isBye) {
     ballType = 'bye';
-    ballLabel = `${runsScored}b`;
+    ballLabel = `B+${runsScored}`;
   } else if (isLegBye) {
     ballType = 'legbye';
-    ballLabel = `${runsScored}lb`;
+    ballLabel = `LB+${runsScored}`;
   } else if (runsScored === 4) {
     ballLabel = '4';
     ballType = 'four';
@@ -3373,6 +3374,12 @@ function processScorerBall(runsScored) {
 
   state.runs += totalBallRuns;
 
+  // Track team EXTRAS (wides + no-ball penalty + byes + leg-byes). Runs off the bat are NOT extras.
+  if (typeof state.extras !== 'number') state.extras = 0;
+  if (isWide) state.extras += totalBallRuns;       // whole wide (penalty + any runs run) is an extra
+  else if (isNoBall) state.extras += 1;            // only the no-ball penalty is an extra
+  else if (isBye || isLegBye) state.extras += runsScored;
+
   const isValidBall = !isWide && !isNoBall;
   let overJustCompleted = false;
   if (isValidBall) {
@@ -3392,6 +3399,14 @@ function processScorerBall(runsScored) {
         state.strikerId = state.nonStrikerId;
         state.nonStrikerId = temp;
       }
+    }
+  } else {
+    // Wide / no-ball: the ball is re-bowled, but odd runs physically run between the
+    // wickets still cross the batsmen, so strike rotates (e.g. WD+1 -> strike changes).
+    if (runsScored === 1 || runsScored === 3) {
+      const temp = state.strikerId;
+      state.strikerId = state.nonStrikerId;
+      state.nonStrikerId = temp;
     }
   }
 
@@ -3438,7 +3453,7 @@ function processScorerBall(runsScored) {
 
   fixture.liveMatchState = state;
   
-  const currentBattingScore = { runs: state.runs, wickets: state.wickets, overs: state.overs, balls: state.balls };
+  const currentBattingScore = { runs: state.runs, wickets: state.wickets, overs: state.overs, balls: state.balls, extras: state.extras || 0 };
   if (state.innings === 2) {
     fixture.teamBScore = currentBattingScore;
   } else {
@@ -3597,6 +3612,12 @@ function openScorerWicketModal() {
     const teamRunsToAdd = wPenalty + runsCompleted;
     state.runs += teamRunsToAdd;
 
+    // Track team EXTRAS for a wicket that fell on an extra delivery
+    if (typeof state.extras !== 'number') state.extras = 0;
+    if (wIsWide) state.extras += teamRunsToAdd;        // whole wide counts as extras
+    else if (wIsNoBall) state.extras += 1;             // no-ball penalty only
+    else if (wIsBye || wIsLegBye) state.extras += runsCompleted;
+
     // Credit completed runs to the striker only on a legal, off-the-bat delivery
     const wStrikerId = state.strikerId;
     if (wStrikerId && !state.playerStats[wStrikerId]) {
@@ -3687,9 +3708,9 @@ function openScorerWicketModal() {
 
     fixture.liveMatchState = state;
     if (state.innings === 2) {
-      fixture.teamBScore = { runs: state.runs, wickets: state.wickets, overs: state.overs, balls: state.balls };
+      fixture.teamBScore = { runs: state.runs, wickets: state.wickets, overs: state.overs, balls: state.balls, extras: state.extras || 0 };
     } else {
-      fixture.teamAScore = { runs: state.runs, wickets: state.wickets, overs: state.overs, balls: state.balls };
+      fixture.teamAScore = { runs: state.runs, wickets: state.wickets, overs: state.overs, balls: state.balls, extras: state.extras || 0 };
     }
 
     // Clear the extra checkboxes so the next delivery starts clean
