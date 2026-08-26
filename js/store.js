@@ -2196,7 +2196,7 @@ class Store {
     return acc;
   }
 
-  authenticateUser(identifier, password) {
+  async authenticateUser(identifier, password) {
     const rawId = (identifier || '').trim();
     if (!rawId) {
       return { success: false, message: 'Please enter your Mobile Number or Admin Email!' };
