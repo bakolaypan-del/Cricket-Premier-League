@@ -4026,6 +4026,42 @@ function renderFixturesView(container) {
     return standings;
   };
 
+  // Mobile-first standings row: a single card with the team on top and every stat
+  // (P / W / L / NRR / Pts) inline-labelled so nothing is clipped on a narrow screen.
+  // Colourful accents on a white body. `accent` is a Tailwind colour family.
+  const standingRow = (t, idx, qualifyCount, accent) => {
+    const teamObj = store.getTeamById(t.id);
+    const logo = teamObj?.logoUrl || teamObj?.teamLogoUrl || 'assets/card_jsl_user.png';
+    const qualified = idx < qualifyCount;
+    const nrrNum = parseFloat(t.nrr);
+    const nrrStr = (nrrNum > 0 ? '+' : '') + t.nrr;
+    const nrrCls = nrrNum >= 0 ? 'text-emerald-600' : 'text-rose-500';
+    const rankCls = idx === 0
+      ? 'bg-gradient-to-br from-amber-400 to-amber-500 text-slate-950 shadow-sm'
+      : (qualified ? `bg-${accent}-600 text-white shadow-2xs` : 'bg-slate-100 text-slate-500 border border-slate-200');
+    return `
+      <div class="flex items-center gap-2.5 p-2.5 rounded-xl border ${qualified ? `border-${accent}-200 bg-${accent}-50/60` : 'border-slate-100 bg-white'} shadow-2xs">
+        <span class="shrink-0 inline-flex w-7 h-7 rounded-lg items-center justify-center text-[11px] font-black ${rankCls}">${idx + 1}</span>
+        <img src="${logo}" class="w-9 h-9 rounded-lg object-cover border border-slate-200 bg-slate-50 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+        <div class="flex-1 min-w-0">
+          <div class="flex items-center gap-1.5 min-w-0">
+            <span class="text-[13px] font-black text-slate-900 truncate tracking-tight">${t.name}</span>
+            ${qualified ? `<span class="shrink-0 px-1.5 py-0.5 text-[8px] leading-none bg-${accent}-600 text-white rounded font-black uppercase" title="Qualifies">Q</span>` : ''}
+          </div>
+          <div class="flex items-center gap-2.5 mt-1 text-[10px] font-bold text-slate-400">
+            <span>P <b class="text-slate-700">${t.played}</b></span>
+            <span>W <b class="text-emerald-600">${t.won}</b></span>
+            <span>L <b class="text-rose-500">${t.lost}</b></span>
+            <span class="whitespace-nowrap">NRR <b class="${nrrCls}">${nrrStr}</b></span>
+          </div>
+        </div>
+        <div class="shrink-0 text-center px-2.5 py-1.5 rounded-xl bg-gradient-to-br from-${accent}-500 to-${accent}-600 text-white shadow-2xs min-w-[44px]">
+          <div class="text-base font-black leading-none">${t.points}</div>
+          <div class="text-[7px] font-black uppercase tracking-widest opacity-90 mt-0.5">Pts</div>
+        </div>
+      </div>`;
+  };
+
   // Full "every player" leaderboard for a clicked award card. Reads the cache the
   // Awards tab stashed on window.__cplAwardsCache when it last rendered.
   const openTournamentAwardModal = (key) => {
@@ -4602,9 +4638,10 @@ function renderFixturesView(container) {
           <div class="text-[10px] font-semibold text-slate-400 mt-1">No data recorded yet</div>
         `;
         return `
-          <button type="button" data-award-key="${sp.key}" class="award-card text-left rounded-2xl p-3.5 bg-white border border-slate-200 shadow-2xs hover:shadow-md hover:border-${sp.accent}-300 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col min-h-[170px] group">
+          <button type="button" data-award-key="${sp.key}" class="award-card text-left rounded-2xl p-3.5 bg-white border border-slate-200 shadow-2xs hover:shadow-lg hover:border-${sp.accent}-300 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col min-h-[170px] group overflow-hidden">
+            <div class="h-1.5 -mx-3.5 -mt-3.5 mb-2.5 bg-gradient-to-r from-${sp.accent}-400 to-${sp.accent}-600"></div>
             <div class="flex items-center justify-between">
-              <span class="w-9 h-9 rounded-xl bg-${sp.accent}-50 border border-${sp.accent}-100 flex items-center justify-center text-lg leading-none">${sp.icon}</span>
+              <span class="w-9 h-9 rounded-xl bg-gradient-to-br from-${sp.accent}-400 to-${sp.accent}-600 flex items-center justify-center text-lg leading-none shadow-sm">${sp.icon}</span>
               <span class="text-[8px] font-black uppercase tracking-wider bg-${sp.accent}-50 text-${sp.accent}-700 border border-${sp.accent}-100 px-2 py-0.5 rounded-lg">${sp.metric}</span>
             </div>
             <div class="text-[11px] font-black uppercase tracking-wide mt-2 text-slate-700">${sp.title}</div>
@@ -4618,9 +4655,10 @@ function renderFixturesView(container) {
       // Best Team card (wins + NRR) from the standings engine — white design, opens full table.
       const teamsPlayed = standings.filter(t => t.played > 0).length;
       const bestTeamHtml = `
-        <button type="button" data-award-key="team" class="award-card text-left rounded-2xl p-3.5 bg-white border border-slate-200 shadow-2xs hover:shadow-md hover:border-amber-300 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col min-h-[170px] group">
+        <button type="button" data-award-key="team" class="award-card text-left rounded-2xl p-3.5 bg-white border border-slate-200 shadow-2xs hover:shadow-lg hover:border-amber-300 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col min-h-[170px] group overflow-hidden">
+          <div class="h-1.5 -mx-3.5 -mt-3.5 mb-2.5 bg-gradient-to-r from-amber-400 to-amber-600"></div>
           <div class="flex items-center justify-between">
-            <span class="w-9 h-9 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-lg leading-none">🏆</span>
+            <span class="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-lg leading-none shadow-sm">🏆</span>
             <span class="text-[8px] font-black uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-100 px-2 py-0.5 rounded-lg">Wins + NRR</span>
           </div>
           <div class="text-[11px] font-black uppercase tracking-wide mt-2 text-slate-700">Best Team</div>
@@ -4704,6 +4742,7 @@ function renderFixturesView(container) {
               const styling = groupColors[g] || groupColors.A;
               const gStandings = groupStandingsMap[g] || [];
 
+              const gAccent = { A:'emerald', B:'sky', C:'amber', D:'purple' }[g] || 'emerald';
               return `
                 <div class="space-y-2">
                   <!-- Group Header Bar -->
@@ -4716,57 +4755,15 @@ function renderFixturesView(container) {
                     </span>
                   </div>
 
-                  <!-- Professional Colorful Points Table on White Background -->
-                  <div class="bg-white border-2 border-slate-200 rounded-2xl overflow-hidden shadow-xs">
-                    <table class="w-full text-left text-xs text-slate-800">
-                      <thead class="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 font-black text-[10px] uppercase text-white border-b border-slate-800">
-                        <tr>
-                          <th class="py-3 px-2.5 text-center w-8 sm:w-12">#</th>
-                          <th class="py-3 px-3 text-left">Franchise Team</th>
-                          <th class="py-3 px-2 text-center w-8 sm:w-12 text-slate-200" title="Played">P</th>
-                          <th class="py-3 px-2 text-center w-8 sm:w-12 text-emerald-400 font-black" title="Won">W</th>
-                          <th class="py-3 px-2 text-center w-8 sm:w-12 text-rose-400 font-bold" title="Lost">L</th>
-                          <th class="py-3 px-2.5 text-center w-12 sm:w-16 text-amber-400 font-black" title="Points">PTS</th>
-                          <th class="py-3 px-3 text-right w-16 sm:w-24 font-mono text-sky-300" title="Net Run Rate">NRR</th>
-                        </tr>
-                      </thead>
-                      <tbody class="divide-y divide-slate-100 font-semibold">
-                        ${gStandings.map((t, idx) => {
-                          const isQualSpot = idx < 2;
-                          const teamObj = store.getTeamById(t.id);
-                          const teamLogo = teamObj?.logoUrl || teamObj?.teamLogoUrl || 'assets/card_jsl_user.png';
-                          const rowBg = isQualSpot ? 'bg-emerald-50/50 hover:bg-emerald-100/60 border-l-4 border-emerald-500' : 'bg-white hover:bg-slate-50 border-l-4 border-transparent';
-                          
-                          return `
-                            <tr class="${rowBg} transition-colors">
-                              <td class="py-3 px-2.5 text-center font-black">
-                                <span class="inline-flex w-6 h-6 rounded-lg ${idx === 0 ? 'bg-amber-400 text-slate-950 shadow-xs' : (idx === 1 ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 border border-slate-200')} items-center justify-center text-[10px] font-black">
-                                  ${idx + 1}
-                                </span>
-                              </td>
-                              <td class="py-3 px-3 font-black text-slate-900">
-                                <div class="flex items-center gap-2.5 min-w-0">
-                                  <img src="${teamLogo}" class="w-7 h-7 rounded-lg object-cover border border-slate-200 bg-slate-50 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
-                                  <span class="text-xs font-black truncate tracking-tight">${t.name}</span>
-                                  ${isQualSpot ? `<span class="px-1.5 py-0.2 text-[9px] bg-emerald-600 text-white rounded-md font-black tracking-tight" title="Qualified for Semifinals">Q</span>` : ''}
-                                </div>
-                              </td>
-                              <td class="py-3 px-2 text-center font-mono text-xs text-slate-700 font-bold">${t.played}</td>
-                              <td class="py-3 px-2 text-center font-mono text-xs text-emerald-700 font-black">${t.won}</td>
-                              <td class="py-3 px-2 text-center font-mono text-xs text-rose-600 font-bold">${t.lost}</td>
-                              <td class="py-3 px-2.5 text-center font-mono">
-                                <span class="inline-block px-2.5 py-0.5 bg-blue-600 text-white rounded-md font-black text-xs shadow-2xs">
-                                  ${t.points}
-                                </span>
-                              </td>
-                              <td class="py-3 px-3 text-right font-mono text-xs font-black ${parseFloat(t.nrr) >= 0 ? 'text-emerald-700' : 'text-rose-600'}">
-                                ${parseFloat(t.nrr) > 0 ? '+' : ''}${t.nrr}
-                              </td>
-                            </tr>
-                          `;
-                        }).join('')}
-                      </tbody>
-                    </table>
+                  <!-- Mobile-first responsive standings (no clipped columns) -->
+                  <div class="bg-white border border-slate-200 rounded-2xl p-2 space-y-1.5 shadow-xs">
+                    <div class="flex items-center gap-2 px-2 pt-1 pb-1.5 text-[9px] font-black uppercase tracking-wider text-slate-400">
+                      <span class="w-7 text-center">#</span>
+                      <span class="flex-1">Franchise Team · P W L NRR</span>
+                      <span>Pts</span>
+                    </div>
+                    ${gStandings.length ? gStandings.map((t, idx) => standingRow(t, idx, 2, gAccent)).join('')
+                      : `<div class="p-4 text-center text-[11px] font-bold text-slate-400">No teams in this group yet.</div>`}
                   </div>
                 </div>
               `;
@@ -4872,57 +4869,15 @@ function renderFixturesView(container) {
               </span>
             </div>
 
-            <!-- Points Table -->
-            <div class="bg-white border-2 border-slate-200 rounded-2xl overflow-hidden shadow-xs">
-              <table class="w-full text-left text-xs text-slate-800">
-                <thead class="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 font-black text-[10px] uppercase text-white border-b border-slate-800">
-                  <tr>
-                    <th class="py-3 px-2.5 text-center w-8 sm:w-12">#</th>
-                    <th class="py-3 px-3 text-left">Franchise Team</th>
-                    <th class="py-3 px-2 text-center w-8 sm:w-12 text-slate-200" title="Played">P</th>
-                    <th class="py-3 px-2 text-center w-8 sm:w-12 text-emerald-400 font-black" title="Won">W</th>
-                    <th class="py-3 px-2 text-center w-8 sm:w-12 text-rose-400 font-bold" title="Lost">L</th>
-                    <th class="py-3 px-2.5 text-center w-12 sm:w-16 text-amber-400 font-black" title="Points">PTS</th>
-                    <th class="py-3 px-3 text-right w-16 sm:w-24 font-mono text-sky-300" title="Net Run Rate">NRR</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100 font-semibold">
-                  ${unifiedStandings.map((t, idx) => {
-                    const isSemiSpot = idx < 4;
-                    const teamObj = store.getTeamById(t.id);
-                    const teamLogo = teamObj?.logoUrl || teamObj?.teamLogoUrl || 'assets/card_jsl_user.png';
-                    const rowBg = isSemiSpot ? 'bg-emerald-50/50 hover:bg-emerald-100/60 border-l-4 border-emerald-500' : 'bg-white hover:bg-slate-50 border-l-4 border-transparent';
-                    
-                    return `
-                      <tr class="${rowBg} transition-colors">
-                        <td class="py-3 px-2.5 text-center font-black">
-                          <span class="inline-flex w-6 h-6 rounded-lg ${idx < 2 ? 'bg-amber-400 text-slate-950 shadow-xs' : (isSemiSpot ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 border border-slate-200')} items-center justify-center text-[10px] font-black">
-                            ${idx + 1}
-                          </span>
-                        </td>
-                        <td class="py-3 px-3 font-black text-slate-900">
-                          <div class="flex items-center gap-2.5 min-w-0">
-                            <img src="${teamLogo}" class="w-7 h-7 rounded-lg object-cover border border-slate-200 bg-slate-50 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
-                            <span class="text-xs font-black truncate tracking-tight">${t.name}</span>
-                            ${isSemiSpot ? `<span class="px-1.5 py-0.2 text-[9px] bg-emerald-600 text-white rounded-md font-black tracking-tight" title="Qualified">Q</span>` : ''}
-                          </div>
-                        </td>
-                        <td class="py-3 px-2 text-center font-mono text-xs text-slate-700 font-bold">${t.played}</td>
-                        <td class="py-3 px-2 text-center font-mono text-xs text-emerald-700 font-black">${t.won}</td>
-                        <td class="py-3 px-2 text-center font-mono text-xs text-rose-600 font-bold">${t.lost}</td>
-                        <td class="py-3 px-2.5 text-center font-mono">
-                          <span class="inline-block px-2.5 py-0.5 bg-blue-600 text-white rounded-md font-black text-xs shadow-2xs">
-                            ${t.points}
-                          </span>
-                        </td>
-                        <td class="py-3 px-3 text-right font-mono text-xs font-black ${parseFloat(t.nrr) >= 0 ? 'text-emerald-700' : 'text-rose-600'}">
-                          ${parseFloat(t.nrr) > 0 ? '+' : ''}${t.nrr}
-                        </td>
-                      </tr>
-                    `;
-                  }).join('')}
-                </tbody>
-              </table>
+            <!-- Mobile-first responsive standings (no clipped columns) -->
+            <div class="bg-white border border-slate-200 rounded-2xl p-2 space-y-1.5 shadow-xs">
+              <div class="flex items-center gap-2 px-2 pt-1 pb-1.5 text-[9px] font-black uppercase tracking-wider text-slate-400">
+                <span class="w-7 text-center">#</span>
+                <span class="flex-1">Franchise Team · P W L NRR</span>
+                <span>Pts</span>
+              </div>
+              ${unifiedStandings.length ? unifiedStandings.map((t, idx) => standingRow(t, idx, 4, 'emerald')).join('')
+                : `<div class="p-4 text-center text-[11px] font-bold text-slate-400">No teams added yet.</div>`}
             </div>
 
             <!-- Footer Legend -->
