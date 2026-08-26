@@ -4750,76 +4750,98 @@ function renderFixturesView(container) {
               `;
             }).join('')}
 
-            <!-- DYNAMIC PLAYOFF / KNOCKOUT BRACKET VISUALIZER -->
-            <div class="p-4 sm:p-5 bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-950 text-white rounded-3xl border-2 border-amber-400/80 shadow-xl space-y-4">
-              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-700/80 pb-3">
-                <div class="flex items-center gap-2.5">
-                  <span class="p-2 bg-amber-400 text-slate-950 rounded-2xl font-black text-base shadow">🏆</span>
-                  <div>
-                    <h3 class="text-sm sm:text-base font-black text-white uppercase tracking-wide">${selectedCategory} Knockout Stage / Playoff Bracket</h3>
-                    <p class="text-[10px] sm:text-xs text-slate-400">Cross-Over Playoff: 1st Group A vs 2nd Group B & 1st Group B vs 2nd Group A</p>
+            <!-- DYNAMIC PLAYOFF / KNOCKOUT BRACKET VISUALIZER (COMPACT CRISP WHITE THEME) -->
+            <div class="playoff-bracket-container p-3 sm:p-3.5 bg-white text-slate-900 rounded-2xl border-2 border-amber-400 shadow-2xs space-y-2.5">
+              <div class="flex items-center justify-between gap-2 border-b border-slate-200 pb-2">
+                <div class="flex items-center gap-2 min-w-0">
+                  <span class="w-7 h-7 rounded-xl bg-amber-400 text-slate-950 flex items-center justify-center font-black text-sm shadow-2xs shrink-0">🏆</span>
+                  <div class="min-w-0">
+                    <h3 class="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-wide truncate">
+                      ${selectedCategory} Playoff &amp; Knockout Bracket
+                    </h3>
+                    <p class="text-[9.5px] sm:text-[10.5px] text-slate-500 font-medium truncate">Cross-Over: 1st Grp A vs 2nd Grp B • 1st Grp B vs 2nd Grp A</p>
                   </div>
                 </div>
-                <span class="self-start sm:self-auto px-2.5 py-1 bg-amber-400/20 text-amber-300 border border-amber-400/40 rounded-full font-mono text-[9px] font-black uppercase">
+                <span class="px-2.5 py-0.5 bg-amber-50 text-amber-900 border border-amber-300 rounded-full font-mono text-[9px] font-black uppercase shadow-2xs shrink-0">
                   ⭐ Finals Road
                 </span>
               </div>
 
-              <!-- Bracket Visual Tree Grid -->
-              <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <!-- Bracket Visual Tree Grid (Compact) -->
+              <div class="grid grid-cols-1 md:grid-cols-3 gap-2 sm:gap-2.5">
                 <!-- SF 1 Card -->
-                <div class="bg-slate-800/90 border border-slate-700/90 rounded-2xl p-3 space-y-2.5 shadow-md">
-                  <div class="flex justify-between items-center text-[10px] font-black text-amber-400 uppercase pb-1.5 border-b border-slate-700">
-                    <span class="flex items-center gap-1">🏆 Semi-Final 1</span>
-                    <span class="text-slate-400 font-mono">Knockout</span>
+                <div class="playoff-card-box bg-slate-50 border border-slate-200 hover:border-emerald-400 rounded-xl p-2 sm:p-2.5 space-y-1.5 shadow-2xs transition-all flex flex-col justify-between">
+                  <div class="flex justify-between items-center text-[9px] font-black uppercase pb-1 border-b border-slate-200">
+                    <span class="flex items-center gap-1 text-emerald-800 font-black">🏆 Semi-Final 1</span>
+                    <span class="text-slate-500 font-mono bg-white px-1.5 py-0.2 rounded border border-slate-200 text-[8px]">Knockout</span>
                   </div>
-                  <div class="space-y-1.5 text-xs font-bold">
-                    <div class="flex justify-between items-center p-2 rounded-xl bg-emerald-950/80 border border-emerald-700 text-emerald-300">
-                      <span class="truncate font-black">${grpAStandings[0] ? grpAStandings[0].name : '1st Place (Group A)'}</span>
-                      <span class="text-[9px] font-black px-1.5 py-0.5 bg-emerald-600 text-white rounded font-mono">1st A</span>
+                  <div class="space-y-1 text-xs font-bold">
+                    <div class="playoff-team-slot flex justify-between items-center px-2 py-1.5 rounded-lg bg-white border border-emerald-300 text-slate-900 shadow-2xs hover:shadow-xs transition-shadow">
+                      <div class="flex items-center gap-2 min-w-0">
+                        <img src="${(grpAStandings[0] && store.getTeamById(grpAStandings[0].id)?.logoUrl) || (grpAStandings[0] && store.getTeamById(grpAStandings[0].id)?.teamLogoUrl) || 'assets/card_jsl_user.png'}" class="w-5 h-5 rounded-md object-cover border border-emerald-200 bg-emerald-50 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                        <span class="truncate font-black text-[11px] sm:text-xs text-slate-900">${grpAStandings[0] ? grpAStandings[0].name : '1st Place (Group A)'}</span>
+                      </div>
+                      <span class="text-[8.5px] font-black px-1.5 py-0.2 bg-emerald-600 text-white rounded font-mono shadow-2xs shrink-0">1st A</span>
                     </div>
-                    <div class="text-center text-[9px] font-black text-amber-400">VS</div>
-                    <div class="flex justify-between items-center p-2 rounded-xl bg-sky-950/80 border border-sky-700 text-sky-300">
-                      <span class="truncate font-black">${grpBStandings[1] ? grpBStandings[1].name : '2nd Place (Group B)'}</span>
-                      <span class="text-[9px] font-black px-1.5 py-0.5 bg-sky-600 text-white rounded font-mono">2nd B</span>
+                    <div class="text-center text-[8.5px] font-black text-slate-400 font-mono tracking-widest leading-none py-0.5">VS</div>
+                    <div class="playoff-team-slot flex justify-between items-center px-2 py-1.5 rounded-lg bg-white border border-sky-300 text-slate-900 shadow-2xs hover:shadow-xs transition-shadow">
+                      <div class="flex items-center gap-2 min-w-0">
+                        <img src="${(grpBStandings[1] && store.getTeamById(grpBStandings[1].id)?.logoUrl) || (grpBStandings[1] && store.getTeamById(grpBStandings[1].id)?.teamLogoUrl) || 'assets/card_jsl_user.png'}" class="w-5 h-5 rounded-md object-cover border border-sky-200 bg-sky-50 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                        <span class="truncate font-black text-[11px] sm:text-xs text-slate-900">${grpBStandings[1] ? grpBStandings[1].name : '2nd Place (Group B)'}</span>
+                      </div>
+                      <span class="text-[8.5px] font-black px-1.5 py-0.2 bg-sky-600 text-white rounded font-mono shadow-2xs shrink-0">2nd B</span>
                     </div>
                   </div>
                 </div>
 
                 <!-- SF 2 Card -->
-                <div class="bg-slate-800/90 border border-slate-700/90 rounded-2xl p-3 space-y-2.5 shadow-md">
-                  <div class="flex justify-between items-center text-[10px] font-black text-amber-400 uppercase pb-1.5 border-b border-slate-700">
-                    <span class="flex items-center gap-1">🏆 Semi-Final 2</span>
-                    <span class="text-slate-400 font-mono">Knockout</span>
+                <div class="playoff-card-box bg-slate-50 border border-slate-200 hover:border-sky-400 rounded-xl p-2 sm:p-2.5 space-y-1.5 shadow-2xs transition-all flex flex-col justify-between">
+                  <div class="flex justify-between items-center text-[9px] font-black uppercase pb-1 border-b border-slate-200">
+                    <span class="flex items-center gap-1 text-sky-800 font-black">🏆 Semi-Final 2</span>
+                    <span class="text-slate-500 font-mono bg-white px-1.5 py-0.2 rounded border border-slate-200 text-[8px]">Knockout</span>
                   </div>
-                  <div class="space-y-1.5 text-xs font-bold">
-                    <div class="flex justify-between items-center p-2 rounded-xl bg-sky-950/80 border border-sky-700 text-sky-300">
-                      <span class="truncate font-black">${grpBStandings[0] ? grpBStandings[0].name : '1st Place (Group B)'}</span>
-                      <span class="text-[9px] font-black px-1.5 py-0.5 bg-sky-600 text-white rounded font-mono">1st B</span>
+                  <div class="space-y-1 text-xs font-bold">
+                    <div class="playoff-team-slot flex justify-between items-center px-2 py-1.5 rounded-lg bg-white border border-sky-300 text-slate-900 shadow-2xs hover:shadow-xs transition-shadow">
+                      <div class="flex items-center gap-2 min-w-0">
+                        <img src="${(grpBStandings[0] && store.getTeamById(grpBStandings[0].id)?.logoUrl) || (grpBStandings[0] && store.getTeamById(grpBStandings[0].id)?.teamLogoUrl) || 'assets/card_jsl_user.png'}" class="w-5 h-5 rounded-md object-cover border border-sky-200 bg-sky-50 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                        <span class="truncate font-black text-[11px] sm:text-xs text-slate-900">${grpBStandings[0] ? grpBStandings[0].name : '1st Place (Group B)'}</span>
+                      </div>
+                      <span class="text-[8.5px] font-black px-1.5 py-0.2 bg-sky-600 text-white rounded font-mono shadow-2xs shrink-0">1st B</span>
                     </div>
-                    <div class="text-center text-[9px] font-black text-amber-400">VS</div>
-                    <div class="flex justify-between items-center p-2 rounded-xl bg-emerald-950/80 border border-emerald-700 text-emerald-300">
-                      <span class="truncate font-black">${grpAStandings[1] ? grpAStandings[1].name : '2nd Place (Group A)'}</span>
-                      <span class="text-[9px] font-black px-1.5 py-0.5 bg-emerald-600 text-white rounded font-mono">2nd A</span>
+                    <div class="text-center text-[8.5px] font-black text-slate-400 font-mono tracking-widest leading-none py-0.5">VS</div>
+                    <div class="playoff-team-slot flex justify-between items-center px-2 py-1.5 rounded-lg bg-white border border-emerald-300 text-slate-900 shadow-2xs hover:shadow-xs transition-shadow">
+                      <div class="flex items-center gap-2 min-w-0">
+                        <img src="${(grpAStandings[1] && store.getTeamById(grpAStandings[1].id)?.logoUrl) || (grpAStandings[1] && store.getTeamById(grpAStandings[1].id)?.teamLogoUrl) || 'assets/card_jsl_user.png'}" class="w-5 h-5 rounded-md object-cover border border-emerald-200 bg-emerald-50 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                        <span class="truncate font-black text-[11px] sm:text-xs text-slate-900">${grpAStandings[1] ? grpAStandings[1].name : '2nd Place (Group A)'}</span>
+                      </div>
+                      <span class="text-[8.5px] font-black px-1.5 py-0.2 bg-emerald-600 text-white rounded font-mono shadow-2xs shrink-0">2nd A</span>
                     </div>
                   </div>
                 </div>
 
                 <!-- Grand Final Card -->
-                <div class="bg-gradient-to-b from-amber-500/25 to-amber-950/50 border-2 border-amber-400 rounded-2xl p-3 space-y-2.5 shadow-lg">
-                  <div class="flex justify-between items-center text-[10px] font-black text-amber-300 uppercase pb-1.5 border-b border-amber-500/40">
-                    <span class="flex items-center gap-1">👑 Grand Final 2026</span>
-                    <span class="text-amber-400 font-mono">Championship</span>
+                <div class="playoff-final-box bg-gradient-to-br from-amber-50/90 via-white to-amber-100/50 border-2 border-amber-400 rounded-xl p-2 sm:p-2.5 space-y-1.5 shadow-2xs flex flex-col justify-between">
+                  <div class="flex justify-between items-center text-[9px] font-black uppercase pb-1 border-b border-amber-200">
+                    <span class="flex items-center gap-1 text-amber-900 font-black">👑 Grand Final 2026</span>
+                    <span class="text-amber-900 font-mono bg-amber-200/90 border border-amber-300 px-1.5 py-0.2 rounded font-black text-[8px] shadow-2xs">Championship</span>
                   </div>
-                  <div class="space-y-1.5 text-xs font-bold">
-                    <div class="flex justify-between items-center p-2 rounded-xl bg-slate-900 border border-amber-400/50 text-white">
-                      <span class="truncate font-black">Winner Semi-Final 1</span>
-                      <span class="text-[9px] font-black px-1.5 py-0.5 bg-amber-500 text-slate-950 rounded font-mono">SF1</span>
+                  <div class="space-y-1 text-xs font-bold">
+                    <div class="playoff-team-slot flex justify-between items-center px-2 py-1.5 rounded-lg bg-white border border-amber-300 text-slate-900 shadow-2xs hover:shadow-xs transition-shadow">
+                      <div class="flex items-center gap-2 min-w-0">
+                        <span class="w-5 h-5 rounded-md bg-amber-100 text-amber-800 border border-amber-300 flex items-center justify-center text-[10px] shrink-0 font-bold">🥇</span>
+                        <span class="truncate font-black text-[11px] sm:text-xs text-slate-900">Winner Semi-Final 1</span>
+                      </div>
+                      <span class="text-[8.5px] font-black px-1.5 py-0.2 bg-amber-500 text-slate-950 rounded font-mono shadow-2xs shrink-0">SF1</span>
                     </div>
-                    <div class="text-center text-[9px] font-black text-amber-300">⚡ CHAMPIONSHIP TROPHY ⚡</div>
-                    <div class="flex justify-between items-center p-2 rounded-xl bg-slate-900 border border-amber-400/50 text-white">
-                      <span class="truncate font-black">Winner Semi-Final 2</span>
-                      <span class="text-[9px] font-black px-1.5 py-0.5 bg-amber-500 text-slate-950 rounded font-mono">SF2</span>
+                    <div class="text-center text-[8px] sm:text-[8.5px] font-black text-amber-800 font-mono uppercase tracking-wider leading-none py-0.5 flex items-center justify-center gap-1">
+                      <span class="text-amber-500">⚡</span> <span>CHAMPIONSHIP TROPHY</span> <span class="text-amber-500">⚡</span>
+                    </div>
+                    <div class="playoff-team-slot flex justify-between items-center px-2 py-1.5 rounded-lg bg-white border border-amber-300 text-slate-900 shadow-2xs hover:shadow-xs transition-shadow">
+                      <div class="flex items-center gap-2 min-w-0">
+                        <span class="w-5 h-5 rounded-md bg-amber-100 text-amber-800 border border-amber-300 flex items-center justify-center text-[10px] shrink-0 font-bold">🥈</span>
+                        <span class="truncate font-black text-[11px] sm:text-xs text-slate-900">Winner Semi-Final 2</span>
+                      </div>
+                      <span class="text-[8.5px] font-black px-1.5 py-0.2 bg-amber-500 text-slate-950 rounded font-mono shadow-2xs shrink-0">SF2</span>
                     </div>
                   </div>
                 </div>

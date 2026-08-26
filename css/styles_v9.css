@@ -721,6 +721,20 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   animation: liveBidBlink 1.4s infinite ease-in-out;
 }
 
+/* PLAYOFF / KNOCKOUT BRACKET - COMPACT CRISP WHITE THEME */
+.playoff-bracket-container {
+  background-color: #FFFFFF !important;
+  color: #0F172A !important;
+}
 
+.playoff-card-box {
+  background-color: #F8FAFC !important;
+}
 
+.playoff-final-box {
+  background: linear-gradient(135deg, #FEF3C7 0%, #FFFFFF 50%, #FDE68A 100%) !important;
+}
 
+.playoff-team-slot {
+  background-color: #FFFFFF !important;
+}
