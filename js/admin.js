@@ -1933,44 +1933,43 @@ function renderAdminLoginScreen(containerEl) {
     window.dispatchEvent(new CustomEvent('popstate'));
   });
 
-  document.getElementById('admin-login-form')?.addEventListener('submit', (e) => {
+  document.getElementById('admin-login-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const identifier = document.getElementById('admin-identifier').value.trim();
     const pass = document.getElementById('admin-password').value.trim();
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerText = 'Verifying Credentials...';
+    }
 
-    // 1. Try Super Admin email
-    if (identifier.includes('@')) {
-      const res = store.authenticateAdmin(identifier, pass);
+    try {
+      // 1. Try unified authentication (Supabase Auth + fallback)
+      const res = await store.authenticateAdmin(identifier, pass);
       if (res.success) {
-        store.setCurrentUser({
-          phone: '9876543210',
-          name: 'Suman Kolay (Master Super Admin)',
-          role: 'SUPER_ADMIN',
-          isFirstLogin: false,
-          ownedTournaments: ['tournament-jsl-2026']
-        });
         renderAdminDashboard(containerEl);
         return;
-      } else {
-        alert(res.message || "Invalid Admin Email Credentials");
+      }
+
+      // 2. Try regular user auth for player profiles
+      const userRes = store.authenticateUser(identifier, pass);
+      if (userRes.success) {
+        if (userRes.user.role === 'TOURNAMENT_OWNER' || userRes.user.role === 'SUPER_ADMIN') {
+          renderAdminDashboard(containerEl);
+        } else {
+          alert(`Logged in as player "${userRes.user.name}". Navigating to your Player Profile.`);
+          window.location.hash = 'profile';
+          window.dispatchEvent(new CustomEvent('popstate'));
+        }
         return;
       }
-    }
 
-    // 2. Try Mobile Number (Tournament Owner or Player)
-    const res = store.authenticateUser(identifier, pass);
-    if (!res.success) {
-      alert(res.message || "Invalid Mobile Number or Password");
-      return;
-    }
-
-    if (res.user.role === 'TOURNAMENT_OWNER' || res.user.role === 'SUPER_ADMIN') {
-      localStorage.setItem('cpl_admin_auth_v7', 'true');
-      renderAdminDashboard(containerEl);
-    } else {
-      alert(`Logged in as player "${res.user.name}". You do not have Tournament Owner permissions. Navigating to your Player Profile.`);
-      window.location.hash = 'profile';
-      window.dispatchEvent(new CustomEvent('popstate'));
+      alert(res.message || "Invalid Credentials. Please check your Email / Phone and Password.");
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerText = 'Unlock Tournament Control Dashboard';
+      }
     }
   });
 }

@@ -3,7 +3,7 @@
 import { store } from './store.js?v=11.6.4';
 import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, printDigitalPass, openUserGuidePDF } from './export.js?v=11.6.4';
 import { renderAdminDashboard } from './admin.js?v=11.6.4';
-import { uploadHDImage, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats } from './supabase.js?v=11.6.4';
+import { uploadHDImage, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget } from './supabase.js?v=11.6.4';
 import { shops } from './shopsData.js?v=11.6.4';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
@@ -10317,22 +10317,26 @@ export function openDynamicTournamentRegistrationModal(tourneyIdOrSlug) {
 
   document.body.insertAdjacentHTML('beforeend', modalHtml);
 
-  // 1-Second Smart Auto-Fill on Mobile Input
+  // 1-Second Smart Auto-Fill on Mobile Input (Supabase Postgres + Universal Store)
   const phoneInput = document.getElementById('dyn-reg-phone');
-  phoneInput?.addEventListener('input', (e) => {
+  phoneInput?.addEventListener('input', async (e) => {
     const val = e.target.value.trim().replace(/[^0-9]/g, '');
     if (val.length === 10) {
-      const existing = store.getUniversalPlayerByPhone(val);
+      let existing = store.getUniversalPlayerByPhone(val);
+      if (!existing) {
+        existing = await dbLookupPlayerByPhone(val);
+      }
       if (existing) {
-        document.getElementById('dyn-reg-name').value = existing.name || '';
-        document.getElementById('dyn-reg-role').value = existing.category || 'All Rounder';
-        document.getElementById('dyn-reg-batting').value = existing.battingStyle || 'Right Hand Bat';
-        document.getElementById('dyn-reg-bowling').value = existing.bowlingStyle || 'Right Arm Medium';
+        document.getElementById('dyn-reg-name').value = existing.name || existing.full_name || '';
+        document.getElementById('dyn-reg-role').value = existing.category || existing.role || 'All Rounder';
+        document.getElementById('dyn-reg-batting').value = existing.battingStyle || existing.batting_style || 'Right Hand Bat';
+        document.getElementById('dyn-reg-bowling').value = existing.bowlingStyle || existing.bowling_style || 'Right Arm Medium';
         document.getElementById('dyn-reg-village').value = existing.village || '';
         document.getElementById('dyn-reg-district').value = existing.district || 'Paschim Medinipur';
-        if (existing.photoUrl) {
-          uploadedPhotoBase64 = existing.photoUrl;
-          document.getElementById('dyn-preview-photo').src = existing.photoUrl;
+        const photo = existing.photoUrl || existing.photo_url;
+        if (photo) {
+          uploadedPhotoBase64 = photo;
+          document.getElementById('dyn-preview-photo').src = photo;
         }
         document.getElementById('dyn-autofill-notice')?.classList.remove('hidden');
       } else {
@@ -10343,26 +10347,28 @@ export function openDynamicTournamentRegistrationModal(tourneyIdOrSlug) {
     }
   });
 
-  // Photo change
-  document.getElementById('dyn-photo-file')?.addEventListener('change', (e) => {
+  // Photo change with auto-compression (< 100 KB)
+  document.getElementById('dyn-photo-file')?.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (file) {
+      const compressed = await compressImageToTarget(file, 100, 1200);
       const reader = new FileReader();
       reader.onload = (ev) => {
         uploadedPhotoBase64 = ev.target.result;
         document.getElementById('dyn-preview-photo').src = uploadedPhotoBase64;
       };
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(compressed || file);
     }
   });
 
-  // Receipt change
-  document.getElementById('dyn-receipt-file')?.addEventListener('change', (e) => {
+  // Receipt change with auto-compression (< 100 KB)
+  document.getElementById('dyn-receipt-file')?.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (file) {
+      const compressed = await compressImageToTarget(file, 100, 1200);
       const reader = new FileReader();
       reader.onload = (ev) => { uploadedReceiptBase64 = ev.target.result; };
-      reader.readAsDataURL(file);
+      reader.readAsDataURL(compressed || file);
     }
   });
 
@@ -10380,31 +10386,56 @@ export function openDynamicTournamentRegistrationModal(tourneyIdOrSlug) {
     const village = document.getElementById('dyn-reg-village').value.trim();
     const district = document.getElementById('dyn-reg-district').value.trim();
 
+    // Atomic Sequential Number for this Tournament
+    const atomicRegNo = await dbGetNextRegNumber(tourney.id);
+
     const playerData = {
       id: `p_${phone}_${Date.now()}`,
       name,
       phone,
       category,
+      role: category,
       battingStyle,
       bowlingStyle,
       village,
       district,
       tournamentId: tourney.id,
+      tournament_id: tourney.id,
       tournamentSlug: tourney.slug,
       tournamentName: tourney.name,
       photoUrl: uploadedPhotoBase64 || '',
+      photo_url: uploadedPhotoBase64 || '',
       paymentReceiptUrl: uploadedReceiptBase64 || '',
       registrationStatus: 'PENDING_VERIFICATION',
       paymentStatus: 'PENDING_VERIFICATION',
+      reg_number: atomicRegNo,
+      serialNo: atomicRegNo || (store.getPlayersByLeague(tourney.shortCode || 'JSL').length + 1),
       createdAt: Date.now()
     };
 
-    // Save locally and globally
+    const docsData = {
+      payment_screenshot_url: uploadedReceiptBase64 || '',
+      payment_ref: `UPI_${Date.now()}`
+    };
+
+    // 1. Save to Supabase Postgres (Multi-Tenant RLS Database)
+    await dbRegisterPlayer(playerData, docsData);
+
+    // 2. Save locally and globally in reactive store
     await store.saveUniversalPlayer(playerData);
     await store.addPlayer(playerData);
 
-    alert(`🎉 Registration Submitted Successfully for ${tourney.name}!\n\nYour application is sent to the tournament organizer for payment verification.`);
     document.getElementById('dynamic-tournament-reg-modal')?.remove();
+
+    // Open Beautiful Success Modal
+    openRegistrationSuccessModal({
+      name: playerData.name,
+      registrationId: `${(tourney.shortCode || 'CPL').toUpperCase()}-2026-${String(playerData.serialNo).padStart(4, '0')}`,
+      serialNo: playerData.serialNo,
+      displayRegistrationNumber: playerData.serialNo,
+      photoUrl: playerData.photoUrl,
+      category: playerData.category
+    });
   });
 
   const handleClose = () => {
