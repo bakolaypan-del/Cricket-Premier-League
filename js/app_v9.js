@@ -3,7 +3,7 @@
 import { store } from './store.js?v=12.0.2';
 import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, printDigitalPass, openUserGuidePDF } from './export.js?v=12.0.2';
 import { renderAdminDashboard } from './admin.js?v=12.0.2';
-import { uploadHDImage, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget } from './supabase.js?v=12.0.2';
+import { uploadHDImage, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp } from './supabase.js?v=12.0.2';
 import { shops } from './shopsData.js?v=12.0.2';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
@@ -2538,16 +2538,16 @@ function renderPlayerCardsWithSerial(playersList) {
     const photoSrc = getOptimizedImageUrl(p.photoUrl || p.player_photo_url || '', 280, 280);
 
     return `
-      <div class="glass-card p-2 flex flex-col justify-between items-center text-center relative border border-emerald-200 bg-white hover:border-emerald-500 shadow-md rounded-2xl overflow-hidden">
+      <div class="cpl-white-card p-2.5 flex flex-col justify-between items-center text-center relative border border-slate-200 bg-white hover:border-emerald-400 shadow-sm hover:shadow-md rounded-2xl overflow-hidden transition-all">
         
         <!-- LARGE SQUARE PICTURE CONTAINER WITH TOP-LEFT SHORT SERIAL & TOP-RIGHT BLINKING STATUS DOT -->
-        <div class="w-full aspect-square rounded-xl bg-slate-100 border-2 border-emerald-500 flex items-center justify-center overflow-hidden shadow-md relative mb-1.5 mx-auto">
+        <div class="w-full aspect-square rounded-xl bg-slate-100 border-2 border-slate-200 flex items-center justify-center overflow-hidden shadow-xs relative mb-1.5 mx-auto">
           
           <!-- PLAYER PHOTO WITH LAZY LOADING & ASYNC DECODING -->
           <img src="${photoSrc}" loading="lazy" decoding="async" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Crect width=\'100\' height=\'100\' fill=\'%23059669\'/%3E%3Ctext x=\'50\' y=\'62\' font-size=\'45\' text-anchor=\'middle\' fill=\'white\'%3E🏏%3C/text%3E%3C/svg%3E';" />
 
           <!-- SHORT SERIAL NO ON PICTURE TOP-LEFT (E.G. #01, #02) -->
-          <span class="absolute top-1.5 left-1.5 px-2 py-0.5 bg-slate-950/85 backdrop-blur-sm text-amber-300 font-mono font-black text-[10px] rounded-md border border-amber-400/80 shadow-md">
+          <span class="absolute top-1.5 left-1.5 px-2 py-0.5 bg-slate-900/90 backdrop-blur-sm text-amber-300 font-mono font-black text-[10px] rounded-md border border-amber-400/60 shadow-sm">
             #${shortSerialNo}
           </span>
 
@@ -2559,13 +2559,21 @@ function renderPlayerCardsWithSerial(playersList) {
 
         </div>
 
-        <!-- PLAYER NAME ONLY (CATEGORY & DISTRICT REMOVED FOR CLEAN SQUARE CARD) -->
-        <div class="w-full mb-1.5 px-0.5">
+        <!-- PLAYER NAME & COLORFUL CATEGORY BADGE -->
+        <div class="w-full mb-2 px-0.5 space-y-1">
           <h3 class="font-black text-slate-900 text-xs sm:text-sm truncate leading-tight">${p.name}</h3>
+          <span class="inline-block px-2 py-0.5 rounded-full text-[8.5px] font-black uppercase tracking-wider ${
+            p.category === 'Batsman' ? 'bg-sky-50 text-sky-700 border border-sky-300' :
+            p.category === 'Bowler' ? 'bg-purple-50 text-purple-700 border border-purple-300' :
+            p.category === 'Wicket Keeper' ? 'bg-amber-50 text-amber-800 border border-amber-300' :
+            'bg-emerald-50 text-emerald-700 border border-emerald-300'
+          }">
+            ${p.category || 'All Rounder'}
+          </span>
         </div>
 
         <!-- VIEW PROFILE BUTTON -->
-        <button data-profile-id="${p.id}" class="view-profile-modal-btn w-full py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-[9px] sm:text-[10px] font-extrabold rounded-xl shadow-sm flex items-center justify-center gap-1 transition-colors">
+        <button data-profile-id="${p.id}" class="view-profile-modal-btn w-full py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-[9px] sm:text-[10px] font-black rounded-xl shadow-xs flex items-center justify-center gap-1 transition-colors cursor-pointer">
           <i data-lucide="user" class="w-3 h-3 text-amber-400"></i> View Profile
         </button>
       </div>
@@ -2679,32 +2687,12 @@ function openFullPlayerProfileModal(player) {
   });
 }
 
-// --- FIREBASE LIVE AUTH INITIALIZATION ---
-const firebaseConfig = {
-  apiKey: "AIzaSyCtyOlUuFX6Io2ZDcYlt2xLB3ADkeQH0Ns",
-  authDomain: "cricket-league-794da.firebaseapp.com",
-  projectId: "cricket-league-794da",
-  storageBucket: "cricket-league-794da.firebasestorage.app",
-  messagingSenderId: "481137863760",
-  appId: "1:481137863760:web:a315b609cca5cf36af3555",
-  measurementId: "G-F180JQGSHP"
-};
+// --- SUPABASE PHONE OTP AUTH (Firebase SDK removed) ---
 
-try {
-  if (window.firebase && !window.firebase.apps.length) {
-    window.firebase.initializeApp(firebaseConfig);
-    console.log("Firebase App & Phone Auth initialized with live config.");
-  }
-} catch (e) {
-  console.warn("Firebase Auth init notice:", e);
-}
-
-// --- UNIVERSAL PHONE OTP VERIFICATION MODAL WITH LIVE FIREBASE SMS DELIVERY ---
+// --- UNIVERSAL PHONE OTP VERIFICATION MODAL WITH SUPABASE SMS DELIVERY ---
 export function openPhoneOtpModal({ title = 'Mobile Number Verification', subtitle = 'Verify your 10-digit mobile number via SMS OTP', prefilledPhone = '', onSuccess }) {
   document.getElementById('phone-otp-modal')?.remove();
 
-  let confirmationResult = null;
-  let recaptchaVerifier = null;
   let countdown = 60;
   let timerInterval = null;
   let currentPhone = prefilledPhone ? prefilledPhone.replace(/[^0-9]/g, '').slice(-10) : '';
@@ -2723,9 +2711,6 @@ export function openPhoneOtpModal({ title = 'Mobile Number Verification', subtit
           <h2 class="text-lg font-black text-slate-900 leading-tight">${title}</h2>
           <p class="text-xs text-slate-500 font-medium">${subtitle}</p>
         </div>
-
-        <!-- INVISIBLE RECAPTCHA CONTAINER -->
-        <div id="recaptcha-container"></div>
 
         <!-- STEP 1: PHONE INPUT -->
         <div id="otp-phone-step" class="space-y-3">
@@ -2778,9 +2763,6 @@ export function openPhoneOtpModal({ title = 'Mobile Number Verification', subtit
 
   const removeModal = () => {
     if (timerInterval) clearInterval(timerInterval);
-    if (recaptchaVerifier) {
-      try { recaptchaVerifier.clear(); } catch (e) {}
-    }
     document.getElementById('phone-otp-modal')?.remove();
   };
 
@@ -2830,17 +2812,9 @@ export function openPhoneOtpModal({ title = 'Mobile Number Verification', subtit
     }
 
     try {
-      if (window.firebase && window.firebase.auth) {
-        if (!recaptchaVerifier) {
-          recaptchaVerifier = new window.firebase.auth.RecaptchaVerifier('recaptcha-container', {
-            size: 'invisible'
-          });
-        }
-        confirmationResult = await window.firebase.auth().signInWithPhoneNumber(fullPhoneNumber, recaptchaVerifier);
-        console.log("Firebase SMS OTP sent to:", fullPhoneNumber);
-      } else {
-        throw new Error("Firebase Auth SDK not ready");
-      }
+      const otpResult = await sendPhoneOtp(fullPhoneNumber);
+      if (otpResult.error) throw otpResult.error;
+      console.log("Supabase SMS OTP sent to:", fullPhoneNumber);
 
       phoneStep?.classList.add('hidden');
       verifyStep?.classList.remove('hidden');
@@ -2855,7 +2829,7 @@ export function openPhoneOtpModal({ title = 'Mobile Number Verification', subtit
         sendBtn.innerHTML = `<i data-lucide="send" class="w-4 h-4"></i> Send SMS OTP Code`;
         if (window.lucide) window.lucide.createIcons();
       }
-      alert(`⚠️ SMS Delivery Notice:\n\n${err.message || 'Unable to send SMS code'}\n\n(Ensure Phone provider is enabled in Firebase Console & localhost is in Authorized Domains).`);
+      alert(`⚠️ SMS Delivery Notice:\n\n${err.message || 'Unable to send SMS code'}\n\n(Ensure Phone provider is enabled in Supabase Auth settings).`);
     }
   };
 
@@ -2876,10 +2850,9 @@ export function openPhoneOtpModal({ title = 'Mobile Number Verification', subtit
     }
 
     try {
-      if (confirmationResult) {
-        const userCredential = await confirmationResult.confirm(entered);
-        console.log("Phone OTP verified successfully:", userCredential.user);
-      }
+      const verifyResult = await verifyPhoneOtp(`+91${currentPhone}`, entered);
+      if (verifyResult.error) throw verifyResult.error;
+      console.log("Phone OTP verified successfully via Supabase");
 
       const profile = store.getPlayerProfileByPhone(currentPhone);
       removeModal();
@@ -6451,7 +6424,12 @@ function renderLiveAuctionView(container) {
                   </div>
                 </td>
                 <td class="py-2 px-2.5">
-                  <span class="px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded text-[9px] font-bold uppercase whitespace-nowrap">
+                  <span class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase whitespace-nowrap ${
+                    p.category === 'Batsman' ? 'bg-sky-50 text-sky-700 border border-sky-300' :
+                    p.category === 'Bowler' ? 'bg-purple-50 text-purple-700 border border-purple-300' :
+                    p.category === 'Wicket Keeper' ? 'bg-amber-50 text-amber-800 border border-amber-300' :
+                    'bg-emerald-50 text-emerald-700 border border-emerald-300'
+                  }">
                     ${p.category || 'All Rounder'}
                   </span>
                 </td>

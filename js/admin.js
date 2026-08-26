@@ -2,7 +2,7 @@
 
 import { store } from './store.js?v=12.0.2';
 import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF } from './export.js?v=12.0.2';
-import { saveAdSettingsToFirebase, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, savePopupSettingsToFirebase, uploadHDImage, getOptimizedImageUrl } from './supabase.js?v=12.0.2';
+import { saveAdSettingsToFirebase, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, savePopupSettingsToFirebase, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase } from './supabase.js?v=12.0.2';
 import { shops } from './shopsData.js?v=12.0.2';
 
 let activeAdminTab = 'payments'; // 'payments', 'all-players', 'teams'
@@ -2365,7 +2365,6 @@ function openFullDocumentViewer(imgSrc, title = 'Document Proof Viewer') {
 }
 
 // --- MASTER ADMIN CONFIGURATIONS, SCORING & AUCTION ENGINE ---
-const FIREBASE_DB_URL = "https://cpl-jsl-2026-default-rtdb.firebaseio.com";
 let activeScoringMatchId = null;
 let currentScoringState = null;
 
@@ -5537,11 +5536,11 @@ export async function renderAdminShopAdsPanel() {
     <div class="space-y-6">
       
       <!-- Current Status Card -->
-      <div class="flex items-center justify-between p-4 bg-slate-950/80 rounded-2xl border border-slate-800">
+      <div class="flex items-center justify-between p-4 bg-white rounded-2xl border-2 border-slate-200 shadow-sm">
         <div>
-          <p class="text-xs text-slate-400 uppercase tracking-wider font-bold">Ad Status</p>
+          <p class="text-xs text-slate-500 uppercase tracking-wider font-bold">Ad Status</p>
           <div class="flex items-center gap-2 mt-1">
-            <h4 class="text-base font-bold text-white">Homepage Shop Ad Popup</h4>
+            <h4 class="text-base font-bold text-slate-900">Homepage Shop Ad Popup</h4>
             ${statusBadge}
           </div>
           ${snoozeStatusInfo}
@@ -5551,98 +5550,98 @@ export async function renderAdminShopAdsPanel() {
       <div class="space-y-6">
         
         <!-- SECTION 1: GLOBAL POPUP SWITCHES -->
-        <div class="bg-slate-950/50 p-5 rounded-2xl border border-slate-800/60 space-y-4">
-          <h4 class="text-xs font-black text-slate-400 uppercase tracking-widest border-b border-slate-850 pb-2">🌐 Site-Wide Popup Toggles</h4>
+        <div class="bg-white p-5 rounded-3xl border-2 border-slate-200 shadow-sm space-y-4">
+          <h4 class="text-xs font-black text-slate-500 uppercase tracking-widest border-b border-slate-100 pb-2">🌐 Site-Wide Popup Toggles</h4>
           
           <!-- Welcome Popup Toggle -->
-          <div class="flex items-center justify-between p-3.5 bg-slate-900/80 rounded-xl border border-slate-800/80">
+          <div class="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-200">
             <div>
-              <p class="text-xs font-bold text-white">🏠 First-Visit Welcome & App Install Modal</p>
-              <p class="text-[10px] text-slate-400 mt-0.5">Show a registration welcome & app install instruction prompt to first-time visitors.</p>
+              <p class="text-xs font-bold text-slate-900">🏠 First-Visit Welcome & App Install Modal</p>
+              <p class="text-[10px] text-slate-500 mt-0.5">Show a registration welcome & app install instruction prompt to first-time visitors.</p>
             </div>
             <label class="relative inline-flex items-center cursor-pointer">
               <input type="checkbox" id="admin-welcome-popup-toggle" class="sr-only peer" ${settings.isWelcomePopupEnabled === true ? 'checked' : ''}>
-              <div class="w-10 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+              <div class="w-10 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
             </label>
           </div>
 
           <!-- WhatsApp Popup Toggle -->
-          <div class="flex items-center justify-between p-3.5 bg-slate-900/80 rounded-xl border border-slate-800/80">
+          <div class="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-200">
             <div>
-              <p class="text-xs font-bold text-white">💬 JSL WhatsApp Group Join Invitation</p>
-              <p class="text-[10px] text-slate-400 mt-0.5">Prompt users to join the official WhatsApp group when they open the JSL Hub page.</p>
+              <p class="text-xs font-bold text-slate-900">💬 JSL WhatsApp Group Join Invitation</p>
+              <p class="text-[10px] text-slate-500 mt-0.5">Prompt users to join the official WhatsApp group when they open the JSL Hub page.</p>
             </div>
             <label class="relative inline-flex items-center cursor-pointer">
               <input type="checkbox" id="admin-whatsapp-popup-toggle" class="sr-only peer" ${settings.isWhatsAppPopupEnabled === true ? 'checked' : ''}>
-              <div class="w-10 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+              <div class="w-10 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
             </label>
           </div>
 
           <!-- Real-time Registered Player Toast Toggle -->
-          <div class="flex items-center justify-between p-3.5 bg-slate-900/80 rounded-xl border border-emerald-900/40">
+          <div class="flex items-center justify-between p-3.5 bg-emerald-50/50 rounded-xl border border-emerald-200">
             <div>
-              <p class="text-xs font-bold text-white flex items-center gap-1.5">⚡ Real-Time Registered Player Toast Pop-Up <span class="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 font-mono text-[9px] rounded-full">NEW</span></p>
-              <p class="text-[10px] text-slate-400 mt-0.5">SHOW or HOLD/PAUSE the live floating popup displaying the last 5 registered players on the website.</p>
+              <p class="text-xs font-bold text-slate-900 flex items-center gap-1.5">⚡ Real-Time Registered Player Toast Pop-Up <span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 font-mono text-[9px] rounded-full border border-emerald-300">NEW</span></p>
+              <p class="text-[10px] text-slate-500 mt-0.5">SHOW or HOLD/PAUSE the live floating popup displaying the last 5 registered players on the website.</p>
             </div>
             <label class="relative inline-flex items-center cursor-pointer">
               <input type="checkbox" id="admin-realtime-toast-toggle" class="sr-only peer" ${settings.isRealtimePlayerToastEnabled === true ? 'checked' : ''}>
-              <div class="w-10 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+              <div class="w-10 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
             </label>
           </div>
 
           <!-- Live Tournament Countdown Banner Toggle -->
-          <div class="flex items-center justify-between p-3.5 bg-slate-900/80 rounded-xl border border-amber-500/40">
+          <div class="flex items-center justify-between p-3.5 bg-amber-50/50 rounded-xl border border-amber-200">
             <div>
-              <p class="text-xs font-bold text-white flex items-center gap-1.5">
+              <p class="text-xs font-bold text-slate-900 flex items-center gap-1.5">
                 <span class="p-1 rounded bg-amber-500 text-slate-950"><i data-lucide="clock" class="w-3.5 h-3.5"></i></span>
                 <span>Live Tournament Countdown Banner (Homepage Top)</span>
-                <span class="px-2 py-0.5 bg-amber-500/20 text-amber-400 font-mono text-[9px] rounded-full">TOP BANNER</span>
+                <span class="px-2 py-0.5 bg-amber-100 text-amber-900 font-mono text-[9px] rounded-full border border-amber-300">TOP BANNER</span>
               </p>
-              <p class="text-[10px] text-slate-400 mt-0.5">SHOW or HIDE the 31 August 2026 Tournament Countdown Clock at the top of the homepage.</p>
+              <p class="text-[10px] text-slate-500 mt-0.5">SHOW or HIDE the 31 August 2026 Tournament Countdown Clock at the top of the homepage.</p>
             </div>
             <label class="relative inline-flex items-center cursor-pointer">
               <input type="checkbox" id="admin-countdown-banner-toggle" class="sr-only peer" ${settings.isCountdownEnabled === true ? 'checked' : ''}>
-              <div class="w-10 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+              <div class="w-10 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
             </label>
           </div>
 
           <!-- YouTube Digital Class Channel Promo Popup Controller -->
-          <div class="flex items-center justify-between p-3.5 bg-slate-900/80 rounded-xl border border-red-900/40">
+          <div class="flex items-center justify-between p-3.5 bg-red-50/50 rounded-xl border border-red-200">
             <div>
-              <p class="text-xs font-bold text-white flex items-center gap-1.5">
+              <p class="text-xs font-bold text-slate-900 flex items-center gap-1.5">
                 <span class="p-1 rounded bg-red-600 text-white"><i data-lucide="youtube" class="w-3.5 h-3.5"></i></span>
                 <span>YouTube Digital Class Channel Promotional Pop-Up</span>
-                <span class="px-2 py-0.5 bg-red-500/20 text-red-400 font-mono text-[9px] rounded-full">POPUP BANNER</span>
+                <span class="px-2 py-0.5 bg-red-100 text-red-800 font-mono text-[9px] rounded-full border border-red-300">POPUP BANNER</span>
               </p>
-              <p class="text-[10px] text-slate-400 mt-0.5">Toggle auto-popup for competitive exams coaching channel on visitor page load.</p>
+              <p class="text-[10px] text-slate-500 mt-0.5">Toggle auto-popup for competitive exams coaching channel on visitor page load.</p>
               <div class="mt-2.5">
-                <button type="button" id="admin-preview-youtube-promo-btn" class="px-3 py-1.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-black text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer">
+                <button type="button" id="admin-preview-youtube-promo-btn" class="px-3 py-1.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-black text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer">
                   <i data-lucide="eye" class="w-3.5 h-3.5"></i> Preview / Test YouTube Popup Now
                 </button>
               </div>
             </div>
             <label class="relative inline-flex items-center cursor-pointer">
               <input type="checkbox" id="admin-youtube-popup-toggle" class="sr-only peer" ${settings.isYouTubePromoEnabled === true ? 'checked' : ''}>
-              <div class="w-10 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-red-600"></div>
+              <div class="w-10 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-red-600"></div>
             </label>
           </div>
         </div>
 
         <!-- SECTION 2: ADVERTISEMENT POPUP CONFIGURATION -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-950/50 p-5 rounded-2xl border border-slate-800/60">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white p-5 rounded-3xl border-2 border-slate-200 shadow-sm">
           
           <div class="space-y-4">
-            <h4 class="text-xs font-black text-slate-400 uppercase tracking-widest border-b border-slate-850 pb-2">📢 Shop Ad Configuration</h4>
+            <h4 class="text-xs font-black text-slate-500 uppercase tracking-widest border-b border-slate-100 pb-2">📢 Shop Ad Configuration</h4>
             
             <div>
-              <label class="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">Select Partner Shops to Promote (Select multiple to show in carousel)</label>
-              <div class="space-y-2 bg-slate-900/60 p-3.5 rounded-xl border border-slate-800 max-h-48 overflow-y-auto">
+              <label class="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Select Partner Shops to Promote (Select multiple to show in carousel)</label>
+              <div class="space-y-2 bg-slate-50 p-3.5 rounded-xl border border-slate-200 max-h-48 overflow-y-auto">
                 ${shops.map(shop => {
                   const isChecked = (settings.promotedShopIds && settings.promotedShopIds.includes(shop.id)) 
                     || (!settings.promotedShopIds && settings.promotedShopId === shop.id);
                   return `
-                    <label class="flex items-center space-x-3 text-white text-xs font-bold cursor-pointer hover:text-amber-400 transition-colors py-1">
-                      <input type="checkbox" name="promoted-shop-checkbox" value="${shop.id}" ${isChecked ? 'checked' : ''} class="w-4 h-4 rounded text-amber-500 focus:ring-amber-500 focus:ring-offset-slate-900 border-slate-800 bg-slate-950">
+                    <label class="flex items-center space-x-3 text-slate-900 text-xs font-bold cursor-pointer hover:text-emerald-700 transition-colors py-1">
+                      <input type="checkbox" name="promoted-shop-checkbox" value="${shop.id}" ${isChecked ? 'checked' : ''} class="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 focus:ring-offset-white border-slate-300 bg-white">
                       <span>${shop.name} (${shop.type === 'restaurant' ? 'Food/Kitchen' : shop.type === 'rice' ? 'Rice Bhandar' : 'Hardware & Sanitation'})</span>
                     </label>
                   `;
@@ -5650,28 +5649,28 @@ export async function renderAdminShopAdsPanel() {
               </div>
             </div>
 
-            <div class="flex items-center justify-between p-3.5 bg-slate-900/80 rounded-xl border border-slate-800/80">
+            <div class="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-200">
               <div>
-                <p class="text-xs font-bold text-white">Enable Ad Auto-Popup on Load</p>
-                <p class="text-[10px] text-slate-400 mt-0.5">Toggle whether users landing on your site see this ad popup.</p>
+                <p class="text-xs font-bold text-slate-900">Enable Ad Auto-Popup on Load</p>
+                <p class="text-[10px] text-slate-500 mt-0.5">Toggle whether users landing on your site see this ad popup.</p>
               </div>
               <label class="relative inline-flex items-center cursor-pointer">
                 <input type="checkbox" id="admin-ad-toggle" class="sr-only peer" ${settings.isAdPopupEnabled === true && !isSnoozed ? 'checked' : ''}>
-                <div class="w-10 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+                <div class="w-10 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
               </label>
             </div>
           </div>
 
           <div class="space-y-3 justify-center flex flex-col">
-            <h4 class="text-xs font-black text-slate-400 uppercase tracking-widest border-b border-slate-850 pb-2 mb-2">Quick Ad Actions</h4>
+            <h4 class="text-xs font-black text-slate-500 uppercase tracking-widest border-b border-slate-100 pb-2 mb-2">Quick Ad Actions</h4>
             <div class="grid grid-cols-1 gap-2">
-              <button id="admin-ad-turn-on-btn" class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-slate-950 font-black text-xs rounded-xl transition-all shadow-lg flex items-center justify-center gap-1.5 border border-amber-400">
-                <i data-lucide="play-circle" class="w-4 h-4 text-slate-950"></i> Save & Turn Ad On Now
+              <button id="admin-ad-turn-on-btn" class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-black text-xs rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 border border-amber-400 cursor-pointer">
+                <i data-lucide="play-circle" class="w-4 h-4 text-white"></i> Save & Turn Ad On Now
               </button>
-              <button id="admin-ad-turn-off-btn" class="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl border border-slate-700 transition-all flex items-center justify-center gap-1.5">
+              <button id="admin-ad-turn-off-btn" class="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl border border-slate-300 transition-all flex items-center justify-center gap-1.5 cursor-pointer">
                 <i data-lucide="stop-circle" class="w-4 h-4"></i> Turn Ad Off Completely
               </button>
-              <button id="admin-ad-pause-month-btn" class="w-full py-2.5 bg-red-950/40 hover:bg-red-950 text-red-400 font-bold text-xs rounded-xl border border-red-900/35 transition-all flex items-center justify-center gap-1.5">
+              <button id="admin-ad-pause-month-btn" class="w-full py-2.5 bg-red-50 hover:bg-red-100 text-red-800 font-bold text-xs rounded-xl border border-red-200 transition-all flex items-center justify-center gap-1.5 cursor-pointer">
                 <i data-lucide="clock" class="w-4 h-4"></i> Pause Ad for 1 Month
               </button>
             </div>
@@ -6242,7 +6241,7 @@ export function openEditTeamModal(team, onSaved) {
       const compressedDataUrl = await compressImage(file, 600, 600, 0.70);
       previewImgEl.src = compressedDataUrl;
 
-      // 2. Upload directly to Cloudinary/ImgBB HD CDN
+      // 2. Upload directly to Cloudinary HD CDN
       const cdnUrl = await uploadHDImage(compressedDataUrl, folder);
       const finalUrl = cdnUrl || compressedDataUrl;
 
@@ -6421,15 +6420,11 @@ export function openEditTeamModal(team, onSaved) {
       // 1. Update in local store
       store.updateTeam(updatedTeam);
 
-      // 2. Direct Sync to Firebase Realtime DB
+      // 2. Sync to Supabase
       try {
-        await fetch(`https://cpl-jsl-2026-default-rtdb.firebaseio.com/cpl_master/teams/${team.id}.json`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(updatedTeam)
-        });
+        await syncTeamToSupabase(updatedTeam);
       } catch (cloudErr) {
-        console.warn('Direct cloud team sync fallback:', cloudErr);
+        console.warn('Supabase team sync notice:', cloudErr);
       }
 
       removeModal();

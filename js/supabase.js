@@ -101,6 +101,30 @@ export async function signInUser(email, password) {
   }
 }
 
+export async function sendPhoneOtp(phone) {
+  if (!supabase) return { error: { message: 'Supabase client not initialized' } };
+  try {
+    const { data, error } = await supabase.auth.signInWithOtp({ phone });
+    if (error) throw error;
+    return { data, error: null };
+  } catch (err) {
+    console.error("[SUPABASE AUTH] Phone OTP send failed:", err);
+    return { data: null, error: err };
+  }
+}
+
+export async function verifyPhoneOtp(phone, token) {
+  if (!supabase) return { error: { message: 'Supabase client not initialized' } };
+  try {
+    const { data, error } = await supabase.auth.verifyOtp({ phone, token, type: 'sms' });
+    if (error) throw error;
+    return { data, error: null };
+  } catch (err) {
+    console.error("[SUPABASE AUTH] Phone OTP verify failed:", err);
+    return { data: null, error: err };
+  }
+}
+
 export async function signOutUser() {
   if (!supabase) return;
   try {
