@@ -7,7 +7,7 @@ export const SUPABASE_URL = typeof window !== 'undefined' && localStorage.getIte
 
 export const SUPABASE_ANON_KEY = typeof window !== 'undefined' && localStorage.getItem('cpl_supabase_anon_key')
   ? localStorage.getItem('cpl_supabase_anon_key')
-  : "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImV1bndjdmRhYkFwaGpxcHl1anduIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODU2NzAwMDAsImV4cCI6MjEwMTI0NjAwMH0.1S3c7bWTOCyREehT6WyOhtoyjQkTKY148ABHPKz2pFM";
+  : "sb_publishable_s_eZ15ii6ZFoFGODEU0AWg_-eVyzZcn";
 
 export let supabase = null;
 
