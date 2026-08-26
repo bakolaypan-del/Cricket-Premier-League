@@ -4415,6 +4415,133 @@ function renderFixturesView(container) {
           return `<div class="space-y-4">${sections.join('')}</div>`;
         })()}
       `;
+    } else if (activeFixtureSubTab === 'awards') {
+      // ---------------- TOURNAMENT AWARDS ----------------
+      // Aggregate every player's per-match stats across this league's fixtures.
+      // playerStats survives on each fixture's liveMatchState after the match completes.
+      const agg = {};
+      rawFixtures.forEach(f => {
+        const ps = f.liveMatchState && f.liveMatchState.playerStats;
+        if (!ps || typeof ps !== 'object') return;
+        Object.keys(ps).forEach(pid => {
+          const s = ps[pid] || {};
+          if (!agg[pid]) agg[pid] = { runs:0, balls:0, fours:0, sixes:0, wickets:0, runsConceded:0, ballsBowled:0, maidens:0, catches:0, stumpings:0, runOuts:0 };
+          const a = agg[pid];
+          a.runs += s.runs||0; a.balls += s.balls||0; a.fours += s.fours||0; a.sixes += s.sixes||0;
+          a.wickets += s.wickets||0; a.runsConceded += s.runsConceded||0; a.ballsBowled += s.ballsBowled||0;
+          a.maidens += s.maidens||0; a.catches += s.catches||0; a.stumpings += s.stumpings||0; a.runOuts += s.runOuts||0;
+        });
+      });
+
+      const allPlayers = store.getPlayers();
+      const allTeams = store.getTeams();
+      const nameOf = (pid) => (allPlayers.find(p => p.id === pid)?.name) || 'Unknown Player';
+      const teamOf = (pid) => { const p = allPlayers.find(x => x.id === pid); const t = p && allTeams.find(tt => tt.id === p.teamId); return t ? t.name : ''; };
+
+      const rows = Object.keys(agg).map(pid => {
+        const a = agg[pid];
+        // MVP weighted composite (signed off): reward all-round impact.
+        const mvp = a.runs*1 + a.fours*1 + a.sixes*2 + a.wickets*20 + a.maidens*8 + a.catches*8 + a.stumpings*10 + a.runOuts*8;
+        const fielding = a.catches + a.runOuts;
+        return { pid, name: nameOf(pid), team: teamOf(pid), ...a, mvp, fielding };
+      });
+
+      const topBy = (key) => {
+        const s = rows.filter(r => (r[key] || 0) > 0).sort((x, y) => (y[key]||0) - (x[key]||0) || (y.mvp||0) - (x.mvp||0));
+        return s.length ? { win: s[0], runner: s[1] || null } : null;
+      };
+
+      const standings = computeTeamStandings(leagueTeams, rawFixtures);
+      const bestTeam = (standings[0] && standings[0].played > 0) ? standings[0] : null;
+
+      const hasAnyData = rows.length > 0 || bestTeam;
+
+      const specs = [
+        { icon:'🏏', title:'Best Batsman',      metric:'Most runs',          key:'runs',      unit:'runs', sub:w=>`${w.balls} balls · ${w.fours}×4 · ${w.sixes}×6`, grad:'from-emerald-500 to-teal-600' },
+        { icon:'🎯', title:'Best Bowler',       metric:'Most wickets',       key:'wickets',   unit:'wkts', sub:w=>`${w.runsConceded} runs · ${(w.ballsBowled/6).toFixed(1)} ov`, grad:'from-rose-500 to-red-600' },
+        { icon:'🧤', title:'Best Wicketkeeper', metric:'Most stumpings',     key:'stumpings', unit:'st',   sub:w=>`${w.catches} catch${w.catches!==1?'es':''} taken`, grad:'from-indigo-500 to-violet-600' },
+        { icon:'🤾', title:'Best Fielder',      metric:'Catches + run-outs', key:'fielding',  unit:'dis',  sub:w=>`${w.catches} caught · ${w.runOuts} run-out`, grad:'from-sky-500 to-blue-600' },
+        { icon:'💥', title:'Six Hitter',        metric:'Most sixes',         key:'sixes',     unit:'6s',   sub:w=>`${w.runs} runs · ${w.fours}×4`, grad:'from-amber-500 to-orange-600' },
+        { icon:'🏸', title:'Four Hitter',       metric:'Most fours',         key:'fours',     unit:'4s',   sub:w=>`${w.runs} runs · ${w.sixes}×6`, grad:'from-cyan-500 to-sky-600' },
+        { icon:'🛡️', title:'Best Maiden Overs', metric:'Most maidens',       key:'maidens',   unit:'md',   sub:w=>`${w.wickets} wkts · ${w.runsConceded} runs`, grad:'from-slate-600 to-slate-800' },
+        { icon:'⭐', title:'Tournament MVP',     metric:'Weighted composite', key:'mvp',       unit:'pts',  sub:w=>`${w.runs} run · ${w.wickets} wkt · ${w.fielding} fld`, grad:'from-fuchsia-500 to-purple-600' },
+      ];
+
+      const cardHtml = (sp) => {
+        const t = topBy(sp.key);
+        const inner = t ? `
+          <div class="flex items-baseline gap-1.5 mt-2">
+            <span class="text-3xl font-black leading-none">${t.win[sp.key]}</span>
+            <span class="text-xs font-black opacity-80">${sp.unit}</span>
+          </div>
+          <div class="mt-1.5 min-w-0">
+            <div class="text-sm font-black truncate">${t.win.name}</div>
+            <div class="text-[10px] font-bold opacity-80 truncate">${t.win.team || '—'}</div>
+          </div>
+          <div class="text-[10px] font-semibold opacity-75 mt-1 truncate">${sp.sub(t.win)}</div>
+          ${t.runner ? `<div class="text-[9px] font-bold opacity-70 mt-2 pt-2 border-t border-white/25 truncate">2nd · ${t.runner.name} (${t.runner[sp.key]} ${sp.unit})</div>` : ''}
+        ` : `
+          <div class="mt-3 text-xs font-bold opacity-80">Awaiting matches</div>
+          <div class="text-[10px] font-semibold opacity-70 mt-1">No data recorded yet</div>
+        `;
+        return `
+          <div class="rounded-2xl p-3.5 bg-gradient-to-br ${sp.grad} text-white shadow-md flex flex-col min-h-[150px]">
+            <div class="flex items-center justify-between">
+              <span class="text-2xl leading-none">${sp.icon}</span>
+              <span class="text-[9px] font-black uppercase tracking-wider bg-white/20 px-2 py-0.5 rounded-lg">${sp.metric}</span>
+            </div>
+            <div class="text-[11px] font-black uppercase tracking-wide mt-2 opacity-95">${sp.title}</div>
+            ${inner}
+          </div>`;
+      };
+
+      // Best Team card (wins + NRR) from the standings engine.
+      const bestTeamHtml = `
+        <div class="rounded-2xl p-3.5 bg-gradient-to-br from-yellow-500 to-amber-600 text-white shadow-md flex flex-col min-h-[150px]">
+          <div class="flex items-center justify-between">
+            <span class="text-2xl leading-none">🏆</span>
+            <span class="text-[9px] font-black uppercase tracking-wider bg-white/20 px-2 py-0.5 rounded-lg">Wins + NRR</span>
+          </div>
+          <div class="text-[11px] font-black uppercase tracking-wide mt-2 opacity-95">Best Team</div>
+          ${bestTeam ? `
+            <div class="flex items-baseline gap-1.5 mt-2">
+              <span class="text-3xl font-black leading-none">${bestTeam.points}</span>
+              <span class="text-xs font-black opacity-80">pts</span>
+            </div>
+            <div class="mt-1.5 min-w-0">
+              <div class="text-sm font-black truncate">${bestTeam.name}</div>
+              <div class="text-[10px] font-bold opacity-80 truncate">Group ${bestTeam.group}</div>
+            </div>
+            <div class="text-[10px] font-semibold opacity-75 mt-1 truncate">${bestTeam.won}W-${bestTeam.lost}L · NRR ${bestTeam.nrr}</div>
+          ` : `
+            <div class="mt-3 text-xs font-bold opacity-80">Awaiting matches</div>
+            <div class="text-[10px] font-semibold opacity-70 mt-1">No completed games yet</div>
+          `}
+        </div>`;
+
+      if (!hasAnyData) {
+        mainContentHtml = `
+          <div class="bg-white border-2 border-emerald-200 rounded-3xl p-8 text-center shadow-sm space-y-2 animate-fade-in">
+            <div class="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 border border-amber-200 flex items-center justify-center mx-auto text-2xl">🏆</div>
+            <h3 class="text-sm font-black text-slate-900">${selectedCategory} Awards Coming Soon</h3>
+            <p class="text-[11px] text-slate-500 max-w-sm mx-auto">Player and team awards for ${selectedCategory} 2026 will appear here automatically as matches are scored.</p>
+          </div>`;
+      } else {
+        mainContentHtml = `
+          <div class="space-y-3 animate-fade-in">
+            <div class="flex items-center justify-between flex-wrap gap-2">
+              <h3 class="text-sm font-black text-slate-900 flex items-center gap-2"><span>🏆</span> ${selectedCategory} Tournament Awards</h3>
+              <span class="text-[10px] font-bold text-slate-500 bg-slate-100 border border-slate-200 px-2.5 py-1 rounded-lg">Live · updates as matches are scored</span>
+            </div>
+            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+              ${specs.map(cardHtml).join('')}
+              ${bestTeamHtml}
+            </div>
+            <p class="text-[10px] text-slate-400 leading-relaxed px-1">
+              🧤 Keeper, 🤾 fielder and 🛡️ maiden awards reflect matches scored after this feature went live; batting, bowling and team awards cover every completed match. MVP = runs + 4s + 2×6s + 20×wickets + 8×maidens + 8×catches + 10×stumpings + 8×run-outs.
+            </p>
+          </div>`;
+      }
     } else {
       // Standings / Points Table Subtab
       if (leagueTeams.length === 0) {
@@ -4742,13 +4869,16 @@ function renderFixturesView(container) {
           </div>
         </div>
 
-        <!-- Sub-Tabs Navigation (Matches vs Points Table) -->
-        <div class="grid grid-cols-2 gap-1.5 bg-white border border-slate-200 p-1 rounded-xl shadow-2xs">
+        <!-- Sub-Tabs Navigation (Matches / Points Table / Awards) -->
+        <div class="grid grid-cols-3 gap-1.5 bg-white border border-slate-200 p-1 rounded-xl shadow-2xs">
           <button id="fixture-subtab-matches" class="text-xs font-black py-2 px-3 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${activeFixtureSubTab === 'matches' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}">
             🏏 Matches
           </button>
           <button id="fixture-subtab-table" class="text-xs font-black py-2 px-3 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${activeFixtureSubTab === 'table' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}">
-            📊 Points Table (Standings)
+            📊 Points Table
+          </button>
+          <button id="fixture-subtab-awards" class="text-xs font-black py-2 px-3 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${activeFixtureSubTab === 'awards' ? 'bg-amber-500 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}">
+            🏆 Awards
           </button>
         </div>
 
@@ -4788,6 +4918,11 @@ function renderFixturesView(container) {
     document.getElementById('fixture-subtab-table')?.addEventListener('click', () => {
       activeFixtureSubTab = 'table';
       sessionStorage.setItem('cpl_active_fixture_subtab', 'table');
+      drawFixtures();
+    });
+    document.getElementById('fixture-subtab-awards')?.addEventListener('click', () => {
+      activeFixtureSubTab = 'awards';
+      sessionStorage.setItem('cpl_active_fixture_subtab', 'awards');
       drawFixtures();
     });
 

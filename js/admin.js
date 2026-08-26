@@ -3132,6 +3132,7 @@ function renderScorerActivePanel() {
           fixture.liveMatchState.overs = 0;
           fixture.liveMatchState.balls = 0;
           fixture.liveMatchState.overBalls = [];
+          fixture.liveMatchState.currentOverBowlerRuns = 0;
           store.updateFixture(fixture);
           renderScorerActivePanel();
           alert(`✅ Innings 1 Closed! Target set to ${fixture.liveMatchState.target}. Now select new opening batsmen and bowler for Innings 2.`);
@@ -3231,6 +3232,7 @@ function endInningsOrFinishMatch(fixture) {
     s.extras = 0;
     s.freeHit = false;
     s.overBalls = [];
+    s.currentOverBowlerRuns = 0;
     if (!Array.isArray(s.ballHistory)) s.ballHistory = [];
     fixture.liveMatchState = s;
     fixture.status = 'LIVE';
@@ -3424,6 +3426,12 @@ function processScorerBall(runsScored) {
     state.playerStats[bowlerId].runsConceded += totalBallRuns;
   }
 
+  // Per-over maiden tracking: accumulate the runs CHARGED TO THE BOWLER this over.
+  // Byes/leg-byes are not charged to the bowler so they don't break a maiden (per the
+  // laws); wides/no-balls are charged, so they do. Checked at over completion below.
+  if (typeof state.currentOverBowlerRuns !== 'number') state.currentOverBowlerRuns = 0;
+  state.currentOverBowlerRuns += (!isBye && !isLegBye) ? totalBallRuns : 0;
+
   state.runs += totalBallRuns;
 
   // Track team EXTRAS (wides + no-ball penalty + byes + leg-byes). Runs off the bat are NOT extras.
@@ -3452,6 +3460,11 @@ function processScorerBall(runsScored) {
   if (isValidBall) {
     state.balls += 1;
     if (state.balls >= 6) {
+      // Maiden over? The bowler conceded nothing this over -> credit a maiden.
+      if ((state.currentOverBowlerRuns || 0) === 0 && state.bowlerId && state.playerStats[state.bowlerId]) {
+        state.playerStats[state.bowlerId].maidens = (state.playerStats[state.bowlerId].maidens || 0) + 1;
+      }
+      state.currentOverBowlerRuns = 0;   // reset the per-over bowler tally for the next over
       state.overs += 1;
       state.balls = 0;
       state.overBalls = [];   // fresh over -> empty "This Over Deliveries" ticker
@@ -3724,8 +3737,23 @@ function openScorerWicketModal() {
       else if (!wIsBye && !wIsLegBye) bowlerCharge = runsCompleted;
       state.playerStats[bowlerId].runsConceded += bowlerCharge;
       if (wIsLegalDelivery) state.playerStats[bowlerId].ballsBowled += 1;
+      // Per-over maiden tally (see processScorerBall) — a wicket ball still adds its charge.
+      if (typeof state.currentOverBowlerRuns !== 'number') state.currentOverBowlerRuns = 0;
+      state.currentOverBowlerRuns += bowlerCharge;
     }
-    
+
+    // Credit the fielder so tournament awards (Best Fielder / Best Wicketkeeper) can aggregate.
+    // Caught -> catch, Stumped -> stumping (the keeper), Run Out -> run-out.
+    if (fielderId) {
+      if (!state.playerStats[fielderId]) {
+        state.playerStats[fielderId] = { runs: 0, balls: 0, fours: 0, sixes: 0, wickets: 0, runsConceded: 0, ballsBowled: 0, dismissed: false };
+      }
+      const fs = state.playerStats[fielderId];
+      if (type === 'CAUGHT') fs.catches = (fs.catches || 0) + 1;
+      else if (type === 'STUMPED') fs.stumpings = (fs.stumpings || 0) + 1;
+      else if (type === 'RUN_OUT') fs.runOuts = (fs.runOuts || 0) + 1;
+    }
+
     let wktLabel = 'W';
     if (wIsWide) wktLabel = 'W+wd';
     else if (wIsNoBall) wktLabel = 'W+nb';
@@ -3763,6 +3791,11 @@ function openScorerWicketModal() {
     if (wIsLegalDelivery) {
       state.balls += 1;
       if (state.balls >= 6) {
+        // Maiden over? (bowler conceded nothing across the whole over)
+        if ((state.currentOverBowlerRuns || 0) === 0 && bowlerId && state.playerStats[bowlerId]) {
+          state.playerStats[bowlerId].maidens = (state.playerStats[bowlerId].maidens || 0) + 1;
+        }
+        state.currentOverBowlerRuns = 0;
         state.overs += 1;
         state.balls = 0;
         state.overBalls = [];
