@@ -829,19 +829,36 @@ export async function fetchPopupSettingsFromFirebase() {
     } catch(e) {}
   }
 
+  let cloudValue = null;
   if (supabase) {
     try {
       const { data } = await supabase.from('platform_settings').select('value').eq('key', 'popup').maybeSingle();
       if (data && data.value) {
-        const merged = { ...DEFAULT_POPUP_SETTINGS, ...localData, ...data.value };
-        if (typeof localStorage !== 'undefined') {
-          localStorage.setItem('cpl_popup_settings', JSON.stringify(merged));
-        }
-        return merged;
+        cloudValue = data.value;
       }
     } catch (e) {}
   }
-  return localData ? { ...DEFAULT_POPUP_SETTINGS, ...localData } : { ...DEFAULT_POPUP_SETTINGS };
+
+  const localTs = Number(localData?.updated_at || 0);
+  const cloudTs = Number(cloudValue?.updated_at || 0);
+
+  // If local user change is newer or equal, localData wins!
+  let merged;
+  if (localData && localTs >= cloudTs) {
+    merged = { ...DEFAULT_POPUP_SETTINGS, ...(cloudValue || {}), ...localData };
+  } else if (cloudValue) {
+    merged = { ...DEFAULT_POPUP_SETTINGS, ...(localData || {}), ...cloudValue };
+  } else {
+    merged = localData ? { ...DEFAULT_POPUP_SETTINGS, ...localData } : { ...DEFAULT_POPUP_SETTINGS };
+  }
+
+  if (typeof localStorage !== 'undefined') {
+    try {
+      localStorage.setItem('cpl_popup_settings', JSON.stringify(merged));
+    } catch(e) {}
+  }
+
+  return merged;
 }
 
 export async function saveAdSettingsToFirebase(settings) {

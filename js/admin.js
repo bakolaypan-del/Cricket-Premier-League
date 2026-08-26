@@ -1,9 +1,9 @@
 // Admin Master Data & Payment Verification Panel with Single Source Cloud Control (Developer: Suman Kolay)
 
-import { store } from './store.js?v=12.0.0';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF } from './export.js?v=12.0.0';
-import { saveAdSettingsToFirebase, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, savePopupSettingsToFirebase, uploadHDImage, getOptimizedImageUrl } from './supabase.js?v=12.0.0';
-import { shops } from './shopsData.js?v=12.0.0';
+import { store } from './store.js?v=12.0.2';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF } from './export.js?v=12.0.2';
+import { saveAdSettingsToFirebase, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, savePopupSettingsToFirebase, uploadHDImage, getOptimizedImageUrl } from './supabase.js?v=12.0.2';
+import { shops } from './shopsData.js?v=12.0.2';
 
 let activeAdminTab = 'payments'; // 'payments', 'all-players', 'teams'
 let adminAuctionSubTab = 'sold'; // 'sold', 'unsold'
@@ -5561,7 +5561,7 @@ export async function renderAdminShopAdsPanel() {
               <p class="text-[10px] text-slate-400 mt-0.5">Show a registration welcome & app install instruction prompt to first-time visitors.</p>
             </div>
             <label class="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" id="admin-welcome-popup-toggle" class="sr-only peer" ${settings.isWelcomePopupEnabled ? 'checked' : ''}>
+              <input type="checkbox" id="admin-welcome-popup-toggle" class="sr-only peer" ${settings.isWelcomePopupEnabled === true ? 'checked' : ''}>
               <div class="w-10 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
             </label>
           </div>
@@ -5573,7 +5573,7 @@ export async function renderAdminShopAdsPanel() {
               <p class="text-[10px] text-slate-400 mt-0.5">Prompt users to join the official WhatsApp group when they open the JSL Hub page.</p>
             </div>
             <label class="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" id="admin-whatsapp-popup-toggle" class="sr-only peer" ${settings.isWhatsAppPopupEnabled ? 'checked' : ''}>
+              <input type="checkbox" id="admin-whatsapp-popup-toggle" class="sr-only peer" ${settings.isWhatsAppPopupEnabled === true ? 'checked' : ''}>
               <div class="w-10 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
             </label>
           </div>
@@ -5585,7 +5585,7 @@ export async function renderAdminShopAdsPanel() {
               <p class="text-[10px] text-slate-400 mt-0.5">SHOW or HOLD/PAUSE the live floating popup displaying the last 5 registered players on the website.</p>
             </div>
             <label class="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" id="admin-realtime-toast-toggle" class="sr-only peer" ${settings.isRealtimePlayerToastEnabled !== false ? 'checked' : ''}>
+              <input type="checkbox" id="admin-realtime-toast-toggle" class="sr-only peer" ${settings.isRealtimePlayerToastEnabled === true ? 'checked' : ''}>
               <div class="w-10 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
             </label>
           </div>
@@ -5601,7 +5601,7 @@ export async function renderAdminShopAdsPanel() {
               <p class="text-[10px] text-slate-400 mt-0.5">SHOW or HIDE the 31 August 2026 Tournament Countdown Clock at the top of the homepage.</p>
             </div>
             <label class="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" id="admin-countdown-banner-toggle" class="sr-only peer" ${settings.isCountdownEnabled !== false ? 'checked' : ''}>
+              <input type="checkbox" id="admin-countdown-banner-toggle" class="sr-only peer" ${settings.isCountdownEnabled === true ? 'checked' : ''}>
               <div class="w-10 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
             </label>
           </div>
@@ -5622,7 +5622,7 @@ export async function renderAdminShopAdsPanel() {
               </div>
             </div>
             <label class="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" id="admin-youtube-popup-toggle" class="sr-only peer" ${settings.isYouTubePromoEnabled !== false ? 'checked' : ''}>
+              <input type="checkbox" id="admin-youtube-popup-toggle" class="sr-only peer" ${settings.isYouTubePromoEnabled === true ? 'checked' : ''}>
               <div class="w-10 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-red-600"></div>
             </label>
           </div>
@@ -5656,7 +5656,7 @@ export async function renderAdminShopAdsPanel() {
                 <p class="text-[10px] text-slate-400 mt-0.5">Toggle whether users landing on your site see this ad popup.</p>
               </div>
               <label class="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" id="admin-ad-toggle" class="sr-only peer" ${settings.isAdPopupEnabled && !isSnoozed ? 'checked' : ''}>
+                <input type="checkbox" id="admin-ad-toggle" class="sr-only peer" ${settings.isAdPopupEnabled === true && !isSnoozed ? 'checked' : ''}>
                 <div class="w-10 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
               </label>
             </div>
@@ -5691,17 +5691,27 @@ export async function renderAdminShopAdsPanel() {
     return Array.from(checked).map(cb => cb.value);
   };
 
-  const updatePopupSettingField = async (field, value, msg) => {
+  const updatePopupSettingField = async (field, value) => {
     const current = await fetchPopupSettingsFromFirebase();
     const shopIds = getCheckedShopIds();
     const payload = {
       ...current,
       [field]: value,
-      promotedShopIds: shopIds.length > 0 ? shopIds : current.promotedShopIds
+      promotedShopIds: shopIds.length > 0 ? shopIds : current.promotedShopIds,
+      updated_at: Date.now()
     };
     await savePopupSettingsToFirebase(payload);
-    if (msg) alert(`✅ ${msg}`);
-    renderAdminShopAdsPanel();
+    
+    // Smooth status badge refresh without full panel rebuild
+    const isSnoozed = payload.adExpiryTime && Date.now() < payload.adExpiryTime;
+    const badgeContainer = container.querySelector('h4.text-base.font-bold + *');
+    if (badgeContainer) {
+      badgeContainer.outerHTML = payload.isAdPopupEnabled 
+        ? (isSnoozed 
+            ? `<span class="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase bg-amber-500/10 text-amber-400 border border-amber-500/20">Paused (Snoozed)</span>` 
+            : `<span class="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">🟢 Active (Showing)</span>`)
+        : `<span class="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase bg-slate-800 text-slate-400 border border-slate-700/50">🔴 Inactive (Off)</span>`;
+    }
   };
 
   // BIND BUTTON LISTENERS
@@ -5711,11 +5721,17 @@ export async function renderAdminShopAdsPanel() {
       alert("⚠️ Please select at least one shop to promote.");
       return;
     }
-    await updatePopupSettingField('isAdPopupEnabled', true, "Advertisement popup turned ON!");
+    const toggleEl = document.getElementById('admin-ad-toggle');
+    if (toggleEl) toggleEl.checked = true;
+    await updatePopupSettingField('isAdPopupEnabled', true);
+    alert("✅ Advertisement popup turned ON!");
   });
 
   document.getElementById('admin-ad-turn-off-btn')?.addEventListener('click', async () => {
-    await updatePopupSettingField('isAdPopupEnabled', false, "Advertisement popup turned OFF completely!");
+    const toggleEl = document.getElementById('admin-ad-toggle');
+    if (toggleEl) toggleEl.checked = false;
+    await updatePopupSettingField('isAdPopupEnabled', false);
+    alert("✅ Advertisement popup turned OFF completely!");
   });
 
   document.getElementById('admin-ad-pause-month-btn')?.addEventListener('click', async () => {
@@ -5724,35 +5740,36 @@ export async function renderAdminShopAdsPanel() {
     await savePopupSettingsToFirebase({
       ...current,
       isAdPopupEnabled: true,
-      adExpiryTime: Date.now() + ONE_MONTH_MS
+      adExpiryTime: Date.now() + ONE_MONTH_MS,
+      updated_at: Date.now()
     });
     alert("✅ Advertisements paused for 30 days!");
     renderAdminShopAdsPanel();
   });
 
-  // BIND ALL 5 TOGGLE SWITCHES
+  // BIND ALL 5 TOGGLE SWITCHES (Smooth in-place state)
   document.getElementById('admin-ad-toggle')?.addEventListener('change', (e) => {
-    updatePopupSettingField('isAdPopupEnabled', e.target.checked, `Popup Ad ${e.target.checked ? 'Enabled' : 'Disabled'}`);
+    updatePopupSettingField('isAdPopupEnabled', e.target.checked);
   });
 
   document.getElementById('admin-welcome-popup-toggle')?.addEventListener('change', (e) => {
-    updatePopupSettingField('isWelcomePopupEnabled', e.target.checked, `Welcome & Install modal ${e.target.checked ? 'Enabled' : 'Disabled'}`);
+    updatePopupSettingField('isWelcomePopupEnabled', e.target.checked);
   });
 
   document.getElementById('admin-whatsapp-popup-toggle')?.addEventListener('change', (e) => {
-    updatePopupSettingField('isWhatsAppPopupEnabled', e.target.checked, `WhatsApp Join invite ${e.target.checked ? 'Enabled' : 'Disabled'}`);
+    updatePopupSettingField('isWhatsAppPopupEnabled', e.target.checked);
   });
 
   document.getElementById('admin-realtime-toast-toggle')?.addEventListener('change', (e) => {
-    updatePopupSettingField('isRealtimePlayerToastEnabled', e.target.checked, `Real-Time Player Toast ${e.target.checked ? 'ACTIVATED' : 'PAUSED / HIDDEN'}`);
+    updatePopupSettingField('isRealtimePlayerToastEnabled', e.target.checked);
   });
 
   document.getElementById('admin-countdown-banner-toggle')?.addEventListener('change', (e) => {
-    updatePopupSettingField('isCountdownEnabled', e.target.checked, `Countdown Banner ${e.target.checked ? 'SHOWN' : 'HIDDEN'}`);
+    updatePopupSettingField('isCountdownEnabled', e.target.checked);
   });
 
   document.getElementById('admin-youtube-popup-toggle')?.addEventListener('change', (e) => {
-    updatePopupSettingField('isYouTubePromoEnabled', e.target.checked, `YouTube Promo Popup ${e.target.checked ? 'Enabled' : 'Disabled'}`);
+    updatePopupSettingField('isYouTubePromoEnabled', e.target.checked);
   });
 
   // BIND YOUTUBE PREVIEW BUTTON
