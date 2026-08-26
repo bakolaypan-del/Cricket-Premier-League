@@ -4602,85 +4602,54 @@ function renderFixturesView(container) {
 
       const hasAnyData = rows.length > 0 || bestTeam;
 
+      // Compact inline SVG icons (white on the gradient chip) for each award shape.
+      const SVG = {
+        bat:    '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3.5l6.5 6.5-8 8-6.5-6.5z"/><path d="M6 13.5L3.5 16l4.5 4.5L10.5 18"/></svg>',
+        ball:   '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17" stroke-dasharray="1.5 2.5"/></svg>',
+        gloves: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 12V7.5a1.5 1.5 0 0 1 3 0V11M9 11V6a1.5 1.5 0 0 1 3 0v5M12 11V7a1.5 1.5 0 0 1 3 0v5.5"/><path d="M6 12a1.5 1.5 0 0 0-3 0v1.5a6 6 0 0 0 6 6h3.5a4.5 4.5 0 0 0 4.5-4.5V9a1.5 1.5 0 0 0-3 0"/></svg>',
+        hand:   '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="6" r="2.5"/><path d="M4.5 19a7.5 7.5 0 0 1 15 0z"/></svg>',
+        shield: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.2-3 7.3-7 8.5C8 21.3 5 18.2 5 14V6z"/></svg>',
+        star:   '<svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M12 3l2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 16.9 6.8 19.2l1-5.9L3.5 9.2l5.9-.8z"/></svg>',
+        trophy: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 6H5.5a2 2 0 0 0 0 4H8M16 6h2.5a2 2 0 0 1 0 4H16M9.5 20h5M12 13v3.5"/></svg>',
+        six:    '<svg viewBox="0 0 24 24" width="17" height="17"><text x="12" y="17.5" text-anchor="middle" font-size="15" font-weight="900" fill="currentColor" font-family="system-ui,sans-serif">6</text></svg>',
+        four:   '<svg viewBox="0 0 24 24" width="17" height="17"><text x="12" y="17.5" text-anchor="middle" font-size="15" font-weight="900" fill="currentColor" font-family="system-ui,sans-serif">4</text></svg>',
+      };
+
       const specs = [
-        { icon:'🏏', title:'Best Batsman',      metric:'Most runs',          key:'runs',      unit:'runs', accent:'emerald', sub:w=>`${w.balls} balls · ${w.fours}×4 · ${w.sixes}×6` },
-        { icon:'🎯', title:'Best Bowler',       metric:'Most wickets',       key:'wickets',   unit:'wkts', accent:'rose',    sub:w=>`${w.runsConceded} runs · ${(w.ballsBowled/6).toFixed(1)} ov` },
-        { icon:'🧤', title:'Best Wicketkeeper', metric:'Most stumpings',     key:'stumpings', unit:'st',   accent:'violet',  sub:w=>`${w.catches} catch${w.catches!==1?'es':''} taken` },
-        { icon:'🤾', title:'Best Fielder',      metric:'Catches + run-outs', key:'fielding',  unit:'dis',  accent:'sky',     sub:w=>`${w.catches} caught · ${w.runOuts} run-out` },
-        { icon:'💥', title:'Six Hitter',        metric:'Most sixes',         key:'sixes',     unit:'6s',   accent:'amber',   sub:w=>`${w.runs} runs · ${w.fours}×4` },
-        { icon:'🏸', title:'Four Hitter',       metric:'Most fours',         key:'fours',     unit:'4s',   accent:'cyan',    sub:w=>`${w.runs} runs · ${w.sixes}×6` },
-        { icon:'🛡️', title:'Best Maiden Overs', metric:'Most maidens',       key:'maidens',   unit:'md',   accent:'slate',   sub:w=>`${w.wickets} wkts · ${w.runsConceded} runs` },
-        { icon:'⭐', title:'Tournament MVP',     metric:'Weighted composite', key:'mvp',       unit:'pts',  accent:'fuchsia', sub:w=>`${w.runs} run · ${w.wickets} wkt · ${w.fielding} fld` },
+        { title:'Best Batsman',      key:'runs',      accent:'emerald', svg:SVG.bat },
+        { title:'Best Bowler',       key:'wickets',   accent:'rose',    svg:SVG.ball },
+        { title:'Best Wicketkeeper', key:'stumpings', accent:'violet',  svg:SVG.gloves },
+        { title:'Best Fielder',      key:'fielding',  accent:'sky',     svg:SVG.hand },
+        { title:'Six Hitter',        key:'sixes',     accent:'amber',   svg:SVG.six },
+        { title:'Four Hitter',       key:'fours',     accent:'cyan',    svg:SVG.four },
+        { title:'Best Maiden Overs', key:'maidens',   accent:'slate',   svg:SVG.shield },
+        { title:'Tournament MVP',    key:'mvp',       accent:'fuchsia', svg:SVG.star },
       ];
 
-      // Cache the computed rows + standings so the "view all players" modal can reuse
+      // Cache the computed rows + standings so the "view full list" modal can reuse
       // them without re-aggregating (the modal is only reachable from this rendered tab).
       window.__cplAwardsCache = { category: selectedCategory, rows, standings };
 
-      const cardHtml = (sp) => {
-        const t = topBy(sp.key);
-        const playedCount = sp.key === 'mvp'
-          ? rows.filter(r => r.balls > 0 || r.ballsBowled > 0 || r.catches > 0 || r.stumpings > 0 || r.runOuts > 0).length
-          : rows.filter(r => (r[sp.key]||0) > 0).length;
-        const inner = t ? `
-          <div class="flex items-baseline gap-1.5 mt-2">
-            <span class="text-3xl font-black leading-none text-${sp.accent}-600">${t.win[sp.key]}</span>
-            <span class="text-[11px] font-black text-slate-400">${sp.unit}</span>
+      // Compact card: shape icon + award name + top player's name + "View Full List".
+      const compactCard = (key, accent, svg, title, name) => `
+        <button type="button" data-award-key="${key}" class="award-card text-left rounded-2xl p-3 bg-white border border-slate-200 shadow-2xs hover:shadow-md hover:border-${accent}-300 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col gap-2 overflow-hidden group">
+          <div class="h-1 -mx-3 -mt-3 mb-0.5 bg-gradient-to-r from-${accent}-400 to-${accent}-600"></div>
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="w-8 h-8 rounded-lg bg-gradient-to-br from-${accent}-400 to-${accent}-600 text-white flex items-center justify-center shrink-0 shadow-sm">${svg}</span>
+            <span class="text-[10px] font-black uppercase tracking-wide text-slate-600 leading-tight">${title}</span>
           </div>
-          <div class="mt-1.5 min-w-0">
-            <div class="text-sm font-black text-slate-900 truncate">${t.win.name}</div>
-            <div class="text-[10px] font-bold text-slate-500 truncate">${t.win.team || '—'}</div>
-          </div>
-          <div class="text-[10px] font-semibold text-slate-500 mt-1 truncate">${sp.sub(t.win)}</div>
-          ${t.runner ? `<div class="text-[9px] font-bold text-slate-400 mt-2 pt-2 border-t border-slate-100 truncate">2nd · ${t.runner.name} (${t.runner[sp.key]} ${sp.unit})</div>` : '<div class="mt-2 pt-2 border-t border-slate-100 text-[9px] font-bold text-slate-300">Sole contender</div>'}
-        ` : `
-          <div class="mt-3 text-xs font-black text-slate-400">Awaiting matches</div>
-          <div class="text-[10px] font-semibold text-slate-400 mt-1">No data recorded yet</div>
-        `;
-        return `
-          <button type="button" data-award-key="${sp.key}" class="award-card text-left rounded-2xl p-3.5 bg-white border border-slate-200 shadow-2xs hover:shadow-lg hover:border-${sp.accent}-300 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col min-h-[170px] group overflow-hidden">
-            <div class="h-1.5 -mx-3.5 -mt-3.5 mb-2.5 bg-gradient-to-r from-${sp.accent}-400 to-${sp.accent}-600"></div>
-            <div class="flex items-center justify-between">
-              <span class="w-9 h-9 rounded-xl bg-gradient-to-br from-${sp.accent}-400 to-${sp.accent}-600 flex items-center justify-center text-lg leading-none shadow-sm">${sp.icon}</span>
-              <span class="text-[8px] font-black uppercase tracking-wider bg-${sp.accent}-50 text-${sp.accent}-700 border border-${sp.accent}-100 px-2 py-0.5 rounded-lg">${sp.metric}</span>
-            </div>
-            <div class="text-[11px] font-black uppercase tracking-wide mt-2 text-slate-700">${sp.title}</div>
-            ${inner}
-            <div class="mt-auto pt-2.5 flex items-center gap-1 text-[10px] font-black text-${sp.accent}-600 group-hover:gap-1.5 transition-all">
-              View all ${playedCount} player${playedCount!==1?'s':''} <span class="transition-transform group-hover:translate-x-0.5">→</span>
-            </div>
-          </button>`;
-      };
-
-      // Best Team card (wins + NRR) from the standings engine — white design, opens full table.
-      const teamsPlayed = standings.filter(t => t.played > 0).length;
-      const bestTeamHtml = `
-        <button type="button" data-award-key="team" class="award-card text-left rounded-2xl p-3.5 bg-white border border-slate-200 shadow-2xs hover:shadow-lg hover:border-amber-300 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col min-h-[170px] group overflow-hidden">
-          <div class="h-1.5 -mx-3.5 -mt-3.5 mb-2.5 bg-gradient-to-r from-amber-400 to-amber-600"></div>
-          <div class="flex items-center justify-between">
-            <span class="w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center text-lg leading-none shadow-sm">🏆</span>
-            <span class="text-[8px] font-black uppercase tracking-wider bg-amber-50 text-amber-700 border border-amber-100 px-2 py-0.5 rounded-lg">Wins + NRR</span>
-          </div>
-          <div class="text-[11px] font-black uppercase tracking-wide mt-2 text-slate-700">Best Team</div>
-          ${bestTeam ? `
-            <div class="flex items-baseline gap-1.5 mt-2">
-              <span class="text-3xl font-black leading-none text-amber-600">${bestTeam.points}</span>
-              <span class="text-[11px] font-black text-slate-400">pts</span>
-            </div>
-            <div class="mt-1.5 min-w-0">
-              <div class="text-sm font-black text-slate-900 truncate">${bestTeam.name}</div>
-              <div class="text-[10px] font-bold text-slate-500 truncate">Group ${bestTeam.group}</div>
-            </div>
-            <div class="text-[10px] font-semibold text-slate-500 mt-1 truncate">${bestTeam.won}W-${bestTeam.lost}L · NRR ${bestTeam.nrr}</div>
-            <div class="mt-2 pt-2 border-t border-slate-100 text-[9px] font-bold text-slate-400 truncate">${standings[1] && standings[1].played>0 ? `2nd · ${standings[1].name} (${standings[1].points} pts)` : 'Sole contender'}</div>
-          ` : `
-            <div class="mt-3 text-xs font-black text-slate-400">Awaiting matches</div>
-            <div class="text-[10px] font-semibold text-slate-400 mt-1">No completed games yet</div>
-          `}
-          <div class="mt-auto pt-2.5 flex items-center gap-1 text-[10px] font-black text-amber-600 group-hover:gap-1.5 transition-all">
-            View all ${teamsPlayed} team${teamsPlayed!==1?'s':''} <span class="transition-transform group-hover:translate-x-0.5">→</span>
+          <div class="text-sm font-black ${name ? 'text-slate-900' : 'text-slate-400'} truncate leading-tight">${name || 'Awaiting matches'}</div>
+          <div class="mt-auto flex items-center gap-1 text-[10px] font-black text-${accent}-600 group-hover:gap-1.5 transition-all">
+            View Full List <span class="transition-transform group-hover:translate-x-0.5">→</span>
           </div>
         </button>`;
+
+      const cardHtml = (sp) => {
+        const t = topBy(sp.key);
+        return compactCard(sp.key, sp.accent, sp.svg, sp.title, t ? t.win.name : '');
+      };
+
+      const bestTeamHtml = compactCard('team', 'amber', SVG.trophy, 'Best Team', bestTeam ? bestTeam.name : '');
 
       if (!hasAnyData) {
         mainContentHtml = `
@@ -4694,14 +4663,14 @@ function renderFixturesView(container) {
           <div class="space-y-3 animate-fade-in">
             <div class="flex items-center justify-between flex-wrap gap-2">
               <h3 class="text-sm font-black text-slate-900 flex items-center gap-2"><span>🏆</span> ${selectedCategory} Tournament Awards</h3>
-              <span class="text-[10px] font-bold text-slate-500 bg-white border border-slate-200 px-2.5 py-1 rounded-lg shadow-2xs">Tap any card to see every player →</span>
+              <span class="text-[10px] font-bold text-slate-500 bg-white border border-slate-200 px-2.5 py-1 rounded-lg shadow-2xs">Tap a card for the full list →</span>
             </div>
             <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
               ${specs.map(cardHtml).join('')}
               ${bestTeamHtml}
             </div>
             <p class="text-[10px] text-slate-400 leading-relaxed px-1">
-              🧤 Keeper, 🤾 fielder and 🛡️ maiden awards reflect matches scored after this feature went live; batting, bowling and team awards cover every completed match. MVP = runs + 4s + 2×6s + 20×wickets + 8×maidens + 8×catches + 10×stumpings + 8×run-outs.
+              Keeper, fielder and maiden awards reflect matches scored after this feature went live; all others cover every completed match.
             </p>
           </div>`;
       }
