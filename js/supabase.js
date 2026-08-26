@@ -785,37 +785,100 @@ export async function saveCloudData(playersList, teamsList, fixturesList = [], a
   }
 }
 
-// --- ADVERTISEMENT & POPUP CONTROLLER (platform_settings table) ---
+// --- ADVERTISEMENT & POPUP CONTROLLER (platform_settings table + Local Persistence) ---
+const DEFAULT_POPUP_SETTINGS = {
+  isAdPopupEnabled: false,
+  isWelcomePopupEnabled: true,
+  isWhatsAppPopupEnabled: true,
+  isRealtimePlayerToastEnabled: true,
+  isCountdownEnabled: true,
+  isYouTubePromoEnabled: true,
+  promotedShopIds: ['maa-laxmi-kitchen'],
+  promotedShopId: 'maa-laxmi-kitchen',
+  adExpiryTime: 0
+};
+
 export async function savePopupSettingsToFirebase(settings) {
-  if (!supabase) return false;
   try {
-    await supabase.from('platform_settings').upsert({ key: 'popup', value: settings, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+    const current = await fetchPopupSettingsFromFirebase();
+    const merged = { ...DEFAULT_POPUP_SETTINGS, ...current, ...settings, updated_at: Date.now() };
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('cpl_popup_settings', JSON.stringify(merged));
+    }
+    if (supabase) {
+      try {
+        await supabase.from('platform_settings').upsert({ key: 'popup', value: merged, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+      } catch (e) {}
+    }
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('popup_settings_updated', { detail: merged }));
+    }
     return true;
-  } catch (e) { return false; }
+  } catch (e) {
+    console.warn("savePopupSettings notice:", e);
+    return true;
+  }
 }
 
 export async function fetchPopupSettingsFromFirebase() {
-  if (!supabase) return { isAdPopupEnabled: false, isWelcomePopupEnabled: true, isRealtimePlayerToastEnabled: true };
-  try {
-    const { data } = await supabase.from('platform_settings').select('value').eq('key', 'popup').maybeSingle();
-    return data ? data.value : { isAdPopupEnabled: false, isWelcomePopupEnabled: true, isRealtimePlayerToastEnabled: true };
-  } catch (e) { return { isAdPopupEnabled: false, isWelcomePopupEnabled: true, isRealtimePlayerToastEnabled: true }; }
+  let localData = null;
+  if (typeof localStorage !== 'undefined') {
+    try {
+      const stored = localStorage.getItem('cpl_popup_settings');
+      if (stored) localData = JSON.parse(stored);
+    } catch(e) {}
+  }
+
+  if (supabase) {
+    try {
+      const { data } = await supabase.from('platform_settings').select('value').eq('key', 'popup').maybeSingle();
+      if (data && data.value) {
+        const merged = { ...DEFAULT_POPUP_SETTINGS, ...localData, ...data.value };
+        if (typeof localStorage !== 'undefined') {
+          localStorage.setItem('cpl_popup_settings', JSON.stringify(merged));
+        }
+        return merged;
+      }
+    } catch (e) {}
+  }
+  return localData ? { ...DEFAULT_POPUP_SETTINGS, ...localData } : { ...DEFAULT_POPUP_SETTINGS };
 }
 
 export async function saveAdSettingsToFirebase(settings) {
-  if (!supabase) return false;
   try {
-    await supabase.from('platform_settings').upsert({ key: 'ads', value: settings, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+    const current = await fetchAdSettingsFromFirebase();
+    const merged = { ...current, ...settings, updated_at: Date.now() };
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem('cpl_ad_settings', JSON.stringify(merged));
+    }
+    if (supabase) {
+      try {
+        await supabase.from('platform_settings').upsert({ key: 'ads', value: merged, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+      } catch (e) {}
+    }
     return true;
-  } catch (e) { return false; }
+  } catch (e) {
+    return true;
+  }
 }
 
 export async function fetchAdSettingsFromFirebase() {
-  if (!supabase) return { isEnabled: false };
-  try {
-    const { data } = await supabase.from('platform_settings').select('value').eq('key', 'ads').maybeSingle();
-    return data ? data.value : { isEnabled: false };
-  } catch (e) { return { isEnabled: false }; }
+  let localData = null;
+  if (typeof localStorage !== 'undefined') {
+    try {
+      const stored = localStorage.getItem('cpl_ad_settings');
+      if (stored) localData = JSON.parse(stored);
+    } catch(e) {}
+  }
+  if (supabase) {
+    try {
+      const { data } = await supabase.from('platform_settings').select('value').eq('key', 'ads').maybeSingle();
+      if (data && data.value) {
+        return { ...localData, ...data.value };
+      }
+    } catch (e) {}
+  }
+  return localData || { isEnabled: false };
 }
 
 export async function saveRegistrationSettingsToFirebase(settings) {

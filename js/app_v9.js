@@ -536,6 +536,33 @@ export function openYouTubePromoModal(forceOpen = false) {
   document.getElementById('yt-subscribe-btn')?.addEventListener('click', removeModal);
 }
 
+if (typeof window !== 'undefined') {
+  window.openYouTubePromoModal = openYouTubePromoModal;
+  window.addEventListener('popup_settings_updated', (e) => {
+    const settings = e.detail;
+    if (!settings) return;
+    
+    // 1. Live Countdown Banner sync
+    const countdownCard = document.getElementById('tournament-countdown-card');
+    if (countdownCard) {
+      if (settings.isCountdownEnabled === false) {
+        countdownCard.classList.add('hidden');
+      } else {
+        countdownCard.classList.remove('hidden');
+      }
+    }
+
+    // 2. Real-Time Player Toast sync
+    if (settings.isRealtimePlayerToastEnabled === false) {
+      const toast = document.getElementById('realtime-player-toast-widget');
+      if (toast) {
+        toast.classList.remove('translate-y-0', 'opacity-100', 'pointer-events-auto');
+        toast.classList.add('translate-y-10', 'opacity-0', 'pointer-events-none');
+      }
+    }
+  });
+}
+
 // --- CLIENT-SIDE HD IMAGE COMPRESSION (GUARANTEED STRICTLY UNDER 100 KB PER IMAGE) ---
 export function compressImage(file, maxWidth = 800, maxHeight = 800, quality = 0.75) {
   return new Promise((resolve) => {

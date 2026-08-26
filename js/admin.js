@@ -1,9 +1,9 @@
 // Admin Master Data & Payment Verification Panel with Single Source Cloud Control (Developer: Suman Kolay)
 
-import { store } from './store.js?v=11.6.4';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF } from './export.js?v=11.6.4';
-import { saveAdSettingsToFirebase, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, savePopupSettingsToFirebase, uploadHDImage, getOptimizedImageUrl } from './supabase.js?v=11.6.4';
-import { shops } from './shopsData.js?v=11.6.4';
+import { store } from './store.js?v=12.0.0';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF } from './export.js?v=12.0.0';
+import { saveAdSettingsToFirebase, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, savePopupSettingsToFirebase, uploadHDImage, getOptimizedImageUrl } from './supabase.js?v=12.0.0';
+import { shops } from './shopsData.js?v=12.0.0';
 
 let activeAdminTab = 'payments'; // 'payments', 'all-players', 'teams'
 let adminAuctionSubTab = 'sold'; // 'sold', 'unsold'
@@ -5691,201 +5691,76 @@ export async function renderAdminShopAdsPanel() {
     return Array.from(checked).map(cb => cb.value);
   };
 
+  const updatePopupSettingField = async (field, value, msg) => {
+    const current = await fetchPopupSettingsFromFirebase();
+    const shopIds = getCheckedShopIds();
+    const payload = {
+      ...current,
+      [field]: value,
+      promotedShopIds: shopIds.length > 0 ? shopIds : current.promotedShopIds
+    };
+    await savePopupSettingsToFirebase(payload);
+    if (msg) alert(`✅ ${msg}`);
+    renderAdminShopAdsPanel();
+  };
+
   // BIND BUTTON LISTENERS
-  document.getElementById('admin-ad-turn-on-btn').addEventListener('click', async () => {
+  document.getElementById('admin-ad-turn-on-btn')?.addEventListener('click', async () => {
     const shopIds = getCheckedShopIds();
     if (shopIds.length === 0) {
-      alert("Please select at least one shop to promote.");
+      alert("⚠️ Please select at least one shop to promote.");
       return;
     }
-    const ok = await savePopupSettingsToFirebase({
-      isWelcomePopupEnabled: document.getElementById('admin-welcome-popup-toggle').checked,
-      isWhatsAppPopupEnabled: document.getElementById('admin-whatsapp-popup-toggle').checked,
-      isAdPopupEnabled: true,
-      promotedShopIds: shopIds,
-      promotedShopId: shopIds[0] || 'maa-laxmi-kitchen',
-      adExpiryTime: 0
-    });
-    if (ok) {
-      alert("Settings saved successfully! Selected advertisements are now active.");
-      renderAdminShopAdsPanel();
-    } else {
-      alert("Failed to save settings. Please try again.");
-    }
+    await updatePopupSettingField('isAdPopupEnabled', true, "Advertisement popup turned ON!");
   });
 
-  document.getElementById('admin-ad-turn-off-btn').addEventListener('click', async () => {
-    const shopIds = getCheckedShopIds();
-    const ok = await savePopupSettingsToFirebase({
-      isWelcomePopupEnabled: document.getElementById('admin-welcome-popup-toggle').checked,
-      isWhatsAppPopupEnabled: document.getElementById('admin-whatsapp-popup-toggle').checked,
-      isAdPopupEnabled: false,
-      promotedShopIds: shopIds,
-      promotedShopId: shopIds[0] || 'maa-laxmi-kitchen',
-      adExpiryTime: 0
-    });
-    if (ok) {
-      alert("Advertisements are now completely turned off.");
-      renderAdminShopAdsPanel();
-    } else {
-      alert("Failed to turn off advertisement settings.");
-    }
+  document.getElementById('admin-ad-turn-off-btn')?.addEventListener('click', async () => {
+    await updatePopupSettingField('isAdPopupEnabled', false, "Advertisement popup turned OFF completely!");
   });
 
-  document.getElementById('admin-ad-pause-month-btn').addEventListener('click', async () => {
-    const shopIds = getCheckedShopIds();
+  document.getElementById('admin-ad-pause-month-btn')?.addEventListener('click', async () => {
     const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
-    const ok = await savePopupSettingsToFirebase({
-      isWelcomePopupEnabled: document.getElementById('admin-welcome-popup-toggle').checked,
-      isWhatsAppPopupEnabled: document.getElementById('admin-whatsapp-popup-toggle').checked,
+    const current = await fetchPopupSettingsFromFirebase();
+    await savePopupSettingsToFirebase({
+      ...current,
       isAdPopupEnabled: true,
-      promotedShopIds: shopIds,
-      promotedShopId: shopIds[0] || 'maa-laxmi-kitchen',
       adExpiryTime: Date.now() + ONE_MONTH_MS
     });
-    if (ok) {
-      alert("Advertisements paused successfully! They will not show up for the next 30 days.");
-      renderAdminShopAdsPanel();
-    } else {
-      alert("Failed to snooze advertisement settings.");
-    }
+    alert("✅ Advertisements paused for 30 days!");
+    renderAdminShopAdsPanel();
   });
 
-  // Bind checkbox change
-  document.getElementById('admin-ad-toggle').addEventListener('change', async (e) => {
-    const isChecked = e.target.checked;
-    const shopIds = getCheckedShopIds();
-    const ok = await savePopupSettingsToFirebase({
-      isWelcomePopupEnabled: document.getElementById('admin-welcome-popup-toggle').checked,
-      isWhatsAppPopupEnabled: document.getElementById('admin-whatsapp-popup-toggle').checked,
-      isAdPopupEnabled: isChecked,
-      promotedShopIds: shopIds,
-      promotedShopId: shopIds[0] || 'maa-laxmi-kitchen',
-      adExpiryTime: 0
-    });
-    if (ok) {
-      alert(`Popup advertisement has been turned ${isChecked ? 'ON' : 'OFF'}.`);
-      renderAdminShopAdsPanel();
-    } else {
-      alert("Failed to update status.");
-      e.target.checked = !isChecked; // revert
-    }
+  // BIND ALL 5 TOGGLE SWITCHES
+  document.getElementById('admin-ad-toggle')?.addEventListener('change', (e) => {
+    updatePopupSettingField('isAdPopupEnabled', e.target.checked, `Popup Ad ${e.target.checked ? 'Enabled' : 'Disabled'}`);
   });
 
-  // Bind welcome popup change
-  document.getElementById('admin-welcome-popup-toggle').addEventListener('change', async (e) => {
-    const isChecked = e.target.checked;
-    const shopIds = getCheckedShopIds();
-    const ok = await savePopupSettingsToFirebase({
-      isWelcomePopupEnabled: isChecked,
-      isWhatsAppPopupEnabled: document.getElementById('admin-whatsapp-popup-toggle').checked,
-      isAdPopupEnabled: document.getElementById('admin-ad-toggle').checked,
-      promotedShopIds: shopIds,
-      promotedShopId: shopIds[0] || 'maa-laxmi-kitchen',
-      adExpiryTime: settings.adExpiryTime || 0
-    });
-    if (ok) {
-      alert(`Welcome & Install popup has been turned ${isChecked ? 'ON' : 'OFF'}.`);
-      renderAdminShopAdsPanel();
-    } else {
-      alert("Failed to update welcome popup settings.");
-      e.target.checked = !isChecked; // revert
-    }
+  document.getElementById('admin-welcome-popup-toggle')?.addEventListener('change', (e) => {
+    updatePopupSettingField('isWelcomePopupEnabled', e.target.checked, `Welcome & Install modal ${e.target.checked ? 'Enabled' : 'Disabled'}`);
   });
 
-  // Bind whatsapp popup change
-  document.getElementById('admin-whatsapp-popup-toggle').addEventListener('change', async (e) => {
-    const isChecked = e.target.checked;
-    const shopIds = getCheckedShopIds();
-    const ok = await savePopupSettingsToFirebase({
-      isWelcomePopupEnabled: document.getElementById('admin-welcome-popup-toggle').checked,
-      isWhatsAppPopupEnabled: isChecked,
-      isAdPopupEnabled: document.getElementById('admin-ad-toggle').checked,
-      promotedShopIds: shopIds,
-      promotedShopId: shopIds[0] || 'maa-laxmi-kitchen',
-      adExpiryTime: settings.adExpiryTime || 0
-    });
-    if (ok) {
-      alert(`WhatsApp Group Join popup has been turned ${isChecked ? 'ON' : 'OFF'}.`);
-      renderAdminShopAdsPanel();
-    } else {
-      alert("Failed to update WhatsApp popup settings.");
-      e.target.checked = !isChecked; // revert
-    }
+  document.getElementById('admin-whatsapp-popup-toggle')?.addEventListener('change', (e) => {
+    updatePopupSettingField('isWhatsAppPopupEnabled', e.target.checked, `WhatsApp Join invite ${e.target.checked ? 'Enabled' : 'Disabled'}`);
   });
 
-  // Bind real-time player toast toggle
-  document.getElementById('admin-realtime-toast-toggle').addEventListener('change', async (e) => {
-    const isChecked = e.target.checked;
-    const shopIds = getCheckedShopIds();
-    const ok = await savePopupSettingsToFirebase({
-      isWelcomePopupEnabled: document.getElementById('admin-welcome-popup-toggle').checked,
-      isWhatsAppPopupEnabled: document.getElementById('admin-whatsapp-popup-toggle').checked,
-      isRealtimePlayerToastEnabled: isChecked,
-      isAdPopupEnabled: document.getElementById('admin-ad-toggle').checked,
-      promotedShopIds: shopIds,
-      promotedShopId: shopIds[0] || 'maa-laxmi-kitchen',
-      adExpiryTime: settings.adExpiryTime || 0
-    });
-    if (ok) {
-      alert(`Real-Time Registered Player Toast has been ${isChecked ? 'ACTIVATED (Showing Live)' : 'PAUSED / HELD (Hidden)'}.`);
-      renderAdminShopAdsPanel();
-    } else {
-      alert("Failed to update real-time player toast settings.");
-      e.target.checked = !isChecked; // revert
-    }
+  document.getElementById('admin-realtime-toast-toggle')?.addEventListener('change', (e) => {
+    updatePopupSettingField('isRealtimePlayerToastEnabled', e.target.checked, `Real-Time Player Toast ${e.target.checked ? 'ACTIVATED' : 'PAUSED / HIDDEN'}`);
   });
 
-  // Bind Countdown Banner toggle
-  document.getElementById('admin-countdown-banner-toggle')?.addEventListener('change', async (e) => {
-    const isChecked = e.target.checked;
-    const shopIds = getCheckedShopIds();
-    const ok = await savePopupSettingsToFirebase({
-      isWelcomePopupEnabled: document.getElementById('admin-welcome-popup-toggle')?.checked ?? true,
-      isWhatsAppPopupEnabled: document.getElementById('admin-whatsapp-popup-toggle')?.checked ?? true,
-      isRealtimePlayerToastEnabled: document.getElementById('admin-realtime-toast-toggle')?.checked ?? true,
-      isCountdownEnabled: isChecked,
-      isYouTubePromoEnabled: document.getElementById('admin-youtube-popup-toggle')?.checked ?? true,
-      isAdPopupEnabled: document.getElementById('admin-ad-toggle')?.checked ?? true,
-      promotedShopIds: shopIds,
-      promotedShopId: shopIds[0] || 'maa-laxmi-kitchen',
-      adExpiryTime: settings.adExpiryTime || 0
-    });
-    if (ok) {
-      alert(`Live Tournament Countdown Banner has been ${isChecked ? 'SHOWN (Visible at Top)' : 'HIDDEN (Turned Off)'}.`);
-      renderAdminShopAdsPanel();
-    } else {
-      alert("Failed to update countdown banner settings.");
-      e.target.checked = !isChecked;
-    }
+  document.getElementById('admin-countdown-banner-toggle')?.addEventListener('change', (e) => {
+    updatePopupSettingField('isCountdownEnabled', e.target.checked, `Countdown Banner ${e.target.checked ? 'SHOWN' : 'HIDDEN'}`);
   });
 
-  // Bind YouTube promo preview button
+  document.getElementById('admin-youtube-popup-toggle')?.addEventListener('change', (e) => {
+    updatePopupSettingField('isYouTubePromoEnabled', e.target.checked, `YouTube Promo Popup ${e.target.checked ? 'Enabled' : 'Disabled'}`);
+  });
+
+  // BIND YOUTUBE PREVIEW BUTTON
   document.getElementById('admin-preview-youtube-promo-btn')?.addEventListener('click', () => {
-    (window.openYouTubePromoModal || openYouTubePromoModal)(true);
-  });
-
-  // Bind YouTube promo toggle
-  document.getElementById('admin-youtube-popup-toggle')?.addEventListener('change', async (e) => {
-    const isChecked = e.target.checked;
-    const shopIds = getCheckedShopIds();
-    const ok = await savePopupSettingsToFirebase({
-      isWelcomePopupEnabled: document.getElementById('admin-welcome-popup-toggle')?.checked ?? true,
-      isWhatsAppPopupEnabled: document.getElementById('admin-whatsapp-popup-toggle')?.checked ?? true,
-      isRealtimePlayerToastEnabled: document.getElementById('admin-realtime-toast-toggle')?.checked ?? true,
-      isCountdownEnabled: document.getElementById('admin-countdown-banner-toggle')?.checked ?? true,
-      isYouTubePromoEnabled: isChecked,
-      isAdPopupEnabled: document.getElementById('admin-ad-toggle')?.checked ?? true,
-      promotedShopIds: shopIds,
-      promotedShopId: shopIds[0] || 'maa-laxmi-kitchen',
-      adExpiryTime: settings.adExpiryTime || 0
-    });
-    if (ok) {
-      alert(`YouTube Promotional Popup has been turned ${isChecked ? 'ON (Active for all visitors)' : 'OFF (Disabled)'}.`);
-      renderAdminShopAdsPanel();
+    if (typeof window !== 'undefined' && typeof window.openYouTubePromoModal === 'function') {
+      window.openYouTubePromoModal(true);
     } else {
-      alert("Failed to update YouTube popup settings.");
-      e.target.checked = !isChecked;
+      alert("YouTube preview banner is active! Open the home page to see it.");
     }
   });
 }
