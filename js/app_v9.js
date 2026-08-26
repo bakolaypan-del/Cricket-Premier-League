@@ -4026,38 +4026,58 @@ function renderFixturesView(container) {
     return standings;
   };
 
-  // Mobile-first standings row: a single card with the team on top and every stat
-  // (P / W / L / NRR / Pts) inline-labelled so nothing is clipped on a narrow screen.
-  // Colourful accents on a white body. `accent` is a Tailwind colour family.
-  const standingRow = (t, idx, qualifyCount, accent) => {
-    const teamObj = store.getTeamById(t.id);
-    const logo = teamObj?.logoUrl || teamObj?.teamLogoUrl || 'assets/card_jsl_user.png';
-    const qualified = idx < qualifyCount;
-    const nrrNum = parseFloat(t.nrr);
-    const nrrStr = (nrrNum > 0 ? '+' : '') + t.nrr;
-    const nrrCls = nrrNum >= 0 ? 'text-emerald-600' : 'text-rose-500';
-    const rankCls = idx === 0
-      ? 'bg-gradient-to-br from-amber-400 to-amber-500 text-slate-950 shadow-sm'
-      : (qualified ? `bg-${accent}-600 text-white shadow-2xs` : 'bg-slate-100 text-slate-500 border border-slate-200');
+  // Compact standings TABLE that fits a phone in one screen: tight columns, and the
+  // team-name font shrinks as the name gets longer so all of P/W/L/PTS/NRR stay visible
+  // without horizontal scroll. `accent` is a Tailwind colour family for the group.
+  const standingsTableHtml = (list, qualifyCount, accent) => {
+    const rowHtml = list.map((t, idx) => {
+      const teamObj = store.getTeamById(t.id);
+      const logo = teamObj?.logoUrl || teamObj?.teamLogoUrl || 'assets/card_jsl_user.png';
+      const qualified = idx < qualifyCount;
+      const nrrNum = parseFloat(t.nrr);
+      const nrrStr = (nrrNum > 0 ? '+' : '') + t.nrr;
+      const nrrCls = nrrNum >= 0 ? 'text-emerald-600' : 'text-rose-500';
+      const rankCls = idx === 0
+        ? 'bg-amber-400 text-slate-950'
+        : (qualified ? `bg-${accent}-600 text-white` : 'bg-slate-100 text-slate-500 border border-slate-200');
+      // Longer names -> smaller font so the row never pushes the number columns off-screen.
+      const n = (t.name || '').length;
+      const nameFont = n > 26 ? 'text-[8px]' : n > 20 ? 'text-[9px]' : n > 15 ? 'text-[10px]' : 'text-[11px]';
+      return `
+        <tr class="${qualified ? `bg-${accent}-50/50` : 'bg-white'} border-b border-slate-100 last:border-0">
+          <td class="py-2 px-1.5 text-center"><span class="inline-flex w-5 h-5 rounded-md items-center justify-center text-[9px] font-black ${rankCls}">${idx + 1}</span></td>
+          <td class="py-2 px-1 max-w-0">
+            <div class="flex items-center gap-1.5 min-w-0">
+              <img src="${logo}" class="w-6 h-6 rounded-md object-cover border border-slate-200 bg-slate-50 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+              <span class="${nameFont} font-black text-slate-900 tracking-tight leading-[1.05] uppercase break-words line-clamp-2 min-w-0">${t.name}</span>
+              ${qualified ? `<span class="shrink-0 px-1 py-0.5 text-[7px] leading-none bg-${accent}-600 text-white rounded font-black" title="Qualifies">Q</span>` : ''}
+            </div>
+          </td>
+          <td class="py-2 px-1 text-center text-[11px] font-mono font-bold text-slate-600">${t.played}</td>
+          <td class="py-2 px-1 text-center text-[11px] font-mono font-black text-emerald-600">${t.won}</td>
+          <td class="py-2 px-1 text-center text-[11px] font-mono font-bold text-rose-500">${t.lost}</td>
+          <td class="py-2 px-1 text-center"><span class="inline-block px-1.5 py-0.5 bg-blue-600 text-white rounded font-black text-[11px] font-mono">${t.points}</span></td>
+          <td class="py-2 pl-1 pr-2 text-right text-[11px] font-mono font-black ${nrrCls} whitespace-nowrap">${nrrStr}</td>
+        </tr>`;
+    }).join('');
     return `
-      <div class="flex items-center gap-2.5 p-2.5 rounded-xl border ${qualified ? `border-${accent}-200 bg-${accent}-50/60` : 'border-slate-100 bg-white'} shadow-2xs">
-        <span class="shrink-0 inline-flex w-7 h-7 rounded-lg items-center justify-center text-[11px] font-black ${rankCls}">${idx + 1}</span>
-        <img src="${logo}" class="w-9 h-9 rounded-lg object-cover border border-slate-200 bg-slate-50 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
-        <div class="flex-1 min-w-0">
-          <div class="flex items-center gap-1.5 min-w-0">
-            <span class="text-[13px] font-black text-slate-900 truncate tracking-tight">${t.name}</span>
-            ${qualified ? `<span class="shrink-0 px-1.5 py-0.5 text-[8px] leading-none bg-${accent}-600 text-white rounded font-black uppercase" title="Qualifies">Q</span>` : ''}
-          </div>
-          <div class="flex items-center gap-2.5 mt-1 text-[10px] font-bold text-slate-400">
-            <span>P <b class="text-slate-700">${t.played}</b></span>
-            <span>W <b class="text-emerald-600">${t.won}</b></span>
-            <span>L <b class="text-rose-500">${t.lost}</b></span>
-            <span class="whitespace-nowrap">NRR <b class="${nrrCls}">${nrrStr}</b></span>
-          </div>
-        </div>
-        <div class="shrink-0 text-center px-2.5 py-1.5 rounded-xl bg-gradient-to-br from-${accent}-500 to-${accent}-600 text-white shadow-2xs min-w-[44px]">
-          <div class="text-base font-black leading-none">${t.points}</div>
-          <div class="text-[7px] font-black uppercase tracking-widest opacity-90 mt-0.5">Pts</div>
+      <div class="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
+        <div class="overflow-x-auto">
+          <table class="w-full table-fixed">
+            <colgroup><col class="w-7"/><col/><col class="w-6"/><col class="w-6"/><col class="w-6"/><col class="w-9"/><col class="w-11"/></colgroup>
+            <thead class="bg-gradient-to-r from-slate-900 to-slate-800 text-white text-[9px] font-black uppercase tracking-wider">
+              <tr>
+                <th class="py-2.5 px-1.5 text-center">#</th>
+                <th class="py-2.5 px-1 text-left">Franchise Team</th>
+                <th class="py-2.5 px-1 text-center text-slate-200" title="Played">P</th>
+                <th class="py-2.5 px-1 text-center text-emerald-400" title="Won">W</th>
+                <th class="py-2.5 px-1 text-center text-rose-400" title="Lost">L</th>
+                <th class="py-2.5 px-1 text-center text-amber-400" title="Points">PTS</th>
+                <th class="py-2.5 pl-1 pr-2 text-right text-sky-300" title="Net Run Rate">NRR</th>
+              </tr>
+            </thead>
+            <tbody>${rowHtml || `<tr><td colspan="7" class="py-4 text-center text-[11px] font-bold text-slate-400">No teams yet.</td></tr>`}</tbody>
+          </table>
         </div>
       </div>`;
   };
@@ -4724,16 +4744,8 @@ function renderFixturesView(container) {
                     </span>
                   </div>
 
-                  <!-- Mobile-first responsive standings (no clipped columns) -->
-                  <div class="bg-white border border-slate-200 rounded-2xl p-2 space-y-1.5 shadow-xs">
-                    <div class="flex items-center gap-2 px-2 pt-1 pb-1.5 text-[9px] font-black uppercase tracking-wider text-slate-400">
-                      <span class="w-7 text-center">#</span>
-                      <span class="flex-1">Franchise Team · P W L NRR</span>
-                      <span>Pts</span>
-                    </div>
-                    ${gStandings.length ? gStandings.map((t, idx) => standingRow(t, idx, 2, gAccent)).join('')
-                      : `<div class="p-4 text-center text-[11px] font-bold text-slate-400">No teams in this group yet.</div>`}
-                  </div>
+                  <!-- Compact points table that fits one mobile screen -->
+                  ${standingsTableHtml(gStandings, 2, gAccent)}
                 </div>
               `;
             }).join('')}
@@ -4838,16 +4850,8 @@ function renderFixturesView(container) {
               </span>
             </div>
 
-            <!-- Mobile-first responsive standings (no clipped columns) -->
-            <div class="bg-white border border-slate-200 rounded-2xl p-2 space-y-1.5 shadow-xs">
-              <div class="flex items-center gap-2 px-2 pt-1 pb-1.5 text-[9px] font-black uppercase tracking-wider text-slate-400">
-                <span class="w-7 text-center">#</span>
-                <span class="flex-1">Franchise Team · P W L NRR</span>
-                <span>Pts</span>
-              </div>
-              ${unifiedStandings.length ? unifiedStandings.map((t, idx) => standingRow(t, idx, 4, 'emerald')).join('')
-                : `<div class="p-4 text-center text-[11px] font-bold text-slate-400">No teams added yet.</div>`}
-            </div>
+            <!-- Compact points table that fits one mobile screen -->
+            ${standingsTableHtml(unifiedStandings, 4, 'emerald')}
 
             <!-- Footer Legend -->
             <div class="bg-white border border-slate-200 rounded-2xl p-3 flex flex-wrap items-center justify-between text-[10px] text-slate-600 font-bold gap-2 shadow-2xs">
