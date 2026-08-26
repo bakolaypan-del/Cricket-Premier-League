@@ -12,10 +12,6 @@ import {
   initRealtimePushListener,
   clearAllPlayersFromFirebase,
   clearAllTeamsFromFirebase,
-  savePlayerToFirebase,
-  patchPlayerInFirebase,
-  saveTeamToFirebase,
-  patchTeamInFirebase,
   saveFixtureToFirebase,
   deleteFixtureFromFirebase,
   saveAuctionSettingsToFirebase,
@@ -52,8 +48,6 @@ import {
   dbFetchTournaments,
   compressImageToTarget
 } from './supabase.js?v=11.6.4';
-
-const FIREBASE_DB_URL = "https://cpl-jsl-2026-default-rtdb.firebaseio.com";
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -503,7 +497,7 @@ class Store {
 
   isMasterAdmin() {
     const u = this.getCurrentUser();
-    return !!(u && (u.role === 'SUPER_ADMIN' || u.role === 'master_admin' || (u.email && u.email.toLowerCase() === 'bakolaypan@gmail.com')));
+    return !!(u && (u.role === 'SUPER_ADMIN' || u.role === 'master_admin'));
   }
 
   async authenticateAdmin(email, password) {
@@ -515,7 +509,7 @@ class Store {
       if (res && res.data && res.data.user) {
         const user = res.data.user;
         const profile = res.data.profile;
-        const isMaster = (profile && profile.role === 'master_admin') || cleanEmail === 'bakolaypan@gmail.com';
+        const isMaster = profile && profile.role === 'master_admin';
         
         const userObj = {
           id: user.id,
@@ -535,26 +529,7 @@ class Store {
       console.warn("[AUTH] Supabase signIn notice:", err);
     }
 
-    // 2. Verified Master Admin Fallback
-    const validEmail = 'bakolaypan@gmail.com';
-    const validPass = 'Suman@2030';
-
-    if (cleanEmail === validEmail && password === validPass) {
-      const userObj = {
-        id: 'master-admin-01',
-        name: 'Suman Kolay (Master Admin)',
-        email: validEmail,
-        role: 'SUPER_ADMIN',
-        authProvider: 'local_master'
-      };
-      this.setCurrentUser(userObj);
-      localStorage.setItem(STORAGE_KEYS.ADMIN_AUTH, 'true');
-      this.setUserRole('ADMIN', userObj.name);
-      this.notify('admin_auth_updated');
-      return { success: true, user: userObj, isMaster: true };
-    }
-
-    // 3. Tournament Owner login via registered phone
+    // 2. Tournament Owner login via registered phone
     const owners = this.getTournamentOwners();
     for (const [tId, o] of Object.entries(owners)) {
       if (o && ((o.email && o.email.toLowerCase() === cleanEmail) || o.phone === cleanEmail) && (o.password === password || password === '123456')) {
@@ -596,7 +571,7 @@ class Store {
     const allLeagues = this.getLeagues();
     const currentUser = this.getCurrentUser();
 
-    // 1. Full Master Super Admin access (Suman Kolay / bakolaypan@gmail.com / SUPER_ADMIN)
+    // 1. Full Master Super Admin access (via Supabase Auth role check)
     if (this.isMasterAdmin()) {
       return allLeagues;
     }
@@ -776,7 +751,6 @@ class Store {
         player_photo_url: playerData.photoUrl || playerData.player_photo_url || players[existingIdx].player_photo_url,
       };
       safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
-      savePlayerToFirebase(players[existingIdx]);
       syncPlayerToSupabase(players[existingIdx]);
       this.notify('players_updated');
       return players[existingIdx];
@@ -829,7 +803,6 @@ class Store {
 
     players.push(newPlayer);
     safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
-    savePlayerToFirebase(newPlayer);
     syncPlayerToSupabase(newPlayer);
     this.notify('players_updated');
     return newPlayer;
@@ -847,8 +820,6 @@ class Store {
       };
       
       safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
-      savePlayerToFirebase(players[idx]);
-      patchPlayerInFirebase(players[idx].id, players[idx]);
       syncPlayerToSupabase(players[idx]);
       this.notify('players_updated');
       return players[idx];
@@ -949,8 +920,6 @@ class Store {
       player.updated_at = now;
 
       safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
-      savePlayerToFirebase(player);
-      patchPlayerInFirebase(player.id, player);
       syncPlayerToSupabase(player);
       this.notify('players_updated');
     }
@@ -1020,10 +989,6 @@ class Store {
 
       safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
       safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
-      savePlayerToFirebase(player);
-      saveTeamToFirebase(team);
-      patchPlayerInFirebase(player.id, player);
-      patchTeamInFirebase(team.id, team);
       syncPlayerToSupabase(player);
       syncTeamToSupabase(team);
       this.notify('players_updated');
@@ -1049,8 +1014,6 @@ class Store {
     player.updated_at = now;
 
     safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
-    savePlayerToFirebase(player);
-    patchPlayerInFirebase(player.id, player);
     syncPlayerToSupabase(player);
     this.notify('players_updated');
     this.notify('live_auction_updated');
@@ -1077,8 +1040,6 @@ class Store {
         }
         team.updated_at = now;
         safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
-        saveTeamToFirebase(team);
-        patchTeamInFirebase(team.id, team);
         syncTeamToSupabase(team);
       }
     }
@@ -1106,8 +1067,6 @@ class Store {
     }
 
     safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
-    savePlayerToFirebase(player);
-    patchPlayerInFirebase(player.id, player);
     syncPlayerToSupabase(player);
     this.notify('players_updated');
     this.notify('teams_updated');
@@ -1127,15 +1086,7 @@ class Store {
       p.isSold = false;
       p.boughtByTeamId = null;
       p.updated_at = now;
-      patchPlayerInFirebase(p.id, {
-        teamId: null,
-        teamName: null,
-        soldPrice: 0,
-        auctionStatus: 'PENDING',
-        isSold: false,
-        boughtByTeamId: null,
-        updated_at: now
-      });
+      syncPlayerToSupabase(p);
     });
 
     const teams = (JSON.parse(localStorage.getItem(STORAGE_KEYS.TEAMS)) || []).map((t, idx) => {
@@ -1153,7 +1104,6 @@ class Store {
         playerIds: [],
         updated_at: now
       };
-      saveTeamToFirebase(resetT);
       return resetT;
     });
 
@@ -1373,7 +1323,6 @@ class Store {
     });
     
     safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
-    saveTeamToFirebase(newTeam);
     syncTeamToSupabase(newTeam);
     this.syncIconPlayerAllocation(null, newTeam);
     this.notify('teams_updated');
@@ -1390,8 +1339,6 @@ class Store {
         t.serialNo = i + 1;
       });
       safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
-      saveTeamToFirebase(teams[idx]);
-      patchTeamInFirebase(teams[idx].id, teams[idx]);
       syncTeamToSupabase(teams[idx]);
       this.syncIconPlayerAllocation(oldTeam, teams[idx]);
       this.notify('teams_updated');
@@ -1513,7 +1460,7 @@ class Store {
       team.group = (groupCode || '').toUpperCase().trim();
       team.updated_at = Date.now();
       safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
-      patchTeamInFirebase(team.id, team);
+      syncTeamToSupabase(team);
       this.notify('teams_updated');
       return true;
     }
@@ -1528,7 +1475,7 @@ class Store {
       if (team) {
         team.group = (a.group || '').toUpperCase().trim();
         team.updated_at = Date.now();
-        patchTeamInFirebase(team.id, team);
+        syncTeamToSupabase(team);
         updatedAny = true;
       }
     });
@@ -1687,34 +1634,10 @@ class Store {
   // --- LIVE AUCTION STATE ---
   async getLiveAuctionState() {
     try {
-      const res = await fetch(`${FIREBASE_DB_URL}/cpl_master/liveAuction.json?_t=${Date.now()}`, {
-        cache: 'no-store',
-        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data) {
-          const incomingTime = Number(data.updated_at || data.timestamp || 0);
-          const currentTime = Number(this.liveAuctionState?.updated_at || this.liveAuctionState?.timestamp || 0);
-          // Monotonic Version Guard: Only accept if incoming state is newer or equal
-          if (incomingTime >= currentTime || !this.liveAuctionState) {
-            this.liveAuctionState = data;
-            if (data.active_player_id) {
-              safeSetLocalStorage('cpl_live_auction_state', data);
-            } else {
-              localStorage.removeItem('cpl_live_auction_state');
-            }
-          }
-        } else {
-          this.liveAuctionState = null;
-          localStorage.removeItem('cpl_live_auction_state');
-        }
-        return this.liveAuctionState;
-      }
-    } catch (e) {
-      console.warn("Live auction state fetch error:", e);
-    }
-    return this.liveAuctionState || null;
+      const local = localStorage.getItem('cpl_live_auction_state');
+      if (local) return JSON.parse(local);
+    } catch(e) {}
+    return null;
   }
 
   getLiveAuctionStateSync() {
@@ -2090,12 +2013,6 @@ class Store {
     }
 
     safeSetLocalStorage(STORAGE_KEYS.PLAYER_PROFILES, profiles);
-    fetch(`${FIREBASE_DB_URL}/cpl_master/player_profiles/${profile.id}.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(profile)
-    }).catch(err => console.warn("Player profile sync error:", err));
-
     return profile;
   }
 
@@ -2127,11 +2044,6 @@ class Store {
     if (profile) {
       profile.phoneVerified = true;
       safeSetLocalStorage(STORAGE_KEYS.PLAYER_PROFILES, profiles);
-      fetch(`${FIREBASE_DB_URL}/cpl_master/player_profiles/${profile.id}.json`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(profile)
-      }).catch(err => console.warn("Profile verify sync error:", err));
     }
 
     return true;
@@ -2167,11 +2079,6 @@ class Store {
       profile.photoUrl = newPhotoUrl;
       profile.player_photo_url = newPhotoUrl;
       safeSetLocalStorage(STORAGE_KEYS.PLAYER_PROFILES, profiles);
-      fetch(`${FIREBASE_DB_URL}/cpl_master/player_profiles/${profile.id}.json`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(profile)
-      }).catch(err => console.warn("Profile photo sync error:", err));
     }
 
     return true;
@@ -2237,12 +2144,6 @@ class Store {
     };
     safeSetLocalStorage(STORAGE_KEYS.TOURNAMENT_OWNERS, owners);
 
-    fetch(`${FIREBASE_DB_URL}/cpl_master/tournament_owners/${tournamentId}.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(owners[tournamentId])
-    }).catch(err => console.warn("Tournament owner sync error:", err));
-
     // Update user account role
     const players = this.getPlayers();
     const player = players.find(p => (p.phone || p.mobile || '').replace(/[^0-9]/g, '') === cleanPhone) || { phone: cleanPhone, name };
@@ -2256,11 +2157,6 @@ class Store {
       const idx = accounts.findIndex(a => a.phone === cleanPhone);
       if (idx !== -1) accounts[idx] = userAcc; else accounts.push(userAcc);
       safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, accounts);
-      fetch(`${FIREBASE_DB_URL}/cpl_master/user_accounts/${cleanPhone}.json`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(userAcc)
-      }).catch(err => console.warn("User account role sync error:", err));
     }
 
     this.notify('tournament_owners_updated');
@@ -2290,11 +2186,6 @@ class Store {
       };
       accounts.push(acc);
       safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, accounts);
-      fetch(`${FIREBASE_DB_URL}/cpl_master/user_accounts/${cleanPhone}.json`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(acc)
-      }).catch(err => console.warn("User account creation sync error:", err));
     } else {
       if (!acc.password) acc.password = cleanPhone;
       if (isOwner && acc.role !== 'TOURNAMENT_OWNER') {
@@ -2311,29 +2202,26 @@ class Store {
       return { success: false, message: 'Please enter your Mobile Number or Admin Email!' };
     }
 
-    // 1. MASTER SUPER ADMIN AUTO-DETECTION (Email or Master Phone)
-    if (rawId.toLowerCase() === 'bakolaypan@gmail.com' || rawId === '9876543210') {
-      if (password === 'Suman@2030') {
-        const superAdminUser = {
-          phone: '9876543210',
-          email: 'bakolaypan@gmail.com',
-          name: 'Suman Kolay (Master Admin)',
-          role: 'SUPER_ADMIN',
-          isFirstLogin: false,
-          ownedTournaments: ['tournament-jsl-2026']
-        };
-        this.setCurrentUser(superAdminUser);
-        localStorage.setItem(STORAGE_KEYS.ADMIN_AUTH, 'true');
-        return {
-          success: true,
-          user: superAdminUser,
-          role: 'SUPER_ADMIN',
-          isFirstLogin: false,
-          redirect: 'admin'
-        };
-      } else {
-        return { success: false, message: 'Incorrect Master Admin password!' };
-      }
+    // 1. EMAIL LOGIN → Route through Supabase Auth
+    if (rawId.includes('@')) {
+      try {
+        const authResult = await signInUser(rawId, password);
+        if (authResult && authResult.user) {
+          const profile = await fetchUserProfile(authResult.user.id);
+          const isMaster = profile && profile.role === 'master_admin';
+          const user = {
+            email: rawId,
+            name: profile?.full_name || rawId.split('@')[0],
+            role: isMaster ? 'SUPER_ADMIN' : 'TOURNAMENT_OWNER',
+            isFirstLogin: false,
+            ownedTournaments: ['tournament-jsl-2026']
+          };
+          this.setCurrentUser(user);
+          localStorage.setItem(STORAGE_KEYS.ADMIN_AUTH, 'true');
+          return { success: true, user, role: user.role, isFirstLogin: false, redirect: 'admin' };
+        }
+      } catch (e) {}
+      return { success: false, message: 'Incorrect email or password!' };
     }
 
     // 2. MOBILE NUMBER LOGIN (Players & Tournament Owners)
@@ -2435,11 +2323,6 @@ class Store {
     safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, accounts);
     this.setCurrentUser(acc);
 
-    fetch(`${FIREBASE_DB_URL}/cpl_master/user_accounts/${cleanPhone}.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(acc)
-    }).catch(err => console.warn("Password update sync error:", err));
 
     this.notify('user_auth_updated');
     return { success: true, user: acc };

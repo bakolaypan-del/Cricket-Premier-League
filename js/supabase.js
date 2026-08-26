@@ -1,7 +1,5 @@
 // Automatic Zero-Setup Cloud Database, Supabase & Realtime Cloud Storage Integration (Developer: Suman Kolay)
 
-const FIREBASE_DB_URL = "https://cpl-jsl-2026-default-rtdb.firebaseio.com";
-const GOOGLE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz7YpLCl7Vk_4sR06XhnD9V_-OFVeKwv_vgPm332kFj9LvrrYjdsPG_aDTRv1l2L4zo/exec";
 
 export const SUPABASE_URL = typeof window !== 'undefined' && localStorage.getItem('cpl_supabase_url')
   ? localStorage.getItem('cpl_supabase_url')
@@ -33,6 +31,29 @@ export function initSupabaseClient(url = SUPABASE_URL, key = SUPABASE_ANON_KEY) 
 }
 
 initSupabaseClient();
+
+// --- DETERMINISTIC LEGACY-ID -> UUID MAPPING (mirrors migrate_firebase_to_supabase.js) ---
+const UUID_FORMAT_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+export function makeUUID(input) {
+  let hash = 0;
+  const str = String(input);
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  const hex = Math.abs(hash).toString(16).padStart(8, '0');
+  const base = hex.repeat(4).substring(0, 32);
+  return `${base.slice(0,8)}-${base.slice(8,12)}-4${base.slice(13,16)}-a${base.slice(17,20)}-${base.slice(20,32)}`;
+}
+
+export function toUUID(oldId) {
+  if (!oldId) return null;
+  const str = String(oldId);
+  if (UUID_FORMAT_RE.test(str)) return str;
+  return makeUUID(str);
+}
 
 // ==============================================================================
 // 1. SUPABASE REAL AUTH & RBAC METHODS (Zero Plaintext Secrets)
@@ -214,85 +235,6 @@ export async function compressImageToTarget(fileInput, targetSizeKb = 100, maxDi
 }
 
 // --- GOOGLE DRIVE AUTOMATIC BACKUP BACKEND ---
-export async function saveToGoogleDriveScript(payload) {
-  if (!GOOGLE_APPS_SCRIPT_URL) return;
-  try {
-    fetch(GOOGLE_APPS_SCRIPT_URL, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    }).catch(err => console.warn("Google Drive Sync warning:", err));
-  } catch (err) {
-    console.warn("Google Drive sync notice:", err);
-  }
-}
-
-// --- UPLOAD DIRECT TO GOOGLE DRIVE (RETURNS PUBLIC HD GOOGLE CDN IMAGE URL) ---
-export async function uploadImageToGoogleDrive(file, folderName = 'photos') {
-  if (!file || !GOOGLE_APPS_SCRIPT_URL) return null;
-
-  return new Promise((resolve) => {
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const base64Data = e.target.result;
-      const payload = {
-        action: 'upload_image',
-        folder: folderName,
-        fileName: `${folderName}_${Date.now()}_${file.name ? file.name.replace(/[^a-zA-Z0-9._-]/g, '_') : 'image.jpg'}`,
-        mimeType: file.type || 'image/jpeg',
-        base64: base64Data
-      };
-
-      try {
-        const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify(payload)
-        });
-
-        if (response.ok) {
-          const resData = await response.json();
-          if (resData && resData.directUrl) {
-            console.log("Uploaded image directly to Google Drive:", resData.directUrl);
-            resolve(resData.directUrl);
-            return;
-          }
-        }
-      } catch (err) {
-        console.warn("Google Drive direct upload notice:", err);
-      }
-
-      resolve(null);
-    };
-
-    reader.onerror = () => resolve(null);
-    reader.readAsDataURL(file);
-  });
-}
-
-// --- IMGBB FREE HD IMAGE UPLOAD (PRESERVES 100% ORIGINAL RESOLUTION) ---
-export async function uploadImageToImgBB(file) {
-  if (!file) return null;
-  try {
-    const formData = new FormData();
-    formData.append('image', file);
-    const response = await fetch('https://api.imgbb.com/1/upload?key=6d25705663b6326a9478e0769298064f', {
-      method: 'POST',
-      body: formData
-    });
-    if (response.ok) {
-      const data = await response.json();
-      if (data && data.data && data.data.url) {
-        console.log("Uploaded 100% Full HD Image to ImgBB CDN:", data.data.url);
-        return data.data.url;
-      }
-    }
-  } catch (err) {
-    console.warn("ImgBB upload fallback notice:", err);
-  }
-  return null;
-}
 
 // Helper to ensure input is a valid File or Blob object for FormData upload
 function ensureFileObject(fileInput, defaultName = 'upload.jpg') {
@@ -368,511 +310,366 @@ export function getOptimizedImageUrl(url, width = 300, height = 300, mode = 'fil
   return url;
 }
 
-// --- UNIFIED MULTI-PROVIDER HD IMAGE UPLOADER (AUTO-COMPRESSED & SECURE) ---
+// --- CLOUDINARY-ONLY HD IMAGE UPLOADER (AUTO-COMPRESSED & SECURE) ---
 export async function uploadHDImage(fileInput, folderName = 'documents') {
   if (!fileInput) return null;
-  
-  // Auto-compress first
-  const compressed = await compressImageToTarget(fileInput, 100, 1200);
-  const file = ensureFileObject(compressed, `${folderName}_${Date.now()}.jpg`);
-
-  // Cloudinary Upload First
-  const cloudinaryUrl = await uploadImageToCloudinary(file, folderName);
-  if (cloudinaryUrl) return cloudinaryUrl;
-
-  // Google Drive Fallback
-  const driveUrl = await uploadImageToGoogleDrive(file, folderName);
-  if (driveUrl) return driveUrl;
-
-  // ImgBB Fallback
-  const imgbbUrl = await uploadImageToImgBB(file);
-  if (imgbbUrl) return imgbbUrl;
-
-  return null;
+  return uploadImageToCloudinary(fileInput, folderName);
 }
 
-// --- REALTIME PUSH EVENT LISTENER (ALWAYS-ON FIREBASE REALTIME SSE) ---
-let activeEventSource = null;
-let sseReconnectTimer = null;
+// --- REALTIME PUSH EVENT LISTENER (SUPABASE REALTIME CHANNEL STUB) ---
+let activeRealtimeChannel = null;
 
 export function initRealtimePushListener(onUpdateCallback) {
-  if (typeof EventSource === 'undefined') return null;
-
-  if (activeEventSource) {
-    try { activeEventSource.close(); } catch(e) {}
-  }
-  if (sseReconnectTimer) clearTimeout(sseReconnectTimer);
-
+  if (!supabase) return null;
   try {
-    const eventSource = new EventSource(`${FIREBASE_DB_URL}/cpl_master.json`);
-    activeEventSource = eventSource;
+    if (activeRealtimeChannel) {
+      try { supabase.removeChannel(activeRealtimeChannel); } catch (e) {}
+      activeRealtimeChannel = null;
+    }
 
-    const handleUpdate = (event) => {
-      if (typeof onUpdateCallback === 'function') {
-        onUpdateCallback(event);
-      }
-    };
+    const channel = supabase
+      .channel('cpl_master_changes')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, (payload) => {
+        if (typeof onUpdateCallback === 'function') onUpdateCallback(payload);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'teams' }, (payload) => {
+        if (typeof onUpdateCallback === 'function') onUpdateCallback(payload);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, (payload) => {
+        if (typeof onUpdateCallback === 'function') onUpdateCallback(payload);
+      })
+      .subscribe();
 
-    eventSource.addEventListener('put', handleUpdate);
-    eventSource.addEventListener('patch', handleUpdate);
-    eventSource.onmessage = handleUpdate;
-
-    eventSource.onerror = () => {
-      try { eventSource.close(); } catch(e) {}
-      sseReconnectTimer = setTimeout(() => {
-        initRealtimePushListener(onUpdateCallback);
-      }, 3000);
-    };
-
-    console.log("🟢 Always-On Real-Time Live Push (Firebase SSE) connected.");
-    return eventSource;
+    activeRealtimeChannel = channel;
+    console.log("🟢 [SUPABASE] Realtime push listener subscribed (players/teams/matches).");
+    return channel;
   } catch (err) {
-    sseReconnectTimer = setTimeout(() => {
-      initRealtimePushListener(onUpdateCallback);
-    }, 5000);
+    console.warn("[SUPABASE] initRealtimePushListener notice:", err);
     return null;
   }
 }
 
-// --- INSTANT REALTIME CLOUD DATA FETCH WITH CROSS-DEVICE CLEAR & DELETE SYNC ---
+// --- DEFAULT TOURNAMENT UUID (LEGACY 'leg-jsl' KEY) ---
+const DEFAULT_TOURNAMENT_UUID = toUUID('leg-jsl');
+
+// --- INSTANT CLOUD DATA FETCH (SUPABASE POSTGRES BACKED) ---
 export async function fetchCloudData() {
+  return fetchCloudDataFromSupabase();
+}
+
+export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAMENT_UUID) {
+  const empty = { players: [], teams: [], fixtures: [], playerProfiles: [], auctionSettings: { defaultBasePrice: 300, defaultPurseBudget: 8000 }, registrationSettings: { isJslRegistrationOpen: true, isPlayerRegOpen: true, isTeamRegOpen: true, closedReason: "JSL 2026 Registration is currently closed by the Master Admin." }, clearedAt: 0, teamsClearedAt: 0, deletedPlayerIds: [], deletedTeamIds: [] };
+  if (!supabase) return empty;
+
   try {
-    const res = await fetch(`${FIREBASE_DB_URL}/cpl_master.json?_t=${Date.now()}`, { cache: 'no-store' });
-    if (res.ok) {
-      const data = await res.json();
-      if (data) {
-        let rawPlayers = [];
-        if (data.players) {
-          const playerValues = Array.isArray(data.players) ? data.players : Object.values(data.players);
-          // Deduplicate by player.id to ensure no legacy array vs object key duplicates exist
-          const uniquePlayerMap = new Map();
-          for (const p of playerValues) {
-            if (p && p.id) {
-              const existing = uniquePlayerMap.get(p.id);
-              if (existing) {
-                const pTime = Number(p.updated_at || p.created_at || p.timestamp || p.createdTime || 0);
-                const existingTime = Number(existing.updated_at || existing.created_at || existing.timestamp || existing.createdTime || 0);
-                if (pTime >= existingTime) {
-                  uniquePlayerMap.set(p.id, p);
-                }
-              } else {
-                uniquePlayerMap.set(p.id, p);
-              }
-            }
-          }
-          rawPlayers = Array.from(uniquePlayerMap.values());
-        }
-        
-        let rawTeams = [];
-        if (data.teams) {
-          const teamValues = Array.isArray(data.teams) ? data.teams : Object.values(data.teams);
-          const uniqueTeamMap = new Map();
-          for (const t of teamValues) {
-            if (t && t.id) uniqueTeamMap.set(t.id, t);
-          }
-          rawTeams = Array.from(uniqueTeamMap.values());
-        }
+    const tId = tournamentId || DEFAULT_TOURNAMENT_UUID;
 
-        let rawFixtures = [];
-        if (data.fixtures) {
-          rawFixtures = Array.isArray(data.fixtures) ? data.fixtures : Object.values(data.fixtures);
-        }
+    const [playersRes, teamsRes, matchesRes] = await Promise.all([
+      supabase.from('players').select('*').eq('tournament_id', tId),
+      supabase.from('teams').select('*').eq('tournament_id', tId),
+      supabase.from('matches').select('*').eq('tournament_id', tId)
+    ]);
 
-        let auctionSettings = data.auctionSettings || { defaultBasePrice: 300, defaultPurseBudget: 8000 };
-        let registrationSettings = data.registrationSettings || {
-          isJslRegistrationOpen: true,
-          isPlayerRegOpen: true,
-          isTeamRegOpen: true,
-          closedReason: "JSL 2026 Registration is currently closed by the Master Admin."
-        };
+    const dbPlayers = (!playersRes.error && Array.isArray(playersRes.data)) ? playersRes.data : [];
+    const dbTeams = (!teamsRes.error && Array.isArray(teamsRes.data)) ? teamsRes.data : [];
+    const dbMatches = (!matchesRes.error && Array.isArray(matchesRes.data)) ? matchesRes.data : [];
 
-        const deletedPlayerIds = data.deletedPlayerIds ? Object.keys(data.deletedPlayerIds) : [];
-        const deletedTeamIds = data.deletedTeamIds ? Object.keys(data.deletedTeamIds) : [];
+    const players = dbPlayers.map((p, idx) => {
+      const serial = p.reg_number || (idx + 1);
+      return {
+        id: p.id,
+        tournament_id: p.tournament_id,
+        leagueId: 'leg-jsl',
+        name: p.name,
+        phone: p.phone,
+        mobile: p.phone,
+        photoUrl: p.photo_url,
+        hdPhotoUrl: p.photo_url,
+        player_photo_url: p.photo_url,
+        role: p.role,
+        playingType: p.role,
+        category: p.category_name,
+        basePrice: p.base_price,
+        isIcon: p.is_icon === true,
+        teamId: p.team_id || null,
+        status: p.status,
+        soldPrice: p.sold_price || 0,
+        boughtPrice: p.sold_price || 0,
+        verified: p.verified === true,
+        paymentStatus: p.verified === true ? 'APPROVED' : 'PENDING',
+        serialNo: serial,
+        displayRegistrationNumber: serial,
+        registrationId: `JSL2026-${String(serial).padStart(4, '0')}`,
+        regNo: `JSL2026-${String(serial).padStart(4, '0')}`,
+        created_at: p.created_at,
+        updated_at: p.updated_at
+      };
+    });
 
-        const getPlayerTimestamp = (p) => {
-          if (!p) return 0;
-          if (typeof p.createdTime === 'number' && p.createdTime > 0) return p.createdTime;
-          if (typeof p.regTimestamp === 'number' && p.regTimestamp > 0) return p.regTimestamp;
-          if (p.created_at) {
-            const t = new Date(p.created_at).getTime();
-            if (!isNaN(t) && t > 0) return t;
-          }
-          if (p.id && typeof p.id === 'string' && p.id.startsWith('ply-')) {
-            const parts = p.id.split('-');
-            if (parts.length >= 2) {
-              const t = parseInt(parts[1], 10);
-              if (!isNaN(t) && t > 0) return t;
-            }
-          }
-          if (typeof p.serialNo === 'number' && p.serialNo > 0) return p.serialNo;
-          return 0;
-        };
+    const teams = dbTeams.map((t, idx) => ({
+      id: t.id,
+      tournament_id: t.tournament_id,
+      leagueId: 'leg-jsl',
+      name: t.name,
+      shortCode: t.short_name,
+      ownerName: t.owner_name,
+      ownerPhone: t.owner_phone,
+      logoUrl: t.logo_url,
+      teamLogoUrl: t.logo_url,
+      purse: t.budget_total,
+      remainingPurse: t.budget_remaining,
+      groupCode: t.group_code,
+      serialNo: idx + 1,
+      created_at: t.created_at,
+      updated_at: t.updated_at
+    }));
 
+    const fixtures = dbMatches.map(m => ({
+      id: m.id,
+      tournament_id: m.tournament_id,
+      matchNo: m.match_no,
+      stage: m.stage,
+      groupCode: m.group_code,
+      teamAId: m.team_a_id,
+      teamBId: m.team_b_id,
+      date: m.date,
+      time: m.time,
+      venue: m.venue,
+      oversLimit: m.overs_limit,
+      status: m.status,
+      result: m.result,
+      liveState: m.live_state
+    }));
 
-
-        let rawProfiles = [];
-        if (data.player_profiles) {
-          rawProfiles = Array.isArray(data.player_profiles) ? data.player_profiles : Object.values(data.player_profiles);
-        }
-
-        // SECONDARY DEDUP: Discard ONLY non-canonical legacy IDs when a canonical record exists
-        const normalizeName = (name) => (name || '').toLowerCase().replace(/\s+/g, ' ').replace(/[()]/g, '').trim();
-        const canonicalMap = new Map();
-        for (const p of rawPlayers) {
-          if (p && p.id && p.id.startsWith('ply-1787000000000-')) {
-            const normName = normalizeName(p.name);
-            const normPhone = (p.phone || p.mobile || '').replace(/\D/g, '').slice(-10);
-            canonicalMap.set(normName + '|' + normPhone, p);
-          }
-        }
-
-        const dedupedPlayerIds = new Set();
-        for (const p of rawPlayers) {
-          if (!p || !p.id) continue;
-          if (p.id.startsWith('ply-1787000000000-')) {
-            dedupedPlayerIds.add(p.id);
-          } else {
-            const normName = normalizeName(p.name);
-            const normPhone = (p.phone || p.mobile || '').replace(/\D/g, '').slice(-10);
-            if (!canonicalMap.has(normName + '|' + normPhone)) {
-              dedupedPlayerIds.add(p.id);
-            }
-          }
-        }
-        
-        const getCanonicalRank = (p) => {
-          if (p.id && p.id.startsWith('ply-1787000000000-')) {
-            const num = parseInt(p.id.replace('ply-1787000000000-', ''), 10);
-            if (!isNaN(num) && num > 0) return num;
-          }
-          if (p.serialNo && Number(p.serialNo) > 0 && Number(p.serialNo) < 200) return Number(p.serialNo);
-          return 999999;
-        };
-
-        const players = rawPlayers
-          .filter(p => p && p.id && !deletedPlayerIds.includes(p.id) && dedupedPlayerIds.has(p.id))
-          .sort((a, b) => {
-            const rA = getCanonicalRank(a);
-            const rB = getCanonicalRank(b);
-            if (rA !== rB) return rA - rB;
-            return getPlayerTimestamp(a) - getPlayerTimestamp(b);
-          })
-          .map((p, idx) => {
-            const canonicalSl = (p.id && p.id.startsWith('ply-1787000000000-')) 
-              ? parseInt(p.id.replace('ply-1787000000000-', ''), 10)
-              : (idx + 1);
-            const serial = (!isNaN(canonicalSl) && canonicalSl > 0) ? canonicalSl : (idx + 1);
-            return {
-              ...p,
-              serialNo: serial,
-              displayRegistrationNumber: serial,
-              registrationId: `JSL2026-${String(serial).padStart(4, '0')}`,
-              regNo: `JSL2026-${String(serial).padStart(4, '0')}`
-            };
-          });
-
-        // DEDUP TEAMS by name: prefer timestamp-based IDs over slug-based IDs
-        const teamNameDedup = new Map();
-        for (const t of rawTeams) {
-          if (!t || !t.id) continue;
-          const normName = (t.name || '').trim().toLowerCase();
-          if (!normName) continue;
-          const existing = teamNameDedup.get(normName);
-          if (existing) {
-            const tIsTimestamp = /^team-\d{13}$/.test(t.id);
-            const eIsTimestamp = /^team-\d{13}$/.test(existing.id);
-            if (tIsTimestamp && !eIsTimestamp) teamNameDedup.set(normName, t);
-          } else {
-            teamNameDedup.set(normName, t);
-          }
-        }
-        const dedupedTeamIds = new Set(Array.from(teamNameDedup.values()).map(t => t.id));
-
-        const teams = rawTeams
-          .filter(t => t && t.id && !deletedTeamIds.includes(t.id) && dedupedTeamIds.has(t.id))
-          .sort((a, b) => (Number(a.serialNo) || 9999) - (Number(b.serialNo) || 9999))
-          .map((t, idx) => ({
-            ...t,
-            serialNo: t.serialNo ? Number(t.serialNo) : (idx + 1)
-          }));
-
-        const fixtures = rawFixtures.filter(f => f && f.id);
-
-        return { 
-          players, 
-          teams, 
-          fixtures,
-          liveAuction: data.liveAuction || null,
-          playerProfiles: rawProfiles,
-          auctionSettings,
-          registrationSettings,
-          clearedAt: data.clearedAt || 0, 
-          teamsClearedAt: data.teamsClearedAt || 0,
-          deletedPlayerIds, 
-          deletedTeamIds 
-        };
-      }
-    }
+    return {
+      players,
+      teams,
+      fixtures,
+      liveAuction: null,
+      playerProfiles: [],
+      auctionSettings: { defaultBasePrice: 300, defaultPurseBudget: 8000 },
+      registrationSettings: { isJslRegistrationOpen: true, isPlayerRegOpen: true, isTeamRegOpen: true },
+      clearedAt: 0,
+      teamsClearedAt: 0,
+      deletedPlayerIds: [],
+      deletedTeamIds: []
+    };
   } catch (err) {
-    console.warn("Realtime Database fetch notice:", err);
+    console.warn("[SUPABASE] fetchCloudDataFromSupabase notice:", err);
   }
 
-  return { players: [], teams: [], fixtures: [], playerProfiles: [], auctionSettings: { defaultBasePrice: 300, defaultPurseBudget: 8000 }, registrationSettings: { isJslRegistrationOpen: true, isPlayerRegOpen: true, isTeamRegOpen: true, closedReason: "JSL 2026 Registration is currently closed by the Master Admin." }, clearedAt: 0, teamsClearedAt: 0, deletedPlayerIds: [], deletedTeamIds: [] };
+  return empty;
 }
 
 // --- ATOMIC REALTIME CLOUD DATA OPERATIONS (SAFE PER-RECORD SYNC) ---
-export async function saveFullPlayersListToFirebase(playersList) {
+// ==============================================================================
+// REAL SUPABASE PLAYER / TEAM / FIXTURE SYNC (REPLACES FIREBASE RTDB FUNCTIONS)
+// ==============================================================================
+
+function derivePlayerStatus(playerData) {
+  if (playerData.status) return playerData.status;
+  const teamId = playerData.teamId || playerData.team_id;
+  if (teamId) return 'SOLD';
+  if (playerData.auctionStatus) return playerData.auctionStatus;
+  return 'AVAILABLE';
+}
+
+export async function syncPlayerToSupabase(playerData) {
+  if (!supabase || !playerData || !playerData.id) return null;
   try {
-    if (!Array.isArray(playersList)) return;
-    for (const p of playersList) {
-      if (p && p.id) {
-        savePlayerToFirebase(p);
-      }
-    }
+    const payload = {
+      id: toUUID(playerData.id),
+      tournament_id: toUUID(playerData.leagueId || playerData.tournament_id || 'leg-jsl'),
+      name: playerData.name,
+      phone: (playerData.phone || playerData.mobile || '').replace(/[^0-9]/g, ''),
+      photo_url: playerData.hdPhotoUrl || playerData.photoUrl || playerData.player_photo_url || null,
+      role: playerData.role || playerData.playingType || 'All-Rounder',
+      category_name: playerData.category || 'Category B',
+      base_price: Number(playerData.basePrice) || 200,
+      is_icon: playerData.isIcon === true,
+      team_id: (playerData.teamId || playerData.team_id) ? toUUID(playerData.teamId || playerData.team_id) : null,
+      status: derivePlayerStatus(playerData),
+      sold_price: Number(playerData.soldPrice || playerData.boughtPrice) || 0,
+      verified: playerData.paymentStatus === 'APPROVED' || playerData.verified === true,
+      reg_number: playerData.serialNo || playerData.reg_number || null,
+      updated_at: new Date().toISOString()
+    };
+    const { data, error } = await supabase.from('players').upsert(payload).select().single();
+    if (error) throw error;
+    console.log("[SUPABASE] Synced player:", playerData.name);
+    return data;
   } catch (err) {
-    console.warn("Atomic players list save notice:", err);
+    console.warn("[SUPABASE] syncPlayerToSupabase notice:", err);
+    return null;
   }
 }
 
-export async function saveFullTeamsListToFirebase(teamsList) {
+export async function deletePlayerFromSupabase(playerId) {
+  if (!supabase || !playerId) return false;
   try {
-    if (!Array.isArray(teamsList)) return;
-    for (const t of teamsList) {
-      if (t && t.id) {
-        saveTeamToFirebase(t);
-      }
-    }
+    const { error } = await supabase.from('players').delete().eq('id', toUUID(playerId));
+    if (error) throw error;
+    console.log("[SUPABASE] Deleted player:", playerId);
+    return true;
   } catch (err) {
-    console.warn("Atomic teams list save notice:", err);
+    console.warn("[SUPABASE] deletePlayerFromSupabase notice:", err);
+    return false;
   }
 }
 
-export async function savePlayerToFirebase(player) {
-  if (!player || !player.id) return;
+export async function syncTeamToSupabase(teamData) {
+  if (!supabase || !teamData || !teamData.id) return null;
   try {
-    const pData = { ...player, updated_at: player.updated_at || Date.now() };
-    await fetch(`${FIREBASE_DB_URL}/cpl_master/players/${player.id}.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(pData)
-    });
-    console.log("Saved player atomically to Realtime Database:", player.name);
+    const payload = {
+      id: toUUID(teamData.id),
+      tournament_id: toUUID(teamData.leagueId || teamData.tournament_id || 'leg-jsl'),
+      name: teamData.name,
+      short_name: teamData.shortCode || null,
+      owner_name: teamData.ownerName || null,
+      owner_phone: teamData.ownerPhone || null,
+      logo_url: teamData.logoUrl || teamData.teamLogoUrl || null,
+      budget_total: Number(teamData.purse) || 8000,
+      budget_remaining: Number(teamData.remainingPurse) || 8000,
+      updated_at: new Date().toISOString()
+    };
+    const { data, error } = await supabase.from('teams').upsert(payload).select().single();
+    if (error) throw error;
+    console.log("[SUPABASE] Synced team:", teamData.name);
+    return data;
   } catch (err) {
-    console.warn("Atomic player save notice:", err);
+    console.warn("[SUPABASE] syncTeamToSupabase notice:", err);
+    return null;
   }
 }
 
-export async function patchPlayerInFirebase(playerId, delta) {
-  if (!playerId || !delta) return;
+export async function deleteTeamFromSupabase(teamId) {
+  if (!supabase || !teamId) return false;
   try {
-    const payload = { ...delta, updated_at: delta.updated_at || Date.now() };
-    await fetch(`${FIREBASE_DB_URL}/cpl_master/players/${playerId}.json`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    console.log("Patched player atomically in Realtime Database:", playerId);
+    const { error } = await supabase.from('teams').delete().eq('id', toUUID(teamId));
+    if (error) throw error;
+    console.log("[SUPABASE] Deleted team:", teamId);
+    return true;
   } catch (err) {
-    console.warn("Atomic player patch notice:", err);
+    console.warn("[SUPABASE] deleteTeamFromSupabase notice:", err);
+    return false;
   }
 }
 
-export async function deletePlayerFromFirebase(playerId) {
-  if (!playerId) return;
+export async function clearAllPlayersFromSupabase(tournamentId = null) {
+  if (!supabase) return false;
   try {
-    const timestamp = Date.now();
-    await fetch(`${FIREBASE_DB_URL}/cpl_master/deletedPlayerIds/${playerId}.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(timestamp)
-    });
-    await fetch(`${FIREBASE_DB_URL}/cpl_master/players/${playerId}.json`, {
-      method: 'DELETE'
-    });
-    console.log("Deleted player permanently from Cloud Realtime Database:", playerId);
+    const tId = tournamentId ? toUUID(tournamentId) : toUUID('leg-jsl');
+    const { error } = await supabase.from('players').delete().eq('tournament_id', tId);
+    if (error) throw error;
+    console.log("[SUPABASE] Cleared all players for tournament:", tId);
+    return true;
   } catch (err) {
-    console.warn("Atomic player delete notice:", err);
+    console.warn("[SUPABASE] clearAllPlayersFromSupabase notice:", err);
+    return false;
   }
 }
 
-export async function saveTeamToFirebase(team) {
-  if (!team || !team.id) return;
+export async function clearAllTeamsFromSupabase(tournamentId = null) {
+  if (!supabase) return false;
   try {
-    const tData = { ...team, updated_at: team.updated_at || Date.now() };
-    await fetch(`${FIREBASE_DB_URL}/cpl_master/teams/${team.id}.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(tData)
-    });
-    console.log("Saved team atomically to Realtime Database:", team.name);
+    const tId = tournamentId ? toUUID(tournamentId) : toUUID('leg-jsl');
+    const { error } = await supabase.from('teams').delete().eq('tournament_id', tId);
+    if (error) throw error;
+    console.log("[SUPABASE] Cleared all teams for tournament:", tId);
+    return true;
   } catch (err) {
-    console.warn("Atomic team save notice:", err);
+    console.warn("[SUPABASE] clearAllTeamsFromSupabase notice:", err);
+    return false;
   }
 }
 
-export async function patchTeamInFirebase(teamId, delta) {
-  if (!teamId || !delta) return;
+export async function syncFixtureToSupabase(fixtureData) {
+  if (!supabase || !fixtureData || !fixtureData.id) return null;
   try {
-    const payload = { ...delta, updated_at: delta.updated_at || Date.now() };
-    await fetch(`${FIREBASE_DB_URL}/cpl_master/teams/${teamId}.json`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    console.log("Patched team atomically in Realtime Database:", teamId);
+    const payload = {
+      id: toUUID(fixtureData.id),
+      tournament_id: toUUID(fixtureData.leagueId || fixtureData.tournament_id || 'leg-jsl'),
+      match_no: fixtureData.matchNo || fixtureData.match_no || null,
+      stage: fixtureData.stage || null,
+      group_code: fixtureData.groupCode || fixtureData.group_code || null,
+      team_a_id: (fixtureData.teamAId || fixtureData.team_a_id) ? toUUID(fixtureData.teamAId || fixtureData.team_a_id) : null,
+      team_b_id: (fixtureData.teamBId || fixtureData.team_b_id) ? toUUID(fixtureData.teamBId || fixtureData.team_b_id) : null,
+      date: fixtureData.date || null,
+      time: fixtureData.time || null,
+      venue: fixtureData.venue || null,
+      overs_limit: fixtureData.oversLimit || fixtureData.overs_limit || null,
+      status: fixtureData.status || 'SCHEDULED',
+      result: fixtureData.result || null,
+      live_state: fixtureData.liveState || fixtureData.live_state || null
+    };
+    const { data, error } = await supabase.from('matches').upsert(payload).select().single();
+    if (error) throw error;
+    return data;
   } catch (err) {
-    console.warn("Atomic team patch notice:", err);
+    console.warn("[SUPABASE] syncFixtureToSupabase notice:", err);
+    return null;
   }
 }
 
-export async function deleteTeamFromFirebase(teamId) {
-  if (!teamId) return;
+export async function deleteFixtureFromSupabase(fixtureId) {
+  if (!supabase || !fixtureId) return false;
   try {
-    const timestamp = Date.now();
-    await fetch(`${FIREBASE_DB_URL}/cpl_master/deletedTeamIds/${teamId}.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(timestamp)
-    });
-    await fetch(`${FIREBASE_DB_URL}/cpl_master/teams/${teamId}.json`, {
-      method: 'DELETE'
-    });
-    console.log("Deleted team permanently from Cloud Realtime Database:", teamId);
+    const { error } = await supabase.from('matches').delete().eq('id', toUUID(fixtureId));
+    if (error) throw error;
+    return true;
   } catch (err) {
-    console.warn("Atomic team delete notice:", err);
+    console.warn("[SUPABASE] deleteFixtureFromSupabase notice:", err);
+    return false;
   }
 }
 
-export async function clearAllPlayersFromFirebase() {
+export async function syncUniversalPlayerToSupabase(profile) {
+  if (!supabase || !profile) return null;
   try {
-    const timestamp = Date.now();
-    await fetch(`${FIREBASE_DB_URL}/cpl_master/clearedAt.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(timestamp)
-    });
-    await fetch(`${FIREBASE_DB_URL}/cpl_master/players.json`, { method: 'DELETE' });
-    console.log("Admin cleared all players in Realtime Database at timestamp:", timestamp);
+    const phone = (profile.phone || profile.mobile || '').trim().replace(/[^0-9]/g, '');
+    if (!phone || phone.length < 10) return null;
+    const payload = {
+      phone,
+      name: profile.name || profile.fullName || null,
+      photo_url: profile.photoUrl || profile.hdPhotoUrl || null,
+      role: profile.role || profile.playingType || null,
+      batting_style: profile.battingStyle || null,
+      bowling_style: profile.bowlingStyle || null,
+      updated_at: new Date().toISOString()
+    };
+    const { data, error } = await supabase
+      .from('person_profiles')
+      .upsert(payload, { onConflict: 'phone' })
+      .select()
+      .single();
+    if (error) throw error;
+    return data;
   } catch (err) {
-    console.warn("Clear players notice:", err);
+    console.warn("[SUPABASE] syncUniversalPlayerToSupabase notice:", err);
+    return null;
   }
 }
 
-export async function clearAllTeamsFromFirebase() {
+// --- BULK SAVE (REPLACES FIREBASE FULL-LIST SYNC) ---
+export async function saveCloudDataToSupabase(playersList, teamsList, fixturesList = []) {
+  if (!supabase) return;
   try {
-    const timestamp = Date.now();
-    await fetch(`${FIREBASE_DB_URL}/cpl_master/teamsClearedAt.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(timestamp)
-    });
-    await fetch(`${FIREBASE_DB_URL}/cpl_master/teams.json`, { method: 'DELETE' });
-    console.log("Admin cleared all teams in Realtime Database at timestamp:", timestamp);
+    const playerJobs = Array.isArray(playersList)
+      ? playersList.filter(p => p && p.id).map(p => syncPlayerToSupabase(p))
+      : [];
+    const teamJobs = Array.isArray(teamsList)
+      ? teamsList.filter(t => t && t.id).map(t => syncTeamToSupabase(t))
+      : [];
+    const fixtureJobs = Array.isArray(fixturesList)
+      ? fixturesList.filter(f => f && f.id).map(f => syncFixtureToSupabase(f))
+      : [];
+    await Promise.all([...playerJobs, ...teamJobs, ...fixtureJobs]);
   } catch (err) {
-    console.warn("Clear teams notice:", err);
+    console.warn("[SUPABASE] saveCloudDataToSupabase notice:", err);
   }
 }
 
-// --- NEW FIXTURES AND STATE SYNCHRONIZATION ---
-export async function saveFixtureToFirebase(fixture) {
-  if (!fixture || !fixture.id) return;
-  try {
-    await fetch(`${FIREBASE_DB_URL}/cpl_master/fixtures/${fixture.id}.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(fixture)
-    });
-  } catch (err) {
-    console.warn("Fixture save error:", err);
-  }
-}
-
-export async function deleteFixtureFromFirebase(fixtureId) {
-  if (!fixtureId) return;
-  try {
-    await fetch(`${FIREBASE_DB_URL}/cpl_master/fixtures/${fixtureId}.json`, {
-      method: 'DELETE'
-    });
-  } catch (err) {
-    console.warn("Fixture delete error:", err);
-  }
-}
-
-export async function saveFullFixturesListToFirebase(fixturesList) {
-  try {
-    await fetch(`${FIREBASE_DB_URL}/cpl_master/fixtures.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(fixturesList || [])
-    });
-  } catch (err) {
-    console.warn("Fixtures list save error:", err);
-  }
-}
-
-export async function saveAuctionSettingsToFirebase(settings) {
-  try {
-    await fetch(`${FIREBASE_DB_URL}/cpl_master/auctionSettings.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(settings || {})
-    });
-  } catch (err) {
-    console.warn("Auction settings save error:", err);
-  }
-}
-
-export async function saveLiveAuctionToFirebase(state) {
-  try {
-    const payload = state ? { ...state, updated_at: state.updated_at || Date.now() } : null;
-    await fetch(`${FIREBASE_DB_URL}/cpl_master/liveAuction.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-  } catch (err) {
-    console.warn("Live auction state save error:", err);
-  }
-}
-
-export async function saveAuctionPermanentArchiveToFirebase(archiveData) {
-  try {
-    const payload = archiveData ? { ...archiveData, lastArchivedAt: Date.now() } : null;
-    await fetch(`${FIREBASE_DB_URL}/cpl_master/auction_archive_jsl_2026.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-  } catch (err) {
-    console.warn("Auction permanent archive cloud save error:", err);
-  }
-}
-
-export async function fetchAuctionPermanentArchiveFromFirebase() {
-  try {
-    const res = await fetch(`${FIREBASE_DB_URL}/cpl_master/auction_archive_jsl_2026.json`, { cache: 'no-store' });
-    if (res.ok) {
-      return await res.json();
-    }
-  } catch (err) {
-    console.warn("Auction permanent archive fetch fallback:", err);
-  }
-  return null;
-}
-
-export async function saveLiveMatchToFirebase(matchId, state) {
-  try {
-    await fetch(`${FIREBASE_DB_URL}/cpl_master/liveMatches/${matchId}.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(state || null)
-    });
-  } catch (err) {
-    console.warn("Live match save error:", err);
-  }
-}
-
-// Helper to prepare data URLs before sending payload to Firebase Realtime DB (Preserves player photos, sanitizes document proofs)
+// Helper to prepare data URLs before persisting (avoids storing raw base64 blobs)
 function sanitizePayloadForCloud(dataList) {
   if (!Array.isArray(dataList)) return [];
   return dataList.map(item => {
@@ -888,436 +685,340 @@ function sanitizePayloadForCloud(dataList) {
   });
 }
 
-// --- INSTANT REALTIME CLOUD DATA SAVE (FULL SYNC BACKUP) ---
+// --- LEGACY *ToFirebase / *FromFirebase COMPATIBILITY SHIMS (NOW SUPABASE-BACKED) ---
+export async function savePlayerToFirebase(player) {
+  return syncPlayerToSupabase(player);
+}
+
+export async function patchPlayerInFirebase(playerId, delta) {
+  if (!playerId || !delta) return null;
+  return syncPlayerToSupabase({ ...delta, id: playerId });
+}
+
+export async function deletePlayerFromFirebase(playerId) {
+  return deletePlayerFromSupabase(playerId);
+}
+
+export async function saveTeamToFirebase(team) {
+  return syncTeamToSupabase(team);
+}
+
+export async function patchTeamInFirebase(teamId, delta) {
+  if (!teamId || !delta) return null;
+  return syncTeamToSupabase({ ...delta, id: teamId });
+}
+
+export async function deleteTeamFromFirebase(teamId) {
+  return deleteTeamFromSupabase(teamId);
+}
+
+export async function clearAllPlayersFromFirebase() {
+  return clearAllPlayersFromSupabase();
+}
+
+export async function clearAllTeamsFromFirebase() {
+  return clearAllTeamsFromSupabase();
+}
+
+export async function saveFixtureToFirebase(fixture) {
+  return syncFixtureToSupabase(fixture);
+}
+
+export async function deleteFixtureFromFirebase(fixtureId) {
+  return deleteFixtureFromSupabase(fixtureId);
+}
+
+export async function saveFullFixturesListToFirebase(fixturesList) {
+  if (!Array.isArray(fixturesList)) return;
+  await Promise.all(fixturesList.filter(f => f && f.id).map(f => syncFixtureToSupabase(f)));
+}
+
+export async function saveAuctionSettingsToFirebase(settings) {
+  if (!supabase) return;
+  try {
+    const tId = DEFAULT_TOURNAMENT_UUID;
+    await supabase.from('tournaments').update({ auction_settings: settings, updated_at: new Date().toISOString() }).eq('id', tId);
+  } catch (e) { console.warn('[SUPABASE] saveAuctionSettings:', e.message); }
+}
+
+export async function saveLiveAuctionToFirebase(state) {
+  if (!supabase) return;
+  try {
+    await supabase.from('platform_settings').upsert({ key: 'live_auction', value: state || {}, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+  } catch (e) { console.warn('[SUPABASE] saveLiveAuction:', e.message); }
+}
+
+export async function saveAuctionPermanentArchiveToFirebase(archiveData) {
+  if (!supabase || !archiveData) return;
+  try {
+    const id = archiveData.archiveId || 'JSL_2026_AUCTION_VAULT';
+    await supabase.from('auction_archives').upsert({ id, tournament_id: DEFAULT_TOURNAMENT_UUID, snapshot: archiveData, created_at: new Date().toISOString() }, { onConflict: 'id' });
+  } catch (e) { console.warn('[SUPABASE] saveAuctionArchive:', e.message); }
+}
+
+export async function fetchAuctionPermanentArchiveFromFirebase() {
+  if (!supabase) return null;
+  try {
+    const { data } = await supabase.from('auction_archives').select('snapshot').eq('tournament_id', DEFAULT_TOURNAMENT_UUID).limit(1).maybeSingle();
+    return data ? data.snapshot : null;
+  } catch (e) { return null; }
+}
+
+export async function saveLiveMatchToFirebase(matchId, state) {
+  if (!supabase || !matchId) return;
+  try {
+    const id = toUUID(matchId);
+    await supabase.from('matches').update({ live_state: state || {}, updated_at: new Date().toISOString() }).eq('id', id);
+  } catch (e) { console.warn('[SUPABASE] saveLiveMatch:', e.message); }
+}
+
+// --- INSTANT CLOUD DATA SAVE (FULL SYNC, SUPABASE BACKED) ---
 export async function saveCloudData(playersList, teamsList, fixturesList = [], auctionSettings = null) {
   try {
     const cleanPlayers = sanitizePayloadForCloud(playersList);
     const cleanTeams = sanitizePayloadForCloud(teamsList);
     const cleanFixtures = sanitizePayloadForCloud(fixturesList);
-    
-    saveFullPlayersListToFirebase(cleanPlayers);
-    saveFullTeamsListToFirebase(cleanTeams);
-    saveFullFixturesListToFirebase(cleanFixtures);
-    if (auctionSettings) {
-      saveAuctionSettingsToFirebase(auctionSettings);
-    }
-    saveToGoogleDriveScript({ 
-      players: cleanPlayers || [], 
-      teams: cleanTeams || [],
-      fixtures: cleanFixtures || [],
-      auctionSettings: auctionSettings
-    });
+
+    await saveCloudDataToSupabase(cleanPlayers, cleanTeams, cleanFixtures);
   } catch (err) {
     console.warn("Cloud save warning:", err);
   }
 }
 
-// --- COMPATIBILITY EXPORTS ---
-export async function deletePlayerFromSupabase(playerId) {
-  return deletePlayerFromFirebase(playerId);
-}
-export async function deleteTeamFromSupabase(teamId) {
-  return deleteTeamFromFirebase(teamId);
-}
-export async function syncPlayerToSupabase(playerData) {
-  return savePlayerToFirebase(playerData);
-}
-export async function syncTeamToSupabase(teamData) {
-  return saveTeamToFirebase(teamData);
-}
-
-// --- ADVERTISEMENT & POPUP CONTROLLER DATABASE OPERATIONS ---
+// --- ADVERTISEMENT & POPUP CONTROLLER (platform_settings table) ---
 export async function savePopupSettingsToFirebase(settings) {
+  if (!supabase) return false;
   try {
-    const response = await fetch(`${FIREBASE_DB_URL}/cpl_master/popupSettings.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(settings)
-    });
-    if (response.ok) {
-      console.log("Popup settings saved to Firebase.");
-      return true;
-    }
-  } catch (err) {
-    console.warn("Failed to save popup settings to Firebase:", err);
-  }
-  return false;
+    await supabase.from('platform_settings').upsert({ key: 'popup', value: settings, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+    return true;
+  } catch (e) { return false; }
 }
 
 export async function fetchPopupSettingsFromFirebase() {
+  if (!supabase) return { isAdPopupEnabled: false, isWelcomePopupEnabled: true, isRealtimePlayerToastEnabled: true };
   try {
-    const response = await fetch(`${FIREBASE_DB_URL}/cpl_master/popupSettings.json?_t=${Date.now()}`, { cache: 'no-store' });
-    if (response.ok) {
-      const data = await response.json();
-      return {
-        isAdPopupEnabled: false,
-        isWhatsAppPopupEnabled: true,
-        isWelcomePopupEnabled: true,
-        isRealtimePlayerToastEnabled: true,
-        promotedShopId: 'maa-laxmi-kitchen',
-        adExpiryTime: 0,
-        ...(data || {})
-      };
-    }
-  } catch (err) {
-    console.warn("Failed to fetch popup settings from Firebase:", err);
-  }
-  return {
-    isAdPopupEnabled: false,
-    isWhatsAppPopupEnabled: true,
-    isWelcomePopupEnabled: true,
-    isRealtimePlayerToastEnabled: true,
-    promotedShopId: 'maa-laxmi-kitchen',
-    adExpiryTime: 0
-  };
+    const { data } = await supabase.from('platform_settings').select('value').eq('key', 'popup').maybeSingle();
+    return data ? data.value : { isAdPopupEnabled: false, isWelcomePopupEnabled: true, isRealtimePlayerToastEnabled: true };
+  } catch (e) { return { isAdPopupEnabled: false, isWelcomePopupEnabled: true, isRealtimePlayerToastEnabled: true }; }
 }
 
 export async function saveAdSettingsToFirebase(settings) {
-  const pSettings = await fetchPopupSettingsFromFirebase();
-  pSettings.isAdPopupEnabled = settings.isEnabled;
-  pSettings.promotedShopId = settings.shopId;
-  pSettings.adExpiryTime = settings.expiryTime;
-  return savePopupSettingsToFirebase(pSettings);
+  if (!supabase) return false;
+  try {
+    await supabase.from('platform_settings').upsert({ key: 'ads', value: settings, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+    return true;
+  } catch (e) { return false; }
 }
 
 export async function fetchAdSettingsFromFirebase() {
-  const pSettings = await fetchPopupSettingsFromFirebase();
-  return {
-    isEnabled: pSettings.isAdPopupEnabled,
-    shopId: pSettings.promotedShopId,
-    expiryTime: pSettings.adExpiryTime
-  };
+  if (!supabase) return { isEnabled: false };
+  try {
+    const { data } = await supabase.from('platform_settings').select('value').eq('key', 'ads').maybeSingle();
+    return data ? data.value : { isEnabled: false };
+  } catch (e) { return { isEnabled: false }; }
 }
 
 export async function saveRegistrationSettingsToFirebase(settings) {
+  if (!supabase) return false;
   try {
-    const response = await fetch(`${FIREBASE_DB_URL}/cpl_master/registrationSettings.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(settings)
-    });
-    if (response.ok) {
-      console.log("Registration settings saved to Firebase.");
-      return true;
-    }
-  } catch (err) {
-    console.warn("Failed to save registration settings to Firebase:", err);
-  }
-  return false;
+    await supabase.from('tournaments').update({ registration_settings: settings, updated_at: new Date().toISOString() }).eq('id', DEFAULT_TOURNAMENT_UUID);
+    return true;
+  } catch (e) { return false; }
 }
 
 export async function fetchRegistrationSettingsFromFirebase() {
+  const defaults = { isJslRegistrationOpen: true, isPlayerRegOpen: true, isTeamRegOpen: true, closedReason: "JSL 2026 Registration is currently closed by the Master Admin." };
+  if (!supabase) return defaults;
   try {
-    const response = await fetch(`${FIREBASE_DB_URL}/cpl_master/registrationSettings.json?_t=${Date.now()}`, { cache: 'no-store' });
-    if (response.ok) {
-      const data = await response.json();
-      return {
-        isJslRegistrationOpen: true,
-        isPlayerRegOpen: true,
-        isTeamRegOpen: true,
-        closedReason: "JSL 2026 Registration is currently closed by the Master Admin.",
-        ...(data || {})
-      };
-    }
-  } catch (err) {
-    console.warn("Failed to fetch registration settings from Firebase:", err);
-  }
-  return {
-    isJslRegistrationOpen: true,
-    isPlayerRegOpen: true,
-    isTeamRegOpen: true,
-    closedReason: "JSL 2026 Registration is currently closed by the Master Admin."
-  };
+    const { data } = await supabase.from('tournaments').select('registration_settings').eq('id', DEFAULT_TOURNAMENT_UUID).maybeSingle();
+    return (data && data.registration_settings) ? data.registration_settings : defaults;
+  } catch (e) { return defaults; }
 }
 
-// --- PUBLIC COMMUNITY QUERIES & REPLIES REALTIME DATABASE OPERATIONS ---
+// --- PUBLIC COMMUNITY QUERIES & REPLIES (community_queries table) ---
 export async function saveCommunityQueryToFirebase(queryData) {
-  if (!queryData || !queryData.id) return false;
+  if (!supabase || !queryData) return false;
   try {
-    const response = await fetch(`${FIREBASE_DB_URL}/cpl_master/communityQueries/${queryData.id}.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(queryData)
-    });
-    return response.ok;
-  } catch (err) {
-    console.warn("Failed to save community query to Firebase:", err);
-    return false;
-  }
+    await supabase.from('community_queries').upsert({
+      id: queryData.id,
+      tournament_id: DEFAULT_TOURNAMENT_UUID,
+      user_name: queryData.userName || 'Anonymous',
+      user_role: queryData.userRole || 'VISITOR',
+      message: queryData.message || '',
+      replies: queryData.replies || [],
+      created_at: queryData.timestamp ? new Date(queryData.timestamp).toISOString() : new Date().toISOString()
+    }, { onConflict: 'id' });
+    return true;
+  } catch (e) { return false; }
 }
 
 export async function deleteCommunityQueryFromFirebase(queryId) {
-  if (!queryId) return false;
+  if (!supabase || !queryId) return false;
   try {
-    const response = await fetch(`${FIREBASE_DB_URL}/cpl_master/communityQueries/${queryId}.json`, {
-      method: 'DELETE'
-    });
-    return response.ok;
-  } catch (err) {
-    console.warn("Failed to delete community query from Firebase:", err);
-    return false;
-  }
+    await supabase.from('community_queries').delete().eq('id', queryId);
+    return true;
+  } catch (e) { return false; }
 }
 
 export async function fetchCommunityQueriesFromFirebase() {
+  if (!supabase) return [];
   try {
-    const response = await fetch(`${FIREBASE_DB_URL}/cpl_master/communityQueries.json?_t=${Date.now()}`, { cache: 'no-store' });
-    if (response.ok) {
-      const data = await response.json();
-      if (data) {
-        const list = Array.isArray(data) ? data : Object.values(data);
-        return list.filter(q => q && q.id);
-      }
-    }
-  } catch (err) {
-    console.warn("Failed to fetch community queries from Firebase:", err);
-  }
-  return [];
+    const { data } = await supabase.from('community_queries').select('*').eq('tournament_id', DEFAULT_TOURNAMENT_UUID).order('created_at', { ascending: false });
+    if (!data) return [];
+    return data.map(q => ({
+      id: q.id,
+      userName: q.user_name,
+      userRole: q.user_role,
+      message: q.message,
+      timestamp: new Date(q.created_at).getTime(),
+      replies: q.replies || []
+    }));
+  } catch (e) { return []; }
 }
 
-
-
 export async function fetchTournamentOwnersFromFirebase() {
+  if (!supabase) return {};
   try {
-    const response = await fetch(`${FIREBASE_DB_URL}/cpl_master/tournament_owners.json?_t=${Date.now()}`, { cache: 'no-store' });
-    if (response.ok) {
-      const data = await response.json();
-      return data || {};
-    }
-  } catch (err) {
-    console.warn("Failed to fetch tournament owners from Firebase:", err);
-  }
-  return {};
+    const { data } = await supabase.from('tournament_owners').select('*').eq('tournament_id', DEFAULT_TOURNAMENT_UUID);
+    if (!data || data.length === 0) return {};
+    const result = {};
+    data.forEach(o => { result[`tournament-jsl-2026`] = { phone: o.phone, name: o.name, assignedAt: new Date(o.assigned_at).getTime() }; });
+    return result;
+  } catch (e) { return {}; }
 }
 
 export async function fetchUserAccountsFromFirebase() {
+  if (!supabase) return [];
   try {
-    const response = await fetch(`${FIREBASE_DB_URL}/cpl_master/user_accounts.json?_t=${Date.now()}`, { cache: 'no-store' });
-    if (response.ok) {
-      const data = await response.json();
-      if (data) {
-        return Array.isArray(data) ? data : Object.values(data);
-      }
-    }
-  } catch (err) {
-    console.warn("Failed to fetch user accounts from Firebase:", err);
-  }
-  return [];
+    const { data } = await supabase.from('user_accounts').select('*').order('created_at', { ascending: false });
+    if (!data) return [];
+    return data.map(a => ({
+      phone: a.phone,
+      password: a.password,
+      name: a.name,
+      role: a.role,
+      playerId: a.player_id,
+      isFirstLogin: a.is_first_login,
+      ownedTournaments: a.owned_tournaments || [],
+      passwordChangedAt: a.password_changed_at ? new Date(a.password_changed_at).getTime() : null,
+      created_at: new Date(a.created_at).getTime()
+    }));
+  } catch (e) { return []; }
 }
 
 
-// --- REALTIME LIVE & TOTAL VISITOR TRACKER ---
-let visitorHeartbeatTimer = null;
-
+// --- LIVE & TOTAL VISITOR TRACKER (visitor_stats table) ---
 export async function initVisitorTracking(onStatsChange) {
+  if (!supabase) {
+    if (typeof onStatsChange === 'function') onStatsChange({ totalVisits: 0, liveCount: 1 });
+    return;
+  }
   try {
-    // Permanent Device / Unique User ID
-    let deviceUid = localStorage.getItem('cpl_device_uid');
-    if (!deviceUid) {
-      deviceUid = 'uid_' + Date.now() + '_' + Math.random().toString(36).substring(2, 10);
-      localStorage.setItem('cpl_device_uid', deviceUid);
-    }
-
-    // Session ID for Live Online Presence Heartbeats
-    let sessionId = sessionStorage.getItem('cpl_visitor_sid');
-    if (!sessionId) {
-      sessionId = 'sid_' + Date.now() + '_' + Math.random().toString(36).substring(2, 8);
-      sessionStorage.setItem('cpl_visitor_sid', sessionId);
-    }
-
-    // 1. Strictly Unique Visitor Count: counted once per device/person forever
-    if (!localStorage.getItem('cpl_unique_visitor_counted')) {
-      localStorage.setItem('cpl_unique_visitor_counted', 'true');
-      fetch(`${FIREBASE_DB_URL}/cpl_master/site_stats/total_visits.json?_t=${Date.now()}`)
-        .then(r => r.json())
-        .then(currentTotal => {
-          const newTotal = (Number(currentTotal) || 286) + 1;
-          fetch(`${FIREBASE_DB_URL}/cpl_master/site_stats/total_visits.json`, {
-            method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(newTotal)
-          }).catch(() => {});
-        }).catch(() => {});
-    }
-
-    // 2. Send live presence heartbeat
-    const sendHeartbeat = () => {
-      fetch(`${FIREBASE_DB_URL}/cpl_master/presence/${sessionId}.json`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ last_active: Date.now() })
-      }).catch(() => {});
-    };
-
-    sendHeartbeat();
-    if (visitorHeartbeatTimer) clearInterval(visitorHeartbeatTimer);
-    visitorHeartbeatTimer = setInterval(sendHeartbeat, 15000);
-
-    // 3. Remove presence on window unload
-    window.addEventListener('beforeunload', () => {
-      try {
-        navigator.sendBeacon(`${FIREBASE_DB_URL}/cpl_master/presence/${sessionId}.json`, JSON.stringify(null));
-      } catch (e) {}
-    });
-
-    // 4. Initial fetch and periodic refresh
-    fetchVisitorStats(onStatsChange);
-    setInterval(() => {
-      fetchVisitorStats(onStatsChange);
-    }, 10000);
-  } catch (err) {
-    console.warn("Visitor tracking notice:", err);
+    const { data } = await supabase.from('visitor_stats').select('*').eq('tournament_id', DEFAULT_TOURNAMENT_UUID).maybeSingle();
+    const stats = data || { total_visitors: 0, live_online: 1 };
+    const newTotal = (stats.total_visitors || 0) + 1;
+    await supabase.from('visitor_stats').upsert({ id: data?.id || undefined, tournament_id: DEFAULT_TOURNAMENT_UUID, total_visitors: newTotal, unique_visitors: stats.unique_visitors || 0, live_online: (stats.live_online || 0) + 1, updated_at: new Date().toISOString() }, { onConflict: 'id' });
+    if (typeof onStatsChange === 'function') onStatsChange({ totalVisits: newTotal, liveCount: (stats.live_online || 0) + 1 });
+  } catch (e) {
+    if (typeof onStatsChange === 'function') onStatsChange({ totalVisits: 0, liveCount: 1 });
   }
 }
 
-// --- MULTI-TENANT TOURNAMENT SAAS & PLATFORM SETTINGS ENGINE ---
+// --- MULTI-TENANT TOURNAMENT SAAS & PLATFORM SETTINGS (platform_settings table) ---
 export async function savePlatformSettingsToFirebase(settings) {
+  if (!supabase) return;
   try {
-    const payload = { ...settings, updated_at: Date.now() };
-    await fetch(`${FIREBASE_DB_URL}/cpl_master/platform_settings.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-  } catch (err) {
-    console.warn("Platform settings save error:", err);
-  }
+    await supabase.from('platform_settings').upsert({ key: 'general', value: settings, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+  } catch (e) { console.warn('[SUPABASE] savePlatformSettings:', e.message); }
 }
 
 export async function fetchPlatformSettingsFromFirebase() {
+  if (!supabase) return null;
   try {
-    const res = await fetch(`${FIREBASE_DB_URL}/cpl_master/platform_settings.json?_t=${Date.now()}`, { cache: 'no-store' });
-    if (res.ok) {
-      return await res.json();
-    }
-  } catch (err) {
-    console.warn("Platform settings fetch notice:", err);
-  }
-  return null;
+    const { data } = await supabase.from('platform_settings').select('value').eq('key', 'general').maybeSingle();
+    return data ? data.value : null;
+  } catch (e) { return null; }
 }
 
 export async function saveCustomTournamentToFirebase(tourney) {
+  if (!supabase || !tourney) return;
   try {
-    if (!tourney || !tourney.id) return;
-    const payload = { ...tourney, updated_at: Date.now() };
-    await fetch(`${FIREBASE_DB_URL}/cpl_master/tournaments/${tourney.id}/meta.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-  } catch (err) {
-    console.warn("Custom tournament save error:", err);
-  }
+    const payload = {
+      slug: tourney.slug || tourney.shortCode || tourney.id,
+      name: tourney.name || tourney.id,
+      category_code: tourney.shortCode || tourney.category || 'CUSTOM',
+      mode: tourney.mode || 'registration_auction',
+      registration_fee: Number(tourney.entryFee || tourney.playerEntryFee) || 0,
+      total_team_budget: Number(tourney.auctionPurse || tourney.purse) || 10000,
+      venue_name: tourney.venue || 'TBD',
+      status: tourney.status === 'ACTIVE' ? 'active' : (tourney.status || 'active').toLowerCase()
+    };
+    if (tourney.supabaseId) payload.id = tourney.supabaseId;
+    await supabase.from('tournaments').upsert(payload, { onConflict: 'slug' });
+  } catch (e) { console.warn('[SUPABASE] saveCustomTournament:', e.message); }
 }
 
 export async function fetchCustomTournamentsFromFirebase() {
-  try {
-    const res = await fetch(`${FIREBASE_DB_URL}/cpl_master/tournaments.json?_t=${Date.now()}`, { cache: 'no-store' });
-    if (res.ok) {
-      const data = await res.json();
-      if (!data) return [];
-      const list = [];
-      Object.keys(data).forEach(key => {
-        const item = data[key];
-        if (item) {
-          list.push(item.meta || item);
-        }
-      });
-      return list;
-    }
-  } catch (err) {
-    console.warn("Custom tournaments fetch notice:", err);
-  }
-  return [];
+  const data = await dbFetchTournaments();
+  return data || [];
 }
 
 export async function deleteCustomTournamentFromFirebase(tourneyId) {
+  if (!supabase || !tourneyId) return;
   try {
-    if (!tourneyId) return;
-    await fetch(`${FIREBASE_DB_URL}/cpl_master/tournaments/${tourneyId}.json`, {
-      method: 'DELETE'
-    });
-  } catch (err) {
-    console.warn("Custom tournament delete error:", err);
-  }
+    const id = toUUID(tourneyId);
+    await supabase.from('tournaments').delete().eq('id', id);
+  } catch (e) { console.warn('[SUPABASE] deleteCustomTournament:', e.message); }
 }
 
 export async function saveUniversalPlayerToFirebase(profile) {
-  try {
-    const phone = (profile.phone || profile.mobile || '').trim().replace(/[^0-9]/g, '');
-    if (!phone || phone.length < 10) return;
-    const payload = { ...profile, updated_at: Date.now() };
-    await fetch(`${FIREBASE_DB_URL}/cpl_master/universal_players/${phone}.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-  } catch (err) {
-    console.warn("Universal player save error:", err);
-  }
+  return syncUniversalPlayerToSupabase(profile);
 }
 
 export async function fetchUniversalPlayersFromFirebase() {
+  if (!supabase) return {};
   try {
-    const res = await fetch(`${FIREBASE_DB_URL}/cpl_master/universal_players.json?_t=${Date.now()}`, { cache: 'no-store' });
-    if (res.ok) {
-      const data = await res.json();
-      return data || {};
-    }
-  } catch (err) {
-    console.warn("Universal players fetch notice:", err);
-  }
-  return {};
+    const { data } = await supabase.from('person_profiles').select('*').order('updated_at', { ascending: false }).limit(500);
+    if (!data) return {};
+    const result = {};
+    data.forEach(p => { result[p.phone] = { name: p.name, phone: p.phone, photoUrl: p.photo_url, role: p.role, battingStyle: p.batting_style, bowlingStyle: p.bowling_style }; });
+    return result;
+  } catch (e) { return {}; }
 }
 
 export async function saveTournamentFormatToFirebase(leagueCode, formatConfig) {
+  if (!supabase) return;
   try {
-    if (!leagueCode) return;
-    const cleanCode = leagueCode.toUpperCase();
-    const payload = { ...formatConfig, updated_at: Date.now() };
-    await fetch(`${FIREBASE_DB_URL}/cpl_master/tournament_formats/${cleanCode}.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-  } catch (err) {
-    console.warn("Tournament format save error:", err);
-  }
+    await supabase.from('tournaments').update({ format_config: formatConfig, updated_at: new Date().toISOString() }).eq('category_code', leagueCode);
+  } catch (e) { console.warn('[SUPABASE] saveTournamentFormat:', e.message); }
 }
 
 export async function fetchTournamentFormatsFromFirebase() {
+  if (!supabase) return {};
   try {
-    const res = await fetch(`${FIREBASE_DB_URL}/cpl_master/tournament_formats.json?_t=${Date.now()}`, { cache: 'no-store' });
-    if (res.ok) {
-      return await res.json() || {};
-    }
-  } catch (err) {
-    console.warn("Tournament formats fetch notice:", err);
-  }
-  return {};
+    const { data } = await supabase.from('tournaments').select('category_code, format_config').not('format_config', 'is', null);
+    if (!data) return {};
+    const result = {};
+    data.forEach(t => { if (t.format_config && Object.keys(t.format_config).length > 0) result[t.category_code] = t.format_config; });
+    return result;
+  } catch (e) { return {}; }
 }
 
 export async function fetchVisitorStats(callback) {
+  if (!supabase) {
+    const d = { totalVisits: 0, liveCount: 1 };
+    if (callback) callback(d);
+    return d;
+  }
   try {
-    const res = await fetch(`${FIREBASE_DB_URL}/cpl_master.json?_t=${Date.now()}`, { cache: 'no-store' });
-    const data = await res.json();
-    const totalVisits = Number(data?.site_stats?.total_visits) || 286;
-    
-    let liveCount = 1;
-    if (data?.presence && typeof data.presence === 'object') {
-      const now = Date.now();
-      const cutoff = now - 45000; // active in last 45 seconds
-      const activeSessions = Object.values(data.presence).filter(sess => sess && Number(sess.last_active) > cutoff);
-      liveCount = Math.max(1, activeSessions.length);
-    }
-
-    if (callback) {
-      callback({ totalVisits, liveCount });
-    }
-    return { totalVisits, liveCount };
+    const { data } = await supabase.from('visitor_stats').select('*').eq('tournament_id', DEFAULT_TOURNAMENT_UUID).maybeSingle();
+    const result = { totalVisits: data?.total_visitors || 0, liveCount: data?.live_online || 1 };
+    if (callback) callback(result);
+    return result;
   } catch (e) {
-    if (callback) callback({ totalVisits: 286, liveCount: 1 });
-    return { totalVisits: 286, liveCount: 1 };
+    const d = { totalVisits: 0, liveCount: 1 };
+    if (callback) callback(d);
+    return d;
   }
 }
 
@@ -1396,15 +1097,6 @@ export async function dbLookupPlayerByPhone(phone) {
       if (!error && data) return data;
     } catch (e) {}
   }
-
-  // 2. Fallback to Firebase universal_players
-  try {
-    const res = await fetch(`${FIREBASE_DB_URL}/cpl_master/universal_players/${cleanPhone}.json`);
-    if (res.ok) {
-      const data = await res.json();
-      if (data && (data.name || data.fullName)) return data;
-    }
-  } catch (e) {}
 
   return null;
 }

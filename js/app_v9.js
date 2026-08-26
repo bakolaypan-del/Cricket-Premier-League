@@ -9421,7 +9421,7 @@ function renderPlayerProfileView(container) {
     return;
   }
 
-  const isMaster = currentUser.role === 'SUPER_ADMIN' || (currentUser.email && currentUser.email.toLowerCase() === 'bakolaypan@gmail.com');
+  const isMaster = currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'master_admin';
   const allPlayers = store.getPlayers();
   const cleanPhone = (currentUser.phone || '').replace(/[^0-9]/g, '');
   const cleanPhone10 = cleanPhone.slice(-10);
@@ -9481,16 +9481,16 @@ function renderPlayerProfileView(container) {
   if (!player) {
     if (isMaster) {
       player = {
-        name: 'Suman Kolay (Master Super Admin)',
-        phone: 'bakolaypan@gmail.com',
+        name: currentUser.name || 'Master Admin',
+        phone: currentUser.phone || currentUser.email || '',
         category: 'Super Admin Authority',
-        village: 'Kolkata',
-        district: 'Kolkata',
+        village: '',
+        district: '',
         state: 'West Bengal',
         registrationStatus: 'APPROVED',
         paymentStatus: 'APPROVED',
         basePrice: 300,
-        photoUrl: 'assets/card_jsl_user.png'
+        photoUrl: currentUser.avatar_url || 'assets/card_jsl_user.png'
       };
     } else if (isTournamentOwner) {
       player = {

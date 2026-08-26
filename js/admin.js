@@ -10,7 +10,7 @@ let adminAuctionSubTab = 'sold'; // 'sold', 'unsold'
 const todayStr = new Date().toISOString().split('T')[0];
 
 export function renderAdminDashboard(containerEl) {
-  // STRICT ADMIN AUTHENTICATION LOCK (bakolaypan@gmail.com / Suman@2030)
+  // STRICT ADMIN AUTHENTICATION LOCK (Supabase Auth)
   if (!store.isAdminAuthenticated()) {
     renderAdminLoginScreen(containerEl);
     return;
@@ -67,7 +67,7 @@ export function renderAdminDashboard(containerEl) {
 
   const panelTitle = isMaster ? 'Master Admin Control Panel' : 'JSL 2026 Tournament Control Console';
   const panelSubtitle = isMaster 
-    ? 'Log ID: <strong class="text-amber-400">bakolaypan@gmail.com</strong> • Single Source Supabase & Realtime Cloud Database'
+    ? `Log ID: <strong class="text-amber-400">${currentUser?.email || 'Master Admin'}</strong> • Single Source Supabase & Realtime Cloud Database`
     : `Logged in as: <strong class="text-amber-400">${currentUser?.name || 'Tournament Owner'}</strong> • Tournament Operations Only`;
 
   containerEl.innerHTML = `
@@ -1907,7 +1907,7 @@ function renderAdminLoginScreen(containerEl) {
       <form id="admin-login-form" class="space-y-3 text-left">
         <div>
           <label class="block text-[10px] font-black text-slate-700 uppercase mb-1">Email ID OR 10-Digit Mobile Number *</label>
-          <input type="text" id="admin-identifier" required placeholder="e.g. bakolaypan@gmail.com OR 9876543210" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-emerald-500 font-mono" />
+          <input type="text" id="admin-identifier" required placeholder="e.g. admin@example.com OR 9876543210" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-emerald-500 font-mono" />
         </div>
 
         <div>
