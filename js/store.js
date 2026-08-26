@@ -286,11 +286,27 @@ class Store {
       }
 
       // 3. Sync Fixtures
+      // CRITICAL: never let a delayed cloud echo clobber the match that is being
+      // actively scored ball-by-ball on THIS device. Firebase writes echo back with
+      // network latency, so during rapid scoring an older snapshot can arrive and
+      // revert freshly-entered balls (only the last one "sticking"). While a LIVE
+      // match is being scored here, the local copy of that one fixture is authoritative.
       if (Array.isArray(cloudData.fixtures)) {
+        let nextFixtures = cloudData.fixtures;
+        const activeId = (typeof window !== 'undefined') ? window.__cplActiveScoringFixtureId : null;
+        if (activeId) {
+          const localActive = this.getFixtures().find(f => f.id === activeId);
+          // Only shield it while it is genuinely LIVE; once it is COMPLETED the cloud
+          // result is allowed to sync normally again.
+          if (localActive && localActive.status === 'LIVE') {
+            nextFixtures = cloudData.fixtures.map(f => f.id === activeId ? localActive : f);
+            if (!nextFixtures.some(f => f.id === activeId)) nextFixtures = [...nextFixtures, localActive];
+          }
+        }
         const localFixturesStr = localStorage.getItem(STORAGE_KEYS.FIXTURES) || '[]';
-        const cloudFixturesStr = JSON.stringify(cloudData.fixtures);
+        const cloudFixturesStr = JSON.stringify(nextFixtures);
         if (localFixturesStr !== cloudFixturesStr) {
-          safeSetLocalStorage(STORAGE_KEYS.FIXTURES, cloudData.fixtures);
+          safeSetLocalStorage(STORAGE_KEYS.FIXTURES, nextFixtures);
           this.notify('fixtures_updated');
         }
       }

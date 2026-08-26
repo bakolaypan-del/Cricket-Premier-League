@@ -2834,6 +2834,9 @@ function renderScorerActivePanel() {
   const fixture = store.getFixtures().find(f => f.id === activeScoringMatchId);
   if (!fixture) return;
 
+  // Shield this match's live state from cloud-echo overwrites while it's on-screen.
+  window.__cplActiveScoringFixtureId = fixture.id;
+
   const state = fixture.liveMatchState || {};
   
   const battingTeamId = state.innings === 2 ? fixture.teamBId : fixture.teamAId;
@@ -3058,6 +3061,7 @@ function renderScorerActivePanel() {
         store.deleteFixture(fixture.id);
         // Fully clear the scorer view so no stale card / lineup / panel remains
         if (activeScoringMatchId === fixture.id) activeScoringMatchId = null;
+        if (window.__cplActiveScoringFixtureId === fixture.id) window.__cplActiveScoringFixtureId = null;
         document.getElementById('scorer-active-panel')?.classList.add('hidden');
         document.getElementById('scorer-selected-match-card')?.classList.add('hidden');
         document.getElementById('scorer-lineup-step-block')?.classList.add('hidden');
@@ -3177,23 +3181,32 @@ function showScoringAnimation(kind) {
       six:    { text: 'SIX!',    emoji: '6️⃣', bg: 'linear-gradient(135deg,#f59e0b,#d97706)', color: '#1e293b' },
       wicket: { text: 'OUT!',    emoji: '🎯', bg: 'linear-gradient(135deg,#e11d48,#9f1239)', color: '#ffffff' },
       wide:   { text: 'WIDE',    emoji: '↔️', bg: 'linear-gradient(135deg,#f59e0b,#b45309)', color: '#ffffff' },
-      noball: { text: 'NO BALL', emoji: '🚫', bg: 'linear-gradient(135deg,#f43f5e,#9f1239)', color: '#ffffff' }
+      noball: { text: 'NO BALL', emoji: '🚫', bg: 'linear-gradient(135deg,#f43f5e,#9f1239)', color: '#ffffff' },
+      innings:{ text: 'INNINGS BREAK', emoji: '🌓', bg: 'linear-gradient(135deg,#7c3aed,#5b21b6)', color: '#ffffff', hold: 2200 },
+      match:  { text: 'MATCH OVER',    emoji: '🏆', bg: 'linear-gradient(135deg,#059669,#047857)', color: '#ffffff', hold: 2200 }
     };
     const cfg = map[kind];
     if (!cfg || typeof document === 'undefined') return;
     if (!document.getElementById('scoring-anim-style')) {
       const st = document.createElement('style');
       st.id = 'scoring-anim-style';
-      st.textContent = '@keyframes scorepop{0%{transform:scale(.3) rotate(-8deg);opacity:0}25%{transform:scale(1.15) rotate(3deg);opacity:1}70%{transform:scale(1) rotate(0);opacity:1}100%{transform:scale(1.45);opacity:0}}';
+      st.textContent = '@keyframes scorepop{0%{transform:scale(.3) rotate(-8deg);opacity:0}25%{transform:scale(1.15) rotate(3deg);opacity:1}70%{transform:scale(1) rotate(0);opacity:1}100%{transform:scale(1.45);opacity:0}}'
+        + '@keyframes scorehold{0%{transform:scale(.3);opacity:0}12%{transform:scale(1.12);opacity:1}85%{transform:scale(1);opacity:1}100%{transform:scale(1.25);opacity:0}}';
       document.head.appendChild(st);
     }
     document.getElementById('scoring-anim-overlay')?.remove();
+    // Innings-break / match-over banners hold longer and dim the screen so the admin
+    // can't miss the transition; the quick ball events stay as a fast pass-through flash.
+    const hold = cfg.hold || 0;
+    const anim = hold ? `scorehold ${hold}ms` : 'scorepop 1.4s';
+    const overlayBg = hold ? 'background:rgba(15,23,42,.55);backdrop-filter:blur(2px);' : '';
+    const fontSize = hold ? 'clamp(1.8rem,8vw,5rem)' : 'clamp(2.6rem,13vw,8.5rem)';
     const el = document.createElement('div');
     el.id = 'scoring-anim-overlay';
-    el.style.cssText = 'position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;pointer-events:none;';
-    el.innerHTML = `<div style="font-weight:900;font-size:clamp(2.6rem,13vw,8.5rem);padding:.35em .65em;border-radius:1.4rem;background:${cfg.bg};color:${cfg.color};box-shadow:0 22px 60px rgba(0,0,0,.4);animation:scorepop 1.4s cubic-bezier(.2,.8,.2,1) forwards;display:flex;align-items:center;gap:.2em;white-space:nowrap;">${cfg.emoji} ${cfg.text}</div>`;
+    el.style.cssText = `position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;pointer-events:none;${overlayBg}`;
+    el.innerHTML = `<div style="font-weight:900;font-size:${fontSize};padding:.35em .65em;border-radius:1.4rem;background:${cfg.bg};color:${cfg.color};box-shadow:0 22px 60px rgba(0,0,0,.4);animation:${anim} cubic-bezier(.2,.8,.2,1) forwards;display:flex;align-items:center;gap:.2em;white-space:nowrap;text-align:center;">${cfg.emoji} ${cfg.text}</div>`;
     document.body.appendChild(el);
-    setTimeout(() => el.remove(), 1450);
+    setTimeout(() => el.remove(), (hold || 1450) + 50);
   } catch (e) { /* animation is non-critical */ }
 }
 window.showScoringAnimation = showScoringAnimation;
@@ -3225,7 +3238,8 @@ function endInningsOrFinishMatch(fixture) {
     renderScorerActivePanel();
     if (window.renderActiveMatchCenter) window.renderActiveMatchCenter();
     if (window.refreshFixturesViewContent) window.refreshFixturesViewContent();
-    setTimeout(() => alert(`🏁 Innings 1 complete!\n\nTarget for the chasing team: ${target} runs.\nNow select the opening batters & bowler for Innings 2.`), 120);
+    showScoringAnimation('innings');
+    setTimeout(() => alert(`🏁 Innings 1 complete!\n\nTarget for the chasing team: ${target} runs.\nNow select the opening batters & bowler for Innings 2.`), 2300);
     return;
   }
 
@@ -3244,11 +3258,14 @@ function endInningsOrFinishMatch(fixture) {
   fixture.endedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   fixture.result = resultTxt;
   fixture.winnerTeamId = winnerId;
+  // Match is over -> release the live-scoring cloud shield so the final result syncs.
+  if (window.__cplActiveScoringFixtureId === fixture.id) window.__cplActiveScoringFixtureId = null;
   store.updateFixture(fixture);
   renderScorerActivePanel();
   if (window.renderActiveMatchCenter) window.renderActiveMatchCenter();
   if (window.refreshFixturesViewContent) window.refreshFixturesViewContent();
-  setTimeout(() => alert(`🎉 Match Completed!\n\nResult: ${resultTxt}`), 120);
+  showScoringAnimation('match');
+  setTimeout(() => alert(`🎉 Match Completed!\n\nResult: ${resultTxt}`), 2300);
 }
 
 function processScorerBall(runsScored) {
@@ -3288,6 +3305,10 @@ function processScorerBall(runsScored) {
       playerStats: {}
     };
   }
+
+  // Tell the store which fixture is being actively scored so cloud echoes can't
+  // clobber the local ball-by-ball state mid-over (see syncWithCloud fixture guard).
+  window.__cplActiveScoringFixtureId = fixture.id;
 
   const state = fixture.liveMatchState;
 
@@ -3418,38 +3439,39 @@ function processScorerBall(runsScored) {
 
   const isValidBall = !isWide && !isNoBall;
   let overJustCompleted = false;
+
+  // Record this delivery in the current-over ticker FIRST, then decide whether the
+  // over just completed. If it did, we clear the ticker AFTER pushing so the new over
+  // starts empty (the completing ball is still preserved in ballHistory). Pushing
+  // before the reset is what the wicket path already does — keep them consistent.
+  state.overBalls.push({
+    label: ballLabel,
+    type: ballType
+  });
+
   if (isValidBall) {
     state.balls += 1;
     if (state.balls >= 6) {
       state.overs += 1;
       state.balls = 0;
-      state.overBalls = [];
+      state.overBalls = [];   // fresh over -> empty "This Over Deliveries" ticker
       overJustCompleted = true;
 
+      const temp = state.strikerId;   // batsmen cross at the end of the over
+      state.strikerId = state.nonStrikerId;
+      state.nonStrikerId = temp;
+    } else if (runsScored === 1 || runsScored === 3) {
       const temp = state.strikerId;
       state.strikerId = state.nonStrikerId;
       state.nonStrikerId = temp;
-    } else {
-      if (runsScored === 1 || runsScored === 3) {
-        const temp = state.strikerId;
-        state.strikerId = state.nonStrikerId;
-        state.nonStrikerId = temp;
-      }
     }
-  } else {
+  } else if (runsScored === 1 || runsScored === 3) {
     // Wide / no-ball: the ball is re-bowled, but odd runs physically run between the
     // wickets still cross the batsmen, so strike rotates (e.g. WD+1 -> strike changes).
-    if (runsScored === 1 || runsScored === 3) {
-      const temp = state.strikerId;
-      state.strikerId = state.nonStrikerId;
-      state.nonStrikerId = temp;
-    }
+    const temp = state.strikerId;
+    state.strikerId = state.nonStrikerId;
+    state.nonStrikerId = temp;
   }
-
-  state.overBalls.push({
-    label: ballLabel,
-    type: ballType
-  });
 
   // Track Rich Ball Commentary in ballHistory
   if (!state.ballHistory) state.ballHistory = [];
