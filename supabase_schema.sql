@@ -231,7 +231,7 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_tourney ON public.audit_log(tournament_
 
 -- Atomic Sequential Registration Counter Function
 CREATE OR REPLACE FUNCTION public.get_next_reg_number(t_id UUID)
-RETURNS INT AS 
+RETURNS INT AS $$
 DECLARE
   next_val INT;
 BEGIN
@@ -241,11 +241,11 @@ BEGIN
   RETURNING last_reg_number INTO next_val;
   RETURN next_val;
 END;
- LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- Auto-Aadhaar Cleanup Trigger Function (DPDP Act Compliance)
 CREATE OR REPLACE FUNCTION public.handle_player_verification_cleanup()
-RETURNS TRIGGER AS 
+RETURNS TRIGGER AS $$
 BEGIN
   IF NEW.verified = true AND (OLD.verified = false OR OLD.verified IS NULL) THEN
     UPDATE public.player_verification_docs
@@ -254,7 +254,7 @@ BEGIN
   END IF;
   RETURN NEW;
 END;
- LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS trigger_player_verification_cleanup ON public.players;
 CREATE TRIGGER trigger_player_verification_cleanup
@@ -265,7 +265,7 @@ EXECUTE FUNCTION public.handle_player_verification_cleanup();
 
 -- User Profile Sync on Signup
 CREATE OR REPLACE FUNCTION public.handle_new_user_signup()
-RETURNS TRIGGER AS 
+RETURNS TRIGGER AS $$
 BEGIN
   INSERT INTO public.profiles (id, email, full_name, role)
   VALUES (
@@ -278,7 +278,7 @@ BEGIN
   SET email = EXCLUDED.email;
   RETURN NEW;
 END;
- LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
@@ -299,14 +299,14 @@ ALTER TABLE public.scorecards ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
 
 CREATE OR REPLACE FUNCTION public.is_master_admin()
-RETURNS BOOLEAN AS 
+RETURNS BOOLEAN AS $$
 BEGIN
   RETURN EXISTS (
-    SELECT 1 FROM public.profiles 
+    SELECT 1 FROM public.profiles
     WHERE id = auth.uid() AND role = 'master_admin'
   );
 END;
- LANGUAGE plpgsql SECURITY DEFINER;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
 
 -- PROFILES
 CREATE POLICY "Public profiles are viewable by everyone" ON public.profiles FOR SELECT USING (true);
