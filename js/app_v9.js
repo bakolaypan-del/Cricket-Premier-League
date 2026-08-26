@@ -842,13 +842,15 @@ function renderNavbar() {
       </div>
 
       <!-- Desktop Navigation links -->
-      <div class="hidden lg:flex items-center gap-4 xl:gap-6 text-xs font-bold tracking-widest text-emerald-100">
+      <div class="hidden lg:flex items-center gap-3 xl:gap-5 text-xs font-bold tracking-widest text-emerald-100">
         <button id="nav-home-btn" class="hover:text-white transition-colors py-1 ${currentRoute === 'landing' ? 'text-white border-b-2 border-emerald-300 font-black' : ''}">HOME</button>
         <button id="nav-tournaments-btn" class="hover:text-white transition-colors py-1">TOURNAMENTS</button>
         <button id="nav-schedule-btn" class="hover:text-white transition-colors py-1 ${currentRoute === 'fixtures' ? 'text-white border-b-2 border-emerald-300 font-black' : ''}">MATCH CORNER</button>
         <button id="nav-auction-btn" class="hover:text-amber-300 transition-colors py-1 flex items-center gap-1 ${currentRoute === 'auction' ? 'text-amber-300 border-b-2 border-amber-300 font-black' : ''}">🔨 AUCTION</button>
         <button id="nav-career-btn" class="hover:text-emerald-300 transition-colors py-1 flex items-center gap-1 ${currentRoute === 'career' ? 'text-emerald-300 border-b-2 border-emerald-300 font-black' : ''}">📊 PLAYER STATS</button>
-        <button id="nav-teams-btn" class="hover:text-white transition-colors py-1">TEAMS</button>
+        <button id="nav-host-saas-btn" class="px-2.5 py-1 bg-amber-400 text-slate-950 hover:bg-amber-300 rounded-lg font-black text-[11px] uppercase tracking-normal shadow-xs flex items-center gap-1 transition-all cursor-pointer">
+          <span>🏆 Host Tournament</span>
+        </button>
       </div>
 
       <!-- Right Side: Download Button & Single Desktop-Only Account Pill -->
@@ -871,6 +873,7 @@ function renderNavbar() {
   document.getElementById('brand-header-logo')?.addEventListener('click', () => navigate('landing'));
   document.getElementById('brand-header-title')?.addEventListener('click', () => navigate('landing'));
   document.getElementById('nav-install-app-btn')?.addEventListener('click', handleInstallAppClick);
+  document.getElementById('nav-host-saas-btn')?.addEventListener('click', () => openTournamentCreationWizard(false));
   document.getElementById('nav-admin-btn')?.addEventListener('click', () => {
     if (!store.getCurrentUser()) {
       openPlayerLoginModal(() => navigate('profile'));
@@ -1300,24 +1303,58 @@ function renderFirstPageLanding(containerEl) {
 
       </div>
 
-      <!-- CONDITIONAL HOST YOUR OWN TOURNAMENT SAAS BANNER -->
-      ${store.isHostTournamentEnabled() ? `
-        <div class="w-full max-w-4xl mx-auto px-2 pt-2">
-          <div class="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 rounded-2xl sm:rounded-3xl p-4 sm:p-5 text-slate-950 shadow-xl border-2 border-amber-300 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
-            <div class="space-y-1 text-center sm:text-left">
-              <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-slate-950 text-amber-400 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-wider">
-                <span>🏆 CRICKET SAAS ENGINE</span>
-              </div>
-              <h3 class="text-base sm:text-lg font-black text-slate-950 tracking-tight leading-tight">
-                Want to Host Your Own Cricket Tournament?
-              </h3>
-              <p class="text-[11px] sm:text-xs text-slate-900 font-bold max-w-md">
-                Create player registration forms, run live player auctions with projector screens, and manage ball-by-ball scoring instantly.
-              </p>
+      <!-- MULTI-TENANT TOURNAMENT SAAS ENGINE BANNER (MODE 1 & MODE 2) -->
+      <div class="w-full max-w-4xl mx-auto px-2 pt-2">
+        <div class="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 rounded-2xl sm:rounded-3xl p-4 sm:p-5 text-slate-950 shadow-xl border-2 border-amber-300 flex flex-col md:flex-row items-center justify-between gap-3 sm:gap-4">
+          <div class="space-y-1.5 text-center md:text-left">
+            <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-slate-950 text-amber-300 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-wider shadow">
+              <span>🏆 CRICKET SAAS ENGINE • MULTI-TENANT</span>
             </div>
-            <button id="btn-home-create-tourney" class="w-full sm:w-auto px-5 py-2.5 bg-slate-950 hover:bg-slate-900 text-amber-400 font-black text-xs sm:text-sm rounded-xl shadow-lg border border-amber-400 flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-105 shrink-0 uppercase tracking-wider">
-              <span>+ Create Your Tournament ➔</span>
-            </button>
+            <h3 class="text-base sm:text-lg font-black text-slate-950 tracking-tight leading-tight">
+              Host Your Own Cricket Tournament Online
+            </h3>
+            <p class="text-[11px] sm:text-xs text-slate-900 font-bold max-w-lg">
+              ✨ <strong>Mode 1 (Full Suite)</strong>: Player Online Reg + Live Bidding Auction + Squads + Live Scorer<br/>
+              ⚡ <strong>Mode 2 (Quick Fixtures)</strong>: Manual Team/Player Entry + Auto Fixtures + Ball-by-Ball Live Scoring
+            </p>
+          </div>
+          <button id="btn-home-create-tourney" class="w-full md:w-auto px-5 py-3 bg-slate-950 hover:bg-slate-900 text-amber-400 font-black text-xs sm:text-sm rounded-xl shadow-xl border-2 border-amber-400 flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-105 shrink-0 uppercase tracking-wider">
+            <span>+ Create Tournament ➔</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- CUSTOM TOURNAMENTS SECTION IF AVAILABLE -->
+      ${store.getCustomTournaments().length > 0 ? `
+        <div class="w-full max-w-4xl mx-auto px-2 pt-4 space-y-3">
+          <div class="flex items-center justify-between">
+            <h3 class="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+              <span>🏟️</span> Active Community Tournaments (${store.getCustomTournaments().length})
+            </h3>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+            ${store.getCustomTournaments().map(ct => `
+              <div class="bg-white border-2 border-emerald-400/40 hover:border-emerald-500 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all flex flex-col justify-between space-y-3">
+                <div class="flex items-start gap-3">
+                  <span class="w-10 h-10 rounded-xl ${ct.mode === 'AUCTION_LEAGUE' ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-900'} flex items-center justify-center text-xl font-black shrink-0">
+                    ${ct.mode === 'AUCTION_LEAGUE' ? '🔨' : '🏏'}
+                  </span>
+                  <div class="min-w-0">
+                    <span class="text-[9px] font-mono px-2 py-0.5 bg-slate-100 text-slate-700 font-bold rounded-full">${ct.shortCode || 'LEAGUE'}</span>
+                    <h4 class="text-sm font-black text-slate-900 truncate mt-0.5">${ct.name}</h4>
+                    <p class="text-[10.5px] text-slate-500 truncate">📍 ${ct.venue || 'Ground'} • ₹${ct.entryFee || 0} Fee</p>
+                  </div>
+                </div>
+                <div class="flex items-center gap-2 pt-1 border-t border-slate-100">
+                  <a href="#t/${ct.slug}" class="flex-1 py-1.5 text-center bg-slate-900 hover:bg-slate-800 text-white font-black text-[11px] rounded-lg shadow-xs no-underline">
+                    View Hub
+                  </a>
+                  <a href="#register/${ct.slug}" class="flex-1 py-1.5 text-center bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[11px] rounded-lg shadow-xs no-underline">
+                    Register ➔
+                  </a>
+                </div>
+              </div>
+            `).join('')}
           </div>
         </div>
       ` : ''}

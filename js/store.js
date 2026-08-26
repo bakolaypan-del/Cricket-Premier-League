@@ -1907,7 +1907,7 @@ class Store {
       if (local) return JSON.parse(local);
     } catch(e) {}
     return {
-      isHostTournamentEnabled: false, // Default to FALSE (Trial / Draft mode for Master Admin)
+      isHostTournamentEnabled: true, // Enabled for Multi-Tenant SaaS Branch
       allowPublicRegistrationModeA: true,
       allowQuickFixturesModeB: true,
       maxTeamsDefault: 16
@@ -1925,7 +1925,7 @@ class Store {
 
   isHostTournamentEnabled() {
     const settings = this.getPlatformSettings();
-    return settings.isHostTournamentEnabled === true;
+    return settings.isHostTournamentEnabled !== false;
   }
 
   getCustomTournaments() {
