@@ -606,9 +606,15 @@ export function renderAdminDashboard(containerEl) {
               </form>
 
               <!-- Auction Reset Danger Zone -->
-              <div class="border-t border-slate-100 pt-2.5">
-                <button type="button" id="admin-reset-auction-btn" class="w-full py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-black text-xs rounded-xl border border-rose-300 flex items-center justify-center gap-2 transition-all shadow-2xs cursor-pointer">
-                  <i data-lucide="rotate-ccw" class="w-4 h-4 text-rose-600"></i> 🔄 Revert Sold Players & Reset Purses
+              <div class="border-t border-slate-100 pt-2.5 space-y-2">
+                <button type="button" id="admin-seed-100-players-btn" class="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-xs rounded-xl shadow-xs flex items-center justify-center gap-2 transition-all cursor-pointer">
+                  <span>⚡</span> Generate 100+ Test Players with HD Photos
+                </button>
+                <button type="button" id="admin-seed-mock-auction-btn" class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-xs flex items-center justify-center gap-2 transition-all cursor-pointer">
+                  <span>🔨</span> Run Mock Auction & Draft into Squads
+                </button>
+                <button type="button" id="admin-reset-auction-btn" class="w-full py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-xl border border-rose-300 flex items-center justify-center gap-1.5 transition-all shadow-2xs cursor-pointer">
+                  <i data-lucide="rotate-ccw" class="w-3.5 h-3.5 text-rose-600"></i> Revert Sold Players & Reset Purses
                 </button>
               </div>
 
@@ -1751,6 +1757,137 @@ export function renderAdminDashboard(containerEl) {
     renderAdminDashboard(containerEl);
   });
 
+
+  // Generate 100+ Test Players with Random HD Photos
+  document.getElementById('admin-seed-100-players-btn')?.addEventListener('click', () => {
+    const firstNames = ['Sourav', 'Rahul', 'Rohit', 'Virat', 'Subha', 'Arijit', 'Pintu', 'Rohan', 'Dipankar', 'Supratim', 'Shaibal', 'Tushar', 'Surya', 'Aniket', 'Sayantan', 'Bikram', 'Debashis', 'Sandip', 'Tanmay', 'Arpan', 'Kaushik', 'Prasenjit', 'Suman', 'Gourav', 'Abhishek', 'Rajesh', 'Manoj', 'Kalyan', 'Sanjay', 'Biplab'];
+    const lastNames = ['Roy', 'Ghosh', 'Adikary', 'Singh', 'Dolai', 'Halder', 'Dutta', 'Dikpati', 'Santra', 'Kolay', 'Banerjee', 'Chatterjee', 'Mondal', 'Pramanik', 'Samanta', 'Kundu', 'Khan', 'Maji', 'Mallick', 'De'];
+    const villages = ['Jhanka', 'Khirpai', 'Chandrakona', 'Ramjibanpur', 'Ghatal', 'Keshpur', 'Garhbeta', 'Medinipur', 'Salboni', 'Daspur'];
+    const categories = ['Batsman', 'Bowler', 'All Rounder', 'Wicket Keeper'];
+    const battingStyles = ['Right Hand Bat', 'Left Hand Bat'];
+    const bowlingStyles = ['Right Hand Fast', 'Right Hand Medium', 'Right Arm Off Break', 'Left Arm Orthodox', 'Left Arm Fast'];
+
+    const targetTid = activeTid || 'leg-jsl';
+    const existingPlayers = store.getPlayers();
+    const startSerial = existingPlayers.length + 1;
+
+    let addedCount = 0;
+    for (let i = 0; i < 110; i++) {
+      const fn = firstNames[Math.floor(Math.random() * firstNames.length)];
+      const ln = lastNames[Math.floor(Math.random() * lastNames.length)];
+      const fullName = `${fn} ${ln}`;
+      const village = villages[Math.floor(Math.random() * villages.length)];
+      const category = categories[Math.floor(Math.random() * categories.length)];
+      const sNo = startSerial + i;
+      const regId = `REG-${String(sNo).padStart(4, '0')}`;
+      const phone = `98${Math.floor(10000000 + Math.random() * 90000000)}`;
+      const randomGender = Math.random() > 0.1 ? 'men' : 'men';
+      const randomImgId = Math.floor(1 + Math.random() * 95);
+      const photoUrl = `https://randomuser.me/api/portraits/${randomGender}/${randomImgId}.jpg`;
+
+      const pData = {
+        id: `ply-seed-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 6)}`,
+        tournament_id: targetTid,
+        tournamentId: targetTid,
+        serialNo: sNo,
+        displayRegistrationNumber: sNo,
+        registrationId: regId,
+        regNo: regId,
+        name: fullName,
+        fatherName: `${firstNames[Math.floor(Math.random() * firstNames.length)]} ${ln}`,
+        phone: phone,
+        mobile: phone,
+        category: category,
+        role: category,
+        playingType: category,
+        battingStyle: battingStyles[Math.floor(Math.random() * battingStyles.length)],
+        bowlingStyle: bowlingStyles[Math.floor(Math.random() * bowlingStyles.length)],
+        village: village,
+        district: 'Paschim Medinipur',
+        state: 'West Bengal',
+        age: 18 + Math.floor(Math.random() * 16),
+        dob: `${1995 + Math.floor(Math.random() * 12)}-0${1 + Math.floor(Math.random() * 9)}-15`,
+        basePrice: 300,
+        registrationStatus: 'APPROVED',
+        paymentStatus: 'APPROVED',
+        paymentRef: `UPI-TEST-${Math.floor(100000 + Math.random() * 900000)}`,
+        photoUrl: photoUrl,
+        player_photo_url: photoUrl,
+        auctionStatus: 'PENDING',
+        isSold: false,
+        isUnsold: false,
+        created_at: new Date(Date.now() - Math.floor(Math.random() * 86400000 * 5)).toISOString()
+      };
+
+      existingPlayers.push(pData);
+      addedCount++;
+    }
+
+    localStorage.setItem('cpl_players_v8', JSON.stringify(existingPlayers));
+    store.notify('players_updated');
+    alert(`🎉 Success! Generated ${addedCount} registered players with photos and auto-indexed serial numbers (#${startSerial} to #${startSerial + addedCount - 1}).`);
+    renderAdminDashboard(containerEl);
+  });
+
+  // Run Mock Auction & Draft Players into Squads
+  document.getElementById('admin-seed-mock-auction-btn')?.addEventListener('click', () => {
+    const allTeams = store.getTeams();
+    if (allTeams.length === 0) {
+      alert("⚠️ No teams found! Please create or import teams first before running mock auction.");
+      return;
+    }
+
+    const allPlayers = store.getPlayers();
+    const availablePlayers = allPlayers.filter(p => !p.teamId);
+
+    if (availablePlayers.length === 0) {
+      alert("⚠️ All players are already allocated to teams.");
+      return;
+    }
+
+    if (!confirm(`🔨 Mock Auction Simulation:\n\nDraft available players across all ${allTeams.length} franchise teams with realistic bid prices (₹300 - ₹2,500) and update team remaining purse balances?`)) {
+      return;
+    }
+
+    let draftedCount = 0;
+    const teamBudgets = {};
+    allTeams.forEach(t => {
+      teamBudgets[t.id] = Number(t.purseBudget || t.purse || 8000);
+      t.purseSpent = 0;
+    });
+
+    availablePlayers.forEach((p, idx) => {
+      // Pick team cyclically or randomly
+      const targetTeam = allTeams[idx % allTeams.length];
+      const remaining = teamBudgets[targetTeam.id];
+
+      // Stop drafting if team purse is low or squad is full
+      if (remaining > 500 && Math.random() > 0.08) {
+        const bidPrice = Math.min(remaining - 200, 300 + Math.floor(Math.random() * 18) * 100);
+        p.teamId = targetTeam.id;
+        p.teamName = targetTeam.name;
+        p.soldPrice = bidPrice;
+        p.auctionStatus = 'SOLD';
+        p.isSold = true;
+        p.isUnsold = false;
+
+        teamBudgets[targetTeam.id] -= bidPrice;
+        targetTeam.purseSpent = (targetTeam.purseSpent || 0) + bidPrice;
+        targetTeam.remainingPurse = teamBudgets[targetTeam.id];
+        draftedCount++;
+      } else {
+        p.auctionStatus = 'UNSOLD';
+        p.isUnsold = true;
+      }
+    });
+
+    localStorage.setItem('cpl_players_v8', JSON.stringify(allPlayers));
+    localStorage.setItem('cpl_teams_v8', JSON.stringify(allTeams));
+    store.notify('players_updated');
+    store.notify('teams_updated');
+    alert(`🏆 Mock Auction Complete!\n\nDrafted ${draftedCount} players across ${allTeams.length} teams. Squad rosters and team purses updated!`);
+    renderAdminDashboard(containerEl);
+  });
 
   // Export & Action Listeners
   document.getElementById('export-master-csv-btn')?.addEventListener('click', () => exportPlayersToCSV(store.getPlayers()));
