@@ -532,7 +532,7 @@ class Store {
     // 2. Tournament Owner login via registered phone
     const owners = this.getTournamentOwners();
     for (const [tId, o] of Object.entries(owners)) {
-      if (o && ((o.email && o.email.toLowerCase() === cleanEmail) || o.phone === cleanEmail) && (o.password === password || password === '123456')) {
+      if (o && ((o.email && o.email.toLowerCase() === cleanEmail) || o.phone === cleanEmail) && o.password === password) {
         const userObj = {
           id: `owner-${tId}`,
           name: o.name || 'Tournament Organiser',
@@ -1890,8 +1890,12 @@ class Store {
       list.unshift(record);
     }
 
+    const supabaseId = await saveCustomTournamentToCloud(record);
+    if (supabaseId) {
+      record.supabaseId = supabaseId;
+      record.tournament_id = supabaseId;
+    }
     safeSetLocalStorage(STORAGE_KEYS.CUSTOM_TOURNAMENTS, list);
-    await saveCustomTournamentToCloud(record);
     this.notify('custom_tournaments_updated');
     return record;
   }

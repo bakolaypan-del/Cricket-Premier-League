@@ -1045,8 +1045,9 @@ export async function fetchPlatformSettingsFromCloud() {
 }
 
 export async function saveCustomTournamentToCloud(tourney) {
-  if (!supabase || !tourney) return;
+  if (!supabase || !tourney) return null;
   try {
+    const user = await getAuthUser();
     const payload = {
       slug: tourney.slug || tourney.shortCode || tourney.id,
       name: tourney.name || tourney.id,
@@ -1055,11 +1056,17 @@ export async function saveCustomTournamentToCloud(tourney) {
       registration_fee: Number(tourney.entryFee || tourney.playerEntryFee) || 0,
       total_team_budget: Number(tourney.auctionPurse || tourney.purse) || 10000,
       venue_name: tourney.venue || 'TBD',
-      status: tourney.status === 'ACTIVE' ? 'active' : (tourney.status || 'active').toLowerCase()
+      status: tourney.status === 'ACTIVE' ? 'active' : (tourney.status || 'active').toLowerCase(),
+      organiser_id: user?.id || null
     };
     if (tourney.supabaseId) payload.id = tourney.supabaseId;
-    await supabase.from('tournaments').upsert(payload, { onConflict: 'slug' });
-  } catch (e) { console.warn('[SUPABASE] saveCustomTournament:', e.message); }
+    const { data, error } = await supabase.from('tournaments').upsert(payload, { onConflict: 'slug' }).select('id').single();
+    if (!error && data?.id) return data.id;
+    return null;
+  } catch (e) {
+    console.warn('[SUPABASE] saveCustomTournament:', e.message);
+    return null;
+  }
 }
 
 export async function fetchCustomTournamentsFromCloud() {

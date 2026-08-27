@@ -10428,8 +10428,9 @@ export function openDynamicTournamentRegistrationModal(tourneyIdOrSlug) {
     const village = document.getElementById('dyn-reg-village').value.trim();
     const district = document.getElementById('dyn-reg-district').value.trim();
 
-    // Atomic Sequential Number for this Tournament
-    const atomicRegNo = await dbGetNextRegNumber(tourney.id);
+    // Use Supabase UUID for tournament_id (falls back to local ID)
+    const effectiveTournamentId = tourney.supabaseId || tourney.tournament_id || tourney.id;
+    const atomicRegNo = await dbGetNextRegNumber(effectiveTournamentId);
 
     const playerData = {
       id: `p_${phone}_${Date.now()}`,
@@ -10442,7 +10443,7 @@ export function openDynamicTournamentRegistrationModal(tourneyIdOrSlug) {
       village,
       district,
       tournamentId: tourney.id,
-      tournament_id: tourney.id,
+      tournament_id: effectiveTournamentId,
       tournamentSlug: tourney.slug,
       tournamentName: tourney.name,
       photoUrl: uploadedPhotoBase64 || '',
