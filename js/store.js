@@ -1901,11 +1901,58 @@ class Store {
   }
 
   getCustomTournaments() {
+    let customList = [];
     try {
       const local = localStorage.getItem(STORAGE_KEYS.CUSTOM_TOURNAMENTS);
-      if (local) return JSON.parse(local);
+      if (local) customList = JSON.parse(local);
     } catch(e) {}
-    return [];
+
+    // Ensure default seeded tournaments (JSL and KPL) are always present
+    const defaultTourneys = [
+      {
+        id: "tourney_jsl_2026",
+        slug: "jsl-2026",
+        name: "JHANKRA SUPER LEAGUE 2026",
+        shortCode: "JSL",
+        category_code: "JSL",
+        mode: "AUCTION_LEAGUE",
+        venue: "JHANKRA SCHOOL GROUND",
+        dates: "29, 30 & 31 AUGUST 2026",
+        kickoffDate: "2026-08-29",
+        entryFee: 300,
+        prizeWinner: 35000,
+        prizeRunner: 25000,
+        teamPurse: 8000,
+        status: "ACTIVE",
+        organizer: { name: "Pintu Santra", phone: "8972214416" }
+      },
+      {
+        id: "tourney_kpl_2026",
+        slug: "kpl-2026",
+        name: "KOTA PREMIER LEAGUE 2026",
+        shortCode: "KPL",
+        category_code: "KPL",
+        mode: "AUCTION_LEAGUE",
+        venue: "Kota Sports Ground",
+        dates: "15, 16 & 17 OCTOBER 2026",
+        kickoffDate: "2026-10-15",
+        entryFee: 500,
+        prizeWinner: 50000,
+        prizeRunner: 30000,
+        teamPurse: 10000,
+        status: "ACTIVE",
+        organizer: { name: "Kota Cricket Club", phone: "9800000000" }
+      }
+    ];
+
+    const merged = [...customList];
+    defaultTourneys.forEach(dt => {
+      if (!merged.some(t => t.slug === dt.slug || t.id === dt.id || (t.shortCode && t.shortCode.toUpperCase() === dt.shortCode.toUpperCase()))) {
+        merged.push(dt);
+      }
+    });
+
+    return merged;
   }
 
   getCustomTournamentById(idOrSlug) {
