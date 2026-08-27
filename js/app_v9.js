@@ -1477,10 +1477,27 @@ export function renderCustomTournamentHub(container, tourney) {
   const isAuction = isJsl || (tourney.mode === 'AUCTION_LEAGUE') || (!tourney.mode);
 
   const tid = tourney.supabaseId || tourney.tournament_id || tourney.id;
+  const tourneySlug = (tourney.slug || '').toLowerCase();
+  const tourneyCode = (tourney.shortCode || tourney.code || '').toUpperCase();
+  const tourneyName = (tourney.name || '').toUpperCase();
+
   const allPlayers = store.getPlayers().filter(p => {
     if (isJsl && (!p.tournamentId && !p.tournament_id && !p.tournamentSlug)) return true;
-    return p.tournament_id === tid || p.tournamentId === tourney.id || p.tournamentSlug === tourney.slug || (isJsl && ((p.tournamentName || '').toUpperCase().includes('JSL') || (p.tournamentSlug || '').includes('jsl')));
+    const pTid = p.tournament_id || p.tournamentId || '';
+    const pSlug = (p.tournamentSlug || p.tournament_slug || '').toLowerCase();
+    const pCode = (p.tournamentCode || p.category_code || '').toUpperCase();
+    const pTName = (p.tournamentName || '').toUpperCase();
+
+    return (pTid && (pTid === tid || pTid === tourney.id || pTid === tourney.supabaseId)) ||
+           (pSlug && pSlug === tourneySlug) ||
+           (pCode && pCode === tourneyCode) ||
+           (tourneySlug.includes('kota') && (pTid.includes('kpl') || pSlug.includes('kpl') || pTName.includes('KOTA'))) ||
+           (tourneySlug.includes('khirpai') && (pTid.includes('khirpai') || pSlug.includes('khirpai') || pTName.includes('KHIRPAI'))) ||
+           (isJsl && (pTid.includes('jsl') || pSlug.includes('jsl') || pTName.includes('JHANKRA') || pTName.includes('JSL')));
   });
+
+  // If no players are specifically tagged for a custom tournament in testing, fallback to full active player pool
+  const displayPlayers = allPlayers.length > 0 ? allPlayers : store.getPlayers();
 
   const allTeams = store.getTeams().filter(t => {
     if (isJsl && (!t.tournamentId && !t.tournament_id)) return true;
@@ -1750,17 +1767,17 @@ export function renderCustomTournamentHub(container, tourney) {
         <div id="hub-tab-players" class="${hubTab === 'players' ? '' : 'hidden'} p-3 sm:p-4 space-y-4">
           <div class="flex items-center justify-between gap-2">
             <div>
-              <h3 class="text-sm font-black text-slate-900">Registered Players (${allPlayers.length})</h3>
+              <h3 class="text-sm font-black text-slate-900">Registered Players (${displayPlayers.length})</h3>
               <p class="text-[11px] text-slate-500 font-semibold">Click "View Profile" to see complete player credentials</p>
             </div>
             <span class="text-[10px] font-black text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-full border border-emerald-300 shrink-0">
-              ${approvedPlayers.length} Verified
+              ${displayPlayers.filter(p => (p.registrationStatus || p.paymentStatus) === 'APPROVED').length} Verified
             </span>
           </div>
 
-          ${allPlayers.length > 0 ? `
+          ${displayPlayers.length > 0 ? `
             <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-              ${allPlayers.map((p, idx) => {
+              ${displayPlayers.map((p, idx) => {
                 const serial = String(p.displayRegistrationNumber || p.serialNo || (idx + 1)).padStart(2, '0');
                 const isApproved = (p.registrationStatus || p.paymentStatus) === 'APPROVED';
                 const photo = p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png';
