@@ -2,7 +2,7 @@
 
 import { store } from './store.js?v=12.0.2';
 import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF } from './export.js?v=12.0.2';
-import { saveAdSettingsToFirebase, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, savePopupSettingsToFirebase, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase } from './supabase.js?v=12.0.2';
+import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase } from './supabase.js?v=12.0.2';
 import { shops } from './shopsData.js?v=12.0.2';
 
 let activeAdminTab = 'payments'; // 'payments', 'all-players', 'teams'
@@ -1537,7 +1537,7 @@ export function renderAdminDashboard(containerEl) {
     if (btn) btn.innerHTML = '<span>⏳ Syncing...</span>';
     try {
       await store.commitAndSyncAuctionPermanentArchive();
-      alert("✅ JSL 2026 Final Auction Record Vault Synced!\n\nAll 8 team squads, player bids, icon fees, and financial balances have been permanently locked and archived in Firebase Cloud and Local Storage for 5+ years.");
+      alert("✅ JSL 2026 Final Auction Record Vault Synced!\n\nAll 8 team squads, player bids, icon fees, and financial balances have been permanently locked and archived in Supabase Cloud and Local Storage for 5+ years.");
     } catch(e) {
       alert("Archive sync notice: " + (e.message || e));
     }
@@ -3312,7 +3312,7 @@ function processScorerBall(runsScored) {
 
   const state = fixture.liveMatchState;
 
-  // Firebase Realtime DB strips empty arrays/objects, so a resumed/synced match
+  // Cloud DB may strip empty arrays/objects, so a resumed/synced match
   // can come back missing these. Re-initialize defensively before any .push()/writes.
   if (!Array.isArray(state.overBalls)) state.overBalls = [];
   if (!Array.isArray(state.ballHistory)) state.ballHistory = [];
@@ -3567,7 +3567,7 @@ function openScorerWicketModal() {
   if (!fixture) return;
 
   const state = fixture.liveMatchState;
-  // Firebase strips empty arrays/objects; re-init defensively before wicket writes.
+  // Cloud DB may strip empty arrays/objects; re-init defensively before wicket writes.
   if (!Array.isArray(state.overBalls)) state.overBalls = [];
   if (!Array.isArray(state.ballHistory)) state.ballHistory = [];
   if (!state.playerStats || typeof state.playerStats !== 'object') state.playerStats = {};
@@ -5516,7 +5516,7 @@ export async function renderAdminShopAdsPanel() {
   `;
   if (window.lucide) window.lucide.createIcons();
 
-  const settings = await fetchPopupSettingsFromFirebase();
+  const settings = await fetchPopupSettingsFromCloud();
 
   // 2. Render control options
   const isSnoozed = settings.adExpiryTime && Date.now() < settings.adExpiryTime;
@@ -5691,7 +5691,7 @@ export async function renderAdminShopAdsPanel() {
   };
 
   const updatePopupSettingField = async (field, value) => {
-    const current = await fetchPopupSettingsFromFirebase();
+    const current = await fetchPopupSettingsFromCloud();
     const shopIds = getCheckedShopIds();
     const payload = {
       ...current,
@@ -5699,7 +5699,7 @@ export async function renderAdminShopAdsPanel() {
       promotedShopIds: shopIds.length > 0 ? shopIds : current.promotedShopIds,
       updated_at: Date.now()
     };
-    await savePopupSettingsToFirebase(payload);
+    await savePopupSettingsToCloud(payload);
     
     // Smooth status badge refresh without full panel rebuild
     const isSnoozed = payload.adExpiryTime && Date.now() < payload.adExpiryTime;
@@ -5735,8 +5735,8 @@ export async function renderAdminShopAdsPanel() {
 
   document.getElementById('admin-ad-pause-month-btn')?.addEventListener('click', async () => {
     const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
-    const current = await fetchPopupSettingsFromFirebase();
-    await savePopupSettingsToFirebase({
+    const current = await fetchPopupSettingsFromCloud();
+    await savePopupSettingsToCloud({
       ...current,
       isAdPopupEnabled: true,
       adExpiryTime: Date.now() + ONE_MONTH_MS,

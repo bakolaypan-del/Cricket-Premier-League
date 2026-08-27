@@ -10,31 +10,31 @@ import {
   deleteTeamFromSupabase,
   uploadHDImage,
   initRealtimePushListener,
-  clearAllPlayersFromFirebase,
-  clearAllTeamsFromFirebase,
-  saveFixtureToFirebase,
-  deleteFixtureFromFirebase,
-  saveAuctionSettingsToFirebase,
-  saveLiveAuctionToFirebase,
-  saveLiveMatchToFirebase,
-  saveCommunityQueryToFirebase,
-  deleteCommunityQueryFromFirebase,
-  fetchCommunityQueriesFromFirebase,
-  fetchTournamentOwnersFromFirebase,
-  fetchUserAccountsFromFirebase,
-  saveRegistrationSettingsToFirebase,
-  fetchRegistrationSettingsFromFirebase,
-  saveAuctionPermanentArchiveToFirebase,
-  fetchAuctionPermanentArchiveFromFirebase,
-  savePlatformSettingsToFirebase,
-  fetchPlatformSettingsFromFirebase,
-  saveCustomTournamentToFirebase,
-  fetchCustomTournamentsFromFirebase,
-  deleteCustomTournamentFromFirebase,
-  saveUniversalPlayerToFirebase,
-  fetchUniversalPlayersFromFirebase,
-  saveTournamentFormatToFirebase,
-  fetchTournamentFormatsFromFirebase,
+  clearAllPlayersFromCloud,
+  clearAllTeamsFromCloud,
+  saveFixtureToCloud,
+  deleteFixtureFromCloud,
+  saveAuctionSettingsToCloud,
+  saveLiveAuctionToCloud,
+  saveLiveMatchToCloud,
+  saveCommunityQueryToCloud,
+  deleteCommunityQueryFromCloud,
+  fetchCommunityQueriesFromCloud,
+  fetchTournamentOwnersFromCloud,
+  fetchUserAccountsFromCloud,
+  saveRegistrationSettingsToCloud,
+  fetchRegistrationSettingsFromCloud,
+  saveAuctionPermanentArchiveToCloud,
+  fetchAuctionPermanentArchiveFromCloud,
+  savePlatformSettingsToCloud,
+  fetchPlatformSettingsFromCloud,
+  saveCustomTournamentToCloud,
+  fetchCustomTournamentsFromCloud,
+  deleteCustomTournamentFromCloud,
+  saveUniversalPlayerToCloud,
+  fetchUniversalPlayersFromCloud,
+  saveTournamentFormatToCloud,
+  fetchTournamentFormatsFromCloud,
   signInUser,
   signUpUser,
   signOutUser,
@@ -293,7 +293,7 @@ class Store {
 
       // 3. Sync Fixtures
       // CRITICAL: never let a delayed cloud echo clobber the match that is being
-      // actively scored ball-by-ball on THIS device. Firebase writes echo back with
+      // actively scored ball-by-ball on THIS device. Supabase writes echo back with
       // network latency, so during rapid scoring an older snapshot can arrive and
       // revert freshly-entered balls (only the last one "sticking"). While a LIVE
       // match is being scored here, the local copy of that one fixture is authoritative.
@@ -357,9 +357,9 @@ class Store {
         }
       }
 
-      // 5. Sync Tournament Owners & User Accounts from Firebase
+      // 5. Sync Tournament Owners & User Accounts from Supabase
       try {
-        const cloudOwners = await fetchTournamentOwnersFromFirebase();
+        const cloudOwners = await fetchTournamentOwnersFromCloud();
         if (cloudOwners && typeof cloudOwners === 'object' && Object.keys(cloudOwners).length > 0) {
           const currentOwners = this.getTournamentOwners();
           const mergedOwners = { ...currentOwners, ...cloudOwners };
@@ -367,14 +367,14 @@ class Store {
           this.notify('tournament_owners_updated');
         }
 
-        const cloudAccounts = await fetchUserAccountsFromFirebase();
+        const cloudAccounts = await fetchUserAccountsFromCloud();
         if (Array.isArray(cloudAccounts) && cloudAccounts.length > 0) {
           safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, cloudAccounts);
           this.notify('user_accounts_updated');
         }
 
         // 6. Sync Tournament Formats (Group stages)
-        const cloudFormats = await fetchTournamentFormatsFromFirebase();
+        const cloudFormats = await fetchTournamentFormatsFromCloud();
         if (cloudFormats && typeof cloudFormats === 'object' && Object.keys(cloudFormats).length > 0) {
           const currentFormats = this.getTournamentFormats();
           const mergedFormats = { ...currentFormats, ...cloudFormats };
@@ -393,7 +393,7 @@ class Store {
 
   startCloudPolling() {
     if (this.cloudPollingInterval) clearInterval(this.cloudPollingInterval);
-    // 15s Background Cloud Polling Heartbeat (Firebase SSE already pushes changes instantaneously)
+    // 15s Background Cloud Polling Heartbeat (Supabase SSE already pushes changes instantaneously)
     this.cloudPollingInterval = setInterval(() => {
       const isUserFillingForm = document.getElementById('player-reg-modal') || document.getElementById('team-reg-modal') || document.getElementById('edit-player-modal');
       if (!isUserFillingForm) {
@@ -871,7 +871,7 @@ class Store {
     const timestamp = Date.now();
     localStorage.setItem('cpl_last_cleared_at', String(timestamp));
     safeSetLocalStorage(STORAGE_KEYS.PLAYERS, []);
-    clearAllPlayersFromFirebase();
+    clearAllPlayersFromCloud();
     this.notify('players_updated');
   }
 
@@ -879,7 +879,7 @@ class Store {
     const timestamp = Date.now();
     localStorage.setItem('cpl_last_teams_cleared_at', String(timestamp));
     safeSetLocalStorage(STORAGE_KEYS.TEAMS, []);
-    clearAllTeamsFromFirebase();
+    clearAllTeamsFromCloud();
     this.notify('teams_updated');
   }
 
@@ -1396,7 +1396,7 @@ class Store {
     };
     fixtures.push(newFixture);
     safeSetLocalStorage(STORAGE_KEYS.FIXTURES, fixtures);
-    saveFixtureToFirebase(newFixture);
+    saveFixtureToCloud(newFixture);
     this.notify('fixtures_updated');
     return newFixture;
   }
@@ -1407,7 +1407,7 @@ class Store {
     if (idx !== -1) {
       fixtures[idx] = { ...fixtures[idx], ...updatedFixture };
       safeSetLocalStorage(STORAGE_KEYS.FIXTURES, fixtures);
-      saveFixtureToFirebase(fixtures[idx]);
+      saveFixtureToCloud(fixtures[idx]);
       this.notify('fixtures_updated');
       return fixtures[idx];
     }
@@ -1418,7 +1418,7 @@ class Store {
     let fixtures = this.getFixtures();
     fixtures = fixtures.filter(f => f.id !== fixtureId);
     safeSetLocalStorage(STORAGE_KEYS.FIXTURES, fixtures);
-    deleteFixtureFromFirebase(fixtureId);
+    deleteFixtureFromCloud(fixtureId);
     this.notify('fixtures_updated');
   }
 
@@ -1446,7 +1446,7 @@ class Store {
     const clean = (leagueCode || 'JSL').toUpperCase();
     formats[clean] = { ...formats[clean], ...formatConfig, updated_at: Date.now() };
     safeSetLocalStorage(STORAGE_KEYS.TOURNAMENT_FORMATS, formats);
-    await saveTournamentFormatToFirebase(clean, formats[clean]);
+    await saveTournamentFormatToCloud(clean, formats[clean]);
     this.notify('tournament_format_updated');
     this.notify('teams_updated');
     this.notify('fixtures_updated');
@@ -1576,7 +1576,7 @@ class Store {
 
   updateAuctionSettings(settings) {
     safeSetLocalStorage(STORAGE_KEYS.AUCTION_SETTINGS, settings);
-    saveAuctionSettingsToFirebase(settings);
+    saveAuctionSettingsToCloud(settings);
     this.notify('auction_settings_updated');
   }
 
@@ -1620,7 +1620,7 @@ class Store {
     const current = this.getRegistrationSettings();
     const updated = { ...current, ...settings };
     safeSetLocalStorage(STORAGE_KEYS.REGISTRATION_SETTINGS, updated);
-    saveRegistrationSettingsToFirebase(updated);
+    saveRegistrationSettingsToCloud(updated);
     this.notify('registration_settings_updated');
     return updated;
   }
@@ -1662,7 +1662,7 @@ class Store {
     } else {
       localStorage.removeItem('cpl_live_auction_state');
     }
-    await saveLiveAuctionToFirebase(updatedState);
+    await saveLiveAuctionToCloud(updatedState);
     this.notify('live_auction_updated');
   }
 
@@ -1818,7 +1818,7 @@ class Store {
 
   async commitAndSyncAuctionPermanentArchive() {
     const snapshot = this.generateAuctionPermanentArchiveSnapshot();
-    await saveAuctionPermanentArchiveToFirebase(snapshot);
+    await saveAuctionPermanentArchiveToCloud(snapshot);
     this.notify('auction_archive_synced');
     return snapshot;
   }
@@ -1841,7 +1841,7 @@ class Store {
     const current = this.getPlatformSettings();
     const updated = { ...current, ...settings, updated_at: Date.now() };
     safeSetLocalStorage(STORAGE_KEYS.PLATFORM_SETTINGS, updated);
-    await savePlatformSettingsToFirebase(updated);
+    await savePlatformSettingsToCloud(updated);
     this.notify('platform_settings_updated');
     return updated;
   }
@@ -1891,7 +1891,7 @@ class Store {
     }
 
     safeSetLocalStorage(STORAGE_KEYS.CUSTOM_TOURNAMENTS, list);
-    await saveCustomTournamentToFirebase(record);
+    await saveCustomTournamentToCloud(record);
     this.notify('custom_tournaments_updated');
     return record;
   }
@@ -1901,7 +1901,7 @@ class Store {
     let list = this.getCustomTournaments();
     list = list.filter(t => t.id !== tourneyId && t.slug !== tourneyId);
     safeSetLocalStorage(STORAGE_KEYS.CUSTOM_TOURNAMENTS, list);
-    await deleteCustomTournamentFromFirebase(tourneyId);
+    await deleteCustomTournamentFromCloud(tourneyId);
     this.notify('custom_tournaments_updated');
     return true;
   }
@@ -1969,7 +1969,7 @@ class Store {
 
     pool[phone] = profile;
     safeSetLocalStorage(STORAGE_KEYS.UNIVERSAL_PLAYERS, pool);
-    await saveUniversalPlayerToFirebase(profile);
+    await saveUniversalPlayerToCloud(profile);
     return profile;
   }
 
@@ -2397,7 +2397,7 @@ class Store {
 
   async syncCommunityQueriesFromCloud() {
     try {
-      const cloudQueries = await fetchCommunityQueriesFromFirebase();
+      const cloudQueries = await fetchCommunityQueriesFromCloud();
       if (Array.isArray(cloudQueries) && cloudQueries.length > 0) {
         safeSetLocalStorage(STORAGE_KEYS.COMMUNITY_QUERIES, cloudQueries);
         this.notify('queries_updated');
@@ -2420,7 +2420,7 @@ class Store {
     };
     queries.unshift(newQuery);
     safeSetLocalStorage(STORAGE_KEYS.COMMUNITY_QUERIES, queries);
-    saveCommunityQueryToFirebase(newQuery);
+    saveCommunityQueryToCloud(newQuery);
     this.notify('queries_updated');
     return newQuery;
   }
@@ -2442,7 +2442,7 @@ class Store {
     query.replies.push(newReply);
 
     safeSetLocalStorage(STORAGE_KEYS.COMMUNITY_QUERIES, queries);
-    saveCommunityQueryToFirebase(query);
+    saveCommunityQueryToCloud(query);
     this.notify('queries_updated');
     return newReply;
   }
@@ -2452,7 +2452,7 @@ class Store {
     let queries = this.getCommunityQueries();
     queries = queries.filter(q => q && q.id !== queryId);
     safeSetLocalStorage(STORAGE_KEYS.COMMUNITY_QUERIES, queries);
-    deleteCommunityQueryFromFirebase(queryId);
+    deleteCommunityQueryFromCloud(queryId);
     this.notify('queries_updated');
     return true;
   }

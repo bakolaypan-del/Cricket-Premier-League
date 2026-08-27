@@ -3,7 +3,7 @@
 import { store } from './store.js?v=12.0.2';
 import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, printDigitalPass, openUserGuidePDF } from './export.js?v=12.0.2';
 import { renderAdminDashboard } from './admin.js?v=12.0.2';
-import { uploadHDImage, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp } from './supabase.js?v=12.0.2';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp } from './supabase.js?v=12.0.2';
 import { shops } from './shopsData.js?v=12.0.2';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
@@ -321,7 +321,7 @@ function openAppInstallInstructionModal() {
 
 async function checkAndPromptFirstVisitPopup() {
   try {
-    const settings = await fetchPopupSettingsFromFirebase();
+    const settings = await fetchPopupSettingsFromCloud();
     if (!settings || !settings.isWelcomePopupEnabled) {
       console.log("Welcome popup is disabled by admin.");
       return;
@@ -1119,7 +1119,7 @@ function renderCurrentView() {
 // --- WHATSAPP GROUP POPUP PROMPT ---
 async function checkAndPromptWhatsAppGroup() {
   try {
-    const settings = await fetchPopupSettingsFromFirebase();
+    const settings = await fetchPopupSettingsFromCloud();
     if (!settings || !settings.isWhatsAppPopupEnabled) {
       console.log("WhatsApp group popup is disabled by admin.");
       return;
@@ -1475,9 +1475,9 @@ export async function initTournamentCountdown() {
   const card = document.getElementById('tournament-countdown-card');
   if (!card) return;
 
-  // Check admin settings from Firebase
+  // Check admin settings from cloud
   try {
-    const settings = await fetchPopupSettingsFromFirebase();
+    const settings = await fetchPopupSettingsFromCloud();
     if (settings && settings.isCountdownEnabled === false) {
       card.classList.add('hidden');
       return;
@@ -2687,7 +2687,7 @@ function openFullPlayerProfileModal(player) {
   });
 }
 
-// --- SUPABASE PHONE OTP AUTH (Firebase SDK removed) ---
+// --- SUPABASE PHONE OTP AUTH ---
 
 // --- UNIVERSAL PHONE OTP VERIFICATION MODAL WITH SUPABASE SMS DELIVERY ---
 export function openPhoneOtpModal({ title = 'Mobile Number Verification', subtitle = 'Verify your 10-digit mobile number via SMS OTP', prefilledPhone = '', onSuccess }) {
@@ -8771,7 +8771,7 @@ window.navigateBackToHome = function() {
 
 async function checkAndShowAdvertisementPopup() {
   try {
-    const settings = await fetchPopupSettingsFromFirebase();
+    const settings = await fetchPopupSettingsFromCloud();
     if (!settings || !settings.isAdPopupEnabled) return;
 
     // Check expiry for snooze
@@ -9170,7 +9170,7 @@ function initRealtimePlayerToast() {
   const triggerLatestPlayerToast = async (isNewEvent = false) => {
     // Check if Admin has paused/held the toast popup
     try {
-      const popupSettings = await fetchPopupSettingsFromFirebase();
+      const popupSettings = await fetchPopupSettingsFromCloud();
       if (popupSettings && popupSettings.isRealtimePlayerToastEnabled === false) {
         hideToast();
         return;

@@ -709,55 +709,55 @@ function sanitizePayloadForCloud(dataList) {
   });
 }
 
-// --- LEGACY *ToFirebase / *FromFirebase COMPATIBILITY SHIMS (NOW SUPABASE-BACKED) ---
-export async function savePlayerToFirebase(player) {
+// --- CLOUD SYNC CONVENIENCE WRAPPERS (SUPABASE-BACKED) ---
+export async function savePlayerToCloud(player) {
   return syncPlayerToSupabase(player);
 }
 
-export async function patchPlayerInFirebase(playerId, delta) {
+export async function patchPlayerInCloud(playerId, delta) {
   if (!playerId || !delta) return null;
   return syncPlayerToSupabase({ ...delta, id: playerId });
 }
 
-export async function deletePlayerFromFirebase(playerId) {
+export async function deletePlayerFromCloud(playerId) {
   return deletePlayerFromSupabase(playerId);
 }
 
-export async function saveTeamToFirebase(team) {
+export async function saveTeamToCloud(team) {
   return syncTeamToSupabase(team);
 }
 
-export async function patchTeamInFirebase(teamId, delta) {
+export async function patchTeamInCloud(teamId, delta) {
   if (!teamId || !delta) return null;
   return syncTeamToSupabase({ ...delta, id: teamId });
 }
 
-export async function deleteTeamFromFirebase(teamId) {
+export async function deleteTeamFromCloud(teamId) {
   return deleteTeamFromSupabase(teamId);
 }
 
-export async function clearAllPlayersFromFirebase() {
+export async function clearAllPlayersFromCloud() {
   return clearAllPlayersFromSupabase();
 }
 
-export async function clearAllTeamsFromFirebase() {
+export async function clearAllTeamsFromCloud() {
   return clearAllTeamsFromSupabase();
 }
 
-export async function saveFixtureToFirebase(fixture) {
+export async function saveFixtureToCloud(fixture) {
   return syncFixtureToSupabase(fixture);
 }
 
-export async function deleteFixtureFromFirebase(fixtureId) {
+export async function deleteFixtureFromCloud(fixtureId) {
   return deleteFixtureFromSupabase(fixtureId);
 }
 
-export async function saveFullFixturesListToFirebase(fixturesList) {
+export async function saveFullFixturesListToCloud(fixturesList) {
   if (!Array.isArray(fixturesList)) return;
   await Promise.all(fixturesList.filter(f => f && f.id).map(f => syncFixtureToSupabase(f)));
 }
 
-export async function saveAuctionSettingsToFirebase(settings) {
+export async function saveAuctionSettingsToCloud(settings) {
   if (!supabase) return;
   try {
     const tId = DEFAULT_TOURNAMENT_UUID;
@@ -765,14 +765,14 @@ export async function saveAuctionSettingsToFirebase(settings) {
   } catch (e) { console.warn('[SUPABASE] saveAuctionSettings:', e.message); }
 }
 
-export async function saveLiveAuctionToFirebase(state) {
+export async function saveLiveAuctionToCloud(state) {
   if (!supabase) return;
   try {
     await supabase.from('platform_settings').upsert({ key: 'live_auction', value: state || {}, updated_at: new Date().toISOString() }, { onConflict: 'key' });
   } catch (e) { console.warn('[SUPABASE] saveLiveAuction:', e.message); }
 }
 
-export async function saveAuctionPermanentArchiveToFirebase(archiveData) {
+export async function saveAuctionPermanentArchiveToCloud(archiveData) {
   if (!supabase || !archiveData) return;
   try {
     const id = archiveData.archiveId || 'JSL_2026_AUCTION_VAULT';
@@ -780,7 +780,7 @@ export async function saveAuctionPermanentArchiveToFirebase(archiveData) {
   } catch (e) { console.warn('[SUPABASE] saveAuctionArchive:', e.message); }
 }
 
-export async function fetchAuctionPermanentArchiveFromFirebase() {
+export async function fetchAuctionPermanentArchiveFromCloud() {
   if (!supabase) return null;
   try {
     const { data } = await supabase.from('auction_archives').select('snapshot').eq('tournament_id', DEFAULT_TOURNAMENT_UUID).limit(1).maybeSingle();
@@ -788,7 +788,7 @@ export async function fetchAuctionPermanentArchiveFromFirebase() {
   } catch (e) { return null; }
 }
 
-export async function saveLiveMatchToFirebase(matchId, state) {
+export async function saveLiveMatchToCloud(matchId, state) {
   if (!supabase || !matchId) return;
   try {
     const id = toUUID(matchId);
@@ -822,9 +822,9 @@ const DEFAULT_POPUP_SETTINGS = {
   adExpiryTime: 0
 };
 
-export async function savePopupSettingsToFirebase(settings) {
+export async function savePopupSettingsToCloud(settings) {
   try {
-    const current = await fetchPopupSettingsFromFirebase();
+    const current = await fetchPopupSettingsFromCloud();
     const merged = { ...DEFAULT_POPUP_SETTINGS, ...current, ...settings, updated_at: Date.now() };
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem('cpl_popup_settings', JSON.stringify(merged));
@@ -844,7 +844,7 @@ export async function savePopupSettingsToFirebase(settings) {
   }
 }
 
-export async function fetchPopupSettingsFromFirebase() {
+export async function fetchPopupSettingsFromCloud() {
   let localData = null;
   if (typeof localStorage !== 'undefined') {
     try {
@@ -885,9 +885,9 @@ export async function fetchPopupSettingsFromFirebase() {
   return merged;
 }
 
-export async function saveAdSettingsToFirebase(settings) {
+export async function saveAdSettingsToCloud(settings) {
   try {
-    const current = await fetchAdSettingsFromFirebase();
+    const current = await fetchAdSettingsFromCloud();
     const merged = { ...current, ...settings, updated_at: Date.now() };
     if (typeof localStorage !== 'undefined') {
       localStorage.setItem('cpl_ad_settings', JSON.stringify(merged));
@@ -903,7 +903,7 @@ export async function saveAdSettingsToFirebase(settings) {
   }
 }
 
-export async function fetchAdSettingsFromFirebase() {
+export async function fetchAdSettingsFromCloud() {
   let localData = null;
   if (typeof localStorage !== 'undefined') {
     try {
@@ -922,7 +922,7 @@ export async function fetchAdSettingsFromFirebase() {
   return localData || { isEnabled: false };
 }
 
-export async function saveRegistrationSettingsToFirebase(settings) {
+export async function saveRegistrationSettingsToCloud(settings) {
   if (!supabase) return false;
   try {
     await supabase.from('tournaments').update({ registration_settings: settings, updated_at: new Date().toISOString() }).eq('id', DEFAULT_TOURNAMENT_UUID);
@@ -930,7 +930,7 @@ export async function saveRegistrationSettingsToFirebase(settings) {
   } catch (e) { return false; }
 }
 
-export async function fetchRegistrationSettingsFromFirebase() {
+export async function fetchRegistrationSettingsFromCloud() {
   const defaults = { isJslRegistrationOpen: true, isPlayerRegOpen: true, isTeamRegOpen: true, closedReason: "JSL 2026 Registration is currently closed by the Master Admin." };
   if (!supabase) return defaults;
   try {
@@ -940,7 +940,7 @@ export async function fetchRegistrationSettingsFromFirebase() {
 }
 
 // --- PUBLIC COMMUNITY QUERIES & REPLIES (community_queries table) ---
-export async function saveCommunityQueryToFirebase(queryData) {
+export async function saveCommunityQueryToCloud(queryData) {
   if (!supabase || !queryData) return false;
   try {
     await supabase.from('community_queries').upsert({
@@ -956,7 +956,7 @@ export async function saveCommunityQueryToFirebase(queryData) {
   } catch (e) { return false; }
 }
 
-export async function deleteCommunityQueryFromFirebase(queryId) {
+export async function deleteCommunityQueryFromCloud(queryId) {
   if (!supabase || !queryId) return false;
   try {
     await supabase.from('community_queries').delete().eq('id', queryId);
@@ -964,7 +964,7 @@ export async function deleteCommunityQueryFromFirebase(queryId) {
   } catch (e) { return false; }
 }
 
-export async function fetchCommunityQueriesFromFirebase() {
+export async function fetchCommunityQueriesFromCloud() {
   if (!supabase) return [];
   try {
     const { data } = await supabase.from('community_queries').select('*').eq('tournament_id', DEFAULT_TOURNAMENT_UUID).order('created_at', { ascending: false });
@@ -980,7 +980,7 @@ export async function fetchCommunityQueriesFromFirebase() {
   } catch (e) { return []; }
 }
 
-export async function fetchTournamentOwnersFromFirebase() {
+export async function fetchTournamentOwnersFromCloud() {
   if (!supabase) return {};
   try {
     const { data } = await supabase.from('tournament_owners').select('*').eq('tournament_id', DEFAULT_TOURNAMENT_UUID);
@@ -991,7 +991,7 @@ export async function fetchTournamentOwnersFromFirebase() {
   } catch (e) { return {}; }
 }
 
-export async function fetchUserAccountsFromFirebase() {
+export async function fetchUserAccountsFromCloud() {
   if (!supabase) return [];
   try {
     const { data } = await supabase.from('user_accounts').select('*').order('created_at', { ascending: false });
@@ -1029,14 +1029,14 @@ export async function initVisitorTracking(onStatsChange) {
 }
 
 // --- MULTI-TENANT TOURNAMENT SAAS & PLATFORM SETTINGS (platform_settings table) ---
-export async function savePlatformSettingsToFirebase(settings) {
+export async function savePlatformSettingsToCloud(settings) {
   if (!supabase) return;
   try {
     await supabase.from('platform_settings').upsert({ key: 'general', value: settings, updated_at: new Date().toISOString() }, { onConflict: 'key' });
   } catch (e) { console.warn('[SUPABASE] savePlatformSettings:', e.message); }
 }
 
-export async function fetchPlatformSettingsFromFirebase() {
+export async function fetchPlatformSettingsFromCloud() {
   if (!supabase) return null;
   try {
     const { data } = await supabase.from('platform_settings').select('value').eq('key', 'general').maybeSingle();
@@ -1044,7 +1044,7 @@ export async function fetchPlatformSettingsFromFirebase() {
   } catch (e) { return null; }
 }
 
-export async function saveCustomTournamentToFirebase(tourney) {
+export async function saveCustomTournamentToCloud(tourney) {
   if (!supabase || !tourney) return;
   try {
     const payload = {
@@ -1062,12 +1062,12 @@ export async function saveCustomTournamentToFirebase(tourney) {
   } catch (e) { console.warn('[SUPABASE] saveCustomTournament:', e.message); }
 }
 
-export async function fetchCustomTournamentsFromFirebase() {
+export async function fetchCustomTournamentsFromCloud() {
   const data = await dbFetchTournaments();
   return data || [];
 }
 
-export async function deleteCustomTournamentFromFirebase(tourneyId) {
+export async function deleteCustomTournamentFromCloud(tourneyId) {
   if (!supabase || !tourneyId) return;
   try {
     const id = toUUID(tourneyId);
@@ -1075,11 +1075,11 @@ export async function deleteCustomTournamentFromFirebase(tourneyId) {
   } catch (e) { console.warn('[SUPABASE] deleteCustomTournament:', e.message); }
 }
 
-export async function saveUniversalPlayerToFirebase(profile) {
+export async function saveUniversalPlayerToCloud(profile) {
   return syncUniversalPlayerToSupabase(profile);
 }
 
-export async function fetchUniversalPlayersFromFirebase() {
+export async function fetchUniversalPlayersFromCloud() {
   if (!supabase) return {};
   try {
     const { data } = await supabase.from('person_profiles').select('*').order('updated_at', { ascending: false }).limit(500);
@@ -1090,14 +1090,14 @@ export async function fetchUniversalPlayersFromFirebase() {
   } catch (e) { return {}; }
 }
 
-export async function saveTournamentFormatToFirebase(leagueCode, formatConfig) {
+export async function saveTournamentFormatToCloud(leagueCode, formatConfig) {
   if (!supabase) return;
   try {
     await supabase.from('tournaments').update({ format_config: formatConfig, updated_at: new Date().toISOString() }).eq('category_code', leagueCode);
   } catch (e) { console.warn('[SUPABASE] saveTournamentFormat:', e.message); }
 }
 
-export async function fetchTournamentFormatsFromFirebase() {
+export async function fetchTournamentFormatsFromCloud() {
   if (!supabase) return {};
   try {
     const { data } = await supabase.from('tournaments').select('category_code, format_config').not('format_config', 'is', null);
