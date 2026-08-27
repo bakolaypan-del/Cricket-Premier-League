@@ -1,6 +1,6 @@
 // LocalStorage & Cloud Database Reactive Store (Developer: Suman Kolay - Continuous Dynamic Numbering Release)
 
-import { INITIAL_LEAGUES, INITIAL_TEAMS, INITIAL_PLAYERS, INITIAL_FIXTURES } from './data.js?v=11.6.4';
+import { INITIAL_LEAGUES, INITIAL_TEAMS, INITIAL_PLAYERS, INITIAL_FIXTURES } from './data.js?v=13.0.0';
 import { 
   fetchCloudData, 
   saveCloudData, 
@@ -49,7 +49,7 @@ import {
   dbFetchTournaments,
   compressImageToTarget,
   saveUserAccountToCloud
-} from './supabase.js?v=11.6.4';
+} from './supabase.js?v=13.0.0';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
