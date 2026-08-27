@@ -1219,11 +1219,8 @@ export async function dbLookupPlayerByPhone(phone) {
 export async function dbRegisterPlayer(playerData, docsData = null) {
   if (!supabase) return null;
   try {
-    // 1. Fetch Atomic Registration Serial Number
-    const regNumber = await dbGetNextRegNumber(playerData.tournament_id);
     const pPayload = {
       ...playerData,
-      reg_number: regNumber || playerData.reg_number,
       created_at: new Date().toISOString()
     };
 

@@ -1,9 +1,9 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=12.0.2';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, printDigitalPass, openUserGuidePDF } from './export.js?v=12.0.2';
-import { renderAdminDashboard } from './admin.js?v=12.0.2';
-import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp } from './supabase.js?v=12.0.2';
+import { store } from './store.js?v=13.0.0';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.0';
+import { renderAdminDashboard } from './admin.js?v=13.0.0';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp } from './supabase.js?v=13.0.0';
 import { shops } from './shopsData.js?v=12.0.2';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
@@ -9282,22 +9282,25 @@ export function openPlayerLoginModal(onSuccess) {
     openRegistrationModal();
   });
 
-  document.getElementById('player-login-form')?.addEventListener('submit', (e) => {
+  document.getElementById('player-login-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const identifier = document.getElementById('login-identifier').value.trim();
     const pass = document.getElementById('login-password').value.trim();
     const errEl = document.getElementById('login-error-msg');
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.disabled = true;
 
-    const res = store.authenticateUser(identifier, pass);
-    if (!res.success) {
-      if (errEl) {
-        errEl.textContent = res.message || 'Login failed';
-        errEl.classList.remove('hidden');
+    try {
+      const res = await store.authenticateUser(identifier, pass);
+      if (!res.success) {
+        if (errEl) {
+          errEl.textContent = res.message || 'Login failed';
+          errEl.classList.remove('hidden');
+        }
+        return;
       }
-      return;
-    }
 
-    removeModal();
+      removeModal();
 
     if (onSuccess) onSuccess(res.user);
     renderNavbar();
@@ -9310,6 +9313,9 @@ export function openPlayerLoginModal(onSuccess) {
       navigate('profile');
     } else {
       navigate('profile');
+    }
+    } finally {
+      if (submitBtn) submitBtn.disabled = false;
     }
   });
 }
@@ -9486,24 +9492,24 @@ function renderPlayerProfileView(container) {
     }
   }
 
-  if (!player) {
-    if (isMaster) {
+  if (isMaster) {
+    player = {
+      name: currentUser.name && currentUser.name !== 'Admin User' ? currentUser.name : 'Master Admin (Suman Kolay)',
+      phone: currentUser.email || currentUser.phone || 'bakolaypan@gmail.com',
+      category: 'Master Admin / Supreme Authority',
+      village: 'Tournament Headquarters',
+      district: 'Paschim Medinipur',
+      state: 'West Bengal',
+      registrationStatus: 'APPROVED',
+      paymentStatus: 'APPROVED',
+      basePrice: 0,
+      photoUrl: currentUser.avatar_url || 'assets/card_jsl_user.png'
+    };
+  } else if (!player) {
+    if (isTournamentOwner) {
       player = {
-        name: currentUser.name || 'Master Admin',
-        phone: currentUser.phone || currentUser.email || '',
-        category: 'Super Admin Authority',
-        village: '',
-        district: '',
-        state: 'West Bengal',
-        registrationStatus: 'APPROVED',
-        paymentStatus: 'APPROVED',
-        basePrice: 300,
-        photoUrl: currentUser.avatar_url || 'assets/card_jsl_user.png'
-      };
-    } else if (isTournamentOwner) {
-      player = {
-        name: owners['tournament-jsl-2026']?.name || 'Pintu Santra',
-        phone: currentUser.phone || '8972144166',
+        name: owners['tournament-jsl-2026']?.name || 'Tournament Organizer',
+        phone: currentUser.phone || '',
         category: 'Tournament Owner',
         village: 'Jhakra',
         district: 'Paschim Medinipur',
@@ -10455,7 +10461,7 @@ export function openDynamicTournamentRegistrationModal(tourneyIdOrSlug) {
       registrationStatus: 'PENDING_VERIFICATION',
       paymentStatus: 'PENDING_VERIFICATION',
       reg_number: atomicRegNo,
-      serialNo: atomicRegNo || (store.getPlayersByLeague(tourney.shortCode || 'JSL').length + 1),
+      serialNo: atomicRegNo || (store.getPlayers().length + 1),
       createdAt: Date.now()
     };
 
@@ -10469,7 +10475,7 @@ export function openDynamicTournamentRegistrationModal(tourneyIdOrSlug) {
 
     // 2. Save locally and globally in reactive store
     await store.saveUniversalPlayer(playerData);
-    await store.addPlayer(playerData);
+    store.registerPlayer(playerData);
 
     document.getElementById('dynamic-tournament-reg-modal')?.remove();
 

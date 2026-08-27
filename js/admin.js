@@ -1,8 +1,8 @@
 // Admin Master Data & Payment Verification Panel with Single Source Cloud Control (Developer: Suman Kolay)
 
-import { store } from './store.js?v=12.0.2';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF } from './export.js?v=12.0.2';
-import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase } from './supabase.js?v=12.0.2';
+import { store } from './store.js?v=13.0.0';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF } from './export.js?v=13.0.0';
+import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase } from './supabase.js?v=13.0.0';
 import { shops } from './shopsData.js?v=12.0.2';
 
 let activeAdminTab = 'payments'; // 'payments', 'all-players', 'teams'
@@ -100,6 +100,9 @@ export function renderAdminDashboard(containerEl) {
               </button>
             </div>
 
+            <button id="admin-create-new-tourney-btn" class="px-4 py-2 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-500 hover:to-yellow-500 text-slate-950 text-xs font-black rounded-xl border border-amber-300 flex items-center gap-1.5 transition-all shadow-md hover:scale-105 cursor-pointer" title="Create and launch your own multi-tenant tournament">
+              <i data-lucide="plus-circle" class="w-4 h-4 text-slate-950"></i> + Create Your Own Tournament
+            </button>
             <a href="cpl_project_handbook.html" target="_blank" class="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold rounded-xl border border-emerald-300 flex items-center gap-1.5 transition-colors shadow-2xs no-underline">
               <i data-lucide="book-open" class="w-4 h-4 text-emerald-600"></i> Handbook
             </a>
@@ -182,7 +185,7 @@ export function renderAdminDashboard(containerEl) {
             <i data-lucide="crown" class="w-3.5 h-3.5"></i> 👑 Tournament Owners
           </button>
           <button data-tab="saas-tournaments" class="admin-tab-btn ${activeAdminTab === 'saas-tournaments' ? 'active bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 font-bold'} px-3.5 sm:px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all">
-            <i data-lucide="trophy" class="w-3.5 h-3.5"></i> 🏆 Host League SaaS & Trial
+            <i data-lucide="trophy" class="w-3.5 h-3.5"></i> 🏆 Host & Manage Tournaments
           </button>
         ` : ''}
       </div>
@@ -1085,14 +1088,14 @@ export function renderAdminDashboard(containerEl) {
                   🏆
                 </span>
                 <div>
-                  <h3 class="text-base font-black text-slate-900">Multi-Tournament SaaS & Platform Controls</h3>
-                  <p class="text-xs text-slate-500 font-bold">Control public visibility on homepage & test tournament creator in private draft mode.</p>
+                  <h3 class="text-base font-black text-slate-900">Multi-Tournament SaaS & Host Controls</h3>
+                  <p class="text-xs text-slate-500 font-bold">Create new custom tournaments and control public visibility on the homepage.</p>
                 </div>
               </div>
 
-              <!-- Master Trial Button -->
-              <button type="button" id="admin-launch-trial-wizard-btn" class="px-4 py-2 bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-500 hover:to-yellow-500 text-slate-950 font-black text-xs rounded-xl shadow-xs border border-amber-300 flex items-center gap-1.5 cursor-pointer transition-all hover:scale-105">
-                <span>🧪 Open Creation Wizard (Trial Mode)</span>
+              <!-- Create Tournament Button -->
+              <button type="button" id="admin-launch-create-tourney-wizard-btn" class="px-4 py-2 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-500 hover:to-yellow-500 text-slate-950 font-black text-xs rounded-xl shadow-xs border border-amber-300 flex items-center gap-1.5 cursor-pointer transition-all hover:scale-105">
+                <span>+ Create New Tournament</span>
               </button>
             </div>
 
@@ -1101,11 +1104,11 @@ export function renderAdminDashboard(containerEl) {
               <div class="space-y-1 max-w-md">
                 <div class="flex items-center gap-2">
                   <span id="admin-host-tourney-status-badge" class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${store.isHostTournamentEnabled() ? 'bg-emerald-500 text-slate-950' : 'bg-amber-400 text-slate-950'}">
-                    ${store.isHostTournamentEnabled() ? '🟢 PUBLICLY ACTIVE' : '🔒 DRAFT / ADMIN TRIAL ONLY'}
+                    ${store.isHostTournamentEnabled() ? '🟢 PUBLICLY ACTIVE' : '🔒 DRAFT MODE (ADMIN ONLY)'}
                   </span>
                   <h4 class="text-sm font-black text-white">Public "Create Tournament" Banner on Homepage</h4>
                 </div>
-                <p class="text-[11px] text-slate-400">When OFF, the "Host Your Own Tournament" button is hidden from normal visitors on the homepage, allowing you to test freely.</p>
+                <p class="text-[11px] text-slate-400">Toggle whether visitors can create tournaments on the homepage, or keep it exclusive to the Admin Dashboard.</p>
               </div>
 
               <div class="flex items-center gap-3">
@@ -1625,6 +1628,12 @@ export function renderAdminDashboard(containerEl) {
   });
 
   // Action Listeners on Tables
+  document.getElementById('admin-create-new-tourney-btn')?.addEventListener('click', () => {
+    if (window.openTournamentCreationWizard) {
+      window.openTournamentCreationWizard(false);
+    }
+  });
+
   bindAdminTableActions(containerEl);
 }
 
@@ -6449,7 +6458,7 @@ export function renderAdminSaasTournamentsPanel() {
   const countBadge = document.getElementById('admin-custom-tourneys-count-badge');
   const statusBadge = document.getElementById('admin-host-tourney-status-badge');
   const toggleInput = document.getElementById('admin-host-tourney-feature-toggle');
-  const trialBtn = document.getElementById('admin-launch-trial-wizard-btn');
+  const createBtn = document.getElementById('admin-launch-create-tourney-wizard-btn');
 
   // 1. Wire up Master Feature Flag Switch
   if (toggleInput) {
@@ -6458,7 +6467,7 @@ export function renderAdminSaasTournamentsPanel() {
       await store.updatePlatformSettings({ isHostTournamentEnabled: isEnabled });
       if (statusBadge) {
         statusBadge.className = `px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${isEnabled ? 'bg-emerald-500 text-slate-950' : 'bg-amber-400 text-slate-950'}`;
-        statusBadge.textContent = isEnabled ? '🟢 PUBLICLY ACTIVE' : '🔒 DRAFT / ADMIN TRIAL ONLY';
+        statusBadge.textContent = isEnabled ? '🟢 PUBLICLY ACTIVE' : '🔒 DRAFT MODE (ADMIN ONLY)';
       }
       alert(isEnabled 
         ? "✅ Public Tournament Creation is now ACTIVE on the homepage! Visitors can create their own leagues."
@@ -6467,11 +6476,11 @@ export function renderAdminSaasTournamentsPanel() {
     };
   }
 
-  // 2. Wire up Master Trial Launch Button
-  if (trialBtn) {
-    trialBtn.onclick = () => {
+  // 2. Wire up Master Create Tournament Button
+  if (createBtn) {
+    createBtn.onclick = () => {
       if (window.openTournamentCreationWizard) {
-        window.openTournamentCreationWizard(true);
+        window.openTournamentCreationWizard(false);
       }
     };
   }
@@ -6490,10 +6499,10 @@ export function renderAdminSaasTournamentsPanel() {
         </div>
         <div class="space-y-1">
           <h4 class="text-xs sm:text-sm font-black text-slate-900">No Custom Tournaments Created Yet</h4>
-          <p class="text-[11px] text-slate-500 max-w-sm mx-auto">Click below to test the Tournament Creation Wizard in Trial Mode (Safe & Private).</p>
+          <p class="text-[11px] text-slate-500 max-w-sm mx-auto">Click below to create and launch your first custom tournament.</p>
         </div>
-        <button type="button" onclick="window.openTournamentCreationWizard ? window.openTournamentCreationWizard(true) : null" class="px-4 py-2 bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-black text-xs rounded-xl shadow-xs border border-amber-300 cursor-pointer">
-          + Create First Trial Tournament
+        <button type="button" onclick="window.openTournamentCreationWizard ? window.openTournamentCreationWizard(false) : null" class="px-4 py-2 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-xs border border-amber-300 cursor-pointer">
+          + Create First Tournament
         </button>
       </div>
     `;

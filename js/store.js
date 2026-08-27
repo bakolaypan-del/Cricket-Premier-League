@@ -383,7 +383,22 @@ class Store {
           this.notify('user_accounts_updated');
         }
 
-        // 6. Sync Tournament Formats (Group stages)
+        // 6. Sync Custom Tournaments from Cloud
+        const cloudTourneys = await fetchCustomTournamentsFromCloud();
+        if (Array.isArray(cloudTourneys) && cloudTourneys.length > 0) {
+          const local = JSON.parse(localStorage.getItem(STORAGE_KEYS.CUSTOM_TOURNAMENTS) || '[]');
+          const localIds = new Set(local.map(t => t.id));
+          let merged = [...local];
+          for (const ct of cloudTourneys) {
+            if (!localIds.has(ct.id)) merged.push(ct);
+          }
+          if (merged.length !== local.length) {
+            safeSetLocalStorage(STORAGE_KEYS.CUSTOM_TOURNAMENTS, merged);
+            this.notify('custom_tournaments_updated');
+          }
+        }
+
+        // 7. Sync Tournament Formats (Group stages)
         const cloudFormats = await fetchTournamentFormatsFromCloud();
         if (cloudFormats && typeof cloudFormats === 'object' && Object.keys(cloudFormats).length > 0) {
           const currentFormats = this.getTournamentFormats();
@@ -457,39 +472,22 @@ class Store {
     }
 
     try {
-      initRealtimePushListener((event) => {
-        try {
-          if (event && event.data) {
-            const parsed = JSON.parse(event.data);
-            const path = parsed.path || '';
-            const data = parsed.data;
-
-            // INSTANT LIVE AUCTION PUSH (0ms latency direct memory update)
-            if (path === '/liveAuction' || path === '/liveAuction/') {
-              const localLiveStr = localStorage.getItem('cpl_live_auction_state') || 'null';
-              const cleanCloudLiveStr = JSON.stringify(data || null);
-              if (localLiveStr !== cleanCloudLiveStr) {
-                this.liveAuctionState = data;
-                if (data && data.active_player_id) {
-                  safeSetLocalStorage('cpl_live_auction_state', data);
-                } else {
-                  localStorage.removeItem('cpl_live_auction_state');
-                }
-                this.notify('live_auction_updated');
-              }
-              return;
-            } else if (path.startsWith('/liveAuction/')) {
-              const prop = path.replace('/liveAuction/', '').split('/')[0];
-              if (!this.liveAuctionState) this.liveAuctionState = {};
-              this.liveAuctionState[prop] = data;
-              safeSetLocalStorage('cpl_live_auction_state', this.liveAuctionState);
-              this.notify('live_auction_updated');
-              return;
+      initRealtimePushListener((payload) => {
+        if (payload && payload.table === 'live_auction') {
+          const data = payload.new || payload.record || null;
+          const localLiveStr = localStorage.getItem('cpl_live_auction_state') || 'null';
+          const cleanCloudLiveStr = JSON.stringify(data || null);
+          if (localLiveStr !== cleanCloudLiveStr) {
+            this.liveAuctionState = data;
+            if (data && data.active_player_id) {
+              safeSetLocalStorage('cpl_live_auction_state', data);
+            } else {
+              localStorage.removeItem('cpl_live_auction_state');
             }
+            this.notify('live_auction_updated');
           }
-        } catch (parseErr) {}
-
-        // For other database changes (players, teams), sync full cloud data
+          return;
+        }
         this.syncWithCloud();
       });
     } catch (err) {
@@ -519,11 +517,11 @@ class Store {
       if (res && res.data && res.data.user) {
         const user = res.data.user;
         const profile = res.data.profile;
-        const isMaster = profile && profile.role === 'master_admin';
+        const isMaster = (profile && profile.role === 'master_admin') || cleanEmail === 'bakolaypan@gmail.com';
         
         const userObj = {
           id: user.id,
-          name: profile?.full_name || user.user_metadata?.full_name || 'Admin User',
+          name: profile?.full_name || (cleanEmail === 'bakolaypan@gmail.com' ? 'Master Admin (Suman Kolay)' : (user.user_metadata?.full_name || 'Admin User')),
           email: user.email,
           role: isMaster ? 'SUPER_ADMIN' : 'TOURNAMENT_OWNER',
           authProvider: 'supabase'
@@ -539,10 +537,18 @@ class Store {
       console.warn("[AUTH] Supabase signIn notice:", err);
     }
 
-    // 2. Tournament Owner login via registered phone
+    // 2. Tournament Owner login via registered phone (compare hashed password)
     const owners = this.getTournamentOwners();
+    const hashPw = async (pw) => {
+      const enc = new TextEncoder().encode(pw);
+      const buf = await crypto.subtle.digest('SHA-256', enc);
+      return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+    };
+    const inputHash = await hashPw(password);
     for (const [tId, o] of Object.entries(owners)) {
-      if (o && ((o.email && o.email.toLowerCase() === cleanEmail) || o.phone === cleanEmail) && o.password === password) {
+      const storedIsHash = o.password && o.password.length === 64 && /^[0-9a-f]+$/.test(o.password);
+      const match = storedIsHash ? (o.password === inputHash) : (o.password === password);
+      if (o && ((o.email && o.email.toLowerCase() === cleanEmail) || o.phone === cleanEmail) && match) {
         const userObj = {
           id: `owner-${tId}`,
           name: o.name || 'Tournament Organiser',
@@ -2174,7 +2180,17 @@ class Store {
     let userAcc = this.ensureUserAccountForPlayer(player);
     if (userAcc) {
       userAcc.role = 'TOURNAMENT_OWNER';
-      if (!userAcc.password) userAcc.password = cleanPhone;
+      if (!userAcc.password) {
+        const enc = new TextEncoder().encode(cleanPhone);
+        crypto.subtle.digest('SHA-256', enc).then(buf => {
+          userAcc.password = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+          const accs = this.getUserAccounts();
+          const i = accs.findIndex(a => a.phone === cleanPhone);
+          if (i !== -1) accs[i] = userAcc; else accs.push(userAcc);
+          safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, accs);
+        });
+        userAcc.password = '__hashing__';
+      }
       if (!userAcc.ownedTournaments) userAcc.ownedTournaments = [];
       if (!userAcc.ownedTournaments.includes(tournamentId)) userAcc.ownedTournaments.push(tournamentId);
       const accounts = this.getUserAccounts();
@@ -2230,21 +2246,30 @@ class Store {
     if (rawId.includes('@')) {
       try {
         const authResult = await signInUser(rawId, password);
-        if (authResult && authResult.user) {
-          const profile = await fetchUserProfile(authResult.user.id);
-          const isMaster = profile && profile.role === 'master_admin';
+        const authedUser = authResult?.data?.user || authResult?.user;
+        if (authedUser) {
+          const profile = authResult?.data?.profile || (await fetchUserProfile(authedUser.id));
+          const isMaster = (profile && profile.role === 'master_admin') || rawId.toLowerCase() === 'bakolaypan@gmail.com';
           const user = {
+            id: authedUser.id,
             email: rawId,
-            name: profile?.full_name || rawId.split('@')[0],
+            name: profile?.full_name || (rawId.toLowerCase() === 'bakolaypan@gmail.com' ? 'Master Admin (Suman Kolay)' : (authedUser.user_metadata?.full_name || rawId.split('@')[0])),
             role: isMaster ? 'SUPER_ADMIN' : 'TOURNAMENT_OWNER',
             isFirstLogin: false,
             ownedTournaments: ['tournament-jsl-2026']
           };
           this.setCurrentUser(user);
           localStorage.setItem(STORAGE_KEYS.ADMIN_AUTH, 'true');
+          this.setUserRole('ADMIN', user.name);
+          this.notify('admin_auth_updated');
           return { success: true, user, role: user.role, isFirstLogin: false, redirect: 'admin' };
         }
-      } catch (e) {}
+        if (authResult?.error?.message) {
+          return { success: false, message: authResult.error.message };
+        }
+      } catch (e) {
+        console.warn("[AUTH] Error during user login:", e);
+      }
       return { success: false, message: 'Incorrect email or password!' };
     }
 
