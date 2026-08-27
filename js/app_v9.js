@@ -1468,19 +1468,29 @@ function renderFirstPageLanding(containerEl) {
   document.getElementById('btn-home-create-tourney')?.addEventListener('click', () => openTournamentCreationWizard(false));
 }
 
-// --- DEDICATED CUSTOM TOURNAMENT HUB VIEW ---
+// --- DEDICATED CUSTOM TOURNAMENT HUB VIEW WITH DYNAMIC MULTI-TENANT ARCHITECTURE ---
 export function renderCustomTournamentHub(container, tourney) {
   if (!container || !tourney) return;
-  const isAuction = (tourney.mode === 'AUCTION_LEAGUE');
+
+  const isJsl = (tourney.slug === 'jsl-2026' || tourney.slug === 'jsl' || (tourney.code || '').toUpperCase() === 'JSL' || (tourney.shortCode || '').toUpperCase() === 'JSL' || (tourney.name || '').toUpperCase().includes('JHANKRA'));
+  // Force JSL to Mode A (AUCTION_LEAGUE)
+  const isAuction = isJsl || (tourney.mode === 'AUCTION_LEAGUE') || (!tourney.mode);
 
   const tid = tourney.supabaseId || tourney.tournament_id || tourney.id;
-  const allPlayers = store.getPlayers().filter(p =>
-    p.tournament_id === tid || p.tournamentId === tourney.id || p.tournamentSlug === tourney.slug
-  );
-  const allTeams = store.getTeams().filter(t =>
-    t.tournament_id === tid || t.tournamentId === tourney.id
-  );
-  const allFixtures = store.getFixtures ? store.getFixtures().filter(f => f.tournament_id === tid || f.tournamentId === tourney.id || f.leagueCode === (tourney.shortCode || '').toUpperCase()) : [];
+  const allPlayers = store.getPlayers().filter(p => {
+    if (isJsl && (!p.tournamentId && !p.tournament_id && !p.tournamentSlug)) return true;
+    return p.tournament_id === tid || p.tournamentId === tourney.id || p.tournamentSlug === tourney.slug || (isJsl && ((p.tournamentName || '').toUpperCase().includes('JSL') || (p.tournamentSlug || '').includes('jsl')));
+  });
+
+  const allTeams = store.getTeams().filter(t => {
+    if (isJsl && (!t.tournamentId && !t.tournament_id)) return true;
+    return t.tournament_id === tid || t.tournamentId === tourney.id || (isJsl && (t.leagueId === 'leg-jsl' || (t.leagueCode || '').toUpperCase() === 'JSL'));
+  });
+
+  const allFixtures = store.getFixtures ? store.getFixtures().filter(f => {
+    if (isJsl && (!f.tournamentId && !f.tournament_id)) return true;
+    return f.tournament_id === tid || f.tournamentId === tourney.id || f.leagueCode === (tourney.shortCode || 'JSL').toUpperCase();
+  }) : [];
 
   const pendingPlayers = allPlayers.filter(p => (p.registrationStatus || p.paymentStatus || '').toUpperCase().includes('PENDING'));
   const approvedPlayers = allPlayers.filter(p => {
@@ -1489,378 +1499,598 @@ export function renderCustomTournamentHub(container, tourney) {
   });
   const soldPlayers = allPlayers.filter(p => p.teamId || p.auctionStatus === 'SOLD');
 
-  // Top run scorers & wicket takers
-  const topBatsman = allPlayers.filter(p => (p.totalRuns || 0) > 0).sort((a, b) => (b.totalRuns || 0) - (a.totalRuns || 0))[0];
-  const topBowler = allPlayers.filter(p => (p.totalWickets || 0) > 0).sort((a, b) => (b.totalWickets || 0) - (a.totalWickets || 0))[0];
+  // Top Award Candidates & Tournament Leaders
+  const topBatsman = allPlayers.filter(p => (p.totalRuns || 0) > 0).sort((a, b) => (b.totalRuns || 0) - (a.totalRuns || 0))[0] || allPlayers[0];
+  const topBowler = allPlayers.filter(p => (p.totalWickets || 0) > 0).sort((a, b) => (b.totalWickets || 0) - (a.totalWickets || 0))[0] || allPlayers[1] || allPlayers[0];
+  const topKeeper = allPlayers.filter(p => (p.category || '').toUpperCase().includes('KEEPER') || p.isWicketKeeper)[0] || null;
+  const topFielder = allPlayers.filter(p => (p.catches || 0) > 0).sort((a, b) => (b.catches || 0) - (a.catches || 0))[0] || null;
+  const emergingPlayer = allPlayers.filter(p => p.age && Number(p.age) <= 19).sort((a, b) => (b.totalRuns || 0) - (a.totalRuns || 0))[0] || null;
+  const topTeam = allTeams[0] || null;
 
-  let hubTab = 'home';
-  try { hubTab = sessionStorage.getItem('cpl_hub_tab_' + tourney.slug) || 'home'; } catch(e) {}
-
-  const hubTabs = [
-    { id: 'home', label: 'HOME' },
-    { id: 'teams', label: 'TEAMS' },
-    { id: 'matches', label: 'MATCHES' },
-    { id: 'players', label: 'PLAYERS' },
-    { id: 'stats', label: 'STATISTICS' },
+  // DYNAMIC TABS CONFIGURATION:
+  // Mode A (Auction): Home -> Teams -> Registered Players -> Auction -> Match Corner -> Statistics
+  // Mode B (Fixtures): Home -> Teams -> Match Corner -> Statistics
+  const hubTabs = isAuction ? [
+    { id: 'home', label: '🏠 HOME' },
+    { id: 'teams', label: '🛡️ TEAMS' },
+    { id: 'players', label: '👥 REGISTERED PLAYERS' },
+    { id: 'auction', label: '🔨 AUCTION' },
+    { id: 'matches', label: '🏏 MATCH CORNER' },
+    { id: 'stats', label: '📊 STATISTICS' },
+  ] : [
+    { id: 'home', label: '🏠 HOME' },
+    { id: 'teams', label: '🛡️ TEAMS' },
+    { id: 'matches', label: '🏏 MATCH CORNER' },
+    { id: 'stats', label: '📊 STATISTICS' },
   ];
 
+  let hubTab = 'home';
+  try {
+    const saved = sessionStorage.getItem('cpl_hub_tab_' + tourney.slug);
+    if (saved && hubTabs.some(t => t.id === saved)) hubTab = saved;
+  } catch(e) {}
+
+  const currentUser = store.getCurrentUser ? store.getCurrentUser() : null;
+  const userPhone = (currentUser?.phone || currentUser?.mobile || '').replace(/[^0-9]/g, '');
+  const orgPhone = (tourney.organizer?.phone || '').replace(/[^0-9]/g, '');
+  const isMaster = store.isMasterAdmin ? store.isMasterAdmin() : false;
+  const isTourneyAdmin = isMaster || (userPhone && userPhone === orgPhone) || (Array.isArray(currentUser?.ownedTournaments) && currentUser.ownedTournaments.some(id => id && id.toLowerCase().includes(tourney.slug?.toLowerCase() || '')));
+
   container.innerHTML = `
-    <div class="w-full max-w-4xl mx-auto animate-fade-in text-slate-900">
+    <div class="w-full max-w-4xl mx-auto animate-fade-in text-slate-900 pb-12">
 
       <!-- TOP BAR -->
-      <div class="flex items-center gap-2 py-2 px-2 sm:px-4">
-        <button id="btn-custom-hub-back" class="p-1.5 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer">
-          <i data-lucide="arrow-left" class="w-4 h-4 text-slate-700"></i>
+      <div class="flex items-center justify-between gap-2 py-3 px-3 sm:px-4 bg-white border-b border-slate-200 shadow-2xs rounded-t-2xl">
+        <button id="btn-custom-hub-back" class="p-2 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer flex items-center gap-1 text-xs font-black text-slate-700 shadow-2xs">
+          <i data-lucide="arrow-left" class="w-4 h-4"></i> Back
         </button>
-        <h2 class="text-xs sm:text-base font-black text-slate-900 flex-1 text-center truncate">Tournament</h2>
-        <button id="btn-custom-hub-admin" class="p-1.5 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer" title="Admin Login">
-          <i data-lucide="shield" class="w-4 h-4 text-slate-500"></i>
-        </button>
+        <div class="text-center min-w-0">
+          <h2 class="text-xs sm:text-base font-black text-slate-900 truncate leading-tight">${tourney.name}</h2>
+          <span class="text-[9px] font-black font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 uppercase">${isAuction ? 'Mode A: Auction Championship' : 'Mode B: Fixtures & Live Scoring'}</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <button id="btn-hub-share" class="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-colors cursor-pointer" title="Share Tournament">
+            <i data-lucide="share-2" class="w-4 h-4"></i>
+          </button>
+          ${isTourneyAdmin ? `
+            <button id="btn-custom-hub-admin" class="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 rounded-xl font-black text-xs shadow-xs flex items-center gap-1 cursor-pointer border border-amber-300">
+              <i data-lucide="shield-check" class="w-3.5 h-3.5"></i> Admin
+            </button>
+          ` : ''}
+        </div>
       </div>
 
-      <!-- TAB NAVIGATION -->
-      <div class="flex border-b-2 border-slate-200 px-1 sm:px-4 overflow-x-auto scrollbar-hide">
+      <!-- DYNAMIC TAB NAVIGATION -->
+      <div class="flex bg-slate-50 border-b-2 border-slate-200 px-2 sm:px-4 overflow-x-auto scrollbar-hide shadow-inner">
         ${hubTabs.map(t => `
-          <button data-hub-tab="${t.id}" class="hub-tab-btn px-2.5 sm:px-4 py-2 text-[10px] sm:text-xs font-black tracking-wide transition-all whitespace-nowrap ${hubTab === t.id ? 'text-emerald-700 border-b-[3px] border-emerald-600 -mb-[2px]' : 'text-slate-500 hover:text-slate-700'}">
+          <button data-hub-tab="${t.id}" class="hub-tab-btn px-3 sm:px-4 py-2.5 text-[10px] sm:text-xs font-black tracking-wide transition-all whitespace-nowrap cursor-pointer ${hubTab === t.id ? 'text-emerald-700 border-b-[3px] border-emerald-600 bg-white font-black' : 'text-slate-500 hover:text-slate-900'}">
             ${t.label}
           </button>
         `).join('')}
       </div>
 
-      <!-- TAB: HOME -->
-      <div id="hub-tab-home" class="${hubTab === 'home' ? '' : 'hidden'} space-y-0">
+      <!-- ========================================== -->
+      <!-- TAB 1: 🏠 HOME OVERVIEW                    -->
+      <!-- ========================================== -->
+      <div id="hub-tab-home" class="${hubTab === 'home' ? '' : 'hidden'} space-y-4">
         <!-- HERO POSTER BANNER -->
-        <div class="relative w-full aspect-[16/8] sm:aspect-[16/7] overflow-hidden">
+        <div class="relative w-full aspect-[16/8] sm:aspect-[16/7] overflow-hidden bg-slate-900 border-b border-slate-200">
           ${tourney.posterUrl ? `
             <img src="${tourney.posterUrl}" class="w-full h-full object-cover" onerror="this.style.display='none'" />
           ` : renderTournamentFallbackPoster(tourney)}
         </div>
 
-        <!-- TOURNAMENT INFO CARD -->
-        <div class="px-3 py-3 bg-white border-b border-slate-200 space-y-1.5">
-          <div class="flex items-start justify-between gap-2">
-            <div class="space-y-0.5 flex-1 min-w-0">
-              <h1 class="text-base sm:text-xl font-black text-slate-900 leading-tight">${tourney.name}</h1>
-              ${tourney.season ? `<span class="inline-block px-2 py-0.5 bg-amber-100 text-amber-900 text-[9px] font-black rounded-full border border-amber-300 uppercase">${tourney.season}</span>` : ''}
-              <div class="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1.5 text-[11px] text-slate-600 font-medium">
-                <span>📍 ${tourney.venue || 'Cricket Ground'}</span>
-                ${tourney.organizer?.name ? `<span>🏛️ By ${tourney.organizer.name}</span>` : ''}
-              </div>
-              ${tourney.kickoffDate ? `
-                <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-500 font-medium mt-0.5">
-                  <span>📅 ${new Date(tourney.kickoffDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>
-                  ${tourney.endDate ? `<span>→ ${new Date(tourney.endDate).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}</span>` : ''}
-                </div>
-              ` : ''}
+        <!-- PRIZE & KEY METRICS STRIP -->
+        <div class="p-3 bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 text-slate-950 rounded-2xl mx-3 shadow-md border-2 border-amber-300">
+          <div class="flex items-center justify-around text-center divide-x divide-amber-700/30">
+            <div class="px-2">
+              <span class="text-[8px] font-black uppercase tracking-wider block text-amber-950">🏆 Winner</span>
+              <span class="text-xs sm:text-base font-black">${tourney.prizeWinner ? '₹' + Number(tourney.prizeWinner).toLocaleString('en-IN') : 'Trophy + Prize'}</span>
             </div>
-            <div class="flex items-center gap-2 shrink-0">
-              <div class="flex flex-col items-center gap-0.5 cursor-pointer">
-                <span class="w-8 h-8 rounded-full border border-slate-200 flex items-center justify-center bg-white shadow-2xs text-sm">❤️</span>
-                <span class="text-[8px] text-slate-500 font-bold">Follow</span>
-              </div>
-              <div class="flex flex-col items-center gap-0.5 cursor-pointer" id="btn-hub-share">
-                <span class="w-8 h-8 rounded-full border border-slate-200 flex items-center justify-center bg-white shadow-2xs text-sm">↗️</span>
-                <span class="text-[8px] text-slate-500 font-bold">Share</span>
-              </div>
+            <div class="px-2">
+              <span class="text-[8px] font-black uppercase tracking-wider block text-amber-950">🥈 Runner-Up</span>
+              <span class="text-xs sm:text-base font-black">${tourney.prizeRunner ? '₹' + Number(tourney.prizeRunner).toLocaleString('en-IN') : 'Trophy + Medals'}</span>
             </div>
-          </div>
-        </div>
-
-        <!-- PRIZE & STATS COMBINED STRIP -->
-        <div class="px-3 py-2.5 bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50 border-b border-amber-200">
-          <div class="flex items-center justify-around text-center">
-            <div class="px-1">
-              <span class="text-[7px] font-black text-amber-800 uppercase block leading-tight">Winner</span>
-              <span class="text-[11px] sm:text-sm font-black text-amber-950">₹${Number(tourney.prizeWinner || 0).toLocaleString('en-IN')}</span>
+            <div class="px-2">
+              <span class="text-[8px] font-black uppercase tracking-wider block text-amber-950">💰 Entry Fee</span>
+              <span class="text-xs sm:text-base font-black">₹${tourney.entryFee || (isAuction ? 300 : 'Free')}</span>
             </div>
-            <div class="w-px h-6 bg-amber-300/60"></div>
-            <div class="px-1">
-              <span class="text-[7px] font-black text-amber-800 uppercase block leading-tight">Runner</span>
-              <span class="text-[11px] sm:text-sm font-black text-amber-950">₹${Number(tourney.prizeRunner || 0).toLocaleString('en-IN')}</span>
+            <div class="px-2">
+              <span class="text-[8px] font-black uppercase tracking-wider block text-amber-950">🛡️ Teams</span>
+              <span class="text-xs sm:text-base font-black">${allTeams.length}</span>
             </div>
-            <div class="w-px h-6 bg-amber-300/60"></div>
-            <div class="px-1">
-              <span class="text-[7px] font-black text-amber-800 uppercase block leading-tight">Entry</span>
-              <span class="text-[11px] sm:text-sm font-black text-emerald-800">₹${tourney.entryFee || 0}</span>
-            </div>
-            <div class="w-px h-6 bg-amber-300/60"></div>
-            <div class="px-1">
-              <span class="text-[7px] font-black text-amber-800 uppercase block leading-tight">Teams</span>
-              <span class="text-[11px] sm:text-sm font-black text-blue-900">${tourney.totalTeams || allTeams.length || 0}</span>
-            </div>
-            <div class="w-px h-6 bg-amber-300/60"></div>
-            <div class="px-1">
-              <span class="text-[7px] font-black text-amber-800 uppercase block leading-tight">Players</span>
-              <span class="text-[11px] sm:text-sm font-black text-emerald-800">${allPlayers.length}</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- TEAMS HORIZONTAL SCROLL -->
-        ${allTeams.length > 0 ? `
-          <div class="px-3 py-3 bg-white border-b border-slate-200 space-y-2">
-            <h3 class="text-xs font-black text-slate-700 uppercase tracking-wider">Teams</h3>
-            <div class="flex overflow-x-auto gap-3 pb-1 scrollbar-hide">
-              ${allTeams.map(t => `
-                <div class="flex flex-col items-center gap-1 shrink-0 w-16">
-                  <div class="w-11 h-11 rounded-full bg-slate-100 border-2 border-slate-200 flex items-center justify-center overflow-hidden shadow-sm">
-                    ${t.logoUrl || t.teamLogoUrl ? `<img src="${t.logoUrl || t.teamLogoUrl}" class="w-full h-full object-cover rounded-full" onerror="this.parentElement.innerHTML='🏏'" />` : `<span class="text-base">🏏</span>`}
-                  </div>
-                  <span class="text-[8px] font-black text-slate-800 text-center leading-tight uppercase">${t.name}</span>
-                </div>
-              `).join('')}
-            </div>
-          </div>
-        ` : ''}
-
-        <!-- TOP PLAYERS STATS -->
-        ${topBatsman || topBowler ? `
-          <div class="px-3 py-3 bg-white border-b border-slate-200 space-y-2">
-            <h3 class="text-xs font-black text-slate-700 uppercase tracking-wider">Top Players</h3>
-            <div class="grid grid-cols-2 gap-3">
-              ${topBatsman ? `
-                <div class="text-center space-y-0.5 bg-emerald-50 p-2 rounded-xl border border-emerald-200">
-                  <div class="text-[8px] text-emerald-700 font-black uppercase">Most Runs</div>
-                  <div class="text-xl font-black text-slate-900">${topBatsman.totalRuns || 0}</div>
-                  <div class="text-[10px] font-black text-slate-800 truncate">${topBatsman.name}</div>
-                </div>
-              ` : `<div class="text-center text-[10px] text-slate-400 py-3 bg-slate-50 rounded-xl border border-slate-200">No batting data</div>`}
-              ${topBowler ? `
-                <div class="text-center space-y-0.5 bg-purple-50 p-2 rounded-xl border border-purple-200">
-                  <div class="text-[8px] text-purple-700 font-black uppercase">Most Wickets</div>
-                  <div class="text-xl font-black text-slate-900">${topBowler.totalWickets || 0}</div>
-                  <div class="text-[10px] font-black text-slate-800 truncate">${topBowler.name}</div>
-                </div>
-              ` : `<div class="text-center text-[10px] text-slate-400 py-3 bg-slate-50 rounded-xl border border-slate-200">No bowling data</div>`}
-            </div>
-          </div>
-        ` : ''}
-
-        <!-- TOURNAMENT DETAILS CARD -->
-        <div class="px-3 py-3 bg-white border-b border-slate-200 space-y-2">
-          <h3 class="text-xs font-black text-slate-700 uppercase tracking-wider">Details</h3>
-          <div class="bg-slate-50 rounded-xl border border-slate-200 divide-y divide-slate-200 text-[11px]">
-            ${tourney.organizer?.name ? `
-              <div class="flex items-center justify-between px-3 py-2">
-                <span class="text-slate-500 font-bold">Organizer</span>
-                <span class="font-black text-slate-900">${tourney.organizer.name}</span>
-              </div>
-            ` : ''}
-            <div class="flex items-center justify-between px-3 py-2">
-              <span class="text-slate-500 font-bold">Venue</span>
-              <span class="font-black text-slate-900 text-right max-w-[55%] truncate">${tourney.venue || 'TBD'}</span>
-            </div>
-            <div class="flex items-center justify-between px-3 py-2">
-              <span class="text-slate-500 font-bold">Mode</span>
-              <span class="font-black text-slate-900">${tourney.mode === 'AUCTION_LEAGUE' ? 'Auction League' : tourney.mode === 'FIXTURE_ONLY' ? 'Quick Fixtures' : tourney.mode || 'Auction'}</span>
-            </div>
-            ${tourney.teamPurse ? `
-              <div class="flex items-center justify-between px-3 py-2">
-                <span class="text-slate-500 font-bold">Team Purse</span>
-                <span class="font-black text-slate-900">₹${Number(tourney.teamPurse).toLocaleString('en-IN')}</span>
-              </div>
-            ` : ''}
-            ${tourney.basePrice ? `
-              <div class="flex items-center justify-between px-3 py-2">
-                <span class="text-slate-500 font-bold">Base Price</span>
-                <span class="font-black text-slate-900">₹${Number(tourney.basePrice).toLocaleString('en-IN')}</span>
-              </div>
-            ` : ''}
-          </div>
-        </div>
-
-        <!-- REGISTER / ADMIN BUTTONS -->
-        <div class="px-3 py-3 bg-white">
-          <div class="flex gap-2">
             ${isAuction ? `
-              <button id="btn-custom-open-reg" class="flex-1 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-[11px] rounded-xl shadow-xs cursor-pointer transition-all">
-                📝 Register
-              </button>
+              <div class="px-2">
+                <span class="text-[8px] font-black uppercase tracking-wider block text-amber-950">👥 Players</span>
+                <span class="text-xs sm:text-base font-black">${allPlayers.length}</span>
+              </div>
             ` : ''}
-            <button id="btn-custom-hub-admin-2" class="flex-1 py-2.5 bg-slate-900 hover:bg-slate-800 text-white font-black text-[11px] rounded-xl shadow-xs cursor-pointer transition-all">
-              🔐 Admin
+          </div>
+        </div>
+
+        <!-- TOURNAMENT DETAILS & RULES CARD -->
+        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm mx-3 space-y-3">
+          <h3 class="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
+            <span>📋</span> Tournament Schedule & Specifications
+          </h3>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs font-semibold">
+            <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+              <span class="text-[9px] font-black text-slate-400 uppercase block">Ground / Venue</span>
+              <span class="text-slate-900 font-bold">📍 ${tourney.venue || 'Local Stadium / Ground'}</span>
+            </div>
+            <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+              <span class="text-[9px] font-black text-slate-400 uppercase block">Tournament Dates</span>
+              <span class="text-slate-900 font-bold">📅 ${tourney.dates || (tourney.kickoffDate ? new Date(tourney.kickoffDate).toLocaleDateString('en-IN') : 'Season 2026')}</span>
+            </div>
+            <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+              <span class="text-[9px] font-black text-slate-400 uppercase block">Tournament Organizer</span>
+              <span class="text-slate-900 font-bold">👑 ${tourney.organizer?.name || 'Tournament Committee'}</span>
+            </div>
+            <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
+              <span class="text-[9px] font-black text-slate-400 uppercase block">Tournament Mode</span>
+              <span class="text-emerald-700 font-bold">${isAuction ? '🔨 Player Registration & Team Auction' : '⚔️ Direct Team Fixtures & Live Scoring'}</span>
+            </div>
+          </div>
+
+          ${tourney.ruleRestriction ? `
+            <div class="p-3 bg-red-50/80 border border-red-200 rounded-xl text-xs">
+              <span class="text-[9px] font-black text-red-700 uppercase block mb-0.5">⚠️ Player Eligibility / Rules</span>
+              <p class="text-slate-800 font-semibold leading-relaxed">${tourney.ruleRestriction}</p>
+            </div>
+          ` : ''}
+        </div>
+
+        <!-- HIGHLIGHTED RED REGISTRATION LINK (IF AUCTION MODE) -->
+        ${isAuction ? `
+          <div class="p-4 bg-gradient-to-r from-red-600 via-rose-600 to-red-700 rounded-2xl mx-3 shadow-xl text-white text-center space-y-2 border-2 border-red-400 animate-pulse">
+            <div class="text-sm sm:text-base font-black tracking-wide">🏏 PLAYER REGISTRATIONS ARE ACTIVE!</div>
+            <p class="text-xs text-red-100 font-medium">Join the grand player auction pool for ₹${tourney.entryFee || 300} and get drafted into top franchise teams.</p>
+            <button id="btn-home-hero-reg-link" class="w-full sm:w-auto px-8 py-3 bg-white hover:bg-slate-100 text-red-700 font-black text-sm rounded-xl shadow-lg cursor-pointer transition-all hover:scale-105 border border-red-200">
+              📝 Register for ${tourney.name} Now ➔
             </button>
           </div>
-        </div>
+        ` : ''}
       </div>
 
-      <!-- TAB: TEAMS -->
-      <div id="hub-tab-teams" class="${hubTab === 'teams' ? '' : 'hidden'} px-4 py-4 space-y-3">
-        <h3 class="text-sm font-black text-slate-800">All Teams (${allTeams.length})</h3>
+      <!-- ========================================== -->
+      <!-- TAB 2: 🛡️ TEAMS                             -->
+      <!-- ========================================== -->
+      <div id="hub-tab-teams" class="${hubTab === 'teams' ? '' : 'hidden'} p-3 sm:p-4 space-y-4">
+        <div class="flex items-center justify-between">
+          <h3 class="text-sm font-black text-slate-800 flex items-center gap-1.5">
+            <span>🛡️</span> Participating Teams (${allTeams.length})
+          </h3>
+          ${isTourneyAdmin ? `
+            <span class="text-[10px] font-black text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-300">
+              👑 Admin Team Edit Enabled
+            </span>
+          ` : ''}
+        </div>
+
         ${allTeams.length > 0 ? `
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            ${allTeams.map(t => {
-              const teamPlayers = allPlayers.filter(p => p.teamId === t.id);
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+            ${allTeams.map((t, idx) => {
+              const teamSquad = allPlayers.filter(p => p.teamId === t.id);
+              const logo = t.logoUrl || t.teamLogoUrl || generateUniqueTeamBadge(t.name, idx);
+
               return `
-                <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm hover:border-indigo-400 transition-all cursor-pointer hub-view-squad-btn" data-team-id="${t.id}">
-                  <div class="flex items-center gap-3.5">
-                    <div class="w-14 h-14 rounded-full bg-slate-100 border-2 border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
-                      ${t.logoUrl || t.teamLogoUrl ? `<img src="${t.logoUrl || t.teamLogoUrl}" class="w-full h-full object-cover rounded-full" onerror="this.parentElement.innerHTML='🏏'" />` : `<span class="text-xl">🏏</span>`}
+                <div class="bg-white rounded-2xl border-2 border-slate-200 hover:border-indigo-500 shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col justify-between">
+                  <!-- Team Header Banner -->
+                  <div class="p-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-3 min-w-0">
+                      <div class="w-12 h-12 rounded-xl bg-white border-2 border-slate-300 shadow-2xs overflow-hidden flex items-center justify-center shrink-0">
+                        <img src="${logo}" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' viewBox=\\'0 0 100 100\\'%3E%3Crect width=\\'100\\' height=\\'100\\' fill=\\'%230F2C59\\'/%3E%3Ctext x=\\'50\\' y=\\'60\\' font-size=\\'40\\' text-anchor=\\'middle\\' fill=\\'white\\'%3E🏏%3C/text%3E%3C/svg%3E'" />
+                      </div>
+                      <div class="min-w-0">
+                        <h4 class="text-sm sm:text-base font-black text-slate-900 truncate leading-tight">${t.name}</h4>
+                        <span class="text-[10px] font-bold text-slate-500">${teamSquad.length} Players Drafted</span>
+                      </div>
                     </div>
-                    <div class="flex-1 min-w-0">
-                      <h4 class="text-sm font-black text-slate-900 truncate">${t.name}</h4>
-                      <p class="text-[10px] text-slate-500 font-bold">Owner: ${t.ownerName || 'TBD'}</p>
-                      <p class="text-[10px] text-slate-500">${teamPlayers.length} Players • Purse: ₹${Number(t.remainingPurse || t.purse || t.purseBudget || 0).toLocaleString('en-IN')}</p>
-                    </div>
-                    <div class="shrink-0 text-slate-400">
-                      <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M9 5l7 7-7 7"/></svg>
-                    </div>
+
+                    ${isTourneyAdmin ? `
+                      <button type="button" class="btn-hub-edit-team px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-lg text-[10px] font-black cursor-pointer shrink-0 shadow-2xs" data-team-id="${t.id}">
+                        ✏️ Edit Team
+                      </button>
+                    ` : ''}
                   </div>
-                  <div class="mt-2.5 pt-2.5 border-t border-slate-100 flex items-center justify-between">
-                    <span class="text-[9px] font-bold text-slate-400 uppercase">Tap to view full squad</span>
-                    <span class="text-[9px] font-black text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full border border-indigo-200">${teamPlayers.length} Squad</span>
+
+                  <!-- Key Personnel Pods -->
+                  <div class="p-3 space-y-2 text-xs">
+                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      <!-- Owner -->
+                      <div class="p-2 bg-amber-50/70 border border-amber-200 rounded-xl text-center">
+                        <div class="w-8 h-8 rounded-lg mx-auto mb-1 overflow-hidden bg-amber-100 flex items-center justify-center border border-amber-300 shadow-2xs">
+                          ${t.ownerPhotoUrl || t.ownerPhoto ? `<img src="${t.ownerPhotoUrl || t.ownerPhoto}" class="w-full h-full object-cover" />` : `<span>👑</span>`}
+                        </div>
+                        <span class="text-[8px] font-black uppercase text-amber-900 block">Owner</span>
+                        <span class="text-[11px] font-black text-slate-900 truncate block">${t.ownerName || 'TBD'}</span>
+                      </div>
+
+                      <!-- Icon Player -->
+                      <div class="p-2 bg-emerald-50/70 border border-emerald-200 rounded-xl text-center">
+                        <div class="w-8 h-8 rounded-lg mx-auto mb-1 overflow-hidden bg-emerald-100 flex items-center justify-center border border-emerald-300 shadow-2xs">
+                          ${t.iconPlayerPhotoUrl || t.iconPhoto ? `<img src="${t.iconPlayerPhotoUrl || t.iconPhoto}" class="w-full h-full object-cover" />` : `<span>⭐</span>`}
+                        </div>
+                        <span class="text-[8px] font-black uppercase text-emerald-900 block">Icon</span>
+                        <span class="text-[11px] font-black text-slate-900 truncate block">${t.iconPlayerName || t.iconName || 'None'}</span>
+                      </div>
+
+                      <!-- Mentor / Co-Owner -->
+                      <div class="p-2 bg-purple-50/70 border border-purple-200 rounded-xl text-center col-span-2 sm:col-span-1">
+                        <div class="w-8 h-8 rounded-lg mx-auto mb-1 overflow-hidden bg-purple-100 flex items-center justify-center border border-purple-300 shadow-2xs">
+                          ${t.mentorPhotoUrl || t.coOwnerPhotoUrl ? `<img src="${t.mentorPhotoUrl || t.coOwnerPhotoUrl}" class="w-full h-full object-cover" />` : `<span>🧠</span>`}
+                        </div>
+                        <span class="text-[8px] font-black uppercase text-purple-900 block">${t.mentorName ? 'Mentor' : 'Co-Owner'}</span>
+                        <span class="text-[11px] font-black text-slate-900 truncate block">${t.mentorName || t.coOwnerName || 'N/A'}</span>
+                      </div>
+                    </div>
+
+                    <!-- View Squad Button -->
+                    <button class="hub-view-squad-btn w-full py-2 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl shadow-xs flex items-center justify-center gap-1.5 cursor-pointer mt-1" data-team-id="${t.id}">
+                      <span>View Full Squad (${teamSquad.length} Players)</span>
+                    </button>
                   </div>
                 </div>
               `;
             }).join('')}
           </div>
         ` : `
-          <div class="text-center py-10 text-slate-400">
-            <div class="text-3xl mb-2">🏏</div>
-            <p class="text-sm font-bold">No teams created yet</p>
+          <div class="text-center py-12 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-2">
+            <div class="text-3xl">🛡️</div>
+            <p class="text-sm font-bold text-slate-700">No teams created yet</p>
+            <p class="text-xs text-slate-400">Teams will be listed here once assigned by the tournament organizer.</p>
           </div>
         `}
       </div>
 
-      <!-- TAB: MATCHES -->
-      <div id="hub-tab-matches" class="${hubTab === 'matches' ? '' : 'hidden'} px-4 py-4 space-y-3">
-        <h3 class="text-sm font-black text-slate-800">Matches (${allFixtures.length})</h3>
-        ${allFixtures.length > 0 ? `
-          <div class="space-y-2.5">
-            ${allFixtures.map(f => `
-              <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
-                <div class="flex items-center justify-between text-[10px] text-slate-500 font-bold mb-2">
-                  <span>Match #${f.matchNo || ''} • ${f.stage || f.groupCode || 'League'}</span>
-                  <span class="px-2 py-0.5 rounded-full text-[9px] font-black ${f.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-800' : f.status === 'LIVE' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'}">${f.status || 'SCHEDULED'}</span>
-                </div>
-                <div class="flex items-center justify-between">
-                  <div class="text-xs font-black text-slate-900">${f.teamAName || 'Team A'}</div>
-                  <span class="text-[10px] text-slate-400 font-bold">VS</span>
-                  <div class="text-xs font-black text-slate-900">${f.teamBName || 'Team B'}</div>
-                </div>
-                <div class="text-[10px] text-slate-500 mt-1.5">📅 ${f.date || ''} ${f.time ? '• ⏰ ' + f.time : ''} ${f.venue ? '• 📍 ' + f.venue : ''}</div>
-              </div>
-            `).join('')}
+      <!-- ============================================================= -->
+      <!-- TAB 3: 👥 REGISTERED PLAYERS (Square Photos, Masked Phone)    -->
+      <!-- ============================================================= -->
+      ${isAuction ? `
+        <div id="hub-tab-players" class="${hubTab === 'players' ? '' : 'hidden'} p-3 sm:p-4 space-y-4">
+          <div class="flex items-center justify-between gap-2">
+            <div>
+              <h3 class="text-sm font-black text-slate-900">Registered Players (${allPlayers.length})</h3>
+              <p class="text-[11px] text-slate-500 font-semibold">Click "View Profile" to see complete player credentials</p>
+            </div>
+            <span class="text-[10px] font-black text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-full border border-emerald-300 shrink-0">
+              ${approvedPlayers.length} Verified
+            </span>
           </div>
-        ` : `
-          <div class="text-center py-10 text-slate-400">
-            <div class="text-3xl mb-2">📅</div>
-            <p class="text-sm font-bold">No matches scheduled yet</p>
-          </div>
-        `}
-      </div>
 
-      <!-- TAB: PLAYERS -->
-      <div id="hub-tab-players" class="${hubTab === 'players' ? '' : 'hidden'} px-4 py-4 space-y-3">
-        <div class="flex items-center justify-between">
-          <h3 class="text-sm font-black text-slate-800">Registered Players (${allPlayers.length})</h3>
-          <span class="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">${approvedPlayers.length} Approved · ${pendingPlayers.length} Pending</span>
-        </div>
-        ${allPlayers.length > 0 ? `
-          <div class="space-y-2">
-            ${allPlayers.map((p, i) => {
-              const regDate = p.created_at ? new Date(p.created_at) : null;
-              const regDateStr = regDate ? regDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
-              const regTimeStr = regDate ? regDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : '';
-              const statusUpper = (p.registrationStatus || p.paymentStatus || '').toUpperCase();
-              return `
-              <div class="bg-white p-3 rounded-xl border border-slate-200 shadow-sm hover:border-emerald-400 transition-all">
-                <div class="flex items-center gap-3">
-                  <span class="text-[10px] font-mono font-black text-slate-400 w-5 text-center">${i + 1}</span>
-                  <img src="${p.photoUrl || p.photo_url || 'assets/card_jsl_user.png'}" class="w-12 h-12 rounded-xl object-cover border-2 border-slate-200 shadow-xs" onerror="this.src='assets/card_jsl_user.png'" />
-                  <div class="flex-1 min-w-0">
-                    <div class="text-xs font-black text-slate-900 truncate">${p.name}</div>
-                    <div class="text-[10px] text-slate-500 font-medium">${p.category || p.role || 'All Rounder'} • ${p.village || ''}</div>
-                    <div class="text-[9px] text-slate-400 font-mono mt-0.5">${p.regNo || p.registrationId || ''} ${regDateStr ? '• ' + regDateStr + ' ' + regTimeStr : ''}</div>
-                  </div>
-                  <div class="flex flex-col items-end gap-1.5 shrink-0">
-                    <span class="text-[9px] font-black px-2 py-0.5 rounded-full ${
-                      statusUpper.includes('APPROVED') || statusUpper.includes('VERIFIED')
-                        ? 'bg-emerald-100 text-emerald-800'
-                        : statusUpper.includes('REJECTED') ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'
-                    }">${(p.registrationStatus || p.paymentStatus || 'PENDING').replace('_', ' ')}</span>
-                    <button class="hub-view-profile-btn text-[9px] font-black text-indigo-700 bg-indigo-50 hover:bg-indigo-100 px-2.5 py-1 rounded-lg border border-indigo-200 cursor-pointer transition-colors" data-player-id="${p.id}">
-                      👤 View Profile
+          ${allPlayers.length > 0 ? `
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              ${allPlayers.map((p, idx) => {
+                const serial = String(p.displayRegistrationNumber || p.serialNo || (idx + 1)).padStart(2, '0');
+                const isApproved = (p.registrationStatus || p.paymentStatus) === 'APPROVED';
+                const photo = p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png';
+
+                return `
+                  <div class="bg-white p-2.5 rounded-2xl border-2 border-slate-200 hover:border-emerald-500 shadow-xs hover:shadow-md transition-all flex flex-col justify-between text-center group">
+                    <!-- Square 1:1 Player Picture -->
+                    <div class="w-full aspect-square rounded-xl bg-slate-100 border border-slate-200 overflow-hidden relative mb-2 shadow-2xs">
+                      <img src="${photo}" class="w-full h-full object-cover group-hover:scale-105 transition-transform" onerror="this.src='assets/card_jsl_user.png'" />
+                      <span class="absolute top-1.5 left-1.5 px-2 py-0.5 bg-slate-900/90 text-amber-300 font-mono font-black text-[10px] rounded border border-amber-400/50 shadow">
+                        #${serial}
+                      </span>
+                      <span class="absolute top-1.5 right-1.5 w-3 h-3 rounded-full ${isApproved ? 'bg-emerald-500' : 'bg-amber-400'} border-2 border-white shadow"></span>
+                    </div>
+
+                    <!-- Name & Category -->
+                    <div class="space-y-0.5 mb-2">
+                      <h4 class="text-xs font-black text-slate-900 truncate leading-tight">${p.name}</h4>
+                      <span class="inline-block px-2 py-0.5 bg-slate-100 text-slate-700 text-[8.5px] font-black uppercase rounded-full border border-slate-200">
+                        ${p.category || p.role || 'All Rounder'}
+                      </span>
+                    </div>
+
+                    <!-- View Profile Button -->
+                    <button class="hub-view-profile-btn w-full py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-black text-[10px] rounded-xl shadow-xs flex items-center justify-center gap-1 cursor-pointer transition-colors" data-player-id="${p.id}">
+                      <i data-lucide="user" class="w-3 h-3 text-amber-400"></i> View Profile
                     </button>
                   </div>
+                `;
+              }).join('')}
+            </div>
+          ` : `
+            <div class="text-center py-12 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-2">
+              <div class="text-3xl">📝</div>
+              <p class="text-sm font-bold text-slate-700">No players registered yet</p>
+              <button id="btn-tab-open-reg-empty" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow cursor-pointer">
+                📝 Register First Player
+              </button>
+            </div>
+          `}
+        </div>
+      ` : ''}
+
+      <!-- ============================================================= -->
+      <!-- TAB 4: 🔨 AUCTION ARCHIVE & SUMMARY PORTAL (5-YEAR RECORD)     -->
+      <!-- ============================================================= -->
+      ${isAuction ? `
+        <div id="hub-tab-auction" class="${hubTab === 'auction' ? '' : 'hidden'} p-3 sm:p-4 space-y-4">
+          
+          <!-- PREVIOUS AUCTION SUMMARY HEADER BANNER -->
+          <div class="bg-white p-4 sm:p-5 rounded-3xl border-2 border-slate-200 shadow-sm space-y-3">
+            <div class="flex items-start justify-between gap-2">
+              <div class="flex items-center gap-3">
+                <div class="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 text-2xl flex items-center justify-center shadow-2xs shrink-0">
+                  📜
+                </div>
+                <div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-[9px] font-black uppercase text-amber-900 tracking-wider">PREVIOUS AUCTION SUMMARY</span>
+                    <span class="px-2 py-0.5 bg-emerald-50 text-emerald-800 text-[8.5px] font-black rounded-full border border-emerald-300 flex items-center gap-1">
+                      🔒 5-YEAR ARCHIVE
+                    </span>
+                  </div>
+                  <h3 class="text-sm sm:text-base font-black text-slate-900 leading-tight mt-0.5">
+                    ${tourney.name} Final Auction Summary & Roster Archives
+                  </h3>
                 </div>
               </div>
-            `; }).join('')}
+
+              <span class="px-2.5 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-black rounded-full border border-emerald-300 flex items-center gap-1 shrink-0">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                Auction Completed
+              </span>
+            </div>
+
+            <p class="text-xs text-slate-500 font-medium">
+              All ${allTeams.length} franchise squads, player sold values, icon player ⭐ allocations, and purse balances are permanently preserved in the ${tourney.shortCode || 'TOURNAMENT'} Master Archive.
+            </p>
+
+            <!-- 3 ACTION BUTTONS -->
+            <div class="pt-1 flex flex-wrap items-center gap-2">
+              <button id="btn-open-final-auction-summary-modal" class="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-sm flex items-center gap-1.5 cursor-pointer transition-all hover:scale-102">
+                <span>🏆</span> View Final Auction Summary
+              </button>
+              <button id="btn-download-all-squads-pdf" class="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-600 text-white font-black text-xs rounded-xl shadow-sm flex items-center gap-1.5 cursor-pointer transition-all">
+                <span>📑</span> All Squads PDF
+              </button>
+              <button id="btn-download-json-backup" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-black text-xs rounded-xl border border-slate-300 flex items-center gap-1.5 cursor-pointer transition-all">
+                <span>💾</span> JSON Backup
+              </button>
+            </div>
           </div>
-        ` : `
-          <div class="text-center py-10 text-slate-400">
-            <div class="text-3xl mb-2">📝</div>
-            <p class="text-sm font-bold">No player registrations yet</p>
+
+          <!-- TOP 8 HIGHEST BUYS INLINE PREVIEW -->
+          <div class="bg-white p-4 rounded-3xl border-2 border-slate-200 shadow-sm space-y-3">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+              <h4 class="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+                <span>🔥</span> TOP HIGHEST BUYS OF ${tourney.name} AUCTION
+              </h4>
+              <span class="text-[10px] font-bold text-slate-400">Top Bids</span>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              ${(() => {
+                const sortedSold = allPlayers.filter(p => (Number(p.soldPrice || p.boughtPrice || 0) > 0)).sort((a, b) => (Number(b.soldPrice || b.boughtPrice || 0) - Number(a.soldPrice || a.boughtPrice || 0))).slice(0, 8);
+                
+                if (sortedSold.length === 0) {
+                  return `<div class="col-span-2 text-center py-6 text-xs text-slate-400 font-bold">No sold players recorded in auction yet.</div>`;
+                }
+
+                return sortedSold.map((p, idx) => {
+                  const team = allTeams.find(t => t.id === p.teamId);
+                  const soldAmt = Number(p.soldPrice || p.boughtPrice || 0);
+                  const photo = p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png';
+
+                  return `
+                    <div class="p-3 bg-slate-50/70 border border-slate-200 rounded-2xl flex items-center justify-between gap-2.5 hover:border-amber-400 hover:bg-amber-50/20 transition-all">
+                      <div class="flex items-center gap-2.5 min-w-0">
+                        <span class="w-6 h-6 rounded-lg bg-amber-100 text-amber-900 border border-amber-300 font-mono font-black text-[10px] flex items-center justify-center shrink-0">
+                          #${idx + 1}
+                        </span>
+                        <div class="w-10 h-10 rounded-xl bg-white border border-slate-200 overflow-hidden shrink-0 shadow-2xs">
+                          <img src="${photo}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
+                        </div>
+                        <div class="min-w-0">
+                          <h5 class="text-xs font-black text-slate-900 truncate leading-tight">${p.name}</h5>
+                          <div class="text-[10px] font-bold text-slate-600 truncate flex items-center gap-1">
+                            <span>🛡️</span> ${team?.name || p.teamName || 'Franchise Team'}
+                          </div>
+                          <span class="text-[9px] text-slate-400 font-medium">${p.category || 'All-rounder'}</span>
+                        </div>
+                      </div>
+
+                      <div class="text-right shrink-0">
+                        <div class="text-xs sm:text-sm font-mono font-black text-emerald-700">₹ ${soldAmt.toLocaleString('en-IN')}</div>
+                        <span class="text-[8px] font-black uppercase text-slate-400 block tracking-wider">FINAL BID</span>
+                      </div>
+                    </div>
+                  `;
+                }).join('');
+              })()}
+            </div>
           </div>
-        `}
+
+        </div>
+      ` : ''}
+
+      <!-- ============================================================= -->
+      <!-- TAB 5: 🏏 MATCH CORNER (Fixtures & Points Table)               -->
+      <!-- ============================================================= -->
+      <div id="hub-tab-matches" class="${hubTab === 'matches' ? '' : 'hidden'} p-3 sm:p-4 space-y-4">
+        <!-- Subtabs: Fixtures vs Points Table -->
+        <div class="flex items-center gap-2 p-1 bg-slate-100 rounded-xl max-w-xs border border-slate-200">
+          <button id="hub-match-subtab-fixtures" class="flex-1 py-1.5 rounded-lg text-xs font-black bg-white text-slate-900 shadow-xs transition-all cursor-pointer">
+            📅 Matches (${allFixtures.length})
+          </button>
+          <button id="hub-match-subtab-points" class="flex-1 py-1.5 rounded-lg text-xs font-black text-slate-500 hover:text-slate-900 transition-all cursor-pointer">
+            🏆 Points Table
+          </button>
+        </div>
+
+        <!-- Section 1: Fixtures List -->
+        <div id="hub-matches-fixtures-container" class="space-y-3">
+          ${allFixtures.length > 0 ? `
+            <div class="space-y-2.5">
+              ${allFixtures.map(f => {
+                const isLive = f.status === 'LIVE';
+                const isCompleted = f.status === 'COMPLETED';
+
+                return `
+                  <div class="bg-white p-3.5 rounded-2xl border-2 ${isLive ? 'border-red-500 bg-red-50/20' : 'border-slate-200'} shadow-sm space-y-2">
+                    <div class="flex items-center justify-between text-[10px] font-black">
+                      <span class="text-slate-500 uppercase tracking-wider">Match #${f.matchNo || 1} • ${f.stage || f.groupCode || 'League Match'}</span>
+                      <span class="px-2 py-0.5 rounded-full text-[9px] ${isLive ? 'bg-red-500 text-white animate-pulse' : isCompleted ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'}">
+                        ${f.status || 'SCHEDULED'}
+                      </span>
+                    </div>
+
+                    <div class="flex items-center justify-between gap-3 py-1">
+                      <div class="flex-1 text-left min-w-0">
+                        <div class="text-xs sm:text-sm font-black text-slate-900 truncate">${f.teamAName || 'Team A'}</div>
+                        ${f.liveScoreTeamA ? `<div class="text-xs font-mono font-black text-slate-700">${f.liveScoreTeamA}</div>` : ''}
+                      </div>
+
+                      <span class="px-2 py-1 bg-slate-100 text-slate-500 font-black text-[10px] rounded-lg shrink-0">VS</span>
+
+                      <div class="flex-1 text-right min-w-0">
+                        <div class="text-xs sm:text-sm font-black text-slate-900 truncate">${f.teamBName || 'Team B'}</div>
+                        ${f.liveScoreTeamB ? `<div class="text-xs font-mono font-black text-slate-700">${f.liveScoreTeamB}</div>` : ''}
+                      </div>
+                    </div>
+
+                    <div class="flex items-center justify-between text-[10px] text-slate-500 pt-1 border-t border-slate-100">
+                      <span>📅 ${f.date || 'TBD'} ${f.time ? '• ⏰ ' + f.time : ''}</span>
+                      <span>📍 ${f.venue || tourney.venue || 'Ground'}</span>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          ` : `
+            <div class="text-center py-10 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-2">
+              <div class="text-3xl">📅</div>
+              <p class="text-sm font-bold text-slate-700">No matches scheduled yet</p>
+              <p class="text-xs text-slate-400">Fixtures will be published once announced by the tournament admin.</p>
+            </div>
+          `}
+        </div>
+
+        <!-- Section 2: Points Table -->
+        <div id="hub-matches-points-container" class="hidden bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+          <h4 class="text-xs font-black text-slate-700 uppercase tracking-wider">Tournament Standings</h4>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs font-semibold">
+              <thead class="bg-slate-900 text-white text-[10px] font-black uppercase tracking-wider">
+                <tr>
+                  <th class="p-2.5">Team</th>
+                  <th class="p-2.5 text-center">P</th>
+                  <th class="p-2.5 text-center">W</th>
+                  <th class="p-2.5 text-center">L</th>
+                  <th class="p-2.5 text-center">NRR</th>
+                  <th class="p-2.5 text-right">PTS</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-100">
+                ${allTeams.map((t, idx) => `
+                  <tr class="hover:bg-slate-50">
+                    <td class="p-2.5 font-bold text-slate-900 flex items-center gap-2">
+                      <span class="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center font-mono font-black text-[10px] text-slate-600">${idx + 1}</span>
+                      <span class="truncate">${t.name}</span>
+                    </td>
+                    <td class="p-2.5 text-center text-slate-600 font-mono">0</td>
+                    <td class="p-2.5 text-center text-emerald-700 font-mono font-bold">0</td>
+                    <td class="p-2.5 text-center text-red-600 font-mono">0</td>
+                    <td class="p-2.5 text-center text-slate-500 font-mono">+0.000</td>
+                    <td class="p-2.5 text-right text-emerald-800 font-mono font-black text-sm">0</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
 
-      <!-- TAB: STATISTICS -->
-      <div id="hub-tab-stats" class="${hubTab === 'stats' ? '' : 'hidden'} px-4 py-4 space-y-4">
-        <h3 class="text-sm font-black text-slate-800">Tournament Statistics</h3>
-
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-          <div class="bg-white p-3 rounded-xl border border-slate-200 text-center shadow-sm">
-            <div class="text-2xl font-black text-slate-900">${allPlayers.length}</div>
-            <div class="text-[9px] font-bold text-slate-500 uppercase">Total Players</div>
+      <!-- ============================================================= -->
+      <!-- TAB 6: 📊 STATISTICS & AWARDS LEADERBOARD                     -->
+      <!-- ============================================================= -->
+      <div id="hub-tab-stats" class="${hubTab === 'stats' ? '' : 'hidden'} p-3 sm:p-4 space-y-4">
+        <!-- 1. BEST MVP PLAYER PODIUM BOX -->
+        <div class="p-4 sm:p-5 bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 rounded-3xl text-slate-950 shadow-xl border-2 border-amber-300 flex items-center justify-between gap-4">
+          <div class="space-y-1">
+            <span class="px-2.5 py-0.5 bg-slate-950 text-amber-300 text-[9px] font-black rounded-full uppercase tracking-wider">🏆 TOURNAMENT MVP</span>
+            <h3 class="text-base sm:text-xl font-black text-slate-950 leading-tight">${topBatsman?.name || 'Tournament Leader'}</h3>
+            <p class="text-xs text-slate-900 font-semibold">Best Overall Performer of ${tourney.name}</p>
           </div>
-          <div class="bg-white p-3 rounded-xl border border-slate-200 text-center shadow-sm">
-            <div class="text-2xl font-black text-slate-900">${allTeams.length}</div>
-            <div class="text-[9px] font-bold text-slate-500 uppercase">Teams</div>
-          </div>
-          <div class="bg-white p-3 rounded-xl border border-slate-200 text-center shadow-sm">
-            <div class="text-2xl font-black text-slate-900">${allFixtures.length}</div>
-            <div class="text-[9px] font-bold text-slate-500 uppercase">Matches</div>
-          </div>
-          <div class="bg-white p-3 rounded-xl border border-slate-200 text-center shadow-sm">
-            <div class="text-2xl font-black text-slate-900">${soldPlayers.length}</div>
-            <div class="text-[9px] font-bold text-slate-500 uppercase">Sold (Auction)</div>
+          <div class="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white border-2 border-slate-950 overflow-hidden shadow-lg shrink-0">
+            <img src="${topBatsman?.photoUrl || 'assets/card_jsl_user.png'}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
           </div>
         </div>
 
-        ${topBatsman ? `
-          <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-            <h4 class="text-xs font-black text-slate-600 uppercase mb-3">Batting Leaders</h4>
-            <div class="space-y-2">
-              ${allPlayers.filter(p => (p.totalRuns || 0) > 0).sort((a, b) => (b.totalRuns || 0) - (a.totalRuns || 0)).slice(0, 5).map((p, i) => `
-                <div class="flex items-center gap-3">
-                  <span class="text-xs font-black text-slate-400 w-5">#${i + 1}</span>
-                  <div class="flex-1 min-w-0">
-                    <span class="text-xs font-black text-slate-900">${p.name}</span>
-                    <span class="text-[9px] text-slate-400 ml-1">${allTeams.find(t => t.id === p.teamId)?.name || ''}</span>
-                  </div>
-                  <span class="text-sm font-black text-emerald-700">${p.totalRuns}</span>
-                </div>
-              `).join('')}
+        <!-- 2. AWARDS LEADERBOARD GRID -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <!-- Best Batsman -->
+          <div class="bg-white p-3.5 rounded-2xl border-2 border-orange-200 shadow-sm space-y-2">
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-[10px] font-black uppercase text-orange-800 bg-orange-100 px-2 py-0.5 rounded-full">🏏 Best Batsman</span>
+              <span class="font-mono font-black text-orange-950">${topBatsman?.totalRuns || 0} Runs</span>
+            </div>
+            <div class="flex items-center gap-2.5">
+              <div class="w-10 h-10 rounded-xl bg-orange-50 border border-orange-200 overflow-hidden shrink-0">
+                <img src="${topBatsman?.photoUrl || 'assets/card_jsl_user.png'}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
+              </div>
+              <div class="min-w-0">
+                <h4 class="text-xs font-black text-slate-900 truncate">${topBatsman?.name || 'Candidate'}</h4>
+                <p class="text-[10px] text-slate-500 font-medium">${topBatsman?.category || 'Batsman'}</p>
+              </div>
             </div>
           </div>
-        ` : ''}
 
-        ${topBowler ? `
-          <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
-            <h4 class="text-xs font-black text-slate-600 uppercase mb-3">Bowling Leaders</h4>
-            <div class="space-y-2">
-              ${allPlayers.filter(p => (p.totalWickets || 0) > 0).sort((a, b) => (b.totalWickets || 0) - (a.totalWickets || 0)).slice(0, 5).map((p, i) => `
-                <div class="flex items-center gap-3">
-                  <span class="text-xs font-black text-slate-400 w-5">#${i + 1}</span>
-                  <div class="flex-1 min-w-0">
-                    <span class="text-xs font-black text-slate-900">${p.name}</span>
-                    <span class="text-[9px] text-slate-400 ml-1">${allTeams.find(t => t.id === p.teamId)?.name || ''}</span>
-                  </div>
-                  <span class="text-sm font-black text-blue-700">${p.totalWickets} wkts</span>
-                </div>
-              `).join('')}
+          <!-- Best Bowler -->
+          <div class="bg-white p-3.5 rounded-2xl border-2 border-purple-200 shadow-sm space-y-2">
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-[10px] font-black uppercase text-purple-800 bg-purple-100 px-2 py-0.5 rounded-full">⚡ Best Bowler</span>
+              <span class="font-mono font-black text-purple-950">${topBowler?.totalWickets || 0} Wickets</span>
+            </div>
+            <div class="flex items-center gap-2.5">
+              <div class="w-10 h-10 rounded-xl bg-purple-50 border border-purple-200 overflow-hidden shrink-0">
+                <img src="${topBowler?.photoUrl || 'assets/card_jsl_user.png'}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
+              </div>
+              <div class="min-w-0">
+                <h4 class="text-xs font-black text-slate-900 truncate">${topBowler?.name || 'Candidate'}</h4>
+                <p class="text-[10px] text-slate-500 font-medium">${topBowler?.category || 'Bowler'}</p>
+              </div>
             </div>
           </div>
-        ` : ''}
 
-        ${!topBatsman && !topBowler ? `
-          <div class="text-center py-8 text-slate-400">
-            <div class="text-3xl mb-2">📊</div>
-            <p class="text-sm font-bold">No match statistics yet</p>
-            <p class="text-[11px]">Stats will appear once matches are scored.</p>
+          <!-- Best Wicket Keeper -->
+          <div class="bg-white p-3.5 rounded-2xl border-2 border-sky-200 shadow-sm space-y-2">
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-[10px] font-black uppercase text-sky-800 bg-sky-100 px-2 py-0.5 rounded-full">🧤 Best Keeper</span>
+              <span class="font-mono font-black text-sky-950">Active Dismissals</span>
+            </div>
+            <div class="flex items-center gap-2.5">
+              <div class="w-10 h-10 rounded-xl bg-sky-50 border border-sky-200 overflow-hidden shrink-0">
+                <img src="${topKeeper?.photoUrl || 'assets/card_jsl_user.png'}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
+              </div>
+              <div class="min-w-0">
+                <h4 class="text-xs font-black text-slate-900 truncate">${topKeeper?.name || 'Wicket Keeper'}</h4>
+                <p class="text-[10px] text-slate-500 font-medium">Safe Hands Award</p>
+              </div>
+            </div>
           </div>
-        ` : ''}
+
+          <!-- Best Emerging Player -->
+          <div class="bg-white p-3.5 rounded-2xl border-2 border-emerald-200 shadow-sm space-y-2">
+            <div class="flex items-center justify-between text-xs">
+              <span class="text-[10px] font-black uppercase text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">🌟 Emerging Player</span>
+              <span class="font-mono font-black text-emerald-950">Under 19 Talent</span>
+            </div>
+            <div class="flex items-center gap-2.5">
+              <div class="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 overflow-hidden shrink-0">
+                <img src="${emergingPlayer?.photoUrl || 'assets/card_jsl_user.png'}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
+              </div>
+              <div class="min-w-0">
+                <h4 class="text-xs font-black text-slate-900 truncate">${emergingPlayer?.name || 'Young Talent'}</h4>
+                <p class="text-[10px] text-slate-500 font-medium">Future Star</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
     </div>
@@ -1868,41 +2098,89 @@ export function renderCustomTournamentHub(container, tourney) {
 
   if (window.lucide) window.lucide.createIcons();
 
-  // Hub tab switching
+  // Tab switching handler
   container.querySelectorAll('.hub-tab-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       const tab = e.currentTarget.dataset.hubTab;
       try { sessionStorage.setItem('cpl_hub_tab_' + tourney.slug, tab); } catch(ex) {}
 
       container.querySelectorAll('.hub-tab-btn').forEach(b => {
-        b.classList.remove('text-emerald-700', 'border-b-[3px]', 'border-emerald-600', '-mb-[2px]');
+        b.classList.remove('text-emerald-700', 'border-b-[3px]', 'border-emerald-600', 'bg-white', 'font-black');
         b.classList.add('text-slate-500');
       });
-      e.currentTarget.classList.add('text-emerald-700', 'border-b-[3px]', 'border-emerald-600', '-mb-[2px]');
+      e.currentTarget.classList.add('text-emerald-700', 'border-b-[3px]', 'border-emerald-600', 'bg-white', 'font-black');
       e.currentTarget.classList.remove('text-slate-500');
 
-      ['home', 'teams', 'matches', 'players', 'stats'].forEach(t => {
-        document.getElementById('hub-tab-' + t)?.classList.add('hidden');
+      hubTabs.forEach(t => {
+        document.getElementById('hub-tab-' + t.id)?.classList.add('hidden');
       });
       document.getElementById('hub-tab-' + tab)?.classList.remove('hidden');
     });
   });
 
-  // Share button
+  // Match corner subtabs switching
+  document.getElementById('hub-match-subtab-fixtures')?.addEventListener('click', () => {
+    document.getElementById('hub-matches-fixtures-container')?.classList.remove('hidden');
+    document.getElementById('hub-matches-points-container')?.classList.add('hidden');
+    document.getElementById('hub-match-subtab-fixtures')?.classList.add('bg-white', 'text-slate-900', 'shadow-xs');
+    document.getElementById('hub-match-subtab-fixtures')?.classList.remove('text-slate-500');
+    document.getElementById('hub-match-subtab-points')?.classList.remove('bg-white', 'text-slate-900', 'shadow-xs');
+    document.getElementById('hub-match-subtab-points')?.classList.add('text-slate-500');
+  });
+
+  document.getElementById('hub-match-subtab-points')?.addEventListener('click', () => {
+    document.getElementById('hub-matches-points-container')?.classList.remove('hidden');
+    document.getElementById('hub-matches-fixtures-container')?.classList.add('hidden');
+    document.getElementById('hub-match-subtab-points')?.classList.add('bg-white', 'text-slate-900', 'shadow-xs');
+    document.getElementById('hub-match-subtab-points')?.classList.remove('text-slate-500');
+    document.getElementById('hub-match-subtab-fixtures')?.classList.remove('bg-white', 'text-slate-900', 'shadow-xs');
+    document.getElementById('hub-match-subtab-fixtures')?.classList.add('text-slate-500');
+  });
+
+  // Action button listeners
+  document.getElementById('btn-home-hero-reg-link')?.addEventListener('click', () => openDynamicTournamentRegistrationModal(tourney.slug));
+  document.getElementById('btn-tab-open-reg-empty')?.addEventListener('click', () => openDynamicTournamentRegistrationModal(tourney.slug));
+  document.getElementById('btn-custom-hub-back')?.addEventListener('click', () => navigate('landing'));
+  document.getElementById('btn-custom-hub-admin')?.addEventListener('click', () => navigate('admin'));
+
+  // Auction summary & backup buttons
+  document.getElementById('btn-open-final-auction-summary-modal')?.addEventListener('click', () => {
+    openFinalAuctionSummaryModal(tourney, allTeams, allPlayers);
+  });
+
+  document.getElementById('btn-download-all-squads-pdf')?.addEventListener('click', () => {
+    if (typeof window.print === 'function') {
+      window.print();
+    } else {
+      alert('Generating PDF summary...');
+    }
+  });
+
+  document.getElementById('btn-download-json-backup')?.addEventListener('click', () => {
+    const backupObj = {
+      tournament: tourney,
+      archivedAt: new Date().toISOString(),
+      teams: allTeams,
+      players: allPlayers,
+      topBuys: allPlayers.filter(p => Number(p.soldPrice || 0) > 0).sort((a, b) => Number(b.soldPrice || 0) - Number(a.soldPrice || 0)).slice(0, 20)
+    };
+    const blob = new Blob([JSON.stringify(backupObj, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${tourney.slug || 'tournament'}_auction_archive_backup.json`;
+    a.click();
+  });
+
   document.getElementById('btn-hub-share')?.addEventListener('click', () => {
     const url = window.location.href;
     if (navigator.share) {
       navigator.share({ title: tourney.name, url });
     } else {
       navigator.clipboard?.writeText(url);
-      alert('Tournament link copied!');
+      alert('Tournament link copied to clipboard!\n\n' + url);
     }
   });
-
-  document.getElementById('btn-custom-hub-back')?.addEventListener('click', () => navigate('landing'));
-  document.getElementById('btn-custom-hub-admin')?.addEventListener('click', () => navigate('admin'));
-  document.getElementById('btn-custom-hub-admin-2')?.addEventListener('click', () => navigate('admin'));
-  document.getElementById('btn-custom-open-reg')?.addEventListener('click', () => openDynamicTournamentRegistrationModal(tourney.slug));
 
   document.querySelectorAll('.hub-view-squad-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1920,6 +2198,448 @@ export function renderCustomTournamentHub(container, tourney) {
       if (player) openFullPlayerProfileModal(player);
     });
   });
+
+  // Admin Team Editor Click Listener
+  document.querySelectorAll('.btn-hub-edit-team').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const teamId = e.currentTarget.getAttribute('data-team-id');
+      const team = allTeams.find(t => t.id === teamId);
+      if (team) {
+        openEditTeamModalForAdmin(team, tourney, () => renderCustomTournamentHub(container, tourney));
+      }
+    });
+  });
+}
+
+/**
+ * Generate a distinct deterministic Cricket Team Badge SVG based on team name & index
+ */
+function generateUniqueTeamBadge(name = 'Team', idx = 0) {
+  const colors = [
+    { bg: '#0F2C59', text: '#F59E0B' },
+    { bg: '#059669', text: '#FFFFFF' },
+    { bg: '#DC2626', text: '#FEF08A' },
+    { bg: '#7C3AED', text: '#FFFFFF' },
+    { bg: '#EA580C', text: '#FFFFFF' },
+    { bg: '#0284C7', text: '#FFFFFF' },
+    { bg: '#4338CA', text: '#FDE047' },
+    { bg: '#047857', text: '#FDE047' }
+  ];
+  const pair = colors[idx % colors.length];
+  const initials = name.split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || 'TM';
+  
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+    <rect width="100" height="100" rx="20" fill="${pair.bg}"/>
+    <circle cx="50" cy="50" r="38" fill="none" stroke="${pair.text}" stroke-width="3" stroke-dasharray="4 2"/>
+    <text x="50" y="58" font-family="sans-serif" font-size="28" font-weight="900" text-anchor="middle" fill="${pair.text}">${initials}</text>
+  </svg>`;
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+}
+
+/**
+ * Admin / Master Admin Modal to Edit Full Team Details (Name, Owner, Icon, Co-Owner, Mentor, Logo)
+ */
+function openEditTeamModalForAdmin(team, tourney, onSaveCallback) {
+  document.getElementById('admin-edit-team-modal')?.remove();
+
+  const modalEl = document.createElement('div');
+  modalEl.id = 'admin-edit-team-modal';
+  modalEl.className = 'fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-950/70 backdrop-blur-xs overflow-y-auto animate-fade-in';
+
+  modalEl.innerHTML = `
+    <div class="bg-white rounded-3xl border-2 border-indigo-500 shadow-2xl max-w-xl w-full max-h-[92vh] flex flex-col overflow-hidden text-slate-900 my-auto">
+      <div class="px-5 py-4 bg-gradient-to-r from-indigo-700 via-indigo-800 to-slate-900 text-white flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <span class="p-2 bg-indigo-500/30 rounded-xl text-lg">✏️</span>
+          <div>
+            <h3 class="text-base font-black">Edit Team & Personnel Details</h3>
+            <p class="text-[11px] text-slate-300">Modify Team Name, Owner, Icon, Co-Owner, Mentor & Logo</p>
+          </div>
+        </div>
+        <button id="close-edit-team-modal-btn" class="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 text-white font-black flex items-center justify-center text-sm cursor-pointer">
+          ✕
+        </button>
+      </div>
+
+      <form id="admin-edit-team-form" class="p-5 overflow-y-auto space-y-3.5 text-xs font-semibold">
+        <div>
+          <label class="block text-[11px] font-black text-slate-700 mb-1">Team Name *</label>
+          <input type="text" id="team-edit-name" required value="${team.name || ''}" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-bold focus:border-indigo-500 focus:outline-none" />
+        </div>
+
+        <!-- Owner Details -->
+        <div class="p-3 bg-amber-50/80 border border-amber-300 rounded-2xl space-y-2">
+          <span class="text-[9px] font-black uppercase text-amber-950 block">👑 Owner Details</span>
+          <div class="grid grid-cols-2 gap-2">
+            <input type="text" id="team-edit-owner-name" value="${team.ownerName || ''}" placeholder="Owner Name" class="px-3 py-1.5 bg-white border border-amber-300 rounded-xl text-xs" />
+            <input type="text" id="team-edit-owner-photo" value="${team.ownerPhotoUrl || team.ownerPhoto || ''}" placeholder="Owner Photo URL" class="px-3 py-1.5 bg-white border border-amber-300 rounded-xl text-xs" />
+          </div>
+        </div>
+
+        <!-- Icon Player Details -->
+        <div class="p-3 bg-emerald-50/80 border border-emerald-300 rounded-2xl space-y-2">
+          <span class="text-[9px] font-black uppercase text-emerald-950 block">⭐ Icon Player Details</span>
+          <div class="grid grid-cols-2 gap-2">
+            <input type="text" id="team-edit-icon-name" value="${team.iconPlayerName || team.iconName || ''}" placeholder="Icon Player Name" class="px-3 py-1.5 bg-white border border-emerald-300 rounded-xl text-xs" />
+            <input type="text" id="team-edit-icon-photo" value="${team.iconPlayerPhotoUrl || team.iconPhoto || ''}" placeholder="Icon Photo URL" class="px-3 py-1.5 bg-white border border-emerald-300 rounded-xl text-xs" />
+          </div>
+        </div>
+
+        <!-- Co-Owner Details -->
+        <div class="p-3 bg-sky-50/80 border border-sky-300 rounded-2xl space-y-2">
+          <span class="text-[9px] font-black uppercase text-sky-950 block">🤝 Co-Owner Details</span>
+          <div class="grid grid-cols-2 gap-2">
+            <input type="text" id="team-edit-co-owner-name" value="${team.coOwnerName || ''}" placeholder="Co-Owner Name" class="px-3 py-1.5 bg-white border border-sky-300 rounded-xl text-xs" />
+            <input type="text" id="team-edit-co-owner-photo" value="${team.coOwnerPhotoUrl || ''}" placeholder="Co-Owner Photo URL" class="px-3 py-1.5 bg-white border border-sky-300 rounded-xl text-xs" />
+          </div>
+        </div>
+
+        <!-- Mentor Details -->
+        <div class="p-3 bg-purple-50/80 border border-purple-300 rounded-2xl space-y-2">
+          <span class="text-[9px] font-black uppercase text-purple-950 block">🧠 Mentor Details</span>
+          <div class="grid grid-cols-2 gap-2">
+            <input type="text" id="team-edit-mentor-name" value="${team.mentorName || ''}" placeholder="Mentor Name" class="px-3 py-1.5 bg-white border border-purple-300 rounded-xl text-xs" />
+            <input type="text" id="team-edit-mentor-photo" value="${team.mentorPhotoUrl || ''}" placeholder="Mentor Photo URL" class="px-3 py-1.5 bg-white border border-purple-300 rounded-xl text-xs" />
+          </div>
+        </div>
+
+        <!-- Team Logo URL -->
+        <div>
+          <label class="block text-[11px] font-black text-slate-700 mb-1">Custom Team Logo URL (Leave blank to use unique auto-badge)</label>
+          <input type="text" id="team-edit-logo-url" value="${team.logoUrl || team.teamLogoUrl || ''}" placeholder="https://..." class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs focus:border-indigo-500 focus:outline-none" />
+        </div>
+
+        <div class="pt-2 flex items-center justify-end gap-2">
+          <button type="button" id="cancel-edit-team-btn" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer">
+            Cancel
+          </button>
+          <button type="submit" class="px-5 py-2 bg-indigo-700 hover:bg-indigo-800 text-white font-black rounded-xl text-xs shadow-md cursor-pointer">
+            💾 Save Team Details
+          </button>
+        </div>
+      </form>
+    </div>
+  `;
+
+  document.body.appendChild(modalEl);
+
+  const closeModal = () => modalEl.remove();
+  document.getElementById('close-edit-team-modal-btn')?.addEventListener('click', closeModal);
+  document.getElementById('cancel-edit-team-btn')?.addEventListener('click', closeModal);
+
+  document.getElementById('admin-edit-team-form')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+
+    const name = document.getElementById('team-edit-name').value.trim();
+    const ownerName = document.getElementById('team-edit-owner-name').value.trim();
+    const ownerPhoto = document.getElementById('team-edit-owner-photo').value.trim();
+    const iconName = document.getElementById('team-edit-icon-name').value.trim();
+    const iconPhoto = document.getElementById('team-edit-icon-photo').value.trim();
+    const coOwnerName = document.getElementById('team-edit-co-owner-name').value.trim();
+    const coOwnerPhoto = document.getElementById('team-edit-co-owner-photo').value.trim();
+    const mentorName = document.getElementById('team-edit-mentor-name').value.trim();
+    const mentorPhoto = document.getElementById('team-edit-mentor-photo').value.trim();
+    const logoUrl = document.getElementById('team-edit-logo-url').value.trim();
+
+    const updatedTeam = {
+      ...team,
+      name,
+      ownerName,
+      ownerPhotoUrl: ownerPhoto,
+      ownerPhoto: ownerPhoto,
+      iconPlayerName: iconName,
+      iconName: iconName,
+      iconPlayerPhotoUrl: iconPhoto,
+      iconPhoto: iconPhoto,
+      coOwnerName,
+      coOwnerPhotoUrl: coOwnerPhoto,
+      mentorName,
+      mentorPhotoUrl: mentorPhoto,
+      logoUrl,
+      teamLogoUrl: logoUrl
+    };
+
+    store.updateTeam(updatedTeam);
+    alert(`✅ Team "${name}" details saved successfully!`);
+    closeModal();
+    if (typeof onSaveCallback === 'function') onSaveCallback();
+  });
+}
+
+/**
+ * Open Final Auction Summary & Roster Archives Modal (Permanent 5-Year Record)
+ */
+function openFinalAuctionSummaryModal(tourney, allTeams, allPlayers) {
+  document.getElementById('final-auction-summary-modal')?.remove();
+
+  const soldPlayers = allPlayers.filter(p => Number(p.soldPrice || p.boughtPrice || 0) > 0 || p.auctionStatus === 'SOLD');
+  const totalPurse = allTeams.reduce((sum, t) => sum + (Number(t.purseBudget || t.purse || tourney.teamPurse || 8000)), 0) || (allTeams.length * 8000);
+  const totalSpent = soldPlayers.reduce((sum, p) => sum + (Number(p.soldPrice || p.boughtPrice || 0)), 0);
+  const remainingPurse = Math.max(0, totalPurse - totalSpent);
+
+  const sortedTopBuys = [...soldPlayers].sort((a, b) => (Number(b.soldPrice || b.boughtPrice || 0) - Number(a.soldPrice || a.boughtPrice || 0))).slice(0, 8);
+
+  let activeSubTab = 'overview';
+
+  const modalEl = document.createElement('div');
+  modalEl.id = 'final-auction-summary-modal';
+  modalEl.className = 'fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto animate-fade-in text-slate-900';
+
+  const renderContent = () => {
+    modalEl.innerHTML = `
+      <div class="bg-white rounded-3xl border-2 border-amber-400 shadow-2xl max-w-4xl w-full max-h-[94vh] flex flex-col overflow-hidden my-auto text-slate-900">
+        
+        <!-- MODAL HEADER -->
+        <div class="px-5 py-4 bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 text-slate-950 flex items-center justify-between border-b border-amber-300">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-2xl bg-amber-400 border border-amber-300 text-2xl flex items-center justify-center shadow-xs">
+              🏆
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="px-2 py-0.5 bg-slate-950 text-amber-300 font-mono font-black text-[9px] rounded-full uppercase tracking-wider">
+                  PERMANENT 5-YEAR RECORD
+                </span>
+                <span class="px-2 py-0.5 bg-emerald-100 text-emerald-900 font-bold text-[9px] rounded-full border border-emerald-300">
+                  🔒 LOCKED & PRESERVED
+                </span>
+              </div>
+              <h3 class="text-sm sm:text-lg font-black text-slate-950 leading-tight mt-0.5">
+                ${tourney.name} Official Final Auction Summary
+              </h3>
+            </div>
+          </div>
+
+          <button id="close-final-summary-modal-btn" class="w-8 h-8 rounded-full bg-slate-950/20 hover:bg-slate-950/30 text-slate-950 font-black flex items-center justify-center text-sm cursor-pointer transition-colors">
+            ✕
+          </button>
+        </div>
+
+        <!-- SUB-NAV TABS & ACTION BUTTONS BAR -->
+        <div class="p-3 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div class="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto">
+            <button id="modal-subtab-overview" class="px-3.5 py-1.5 rounded-xl font-black text-xs transition-all cursor-pointer flex items-center gap-1.5 ${activeSubTab === 'overview' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'}">
+              <span>📊</span> Overview & Top Buys
+            </button>
+            <button id="modal-subtab-squads" class="px-3.5 py-1.5 rounded-xl font-black text-xs transition-all cursor-pointer flex items-center gap-1.5 ${activeSubTab === 'squads' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'}">
+              <span>🛡️</span> Team Squads (${allTeams.length})
+            </button>
+            <button id="modal-subtab-players" class="px-3.5 py-1.5 rounded-xl font-black text-xs transition-all cursor-pointer flex items-center gap-1.5 ${activeSubTab === 'players' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'}">
+              <span>📋</span> All Players (${allPlayers.length})
+            </button>
+          </div>
+
+          <div class="flex items-center gap-2 shrink-0">
+            <button id="modal-btn-pdf" class="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white font-black text-xs rounded-xl shadow-xs flex items-center gap-1 cursor-pointer">
+              <span>📑</span> All Squads PDF
+            </button>
+            <button id="modal-btn-json" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-xs flex items-center gap-1 cursor-pointer">
+              <span>📥</span> JSON Archive
+            </button>
+          </div>
+        </div>
+
+        <!-- MODAL BODY -->
+        <div class="p-4 sm:p-6 overflow-y-auto space-y-5">
+          
+          ${activeSubTab === 'overview' ? `
+            <!-- 4 METRIC CARDS -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <!-- Total Purse -->
+              <div class="p-3.5 bg-amber-50/70 border-2 border-amber-300 rounded-2xl text-center space-y-0.5 shadow-2xs">
+                <span class="text-[9px] font-black uppercase text-amber-900 tracking-wider">TOTAL PURSE</span>
+                <div class="text-base sm:text-xl font-black text-slate-900 font-mono">₹ ${totalPurse.toLocaleString('en-IN')}</div>
+              </div>
+
+              <!-- Total Auction Spent -->
+              <div class="p-3.5 bg-rose-50/70 border-2 border-rose-300 rounded-2xl text-center space-y-0.5 shadow-2xs">
+                <span class="text-[9px] font-black uppercase text-rose-900 tracking-wider">TOTAL AUCTION SPENT</span>
+                <div class="text-base sm:text-xl font-black text-rose-700 font-mono">₹ ${totalSpent.toLocaleString('en-IN')}</div>
+              </div>
+
+              <!-- Total Remaining Purse -->
+              <div class="p-3.5 bg-emerald-50/70 border-2 border-emerald-300 rounded-2xl text-center space-y-0.5 shadow-2xs">
+                <span class="text-[9px] font-black uppercase text-emerald-900 tracking-wider">TOTAL REMAINING PURSE</span>
+                <div class="text-base sm:text-xl font-black text-emerald-700 font-mono">₹ ${remainingPurse.toLocaleString('en-IN')}</div>
+              </div>
+
+              <!-- Squad Players Sold -->
+              <div class="p-3.5 bg-sky-50/70 border-2 border-sky-300 rounded-2xl text-center space-y-0.5 shadow-2xs">
+                <span class="text-[9px] font-black uppercase text-sky-900 tracking-wider">SQUAD PLAYERS SOLD</span>
+                <div class="text-base sm:text-xl font-black text-sky-800 font-mono">${soldPlayers.length} / ${allPlayers.length}</div>
+              </div>
+            </div>
+
+            <!-- TOP 8 HIGHEST BUYS GRID -->
+            <div class="bg-white p-4 rounded-3xl border-2 border-slate-200 shadow-sm space-y-3">
+              <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                <h4 class="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <span>🔥</span> TOP HIGHEST BUYS OF ${tourney.name} AUCTION
+                </h4>
+                <span class="text-[10px] font-bold text-slate-400">Top 8 Bids</span>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                ${sortedTopBuys.map((p, idx) => {
+                  const team = allTeams.find(t => t.id === p.teamId);
+                  const soldAmt = Number(p.soldPrice || p.boughtPrice || 0);
+                  const photo = p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png';
+
+                  return `
+                    <div class="p-3 bg-slate-50/80 border border-slate-200 rounded-2xl flex items-center justify-between gap-3 hover:border-amber-400 transition-all">
+                      <div class="flex items-center gap-3 min-w-0">
+                        <span class="w-7 h-7 rounded-xl bg-amber-100 text-amber-900 border border-amber-300 font-mono font-black text-xs flex items-center justify-center shrink-0">
+                          #${idx + 1}
+                        </span>
+                        <div class="w-12 h-12 rounded-xl bg-white border border-slate-200 overflow-hidden shrink-0 shadow-2xs">
+                          <img src="${photo}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
+                        </div>
+                        <div class="min-w-0">
+                          <h5 class="text-xs sm:text-sm font-black text-slate-900 truncate leading-tight">${p.name}</h5>
+                          <div class="text-[10px] font-bold text-slate-600 truncate flex items-center gap-1">
+                            <span>🛡️</span> ${team?.name || p.teamName || 'Franchise Team'}
+                          </div>
+                          <span class="text-[9px] text-slate-400 font-medium">🏏 ${p.category || 'All-rounder'}</span>
+                        </div>
+                      </div>
+
+                      <div class="text-right shrink-0">
+                        <div class="text-xs sm:text-base font-mono font-black text-emerald-700">₹ ${soldAmt.toLocaleString('en-IN')}</div>
+                        <span class="text-[8px] font-black uppercase text-slate-400 block tracking-wider">FINAL BID</span>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+          ` : ''}
+
+          ${activeSubTab === 'squads' ? `
+            <!-- ALL TEAM SQUADS BREAKDOWN -->
+            <div class="space-y-4">
+              ${allTeams.map(t => {
+                const teamSquad = allPlayers.filter(p => p.teamId === t.id);
+                const spent = teamSquad.reduce((sum, p) => sum + Number(p.soldPrice || p.boughtPrice || 0), 0);
+                const purse = Number(t.purseBudget || t.purse || tourney.teamPurse || 8000);
+                const remaining = Math.max(0, purse - spent);
+
+                return `
+                  <div class="p-4 bg-white border-2 border-slate-200 rounded-3xl shadow-sm space-y-3">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                      <div class="flex items-center gap-2.5">
+                        <div class="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center">
+                          <img src="${t.logoUrl || t.teamLogoUrl || generateUniqueTeamBadge(t.name)}" class="w-full h-full object-cover" onerror="this.parentElement.innerHTML='🏏'" />
+                        </div>
+                        <div>
+                          <h4 class="text-xs sm:text-sm font-black text-slate-900">${t.name}</h4>
+                          <span class="text-[10px] text-slate-500 font-bold">Owner: ${t.ownerName || 'TBD'}</span>
+                        </div>
+                      </div>
+                      <div class="text-right font-mono">
+                        <div class="text-xs font-black text-slate-900">${teamSquad.length} Players</div>
+                        <div class="text-[10px] text-emerald-700 font-bold">Left: ₹${remaining.toLocaleString('en-IN')}</div>
+                      </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      ${teamSquad.map(p => `
+                        <div class="p-2 bg-slate-50 border border-slate-200 rounded-xl text-center">
+                          <div class="text-xs font-black text-slate-900 truncate">${p.name}</div>
+                          <div class="text-[9px] text-slate-500">${p.category || 'Player'}</div>
+                          <div class="text-[10px] font-mono font-black text-emerald-700 mt-0.5">₹${Number(p.soldPrice || 0).toLocaleString('en-IN')}</div>
+                        </div>
+                      `).join('')}
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          ` : ''}
+
+          ${activeSubTab === 'players' ? `
+            <!-- ALL 123 REGISTERED PLAYERS TABLE -->
+            <div class="bg-white p-4 rounded-3xl border-2 border-slate-200 shadow-sm overflow-x-auto">
+              <table class="w-full text-left text-xs">
+                <thead class="bg-slate-50 text-[10px] font-black uppercase text-slate-500 border-b border-slate-200">
+                  <tr>
+                    <th class="p-2">#</th>
+                    <th class="p-2">Player</th>
+                    <th class="p-2">Role</th>
+                    <th class="p-2">Status</th>
+                    <th class="p-2">Team</th>
+                    <th class="p-2 text-right">Sold Price</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 font-semibold">
+                  ${allPlayers.map((p, idx) => {
+                    const team = allTeams.find(t => t.id === p.teamId);
+                    const isSold = Number(p.soldPrice || 0) > 0 || p.teamId;
+
+                    return `
+                      <tr class="hover:bg-slate-50">
+                        <td class="p-2 text-slate-400 font-mono">${idx + 1}</td>
+                        <td class="p-2 font-bold text-slate-900">${p.name}</td>
+                        <td class="p-2 text-slate-500">${p.category || 'All-rounder'}</td>
+                        <td class="p-2">
+                          <span class="px-2 py-0.5 text-[9px] font-black rounded-full ${isSold ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}">
+                            ${isSold ? 'SOLD' : 'UNSOLD'}
+                          </span>
+                        </td>
+                        <td class="p-2 font-bold text-slate-700">${team?.name || p.teamName || '-'}</td>
+                        <td class="p-2 text-right font-mono font-black ${isSold ? 'text-emerald-700' : 'text-slate-400'}">
+                          ${isSold ? `₹ ${Number(p.soldPrice || p.basePrice || 300).toLocaleString('en-IN')}` : '-'}
+                        </td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          ` : ''}
+
+        </div>
+
+        <!-- MODAL FOOTER -->
+        <div class="px-5 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-[10px] text-slate-400 font-semibold">
+          <div class="flex items-center gap-1.5">
+            <span>🏛️</span> ${tourney.name} Archive Record Vault
+          </div>
+          <div>
+            Permanent Multi-Tenant Auction Architecture
+          </div>
+        </div>
+
+      </div>
+    `;
+
+    document.getElementById('close-final-summary-modal-btn')?.addEventListener('click', () => modalEl.remove());
+
+    document.getElementById('modal-subtab-overview')?.addEventListener('click', () => {
+      activeSubTab = 'overview';
+      renderContent();
+    });
+
+    document.getElementById('modal-subtab-squads')?.addEventListener('click', () => {
+      activeSubTab = 'squads';
+      renderContent();
+    });
+
+    document.getElementById('modal-subtab-players')?.addEventListener('click', () => {
+      activeSubTab = 'players';
+      renderContent();
+    });
+
+    document.getElementById('modal-btn-pdf')?.addEventListener('click', () => {
+      if (typeof window.print === 'function') window.print();
+    });
+
+    document.getElementById('modal-btn-json')?.addEventListener('click', () => {
+      document.getElementById('btn-download-json-backup')?.click();
+    });
+  };
+
+  document.body.appendChild(modalEl);
+  renderContent();
 }
 
 // --- LIVE TOURNAMENT COUNTDOWN CLOCK (31 AUGUST 2026, 9:00 AM IST) ---
@@ -3068,7 +3788,7 @@ function openFullPlayerProfileModal(player) {
         </div>
 
         <!-- DETAILED PROFILE INFORMATION GRID -->
-        <div class="grid grid-cols-2 gap-2 text-left bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs">
+        <div class="grid grid-cols-2 gap-2 text-left bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs font-semibold">
           <div class="space-y-0.5">
             <span class="text-[8px] text-slate-500 uppercase font-bold block">Father's Name</span>
             <span class="font-extrabold text-slate-900 truncate block">${player.fatherName || 'N/A'}</span>
@@ -3081,12 +3801,25 @@ function openFullPlayerProfileModal(player) {
 
           <div class="space-y-0.5">
             <span class="text-[8px] text-slate-500 uppercase font-bold block">Mobile Phone</span>
-            <span class="font-extrabold text-emerald-700 font-mono block">📞 ${player.phone || 'N/A'}</span>
+            <span class="font-extrabold text-emerald-700 font-mono block">
+              📞 ${(() => {
+                const isPrivileged = store.isAdminAuthenticated ? store.isAdminAuthenticated() : false;
+                const pPhone = (player.phone || player.mobile || '').replace(/[^0-9]/g, '');
+                if (!pPhone) return 'N/A';
+                if (isPrivileged) return pPhone;
+                return '*******' + pPhone.slice(-2);
+              })()}
+            </span>
           </div>
 
           <div class="space-y-0.5">
-            <span class="text-[8px] text-slate-500 uppercase font-bold block">Alt Mobile</span>
-            <span class="font-bold text-slate-700 font-mono block">${player.alternateMobile || 'N/A'}</span>
+            <span class="text-[8px] text-slate-500 uppercase font-bold block">Registration Time</span>
+            <span class="font-bold text-slate-700 font-mono text-[11px] block">
+              🕒 ${(() => {
+                const d = player.created_at ? new Date(player.created_at) : (player.regDate ? new Date(player.regDate) : new Date());
+                return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) + ', ' + d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+              })()}
+            </span>
           </div>
 
           <div class="space-y-0.5">

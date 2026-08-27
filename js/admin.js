@@ -65,17 +65,43 @@ export function renderAdminDashboard(containerEl) {
     `;
   }
 
+  // Build tournament list for selector (Scoped strictly to owned tournaments for non-master admins)
+  const customTournaments = store.getCustomTournaments ? store.getCustomTournaments() : [];
+  let allTournaments = customTournaments.map(t => ({ id: t.supabaseId || t.id, name: t.name, slug: t.slug, status: t.status || 'ACTIVE' }));
+  
+  if (!isMaster && currentUser) {
+    const userPhone = (currentUser.phone || currentUser.mobile || '').replace(/[^0-9]/g, '');
+    const owners = store.getTournamentOwners ? store.getTournamentOwners() : {};
+    const ownedIds = [];
+    
+    for (const [tId, ownerInfo] of Object.entries(owners)) {
+      if (ownerInfo && (ownerInfo.phone || '').replace(/[^0-9]/g, '') === userPhone) {
+        ownedIds.push(tId.toLowerCase());
+      }
+    }
+    if (Array.isArray(currentUser.ownedTournaments)) {
+      currentUser.ownedTournaments.forEach(id => {
+        if (id && !ownedIds.includes(id.toLowerCase())) ownedIds.push(id.toLowerCase());
+      });
+    }
+
+    if (ownedIds.length > 0) {
+      allTournaments = allTournaments.filter(t => {
+        const tId = (t.id || '').toLowerCase();
+        const tSlug = (t.slug || '').toLowerCase();
+        return ownedIds.some(oid => oid.includes(tId) || tId.includes(oid) || oid.includes(tSlug) || tSlug.includes(oid));
+      });
+    }
+  }
+
+  if (allTournaments.length === 0) allTournaments.push({ id: store.activeTournamentId || 'default', name: 'My Tournament', slug: 'default', status: 'ACTIVE' });
+  const activeTid = (allTournaments.some(t => t.id === store.activeTournamentId) ? store.activeTournamentId : allTournaments[0]?.id) || allTournaments[0]?.id;
+
   const activeTourneyName = allTournaments.find(t => t.id === activeTid)?.name || 'Tournament';
   const panelTitle = isMaster ? 'Master Admin Control Panel' : `${activeTourneyName} Control Console`;
   const panelSubtitle = isMaster 
     ? `Log ID: <strong class="text-amber-400">${currentUser?.email || 'Master Admin'}</strong> • Single Source Supabase & Realtime Cloud Database`
     : `Logged in as: <strong class="text-amber-400">${currentUser?.name || 'Tournament Owner'}</strong> • Tournament Operations Only`;
-
-  // Build tournament list for selector
-  const customTournaments = store.getCustomTournaments ? store.getCustomTournaments() : [];
-  const allTournaments = customTournaments.map(t => ({ id: t.supabaseId || t.id, name: t.name, slug: t.slug, status: t.status || 'ACTIVE' }));
-  if (allTournaments.length === 0) allTournaments.push({ id: store.activeTournamentId || 'default', name: 'Default Tournament', slug: 'default', status: 'ACTIVE' });
-  const activeTid = store.activeTournamentId || allTournaments[0]?.id;
 
   // Sidebar nav items config
   const sidebarItems = [
@@ -895,9 +921,14 @@ export function renderAdminDashboard(containerEl) {
 
             <!-- List Scheduled Fixtures -->
             <div class="p-4 sm:p-5 bg-white border-2 border-slate-200 rounded-3xl shadow-sm space-y-3.5 md:col-span-2">
-              <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
-                <i data-lucide="calendar" class="w-5 h-5 text-sky-600"></i> Scheduled Matches
-              </h3>
+              <div class="flex items-center justify-between flex-wrap gap-2">
+                <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
+                  <i data-lucide="calendar" class="w-5 h-5 text-sky-600"></i> Scheduled Matches
+                </h3>
+                <button type="button" id="admin-clear-all-fixtures-btn" class="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-black text-xs rounded-xl border border-rose-300 shadow-2xs flex items-center gap-1 cursor-pointer transition-all">
+                  🗑️ Clear All Matches
+                </button>
+              </div>
               <div class="overflow-x-auto border border-slate-200 rounded-2xl">
                 <table class="w-full text-left text-xs sm:text-sm text-slate-800">
                   <thead class="bg-slate-100 text-[10px] uppercase text-slate-700 font-black border-b border-slate-200">
@@ -2775,6 +2806,22 @@ function renderAdminFixturesList() {
         alert("✅ Match has been deleted successfully!");
       }
     });
+  });
+
+  // Clear all matches button listener
+  document.getElementById('admin-clear-all-fixtures-btn')?.addEventListener('click', () => {
+    const fixtures = store.getFixtures();
+    if (fixtures.length === 0) {
+      alert("ℹ️ There are no scheduled matches to delete.");
+      return;
+    }
+
+    if (confirm(`⚠️ DANGER: Delete ALL Matches Confirmation\n\nAre you sure you want to permanently delete ALL ${fixtures.length} scheduled and completed matches?\n\nThis will clear the entire match schedule from the system.`)) {
+      fixtures.forEach(f => store.deleteFixture(f.id));
+      renderAdminFixturesList();
+      renderScorerMatchesList();
+      alert(`✅ All ${fixtures.length} matches have been cleared successfully!`);
+    }
   });
 }
 
@@ -6759,16 +6806,19 @@ export function renderAdminSaasTournamentsPanel() {
 
                 <td class="py-2.5 px-3 text-right">
                   <div class="flex items-center justify-end gap-1.5 flex-wrap">
+                    <button type="button" class="btn-edit-tourney px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-lg text-[10px] font-black cursor-pointer flex items-center gap-1 shadow-2xs" data-id="${t.id}">
+                      ✏️ Edit
+                    </button>
                     ${isAuction ? `
-                      <button type="button" class="btn-test-reg-modal px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-[10px] font-black cursor-pointer" data-slug="${t.slug}">
+                      <button type="button" class="btn-test-reg-modal px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-[10px] font-black cursor-pointer shadow-2xs" data-slug="${t.slug}">
                         📝 Test Reg
                       </button>
                     ` : ''}
-                    <button type="button" class="btn-open-hub-link px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-300 rounded-lg text-[10px] font-black cursor-pointer" data-slug="${t.slug}">
+                    <button type="button" class="btn-open-hub-link px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-300 rounded-lg text-[10px] font-black cursor-pointer shadow-2xs" data-slug="${t.slug}">
                       🌐 Hub
                     </button>
-                    <button type="button" class="btn-delete-tourney px-1.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-[10px] font-black cursor-pointer" data-id="${t.id}" data-name="${t.name}">
-                      ✕
+                    <button type="button" class="btn-delete-tourney px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-[10px] font-black cursor-pointer shadow-2xs" data-id="${t.id}" data-name="${t.name}">
+                      🗑️ Delete
                     </button>
                   </div>
                 </td>
@@ -6781,6 +6831,16 @@ export function renderAdminSaasTournamentsPanel() {
   `;
 
   // Attach Table Action Listeners
+  container.querySelectorAll('.btn-edit-tourney').forEach(b => {
+    b.addEventListener('click', (e) => {
+      const id = e.currentTarget.getAttribute('data-id');
+      const t = tourneys.find(item => item.id === id);
+      if (t) {
+        openEditTournamentModal(t, () => renderAdminSaasTournamentsPanel());
+      }
+    });
+  });
+
   container.querySelectorAll('.btn-test-reg-modal').forEach(b => {
     b.addEventListener('click', (e) => {
       const slug = e.currentTarget.getAttribute('data-slug');
@@ -6803,10 +6863,212 @@ export function renderAdminSaasTournamentsPanel() {
     b.addEventListener('click', async (e) => {
       const id = e.currentTarget.getAttribute('data-id');
       const name = e.currentTarget.getAttribute('data-name');
-      if (confirm(`⚠️ Are you sure you want to delete tournament "${name}"?`)) {
+      if (confirm(`⚠️ Are you sure you want to permanently delete tournament "${name}"?\n\nThis will remove this tournament, its settings, and organizer access.`)) {
         await store.deleteCustomTournament(id);
+        renderAdminSaasTournamentsPanel();
       }
     });
+  });
+}
+
+/**
+ * Super Admin Modal: Full Tournament Editor & Admin Password Updater
+ */
+function openEditTournamentModal(tourney, onSaveCallback) {
+  document.getElementById('edit-tournament-modal')?.remove();
+
+  const isAuction = (tourney.mode === 'AUCTION_LEAGUE');
+  const orgName = tourney.organizer?.name || '';
+  const orgPhone = tourney.organizer?.phone || '';
+
+  const modalEl = document.createElement('div');
+  modalEl.id = 'edit-tournament-modal';
+  modalEl.className = 'fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-950/70 backdrop-blur-xs overflow-y-auto animate-fade-in';
+
+  modalEl.innerHTML = `
+    <div class="bg-white rounded-3xl border-2 border-amber-400 shadow-2xl max-w-2xl w-full max-h-[92vh] flex flex-col overflow-hidden text-slate-900 my-auto">
+      <!-- Header -->
+      <div class="px-5 py-4 bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 text-slate-950 flex items-center justify-between shadow-xs">
+        <div class="flex items-center gap-2.5">
+          <span class="p-2 bg-slate-950 text-amber-400 rounded-xl text-lg font-black shadow-xs">✏️</span>
+          <div>
+            <h3 class="text-base font-black tracking-wide text-slate-950">Edit Tournament & Admin Access</h3>
+            <p class="text-[11px] text-slate-900 font-bold opacity-90">Modify details, dates, fees or reset organizer login password</p>
+          </div>
+        </div>
+        <button id="close-edit-tourney-modal-btn" class="w-8 h-8 rounded-xl bg-slate-950/20 hover:bg-slate-950/40 text-slate-950 font-black flex items-center justify-center text-sm cursor-pointer transition-colors">
+          ✕
+        </button>
+      </div>
+
+      <!-- Form Body -->
+      <form id="edit-tourney-form" class="p-5 overflow-y-auto space-y-4 text-xs font-semibold">
+        <!-- Section 1: Tournament Identity -->
+        <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+          <div class="flex items-center gap-2 text-amber-800 font-black text-xs uppercase tracking-wider">
+            <span>🏆</span> Tournament Information
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[11px] font-black text-slate-700 mb-1">Tournament Name *</label>
+              <input type="text" id="edit-tourney-name" required value="${tourney.name || ''}" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-bold focus:border-amber-500 focus:outline-none" />
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-black text-slate-700 mb-1">Short Slug / Code *</label>
+              <input type="text" id="edit-tourney-slug" required value="${tourney.slug || ''}" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-mono font-bold focus:border-amber-500 focus:outline-none" />
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-black text-slate-700 mb-1">Ground / Venue</label>
+              <input type="text" id="edit-tourney-venue" value="${tourney.venue || ''}" placeholder="e.g. Eden Gardens, Kolkata" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-bold focus:border-amber-500 focus:outline-none" />
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-black text-slate-700 mb-1">Dates / Season</label>
+              <input type="text" id="edit-tourney-dates" value="${tourney.dates || ''}" placeholder="e.g. 15-20 October 2026" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-bold focus:border-amber-500 focus:outline-none" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 2: Mode & Financials -->
+        <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+          <div class="flex items-center gap-2 text-emerald-800 font-black text-xs uppercase tracking-wider">
+            <span>⚙️</span> Mode & Financial Rules
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-[11px] font-black text-slate-700 mb-1">Operating Mode</label>
+              <select id="edit-tourney-mode" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-bold focus:border-emerald-500 focus:outline-none">
+                <option value="AUCTION_LEAGUE" ${tourney.mode === 'AUCTION_LEAGUE' ? 'selected' : ''}>Mode A: Player Reg + Auction</option>
+                <option value="FIXTURES_ONLY" ${tourney.mode === 'FIXTURES_ONLY' ? 'selected' : ''}>Mode B: Teams & Live Scoring</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-black text-slate-700 mb-1">Player Entry Fee (₹)</label>
+              <input type="number" id="edit-tourney-entry-fee" value="${tourney.entryFee || 300}" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-mono font-bold focus:border-emerald-500 focus:outline-none" />
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-black text-slate-700 mb-1">Team Auction Purse (₹)</label>
+              <input type="number" id="edit-tourney-purse" value="${tourney.teamPurse || 8000}" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-mono font-bold focus:border-emerald-500 focus:outline-none" />
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-black text-slate-700 mb-1">Rule / Player Eligibility Restriction</label>
+            <input type="text" id="edit-tourney-rules" value="${tourney.ruleRestriction || ''}" placeholder="e.g. Open to all local district players" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-bold focus:border-emerald-500 focus:outline-none" />
+          </div>
+        </div>
+
+        <!-- Section 3: Organizer Admin Credentials -->
+        <div class="p-3.5 bg-amber-50/70 border border-amber-300 rounded-2xl space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2 text-amber-950 font-black text-xs uppercase tracking-wider">
+              <span>👑</span> Organizer / Admin Access
+            </div>
+            <span class="px-2 py-0.5 bg-amber-200 text-amber-950 rounded-full text-[9px] font-black">Login ID & Password</span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-[11px] font-black text-slate-700 mb-1">Admin / Organizer Name</label>
+              <input type="text" id="edit-tourney-org-name" value="${orgName}" placeholder="e.g. Gourav Roy" class="w-full px-3 py-2 bg-white border border-amber-300 rounded-xl text-slate-900 text-xs font-bold focus:border-amber-600 focus:outline-none" />
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-black text-slate-700 mb-1">Admin Phone (Login ID) *</label>
+              <input type="text" id="edit-tourney-org-phone" required maxlength="10" value="${orgPhone}" placeholder="10-digit mobile" class="w-full px-3 py-2 bg-white border border-amber-300 rounded-xl text-slate-900 text-xs font-mono font-bold focus:border-amber-600 focus:outline-none" />
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-black text-slate-700 mb-1">Change Admin Password</label>
+              <input type="text" id="edit-tourney-org-password" placeholder="Leave blank to keep unchanged" class="w-full px-3 py-2 bg-white border border-amber-300 rounded-xl text-slate-900 text-xs font-mono font-bold focus:border-amber-600 focus:outline-none" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Action Buttons Footer -->
+        <div class="pt-2 flex items-center justify-end gap-2.5">
+          <button type="button" id="cancel-edit-tourney-btn" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer transition-colors">
+            Cancel
+          </button>
+          <button type="submit" class="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white font-black rounded-xl text-xs shadow-md flex items-center gap-1.5 cursor-pointer transition-all border border-emerald-500">
+            💾 Save & Update Tournament
+          </button>
+        </div>
+      </form>
+    </div>
+  `;
+
+  document.body.appendChild(modalEl);
+
+  const closeModal = () => modalEl.remove();
+  document.getElementById('close-edit-tourney-modal-btn')?.addEventListener('click', closeModal);
+  document.getElementById('cancel-edit-tourney-btn')?.addEventListener('click', closeModal);
+
+  document.getElementById('edit-tourney-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const name = document.getElementById('edit-tourney-name').value.trim();
+    const slug = document.getElementById('edit-tourney-slug').value.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+    const venue = document.getElementById('edit-tourney-venue').value.trim();
+    const dates = document.getElementById('edit-tourney-dates').value.trim();
+    const mode = document.getElementById('edit-tourney-mode').value;
+    const entryFee = Number(document.getElementById('edit-tourney-entry-fee').value) || 300;
+    const teamPurse = Number(document.getElementById('edit-tourney-purse').value) || 8000;
+    const ruleRestriction = document.getElementById('edit-tourney-rules').value.trim();
+    const orgNameInput = document.getElementById('edit-tourney-org-name').value.trim();
+    const orgPhoneInput = document.getElementById('edit-tourney-org-phone').value.trim().replace(/[^0-9]/g, '');
+    const newPassword = document.getElementById('edit-tourney-org-password').value.trim();
+
+    if (!name || !slug) {
+      alert("Please provide both Tournament Name and Slug!");
+      return;
+    }
+
+    if (!orgPhoneInput || orgPhoneInput.length < 10) {
+      alert("Please enter a valid 10-digit Admin Mobile Number!");
+      return;
+    }
+
+    const updatedData = {
+      ...tourney,
+      name,
+      slug,
+      venue,
+      dates,
+      mode,
+      entryFee,
+      teamPurse,
+      ruleRestriction,
+      organizer: {
+        ...(tourney.organizer || {}),
+        name: orgNameInput || 'Tournament Organizer',
+        phone: orgPhoneInput,
+        ...(newPassword ? { password: newPassword } : {})
+      }
+    };
+
+    // Save update via store
+    await store.saveCustomTournament(updatedData);
+
+    // If new password provided, also update in user account and tournament owners registry
+    if (newPassword) {
+      const accounts = store.getUserAccounts ? store.getUserAccounts() : [];
+      const acc = accounts.find(a => a.phone === orgPhoneInput);
+      if (acc) {
+        acc.password = newPassword;
+        safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, accounts);
+      }
+    }
+
+    alert(`✅ Tournament "${name}" updated successfully!`);
+    closeModal();
+    if (typeof onSaveCallback === 'function') onSaveCallback();
   });
 }
 
