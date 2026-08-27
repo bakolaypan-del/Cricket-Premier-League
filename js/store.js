@@ -674,7 +674,11 @@ class Store {
       return getPlayerTimestamp(a) - getPlayerTimestamp(b);
     });
 
-    return uniquePlayers.map((p, idx) => {
+    const filtered = this.activeTournamentId
+      ? uniquePlayers.filter(p => p.tournament_id === this.activeTournamentId || p.tournamentId === this.activeTournamentId)
+      : uniquePlayers;
+
+    return filtered.map((p, idx) => {
       const canonicalSl = (p.id && p.id.startsWith('ply-1787000000000-')) 
         ? parseInt(p.id.replace('ply-1787000000000-', ''), 10)
         : (idx + 1);
@@ -1179,7 +1183,11 @@ class Store {
       }
     }
     
-    return deduped.map((t, idx) => {
+    const filteredTeams = this.activeTournamentId
+      ? deduped.filter(t => t.tournament_id === this.activeTournamentId || t.tournamentId === this.activeTournamentId)
+      : deduped;
+
+    return filteredTeams.map((t, idx) => {
       const iconPlayerName = (t.iconPlayerName || t.iconName || '').trim().toLowerCase();
       const hasIcon = !!iconPlayerName;
       const iconDeduction = hasIcon ? 1000 : 0;
@@ -1390,7 +1398,9 @@ class Store {
 
   // --- FIXTURES ---
   getFixtures() {
-    return JSON.parse(localStorage.getItem(STORAGE_KEYS.FIXTURES)) || [];
+    const all = JSON.parse(localStorage.getItem(STORAGE_KEYS.FIXTURES)) || [];
+    if (!this.activeTournamentId) return all;
+    return all.filter(f => f.tournament_id === this.activeTournamentId || f.tournamentId === this.activeTournamentId);
   }
 
   registerFixture(fixtureData) {
