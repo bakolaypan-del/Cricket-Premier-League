@@ -385,31 +385,29 @@ class Store {
           this.notify('user_accounts_updated');
         }
 
-        // 6. Sync Custom Tournaments from Cloud
+        // 6. Sync Custom Tournaments from Cloud (Authoritative Realtime Sync across all browsers)
         const cloudTourneys = await fetchCustomTournamentsFromCloud();
         if (Array.isArray(cloudTourneys) && cloudTourneys.length > 0) {
           const local = JSON.parse(localStorage.getItem(STORAGE_KEYS.CUSTOM_TOURNAMENTS) || '[]');
-          const localSlugs = new Set(local.map(t => t.slug));
-          const localIds = new Set(local.map(t => t.id));
-          let merged = [...local];
-          let changed = false;
-          for (const ct of cloudTourneys) {
-            if (localSlugs.has(ct.slug)) {
-              const idx = merged.findIndex(t => t.slug === ct.slug);
-              if (idx >= 0 && !merged[idx].supabaseId && ct.supabaseId) {
-                merged[idx].supabaseId = ct.supabaseId;
-                merged[idx].tournament_id = ct.tournament_id;
-                changed = true;
-              }
-            } else if (!localIds.has(ct.id)) {
-              merged.push(ct);
-              changed = true;
+          const cloudMap = new Map();
+          
+          // Add cloud tournaments first
+          cloudTourneys.forEach(ct => {
+            const key = (ct.slug || ct.id).toLowerCase();
+            cloudMap.set(key, ct);
+          });
+
+          // Keep any purely local un-synced drafts if present
+          local.forEach(lt => {
+            const key = (lt.slug || lt.id).toLowerCase();
+            if (!cloudMap.has(key)) {
+              cloudMap.set(key, lt);
             }
-          }
-          if (changed) {
-            safeSetLocalStorage(STORAGE_KEYS.CUSTOM_TOURNAMENTS, merged);
-            this.notify('custom_tournaments_updated');
-          }
+          });
+
+          const merged = Array.from(cloudMap.values());
+          safeSetLocalStorage(STORAGE_KEYS.CUSTOM_TOURNAMENTS, merged);
+          this.notify('custom_tournaments_updated');
         }
 
         // 7. Sync Tournament Formats (Group stages)
