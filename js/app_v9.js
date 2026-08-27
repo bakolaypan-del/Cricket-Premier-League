@@ -245,6 +245,13 @@ window.addEventListener('popstate', (e) => {
   }
 });
 
+window.addEventListener('hashchange', () => {
+  const hash = location.hash.replace(/^#/, '');
+  if (hash && hash !== currentRoute) {
+    navigate(hash, false);
+  }
+});
+
 // --- PWA MOBILE APP INSTALLATION HANDLER ---
 function handleInstallAppClick() {
   if (deferredPrompt) {
@@ -1100,14 +1107,16 @@ function renderCurrentView() {
   } else if (currentRoute.startsWith('reg-')) {
     const slug = currentRoute.replace(/^reg-/, '');
     const regTourney = store.getCustomTournamentById(slug);
-    if (regTourney?.supabaseId) store.setActiveTournament(regTourney.supabaseId);
+    const regTid = regTourney?.supabaseId || regTourney?.tournament_id || regTourney?.id;
+    if (regTid) store.setActiveTournament(regTid);
     renderFirstPageLanding(container);
     setTimeout(() => openDynamicTournamentRegistrationModal(slug), 100);
   } else if (currentRoute.startsWith('t/')) {
     const slug = currentRoute.replace(/^t\//, '');
     const tourney = store.getCustomTournamentById(slug);
     if (tourney) {
-      if (tourney.supabaseId) store.setActiveTournament(tourney.supabaseId);
+      const tid = tourney.supabaseId || tourney.tournament_id || tourney.id;
+      if (tid) store.setActiveTournament(tid);
       renderCustomTournamentHub(container, tourney);
     } else {
       renderFirstPageLanding(container);
@@ -1356,32 +1365,40 @@ function renderFirstPageLanding(containerEl) {
 
       <!-- CUSTOM TOURNAMENTS SECTION IF AVAILABLE -->
       ${store.getCustomTournaments().length > 0 ? `
-        <div class="w-full max-w-4xl mx-auto px-2 pt-4 space-y-3">
+        <div class="w-full max-w-4xl mx-auto px-2 pt-5 space-y-3">
           <div class="flex items-center justify-between">
-            <h3 class="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-              <span>🏟️</span> Active Community Tournaments (${store.getCustomTournaments().length})
+            <h3 class="text-sm sm:text-base font-black text-slate-900 flex items-center gap-2">
+              Tournaments
+              <span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-full border border-emerald-200">${store.getCustomTournaments().length}</span>
             </h3>
+            <span class="text-slate-400 text-lg font-bold cursor-pointer">»</span>
           </div>
-          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
             ${store.getCustomTournaments().map(ct => `
-              <div class="bg-white border-2 border-emerald-400/40 hover:border-emerald-500 rounded-2xl p-4 shadow-sm hover:shadow-md transition-all flex flex-col justify-between space-y-3">
-                <div class="flex items-start gap-3">
-                  <span class="w-10 h-10 rounded-xl ${ct.mode === 'AUCTION_LEAGUE' ? 'bg-amber-100 text-amber-900' : 'bg-emerald-100 text-emerald-900'} flex items-center justify-center text-xl font-black shrink-0">
-                    ${ct.mode === 'AUCTION_LEAGUE' ? '🔨' : '🏏'}
-                  </span>
-                  <div class="min-w-0">
-                    <span class="text-[9px] font-mono px-2 py-0.5 bg-slate-100 text-slate-700 font-bold rounded-full">${ct.shortCode || 'LEAGUE'}</span>
-                    <h4 class="text-sm font-black text-slate-900 truncate mt-0.5">${ct.name}</h4>
-                    <p class="text-[10.5px] text-slate-500 truncate">📍 ${ct.venue || 'Ground'} • ₹${ct.entryFee || 0} Fee</p>
+              <div data-nav-route="t/${ct.slug}" class="group block bg-white rounded-2xl shadow-md hover:shadow-lg overflow-hidden transition-all no-underline border border-slate-200 hover:border-emerald-400 cursor-pointer">
+                <!-- Poster Banner -->
+                <div class="relative w-full aspect-[16/10] bg-gradient-to-br ${ct.mode === 'AUCTION_LEAGUE' ? 'from-amber-900 via-amber-800 to-yellow-900' : 'from-emerald-900 via-teal-800 to-emerald-900'} overflow-hidden">
+                  ${ct.posterUrl ? `
+                    <img src="${ct.posterUrl}" class="w-full h-full object-cover" onerror="this.style.display='none'" />
+                  ` : `
+                    <div class="absolute inset-0 flex flex-col items-center justify-center text-white p-4 text-center">
+                      <div class="text-3xl mb-1">${ct.mode === 'AUCTION_LEAGUE' ? '🏆' : '🏏'}</div>
+                      <div class="text-base sm:text-lg font-black uppercase leading-tight tracking-wide">${ct.name}</div>
+                      <div class="text-[10px] font-bold mt-1 opacity-70">${ct.kickoffDate || ''}</div>
+                    </div>
+                  `}
+                  <!-- Live/Status badge overlay -->
+                  <div class="absolute top-2.5 left-2.5">
+                    <span class="px-2 py-0.5 bg-emerald-500 text-white text-[9px] font-black rounded-full uppercase shadow-sm flex items-center gap-1">
+                      <span class="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span> LIVE
+                    </span>
                   </div>
                 </div>
-                <div class="flex items-center gap-2 pt-1 border-t border-slate-100">
-                  <a href="#t/${ct.slug}" class="flex-1 py-1.5 text-center bg-slate-900 hover:bg-slate-800 text-white font-black text-[11px] rounded-lg shadow-xs no-underline">
-                    View Hub
-                  </a>
-                  <a href="#register/${ct.slug}" class="flex-1 py-1.5 text-center bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[11px] rounded-lg shadow-xs no-underline">
-                    Register ➔
-                  </a>
+                <!-- Info Footer -->
+                <div class="p-3.5 space-y-0.5">
+                  <div class="text-[10px] text-slate-500 font-bold">📍 ${ct.venue || 'Cricket Ground'}</div>
+                  <h4 class="text-sm font-black text-slate-900 truncate group-hover:text-emerald-700 transition-colors">${ct.name}</h4>
+                  <div class="text-[11px] text-slate-500 font-medium">${ct.organizer?.name || 'Tournament Organizer'}</div>
                 </div>
               </div>
             `).join('')}
@@ -1393,6 +1410,11 @@ function renderFirstPageLanding(containerEl) {
 
     </div>
   `;
+
+  // Wire up tournament card clicks
+  document.querySelectorAll('[data-nav-route]').forEach(el => {
+    el.addEventListener('click', () => navigate(el.dataset.navRoute));
+  });
 
   // START COUNTDOWN TIMER (31 AUGUST 2026)
   initTournamentCountdown();
@@ -1409,67 +1431,377 @@ export function renderCustomTournamentHub(container, tourney) {
   if (!container || !tourney) return;
   const isAuction = (tourney.mode === 'AUCTION_LEAGUE');
 
+  const tid = tourney.supabaseId || tourney.tournament_id || tourney.id;
+  const allPlayers = store.getPlayers().filter(p =>
+    p.tournament_id === tid || p.tournamentId === tourney.id || p.tournamentSlug === tourney.slug
+  );
+  const allTeams = store.getTeams().filter(t =>
+    t.tournament_id === tid || t.tournamentId === tourney.id
+  );
+  const allFixtures = store.getFixtures ? store.getFixtures().filter(f => f.tournament_id === tid || f.tournamentId === tourney.id || f.leagueCode === (tourney.shortCode || '').toUpperCase()) : [];
+
+  const pendingPlayers = allPlayers.filter(p => (p.registrationStatus || p.paymentStatus || '').toUpperCase().includes('PENDING'));
+  const approvedPlayers = allPlayers.filter(p => {
+    const s = (p.registrationStatus || p.paymentStatus || '').toUpperCase();
+    return s.includes('APPROVED') || s.includes('VERIFIED') || s === 'SOLD';
+  });
+  const soldPlayers = allPlayers.filter(p => p.teamId || p.auctionStatus === 'SOLD');
+
+  // Top run scorers & wicket takers
+  const topBatsman = allPlayers.filter(p => (p.totalRuns || 0) > 0).sort((a, b) => (b.totalRuns || 0) - (a.totalRuns || 0))[0];
+  const topBowler = allPlayers.filter(p => (p.totalWickets || 0) > 0).sort((a, b) => (b.totalWickets || 0) - (a.totalWickets || 0))[0];
+
+  let hubTab = 'home';
+  try { hubTab = sessionStorage.getItem('cpl_hub_tab_' + tourney.slug) || 'home'; } catch(e) {}
+
+  const hubTabs = [
+    { id: 'home', label: 'HOME' },
+    { id: 'teams', label: 'TEAMS' },
+    { id: 'matches', label: 'MATCHES' },
+    { id: 'players', label: 'PLAYERS' },
+    { id: 'stats', label: 'STATISTICS' },
+  ];
+
   container.innerHTML = `
-    <div class="w-full max-w-4xl mx-auto space-y-5 sm:space-y-6 animate-fade-in py-4 px-2 sm:px-4 text-slate-900">
-      
-      <!-- HERO CARD -->
-      <div class="bg-white border-2 border-slate-200 rounded-3xl p-5 sm:p-6 shadow-md relative overflow-hidden space-y-4">
-        <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div class="flex items-center gap-3.5">
-            <span class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl ${isAuction ? 'bg-amber-100 text-amber-900 border-amber-300' : 'bg-emerald-100 text-emerald-900 border-emerald-300'} border flex items-center justify-center text-2xl sm:text-3xl font-black shrink-0 shadow-xs">
-              ${isAuction ? '🔨' : '🏏'}
-            </span>
-            <div>
-              <div class="flex items-center gap-2">
-                <span class="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-full border border-emerald-300 uppercase">
-                  ${tourney.shortCode || 'LEAGUE'} • ${isAuction ? 'AUCTION LEAGUE' : 'FIXTURES'}
-                </span>
-                <span class="text-xs text-slate-400 font-bold">📍 ${tourney.venue || 'Cricket Ground'}</span>
+    <div class="w-full max-w-4xl mx-auto animate-fade-in text-slate-900">
+
+      <!-- TOP BAR -->
+      <div class="flex items-center gap-3 py-3 px-2 sm:px-4">
+        <button id="btn-custom-hub-back" class="p-2 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer">
+          <i data-lucide="arrow-left" class="w-5 h-5 text-slate-700"></i>
+        </button>
+        <h2 class="text-sm sm:text-base font-black text-slate-900 flex-1 text-center">Tournament</h2>
+        <button id="btn-custom-hub-admin" class="p-2 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer" title="Admin Login">
+          <i data-lucide="shield" class="w-5 h-5 text-slate-500"></i>
+        </button>
+      </div>
+
+      <!-- TAB NAVIGATION -->
+      <div class="flex border-b-2 border-slate-200 px-2 sm:px-4 overflow-x-auto scrollbar-hide">
+        ${hubTabs.map(t => `
+          <button data-hub-tab="${t.id}" class="hub-tab-btn px-4 py-2.5 text-xs font-black tracking-wide transition-all whitespace-nowrap ${hubTab === t.id ? 'text-emerald-700 border-b-[3px] border-emerald-600 -mb-[2px]' : 'text-slate-500 hover:text-slate-700'}">
+            ${t.label}
+          </button>
+        `).join('')}
+      </div>
+
+      <!-- TAB: HOME -->
+      <div id="hub-tab-home" class="${hubTab === 'home' ? '' : 'hidden'} space-y-0">
+        <!-- HERO POSTER BANNER -->
+        <div class="relative w-full aspect-[16/9] sm:aspect-[16/7] bg-gradient-to-br ${isAuction ? 'from-amber-900 via-amber-800 to-yellow-900' : 'from-emerald-900 via-teal-800 to-emerald-900'} overflow-hidden">
+          ${tourney.posterUrl ? `
+            <img src="${tourney.posterUrl}" class="w-full h-full object-cover" onerror="this.style.display='none'" />
+          ` : `
+            <div class="absolute inset-0 flex flex-col items-center justify-center text-white p-6 text-center">
+              <div class="text-5xl mb-2">🏆</div>
+              <div class="text-xl sm:text-3xl font-black uppercase leading-tight tracking-wider">${tourney.name}</div>
+              <div class="text-xs font-bold mt-2 opacity-70">${tourney.kickoffDate || tourney.shortCode || ''}</div>
+            </div>
+          `}
+        </div>
+
+        <!-- TOURNAMENT INFO CARD -->
+        <div class="px-4 py-4 bg-white border-b border-slate-200 space-y-2">
+          <div class="flex items-start justify-between gap-3">
+            <div class="space-y-1">
+              <h1 class="text-lg sm:text-xl font-black text-slate-900">${tourney.name}</h1>
+              <p class="text-xs text-slate-500 font-medium">📍 ${tourney.venue || 'Cricket Ground'}</p>
+              <p class="text-xs text-slate-500 font-medium">${tourney.kickoffDate ? tourney.kickoffDate : ''}</p>
+              <p class="text-[10px] text-slate-400 font-mono">Tour ID : ${tourney.slug || tourney.shortCode || tid}</p>
+            </div>
+            <div class="flex items-center gap-3 shrink-0">
+              <div class="flex flex-col items-center gap-0.5 cursor-pointer">
+                <span class="w-9 h-9 rounded-full border border-slate-200 flex items-center justify-center bg-white shadow-2xs text-lg">❤️</span>
+                <span class="text-[9px] text-slate-500 font-bold">Follow</span>
               </div>
-              <h1 class="text-lg sm:text-2xl font-black text-slate-900 tracking-tight mt-0.5">
-                ${tourney.name}
-              </h1>
-              <p class="text-xs text-slate-500 font-bold">Organizer: ${tourney.organizer?.name || 'Tournament Committee'} (📱 ${tourney.organizer?.phone || 'N/A'})</p>
+              <div class="flex flex-col items-center gap-0.5 cursor-pointer" id="btn-hub-share">
+                <span class="w-9 h-9 rounded-full border border-slate-200 flex items-center justify-center bg-white shadow-2xs text-lg">↗️</span>
+                <span class="text-[9px] text-slate-500 font-bold">Share</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- TEAMS HORIZONTAL SCROLL -->
+        ${allTeams.length > 0 ? `
+          <div class="px-4 py-4 bg-white border-b border-slate-200 space-y-3">
+            <h3 class="text-sm font-black text-slate-700">Teams</h3>
+            <div class="flex overflow-x-auto gap-4 pb-1 scrollbar-hide">
+              ${allTeams.map(t => `
+                <div class="flex flex-col items-center gap-1.5 shrink-0 w-20">
+                  <div class="w-14 h-14 rounded-full bg-slate-100 border-2 border-slate-200 flex items-center justify-center overflow-hidden shadow-sm">
+                    ${t.logoUrl || t.teamLogoUrl ? `<img src="${t.logoUrl || t.teamLogoUrl}" class="w-full h-full object-cover rounded-full" onerror="this.parentElement.innerHTML='🏏'" />` : `<span class="text-xl">🏏</span>`}
+                  </div>
+                  <span class="text-[10px] font-black text-slate-800 text-center leading-tight uppercase">${t.name}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- TOP PLAYERS STATS -->
+        ${topBatsman || topBowler ? `
+          <div class="px-4 py-4 bg-white border-b border-slate-200 space-y-3">
+            <h3 class="text-sm font-black text-slate-700">Top Players</h3>
+            <div class="grid grid-cols-2 gap-4">
+              ${topBatsman ? `
+                <div class="text-center space-y-1">
+                  <div class="text-[10px] text-slate-500 font-bold uppercase">Most Runs</div>
+                  <div class="text-3xl sm:text-4xl font-black text-slate-900">${topBatsman.totalRuns || 0}</div>
+                  <div class="text-xs font-black text-slate-800">${topBatsman.name}</div>
+                  <div class="text-[9px] text-slate-400 font-bold uppercase">${allTeams.find(t => t.id === topBatsman.teamId)?.name || ''}</div>
+                </div>
+              ` : `<div class="text-center text-xs text-slate-400 py-4">No batting data yet</div>`}
+              ${topBowler ? `
+                <div class="text-center space-y-1">
+                  <div class="text-[10px] text-slate-500 font-bold uppercase">Most Wickets</div>
+                  <div class="text-3xl sm:text-4xl font-black text-slate-900">${topBowler.totalWickets || 0}</div>
+                  <div class="text-xs font-black text-slate-800">${topBowler.name}</div>
+                  <div class="text-[9px] text-slate-400 font-bold uppercase">${allTeams.find(t => t.id === topBowler.teamId)?.name || ''}</div>
+                </div>
+              ` : `<div class="text-center text-xs text-slate-400 py-4">No bowling data yet</div>`}
+            </div>
+          </div>
+        ` : ''}
+
+        <!-- KEY STATS GRID -->
+        <div class="px-4 py-4 bg-white space-y-3">
+          <h3 class="text-sm font-black text-slate-700">Tournament Info</h3>
+          <div class="grid grid-cols-2 gap-2.5">
+            <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center">
+              <span class="text-[9px] font-bold text-slate-500 uppercase block">Winner Prize</span>
+              <span class="text-base font-black text-slate-900">₹${Number(tourney.prizeWinner || 35000).toLocaleString('en-IN')}</span>
+            </div>
+            <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center">
+              <span class="text-[9px] font-bold text-slate-500 uppercase block">Entry Fee</span>
+              <span class="text-base font-black text-emerald-700">₹${tourney.entryFee || 300}</span>
+            </div>
+            <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center">
+              <span class="text-[9px] font-bold text-slate-500 uppercase block">Players</span>
+              <span class="text-base font-black text-blue-800">${allPlayers.length}</span>
+            </div>
+            <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center">
+              <span class="text-[9px] font-bold text-slate-500 uppercase block">Teams</span>
+              <span class="text-base font-black text-amber-800">${allTeams.length}</span>
             </div>
           </div>
 
-          <div class="flex items-center gap-2 w-full sm:w-auto">
-            <button id="btn-custom-hub-back" class="w-full sm:w-auto px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl border border-slate-300 cursor-pointer">
-              ← Back Home
-            </button>
+          <!-- REGISTER / ADMIN BUTTONS -->
+          <div class="flex gap-2 pt-2">
             ${isAuction ? `
-              <button id="btn-custom-open-reg" class="w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-xs rounded-xl shadow-xs border border-emerald-400 cursor-pointer">
-                📝 Register Player
+              <button id="btn-custom-open-reg" class="flex-1 py-3 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-xs rounded-xl shadow-xs cursor-pointer transition-all">
+                📝 Register as Player
               </button>
             ` : ''}
+            <button id="btn-custom-hub-admin-2" class="flex-1 py-3 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl shadow-xs cursor-pointer transition-all">
+              🔐 Admin Dashboard
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- TAB: TEAMS -->
+      <div id="hub-tab-teams" class="${hubTab === 'teams' ? '' : 'hidden'} px-4 py-4 space-y-3">
+        <h3 class="text-sm font-black text-slate-800">All Teams (${allTeams.length})</h3>
+        ${allTeams.length > 0 ? `
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            ${allTeams.map(t => {
+              const teamPlayers = allPlayers.filter(p => p.teamId === t.id);
+              return `
+                <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex items-center gap-3.5">
+                  <div class="w-14 h-14 rounded-full bg-slate-100 border-2 border-slate-200 flex items-center justify-center overflow-hidden shrink-0">
+                    ${t.logoUrl || t.teamLogoUrl ? `<img src="${t.logoUrl || t.teamLogoUrl}" class="w-full h-full object-cover rounded-full" onerror="this.parentElement.innerHTML='🏏'" />` : `<span class="text-xl">🏏</span>`}
+                  </div>
+                  <div class="flex-1 min-w-0">
+                    <h4 class="text-sm font-black text-slate-900 truncate">${t.name}</h4>
+                    <p class="text-[10px] text-slate-500 font-bold">Owner: ${t.ownerName || 'TBD'}</p>
+                    <p class="text-[10px] text-slate-500">${teamPlayers.length} Players • Purse: ₹${Number(t.remainingPurse || t.purse || t.purseBudget || 0).toLocaleString('en-IN')}</p>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        ` : `
+          <div class="text-center py-10 text-slate-400">
+            <div class="text-3xl mb-2">🏏</div>
+            <p class="text-sm font-bold">No teams created yet</p>
+          </div>
+        `}
+      </div>
+
+      <!-- TAB: MATCHES -->
+      <div id="hub-tab-matches" class="${hubTab === 'matches' ? '' : 'hidden'} px-4 py-4 space-y-3">
+        <h3 class="text-sm font-black text-slate-800">Matches (${allFixtures.length})</h3>
+        ${allFixtures.length > 0 ? `
+          <div class="space-y-2.5">
+            ${allFixtures.map(f => `
+              <div class="bg-white p-3.5 rounded-xl border border-slate-200 shadow-sm">
+                <div class="flex items-center justify-between text-[10px] text-slate-500 font-bold mb-2">
+                  <span>Match #${f.matchNo || ''} • ${f.stage || f.groupCode || 'League'}</span>
+                  <span class="px-2 py-0.5 rounded-full text-[9px] font-black ${f.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-800' : f.status === 'LIVE' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'}">${f.status || 'SCHEDULED'}</span>
+                </div>
+                <div class="flex items-center justify-between">
+                  <div class="text-xs font-black text-slate-900">${f.teamAName || 'Team A'}</div>
+                  <span class="text-[10px] text-slate-400 font-bold">VS</span>
+                  <div class="text-xs font-black text-slate-900">${f.teamBName || 'Team B'}</div>
+                </div>
+                <div class="text-[10px] text-slate-500 mt-1.5">📅 ${f.date || ''} ${f.time ? '• ⏰ ' + f.time : ''} ${f.venue ? '• 📍 ' + f.venue : ''}</div>
+              </div>
+            `).join('')}
+          </div>
+        ` : `
+          <div class="text-center py-10 text-slate-400">
+            <div class="text-3xl mb-2">📅</div>
+            <p class="text-sm font-bold">No matches scheduled yet</p>
+          </div>
+        `}
+      </div>
+
+      <!-- TAB: PLAYERS -->
+      <div id="hub-tab-players" class="${hubTab === 'players' ? '' : 'hidden'} px-4 py-4 space-y-3">
+        <div class="flex items-center justify-between">
+          <h3 class="text-sm font-black text-slate-800">Registered Players (${allPlayers.length})</h3>
+          <span class="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">${approvedPlayers.length} Approved · ${pendingPlayers.length} Pending</span>
+        </div>
+        ${allPlayers.length > 0 ? `
+          <div class="space-y-2">
+            ${allPlayers.map((p, i) => {
+              const regDate = p.created_at ? new Date(p.created_at) : null;
+              const regDateStr = regDate ? regDate.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
+              const regTimeStr = regDate ? regDate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true }) : '';
+              const statusUpper = (p.registrationStatus || p.paymentStatus || '').toUpperCase();
+              return `
+              <div class="flex items-center gap-3 bg-white p-3 rounded-xl border border-slate-200 shadow-sm">
+                <span class="text-[10px] font-mono font-black text-slate-400 w-5 text-center">${i + 1}</span>
+                <img src="${p.photoUrl || p.photo_url || 'assets/card_jsl_user.png'}" class="w-10 h-10 rounded-full object-cover border-2 border-slate-200" onerror="this.src='assets/card_jsl_user.png'" />
+                <div class="flex-1 min-w-0">
+                  <div class="text-xs font-black text-slate-900 truncate">${p.name}</div>
+                  <div class="text-[10px] text-slate-500 font-medium">${p.category || p.role || 'All Rounder'} • ${p.village || ''}</div>
+                  <div class="text-[9px] text-slate-400 font-mono mt-0.5">${p.regNo || p.registrationId || ''} ${regDateStr ? '• ' + regDateStr + ' ' + regTimeStr : ''}</div>
+                </div>
+                <span class="text-[9px] font-black px-2 py-0.5 rounded-full shrink-0 ${
+                  statusUpper.includes('APPROVED') || statusUpper.includes('VERIFIED')
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : statusUpper.includes('REJECTED') ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-800'
+                }">${(p.registrationStatus || p.paymentStatus || 'PENDING').replace('_', ' ')}</span>
+              </div>
+            `; }).join('')}
+          </div>
+        ` : `
+          <div class="text-center py-10 text-slate-400">
+            <div class="text-3xl mb-2">📝</div>
+            <p class="text-sm font-bold">No player registrations yet</p>
+          </div>
+        `}
+      </div>
+
+      <!-- TAB: STATISTICS -->
+      <div id="hub-tab-stats" class="${hubTab === 'stats' ? '' : 'hidden'} px-4 py-4 space-y-4">
+        <h3 class="text-sm font-black text-slate-800">Tournament Statistics</h3>
+
+        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+          <div class="bg-white p-3 rounded-xl border border-slate-200 text-center shadow-sm">
+            <div class="text-2xl font-black text-slate-900">${allPlayers.length}</div>
+            <div class="text-[9px] font-bold text-slate-500 uppercase">Total Players</div>
+          </div>
+          <div class="bg-white p-3 rounded-xl border border-slate-200 text-center shadow-sm">
+            <div class="text-2xl font-black text-slate-900">${allTeams.length}</div>
+            <div class="text-[9px] font-bold text-slate-500 uppercase">Teams</div>
+          </div>
+          <div class="bg-white p-3 rounded-xl border border-slate-200 text-center shadow-sm">
+            <div class="text-2xl font-black text-slate-900">${allFixtures.length}</div>
+            <div class="text-[9px] font-bold text-slate-500 uppercase">Matches</div>
+          </div>
+          <div class="bg-white p-3 rounded-xl border border-slate-200 text-center shadow-sm">
+            <div class="text-2xl font-black text-slate-900">${soldPlayers.length}</div>
+            <div class="text-[9px] font-bold text-slate-500 uppercase">Sold (Auction)</div>
           </div>
         </div>
 
-        <!-- KEY STATS ROW -->
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2 border-t border-slate-100 text-center">
-          <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-            <span class="text-[9px] font-black text-slate-500 uppercase block">Winner Prize</span>
-            <span class="text-sm sm:text-base font-black text-slate-900 font-mono">₹ ${Number(tourney.prizeWinner || 35000).toLocaleString('en-IN')}</span>
+        ${topBatsman ? `
+          <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <h4 class="text-xs font-black text-slate-600 uppercase mb-3">Batting Leaders</h4>
+            <div class="space-y-2">
+              ${allPlayers.filter(p => (p.totalRuns || 0) > 0).sort((a, b) => (b.totalRuns || 0) - (a.totalRuns || 0)).slice(0, 5).map((p, i) => `
+                <div class="flex items-center gap-3">
+                  <span class="text-xs font-black text-slate-400 w-5">#${i + 1}</span>
+                  <div class="flex-1 min-w-0">
+                    <span class="text-xs font-black text-slate-900">${p.name}</span>
+                    <span class="text-[9px] text-slate-400 ml-1">${allTeams.find(t => t.id === p.teamId)?.name || ''}</span>
+                  </div>
+                  <span class="text-sm font-black text-emerald-700">${p.totalRuns}</span>
+                </div>
+              `).join('')}
+            </div>
           </div>
-          <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-            <span class="text-[9px] font-black text-slate-500 uppercase block">Entry Fee</span>
-            <span class="text-sm sm:text-base font-black text-emerald-700 font-mono">₹ ${tourney.entryFee || 300}</span>
+        ` : ''}
+
+        ${topBowler ? `
+          <div class="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+            <h4 class="text-xs font-black text-slate-600 uppercase mb-3">Bowling Leaders</h4>
+            <div class="space-y-2">
+              ${allPlayers.filter(p => (p.totalWickets || 0) > 0).sort((a, b) => (b.totalWickets || 0) - (a.totalWickets || 0)).slice(0, 5).map((p, i) => `
+                <div class="flex items-center gap-3">
+                  <span class="text-xs font-black text-slate-400 w-5">#${i + 1}</span>
+                  <div class="flex-1 min-w-0">
+                    <span class="text-xs font-black text-slate-900">${p.name}</span>
+                    <span class="text-[9px] text-slate-400 ml-1">${allTeams.find(t => t.id === p.teamId)?.name || ''}</span>
+                  </div>
+                  <span class="text-sm font-black text-blue-700">${p.totalWickets} wkts</span>
+                </div>
+              `).join('')}
+            </div>
           </div>
-          <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-            <span class="text-[9px] font-black text-slate-500 uppercase block">Team Purse</span>
-            <span class="text-sm sm:text-base font-black text-amber-800 font-mono">₹ ${tourney.teamPurse || 8000}</span>
+        ` : ''}
+
+        ${!topBatsman && !topBowler ? `
+          <div class="text-center py-8 text-slate-400">
+            <div class="text-3xl mb-2">📊</div>
+            <p class="text-sm font-bold">No match statistics yet</p>
+            <p class="text-[11px]">Stats will appear once matches are scored.</p>
           </div>
-          <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-            <span class="text-[9px] font-black text-slate-500 uppercase block">Status</span>
-            <span class="text-xs sm:text-sm font-black text-emerald-800 font-mono">🟢 ACTIVE</span>
-          </div>
-        </div>
+        ` : ''}
       </div>
 
     </div>
   `;
 
+  if (window.lucide) window.lucide.createIcons();
+
+  // Hub tab switching
+  container.querySelectorAll('.hub-tab-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const tab = e.currentTarget.dataset.hubTab;
+      try { sessionStorage.setItem('cpl_hub_tab_' + tourney.slug, tab); } catch(ex) {}
+
+      container.querySelectorAll('.hub-tab-btn').forEach(b => {
+        b.classList.remove('text-emerald-700', 'border-b-[3px]', 'border-emerald-600', '-mb-[2px]');
+        b.classList.add('text-slate-500');
+      });
+      e.currentTarget.classList.add('text-emerald-700', 'border-b-[3px]', 'border-emerald-600', '-mb-[2px]');
+      e.currentTarget.classList.remove('text-slate-500');
+
+      ['home', 'teams', 'matches', 'players', 'stats'].forEach(t => {
+        document.getElementById('hub-tab-' + t)?.classList.add('hidden');
+      });
+      document.getElementById('hub-tab-' + tab)?.classList.remove('hidden');
+    });
+  });
+
+  // Share button
+  document.getElementById('btn-hub-share')?.addEventListener('click', () => {
+    const url = window.location.href;
+    if (navigator.share) {
+      navigator.share({ title: tourney.name, url });
+    } else {
+      navigator.clipboard?.writeText(url);
+      alert('Tournament link copied!');
+    }
+  });
+
   document.getElementById('btn-custom-hub-back')?.addEventListener('click', () => navigate('landing'));
+  document.getElementById('btn-custom-hub-admin')?.addEventListener('click', () => navigate('admin'));
+  document.getElementById('btn-custom-hub-admin-2')?.addEventListener('click', () => navigate('admin'));
   document.getElementById('btn-custom-open-reg')?.addEventListener('click', () => openDynamicTournamentRegistrationModal(tourney.slug));
 }
 

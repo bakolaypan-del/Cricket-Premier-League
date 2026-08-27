@@ -30,16 +30,27 @@ CREATE TABLE IF NOT EXISTS public.tournaments (
   slug TEXT UNIQUE NOT NULL,
   name TEXT NOT NULL,
   category_code TEXT DEFAULT 'JSL',
-  mode TEXT DEFAULT 'registration_auction' CHECK (mode IN ('registration_auction', 'manual')),
+  mode TEXT DEFAULT 'registration_auction' CHECK (mode IN ('registration_auction', 'manual', 'AUCTION_LEAGUE', 'FIXTURE_ONLY')),
   logo_url TEXT,
   banner_url TEXT,
+  poster_url TEXT,
   registration_fee NUMERIC DEFAULT 0,
   registration_open BOOLEAN DEFAULT true,
   total_team_budget NUMERIC DEFAULT 10000,
+  base_price NUMERIC DEFAULT 300,
   icon_price NUMERIC DEFAULT 2000,
   last_reg_number INT DEFAULT 0,
   rules_text TEXT,
   venue_name TEXT DEFAULT 'Jhankra School Ground',
+  kickoff_date TEXT,
+  prize_winner NUMERIC DEFAULT 35000,
+  entry_fee NUMERIC DEFAULT 300,
+  organiser_name TEXT,
+  organiser_phone TEXT,
+  upi_id TEXT,
+  payment_qr_url TEXT,
+  auction_settings JSONB DEFAULT '{}'::jsonb,
+  format_config JSONB DEFAULT '{}'::jsonb,
   status TEXT DEFAULT 'active' CHECK (status IN ('active', 'completed', 'suspended', 'archived')),
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
@@ -164,7 +175,7 @@ CREATE TABLE IF NOT EXISTS public.matches (
   time TEXT,
   venue TEXT DEFAULT 'Jhankra School Ground',
   overs_limit INT DEFAULT 16,
-  status TEXT DEFAULT 'SCHEDULED' CHECK (status IN ('SCHEDULED', 'LIVE', 'COMPLETED', 'ABANDONED')),
+  status TEXT DEFAULT 'SCHEDULED' CHECK (status IN ('SCHEDULED', 'UPCOMING', 'LIVE', 'COMPLETED', 'ABANDONED')),
   toss_details TEXT,
   winner_team_id UUID REFERENCES public.teams(id) ON DELETE SET NULL,
   mom_player_id UUID REFERENCES public.players(id) ON DELETE SET NULL,
@@ -226,6 +237,79 @@ CREATE TABLE IF NOT EXISTS public.audit_log (
 );
 
 CREATE INDEX IF NOT EXISTS idx_audit_log_tourney ON public.audit_log(tournament_id);
+
+-- 12. PLATFORM SETTINGS TABLE (Key-Value for Admin Settings)
+CREATE TABLE IF NOT EXISTS public.platform_settings (
+  key TEXT PRIMARY KEY,
+  value JSONB DEFAULT '{}'::jsonb,
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+-- 13. TOURNAMENT OWNERS TABLE (Phone-based Owner Login)
+CREATE TABLE IF NOT EXISTS public.tournament_owners (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tournament_id UUID NOT NULL REFERENCES public.tournaments(id) ON DELETE CASCADE,
+  phone TEXT NOT NULL,
+  name TEXT,
+  email TEXT,
+  password_hash TEXT,
+  assigned_at TIMESTAMPTZ DEFAULT now(),
+  UNIQUE(tournament_id, phone)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tournament_owners_tourney ON public.tournament_owners(tournament_id);
+CREATE INDEX IF NOT EXISTS idx_tournament_owners_phone ON public.tournament_owners(phone);
+
+-- 14. USER ACCOUNTS TABLE (Player & Owner Accounts)
+CREATE TABLE IF NOT EXISTS public.user_accounts (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  phone TEXT UNIQUE NOT NULL,
+  password_hash TEXT,
+  name TEXT,
+  role TEXT DEFAULT 'PLAYER' CHECK (role IN ('PLAYER', 'TOURNAMENT_OWNER', 'SUPER_ADMIN')),
+  player_id TEXT,
+  is_first_login BOOLEAN DEFAULT true,
+  owned_tournaments TEXT[] DEFAULT '{}',
+  created_at TIMESTAMPTZ DEFAULT now(),
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_accounts_phone ON public.user_accounts(phone);
+
+-- 15. AUCTION ARCHIVES TABLE
+CREATE TABLE IF NOT EXISTS public.auction_archives (
+  id TEXT PRIMARY KEY,
+  tournament_id UUID NOT NULL REFERENCES public.tournaments(id) ON DELETE CASCADE,
+  snapshot JSONB DEFAULT '{}'::jsonb,
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_auction_archives_tourney ON public.auction_archives(tournament_id);
+
+-- 16. COMMUNITY QUERIES TABLE
+CREATE TABLE IF NOT EXISTS public.community_queries (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tournament_id UUID NOT NULL REFERENCES public.tournaments(id) ON DELETE CASCADE,
+  name TEXT,
+  phone TEXT,
+  message TEXT,
+  status TEXT DEFAULT 'pending',
+  created_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_community_queries_tourney ON public.community_queries(tournament_id);
+
+-- 17. VISITOR STATS TABLE
+CREATE TABLE IF NOT EXISTS public.visitor_stats (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  tournament_id UUID NOT NULL REFERENCES public.tournaments(id) ON DELETE CASCADE,
+  total_visitors INT DEFAULT 0,
+  unique_visitors INT DEFAULT 0,
+  live_online INT DEFAULT 0,
+  updated_at TIMESTAMPTZ DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_visitor_stats_tourney ON public.visitor_stats(tournament_id);
 
 -- FUNCTIONS & ATOMIC PROCEDURES
 
@@ -319,7 +403,7 @@ CREATE POLICY "Organiser can manage own tournaments" ON public.tournaments FOR A
 CREATE POLICY "Master admin full access on tournaments" ON public.tournaments FOR ALL USING (public.is_master_admin());
 
 -- PLAYERS
-CREATE POLICY "Public can view approved players" ON public.players FOR SELECT USING (verified = true);
+CREATE POLICY "Public can view all players" ON public.players FOR SELECT USING (true);
 CREATE POLICY "Public registration insert" ON public.players FOR INSERT WITH CHECK (true);
 CREATE POLICY "Organiser can manage own tournament players" ON public.players FOR ALL USING (
   tournament_id IN (SELECT id FROM public.tournaments WHERE organiser_id = auth.uid())
@@ -364,3 +448,38 @@ CREATE POLICY "Master admin full access on scorecards" ON public.scorecards FOR 
 -- AUDIT LOG
 CREATE POLICY "Master admin can view audit logs" ON public.audit_log FOR SELECT USING (public.is_master_admin());
 CREATE POLICY "System can insert audit logs" ON public.audit_log FOR INSERT WITH CHECK (true);
+
+-- PLATFORM SETTINGS
+ALTER TABLE public.platform_settings ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Platform settings readable by everyone" ON public.platform_settings FOR SELECT USING (true);
+CREATE POLICY "Master admin full access on platform_settings" ON public.platform_settings FOR ALL USING (public.is_master_admin());
+
+-- TOURNAMENT OWNERS
+ALTER TABLE public.tournament_owners ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Tournament owners readable by everyone" ON public.tournament_owners FOR SELECT USING (true);
+CREATE POLICY "Anyone can insert tournament owners" ON public.tournament_owners FOR INSERT WITH CHECK (true);
+CREATE POLICY "Master admin full access on tournament_owners" ON public.tournament_owners FOR ALL USING (public.is_master_admin());
+
+-- USER ACCOUNTS
+ALTER TABLE public.user_accounts ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "User accounts readable by everyone" ON public.user_accounts FOR SELECT USING (true);
+CREATE POLICY "Anyone can insert user accounts" ON public.user_accounts FOR INSERT WITH CHECK (true);
+CREATE POLICY "Master admin full access on user_accounts" ON public.user_accounts FOR ALL USING (public.is_master_admin());
+
+-- AUCTION ARCHIVES
+ALTER TABLE public.auction_archives ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Auction archives readable by everyone" ON public.auction_archives FOR SELECT USING (true);
+CREATE POLICY "Anyone can upsert auction archives" ON public.auction_archives FOR INSERT WITH CHECK (true);
+CREATE POLICY "Master admin full access on auction_archives" ON public.auction_archives FOR ALL USING (public.is_master_admin());
+
+-- COMMUNITY QUERIES
+ALTER TABLE public.community_queries ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Community queries readable by everyone" ON public.community_queries FOR SELECT USING (true);
+CREATE POLICY "Anyone can insert community queries" ON public.community_queries FOR INSERT WITH CHECK (true);
+CREATE POLICY "Master admin full access on community_queries" ON public.community_queries FOR ALL USING (public.is_master_admin());
+
+-- VISITOR STATS
+ALTER TABLE public.visitor_stats ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Visitor stats readable by everyone" ON public.visitor_stats FOR SELECT USING (true);
+CREATE POLICY "Anyone can upsert visitor stats" ON public.visitor_stats FOR INSERT WITH CHECK (true);
+CREATE POLICY "Master admin full access on visitor_stats" ON public.visitor_stats FOR ALL USING (public.is_master_admin());

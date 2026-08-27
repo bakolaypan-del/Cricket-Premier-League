@@ -5,8 +5,8 @@ import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamFin
 import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase } from './supabase.js?v=13.0.0';
 import { shops } from './shopsData.js?v=12.0.2';
 
-let activeAdminTab = 'payments'; // 'payments', 'all-players', 'teams'
-let adminAuctionSubTab = 'sold'; // 'sold', 'unsold'
+let activeAdminTab = (() => { try { return sessionStorage.getItem('cpl_admin_tab') || 'payments'; } catch(e) { return 'payments'; } })();
+let adminAuctionSubTab = 'sold';
 const todayStr = new Date().toISOString().split('T')[0];
 
 export function renderAdminDashboard(containerEl) {
@@ -70,128 +70,131 @@ export function renderAdminDashboard(containerEl) {
     ? `Log ID: <strong class="text-amber-400">${currentUser?.email || 'Master Admin'}</strong> • Single Source Supabase & Realtime Cloud Database`
     : `Logged in as: <strong class="text-amber-400">${currentUser?.name || 'Tournament Owner'}</strong> • Tournament Operations Only`;
 
+  // Build tournament list for selector
+  const customTournaments = store.getCustomTournaments ? store.getCustomTournaments() : [];
+  const allTournaments = [{ id: 'tournament-jsl-2026', name: 'Jhankra Super League 2026', slug: 'jsl-2026', status: 'ACTIVE' }, ...customTournaments.map(t => ({ id: t.supabaseId || t.id, name: t.name, slug: t.slug, status: t.status || 'ACTIVE' }))];
+  const activeTid = store.activeTournamentId || allTournaments[0]?.id || 'tournament-jsl-2026';
+
+  // Sidebar nav items config
+  const sidebarItems = [
+    { tab: 'payments', icon: 'badge-indian-rupee', label: 'Approvals', badge: pendingPlayers.length, badgeColor: 'red' },
+    { tab: 'all-players', icon: 'users', label: 'Players', badge: players.length, badgeColor: 'slate' },
+    { tab: 'teams', icon: 'shield', label: 'Teams', badge: teams.length, badgeColor: 'slate' },
+    { tab: 'auction', icon: 'gavel', label: 'Auction', masterOnly: false },
+    { tab: 'fixtures', icon: 'calendar', label: 'Scheduler', masterOnly: false },
+    { tab: 'scorer', icon: 'gamepad-2', label: 'Live Scorer', masterOnly: false },
+    ...(isMaster ? [
+      { tab: 'reg-settings', icon: 'power', label: 'Reg. Control' },
+      { tab: 'shop-ads', icon: 'megaphone', label: 'Shop Ads' },
+      { tab: 'owners', icon: 'crown', label: 'Owners' },
+      { tab: 'saas-tournaments', icon: 'trophy', label: 'Tournaments' },
+    ] : [])
+  ];
+
   containerEl.innerHTML = `
-    <div class="space-y-4 sm:space-y-6 animate-fade-in">
-      <!-- Admin Header & Actions Bar (Stylish White Background) -->
-      <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white border-2 border-emerald-500/20 p-4 sm:p-5 rounded-3xl shadow-sm">
-        <div>
-          <div class="flex items-center gap-3">
-            <span class="p-2.5 bg-emerald-50 text-emerald-700 rounded-2xl border border-emerald-200 shadow-xs">
-              <i data-lucide="shield-check" class="w-6 h-6"></i>
-            </span>
-            <div>
-              <h1 class="text-lg sm:text-xl font-black text-slate-900">${panelTitle}</h1>
-              <p class="text-xs text-slate-500">${panelSubtitle}</p>
-            </div>
+    <div class="animate-fade-in">
+      <!-- Top Header Bar -->
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-slate-900 text-white p-3.5 sm:p-4 rounded-2xl mb-4 shadow-lg">
+        <div class="flex items-center gap-3 min-w-0">
+          <span class="p-2 bg-emerald-500/20 text-emerald-400 rounded-xl border border-emerald-500/30 shrink-0">
+            <i data-lucide="shield-check" class="w-5 h-5"></i>
+          </span>
+          <div class="min-w-0">
+            <h1 class="text-sm sm:text-base font-black text-white truncate">${panelTitle}</h1>
+            <p class="text-[11px] text-slate-400 truncate">${panelSubtitle}</p>
           </div>
         </div>
 
-        <div class="flex flex-wrap items-center gap-2">
-          ${isMaster ? `
-            <!-- JSL REGISTRATION MASTER QUICK-TOGGLE BADGE -->
-            <div class="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border ${isRegOpen ? 'border-emerald-400 bg-emerald-50/50' : 'border-red-400 bg-red-50/50'} shadow-2xs">
-              <span class="w-2.5 h-2.5 rounded-full ${isRegOpen ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}"></span>
-              <span class="text-xs font-black ${isRegOpen ? 'text-emerald-800' : 'text-red-700'}">
-                JSL Reg: ${isRegOpen ? 'ACTIVE' : 'DEACTIVATED'}
-              </span>
-              <button id="quick-toggle-reg-btn" class="px-2.5 py-1 text-[10px] font-black rounded-lg ${isRegOpen ? 'bg-red-600 hover:bg-red-500 text-white' : 'bg-emerald-600 hover:bg-emerald-500 text-white'} transition-all shadow flex items-center gap-1 cursor-pointer" title="${isRegOpen ? 'Deactivate Public Registration Link' : 'Activate Public Registration Link'}">
-                <i data-lucide="${isRegOpen ? 'power-off' : 'power'}" class="w-3 h-3"></i>
-                ${isRegOpen ? 'Deactivate' : 'Activate'}
-              </button>
-            </div>
+        <div class="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+          <!-- Tournament Selector -->
+          <div class="flex items-center gap-1.5 bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 flex-1 sm:flex-none min-w-0">
+            <i data-lucide="trophy" class="w-3.5 h-3.5 text-amber-400 shrink-0"></i>
+            <select id="admin-tournament-selector" class="bg-transparent text-xs text-white font-bold border-none outline-none cursor-pointer min-w-0 flex-1 appearance-none" style="-webkit-appearance:none">
+              ${allTournaments.map(t => `<option value="${t.id}" ${t.id === activeTid ? 'selected' : ''} class="bg-slate-900 text-white">${t.name}</option>`).join('')}
+            </select>
+          </div>
 
-            <button id="admin-create-new-tourney-btn" class="px-4 py-2 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-500 hover:to-yellow-500 text-slate-950 text-xs font-black rounded-xl border border-amber-300 flex items-center gap-1.5 transition-all shadow-md hover:scale-105 cursor-pointer" title="Create and launch your own multi-tenant tournament">
-              <i data-lucide="plus-circle" class="w-4 h-4 text-slate-950"></i> + Create Your Own Tournament
-            </button>
-            <a href="cpl_project_handbook.html" target="_blank" class="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold rounded-xl border border-emerald-300 flex items-center gap-1.5 transition-colors shadow-2xs no-underline">
-              <i data-lucide="book-open" class="w-4 h-4 text-emerald-600"></i> Handbook
-            </a>
-            <button id="export-master-csv-btn" class="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl border border-slate-300 flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer">
-              <i data-lucide="download" class="w-4 h-4 text-emerald-600"></i> Export CSV
-            </button>
-            <button id="export-master-pdf-btn" class="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold rounded-xl border border-red-300 flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer">
-              <i data-lucide="file-text" class="w-4 h-4 text-red-600"></i> Export PDF
-            </button>
-            <button id="export-team-squads-pdf-btn" class="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-black rounded-xl border border-amber-300 flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer" title="Download Final Auction Squad PDF for any or all teams">
-              <i data-lucide="trophy" class="w-4 h-4 text-amber-600"></i> Squads PDF
-            </button>
-            <button id="purge-verified-docs-btn" class="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-800 text-xs font-bold rounded-xl border border-sky-300 flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer" title="Delete Aadhaar & Payment Receipts for Approved Players to save cloud memory">
-              <i data-lucide="shield-check" class="w-4 h-4 text-sky-600"></i> Purge Docs
+          ${isMaster ? `
+            <button id="admin-create-new-tourney-btn" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-[11px] font-black rounded-xl flex items-center gap-1 transition-all cursor-pointer shrink-0">
+              <i data-lucide="plus" class="w-3.5 h-3.5"></i> New
             </button>
           ` : ''}
-          <button id="admin-logout-btn" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl border border-slate-300 flex items-center gap-1.5 transition-colors">
-            <i data-lucide="log-out" class="w-4 h-4"></i> Logout
+
+          <button id="admin-logout-btn" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-bold rounded-xl border border-slate-700 flex items-center gap-1 transition-colors cursor-pointer shrink-0">
+            <i data-lucide="log-out" class="w-3.5 h-3.5"></i> Logout
           </button>
         </div>
       </div>
 
-      <!-- DASHBOARD CARDS (Total, Pending, Approved, Rejected, Today's) -->
-      <div class="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
-        <div class="p-3 text-center border-2 border-slate-200 bg-white rounded-2xl shadow-2xs">
-          <div class="text-[9px] font-bold text-slate-500 uppercase">Total Registered</div>
-          <div class="text-xl sm:text-2xl font-black text-slate-900 mt-0.5">${players.length}</div>
+      <!-- Stats Cards Row -->
+      <div class="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-4">
+        <div class="p-2.5 bg-white border border-slate-200 rounded-xl text-center shadow-2xs">
+          <div class="text-[9px] font-bold text-slate-500 uppercase tracking-wide">Total</div>
+          <div class="text-lg font-black text-slate-900 cpl-countup" data-target="${players.length}">0</div>
         </div>
-
-        <div class="p-3 text-center border-2 border-amber-300 bg-white rounded-2xl shadow-2xs">
-          <div class="text-[9px] font-bold text-amber-800 uppercase">Pending (🔴 Red)</div>
-          <div class="text-xl sm:text-2xl font-black text-amber-600 mt-0.5">${pendingPlayers.length}</div>
+        <div class="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-center shadow-2xs">
+          <div class="text-[9px] font-bold text-amber-700 uppercase tracking-wide">Pending</div>
+          <div class="text-lg font-black text-amber-600 cpl-countup" data-target="${pendingPlayers.length}">0</div>
         </div>
-
-        <div class="p-3 text-center border-2 border-emerald-300 bg-white rounded-2xl shadow-2xs">
-          <div class="text-[9px] font-bold text-emerald-800 uppercase">Approved (🟢 Green)</div>
-          <div class="text-xl sm:text-2xl font-black text-emerald-600 mt-0.5">${approvedPlayers.length}</div>
+        <div class="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-center shadow-2xs">
+          <div class="text-[9px] font-bold text-emerald-700 uppercase tracking-wide">Approved</div>
+          <div class="text-lg font-black text-emerald-600 cpl-countup" data-target="${approvedPlayers.length}">0</div>
         </div>
-
-        <div class="p-3 text-center border-2 border-rose-300 bg-white rounded-2xl shadow-2xs">
-          <div class="text-[9px] font-bold text-rose-800 uppercase">Rejected</div>
-          <div class="text-xl sm:text-2xl font-black text-rose-600 mt-0.5">${rejectedPlayers.length}</div>
+        <div class="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-center shadow-2xs">
+          <div class="text-[9px] font-bold text-rose-700 uppercase tracking-wide">Rejected</div>
+          <div class="text-lg font-black text-rose-600 cpl-countup" data-target="${rejectedPlayers.length}">0</div>
         </div>
-
-        <div class="p-3 text-center border-2 border-sky-300 bg-white rounded-2xl shadow-2xs col-span-2 sm:col-span-1">
-          <div class="text-[9px] font-bold text-sky-800 uppercase">Today's Registrations</div>
-          <div class="text-xl sm:text-2xl font-black text-sky-600 mt-0.5">${todayPlayers.length}</div>
+        <div class="p-2.5 bg-sky-50 border border-sky-200 rounded-xl text-center shadow-2xs">
+          <div class="text-[9px] font-bold text-sky-700 uppercase tracking-wide">Today</div>
+          <div class="text-lg font-black text-sky-600 cpl-countup" data-target="${todayPlayers.length}">0</div>
         </div>
       </div>
 
-      <!-- Admin Tabs Navigation (Clean White Buttons) -->
-      <div class="flex border-b-2 border-slate-200 space-x-1.5 overflow-x-auto pb-1" id="admin-tab-nav">
-        <button data-tab="payments" class="admin-tab-btn ${activeAdminTab === 'payments' ? 'active bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 font-bold'} px-3.5 sm:px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all">
-          <i data-lucide="badge-indian-rupee" class="w-3.5 h-3.5"></i> Pending Approvals 
-          <span class="px-1.5 py-0.2 text-[10px] ${activeAdminTab === 'payments' ? 'bg-white text-red-700' : 'bg-red-100 text-red-700 border border-red-300'} rounded-full font-black">${pendingPlayers.length}</span>
-        </button>
-        <button data-tab="all-players" class="admin-tab-btn ${activeAdminTab === 'all-players' ? 'active bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 font-bold'} px-3.5 sm:px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all">
-          <i data-lucide="users" class="w-3.5 h-3.5"></i> All Registered Players (${players.length})
-        </button>
-        <button data-tab="teams" class="admin-tab-btn ${activeAdminTab === 'teams' ? 'active bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 font-bold'} px-3.5 sm:px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all">
-          <i data-lucide="shield" class="w-3.5 h-3.5"></i> Registered Teams (${teams.length})
-        </button>
-        <button data-tab="auction" class="admin-tab-btn ${activeAdminTab === 'auction' ? 'active bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 font-bold'} px-3.5 sm:px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all">
-          <i data-lucide="gavel" class="w-3.5 h-3.5"></i> Auction Controls
-        </button>
-        <button data-tab="fixtures" class="admin-tab-btn ${activeAdminTab === 'fixtures' ? 'active bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 font-bold'} px-3.5 sm:px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all">
-          <i data-lucide="calendar" class="w-3.5 h-3.5"></i> Scheduler
-        </button>
-        <button data-tab="scorer" class="admin-tab-btn ${activeAdminTab === 'scorer' ? 'active bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 font-bold'} px-3.5 sm:px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all">
-          <i data-lucide="gamepad-2" class="w-3.5 h-3.5"></i> Match Scorer
-        </button>
-        ${isMaster ? `
-          <button data-tab="reg-settings" class="admin-tab-btn ${activeAdminTab === 'reg-settings' ? 'active bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 font-bold'} px-3.5 sm:px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all">
-            <i data-lucide="power" class="w-3.5 h-3.5"></i> ⚙️ Registration Link Control
-          </button>
-          <button data-tab="shop-ads" class="admin-tab-btn ${activeAdminTab === 'shop-ads' ? 'active bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 font-bold'} px-3.5 sm:px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all">
-            <i data-lucide="megaphone" class="w-3.5 h-3.5"></i> 📢 Shop Ads
-          </button>
-          <button data-tab="owners" class="admin-tab-btn ${activeAdminTab === 'owners' ? 'active bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 font-bold'} px-3.5 sm:px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all">
-            <i data-lucide="crown" class="w-3.5 h-3.5"></i> 👑 Tournament Owners
-          </button>
-          <button data-tab="saas-tournaments" class="admin-tab-btn ${activeAdminTab === 'saas-tournaments' ? 'active bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 font-bold'} px-3.5 sm:px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all">
-            <i data-lucide="trophy" class="w-3.5 h-3.5"></i> 🏆 Host & Manage Tournaments
-          </button>
-        ` : ''}
-      </div>
+      <!-- Sidebar + Content Layout -->
+      <div class="flex gap-4">
+        <!-- Vertical Sidebar (hidden on mobile, shown md+) -->
+        <nav class="hidden md:flex flex-col w-48 shrink-0 bg-white border border-slate-200 rounded-2xl p-2 gap-0.5 shadow-sm self-start sticky top-4" id="admin-sidebar-nav">
+          ${sidebarItems.map(item => `
+            <button data-tab="${item.tab}" class="admin-tab-btn flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all w-full text-left ${activeAdminTab === item.tab ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}">
+              <i data-lucide="${item.icon}" class="w-4 h-4 shrink-0"></i>
+              <span class="truncate flex-1">${item.label}</span>
+              ${item.badge ? `<span class="px-1.5 py-0.5 text-[9px] font-black rounded-full ${activeAdminTab === item.tab ? 'bg-white/20 text-white' : (item.badgeColor === 'red' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600')}">${item.badge}</span>` : ''}
+            </button>
+          `).join('')}
 
-      <!-- Tab Content Area -->
-      <div id="admin-tab-content">
+          ${isMaster ? `
+            <div class="border-t border-slate-100 mt-2 pt-2 space-y-1">
+              <div class="px-3 text-[9px] font-black text-slate-400 uppercase tracking-wider">Quick Actions</div>
+              <button id="export-master-csv-btn" class="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-50 rounded-lg transition-all cursor-pointer">
+                <i data-lucide="download" class="w-3 h-3 text-emerald-600"></i> Export CSV
+              </button>
+              <button id="export-master-pdf-btn" class="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-50 rounded-lg transition-all cursor-pointer">
+                <i data-lucide="file-text" class="w-3 h-3 text-red-600"></i> Export PDF
+              </button>
+              <button id="export-team-squads-pdf-btn" class="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-50 rounded-lg transition-all cursor-pointer">
+                <i data-lucide="trophy" class="w-3 h-3 text-amber-600"></i> Squads PDF
+              </button>
+              <button id="purge-verified-docs-btn" class="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-50 rounded-lg transition-all cursor-pointer">
+                <i data-lucide="shield-check" class="w-3 h-3 text-sky-600"></i> Purge Docs
+              </button>
+            </div>
+          ` : ''}
+        </nav>
+
+        <!-- Main Content Area -->
+        <div class="flex-1 min-w-0">
+          <!-- Mobile Horizontal Pills (shown below md only) -->
+          <div class="md:hidden flex overflow-x-auto gap-1.5 pb-3 scrollbar-hide" id="admin-mobile-nav">
+            ${sidebarItems.map(item => `
+              <button data-tab="${item.tab}" class="admin-tab-btn shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${activeAdminTab === item.tab ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-600 bg-white border border-slate-200 hover:bg-slate-50'}">
+                <i data-lucide="${item.icon}" class="w-3 h-3"></i>
+                ${item.label}
+                ${item.badge ? `<span class="px-1 py-0.5 text-[8px] font-black rounded-full ${activeAdminTab === item.tab ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'}">${item.badge}</span>` : ''}
+              </button>
+            `).join('')}
+          </div>
+
+          <div id="admin-tab-content">
         
         <!-- 1. Pending Payment Verification Tab -->
         <div id="tab-payments-view" class="${activeAdminTab === 'payments' ? '' : 'hidden'} space-y-4">
@@ -1136,23 +1139,57 @@ export function renderAdminDashboard(containerEl) {
           </div>
         </div>
 
+          </div>
+        </div>
       </div>
     </div>
   `;
 
   if (window.lucide) window.lucide.createIcons();
 
+  // Count-up animation for stat cards
+  containerEl.querySelectorAll('.cpl-countup').forEach(el => {
+    const target = parseInt(el.dataset.target) || 0;
+    if (target === 0) { el.textContent = '0'; return; }
+    const duration = 600;
+    const start = performance.now();
+    const step = (now) => {
+      const progress = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      el.textContent = Math.round(target * eased);
+      if (progress < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  });
+
+  // Tournament selector change
+  document.getElementById('admin-tournament-selector')?.addEventListener('change', (e) => {
+    const newTid = e.target.value;
+    if (store.setActiveTournament) store.setActiveTournament(newTid);
+    else store.activeTournamentId = newTid;
+    renderAdminDashboard(containerEl);
+  });
+
   // --- TAB SWITCHING LISTENERS ---
   const tabBtns = containerEl.querySelectorAll('.admin-tab-btn');
   tabBtns.forEach(btn => {
     btn.addEventListener('click', (e) => {
       activeAdminTab = e.currentTarget.getAttribute('data-tab');
+      try { sessionStorage.setItem('cpl_admin_tab', activeAdminTab); } catch(e) {}
+
       tabBtns.forEach(b => {
-        b.classList.remove('active', 'bg-emerald-600', 'text-white', 'shadow-xs');
-        b.classList.add('text-slate-600', 'bg-white', 'hover:bg-slate-50', 'border', 'border-slate-200');
+        b.classList.remove('bg-emerald-600', 'text-white', 'shadow-sm');
+        b.classList.add('text-slate-600');
+        if (b.closest('#admin-sidebar-nav')) {
+          b.classList.remove('shadow-sm');
+          b.classList.add('hover:bg-slate-50', 'hover:text-slate-900');
+        } else {
+          b.classList.add('bg-white', 'border', 'border-slate-200', 'hover:bg-slate-50');
+          b.classList.remove('shadow-sm');
+        }
       });
-      e.currentTarget.classList.add('active', 'bg-emerald-600', 'text-white', 'shadow-xs');
-      e.currentTarget.classList.remove('text-slate-600', 'bg-white', 'hover:bg-slate-50', 'border', 'border-slate-200');
+      e.currentTarget.classList.add('bg-emerald-600', 'text-white', 'shadow-sm');
+      e.currentTarget.classList.remove('text-slate-600', 'bg-white', 'hover:bg-slate-50', 'hover:text-slate-900', 'border', 'border-slate-200');
 
       document.getElementById('tab-payments-view').classList.add('hidden');
       document.getElementById('tab-all-players-view').classList.add('hidden');
@@ -1168,7 +1205,7 @@ export function renderAdminDashboard(containerEl) {
       if (activeAdminTab === 'payments') document.getElementById('tab-payments-view').classList.remove('hidden');
       if (activeAdminTab === 'all-players') document.getElementById('tab-all-players-view').classList.remove('hidden');
       if (activeAdminTab === 'teams') document.getElementById('tab-teams-view').classList.remove('hidden');
-      
+
       if (activeAdminTab === 'auction') {
         document.getElementById('tab-auction-view')?.classList.remove('hidden');
         renderActiveAuctionBlock();

@@ -21,6 +21,7 @@ import {
   deleteCommunityQueryFromCloud,
   fetchCommunityQueriesFromCloud,
   fetchTournamentOwnersFromCloud,
+  saveTournamentOwnerToCloud,
   fetchUserAccountsFromCloud,
   saveRegistrationSettingsToCloud,
   fetchRegistrationSettingsFromCloud,
@@ -387,12 +388,24 @@ class Store {
         const cloudTourneys = await fetchCustomTournamentsFromCloud();
         if (Array.isArray(cloudTourneys) && cloudTourneys.length > 0) {
           const local = JSON.parse(localStorage.getItem(STORAGE_KEYS.CUSTOM_TOURNAMENTS) || '[]');
+          const localSlugs = new Set(local.map(t => t.slug));
           const localIds = new Set(local.map(t => t.id));
           let merged = [...local];
+          let changed = false;
           for (const ct of cloudTourneys) {
-            if (!localIds.has(ct.id)) merged.push(ct);
+            if (localSlugs.has(ct.slug)) {
+              const idx = merged.findIndex(t => t.slug === ct.slug);
+              if (idx >= 0 && !merged[idx].supabaseId && ct.supabaseId) {
+                merged[idx].supabaseId = ct.supabaseId;
+                merged[idx].tournament_id = ct.tournament_id;
+                changed = true;
+              }
+            } else if (!localIds.has(ct.id)) {
+              merged.push(ct);
+              changed = true;
+            }
           }
-          if (merged.length !== local.length) {
+          if (changed) {
             safeSetLocalStorage(STORAGE_KEYS.CUSTOM_TOURNAMENTS, merged);
             this.notify('custom_tournaments_updated');
           }
@@ -690,7 +703,8 @@ class Store {
         : (idx + 1);
       
       const displayNo = (!isNaN(canonicalSl) && canonicalSl > 0) ? canonicalSl : (idx + 1);
-      const regId = `JSL2026-${String(displayNo).padStart(4, '0')}`;
+      const tourneyCode = p.tournamentSlug ? p.tournamentSlug.toUpperCase() : 'JSL2026';
+      const regId = `${tourneyCode}-${String(displayNo).padStart(4, '0')}`;
 
       let validPhoto = p.photoUrl || p.player_photo_url || '';
       if (!validPhoto || validPhoto.includes('[Image Stored In Cloud]') || validPhoto.includes('unsplash.com') || (!validPhoto.startsWith('http') && !validPhoto.startsWith('data:image'))) {
@@ -787,6 +801,10 @@ class Store {
       createdTime,
       regTimestamp: createdTime,
       leagueCategory: playerData.leagueCategory || 'JSL',
+      tournament_id: playerData.tournament_id || this.activeTournamentId || null,
+      tournamentId: playerData.tournamentId || playerData.tournament_id || this.activeTournamentId || null,
+      tournamentSlug: playerData.tournamentSlug || null,
+      tournamentName: playerData.tournamentName || null,
       name: (playerData.name || playerData.playerName || '').trim(),
       fatherName: playerData.fatherName || 'N/A',
       dob: playerData.dob || '2000-01-01',
@@ -806,8 +824,8 @@ class Store {
       photoUrl: playerData.photoUrl || playerData.player_photo_url,
       aadharPhotoUrl: playerData.aadharPhotoUrl || playerData.aadhaar_photo_url || 'Attached Proof',
       paymentReceiptUrl: playerData.paymentReceiptUrl || playerData.payment_receipt_url || 'Attached Receipt',
-      paymentStatus: 'APPROVED',
-      registrationStatus: 'APPROVED',
+      paymentStatus: playerData.paymentStatus || 'APPROVED',
+      registrationStatus: playerData.registrationStatus || 'APPROVED',
       phoneVerified: playerData.phoneVerified !== false,
       remarks: playerData.remarks || playerData.paymentRef || '',
       paymentRef: playerData.paymentRef || '',
@@ -815,8 +833,8 @@ class Store {
       soldPrice: 0,
       basePrice: Number(playerData.basePrice) || 300,
       regDate: new Date().toISOString().split('T')[0],
-      serialNo: nextSerial,
-      displayRegistrationNumber: nextSerial,
+      serialNo: playerData.serialNo || playerData.reg_number || nextSerial,
+      displayRegistrationNumber: playerData.serialNo || playerData.reg_number || nextSerial,
       registrationId: regId,
       regNo: regId
     };
@@ -1332,6 +1350,8 @@ class Store {
     const newTeam = {
       id: `team-${Date.now()}`,
       serialNo,
+      tournament_id: teamData.tournament_id || this.activeTournamentId || null,
+      tournamentId: teamData.tournamentId || teamData.tournament_id || this.activeTournamentId || null,
       squadCount: 0,
       maxSquad: 15,
       purseBudget: 8000,
@@ -1922,6 +1942,29 @@ class Store {
       record.tournament_id = supabaseId;
     }
     safeSetLocalStorage(STORAGE_KEYS.CUSTOM_TOURNAMENTS, list);
+
+    // Register tournament owner credentials so admin login works
+    if (tourneyData.organizer && tourneyData.organizer.phone) {
+      const org = tourneyData.organizer;
+      const owners = this.getTournamentOwners();
+      const ownerKey = record.supabaseId || id;
+      const enc = new TextEncoder().encode(org.password || org.phone);
+      const buf = await crypto.subtle.digest('SHA-256', enc);
+      const hashedPw = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+      owners[ownerKey] = {
+        phone: org.phone.replace(/[^0-9]/g, ''),
+        name: org.name || 'Tournament Owner',
+        email: org.email || '',
+        password: hashedPw,
+        assignedAt: Date.now()
+      };
+      safeSetLocalStorage(STORAGE_KEYS.TOURNAMENT_OWNERS, owners);
+      if (record.supabaseId) {
+        saveTournamentOwnerToCloud(record.supabaseId, owners[ownerKey]);
+      }
+      this.notify('tournament_owners_updated');
+    }
+
     this.notify('custom_tournaments_updated');
     return record;
   }

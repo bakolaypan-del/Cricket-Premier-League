@@ -504,9 +504,12 @@ function derivePlayerStatus(playerData) {
 export async function syncPlayerToSupabase(playerData) {
   if (!supabase || !playerData || !playerData.id) return null;
   try {
+    const tid = playerData.tournament_id || playerData.tournamentId || playerData.leagueId || 'leg-jsl';
+    const isValidUUID = typeof tid === 'string' && tid.length >= 30 && tid.includes('-');
+    const tournamentUUID = isValidUUID ? tid : toUUID(tid);
     const payload = {
       id: toUUID(playerData.id),
-      tournament_id: toUUID(playerData.leagueId || playerData.tournament_id || 'leg-jsl'),
+      tournament_id: tournamentUUID,
       name: playerData.name,
       phone: (playerData.phone || playerData.mobile || '').replace(/[^0-9]/g, ''),
       photo_url: playerData.hdPhotoUrl || playerData.photoUrl || playerData.player_photo_url || null,
@@ -547,16 +550,19 @@ export async function deletePlayerFromSupabase(playerId) {
 export async function syncTeamToSupabase(teamData) {
   if (!supabase || !teamData || !teamData.id) return null;
   try {
+    const tid = teamData.tournament_id || teamData.tournamentId || teamData.leagueId || 'leg-jsl';
+    const isValidUUID = typeof tid === 'string' && tid.length >= 30 && tid.includes('-');
+    const tournamentUUID = isValidUUID ? tid : toUUID(tid);
     const payload = {
       id: toUUID(teamData.id),
-      tournament_id: toUUID(teamData.leagueId || teamData.tournament_id || 'leg-jsl'),
+      tournament_id: tournamentUUID,
       name: teamData.name,
       short_name: teamData.shortCode || null,
       owner_name: teamData.ownerName || null,
       owner_phone: teamData.ownerPhone || null,
       logo_url: teamData.logoUrl || teamData.teamLogoUrl || null,
-      budget_total: Number(teamData.purse) || 8000,
-      budget_remaining: Number(teamData.remainingPurse) || 8000,
+      budget_total: Number(teamData.purseBudget || teamData.purse) || 8000,
+      budget_remaining: Number(teamData.remainingPurse || teamData.purseBudget || teamData.purse) || 8000,
       updated_at: new Date().toISOString()
     };
     const { data, error } = await supabase.from('teams').upsert(payload).select().single();
@@ -986,12 +992,29 @@ export async function fetchCommunityQueriesFromCloud() {
 export async function fetchTournamentOwnersFromCloud() {
   if (!supabase) return {};
   try {
-    const { data } = await supabase.from('tournament_owners').select('*').eq('tournament_id', DEFAULT_TOURNAMENT_UUID);
+    const { data } = await supabase.from('tournament_owners').select('*');
     if (!data || data.length === 0) return {};
     const result = {};
-    data.forEach(o => { result[`tournament-jsl-2026`] = { phone: o.phone, name: o.name, assignedAt: new Date(o.assigned_at).getTime() }; });
+    data.forEach(o => {
+      const key = o.tournament_id || 'tournament-jsl-2026';
+      result[key] = { phone: o.phone, name: o.name, email: o.email || '', password: o.password_hash || '', assignedAt: new Date(o.assigned_at).getTime() };
+    });
     return result;
   } catch (e) { return {}; }
+}
+
+export async function saveTournamentOwnerToCloud(tournamentId, ownerData) {
+  if (!supabase || !tournamentId || !ownerData) return;
+  try {
+    await supabase.from('tournament_owners').upsert({
+      tournament_id: tournamentId,
+      phone: ownerData.phone,
+      name: ownerData.name || 'Tournament Owner',
+      email: ownerData.email || null,
+      password_hash: ownerData.password || null,
+      assigned_at: new Date().toISOString()
+    }, { onConflict: 'tournament_id,phone' });
+  } catch (e) { console.warn('[SUPABASE] saveTournamentOwner:', e.message); }
 }
 
 export async function fetchUserAccountsFromCloud() {
@@ -1057,13 +1080,24 @@ export async function saveCustomTournamentToCloud(tourney) {
       category_code: tourney.shortCode || tourney.category || 'CUSTOM',
       mode: tourney.mode || 'registration_auction',
       registration_fee: Number(tourney.entryFee || tourney.playerEntryFee) || 0,
-      total_team_budget: Number(tourney.auctionPurse || tourney.purse) || 10000,
+      total_team_budget: Number(tourney.teamPurse || tourney.auctionPurse || tourney.purse) || 10000,
+      base_price: Number(tourney.basePrice) || 300,
       venue_name: tourney.venue || 'TBD',
+      kickoff_date: tourney.kickoffDate || tourney.kickoff_date || null,
+      prize_winner: Number(tourney.prizeWinner || tourney.prize_winner) || 35000,
+      entry_fee: Number(tourney.entryFee || tourney.entry_fee) || 300,
+      organiser_name: tourney.organizer?.name || tourney.organiser_name || null,
+      organiser_phone: tourney.organizer?.phone || tourney.organiser_phone || null,
+      upi_id: tourney.upiId || tourney.upi_id || null,
+      payment_qr_url: tourney.paymentQrUrl || tourney.payment_qr_url || null,
+      poster_url: tourney.posterUrl || tourney.poster_url || null,
       status: tourney.status === 'ACTIVE' ? 'active' : (tourney.status || 'active').toLowerCase(),
-      organiser_id: user?.id || null
+      organiser_id: user?.id || null,
+      updated_at: new Date().toISOString()
     };
     if (tourney.supabaseId) payload.id = tourney.supabaseId;
     const { data, error } = await supabase.from('tournaments').upsert(payload, { onConflict: 'slug' }).select('id').single();
+    if (error) console.warn('[SUPABASE] saveCustomTournament error:', error.message);
     if (!error && data?.id) return data.id;
     return null;
   } catch (e) {
@@ -1074,7 +1108,31 @@ export async function saveCustomTournamentToCloud(tourney) {
 
 export async function fetchCustomTournamentsFromCloud() {
   const data = await dbFetchTournaments();
-  return data || [];
+  if (!data || !Array.isArray(data)) return [];
+  return data.map(t => ({
+    id: `t_${t.slug}`,
+    supabaseId: t.id,
+    tournament_id: t.id,
+    slug: t.slug,
+    name: t.name,
+    shortCode: (t.category_code || t.slug || '').toUpperCase(),
+    mode: t.mode,
+    venue: t.venue_name,
+    kickoffDate: t.kickoff_date,
+    prizeWinner: Number(t.prize_winner) || 35000,
+    entryFee: Number(t.entry_fee || t.registration_fee) || 300,
+    teamPurse: Number(t.total_team_budget) || 8000,
+    basePrice: Number(t.base_price) || 300,
+    posterUrl: t.poster_url || t.banner_url || '',
+    upiId: t.upi_id || '',
+    paymentQrUrl: t.payment_qr_url || '',
+    organizer: {
+      name: t.organiser_name || '',
+      phone: t.organiser_phone || ''
+    },
+    status: (t.status || 'active').toUpperCase(),
+    created_at: new Date(t.created_at).getTime()
+  }));
 }
 
 export async function deleteCustomTournamentFromCloud(tourneyId) {
@@ -1219,8 +1277,23 @@ export async function dbLookupPlayerByPhone(phone) {
 export async function dbRegisterPlayer(playerData, docsData = null) {
   if (!supabase) return null;
   try {
+    const tid = playerData.tournament_id;
+    if (!tid || typeof tid !== 'string' || tid.length < 30) {
+      console.warn('[POSTGRES] dbRegisterPlayer: invalid tournament_id, skipping cloud save');
+      return null;
+    }
     const pPayload = {
-      ...playerData,
+      tournament_id: tid,
+      name: playerData.name,
+      phone: playerData.phone,
+      photo_url: playerData.photo_url || playerData.photoUrl || null,
+      role: playerData.role || playerData.category || 'All-Rounder',
+      category_name: playerData.category_name || playerData.category || 'Category B',
+      base_price: Number(playerData.base_price || playerData.basePrice) || 300,
+      reg_number: playerData.reg_number || playerData.serialNo || null,
+      verified: false,
+      status: 'available',
+      source: 'registered',
       created_at: new Date().toISOString()
     };
 
