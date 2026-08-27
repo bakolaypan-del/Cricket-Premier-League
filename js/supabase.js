@@ -295,7 +295,7 @@ export async function uploadImageToCloudinary(fileInput, folderName = 'photos') 
     const formData = new FormData();
     formData.append('file', file);
     formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-    formData.append('folder', `jsl_2026/${folderName}`);
+    formData.append('folder', `cpl_uploads/${folderName}`);
 
     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
     const timeoutId = controller ? setTimeout(() => controller.abort(), 10000) : null;
@@ -385,17 +385,20 @@ export async function fetchCloudData(tournamentId) {
 }
 
 export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAMENT_UUID) {
-  const empty = { players: [], teams: [], fixtures: [], playerProfiles: [], auctionSettings: { defaultBasePrice: 300, defaultPurseBudget: 8000 }, registrationSettings: { isJslRegistrationOpen: true, isPlayerRegOpen: true, isTeamRegOpen: true, closedReason: "JSL 2026 Registration is currently closed by the Master Admin." }, clearedAt: 0, teamsClearedAt: 0, deletedPlayerIds: [], deletedTeamIds: [] };
+  const empty = { players: [], teams: [], fixtures: [], playerProfiles: [], auctionSettings: { defaultBasePrice: 300, defaultPurseBudget: 8000 }, registrationSettings: { isPlayerRegOpen: true, isTeamRegOpen: true, closedReason: "Registration is currently closed by the Admin." }, clearedAt: 0, teamsClearedAt: 0, deletedPlayerIds: [], deletedTeamIds: [] };
   if (!supabase) return empty;
 
   try {
     const tId = tournamentId || DEFAULT_TOURNAMENT_UUID;
 
-    const [playersRes, teamsRes, matchesRes] = await Promise.all([
+    const [playersRes, teamsRes, matchesRes, tourneyRes] = await Promise.all([
       supabase.from('players').select('*').eq('tournament_id', tId),
       supabase.from('teams').select('*').eq('tournament_id', tId),
-      supabase.from('matches').select('*').eq('tournament_id', tId)
+      supabase.from('matches').select('*').eq('tournament_id', tId),
+      supabase.from('tournaments').select('category_code, slug, name, registration_fee, total_team_budget, base_price').eq('id', tId).maybeSingle()
     ]);
+    const tourneyMeta = tourneyRes?.data || {};
+    const regPrefix = (tourneyMeta.category_code || tourneyMeta.slug || 'T').toUpperCase().replace(/[^A-Z0-9]/g, '');
 
     const dbPlayers = (!playersRes.error && Array.isArray(playersRes.data)) ? playersRes.data : [];
     const dbTeams = (!teamsRes.error && Array.isArray(teamsRes.data)) ? teamsRes.data : [];
@@ -406,7 +409,7 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
       return {
         id: p.id,
         tournament_id: p.tournament_id,
-        leagueId: 'leg-jsl',
+        leagueId: tId,
         name: p.name,
         phone: p.phone,
         mobile: p.phone,
@@ -426,8 +429,8 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
         paymentStatus: p.verified === true ? 'APPROVED' : 'PENDING',
         serialNo: serial,
         displayRegistrationNumber: serial,
-        registrationId: `JSL2026-${String(serial).padStart(4, '0')}`,
-        regNo: `JSL2026-${String(serial).padStart(4, '0')}`,
+        registrationId: `${regPrefix}-${String(serial).padStart(4, '0')}`,
+        regNo: `${regPrefix}-${String(serial).padStart(4, '0')}`,
         created_at: p.created_at,
         updated_at: p.updated_at
       };
@@ -436,7 +439,7 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
     const teams = dbTeams.map((t, idx) => ({
       id: t.id,
       tournament_id: t.tournament_id,
-      leagueId: 'leg-jsl',
+      leagueId: t.tournament_id || tId,
       name: t.name,
       shortCode: t.short_name,
       ownerName: t.owner_name,
@@ -474,8 +477,9 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
       fixtures,
       liveAuction: null,
       playerProfiles: [],
-      auctionSettings: { defaultBasePrice: 300, defaultPurseBudget: 8000 },
-      registrationSettings: { isJslRegistrationOpen: true, isPlayerRegOpen: true, isTeamRegOpen: true },
+      auctionSettings: { defaultBasePrice: Number(tourneyMeta.base_price) || 300, defaultPurseBudget: Number(tourneyMeta.total_team_budget) || 8000 },
+      registrationSettings: { isPlayerRegOpen: true, isTeamRegOpen: true },
+      tournamentMeta: tourneyMeta,
       clearedAt: 0,
       teamsClearedAt: 0,
       deletedPlayerIds: [],
@@ -784,7 +788,7 @@ export async function saveLiveAuctionToCloud(state) {
 export async function saveAuctionPermanentArchiveToCloud(archiveData) {
   if (!supabase || !archiveData) return;
   try {
-    const id = archiveData.archiveId || 'JSL_2026_AUCTION_VAULT';
+    const id = archiveData.archiveId || 'AUCTION_VAULT';
     await supabase.from('auction_archives').upsert({ id, tournament_id: DEFAULT_TOURNAMENT_UUID, snapshot: archiveData, created_at: new Date().toISOString() }, { onConflict: 'id' });
   } catch (e) { console.warn('[SUPABASE] saveAuctionArchive:', e.message); }
 }
@@ -940,7 +944,7 @@ export async function saveRegistrationSettingsToCloud(settings) {
 }
 
 export async function fetchRegistrationSettingsFromCloud() {
-  const defaults = { isJslRegistrationOpen: true, isPlayerRegOpen: true, isTeamRegOpen: true, closedReason: "JSL 2026 Registration is currently closed by the Master Admin." };
+  const defaults = { isPlayerRegOpen: true, isTeamRegOpen: true, closedReason: "Registration is currently closed by the Admin." };
   if (!supabase) return defaults;
   try {
     const { data } = await supabase.from('tournaments').select('registration_settings').eq('id', DEFAULT_TOURNAMENT_UUID).maybeSingle();
@@ -996,7 +1000,7 @@ export async function fetchTournamentOwnersFromCloud() {
     if (!data || data.length === 0) return {};
     const result = {};
     data.forEach(o => {
-      const key = o.tournament_id || 'tournament-jsl-2026';
+      const key = o.tournament_id || o.id;
       result[key] = { phone: o.phone, name: o.name, email: o.email || '', password: o.password_hash || '', assignedAt: new Date(o.assigned_at).getTime() };
     });
     return result;
@@ -1036,6 +1040,22 @@ export async function fetchUserAccountsFromCloud() {
   } catch (e) { return []; }
 }
 
+
+export async function saveUserAccountToCloud(account) {
+  if (!supabase || !account?.phone) return;
+  try {
+    await supabase.from('user_accounts').upsert({
+      phone: account.phone,
+      password: account.password || account.phone,
+      name: account.name || 'Player',
+      role: account.role || 'PLAYER',
+      player_id: account.playerId || null,
+      is_first_login: account.isFirstLogin !== false,
+      owned_tournaments: account.ownedTournaments || [],
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'phone' });
+  } catch (e) { console.warn('[SUPABASE] saveUserAccountToCloud:', e.message); }
+}
 
 // --- LIVE & TOTAL VISITOR TRACKER (visitor_stats table) ---
 export async function initVisitorTracking(onStatsChange) {

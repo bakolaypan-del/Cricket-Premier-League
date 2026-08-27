@@ -47,7 +47,8 @@ import {
   dbVerifyPlayer,
   dbCreateTournament,
   dbFetchTournaments,
-  compressImageToTarget
+  compressImageToTarget,
+  saveUserAccountToCloud
 } from './supabase.js?v=11.6.4';
 
 const STORAGE_KEYS = {
@@ -201,10 +202,10 @@ class Store {
     }
     if (!localStorage.getItem(STORAGE_KEYS.REGISTRATION_SETTINGS)) {
       safeSetLocalStorage(STORAGE_KEYS.REGISTRATION_SETTINGS, {
-        isJslRegistrationOpen: true,
+        isRegistrationOpen: true,
         isPlayerRegOpen: true,
         isTeamRegOpen: true,
-        closedReason: "JSL 2026 Registration is currently closed by the Master Admin."
+        closedReason: "Registration is currently closed by the Admin."
       });
     }
     if (!localStorage.getItem(STORAGE_KEYS.USER)) {
@@ -627,15 +628,14 @@ class Store {
         const filtered = allLeagues.filter(l => {
           const lCode = (l.code || l.category || l.shortCode || '').toUpperCase();
           const lId = (l.id || '').toUpperCase();
-          return permittedTourneyIds.some(pid => pid.includes(lCode) || pid === lId || (lCode === 'JSL' && pid.includes('JSL')));
+          return permittedTourneyIds.some(pid => pid.includes(lCode) || pid === lId);
         });
         if (filtered.length > 0) return filtered;
       }
     }
 
-    // Default fallback for any non-master Tournament Admin: restricted to JSL 2026 only
-    const jslOnly = allLeagues.filter(l => (l.code || l.category || l.shortCode || l.name || '').toUpperCase().includes('JSL'));
-    return jslOnly.length > 0 ? jslOnly : allLeagues.slice(0, 1);
+    // Default fallback for non-master Tournament Admin: return first league
+    return allLeagues.slice(0, 1);
   }
 
   getLeagueById(id) {
@@ -703,7 +703,7 @@ class Store {
         : (idx + 1);
       
       const displayNo = (!isNaN(canonicalSl) && canonicalSl > 0) ? canonicalSl : (idx + 1);
-      const tourneyCode = p.tournamentSlug ? p.tournamentSlug.toUpperCase() : 'JSL2026';
+      const tourneyCode = p.tournamentSlug ? p.tournamentSlug.toUpperCase().replace(/[^A-Z0-9]/g, '') : 'REG';
       const regId = `${tourneyCode}-${String(displayNo).padStart(4, '0')}`;
 
       let validPhoto = p.photoUrl || p.player_photo_url || '';
@@ -753,7 +753,7 @@ class Store {
   // --- REGISTER NEW PLAYER WITH ATOMIC TIMESTAMP QUEUE & ZERO DUPLICATES ---
   registerPlayer(playerData) {
     if (!this.isPlayerRegistrationOpen()) {
-      throw new Error(this.getRegistrationSettings().closedReason || "JSL 2026 Player Registration is currently closed by the Master Admin.");
+      throw new Error(this.getRegistrationSettings().closedReason || "Player Registration is currently closed by the Admin.");
     }
     let players = this.getPlayers();
     
@@ -792,7 +792,8 @@ class Store {
 
     const nextSerial = players.length + 1;
     const uuid = `ply-1787000000000-${String(nextSerial).padStart(4, '0')}`;
-    const regId = `JSL2026-${String(nextSerial).padStart(4, '0')}`;
+    const tourneyPrefix = (playerData.tournamentSlug || 'REG').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const regId = `${tourneyPrefix}-${String(nextSerial).padStart(4, '0')}`;
     const createdTime = Date.now();
 
     const newPlayer = {
@@ -800,7 +801,7 @@ class Store {
       profileId: profile ? profile.id : null,
       createdTime,
       regTimestamp: createdTime,
-      leagueCategory: playerData.leagueCategory || 'JSL',
+      leagueCategory: playerData.leagueCategory || 'T',
       tournament_id: playerData.tournament_id || this.activeTournamentId || null,
       tournamentId: playerData.tournamentId || playerData.tournament_id || this.activeTournamentId || null,
       tournamentSlug: playerData.tournamentSlug || null,
@@ -811,7 +812,7 @@ class Store {
       age: playerData.age || 24,
       phone: playerData.phone || playerData.mobile,
       alternateMobile: playerData.alternateMobile || '',
-      village: playerData.village || playerData.address || 'Jhankra',
+      village: playerData.village || playerData.address || '',
       district: playerData.district || 'Paschim Medinipur',
       state: playerData.state || 'West Bengal',
       category: playerData.category || playerData.playingType || 'All Rounder',
@@ -891,12 +892,13 @@ class Store {
     // Filter out deleted player
     players = players.filter(p => p.id !== playerId);
 
-    // CONTINUOUS DYNAMIC RE-INDEXING (1, 2, 3... JSL2026-0001, JSL2026-0002...)
+    // CONTINUOUS DYNAMIC RE-INDEXING (1, 2, 3... REG-0001, REG-0002...)
     players.forEach((p, idx) => {
       const displayNo = idx + 1;
       p.serialNo = displayNo;
       p.displayRegistrationNumber = displayNo;
-      p.registrationId = `JSL2026-${String(displayNo).padStart(4, '0')}`;
+      const prefix = (p.tournamentSlug || 'REG').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      p.registrationId = `${prefix}-${String(displayNo).padStart(4, '0')}`;
       p.regNo = p.registrationId;
     });
 
@@ -1343,7 +1345,7 @@ class Store {
 
   registerTeam(teamData) {
     if (!this.isTeamRegistrationOpen()) {
-      throw new Error(this.getRegistrationSettings().closedReason || "JSL 2026 Team Registration is currently closed by the Master Admin.");
+      throw new Error(this.getRegistrationSettings().closedReason || "Team Registration is currently closed by the Admin.");
     }
     const teams = this.getTeams();
     const serialNo = teams.length + 1;
@@ -1481,15 +1483,15 @@ class Store {
     };
   }
 
-  getTournamentFormat(leagueCode = 'JSL') {
+  getTournamentFormat(leagueCode = 'T') {
     const formats = this.getTournamentFormats();
-    const clean = (leagueCode || 'JSL').toUpperCase();
+    const clean = (leagueCode || 'T').toUpperCase();
     return formats[clean] || { format: 'TWO_GROUPS', groups: ['A', 'B'], qualifyPerGroup: 2, knockoutType: 'SEMIFINALS' };
   }
 
-  async saveTournamentFormat(leagueCode = 'JSL', formatConfig) {
+  async saveTournamentFormat(leagueCode = 'T', formatConfig) {
     const formats = this.getTournamentFormats();
-    const clean = (leagueCode || 'JSL').toUpperCase();
+    const clean = (leagueCode || 'T').toUpperCase();
     formats[clean] = { ...formats[clean], ...formatConfig, updated_at: Date.now() };
     safeSetLocalStorage(STORAGE_KEYS.TOURNAMENT_FORMATS, formats);
     await saveTournamentFormatToCloud(clean, formats[clean]);
@@ -1532,10 +1534,10 @@ class Store {
     return true;
   }
 
-  randomizeTeamGroups(leagueCode = 'JSL', groupNames = ['A', 'B']) {
-    const cleanLeague = (leagueCode || 'JSL').toUpperCase();
+  randomizeTeamGroups(leagueCode = 'T', groupNames = ['A', 'B']) {
+    const cleanLeague = (leagueCode || 'T').toUpperCase();
     const teams = this.getTeams().filter(t => {
-      const code = (t.leagueCode || (t.leagueId === 'leg-jsl' ? 'JSL' : (t.leagueId === 'leg-jpl' ? 'JPL' : (t.leagueId === 'leg-kpl' ? 'KPL' : 'JSL'))));
+      const code = (t.leagueCode || (t.leagueId === 'leg-jsl' ? 'JSL' : (t.leagueId === 'leg-jpl' ? 'JPL' : (t.leagueId === 'leg-kpl' ? 'KPL' : 'T'))));
       return code === cleanLeague;
     });
 
@@ -1552,10 +1554,10 @@ class Store {
     return assignments;
   }
 
-  autoGenerateGroupFixtures(leagueCode = 'JSL', config = {}) {
-    const cleanLeague = (leagueCode || 'JSL').toUpperCase();
+  autoGenerateGroupFixtures(leagueCode = 'T', config = {}) {
+    const cleanLeague = (leagueCode || 'T').toUpperCase();
     const teams = this.getTeams().filter(t => {
-      const code = (t.leagueCode || (t.leagueId === 'leg-jsl' ? 'JSL' : (t.leagueId === 'leg-jpl' ? 'JPL' : (t.leagueId === 'leg-kpl' ? 'KPL' : 'JSL'))));
+      const code = (t.leagueCode || (t.leagueId === 'leg-jsl' ? 'JSL' : (t.leagueId === 'leg-jpl' ? 'JPL' : (t.leagueId === 'leg-kpl' ? 'KPL' : 'T'))));
       return code === cleanLeague;
     });
 
@@ -1629,10 +1631,10 @@ class Store {
   // --- REGISTRATION CONTROL CONFIG & MASTER TOGGLE ---
   getRegistrationSettings() {
     const defaultSettings = {
-      isJslRegistrationOpen: true,
+      isRegistrationOpen: true,
       isPlayerRegOpen: true,
       isTeamRegOpen: true,
-      closedReason: "JSL 2026 Registration is currently closed by the Master Admin."
+      closedReason: "Registration is currently closed by the Admin."
     };
     try {
       const s = localStorage.getItem(STORAGE_KEYS.REGISTRATION_SETTINGS);
@@ -1647,19 +1649,19 @@ class Store {
     }
   }
 
-  isJslRegistrationOpen() {
+  isRegistrationOpen() {
     const s = this.getRegistrationSettings();
-    return s.isJslRegistrationOpen !== false;
+    return s.isRegistrationOpen !== false;
   }
 
   isPlayerRegistrationOpen() {
     const s = this.getRegistrationSettings();
-    return s.isJslRegistrationOpen !== false && s.isPlayerRegOpen !== false;
+    return s.isRegistrationOpen !== false && s.isPlayerRegOpen !== false;
   }
 
   isTeamRegistrationOpen() {
     const s = this.getRegistrationSettings();
-    return s.isJslRegistrationOpen !== false && s.isTeamRegOpen !== false;
+    return s.isRegistrationOpen !== false && s.isTeamRegOpen !== false;
   }
 
   updateRegistrationSettings(settings) {
@@ -1671,8 +1673,8 @@ class Store {
     return updated;
   }
 
-  toggleJslRegistration(isOpen, closedReason = null) {
-    const patch = { isJslRegistrationOpen: isOpen };
+  toggleRegistration(isOpen, closedReason = null) {
+    const patch = { isRegistrationOpen: isOpen };
     if (closedReason) patch.closedReason = closedReason;
     return this.updateRegistrationSettings(patch);
   }
@@ -1712,7 +1714,7 @@ class Store {
     this.notify('live_auction_updated');
   }
 
-  // --- PERMANENT 5-YEAR AUCTION ARCHIVE & RECORD VAULT (JSL 2026) ---
+  // --- PERMANENT 5-YEAR AUCTION ARCHIVE & RECORD VAULT ---
   generateAuctionPermanentArchiveSnapshot() {
     const teams = this.getTeams();
     const allPlayers = this.getPlayers();
@@ -1768,7 +1770,7 @@ class Store {
       return {
         teamId: team.id,
         teamName: team.name,
-        shortCode: team.shortCode || 'JSL',
+        shortCode: team.shortCode || 'T',
         ownerName: team.ownerName || 'Franchise Owner',
         ownerPhone: team.ownerPhone || 'N/A',
         coOwners: [team.coOwnerName, team.coOwner1Name, team.coOwner2Name].filter(Boolean).join(', ') || null,
@@ -1813,12 +1815,13 @@ class Store {
     const totalTournamentSpent = teamSummaries.reduce((sum, t) => sum + t.totalSpent, 0);
     const totalRemainingPurse = teamSummaries.reduce((sum, t) => sum + t.remainingPurse, 0);
 
+    const activeTourney = this.getCustomTournaments().find(t => (t.supabaseId || t.id) === this.activeTournamentId) || {};
     const snapshot = {
-      archiveId: 'JSL_2026_AUCTION_VAULT',
-      tournament: 'Jhankra Super League (JSL 2026)',
-      season: '2026',
+      archiveId: `${(activeTourney.slug || 'tournament').toUpperCase()}_AUCTION_VAULT`,
+      tournament: activeTourney.name || 'Tournament',
+      season: new Date().getFullYear().toString(),
       status: 'AUCTION COMPLETED & ARCHIVED',
-      venue: 'Jhankra High School Ground',
+      venue: activeTourney.venue || 'Tournament Ground',
       archivedTimestamp: Date.now(),
       archivedDate: new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
       totalTeams: teamSummaries.length,
@@ -1963,6 +1966,31 @@ class Store {
         saveTournamentOwnerToCloud(record.supabaseId, owners[ownerKey]);
       }
       this.notify('tournament_owners_updated');
+
+      // Create user_account for the organiser so they can log in
+      const cleanOrgPhone = org.phone.replace(/[^0-9]/g, '');
+      let accounts = this.getUserAccounts();
+      let orgAcc = accounts.find(a => a.phone === cleanOrgPhone);
+      const tourneyRef = record.supabaseId || id;
+      if (!orgAcc) {
+        orgAcc = {
+          phone: cleanOrgPhone,
+          password: org.password || cleanOrgPhone,
+          name: org.name || 'Tournament Owner',
+          role: 'TOURNAMENT_OWNER',
+          isFirstLogin: false,
+          ownedTournaments: [tourneyRef],
+          created_at: Date.now()
+        };
+        accounts.push(orgAcc);
+      } else {
+        orgAcc.role = 'TOURNAMENT_OWNER';
+        if (!orgAcc.ownedTournaments) orgAcc.ownedTournaments = [];
+        if (!orgAcc.ownedTournaments.includes(tourneyRef)) orgAcc.ownedTournaments.push(tourneyRef);
+        orgAcc.password = org.password || orgAcc.password;
+      }
+      safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, accounts);
+      saveUserAccountToCloud(orgAcc);
     }
 
     this.notify('custom_tournaments_updated');
@@ -2068,7 +2096,7 @@ class Store {
         id: 'prof-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
         phone,
         name: playerData.name || playerData.playerName,
-        village: playerData.village || playerData.address || 'Jhankra',
+        village: playerData.village || playerData.address || '',
         district: playerData.district || 'Paschim Medinipur',
         state: playerData.state || 'West Bengal',
         battingStyle: playerData.battingStyle || 'Right Hand Bat',
@@ -2264,16 +2292,18 @@ class Store {
         name: player.name || 'Player',
         playerId: player.id || null,
         role: isOwner ? 'TOURNAMENT_OWNER' : 'PLAYER',
-        ownedTournaments: isOwner ? ['tournament-jsl-2026'] : [],
+        ownedTournaments: isOwner ? Object.entries(owners).filter(([, o]) => o && o.phone === cleanPhone).map(([k]) => k) : [],
         created_at: Date.now()
       };
       accounts.push(acc);
       safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, accounts);
+      saveUserAccountToCloud(acc);
     } else {
       if (!acc.password) acc.password = cleanPhone;
       if (isOwner && acc.role !== 'TOURNAMENT_OWNER') {
         acc.role = 'TOURNAMENT_OWNER';
         safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, accounts);
+        saveUserAccountToCloud(acc);
       }
     }
     return acc;
@@ -2299,7 +2329,7 @@ class Store {
             name: profile?.full_name || (rawId.toLowerCase() === 'bakolaypan@gmail.com' ? 'Master Admin (Suman Kolay)' : (authedUser.user_metadata?.full_name || rawId.split('@')[0])),
             role: isMaster ? 'SUPER_ADMIN' : 'TOURNAMENT_OWNER',
             isFirstLogin: false,
-            ownedTournaments: ['tournament-jsl-2026']
+            ownedTournaments: Object.keys(this.getTournamentOwners())
           };
           this.setCurrentUser(user);
           localStorage.setItem(STORAGE_KEYS.ADMIN_AUTH, 'true');
@@ -2322,9 +2352,12 @@ class Store {
       return { success: false, message: 'Please enter a valid 10-digit mobile number or admin email!' };
     }
 
-    // Check if this mobile is assigned as a Tournament Owner
+    // Check if this mobile is assigned as a Tournament Owner (across all tournaments)
     const owners = this.getTournamentOwners();
-    const isTournamentOwner = Object.values(owners).some(o => o && (o.phone || '').replace(/[^0-9]/g, '') === cleanPhone);
+    const ownedTourneyKeys = Object.entries(owners)
+      .filter(([, o]) => o && (o.phone || '').replace(/[^0-9]/g, '') === cleanPhone)
+      .map(([key]) => key);
+    const isTournamentOwner = ownedTourneyKeys.length > 0;
 
     const players = this.getPlayers();
     const player = players.find(p => (p.phone || p.mobile || '').replace(/[^0-9]/g, '') === cleanPhone);
@@ -2338,13 +2371,16 @@ class Store {
     }
 
     if (!acc) {
+      const ownerName = isTournamentOwner
+        ? (Object.values(owners).find(o => o && (o.phone || '').replace(/[^0-9]/g, '') === cleanPhone)?.name || 'Tournament Admin')
+        : 'Player';
       acc = {
         phone: cleanPhone,
         password: cleanPhone,
-        name: player ? player.name : (isTournamentOwner ? (owners['tournament-jsl-2026']?.name || 'Tournament Admin') : 'Player'),
+        name: player ? player.name : ownerName,
         role: isTournamentOwner ? 'TOURNAMENT_OWNER' : 'PLAYER',
         isFirstLogin: true,
-        ownedTournaments: isTournamentOwner ? ['tournament-jsl-2026'] : [],
+        ownedTournaments: ownedTourneyKeys,
         created_at: Date.now()
       };
       accounts.push(acc);
@@ -2355,7 +2391,9 @@ class Store {
     if (isTournamentOwner) {
       acc.role = 'TOURNAMENT_OWNER';
       if (!acc.ownedTournaments) acc.ownedTournaments = [];
-      if (!acc.ownedTournaments.includes('tournament-jsl-2026')) acc.ownedTournaments.push('tournament-jsl-2026');
+      for (const key of ownedTourneyKeys) {
+        if (!acc.ownedTournaments.includes(key)) acc.ownedTournaments.push(key);
+      }
       safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, accounts);
     }
 
@@ -2413,8 +2451,8 @@ class Store {
     }
 
     safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, accounts);
+    saveUserAccountToCloud(acc);
     this.setCurrentUser(acc);
-
 
     this.notify('user_auth_updated');
     return { success: true, user: acc };
@@ -2429,8 +2467,13 @@ class Store {
       const isOwner = Object.values(owners).some(o => o && (o.phone || '').replace(/[^0-9]/g, '') === cleanPhone);
       if (isOwner && u.role !== 'TOURNAMENT_OWNER' && u.role !== 'SUPER_ADMIN') {
         u.role = 'TOURNAMENT_OWNER';
+        const ownedKeys = Object.entries(owners)
+          .filter(([, o]) => o && (o.phone || '').replace(/[^0-9]/g, '') === cleanPhone)
+          .map(([key]) => key);
         if (!u.ownedTournaments) u.ownedTournaments = [];
-        if (!u.ownedTournaments.includes('tournament-jsl-2026')) u.ownedTournaments.push('tournament-jsl-2026');
+        for (const key of ownedKeys) {
+          if (!u.ownedTournaments.includes(key)) u.ownedTournaments.push(key);
+        }
         safeSetLocalStorage(STORAGE_KEYS.CURRENT_USER, u);
       }
       return u;

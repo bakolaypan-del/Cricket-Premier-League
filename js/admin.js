@@ -5,7 +5,7 @@ import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamFin
 import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase } from './supabase.js?v=13.0.0';
 import { shops } from './shopsData.js?v=12.0.2';
 
-let activeAdminTab = (() => { try { return sessionStorage.getItem('cpl_admin_tab') || 'payments'; } catch(e) { return 'payments'; } })();
+let activeAdminTab = (() => { try { return sessionStorage.getItem('cpl_admin_tab') || (store.isMasterAdmin() ? 'payments' : 'overview'); } catch(e) { return 'payments'; } })();
 let adminAuctionSubTab = 'sold';
 const todayStr = new Date().toISOString().split('T')[0];
 
@@ -32,9 +32,9 @@ export function renderAdminDashboard(containerEl) {
   const isMaster = store.isMasterAdmin();
   const currentUser = store.getCurrentUser();
   const regSettings = store.getRegistrationSettings();
-  const isRegOpen = store.isJslRegistrationOpen();
+  const isRegOpen = store.isRegistrationOpen();
   
-  const initialLeagueCode = (leagues[0]?.code || leagues[0]?.category || 'JSL').toUpperCase();
+  const initialLeagueCode = (leagues[0]?.code || leagues[0]?.category || 'T').toUpperCase();
   const initialFormat = store.getTournamentFormat(initialLeagueCode);
   const initialFmt = initialFormat.format || 'TWO_GROUPS';
   let initialStageOptionsHtml = '';
@@ -65,24 +65,28 @@ export function renderAdminDashboard(containerEl) {
     `;
   }
 
-  const panelTitle = isMaster ? 'Master Admin Control Panel' : 'JSL 2026 Tournament Control Console';
+  const activeTourneyName = allTournaments.find(t => t.id === activeTid)?.name || 'Tournament';
+  const panelTitle = isMaster ? 'Master Admin Control Panel' : `${activeTourneyName} Control Console`;
   const panelSubtitle = isMaster 
     ? `Log ID: <strong class="text-amber-400">${currentUser?.email || 'Master Admin'}</strong> • Single Source Supabase & Realtime Cloud Database`
     : `Logged in as: <strong class="text-amber-400">${currentUser?.name || 'Tournament Owner'}</strong> • Tournament Operations Only`;
 
   // Build tournament list for selector
   const customTournaments = store.getCustomTournaments ? store.getCustomTournaments() : [];
-  const allTournaments = [{ id: 'tournament-jsl-2026', name: 'Jhankra Super League 2026', slug: 'jsl-2026', status: 'ACTIVE' }, ...customTournaments.map(t => ({ id: t.supabaseId || t.id, name: t.name, slug: t.slug, status: t.status || 'ACTIVE' }))];
-  const activeTid = store.activeTournamentId || allTournaments[0]?.id || 'tournament-jsl-2026';
+  const allTournaments = customTournaments.map(t => ({ id: t.supabaseId || t.id, name: t.name, slug: t.slug, status: t.status || 'ACTIVE' }));
+  if (allTournaments.length === 0) allTournaments.push({ id: store.activeTournamentId || 'default', name: 'Default Tournament', slug: 'default', status: 'ACTIVE' });
+  const activeTid = store.activeTournamentId || allTournaments[0]?.id;
 
   // Sidebar nav items config
   const sidebarItems = [
+    ...(!isMaster ? [{ tab: 'overview', icon: 'layout-dashboard', label: 'Overview' }] : []),
     { tab: 'payments', icon: 'badge-indian-rupee', label: 'Approvals', badge: pendingPlayers.length, badgeColor: 'red' },
     { tab: 'all-players', icon: 'users', label: 'Players', badge: players.length, badgeColor: 'slate' },
     { tab: 'teams', icon: 'shield', label: 'Teams', badge: teams.length, badgeColor: 'slate' },
     { tab: 'auction', icon: 'gavel', label: 'Auction', masterOnly: false },
     { tab: 'fixtures', icon: 'calendar', label: 'Scheduler', masterOnly: false },
     { tab: 'scorer', icon: 'gamepad-2', label: 'Live Scorer', masterOnly: false },
+    ...(!isMaster ? [{ tab: 'reg-settings', icon: 'power', label: 'Reg. Control' }] : []),
     ...(isMaster ? [
       { tab: 'reg-settings', icon: 'power', label: 'Reg. Control' },
       { tab: 'shop-ads', icon: 'megaphone', label: 'Shop Ads' },
@@ -195,7 +199,131 @@ export function renderAdminDashboard(containerEl) {
           </div>
 
           <div id="admin-tab-content">
-        
+
+        <!-- 0. Organiser Overview Tab -->
+        ${!isMaster ? `
+        <div id="tab-overview-view" class="${activeAdminTab === 'overview' ? '' : 'hidden'} space-y-4 animate-fade-in">
+
+          <!-- Welcome & Tournament Info -->
+          <div class="p-4 sm:p-5 bg-gradient-to-br from-emerald-50 to-teal-50 border-2 border-emerald-200 rounded-3xl shadow-sm space-y-3">
+            <div class="flex items-center gap-3">
+              <span class="p-2.5 bg-emerald-100 text-emerald-700 rounded-2xl border border-emerald-300">
+                <i data-lucide="trophy" class="w-6 h-6"></i>
+              </span>
+              <div>
+                <h2 class="text-lg font-black text-slate-900">${activeTourneyName}</h2>
+                <p class="text-xs text-slate-600">Welcome back, <strong>${currentUser?.name || 'Organiser'}</strong></p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Stats Grid -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div class="bg-white border-2 border-slate-200 rounded-2xl p-3 text-center shadow-xs">
+              <div class="text-2xl font-black text-emerald-700">${players.length}</div>
+              <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Players</div>
+            </div>
+            <div class="bg-white border-2 border-slate-200 rounded-2xl p-3 text-center shadow-xs">
+              <div class="text-2xl font-black text-sky-700">${teams.length}</div>
+              <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Teams</div>
+            </div>
+            <div class="bg-white border-2 border-slate-200 rounded-2xl p-3 text-center shadow-xs">
+              <div class="text-2xl font-black text-amber-700">${pendingPlayers.length}</div>
+              <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Pending</div>
+            </div>
+            <div class="bg-white border-2 border-slate-200 rounded-2xl p-3 text-center shadow-xs">
+              <div class="text-2xl font-black text-purple-700">${approvedPlayers.length}</div>
+              <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Approved</div>
+            </div>
+          </div>
+
+          <!-- Registration Status -->
+          <div class="p-4 bg-white border-2 border-slate-200 rounded-2xl shadow-xs space-y-3">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <i data-lucide="radio" class="w-4 h-4 ${isRegOpen ? 'text-emerald-600' : 'text-red-500'}"></i>
+                <span class="text-sm font-black text-slate-900">Registration Status</span>
+              </div>
+              <span class="px-3 py-1 text-[10px] font-black rounded-full ${isRegOpen ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-red-100 text-red-800 border border-red-300'}">
+                ${isRegOpen ? 'OPEN' : 'CLOSED'}
+              </span>
+            </div>
+            <button id="overview-toggle-reg-btn" class="w-full py-2.5 ${isRegOpen ? 'bg-red-600 hover:bg-red-500' : 'bg-emerald-600 hover:bg-emerald-500'} text-white font-black text-xs rounded-xl shadow-xs transition-all cursor-pointer">
+              ${isRegOpen ? 'Close Registration' : 'Open Registration'}
+            </button>
+          </div>
+
+          <!-- Quick Actions -->
+          <div class="p-4 bg-white border-2 border-slate-200 rounded-2xl shadow-xs space-y-3">
+            <h3 class="text-sm font-black text-slate-900 flex items-center gap-2">
+              <i data-lucide="zap" class="w-4 h-4 text-amber-600"></i> Quick Actions
+            </h3>
+            <div class="grid grid-cols-2 gap-2">
+              <button id="overview-share-link-btn" class="py-2.5 bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-800 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer">
+                <i data-lucide="share-2" class="w-3.5 h-3.5"></i> Share Registration Link
+              </button>
+              <button id="overview-view-public-btn" class="py-2.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer">
+                <i data-lucide="eye" class="w-3.5 h-3.5"></i> View Public Page
+              </button>
+              <button data-tab="payments" class="admin-tab-btn py-2.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-800 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer">
+                <i data-lucide="badge-indian-rupee" class="w-3.5 h-3.5"></i> Approve Players (${pendingPlayers.length})
+              </button>
+              <button data-tab="auction" class="admin-tab-btn py-2.5 bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-800 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer">
+                <i data-lucide="gavel" class="w-3.5 h-3.5"></i> Auction Control
+              </button>
+            </div>
+          </div>
+
+          <!-- Recent Registrations -->
+          <div class="p-4 bg-white border-2 border-slate-200 rounded-2xl shadow-xs space-y-3">
+            <h3 class="text-sm font-black text-slate-900 flex items-center gap-2">
+              <i data-lucide="clock" class="w-4 h-4 text-slate-600"></i> Today's Registrations (${todayPlayers.length})
+            </h3>
+            ${todayPlayers.length === 0 ? `
+              <p class="text-xs text-slate-500 text-center py-4">No registrations today yet.</p>
+            ` : `
+              <div class="space-y-2 max-h-60 overflow-y-auto">
+                ${todayPlayers.slice(0, 10).map(p => `
+                  <div class="flex items-center justify-between p-2 bg-slate-50 rounded-xl border border-slate-200">
+                    <div class="flex items-center gap-2 min-w-0">
+                      <img src="${p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png'}" class="w-8 h-8 rounded-lg object-cover border border-slate-200 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                      <div class="min-w-0">
+                        <div class="text-xs font-bold text-slate-900 truncate">${p.name}</div>
+                        <div class="text-[9px] text-slate-500">${p.phone || p.mobile || 'N/A'} • ${p.category || 'All Rounder'}</div>
+                      </div>
+                    </div>
+                    <span class="px-2 py-0.5 text-[9px] font-black rounded-full ${p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED' ? 'bg-emerald-100 text-emerald-800' : (p.registrationStatus === 'REJECTED' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800')}">
+                      ${p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED' ? 'APPROVED' : (p.registrationStatus === 'REJECTED' ? 'REJECTED' : 'PENDING')}
+                    </span>
+                  </div>
+                `).join('')}
+              </div>
+            `}
+          </div>
+
+          <!-- Revenue Summary -->
+          <div class="p-4 bg-white border-2 border-slate-200 rounded-2xl shadow-xs space-y-3">
+            <h3 class="text-sm font-black text-slate-900 flex items-center gap-2">
+              <i data-lucide="indian-rupee" class="w-4 h-4 text-emerald-600"></i> Revenue Summary
+            </h3>
+            <div class="grid grid-cols-3 gap-2">
+              <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 text-center">
+                <div class="text-lg font-black text-emerald-700">${approvedPlayers.length}</div>
+                <div class="text-[9px] font-bold text-emerald-600">Paid Players</div>
+              </div>
+              <div class="bg-amber-50 border border-amber-200 rounded-xl p-2.5 text-center">
+                <div class="text-lg font-black text-amber-700">${pendingPlayers.length}</div>
+                <div class="text-[9px] font-bold text-amber-600">Payment Pending</div>
+              </div>
+              <div class="bg-sky-50 border border-sky-200 rounded-xl p-2.5 text-center">
+                <div class="text-lg font-black text-sky-700">${teams.length}</div>
+                <div class="text-[9px] font-bold text-sky-600">Team Entries</div>
+              </div>
+            </div>
+          </div>
+        </div>
+        ` : ''}
+
         <!-- 1. Pending Payment Verification Tab -->
         <div id="tab-payments-view" class="${activeAdminTab === 'payments' ? '' : 'hidden'} space-y-4">
           <div class="p-4 sm:p-5 bg-white border-2 border-slate-200 rounded-3xl shadow-sm">
@@ -232,7 +360,7 @@ export function renderAdminDashboard(containerEl) {
                             <img src="${p.photoUrl || p.player_photo_url}" loading="lazy" decoding="async" class="w-10 h-10 rounded-xl object-cover border border-slate-200 shadow-2xs" onerror="this.src='assets/card_jsl_user.png'"/>
                             <div>
                               <div class="font-bold text-slate-900 text-xs sm:text-sm">${p.name}</div>
-                              <span class="px-1.5 py-0.5 bg-slate-100 text-slate-800 font-mono text-[9px] font-black rounded border border-slate-300">${p.registrationId || p.regNo || 'JSL2026-0001'} (#${p.displayRegistrationNumber || p.serialNo})</span>
+                              <span class="px-1.5 py-0.5 bg-slate-100 text-slate-800 font-mono text-[9px] font-black rounded border border-slate-300">${p.registrationId || p.regNo || 'REG-0001'} (#${p.displayRegistrationNumber || p.serialNo})</span>
                             </div>
                           </div>
                         </td>
@@ -387,12 +515,12 @@ export function renderAdminDashboard(containerEl) {
                   👑
                 </div>
                 <div>
-                  <span class="text-[10px] font-bold text-amber-800 uppercase">JSL 2026 Appointed Owner</span>
+                  <span class="text-[10px] font-bold text-amber-800 uppercase">Appointed Tournament Owner</span>
                   <div class="font-black text-slate-900 text-sm">
-                    ${store.getTournamentOwners()['tournament-jsl-2026'] ? store.getTournamentOwners()['tournament-jsl-2026'].name : 'Not Appointed'}
+                    ${store.getTournamentOwners()[activeTid] ? store.getTournamentOwners()[activeTid].name : 'Not Appointed'}
                   </div>
                   <div class="text-xs text-slate-500 font-mono">
-                    Phone: ${store.getTournamentOwners()['tournament-jsl-2026'] ? store.getTournamentOwners()['tournament-jsl-2026'].phone : 'N/A'}
+                    Phone: ${store.getTournamentOwners()[activeTid] ? store.getTournamentOwners()[activeTid].phone : 'N/A'}
                   </div>
                 </div>
               </div>
@@ -407,7 +535,7 @@ export function renderAdminDashboard(containerEl) {
                 <div>
                   <label class="block text-xs font-bold text-slate-600 mb-1">SELECT TOURNAMENT *</label>
                   <select id="assign-owner-tournament-id" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none">
-                    <option value="tournament-jsl-2026">Jankra Super League 2026 (JSL)</option>
+                    ${allTournaments.map(t => `<option value="${t.id}" ${t.id === activeTid ? 'selected' : ''}>${t.name}</option>`).join('')}
                   </select>
                 </div>
 
@@ -416,7 +544,7 @@ export function renderAdminDashboard(containerEl) {
                   <select id="assign-owner-player-select" required class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none">
                     <option value="">-- Choose Player to Appoint as Owner --</option>
                     ${players.map(p => `
-                      <option value="${p.phone || p.mobile}" data-name="${p.name}">${p.name} (${p.phone || p.mobile} • ${p.village || 'Jhankra'}${p.displayRegistrationNumber ? ' • #' + p.displayRegistrationNumber : ''})</option>
+                      <option value="${p.phone || p.mobile}" data-name="${p.name}">${p.name} (${p.phone || p.mobile} • ${p.village || 'N/A'}${p.displayRegistrationNumber ? ' • #' + p.displayRegistrationNumber : ''})</option>
                     `).join('')}
                   </select>
                 </div>
@@ -561,7 +689,7 @@ export function renderAdminDashboard(containerEl) {
                                 <span>${p.name}</span>
                                 ${(p.isIcon || p.isIconPlayer) ? `<span class="px-1.5 py-0.2 bg-amber-400 text-slate-950 font-black text-[8px] rounded uppercase tracking-wider">⭐ ICON</span>` : ''}
                               </div>
-                              <div class="text-[9px] text-slate-500">${p.village || 'Jhankra'}</div>
+                              <div class="text-[9px] text-slate-500">${p.village || 'N/A'}</div>
                             </div>
                           </div>
                         </td>
@@ -614,7 +742,7 @@ export function renderAdminDashboard(containerEl) {
                           <img src="${p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png'}" class="w-8 h-8 rounded-lg object-cover border border-slate-200 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
                           <div>
                             <div class="font-black text-slate-900 text-xs">${p.name}</div>
-                            <div class="text-[9px] text-slate-500">${p.village || 'Jhankra'}</div>
+                            <div class="text-[9px] text-slate-500">${p.village || 'N/A'}</div>
                           </div>
                         </div>
                       </td>
@@ -675,7 +803,7 @@ export function renderAdminDashboard(containerEl) {
               <div>
                 <label class="block text-[10px] font-black text-slate-600 uppercase tracking-wider mb-1">Target Tournament</label>
                 <select id="group-mgr-league-select" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2 font-bold cursor-pointer">
-                  ${leagues.map(l => `<option value="${(l.code || l.category || 'JSL').toUpperCase()}">${l.name || l.code}</option>`).join('')}
+                  ${leagues.map(l => `<option value="${(l.code || l.category || 'T').toUpperCase()}">${l.name || l.code}</option>`).join('')}
                 </select>
               </div>
 
@@ -712,7 +840,7 @@ export function renderAdminDashboard(containerEl) {
                 <div>
                   <label class="block text-[10px] font-bold text-slate-600 mb-1">TOURNAMENT LEAGUE</label>
                   <select id="fixture-league-category" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold">
-                    ${leagues.map(l => `<option value="${(l.code || l.category || 'JSL').toUpperCase()}">${l.name || l.code}</option>`).join('')}
+                    ${leagues.map(l => `<option value="${(l.code || l.category || 'T').toUpperCase()}">${l.name || l.code}</option>`).join('')}
                   </select>
                 </div>
                 <div>
@@ -954,7 +1082,7 @@ export function renderAdminDashboard(containerEl) {
           </div>
         </div>
 
-        <!-- 6b. JSL Registration Link & Public Access Controller Tab -->
+        <!-- 6b. Registration Link & Public Access Controller Tab -->
         <div id="tab-reg-settings-view" class="${activeAdminTab === 'reg-settings' ? '' : 'hidden'} space-y-4 animate-fade-in">
           <div class="p-4 sm:p-5 bg-white border-2 border-slate-200 rounded-3xl shadow-sm space-y-4">
             <div class="flex items-center justify-between pb-3 border-b border-slate-100 flex-wrap gap-3">
@@ -963,8 +1091,8 @@ export function renderAdminDashboard(containerEl) {
                   <i data-lucide="power" class="w-5 h-5"></i>
                 </span>
                 <div>
-                  <h3 class="text-base font-black text-slate-900">JSL Registration Link Controller</h3>
-                  <p class="text-xs text-slate-500">Activate or deactivate the public JSL 2026 registration link with 1-click cloud sync.</p>
+                  <h3 class="text-base font-black text-slate-900">${activeTourneyName} Registration Link Controller</h3>
+                  <p class="text-xs text-slate-500">Activate or deactivate the public registration link with 1-click cloud sync.</p>
                 </div>
               </div>
 
@@ -1030,7 +1158,7 @@ export function renderAdminDashboard(containerEl) {
                 Custom Deactivation / Closed Banner Message
               </label>
               <p class="text-[11px] text-slate-500">This message is shown to users when they click the registration button while deactivated.</p>
-              <textarea id="reg-closed-message-input" rows="2" class="w-full bg-white border border-slate-300 rounded-xl p-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500" placeholder="JSL 2026 Registration is currently closed by the Master Admin.">${regSettings.closedReason || 'JSL 2026 Registration is currently closed by the Master Admin.'}</textarea>
+              <textarea id="reg-closed-message-input" rows="2" class="w-full bg-white border border-slate-300 rounded-xl p-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500" placeholder="Registration is currently closed by the Admin.">${regSettings.closedReason || 'Registration is currently closed by the Admin.'}</textarea>
               <div class="flex justify-end pt-1">
                 <button id="save-reg-message-btn" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer">
                   <i data-lucide="save" class="w-3.5 h-3.5 text-amber-400"></i> Update Closure Message
@@ -1191,6 +1319,7 @@ export function renderAdminDashboard(containerEl) {
       e.currentTarget.classList.add('bg-emerald-600', 'text-white', 'shadow-sm');
       e.currentTarget.classList.remove('text-slate-600', 'bg-white', 'hover:bg-slate-50', 'hover:text-slate-900', 'border', 'border-slate-200');
 
+      document.getElementById('tab-overview-view')?.classList.add('hidden');
       document.getElementById('tab-payments-view').classList.add('hidden');
       document.getElementById('tab-all-players-view').classList.add('hidden');
       document.getElementById('tab-teams-view').classList.add('hidden');
@@ -1202,6 +1331,7 @@ export function renderAdminDashboard(containerEl) {
       document.getElementById('tab-owners-view')?.classList.add('hidden');
       document.getElementById('tab-saas-tournaments-view')?.classList.add('hidden');
 
+      if (activeAdminTab === 'overview') document.getElementById('tab-overview-view')?.classList.remove('hidden');
       if (activeAdminTab === 'payments') document.getElementById('tab-payments-view').classList.remove('hidden');
       if (activeAdminTab === 'all-players') document.getElementById('tab-all-players-view').classList.remove('hidden');
       if (activeAdminTab === 'teams') document.getElementById('tab-teams-view').classList.remove('hidden');
@@ -1236,20 +1366,46 @@ export function renderAdminDashboard(containerEl) {
     });
   });
 
+  // --- OVERVIEW TAB LISTENERS ---
+  document.getElementById('overview-toggle-reg-btn')?.addEventListener('click', () => {
+    const currentOpen = store.isRegistrationOpen();
+    const newStatus = !currentOpen;
+    store.toggleRegistration(newStatus);
+    alert(newStatus ? '✅ Registration is now OPEN!' : '🚫 Registration is now CLOSED!');
+    renderAdminDashboard(containerEl);
+  });
+
+  document.getElementById('overview-share-link-btn')?.addEventListener('click', () => {
+    const tourney = allTournaments.find(t => t.id === activeTid);
+    const slug = tourney?.slug || 'default';
+    const link = `${window.location.origin}${window.location.pathname}#reg-${slug}`;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(link).then(() => alert('✅ Registration link copied to clipboard!\\n\\n' + link));
+    } else {
+      prompt('Copy this registration link:', link);
+    }
+  });
+
+  document.getElementById('overview-view-public-btn')?.addEventListener('click', () => {
+    const tourney = allTournaments.find(t => t.id === activeTid);
+    const slug = tourney?.slug || 'default';
+    window.open(`${window.location.origin}${window.location.pathname}#t/${slug}`, '_blank');
+  });
+
   // --- REGISTRATION SETTINGS LISTENERS ---
   document.getElementById('quick-toggle-reg-btn')?.addEventListener('click', () => {
-    const currentOpen = store.isJslRegistrationOpen();
+    const currentOpen = store.isRegistrationOpen();
     const newStatus = !currentOpen;
-    store.toggleJslRegistration(newStatus);
-    alert(newStatus ? '✅ JSL Registration link is now ACTIVATED (Open for all players & teams)!' : '🚫 JSL Registration link is now DEACTIVATED (Closed for all public entries)!');
+    store.toggleRegistration(newStatus);
+    alert(newStatus ? '✅ Registration link is now ACTIVATED (Open for all players & teams)!' : '🚫 Registration link is now DEACTIVATED (Closed for all public entries)!');
     renderAdminDashboard(containerEl);
   });
 
   document.getElementById('toggle-master-reg-switch-btn')?.addEventListener('click', () => {
-    const currentOpen = store.isJslRegistrationOpen();
+    const currentOpen = store.isRegistrationOpen();
     const newStatus = !currentOpen;
-    store.toggleJslRegistration(newStatus);
-    alert(newStatus ? '✅ JSL Registration link is now ACTIVATED!' : '🚫 JSL Registration link is now DEACTIVATED!');
+    store.toggleRegistration(newStatus);
+    alert(newStatus ? '✅ Registration link is now ACTIVATED!' : '🚫 Registration link is now DEACTIVATED!');
     activeAdminTab = 'reg-settings';
     renderAdminDashboard(containerEl);
   });
@@ -1282,7 +1438,7 @@ export function renderAdminDashboard(containerEl) {
     if (!phone) return alert('Please select a player from the dropdown to appoint as Tournament Owner!');
 
     store.setTournamentOwner(tId, phone, name);
-    alert(`👑 Authority Granted!\n\n"${name}" (${phone}) is now the official Tournament Owner for JSL 2026.`);
+    alert(`👑 Authority Granted!\n\n"${name}" (${phone}) is now the official Tournament Owner.`);
     activeAdminTab = 'owners';
     renderAdminDashboard(containerEl);
   });
@@ -1396,7 +1552,7 @@ export function renderAdminDashboard(containerEl) {
   });
 
   groupFormatSel?.addEventListener('change', async () => {
-    const leagueCode = groupLeagueSel ? groupLeagueSel.value : 'JSL';
+    const leagueCode = groupLeagueSel ? groupLeagueSel.value : 'T';
     const fmt = groupFormatSel.value;
     let groups = ['A', 'B'];
     if (fmt === 'FOUR_GROUPS') groups = ['A', 'B', 'C', 'D'];
@@ -1408,14 +1564,14 @@ export function renderAdminDashboard(containerEl) {
   });
 
   groupKnockoutSel?.addEventListener('change', async () => {
-    const leagueCode = groupLeagueSel ? groupLeagueSel.value : 'JSL';
+    const leagueCode = groupLeagueSel ? groupLeagueSel.value : 'T';
     await store.saveTournamentFormat(leagueCode, { knockoutType: groupKnockoutSel.value });
     updateFixtureStageOptions();
   });
 
   // Randomize / Lottery Draw Button
   document.getElementById('admin-randomize-groups-btn')?.addEventListener('click', () => {
-    const leagueCode = groupLeagueSel ? groupLeagueSel.value : 'JSL';
+    const leagueCode = groupLeagueSel ? groupLeagueSel.value : 'T';
     const fmt = groupFormatSel ? groupFormatSel.value : 'TWO_GROUPS';
     let groupNames = ['A', 'B'];
     if (fmt === 'FOUR_GROUPS') groupNames = ['A', 'B', 'C', 'D'];
@@ -1430,7 +1586,7 @@ export function renderAdminDashboard(containerEl) {
 
   // Auto-generate Group Fixtures Button
   document.getElementById('admin-auto-fixtures-btn')?.addEventListener('click', () => {
-    const leagueCode = groupLeagueSel ? groupLeagueSel.value : 'JSL';
+    const leagueCode = groupLeagueSel ? groupLeagueSel.value : 'T';
     const overs = prompt(`⚡ Auto-Generate All Intra-Group Matches for ${leagueCode}?\n\nEnter Total Overs per match:`, "16");
     if (overs !== null) {
       const venue = prompt("Enter Match Venue:", "JHANKRA SCHOOL GROUND") || "JHANKRA SCHOOL GROUND";
@@ -1446,7 +1602,7 @@ export function renderAdminDashboard(containerEl) {
     const stageSelect = document.getElementById('fixture-stage-select');
     if (!stageSelect) return;
 
-    const leagueCode = (document.getElementById('fixture-league-category')?.value || 'JSL').toUpperCase();
+    const leagueCode = (document.getElementById('fixture-league-category')?.value || 'T').toUpperCase();
     const format = store.getTournamentFormat(leagueCode);
     const fmt = format.format || 'TWO_GROUPS';
     const currentVal = stageSelect.value;
@@ -1491,10 +1647,10 @@ export function renderAdminDashboard(containerEl) {
   }
 
   function updateFixtureTeamDropdowns() {
-    const leagueCode = (document.getElementById('fixture-league-category')?.value || 'JSL').toUpperCase();
+    const leagueCode = (document.getElementById('fixture-league-category')?.value || 'T').toUpperCase();
     const stage = document.getElementById('fixture-stage-select')?.value || 'GROUP_A';
     const allLeagueTeams = store.getTeams().filter(t => {
-      const code = (t.leagueCode || (t.leagueId === 'leg-jsl' ? 'JSL' : (t.leagueId === 'leg-jpl' ? 'JPL' : (t.leagueId === 'leg-kpl' ? 'KPL' : 'JSL'))));
+      const code = (t.leagueCode || (t.leagueId === 'leg-jsl' ? 'JSL' : (t.leagueId === 'leg-jpl' ? 'JPL' : (t.leagueId === 'leg-kpl' ? 'KPL' : 'T'))));
       return code === leagueCode;
     });
 
@@ -1542,7 +1698,7 @@ export function renderAdminDashboard(containerEl) {
 
     const lCode = document.getElementById('fixture-league-category').value;
     const matchNoInput = document.getElementById('fixture-match-no')?.value;
-    const existingLeagueFix = store.getFixtures().filter(f => (f.leagueCode || 'JSL').toUpperCase() === lCode.toUpperCase());
+    const existingLeagueFix = store.getFixtures().filter(f => (f.leagueCode || 'T').toUpperCase() === lCode.toUpperCase());
     const matchNo = matchNoInput ? Number(matchNoInput) : (existingLeagueFix.length + 1);
 
     store.registerFixture({
@@ -1577,7 +1733,7 @@ export function renderAdminDashboard(containerEl) {
     if (btn) btn.innerHTML = '<span>⏳ Syncing...</span>';
     try {
       await store.commitAndSyncAuctionPermanentArchive();
-      alert("✅ JSL 2026 Final Auction Record Vault Synced!\n\nAll 8 team squads, player bids, icon fees, and financial balances have been permanently locked and archived in Supabase Cloud and Local Storage for 5+ years.");
+      alert("✅ Final Auction Record Vault Synced!\n\nAll team squads, player bids, icon fees, and financial balances have been permanently locked and archived in Supabase Cloud and Local Storage.");
     } catch(e) {
       alert("Archive sync notice: " + (e.message || e));
     }
@@ -1688,7 +1844,7 @@ function renderAdminPlayersRows(playersList) {
       <tr class="hover:bg-slate-50 transition-colors">
         <td class="py-3 px-3">
           <span class="px-1.5 py-0.5 bg-slate-100 text-slate-800 font-mono text-[9px] font-black rounded border border-slate-300">
-            ${p.registrationId || p.regNo || 'JSL2026-0001'} (#${p.displayRegistrationNumber || p.serialNo})
+            ${p.registrationId || p.regNo || 'REG-0001'} (#${p.displayRegistrationNumber || p.serialNo})
           </span>
         </td>
         <td class="py-3 px-3 font-bold text-slate-900 text-xs">
@@ -1774,24 +1930,27 @@ export function sendWhatsAppPlayerApproval(player) {
     return;
   }
 
-  const messageText = 
-`🎉 *JHANKRA SUPER LEAGUE (JSL) 2026* 🎉
+  const activeTourney = store.getCustomTournaments().find(t => (t.supabaseId || t.id) === store.activeTournamentId) || {};
+  const tName = activeTourney.name || 'Tournament';
+  const tVenue = activeTourney.venue || '';
+  const tDate = activeTourney.kickoffDate || '';
+  const messageText =
+`🎉 *${tName.toUpperCase()}* 🎉
 
 নমস্কার *${player.name}*,
-আপনার JSL 2026 টুর্নামেন্টের প্লেয়ার রেজিস্ট্রেশন সফলভাবে *APPROVED* (অনুমোদিত) হয়েছে! ✅
+আপনার টুর্নামেন্টের প্লেয়ার রেজিস্ট্রেশন সফলভাবে *APPROVED* (অনুমোদিত) হয়েছে! ✅
 
-🆔 *Registration ID:* ${player.registrationId || 'JSL2026-0001'}
+🆔 *Registration ID:* ${player.registrationId || player.regNo || 'REG-0001'}
 🏏 *Category:* ${player.category || 'All Rounder'}
-📍 *Location:* ${player.village || ''}, ${player.district || 'Paschim Medinipur'}
+📍 *Location:* ${player.village || ''}, ${player.district || ''}
 💰 *Base Price:* ₹${player.basePrice || 300}
+${tDate ? `\n🏆 *Tournament Starts:* ${tDate}` : ''}
+${tVenue ? `📍 *Venue:* ${tVenue}` : ''}
 
-🏆 *Grand Tournament Starts:* 31 August 2026, 9:00 AM IST
-📍 *Venue:* Jhankra School Stadium Ground
-
-🌐 *Live Portal:* https://cricket-league.vercel.app
+🌐 *Live Portal:* ${window.location.origin}${window.location.pathname}#t/${activeTourney.slug || ''}
 
 ধন্যবাদ ও শুভকামনা,
-*JSL 2026 Management Committee*`;
+*${tName} Management Committee*`;
 
   const encodedMsg = encodeURIComponent(messageText);
   const waUrl = `https://wa.me/91${cleanPhone}?text=${encodedMsg}`;
@@ -2238,7 +2397,7 @@ function openAdminEditPlayerModal(player, containerEl) {
               </div>
               <div>
                 <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Registration ID</label>
-                <input type="text" id="edit-ply-reg-id" value="${player.registrationId || player.regNo || 'JSL2026-0001'}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-mono font-bold rounded-xl p-2.5 focus:border-amber-500 focus:outline-none shadow-2xs" />
+                <input type="text" id="edit-ply-reg-id" value="${player.registrationId || player.regNo || 'REG-0001'}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-mono font-bold rounded-xl p-2.5 focus:border-amber-500 focus:outline-none shadow-2xs" />
               </div>
               <div>
                 <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Franchise Squad</label>
@@ -2338,7 +2497,7 @@ function openAdminEditPlayerModal(player, containerEl) {
 
       const newStatus = document.getElementById('edit-ply-status').value;
       const serialNum = parseInt(document.getElementById('edit-ply-serial').value, 10) || player.serialNo || 1;
-      const regIdVal = document.getElementById('edit-ply-reg-id').value.trim() || player.registrationId || `JSL2026-${String(serialNum).padStart(4, '0')}`;
+      const regIdVal = document.getElementById('edit-ply-reg-id').value.trim() || player.registrationId || `REG-${String(serialNum).padStart(4, '0')}`;
       const selectedTeamId = document.getElementById('edit-ply-team').value || null;
 
       store.updatePlayer({
@@ -2421,7 +2580,7 @@ function renderAdminGroupArena() {
   if (!container) return;
 
   const leagueSelect = document.getElementById('group-mgr-league-select');
-  const leagueCode = (leagueSelect ? leagueSelect.value : 'JSL').toUpperCase();
+  const leagueCode = (leagueSelect ? leagueSelect.value : 'T').toUpperCase();
 
   const format = store.getTournamentFormat(leagueCode);
   const formatSelect = document.getElementById('group-mgr-format-select');
@@ -2435,7 +2594,7 @@ function renderAdminGroupArena() {
   }
 
   const allTeams = store.getTeams().filter(t => {
-    const code = (t.leagueCode || (t.leagueId === 'leg-jsl' ? 'JSL' : (t.leagueId === 'leg-jpl' ? 'JPL' : (t.leagueId === 'leg-kpl' ? 'KPL' : 'JSL'))));
+    const code = (t.leagueCode || (t.leagueId === 'leg-jsl' ? 'JSL' : (t.leagueId === 'leg-jpl' ? 'JPL' : (t.leagueId === 'leg-kpl' ? 'KPL' : 'T'))));
     return code === leagueCode;
   });
 
@@ -2524,8 +2683,8 @@ function renderAdminFixturesList() {
   if (!tbody) return;
 
   const accessibleLeagues = store.getAccessibleLeagues();
-  const accessibleCodes = accessibleLeagues.map(l => (l.code || l.category || 'JSL').toUpperCase());
-  const fixtures = store.getFixtures().filter(f => store.isMasterAdmin() || accessibleCodes.includes((f.leagueCode || 'JSL').toUpperCase()));
+  const accessibleCodes = accessibleLeagues.map(l => (l.code || l.category || 'T').toUpperCase());
+  const fixtures = store.getFixtures().filter(f => store.isMasterAdmin() || accessibleCodes.includes((f.leagueCode || 'T').toUpperCase()));
   if (fixtures.length === 0) {
     tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-xs text-slate-500">No matches scheduled yet.</td></tr>`;
     return;
@@ -2551,7 +2710,7 @@ function renderAdminFixturesList() {
     <tr class="hover:bg-slate-50">
       <td class="py-3 px-3">
         <div class="font-bold text-slate-900 text-xs sm:text-sm flex items-center gap-1.5">
-          <span class="px-1.5 py-0.5 bg-slate-100 text-slate-700 font-mono text-[9px] font-black rounded border border-slate-200">${f.leagueCode || 'JSL'}</span>
+          <span class="px-1.5 py-0.5 bg-slate-100 text-slate-700 font-mono text-[9px] font-black rounded border border-slate-200">${f.leagueCode || 'T'}</span>
           <span>${f.teamAName} <span class="text-slate-400 font-semibold">vs</span> ${f.teamBName}</span>
         </div>
       </td>
@@ -2607,7 +2766,7 @@ function renderAdminFixturesList() {
       const fId = e.currentTarget.getAttribute('data-delete-fixture-id');
       const allFixtures = store.getFixtures();
       const f = allFixtures.find(x => x.id === fId);
-      const matchLabel = f ? `[${f.leagueCode || 'JSL'}] ${f.teamAName} vs ${f.teamBName}` : 'this match';
+      const matchLabel = f ? `[${f.leagueCode || 'T'}] ${f.teamAName} vs ${f.teamBName}` : 'this match';
       
       if (confirm(`🗑️ Delete Match Confirmation:\n\nAre you sure you want to permanently delete "${matchLabel}"?\n\nThis will completely remove the match from scheduled fixtures, scoring console, and cloud storage.`)) {
         store.deleteFixture(fId);
@@ -2624,15 +2783,15 @@ function renderScorerMatchesList() {
   if (!selectEl) return;
 
   const accessibleLeagues = store.getAccessibleLeagues();
-  const accessibleCodes = accessibleLeagues.map(l => (l.code || l.category || 'JSL').toUpperCase());
-  const fixtures = store.getFixtures().filter(f => store.isMasterAdmin() || accessibleCodes.includes((f.leagueCode || 'JSL').toUpperCase()));
+  const accessibleCodes = accessibleLeagues.map(l => (l.code || l.category || 'T').toUpperCase());
+  const fixtures = store.getFixtures().filter(f => store.isMasterAdmin() || accessibleCodes.includes((f.leagueCode || 'T').toUpperCase()));
   const selectables = fixtures.filter(f => f.status !== 'COMPLETED');
 
   selectEl.innerHTML = `
     <option value="">-- Choose Match to Score --</option>
     ${selectables.map(f => `
       <option value="${f.id}" ${activeScoringMatchId === f.id ? 'selected' : ''}>
-        [${f.leagueCode || 'JSL'}] ${f.teamAName} vs ${f.teamBName} (${f.date} ${f.time}) • Status: ${f.status}
+        [${f.leagueCode || 'T'}] ${f.teamAName} vs ${f.teamBName} (${f.date} ${f.time}) • Status: ${f.status}
       </option>
     `).join('')}
   `;
@@ -2787,7 +2946,7 @@ function renderScorerMatchesList() {
     : null;
   if (!restoreId) {
     const liveMatch = fixturesNow.find(f => f.status === 'LIVE' &&
-      (store.isMasterAdmin() || accessibleCodes.includes((f.leagueCode || 'JSL').toUpperCase())));
+      (store.isMasterAdmin() || accessibleCodes.includes((f.leagueCode || 'T').toUpperCase())));
     if (liveMatch) restoreId = liveMatch.id;
   }
   if (restoreId) {
@@ -4026,7 +4185,7 @@ function openTossSelectionModal(fixture, onComplete) {
               <h3 class="text-base font-black text-slate-900 leading-tight mt-0.5">Official Toss Decision</h3>
             </div>
           </div>
-          <span class="text-xs font-mono text-slate-600 font-bold bg-slate-100 px-2.5 py-1 rounded-xl border border-slate-200">${fixture.leagueCode || 'JSL'}</span>
+          <span class="text-xs font-mono text-slate-600 font-bold bg-slate-100 px-2.5 py-1 rounded-xl border border-slate-200">${fixture.leagueCode || 'T'}</span>
         </div>
 
         <!-- Match Teams Banner -->
@@ -4339,7 +4498,7 @@ export function openPlayingXIModal(fixture, onComplete) {
                 ${isTwelfth ? `<span class="px-1.5 py-0.5 bg-amber-400 text-slate-950 font-mono text-[9px] font-black rounded-md uppercase">12th Man</span>` : ''}
               </div>
               <div class="text-[10px] text-slate-500 font-bold">
-                ${p.category || 'All Rounder'} • ${p.village || 'Jhankra'}
+                ${p.category || 'All Rounder'} • ${p.village || 'N/A'}
               </div>
             </div>
           </div>
@@ -4786,7 +4945,7 @@ export function openNextPlayerAuctionModal(remainingPlayers) {
           ${validPlayers.map(p => {
             const sNo = p.displayRegistrationNumber || p.serialNo || '';
             const sNoDisplay = sNo ? `#${String(sNo).padStart(2, '0')}` : '';
-            const regId = p.registrationId || p.regNo || ('JSL2026-' + String(sNo || 1).padStart(4, '0'));
+            const regId = p.registrationId || p.regNo || ('REG-' + String(sNo || 1).padStart(4, '0'));
             return `
             <div class="p-3 bg-slate-950 border border-slate-800 rounded-2xl flex items-center justify-between gap-3 hover:border-amber-400/60 transition-all next-player-row" data-name="${p.name.toLowerCase()}" data-cat="${(p.category || '').toLowerCase()}" data-serial="${String(sNo)}" data-reg="${regId.toLowerCase()}">
               <div class="flex items-center gap-3 min-w-0">
@@ -4986,14 +5145,14 @@ export function renderActiveAuctionBlock() {
   container.innerHTML = `
     <div class="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-4">
       
-      <!-- Top Badges Row: Clear Bid Button & Red JSL Serial Box -->
+      <!-- Top Badges Row: Clear Bid Button & Serial Box -->
       <div class="flex items-center justify-between gap-2 pb-2 border-b border-slate-800">
         <button type="button" id="auction-quick-cancel-btn" class="px-3 py-1.5 bg-rose-950/90 hover:bg-rose-900 text-rose-300 border border-rose-600 rounded-xl text-xs font-black flex items-center gap-1.5 cursor-pointer shadow transition-all active:scale-95">
           <i data-lucide="ban" class="w-3.5 h-3.5"></i> 🚫 Clear Bid
         </button>
 
         <span class="px-3.5 py-1.5 bg-red-600 text-white font-black font-mono text-xs sm:text-sm rounded-xl border-2 border-red-400 shadow-md">
-          ${p.registrationId || p.regNo || ('JSL2026-' + String(p.displayRegistrationNumber || p.serialNo || 1).padStart(4, '0'))}
+          ${p.registrationId || p.regNo || ('REG-' + String(p.displayRegistrationNumber || p.serialNo || 1).padStart(4, '0'))}
         </span>
       </div>
 
@@ -5328,7 +5487,10 @@ export function openAuctionProjectorModal() {
   const p = activeAuction.player;
   const pName = p ? p.name : 'Waiting for Player...';
   const pPhoto = p ? getOptimizedImageUrl(p.photoUrl || p.player_photo_url, 400, 400) : 'assets/card_jsl_user.png';
-  const pCat = p ? (p.category || 'All Rounder') : 'JSL 2026';
+  const activeTourney = store.getCustomTournaments().find(t => (t.supabaseId || t.id) === store.activeTournamentId) || {};
+  const projTourneyName = activeTourney.name || 'Tournament';
+  const projTourneyLogo = activeTourney.posterUrl || 'assets/jsl_logo.jpg';
+  const pCat = p ? (p.category || 'All Rounder') : projTourneyName;
   const pVillage = p ? (p.village || 'Paschim Medinipur') : 'Cricket Ground';
   const pBase = p ? (p.basePrice || 300) : 300;
 
@@ -5338,9 +5500,9 @@ export function openAuctionProjectorModal() {
       <!-- Top Broadcast Header -->
       <div class="flex items-center justify-between border-b border-slate-800/80 pb-4">
         <div class="flex items-center gap-3">
-          <img src="assets/jsl_logo.jpg" class="w-12 h-12 rounded-2xl object-cover border-2 border-amber-400 shadow" />
+          <img src="${projTourneyLogo}" class="w-12 h-12 rounded-2xl object-cover border-2 border-amber-400 shadow" onerror="this.src='assets/jsl_logo.jpg'" />
           <div>
-            <span class="text-[10px] sm:text-xs font-black tracking-widest text-amber-400 uppercase">JHANKRA SUPER LEAGUE (JSL) 2026</span>
+            <span class="text-[10px] sm:text-xs font-black tracking-widest text-amber-400 uppercase">${projTourneyName.toUpperCase()}</span>
             <h2 class="text-base sm:text-2xl font-black text-white uppercase tracking-wide">GRAND PLAYER AUCTION ARENA</h2>
           </div>
         </div>
@@ -5365,7 +5527,7 @@ export function openAuctionProjectorModal() {
         <div class="md:col-span-5 flex flex-col items-center justify-center text-center p-6 bg-gradient-to-b from-slate-900 via-slate-900/90 to-slate-950 rounded-3xl border-2 border-emerald-500/50 shadow-2xl relative overflow-hidden">
           <div class="w-full flex items-center justify-end mb-2">
             <span class="px-3.5 py-1.5 bg-red-600 text-white font-black font-mono text-xs sm:text-sm rounded-xl border-2 border-red-400 shadow-lg">
-              ${p ? (p.registrationId || p.regNo || ('JSL2026-' + String(p.displayRegistrationNumber || p.serialNo || 1).padStart(4, '0'))) : 'READY'}
+              ${p ? (p.registrationId || p.regNo || ('REG-' + String(p.displayRegistrationNumber || p.serialNo || 1).padStart(4, '0'))) : 'READY'}
             </span>
           </div>
           <img id="proj-player-img" src="${pPhoto}" class="w-48 h-48 sm:w-64 sm:h-64 object-cover rounded-3xl border-4 border-white shadow-2xl my-3" onerror="this.src='assets/card_jsl_user.png'" />
@@ -5415,7 +5577,7 @@ export function openAuctionProjectorModal() {
 
       <!-- Footer Info -->
       <div class="text-center text-xs text-slate-500 border-t border-slate-900 pt-3">
-        Official Tournament Ground: Jhankra School Stadium Ground • Live Stream Powered by JSL 2026
+        Official Tournament Ground: ${activeTourney.venue || 'TBD'} • Live Stream Powered by ${projTourneyName}
       </div>
 
     </div>
@@ -5614,8 +5776,8 @@ export async function renderAdminShopAdsPanel() {
           <!-- WhatsApp Popup Toggle -->
           <div class="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-200">
             <div>
-              <p class="text-xs font-bold text-slate-900">💬 JSL WhatsApp Group Join Invitation</p>
-              <p class="text-[10px] text-slate-500 mt-0.5">Prompt users to join the official WhatsApp group when they open the JSL Hub page.</p>
+              <p class="text-xs font-bold text-slate-900">💬 WhatsApp Group Join Invitation</p>
+              <p class="text-[10px] text-slate-500 mt-0.5">Prompt users to join the official WhatsApp group when they open the Tournament Hub page.</p>
             </div>
             <label class="relative inline-flex items-center cursor-pointer">
               <input type="checkbox" id="admin-whatsapp-popup-toggle" class="sr-only peer" ${settings.isWhatsAppPopupEnabled === true ? 'checked' : ''}>
@@ -6152,7 +6314,7 @@ export function openEditTeamModal(team, onSaved) {
                 <option value="__CUSTOM__" ${team.iconPlayerName && !store.getPlayers().some(p => p.name === team.iconPlayerName) ? 'selected' : ''}>✍️ Custom Name / Outside Registry</option>
                 ${store.getPlayers().filter(p => (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED')).map(p => {
                   const isSelected = (team.iconPlayerName === p.name || team.iconName === p.name || team.iconPlayerId === p.id);
-                  return `<option value="${p.id}" data-name="${p.name}" data-photo="${p.photoUrl || p.player_photo_url || ''}" ${isSelected ? 'selected' : ''}>${p.name} (${p.category || 'All Rounder'} • ${p.village || 'Jhankra'}${p.displayRegistrationNumber ? ' • #' + p.displayRegistrationNumber : ''})</option>`;
+                  return `<option value="${p.id}" data-name="${p.name}" data-photo="${p.photoUrl || p.player_photo_url || ''}" ${isSelected ? 'selected' : ''}>${p.name} (${p.category || 'All Rounder'} • ${p.village || 'N/A'}${p.displayRegistrationNumber ? ' • #' + p.displayRegistrationNumber : ''})</option>`;
                 }).join('')}
               </select>
             </div>
