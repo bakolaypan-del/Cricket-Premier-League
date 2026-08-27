@@ -343,7 +343,7 @@ export async function uploadHDImage(fileInput, folderName = 'documents') {
 // --- REALTIME PUSH EVENT LISTENER (SUPABASE REALTIME CHANNEL STUB) ---
 let activeRealtimeChannel = null;
 
-export function initRealtimePushListener(onUpdateCallback) {
+export function initRealtimePushListener(onUpdateCallback, tournamentId) {
   if (!supabase) return null;
   try {
     if (activeRealtimeChannel) {
@@ -351,21 +351,24 @@ export function initRealtimePushListener(onUpdateCallback) {
       activeRealtimeChannel = null;
     }
 
+    const tId = tournamentId || DEFAULT_TOURNAMENT_UUID;
+    const filter = `tournament_id=eq.${tId}`;
+
     const channel = supabase
-      .channel('cpl_master_changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, (payload) => {
+      .channel(`cpl_changes_${tId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'players', filter }, (payload) => {
         if (typeof onUpdateCallback === 'function') onUpdateCallback(payload);
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'teams' }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'teams', filter }, (payload) => {
         if (typeof onUpdateCallback === 'function') onUpdateCallback(payload);
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'matches', filter }, (payload) => {
         if (typeof onUpdateCallback === 'function') onUpdateCallback(payload);
       })
       .subscribe();
 
     activeRealtimeChannel = channel;
-    console.log("🟢 [SUPABASE] Realtime push listener subscribed (players/teams/matches).");
+    console.log(`[SUPABASE] Realtime listener subscribed for tournament ${tId}`);
     return channel;
   } catch (err) {
     console.warn("[SUPABASE] initRealtimePushListener notice:", err);
@@ -374,11 +377,11 @@ export function initRealtimePushListener(onUpdateCallback) {
 }
 
 // --- DEFAULT TOURNAMENT UUID (LEGACY 'leg-jsl' KEY) ---
-const DEFAULT_TOURNAMENT_UUID = toUUID('leg-jsl');
+export const DEFAULT_TOURNAMENT_UUID = toUUID('leg-jsl');
 
 // --- INSTANT CLOUD DATA FETCH (SUPABASE POSTGRES BACKED) ---
-export async function fetchCloudData() {
-  return fetchCloudDataFromSupabase();
+export async function fetchCloudData(tournamentId) {
+  return fetchCloudDataFromSupabase(tournamentId || DEFAULT_TOURNAMENT_UUID);
 }
 
 export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAMENT_UUID) {

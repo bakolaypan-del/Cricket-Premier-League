@@ -161,10 +161,20 @@ function getPlayerTimestamp(p) {
 class Store {
   constructor() {
     clearOldStorageQuota();
+    this.activeTournamentId = null;
     this.init();
     this.setupRealtimeListeners();
     this.syncWithCloud();
     this.startCloudPolling();
+  }
+
+  setActiveTournament(tournamentId) {
+    if (this.activeTournamentId === tournamentId) return;
+    this.activeTournamentId = tournamentId;
+    this.syncWithCloud();
+    initRealtimePushListener((event) => {
+      this.syncWithCloud();
+    }, tournamentId);
   }
 
   init() {
@@ -216,7 +226,7 @@ class Store {
     if (this._isSyncingWithCloud) return;
     this._isSyncingWithCloud = true;
     try {
-      const cloudData = await fetchCloudData();
+      const cloudData = await fetchCloudData(this.activeTournamentId);
       
       // If a registration modal or form is open, DO NOT interrupt the user!
       const isUserFillingForm = document.getElementById('player-reg-modal') || document.getElementById('team-reg-modal');

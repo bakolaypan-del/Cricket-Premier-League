@@ -1099,12 +1099,15 @@ function renderCurrentView() {
     setTimeout(() => openTournamentCreationWizard(true), 100);
   } else if (currentRoute.startsWith('reg-')) {
     const slug = currentRoute.replace(/^reg-/, '');
+    const regTourney = store.getCustomTournamentById(slug);
+    if (regTourney?.supabaseId) store.setActiveTournament(regTourney.supabaseId);
     renderFirstPageLanding(container);
     setTimeout(() => openDynamicTournamentRegistrationModal(slug), 100);
   } else if (currentRoute.startsWith('t/')) {
     const slug = currentRoute.replace(/^t\//, '');
     const tourney = store.getCustomTournamentById(slug);
     if (tourney) {
+      if (tourney.supabaseId) store.setActiveTournament(tourney.supabaseId);
       renderCustomTournamentHub(container, tourney);
     } else {
       renderFirstPageLanding(container);
