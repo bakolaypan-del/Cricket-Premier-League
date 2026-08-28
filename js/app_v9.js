@@ -1,7 +1,7 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
 import { store } from './store.js?v=13.0.0';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.0';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.0';
 import { renderAdminDashboard } from './admin.js?v=13.0.0';
 import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp } from './supabase.js?v=13.0.1';
 import { shops } from './shopsData.js?v=12.0.2';
@@ -5384,12 +5384,15 @@ function openFullPlayerProfileModal(player) {
           </div>
         </div>
 
-        <!-- PRINT DIGITAL PASS & CLOSE BUTTONS -->
-        <div class="flex gap-2 pt-1">
-          <button id="print-pass-btn" class="flex-1 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1">
-            <i data-lucide="ticket" class="w-3.5 h-3.5"></i> Download Player Pass
+        <!-- PRINT DIGITAL PASS, SOCIAL STORY CARD & CLOSE BUTTONS -->
+        <div class="flex flex-col sm:flex-row gap-2 pt-1">
+          <button id="btn-social-story-card" class="flex-1 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95">
+            <span>🎨</span> Story Card (PNG)
           </button>
-          <button id="close-profile-bottom-btn" class="py-2 px-4 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow">
+          <button id="print-pass-btn" class="flex-1 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95">
+            <i data-lucide="ticket" class="w-3.5 h-3.5"></i> Player Pass
+          </button>
+          <button id="close-profile-bottom-btn" class="py-2 px-4 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow cursor-pointer">
             Close
           </button>
         </div>
@@ -5404,6 +5407,12 @@ function openFullPlayerProfileModal(player) {
   const removeModal = () => document.getElementById('player-profile-modal')?.remove();
   document.getElementById('close-profile-btn')?.addEventListener('click', removeModal);
   document.getElementById('close-profile-bottom-btn')?.addEventListener('click', removeModal);
+
+  document.getElementById('btn-social-story-card')?.addEventListener('click', () => {
+    const team = store.getTeamById(player.teamId);
+    const tourney = store.getLeagueById(player.leagueId || store.activeTournamentId) || store.getCustomTournamentById(player.tournamentId) || { name: 'CRICKET PREMIER LEAGUE' };
+    exportPlayerSocialCard(player, team, tourney);
+  });
 
   document.getElementById('print-pass-btn')?.addEventListener('click', () => {
     printDigitalPass(player, store.getLeagueById(player.leagueId || store.activeTournamentId), store.getTeamById(player.teamId));

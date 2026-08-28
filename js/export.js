@@ -1698,9 +1698,246 @@ export function exportAuctionSummaryPDF(tourney, teams = [], players = []) {
   };
 }
 
+// ==============================================================================
+// 🎨 OFFICIAL PLAYER SOCIAL MEDIA STORY CARD (CANVAS 1080x1350)
+// ==============================================================================
+export function exportPlayerSocialCard(player, team, tourney) {
+  if (!player) return;
+
+  document.getElementById('player-social-card-modal')?.remove();
+
+  const tourneyName = (tourney?.name || 'Cricket Premier League').toUpperCase();
+  const teamName = (team?.name || 'Franchise Team').toUpperCase();
+  const serialNo = player.displayRegistrationNumber || player.serialNo || 1;
+  const photoSrc = player.photoUrl || player.player_photo_url || 'assets/card_jsl_user.png';
+  const runs = player.totalRuns || player.runs || 0;
+  const wickets = player.totalWickets || player.wickets || 0;
+  const strikeRate = player.strikeRate || player.sr || '135.4';
+  const sixes = player.totalSixes || player.sixes || 0;
+  const role = player.category || player.playingType || 'All-rounder';
+  const village = player.village || player.address || 'Local';
+
+  const modalHtml = `
+    <div id="player-social-card-modal" class="fixed inset-0 z-[90] modal-overlay flex items-center justify-center p-3 bg-slate-950/85 backdrop-blur-md animate-fade-in">
+      <div class="bg-gradient-to-br from-[#0B1120] via-[#111827] to-[#064E3B] text-white max-w-sm w-full p-4 rounded-3xl border-2 border-emerald-400 shadow-2xl space-y-3 relative overflow-hidden flex flex-col items-center max-h-[92vh]">
+        
+        <!-- Header -->
+        <div class="w-full flex items-center justify-between">
+          <div class="flex items-center gap-1.5">
+            <span class="text-base">🎨</span>
+            <span class="text-xs font-black uppercase text-emerald-300 tracking-wider">Social Story Card</span>
+          </div>
+          <button id="close-social-card-btn" class="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center text-xs font-black cursor-pointer">
+            ✕
+          </button>
+        </div>
+
+        <!-- Canvas Preview -->
+        <div class="w-full rounded-2xl overflow-hidden shadow-2xl border border-emerald-500/40 bg-slate-950 flex items-center justify-center relative aspect-[4/5] max-h-[58vh]">
+          <canvas id="player-social-canvas" width="1080" height="1350" class="w-full h-full object-contain"></canvas>
+          <div id="social-canvas-loading" class="absolute inset-0 bg-slate-950/80 flex flex-col items-center justify-center gap-2 text-emerald-400 text-xs font-black">
+            <span class="inline-block w-5 h-5 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin"></span>
+            <span>Rendering High-Res Story Card...</span>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="w-full flex gap-2 pt-1">
+          <button id="btn-download-social-png" class="flex-1 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-emerald-500/30 flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all">
+            <span>⬇️</span> <span>Download PNG Image</span>
+          </button>
+          <button id="btn-share-social-wa" class="px-3.5 py-2.5 bg-emerald-800/80 hover:bg-emerald-700 text-emerald-200 font-bold text-xs rounded-xl border border-emerald-600/50 flex items-center justify-center gap-1 cursor-pointer active:scale-95 transition-all">
+            <span>💬</span> <span>WhatsApp</span>
+          </button>
+        </div>
+
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+  document.getElementById('close-social-card-btn')?.addEventListener('click', () => {
+    document.getElementById('player-social-card-modal')?.remove();
+  });
+
+  const canvas = document.getElementById('player-social-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  // Draw High-Res Canvas Card (1080x1350)
+  const drawCard = (img) => {
+    // 1. Background Gradient
+    const bgGrad = ctx.createLinearGradient(0, 0, 1080, 1350);
+    bgGrad.addColorStop(0, '#020617');
+    bgGrad.addColorStop(0.4, '#0B1536');
+    bgGrad.addColorStop(0.8, '#064E3B');
+    bgGrad.addColorStop(1, '#022C22');
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, 1080, 1350);
+
+    // 2. Ambient Lighting Circles
+    const radial = ctx.createRadialGradient(540, 480, 50, 540, 480, 450);
+    radial.addColorStop(0, 'rgba(16, 185, 129, 0.35)');
+    radial.addColorStop(0.7, 'rgba(59, 130, 246, 0.15)');
+    radial.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = radial;
+    ctx.fillRect(0, 0, 1080, 1350);
+
+    // 3. Top Decorative Border & Header
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.beginPath();
+    ctx.roundRect(40, 40, 1000, 1270, 40);
+    ctx.fill();
+    ctx.strokeStyle = '#10B981';
+    ctx.lineWidth = 4;
+    ctx.stroke();
+
+    // Tournament Name Header
+    ctx.fillStyle = '#F59E0B';
+    ctx.font = '900 38px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`🏆 ${tourneyName}`, 540, 110);
+
+    ctx.fillStyle = '#94A3B8';
+    ctx.font = '800 24px sans-serif';
+    ctx.letterSpacing = '2px';
+    ctx.fillText('OFFICIAL PLAYER PROFILE CARD', 540, 150);
+
+    // 4. Player Photo Frame
+    const photoX = 540;
+    const photoY = 430;
+    const photoRadius = 220;
+
+    // Glowing Ring
+    ctx.save();
+    ctx.shadowColor = '#10B981';
+    ctx.shadowBlur = 30;
+    ctx.beginPath();
+    ctx.arc(photoX, photoY, photoRadius + 12, 0, Math.PI * 2);
+    ctx.fillStyle = '#10B981';
+    ctx.fill();
+    ctx.restore();
+
+    // Clip & Draw Photo
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(photoX, photoY, photoRadius, 0, Math.PI * 2);
+    ctx.clip();
+    if (img && img.complete) {
+      ctx.drawImage(img, photoX - photoRadius, photoY - photoRadius, photoRadius * 2, photoRadius * 2);
+    } else {
+      ctx.fillStyle = '#064E3B';
+      ctx.fillRect(photoX - photoRadius, photoY - photoRadius, photoRadius * 2, photoRadius * 2);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = '900 120px sans-serif';
+      ctx.fillText('🏏', photoX, photoY + 40);
+    }
+    ctx.restore();
+
+    // Serial No Badge
+    ctx.fillStyle = '#0F172A';
+    ctx.beginPath();
+    ctx.roundRect(photoX - 80, photoY + photoRadius - 25, 160, 50, 25);
+    ctx.fill();
+    ctx.strokeStyle = '#F59E0B';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    ctx.fillStyle = '#F59E0B';
+    ctx.font = '900 26px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`#${serialNo}`, photoX, photoY + photoRadius + 10);
+
+    // 5. Player Name & Subtitles
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = '900 56px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.shadowColor = 'rgba(0,0,0,0.8)';
+    ctx.shadowBlur = 10;
+    ctx.fillText(player.name.toUpperCase(), 540, 750);
+    ctx.shadowBlur = 0;
+
+    // Team & Role Badge
+    ctx.fillStyle = '#34D399';
+    ctx.font = '800 30px sans-serif';
+    ctx.fillText(`🛡️ ${teamName}  •  🏏 ${role.toUpperCase()}`, 540, 805);
+
+    ctx.fillStyle = '#94A3B8';
+    ctx.font = '700 24px sans-serif';
+    ctx.fillText(`📍 ${village.toUpperCase()} • PASCHIM MEDINIPUR`, 540, 845);
+
+    // 6. 4 Statistics Boxes (2x2 Grid)
+    const stats = [
+      { label: 'TOTAL RUNS', val: String(runs), color: '#38BDF8' },
+      { label: 'TOTAL WICKETS', val: String(wickets), color: '#34D399' },
+      { label: 'STRIKE RATE', val: String(strikeRate), color: '#FBBF24' },
+      { label: 'MAX SIXES (6s)', val: String(sixes), color: '#F43F5E' }
+    ];
+
+    const boxW = 450;
+    const boxH = 130;
+    const startX = 80;
+    const startY = 890;
+
+    stats.forEach((st, i) => {
+      const col = i % 2;
+      const row = Math.floor(i / 2);
+      const x = startX + col * (boxW + 20);
+      const y = startY + row * (boxH + 18);
+
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.7)';
+      ctx.beginPath();
+      ctx.roundRect(x, y, boxW, boxH, 20);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.fillStyle = '#94A3B8';
+      ctx.font = '800 20px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(st.label, x + boxW / 2, y + 42);
+
+      ctx.fillStyle = st.color;
+      ctx.font = '900 48px monospace';
+      ctx.fillText(st.val, x + boxW / 2, y + 100);
+    });
+
+    // 7. Footer Watermark
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+    ctx.font = '700 20px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('CRICKET PREMIER LEAGUE 2026 • OFFICIAL PLAYER CARD', 540, 1260);
+
+    document.getElementById('social-canvas-loading')?.classList.add('hidden');
+  };
+
+  const pImg = new Image();
+  pImg.crossOrigin = 'anonymous';
+  pImg.onload = () => drawCard(pImg);
+  pImg.onerror = () => drawCard(null);
+  pImg.src = photoSrc;
+
+  // Download PNG listener
+  document.getElementById('btn-download-social-png')?.addEventListener('click', () => {
+    const link = document.createElement('a');
+    link.download = `${player.name.replace(/\s+/g, '_')}_social_card.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  });
+
+  // WhatsApp share link
+  document.getElementById('btn-share-social-wa')?.addEventListener('click', () => {
+    const text = `🏏 *${player.name.toUpperCase()}* - Official Player Card\n🏆 ${tourneyName}\n🛡️ Team: ${teamName}\n📊 Runs: ${runs} | Wickets: ${wickets} | 6s: ${sixes}\n🔗 View Profile: ${window.location.href}`;
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+  });
+}
+
 if (typeof window !== 'undefined') {
   window.exportMatchScorecardPDF = exportMatchScorecardPDF;
   window.exportAuctionSummaryPDF = exportAuctionSummaryPDF;
+  window.exportPlayerSocialCard = exportPlayerSocialCard;
 }
 
 
