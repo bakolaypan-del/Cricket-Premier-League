@@ -2716,10 +2716,15 @@ export function renderCustomTournamentHub(container, tourney) {
                       <h4 class="text-xs sm:text-sm font-bold text-slate-900 truncate leading-tight py-0.5">${p.name}</h4>
                     </div>
 
-                    <!-- Pill Button: View Profile -->
-                    <button type="button" class="hub-view-profile-btn w-full py-2 bg-[#0F172A] hover:bg-[#1E293B] text-white font-bold text-xs rounded-full shadow-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95" data-player-id="${p.id}">
-                      <span>👤 View Profile</span>
-                    </button>
+                    <!-- Actions: View Profile & Story Card -->
+                    <div class="flex gap-1.5 w-full">
+                      <button type="button" class="hub-view-profile-btn flex-1 py-2 bg-[#0F172A] hover:bg-[#1E293B] text-white font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95" data-player-id="${p.id}">
+                        <span>👤 Profile</span>
+                      </button>
+                      <button type="button" class="hub-open-story-card-btn px-2.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs rounded-xl shadow-xs flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95" data-player-id="${p.id}" title="Generate Instagram & WhatsApp Story Card">
+                        <span>🎨</span>
+                      </button>
+                    </div>
                   </div>
                 `;
               }).join('')}
@@ -3480,6 +3485,18 @@ export function renderCustomTournamentHub(container, tourney) {
       const playerId = btn.getAttribute('data-player-id');
       const player = store.getPlayerById(playerId);
       if (player) openFullPlayerProfileModal(player);
+    });
+  });
+
+  document.querySelectorAll('.hub-open-story-card-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const playerId = btn.getAttribute('data-player-id');
+      const player = store.getPlayerById(playerId);
+      if (player) {
+        const team = store.getTeamById(player.teamId);
+        exportPlayerSocialCard(player, team, tourney);
+      }
     });
   });
 
