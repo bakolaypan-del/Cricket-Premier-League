@@ -4,6 +4,7 @@ import { store } from './store.js?v=13.0.0';
 import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.0';
 import { renderAdminDashboard } from './admin.js?v=13.0.0';
 import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp } from './supabase.js?v=13.0.1';
+import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.0';
 import { shops } from './shopsData.js?v=12.0.2';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
@@ -140,6 +141,31 @@ function initApp() {
     const totalEl = document.getElementById('total-visitors-count');
     if (liveEl) liveEl.textContent = stats.liveCount;
     if (totalEl) totalEl.textContent = Number(stats.totalVisits).toLocaleString('en-IN');
+  });
+
+  // Initialize Web Push Notifications & Live Match Alerts
+  initPushNotifications();
+
+  // Real-time Live Match Status Notification Watcher
+  let previousFixtureStatuses = {};
+  window.addEventListener('fixtures_updated', () => {
+    try {
+      const fixtures = store.getFixtures() || [];
+      fixtures.forEach(f => {
+        const prevStatus = previousFixtureStatuses[f.id];
+        if (prevStatus && prevStatus !== f.status) {
+          const tourney = store.getCustomTournamentById(f.tournamentId) || { name: `${f.leagueCode || 'T'} PREMIER LEAGUE`, slug: f.tournamentSlug };
+          if (f.status === 'LIVE') {
+            notifyMatchLive(f, tourney);
+          } else if (f.status === 'COMPLETED') {
+            notifyMatchResult(f, tourney);
+          }
+        }
+        previousFixtureStatuses[f.id] = f.status;
+      });
+    } catch (e) {
+      console.warn('Live notification watcher error:', e);
+    }
   });
 
   renderNavbar();
@@ -1262,8 +1288,14 @@ function renderNavbar() {
         </button>
       </div>
 
-      <!-- Right Side: Download Button & Single Desktop-Only Account Pill -->
-      <div class="flex items-center gap-2 flex-shrink-0">
+      <!-- Right Side: Live Notifications Bell, Download Button & Single Desktop-Only Account Pill -->
+      <div class="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+        <!-- Live Match Alerts Push Notification Toggle Button -->
+        <button id="nav-notifs-toggle-btn" title="Live Match Push Notifications" class="p-2 sm:p-2.5 bg-white/10 hover:bg-white/20 text-amber-300 hover:text-amber-200 transition-all rounded-full border border-white/20 flex items-center justify-center cursor-pointer relative active:scale-95">
+          <span class="text-sm sm:text-base">🔔</span>
+          <span id="nav-notif-dot" class="w-2.5 h-2.5 rounded-full bg-emerald-400 absolute top-0.5 right-0.5 border-2 border-slate-900 ${isNotificationsEnabled() ? '' : 'hidden'}"></span>
+        </button>
+
         <!-- Apps Download Option -->
         <button id="nav-install-app-btn" title="Download Web App (PWA)" class="p-2 sm:p-2.5 bg-gradient-to-r from-amber-400 via-emerald-500 to-teal-500 hover:scale-105 transition-all rounded-full shadow-xl border border-white/60 flex items-center justify-center cursor-pointer">
           <svg class="w-5 h-5 text-slate-950 flex-shrink-0" viewBox="0 0 24 24" fill="none">
@@ -1281,6 +1313,16 @@ function renderNavbar() {
 
   document.getElementById('brand-header-logo')?.addEventListener('click', () => navigate('landing'));
   document.getElementById('brand-header-title')?.addEventListener('click', () => navigate('landing'));
+  document.getElementById('nav-notifs-toggle-btn')?.addEventListener('click', async () => {
+    const enabled = await toggleNotificationSetting();
+    const dot = document.getElementById('nav-notif-dot');
+    if (dot) dot.classList.toggle('hidden', !enabled);
+    if (enabled) {
+      alert('🔔 Live Match Notifications are now ACTIVE! You will receive instant alerts for Live Matches, Wickets & Results.');
+    } else {
+      alert('🔕 Live Match Notifications have been paused.');
+    }
+  });
   document.getElementById('nav-install-app-btn')?.addEventListener('click', handleInstallAppClick);
   document.getElementById('nav-host-saas-btn')?.addEventListener('click', () => openTournamentCreationWizard(false));
   document.getElementById('nav-admin-btn')?.addEventListener('click', () => {
