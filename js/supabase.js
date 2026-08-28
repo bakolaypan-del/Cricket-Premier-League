@@ -1134,11 +1134,17 @@ export async function saveCustomTournamentToCloud(tourney) {
     }
     const mergedRegSettings = { ...existingRegSettings, ...extraSettings };
 
+    // Map frontend mode to Postgres check constraint ('registration_auction' or 'manual')
+    let dbMode = 'registration_auction';
+    if (tourney.mode === 'FIXTURE_ONLY' || tourney.mode === 'manual') {
+      dbMode = 'manual';
+    }
+
     const payload = {
       slug: tourney.slug || tourney.shortCode || tourney.id,
       name: tourney.name || tourney.id,
       category_code: tourney.shortCode || tourney.category || 'CUSTOM',
-      mode: tourney.mode || 'registration_auction',
+      mode: dbMode,
       registration_fee: Number(tourney.entryFee || tourney.playerEntryFee) || 0,
       total_team_budget: Number(tourney.teamPurse || tourney.auctionPurse || tourney.purse) || 10000,
       icon_price: Number(tourney.basePrice) || 300,
@@ -1166,6 +1172,7 @@ export async function fetchCustomTournamentsFromCloud() {
   return data.map(t => {
     let extra = {};
     try { extra = typeof t.registration_settings === 'string' ? JSON.parse(t.registration_settings) : (t.registration_settings || {}); } catch(e) {}
+    const frontendMode = (t.mode === 'manual' || t.mode === 'FIXTURE_ONLY') ? 'FIXTURE_ONLY' : 'AUCTION_LEAGUE';
     return ({
     id: `t_${t.slug}`,
     supabaseId: t.id,
@@ -1173,7 +1180,7 @@ export async function fetchCustomTournamentsFromCloud() {
     slug: t.slug,
     name: t.name,
     shortCode: (t.category_code || t.slug || '').toUpperCase(),
-    mode: t.mode,
+    mode: frontendMode,
     venue: t.venue_name,
     kickoffDate: extra.kickoff_date || null,
     prizeWinner: Number(extra.prize_winner) || 35000,
