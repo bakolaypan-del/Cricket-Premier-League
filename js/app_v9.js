@@ -2044,6 +2044,79 @@ function renderFirstPageLanding(containerEl) {
   document.getElementById('btn-home-create-tourney')?.addEventListener('click', () => openTournamentCreationWizard(false));
 }
 
+// --- WHATSAPP 1-CLICK SHARING UTILITIES ---
+export function shareMatchToWhatsApp(fixture, tourney) {
+  if (!fixture) return;
+  const tourneyName = tourney?.name || 'Cricket Premier League';
+  const matchNo = fixture.matchNo || 1;
+  const stage = (fixture.stage || fixture.groupCode || 'League Match').replace(/_/g, ' ');
+  const teamA = fixture.teamAName || 'Team A';
+  const teamB = fixture.teamBName || 'Team B';
+  const scoreA = fixture.liveScoreTeamA || (fixture.teamAScore ? `${fixture.teamAScore.runs}/${fixture.teamAScore.wickets} (${fixture.teamAScore.overs}.${fixture.teamAScore.balls || 0} ov)` : '');
+  const scoreB = fixture.liveScoreTeamB || (fixture.teamBScore ? `${fixture.teamBScore.runs}/${fixture.teamBScore.wickets} (${fixture.teamBScore.overs}.${fixture.teamBScore.balls || 0} ov)` : '');
+  const status = (fixture.status || 'SCHEDULED').toUpperCase();
+  const venue = fixture.venue || tourney?.venue || 'Ground';
+  const date = fixture.date || '';
+  const time = fixture.time || '';
+  const matchUrl = `${window.location.origin}${window.location.pathname}#t/${tourney?.slug || 'jsl-2026'}?tab=matches`;
+
+  let statusHeader = '🗓️ *MATCH SCHEDULE*';
+  let resultLine = '';
+  if (status === 'LIVE') {
+    statusHeader = '🔴 *LIVE MATCH UPDATE*';
+  } else if (status === 'COMPLETED') {
+    statusHeader = '✅ *MATCH RESULT*';
+    if (fixture.resultText || fixture.winnerTeamName) {
+      resultLine = `🎯 *Result*: ${fixture.resultText || `${fixture.winnerTeamName} Won! 🎉`}\n`;
+    }
+  }
+
+  let text = `🏏 *${tourneyName.toUpperCase()}*\n`;
+  text += `━━━━━━━━━━━━━━━━━━━━━\n`;
+  text += `${statusHeader}\n`;
+  text += `👉 *Match #${matchNo}* (${stage})\n\n`;
+  text += `⚔️ *${teamA}* ${scoreA ? `➜ ${scoreA}` : ''}\n`;
+  text += `      🆚\n`;
+  text += `🛡️ *${teamB}* ${scoreB ? `➜ ${scoreB}` : ''}\n\n`;
+  if (resultLine) text += resultLine;
+  text += `📍 *Venue*: ${venue}\n`;
+  if (date || time) text += `⏰ *Date & Time*: ${date} ${time}\n`;
+  text += `━━━━━━━━━━━━━━━━━━━━━\n`;
+  text += `📊 *Live Scorecard & Ball-by-Ball:*\n${matchUrl}`;
+
+  const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+  window.open(waUrl, '_blank');
+}
+window.shareMatchToWhatsApp = shareMatchToWhatsApp;
+
+export function sharePointsTableToWhatsApp(groupName, teams, tourney) {
+  if (!teams || teams.length === 0) return;
+  const tourneyName = tourney?.name || 'Cricket Premier League';
+  const matchUrl = `${window.location.origin}${window.location.pathname}#t/${tourney?.slug || 'jsl-2026'}?tab=matches`;
+
+  let text = `🏆 *${tourneyName.toUpperCase()}*\n`;
+  text += `📊 *POINTS TABLE • ${(groupName || 'ALL TEAMS').toUpperCase()}*\n`;
+  text += `━━━━━━━━━━━━━━━━━━━━━\n`;
+  text += `*# | Team | P | W | L | Pts | NRR*\n`;
+  text += `─────────────────────\n`;
+
+  teams.forEach((t, idx) => {
+    const p = t.matchesPlayed || t.played || 0;
+    const w = t.won || 0;
+    const l = t.lost || 0;
+    const pts = t.points || (w * 2);
+    const nrr = (t.nrr !== undefined && t.nrr !== null) ? Number(t.nrr).toFixed(3) : '+0.000';
+    text += `${idx + 1}. *${t.name}*\n   ➔ ${p}P | ${w}W | ${l}L | *${pts} PTS* | NRR: ${nrr > 0 ? '+' + nrr : nrr}\n`;
+  });
+
+  text += `━━━━━━━━━━━━━━━━━━━━━\n`;
+  text += `🔗 *View Live Table & Full Standings:*\n${matchUrl}`;
+
+  const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+  window.open(waUrl, '_blank');
+}
+window.sharePointsTableToWhatsApp = sharePointsTableToWhatsApp;
+
 // --- DEDICATED CUSTOM TOURNAMENT HUB VIEW WITH DYNAMIC MULTI-TENANT ARCHITECTURE ---
 export function renderCustomTournamentHub(container, tourney) {
   if (!container || !tourney) return;
@@ -2882,13 +2955,19 @@ export function renderCustomTournamentHub(container, tourney) {
                       </div>
                     </div>
 
-                    <!-- Bottom Line: Date, Time, Venue -->
-                    <div class="flex items-center gap-2 flex-wrap text-[10.5px] font-bold text-slate-500 pt-2 border-t border-slate-100">
-                      <span>🗓️ ${f.date || '2026-08-26'}</span>
-                      <span>•</span>
-                      <span>⏰ ${f.time || '09:00'}</span>
-                      <span>📍</span>
-                      <span class="uppercase">${f.venue || tourney.venue || 'JHANKRA SCHOOL GROUND'}</span>
+                    <!-- Bottom Line: Date, Time, Venue & WhatsApp Share Button -->
+                    <div class="flex items-center justify-between gap-2 flex-wrap text-[10.5px] font-bold text-slate-500 pt-2 border-t border-slate-100">
+                      <div class="flex items-center gap-1.5 flex-wrap">
+                        <span>🗓️ ${f.date || '2026-08-26'}</span>
+                        <span>•</span>
+                        <span>⏰ ${f.time || '09:00'}</span>
+                        <span>•</span>
+                        <span>📍</span>
+                        <span class="uppercase truncate max-w-[140px]">${f.venue || tourney.venue || 'JHANKRA SCHOOL GROUND'}</span>
+                      </div>
+                      <button type="button" class="btn-share-match-wa px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-xl border border-emerald-300 flex items-center gap-1 shadow-2xs hover:scale-105 active:scale-95 transition-all cursor-pointer shrink-0" data-fixture-id="${f.id}">
+                        <span>💬</span> <span>Share</span>
+                      </button>
                     </div>
                   </div>
                 `;
@@ -2941,18 +3020,23 @@ export function renderCustomTournamentHub(container, tourney) {
 
               return `
                 <div class="space-y-2">
-                  <!-- Group Name Header -->
-                  <div class="flex items-center justify-between px-1.5 pt-1">
-                    <div class="flex items-center gap-2">
-                      <span class="w-2.5 h-2.5 rounded-full ${color.dot}"></span>
-                      <h4 class="text-xs sm:text-sm font-black uppercase text-slate-900 tracking-wider">
+                  <!-- Group Name Header with WhatsApp Share -->
+                  <div class="flex items-center justify-between px-1.5 pt-1 gap-2">
+                    <div class="flex items-center gap-2 min-w-0">
+                      <span class="w-2.5 h-2.5 rounded-full ${color.dot} shrink-0"></span>
+                      <h4 class="text-xs sm:text-sm font-black uppercase text-slate-900 tracking-wider truncate">
                         ${groupName}
                       </h4>
-                      <span class="text-[11px] font-bold text-slate-400">(${teams.length} Teams)</span>
+                      <span class="text-[11px] font-bold text-slate-400 shrink-0">(${teams.length})</span>
                     </div>
-                    <span class="px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
-                      Top 2 Qualify
-                    </span>
+                    <div class="flex items-center gap-1.5 shrink-0">
+                      <button type="button" class="btn-share-group-table-wa px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-xl border border-emerald-300 flex items-center gap-1 shadow-2xs hover:scale-105 active:scale-95 transition-all cursor-pointer" data-group-name="${groupName}">
+                        <span>💬</span> <span>Share Table</span>
+                      </button>
+                      <span class="px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        Top 2 Qualify
+                      </span>
+                    </div>
                   </div>
 
                   <!-- Table Fitted in Single Mobile Screen -->
@@ -3602,6 +3686,39 @@ export function renderCustomTournamentHub(container, tourney) {
       if (team) {
         openEditTeamModalForAdmin(team, tourney, () => renderCustomTournamentHub(container, tourney));
       }
+    });
+  });
+
+  // WhatsApp Fixture Share Click Listeners
+  container.querySelectorAll('.btn-share-match-wa').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const fid = btn.getAttribute('data-fixture-id');
+      const fixture = allFixtures.find(f => f.id === fid) || allFixtures[0];
+      shareMatchToWhatsApp(fixture, tourney);
+    });
+  });
+
+  // WhatsApp Points Table Share Click Listeners
+  container.querySelectorAll('.btn-share-group-table-wa').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const gName = btn.getAttribute('data-group-name');
+      const formatObj = store.getTournamentFormat ? store.getTournamentFormat(tourney.slug || tourney.id) : {};
+      const adminFormat = tourney.groupFormat || formatObj.format || (allTeams.some(t => t.group) ? 'CUSTOM' : (allTeams.length > 8 ? 'TWO_GROUPS' : 'SINGLE_TABLE'));
+      let targetTeams = allTeams;
+      if (adminFormat !== 'SINGLE_TABLE') {
+        const numGroups = adminFormat === 'FOUR_GROUPS' ? 4 : adminFormat === 'THREE_GROUPS' ? 3 : 2;
+        const teamsPerGroup = Math.ceil(allTeams.length / numGroups);
+        targetTeams = allTeams.filter((t, i) => {
+          const explicitGroup = t.group || t.groupName || t.pool;
+          const assignedGName = explicitGroup 
+            ? (explicitGroup.toUpperCase().startsWith('GROUP') ? explicitGroup.toUpperCase() : `GROUP ${explicitGroup.toUpperCase()}`)
+            : `GROUP ${String.fromCharCode(65 + Math.floor(i / teamsPerGroup))}`;
+          return assignedGName === gName;
+        });
+      }
+      sharePointsTableToWhatsApp(gName, targetTeams.length ? targetTeams : allTeams, tourney);
     });
   });
 }
@@ -7002,7 +7119,7 @@ function renderFixturesView(container) {
                         ` : '')}
 
                         <!-- Footer: Tournament Name & Direct Match Centre Prompt -->
-                        <div class="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
+                        <div class="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
                           <div class="min-w-0">
                             <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider truncate">
                               ${m.leagueCode || selectedCategory} PREMIER LEAGUE • ${m.venue || 'JHANKRA SCHOOL GROUND'}
@@ -7011,9 +7128,14 @@ function renderFixturesView(container) {
                               View Match Centre <span class="text-emerald-600 font-bold transition-transform group-hover:translate-x-1">→</span>
                             </div>
                           </div>
-                          <span class="text-[11px] font-black bg-emerald-50 text-emerald-800 border border-emerald-300 px-3 py-1 rounded-xl shadow-2xs">
-                            📊 Tap for Scorecard
-                          </span>
+                          <div class="flex items-center gap-1.5 shrink-0">
+                            <button type="button" class="btn-share-fixture-wa px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-xl border border-emerald-300 flex items-center gap-1 shadow-2xs hover:scale-105 active:scale-95 transition-all cursor-pointer" data-fixture-id="${m.id}" onclick="event.stopPropagation(); window.shareMatchToWhatsApp(store.getFixtureById('${m.id}') || ${JSON.stringify(m).replace(/"/g, '&quot;')}, { name: '${m.leagueCode || selectedCategory} PREMIER LEAGUE', venue: '${m.venue || 'JHANKRA SCHOOL GROUND'}' });">
+                              <span>💬</span> <span>Share</span>
+                            </button>
+                            <span class="text-[11px] font-black bg-emerald-50 text-emerald-800 border border-emerald-300 px-3 py-1 rounded-xl shadow-2xs">
+                              📊 Tap for Scorecard
+                            </span>
+                          </div>
                         </div>
                       </div>
                     `;
@@ -7085,7 +7207,7 @@ function renderFixturesView(container) {
                         </div>
 
                         <!-- Footer: Tournament Name & Click Action -->
-                        <div class="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
+                        <div class="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
                           <div class="min-w-0">
                             <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider truncate">
                               ${m.leagueCode || selectedCategory} PREMIER LEAGUE • ${m.venue || 'JHANKRA SCHOOL GROUND'}
@@ -7094,9 +7216,14 @@ function renderFixturesView(container) {
                               View Match Centre <span class="text-emerald-600 font-bold transition-transform group-hover:translate-x-1">→</span>
                             </div>
                           </div>
-                          <span class="text-[11px] font-black bg-slate-100 text-slate-800 border border-slate-300 px-3 py-1 rounded-xl shadow-2xs">
-                            📊 Tap for Preview
-                          </span>
+                          <div class="flex items-center gap-1.5 shrink-0">
+                            <button type="button" class="btn-share-fixture-wa px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-xl border border-emerald-300 flex items-center gap-1 shadow-2xs hover:scale-105 active:scale-95 transition-all cursor-pointer" data-fixture-id="${m.id}" onclick="event.stopPropagation(); window.shareMatchToWhatsApp(store.getFixtureById('${m.id}') || ${JSON.stringify(m).replace(/"/g, '&quot;')}, { name: '${m.leagueCode || selectedCategory} PREMIER LEAGUE', venue: '${m.venue || 'JHANKRA SCHOOL GROUND'}' });">
+                              <span>💬</span> <span>Share</span>
+                            </button>
+                            <span class="text-[11px] font-black bg-slate-100 text-slate-800 border border-slate-300 px-3 py-1 rounded-xl shadow-2xs">
+                              📊 Tap for Preview
+                            </span>
+                          </div>
                         </div>
                       </div>
                     `;
@@ -7177,7 +7304,7 @@ function renderFixturesView(container) {
                         </div>
 
                         <!-- Footer: Tournament Name & Click Action -->
-                        <div class="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
+                        <div class="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
                           <div class="min-w-0">
                             <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider truncate">
                               ${m.leagueCode || selectedCategory} PREMIER LEAGUE • ${m.venue || 'JHANKRA SCHOOL GROUND'}
@@ -7186,9 +7313,14 @@ function renderFixturesView(container) {
                               View Match Centre <span class="text-emerald-600 font-bold transition-transform group-hover:translate-x-1">→</span>
                             </div>
                           </div>
-                          <span class="text-[11px] font-black bg-emerald-50 text-emerald-800 border border-emerald-300 px-3 py-1 rounded-xl shadow-2xs">
-                            📊 View Summary
-                          </span>
+                          <div class="flex items-center gap-1.5 shrink-0">
+                            <button type="button" class="btn-share-fixture-wa px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-xl border border-emerald-300 flex items-center gap-1 shadow-2xs hover:scale-105 active:scale-95 transition-all cursor-pointer" data-fixture-id="${m.id}" onclick="event.stopPropagation(); window.shareMatchToWhatsApp(store.getFixtureById('${m.id}') || ${JSON.stringify(m).replace(/"/g, '&quot;')}, { name: '${m.leagueCode || selectedCategory} PREMIER LEAGUE', venue: '${m.venue || 'JHANKRA SCHOOL GROUND'}' });">
+                              <span>💬</span> <span>Share</span>
+                            </button>
+                            <span class="text-[11px] font-black bg-emerald-50 text-emerald-800 border border-emerald-300 px-3 py-1 rounded-xl shadow-2xs">
+                              📊 View Summary
+                            </span>
+                          </div>
                         </div>
                       </div>
                     `;
