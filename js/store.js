@@ -69,8 +69,19 @@ const STORAGE_KEYS = {
   PLATFORM_SETTINGS: 'cpl_platform_settings_v8',
   CUSTOM_TOURNAMENTS: 'cpl_custom_tournaments_v8',
   UNIVERSAL_PLAYERS: 'cpl_universal_players_v8',
-  TOURNAMENT_FORMATS: 'cpl_tournament_formats_v8'
+  TOURNAMENT_FORMATS: 'cpl_tournament_formats_v8',
+  ACTIVE_TOURNAMENT: 'cpl_active_tournament_id'
 };
+
+// Tournament-scoped localStorage key helper
+function scopedKey(baseKey, tournamentId) {
+  if (!tournamentId) return baseKey;
+  const short = tournamentId.slice(0, 8);
+  return `${baseKey}_${short}`;
+}
+
+// Keys that are scoped per tournament in localStorage
+const SCOPED_KEYS = ['PLAYERS', 'TEAMS', 'FIXTURES', 'AUCTION_SETTINGS', 'REGISTRATION_SETTINGS'];
 
 const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23059669'/%3E%3Ctext x='50' y='62' font-size='45' text-anchor='middle' fill='white'%3E🏏%3C/text%3E%3C/svg%3E";
 
@@ -81,7 +92,8 @@ function clearOldStorageQuota() {
     const keysToRemove = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
-      if (k && k.startsWith('cpl_') && !activeKeys.has(k) && !k.startsWith('cpl_last_')) {
+      const isScopedKey = k && activeKeys.has(k.replace(/_[a-f0-9]{8}$/, ''));
+      if (k && k.startsWith('cpl_') && !activeKeys.has(k) && !isScopedKey && !k.startsWith('cpl_last_') && !k.startsWith('cpl_active_')) {
         keysToRemove.push(k);
       }
     }
@@ -163,16 +175,30 @@ function getPlayerTimestamp(p) {
 class Store {
   constructor() {
     clearOldStorageQuota();
-    this.activeTournamentId = null;
+    this._cache = { players: null, teams: null, fixtures: null };
+    this.activeTournamentId = localStorage.getItem(STORAGE_KEYS.ACTIVE_TOURNAMENT) || null;
     this.init();
     this.setupRealtimeListeners();
     this.syncWithCloud();
     this.startCloudPolling();
   }
 
+  _invalidateCache(type) {
+    if (type) { this._cache[type] = null; }
+    else { this._cache = { players: null, teams: null, fixtures: null }; }
+  }
+
+  _scopedKey(baseKeyName) {
+    return scopedKey(STORAGE_KEYS[baseKeyName], this.activeTournamentId);
+  }
+
   setActiveTournament(tournamentId) {
     if (this.activeTournamentId === tournamentId) return;
     this.activeTournamentId = tournamentId;
+    this._invalidateCache();
+    if (tournamentId) {
+      localStorage.setItem(STORAGE_KEYS.ACTIVE_TOURNAMENT, tournamentId);
+    }
     this.syncWithCloud();
     initRealtimePushListener((event) => {
       this.syncWithCloud();
@@ -181,32 +207,13 @@ class Store {
 
   init() {
     clearOldStorageQuota();
+    this._migrateGlobalToScoped();
 
     if (!localStorage.getItem(STORAGE_KEYS.LEAGUES)) {
       safeSetLocalStorage(STORAGE_KEYS.LEAGUES, INITIAL_LEAGUES);
     }
-    if (!localStorage.getItem(STORAGE_KEYS.TEAMS)) {
-      safeSetLocalStorage(STORAGE_KEYS.TEAMS, []);
-    }
-    if (!localStorage.getItem(STORAGE_KEYS.PLAYERS)) {
-      safeSetLocalStorage(STORAGE_KEYS.PLAYERS, []);
-    }
-    if (!localStorage.getItem(STORAGE_KEYS.FIXTURES)) {
-      safeSetLocalStorage(STORAGE_KEYS.FIXTURES, INITIAL_FIXTURES);
-    }
     if (!localStorage.getItem(STORAGE_KEYS.PLAYER_PROFILES)) {
       safeSetLocalStorage(STORAGE_KEYS.PLAYER_PROFILES, []);
-    }
-    if (!localStorage.getItem(STORAGE_KEYS.AUCTION_SETTINGS)) {
-      safeSetLocalStorage(STORAGE_KEYS.AUCTION_SETTINGS, { defaultBasePrice: 300, defaultPurseBudget: 8000 });
-    }
-    if (!localStorage.getItem(STORAGE_KEYS.REGISTRATION_SETTINGS)) {
-      safeSetLocalStorage(STORAGE_KEYS.REGISTRATION_SETTINGS, {
-        isRegistrationOpen: true,
-        isPlayerRegOpen: true,
-        isTeamRegOpen: true,
-        closedReason: "Registration is currently closed by the Admin."
-      });
     }
     if (!localStorage.getItem(STORAGE_KEYS.USER)) {
       safeSetLocalStorage(STORAGE_KEYS.USER, {
@@ -216,7 +223,21 @@ class Store {
         phone: null
       });
     }
-    // Cloud sync will populate players authoritative list
+  }
+
+  _migrateGlobalToScoped() {
+    if (!this.activeTournamentId) return;
+    const keysToMigrate = ['PLAYERS', 'TEAMS', 'FIXTURES', 'AUCTION_SETTINGS', 'REGISTRATION_SETTINGS'];
+    for (const keyName of keysToMigrate) {
+      const globalKey = STORAGE_KEYS[keyName];
+      const scoped = this._scopedKey(keyName);
+      if (scoped === globalKey) continue;
+      const globalData = localStorage.getItem(globalKey);
+      if (globalData && !localStorage.getItem(scoped)) {
+        localStorage.setItem(scoped, globalData);
+        localStorage.removeItem(globalKey);
+      }
+    }
   }
 
   restoreAllRejectedPlayers() {
@@ -240,42 +261,43 @@ class Store {
       if (cloudData.clearedAt && cloudData.clearedAt > lastLocalClearedAt) {
         console.log("Admin Clear All signal received from Cloud Realtime DB. Clearing local cache on this device...");
         localStorage.setItem('cpl_last_cleared_at', String(cloudData.clearedAt));
-        safeSetLocalStorage(STORAGE_KEYS.PLAYERS, []);
+        safeSetLocalStorage(this._scopedKey('PLAYERS'), []);
         this.notify('players_updated');
         return;
       }
 
+      const playersKey = this._scopedKey('PLAYERS');
       const localPlayers = this.getPlayers();
 
       // 1. Sync Players ONLY if valid array received from cloud
       if (Array.isArray(cloudData.players)) {
-        // If admin cleared all in cloud, enforce empty local array
         if (cloudData.players.length === 0 && cloudData.clearedAt > 0) {
           if (localPlayers.length > 0) {
-            safeSetLocalStorage(STORAGE_KEYS.PLAYERS, []);
+            safeSetLocalStorage(playersKey, []);
+            this._invalidateCache('players');
             this.notify('players_updated');
           }
           return;
         }
 
-        // CLOUD-AUTHORITATIVE SYNC: Cloud database is the single source of truth.
-        // Local storage serves as an offline-first cache and is updated to match cloud data.
         const reindexedPlayers = cloudData.players;
-
         const localSanitized = sanitizeForStorage(this.getPlayers());
         const cleanCloudSanitized = sanitizeForStorage(reindexedPlayers);
-        
+
         if (JSON.stringify(localSanitized) !== JSON.stringify(cleanCloudSanitized)) {
-          safeSetLocalStorage(STORAGE_KEYS.PLAYERS, reindexedPlayers);
+          safeSetLocalStorage(playersKey, reindexedPlayers);
+          this._invalidateCache('players');
           this.notify('players_updated');
         }
       }
 
       // 2. Sync Teams ONLY if valid array received from cloud
+      const teamsKey = this._scopedKey('TEAMS');
       const lastLocalTeamsClearedAt = Number(localStorage.getItem('cpl_last_teams_cleared_at') || '0');
       if (cloudData.teamsClearedAt && cloudData.teamsClearedAt > lastLocalTeamsClearedAt) {
         localStorage.setItem('cpl_last_teams_cleared_at', String(cloudData.teamsClearedAt));
-        safeSetLocalStorage(STORAGE_KEYS.TEAMS, []);
+        safeSetLocalStorage(teamsKey, []);
+        this._invalidateCache('teams');
         this.notify('teams_updated');
         return;
       }
@@ -285,19 +307,20 @@ class Store {
 
         if (cloudData.teams.length === 0 && cloudData.teamsClearedAt > 0) {
           if (localTeams.length > 0) {
-            safeSetLocalStorage(STORAGE_KEYS.TEAMS, []);
+            safeSetLocalStorage(teamsKey, []);
+            this._invalidateCache('teams');
             this.notify('teams_updated');
           }
           return;
         }
 
         const reindexedTeams = cloudData.teams;
-
         const localTeamsSanitized = sanitizeForStorage(localTeams);
         const cleanCloudTeamsSanitized = sanitizeForStorage(reindexedTeams);
-        
+
         if (JSON.stringify(localTeamsSanitized) !== JSON.stringify(cleanCloudTeamsSanitized)) {
-          safeSetLocalStorage(STORAGE_KEYS.TEAMS, reindexedTeams);
+          safeSetLocalStorage(teamsKey, reindexedTeams);
+          this._invalidateCache('teams');
           this.syncAllIconPlayers();
           this.notify('teams_updated');
         }
@@ -321,30 +344,34 @@ class Store {
             if (!nextFixtures.some(f => f.id === activeId)) nextFixtures = [...nextFixtures, localActive];
           }
         }
-        const localFixturesStr = localStorage.getItem(STORAGE_KEYS.FIXTURES) || '[]';
+        const fixturesKey = this._scopedKey('FIXTURES');
+        const localFixturesStr = localStorage.getItem(fixturesKey) || '[]';
         const cloudFixturesStr = JSON.stringify(nextFixtures);
         if (localFixturesStr !== cloudFixturesStr) {
-          safeSetLocalStorage(STORAGE_KEYS.FIXTURES, nextFixtures);
+          safeSetLocalStorage(fixturesKey, nextFixtures);
+          this._invalidateCache('fixtures');
           this.notify('fixtures_updated');
         }
       }
 
       // 4. Sync Auction Settings
       if (cloudData.auctionSettings) {
-        const localSettingsStr = localStorage.getItem(STORAGE_KEYS.AUCTION_SETTINGS) || '{}';
+        const auctionKey = this._scopedKey('AUCTION_SETTINGS');
+        const localSettingsStr = localStorage.getItem(auctionKey) || '{}';
         const cloudSettingsStr = JSON.stringify(cloudData.auctionSettings);
         if (localSettingsStr !== cloudSettingsStr) {
-          safeSetLocalStorage(STORAGE_KEYS.AUCTION_SETTINGS, cloudData.auctionSettings);
+          safeSetLocalStorage(auctionKey, cloudData.auctionSettings);
           this.notify('auction_settings_updated');
         }
       }
 
-      // 4b. Sync Registration Settings
+      // 4b. Sync Registration Settings (tournament-scoped)
       if (cloudData.registrationSettings) {
-        const localRegStr = localStorage.getItem(STORAGE_KEYS.REGISTRATION_SETTINGS) || '{}';
+        const regKey = this._scopedKey('REGISTRATION_SETTINGS');
+        const localRegStr = localStorage.getItem(regKey) || '{}';
         const cloudRegStr = JSON.stringify(cloudData.registrationSettings);
         if (localRegStr !== cloudRegStr) {
-          safeSetLocalStorage(STORAGE_KEYS.REGISTRATION_SETTINGS, cloudData.registrationSettings);
+          safeSetLocalStorage(regKey, cloudData.registrationSettings);
           this.notify('registration_settings_updated');
         }
       }
@@ -459,9 +486,10 @@ class Store {
 
   setupRealtimeListeners() {
     window.addEventListener('storage', (e) => {
-      if (e.key === STORAGE_KEYS.PLAYERS) this.notify('players_updated');
-      if (e.key === STORAGE_KEYS.TEAMS) this.notify('teams_updated');
-      if (e.key === STORAGE_KEYS.REGISTRATION_SETTINGS) this.notify('registration_settings_updated');
+      if (!e.key) return;
+      if (e.key === this._scopedKey('PLAYERS')) { this._invalidateCache('players'); this.notify('players_updated'); }
+      if (e.key === this._scopedKey('TEAMS')) { this._invalidateCache('teams'); this.notify('teams_updated'); }
+      if (e.key === this._scopedKey('REGISTRATION_SETTINGS')) this.notify('registration_settings_updated');
     });
 
     // Mobile Phone Wakeup & Tab Switch Instant Cloud Sync
@@ -660,8 +688,9 @@ class Store {
 
   // --- PLAYERS ---
   getPlayers() {
-    const rawPlayers = JSON.parse(localStorage.getItem(STORAGE_KEYS.PLAYERS)) || [];
-    const rawTeams = JSON.parse(localStorage.getItem(STORAGE_KEYS.TEAMS)) || [];
+    if (this._cache.players) return this._cache.players;
+    const rawPlayers = JSON.parse(localStorage.getItem(this._scopedKey('PLAYERS'))) || [];
+    const rawTeams = JSON.parse(localStorage.getItem(this._scopedKey('TEAMS'))) || [];
 
     const normalizeName = (name) => (name || '').toLowerCase().replace(/\s+/g, ' ').replace(/[()]/g, '').trim();
 
@@ -709,11 +738,7 @@ class Store {
       return getPlayerTimestamp(a) - getPlayerTimestamp(b);
     });
 
-    const filtered = this.activeTournamentId
-      ? uniquePlayers.filter(p => p.tournament_id === this.activeTournamentId || p.tournamentId === this.activeTournamentId)
-      : uniquePlayers;
-
-    return filtered.map((p, idx) => {
+    const result = uniquePlayers.map((p, idx) => {
       const canonicalSl = (p.id && p.id.startsWith('ply-1787000000000-')) 
         ? parseInt(p.id.replace('ply-1787000000000-', ''), 10)
         : (idx + 1);
@@ -759,6 +784,8 @@ class Store {
         regNo: regId
       };
     });
+    this._cache.players = result;
+    return result;
   }
 
   getPlayerById(id) {
@@ -800,7 +827,7 @@ class Store {
         photoUrl: playerData.photoUrl || playerData.player_photo_url || players[existingIdx].photoUrl,
         player_photo_url: playerData.photoUrl || playerData.player_photo_url || players[existingIdx].player_photo_url,
       };
-      safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
+      safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
       syncPlayerToSupabase(players[existingIdx]);
       this.notify('players_updated');
       return players[existingIdx];
@@ -857,7 +884,7 @@ class Store {
     };
 
     players.push(newPlayer);
-    safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
+    safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
     syncPlayerToSupabase(newPlayer);
     this.notify('players_updated');
     return newPlayer;
@@ -874,7 +901,7 @@ class Store {
         updated_at: now
       };
       
-      safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
+      safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
       syncPlayerToSupabase(players[idx]);
       this.notify('players_updated');
       return players[idx];
@@ -899,7 +926,7 @@ class Store {
           team.playerIds = team.playerIds.filter(id => id !== playerId);
         }
         team.updated_at = Date.now();
-        safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
+        safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
         syncTeamToSupabase(team);
         this.notify('teams_updated');
       }
@@ -918,7 +945,7 @@ class Store {
       p.regNo = p.registrationId;
     });
 
-    safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
+    safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
     deletePlayerFromSupabase(playerId);
     this.notify('players_updated');
   }
@@ -926,7 +953,7 @@ class Store {
   clearAllPlayers() {
     const timestamp = Date.now();
     localStorage.setItem('cpl_last_cleared_at', String(timestamp));
-    safeSetLocalStorage(STORAGE_KEYS.PLAYERS, []);
+    safeSetLocalStorage(this._scopedKey('PLAYERS'), []);
     clearAllPlayersFromCloud();
     this.notify('players_updated');
   }
@@ -934,7 +961,7 @@ class Store {
   clearAllTeams() {
     const timestamp = Date.now();
     localStorage.setItem('cpl_last_teams_cleared_at', String(timestamp));
-    safeSetLocalStorage(STORAGE_KEYS.TEAMS, []);
+    safeSetLocalStorage(this._scopedKey('TEAMS'), []);
     clearAllTeamsFromCloud();
     this.notify('teams_updated');
   }
@@ -949,7 +976,7 @@ class Store {
       player.updated_at = now;
       if (remarks) player.remarks = remarks;
       
-      safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
+      safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
       syncPlayerToSupabase(player);
       this.notify('players_updated');
     }
@@ -975,7 +1002,7 @@ class Store {
       player.docsPurged = true;
       player.updated_at = now;
 
-      safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
+      safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
       syncPlayerToSupabase(player);
       this.notify('players_updated');
     }
@@ -1005,7 +1032,7 @@ class Store {
       }
     });
     if (count > 0) {
-      safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
+      safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
       this.notify('players_updated');
     }
     return count;
@@ -1043,8 +1070,8 @@ class Store {
       team.remainingPurse = Math.max(0, (Number(team.purseBudget) || 8000) - team.purseSpent);
       team.updated_at = Date.now();
 
-      safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
-      safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
+      safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
+      safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
       syncPlayerToSupabase(player);
       syncTeamToSupabase(team);
       this.notify('players_updated');
@@ -1069,7 +1096,7 @@ class Store {
     player.isUnsold = true;
     player.updated_at = now;
 
-    safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
+    safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
     syncPlayerToSupabase(player);
     this.notify('players_updated');
     this.notify('live_auction_updated');
@@ -1095,7 +1122,7 @@ class Store {
           team.playerIds = team.playerIds.filter(id => id !== playerId);
         }
         team.updated_at = now;
-        safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
+        safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
         syncTeamToSupabase(team);
       }
     }
@@ -1122,7 +1149,7 @@ class Store {
       });
     }
 
-    safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
+    safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
     syncPlayerToSupabase(player);
     this.notify('players_updated');
     this.notify('teams_updated');
@@ -1145,7 +1172,7 @@ class Store {
       syncPlayerToSupabase(p);
     });
 
-    const teams = (JSON.parse(localStorage.getItem(STORAGE_KEYS.TEAMS)) || []).map((t, idx) => {
+    const teams = (JSON.parse(localStorage.getItem(this._scopedKey('TEAMS'))) || []).map((t, idx) => {
       const hasIcon = !!(t.iconPlayerName || t.iconName);
       const iconDeduction = hasIcon ? 1000 : 0;
       const budget = Number(t.purseBudget || t.purse || 8000);
@@ -1174,8 +1201,8 @@ class Store {
       updated_at: now
     });
 
-    safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
-    safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
+    safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
+    safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
     
     if (typeof syncTeamToSupabase === 'function') {
       teams.forEach(t => syncTeamToSupabase(t));
@@ -1189,8 +1216,9 @@ class Store {
 
   // --- TEAMS ---
   getTeams() {
-    const teams = JSON.parse(localStorage.getItem(STORAGE_KEYS.TEAMS)) || [];
-    const allPlayers = JSON.parse(localStorage.getItem(STORAGE_KEYS.PLAYERS)) || [];
+    if (this._cache.teams) return this._cache.teams;
+    const teams = JSON.parse(localStorage.getItem(this._scopedKey('TEAMS'))) || [];
+    const allPlayers = JSON.parse(localStorage.getItem(this._scopedKey('PLAYERS'))) || [];
 
     // DEDUP TEAMS: If the same team name exists under two IDs (e.g. team-aniket-xi AND team-1787144635606),
     // keep only the canonical timestamp-based ID.
@@ -1225,11 +1253,9 @@ class Store {
       }
     }
     
-    const filteredTeams = this.activeTournamentId
-      ? deduped.filter(t => t.tournament_id === this.activeTournamentId || t.tournamentId === this.activeTournamentId)
-      : deduped;
+    const filteredTeams = deduped;
 
-    return filteredTeams.map((t, idx) => {
+    const teamResult = filteredTeams.map((t, idx) => {
       const iconPlayerName = (t.iconPlayerName || t.iconName || '').trim().toLowerCase();
       const hasIcon = !!iconPlayerName;
       const iconDeduction = hasIcon ? 1000 : 0;
@@ -1264,6 +1290,8 @@ class Store {
         logoUrl: t.logoUrl || t.logo || 'assets/card_jsl_cartoon.png'
       };
     });
+    this._cache.teams = teamResult;
+    return teamResult;
   }
 
   getTeamById(id) {
@@ -1320,7 +1348,7 @@ class Store {
     }
 
     if (changed) {
-      safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
+      safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
       this.notify('players_updated');
     }
   }
@@ -1354,7 +1382,7 @@ class Store {
     });
 
     if (changed) {
-      safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
+      safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
       this.notify('players_updated');
     }
   }
@@ -1384,7 +1412,7 @@ class Store {
       t.serialNo = idx + 1;
     });
     
-    safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
+    safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
     syncTeamToSupabase(newTeam);
     this.syncIconPlayerAllocation(null, newTeam);
     this.notify('teams_updated');
@@ -1400,7 +1428,7 @@ class Store {
       teams.forEach((t, i) => {
         t.serialNo = i + 1;
       });
-      safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
+      safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
       syncTeamToSupabase(teams[idx]);
       this.syncIconPlayerAllocation(oldTeam, teams[idx]);
       this.notify('teams_updated');
@@ -1433,8 +1461,8 @@ class Store {
       }
     });
 
-    safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
-    safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
+    safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
+    safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
     deleteTeamFromSupabase(teamId);
     this.notify('teams_updated');
     this.notify('players_updated');
@@ -1442,9 +1470,10 @@ class Store {
 
   // --- FIXTURES ---
   getFixtures() {
-    const all = JSON.parse(localStorage.getItem(STORAGE_KEYS.FIXTURES)) || [];
-    if (!this.activeTournamentId) return all;
-    return all.filter(f => f.tournament_id === this.activeTournamentId || f.tournamentId === this.activeTournamentId);
+    if (this._cache.fixtures) return this._cache.fixtures;
+    const all = JSON.parse(localStorage.getItem(this._scopedKey('FIXTURES'))) || [];
+    this._cache.fixtures = all;
+    return all;
   }
 
   registerFixture(fixtureData) {
@@ -1459,7 +1488,7 @@ class Store {
       ...fixtureData
     };
     fixtures.push(newFixture);
-    safeSetLocalStorage(STORAGE_KEYS.FIXTURES, fixtures);
+    safeSetLocalStorage(this._scopedKey('FIXTURES'), fixtures);
     saveFixtureToCloud(newFixture);
     this.notify('fixtures_updated');
     return newFixture;
@@ -1470,7 +1499,7 @@ class Store {
     const idx = fixtures.findIndex(f => f.id === updatedFixture.id);
     if (idx !== -1) {
       fixtures[idx] = { ...fixtures[idx], ...updatedFixture };
-      safeSetLocalStorage(STORAGE_KEYS.FIXTURES, fixtures);
+      safeSetLocalStorage(this._scopedKey('FIXTURES'), fixtures);
       saveFixtureToCloud(fixtures[idx]);
       this.notify('fixtures_updated');
       return fixtures[idx];
@@ -1481,7 +1510,7 @@ class Store {
   deleteFixture(fixtureId) {
     let fixtures = this.getFixtures();
     fixtures = fixtures.filter(f => f.id !== fixtureId);
-    safeSetLocalStorage(STORAGE_KEYS.FIXTURES, fixtures);
+    safeSetLocalStorage(this._scopedKey('FIXTURES'), fixtures);
     deleteFixtureFromCloud(fixtureId);
     this.notify('fixtures_updated');
   }
@@ -1523,7 +1552,7 @@ class Store {
     if (team) {
       team.group = (groupCode || '').toUpperCase().trim();
       team.updated_at = Date.now();
-      safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
+      safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
       syncTeamToSupabase(team);
       this.notify('teams_updated');
       return true;
@@ -1544,7 +1573,7 @@ class Store {
       }
     });
     if (updatedAny) {
-      safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
+      safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
       this.notify('teams_updated');
     }
     return true;
@@ -1625,7 +1654,7 @@ class Store {
   getAuctionSettings() {
     const defaultSettings = { defaultBasePrice: 300, defaultPurseBudget: 8000 };
     try {
-      const s = localStorage.getItem(STORAGE_KEYS.AUCTION_SETTINGS);
+      const s = localStorage.getItem(this._scopedKey('AUCTION_SETTINGS'));
       if (!s) return defaultSettings;
       const parsed = JSON.parse(s);
       return {
@@ -1639,7 +1668,7 @@ class Store {
   }
 
   updateAuctionSettings(settings) {
-    safeSetLocalStorage(STORAGE_KEYS.AUCTION_SETTINGS, settings);
+    safeSetLocalStorage(this._scopedKey('AUCTION_SETTINGS'), settings);
     saveAuctionSettingsToCloud(settings);
     this.notify('auction_settings_updated');
   }
@@ -1653,7 +1682,7 @@ class Store {
       closedReason: "Registration is currently closed by the Admin."
     };
     try {
-      const s = localStorage.getItem(STORAGE_KEYS.REGISTRATION_SETTINGS);
+      const s = localStorage.getItem(this._scopedKey('REGISTRATION_SETTINGS'));
       if (!s) return defaultSettings;
       const parsed = JSON.parse(s);
       return {
@@ -1683,7 +1712,7 @@ class Store {
   updateRegistrationSettings(settings) {
     const current = this.getRegistrationSettings();
     const updated = { ...current, ...settings };
-    safeSetLocalStorage(STORAGE_KEYS.REGISTRATION_SETTINGS, updated);
+    safeSetLocalStorage(this._scopedKey('REGISTRATION_SETTINGS'), updated);
     saveRegistrationSettingsToCloud(updated, this.activeTournamentId);
     this.notify('registration_settings_updated');
     return updated;
@@ -2157,7 +2186,7 @@ class Store {
     });
 
     if (updatedPlayer) {
-      safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
+      safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
       this.notify('players_updated');
     }
 
@@ -2191,7 +2220,7 @@ class Store {
     });
 
     if (updated) {
-      safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
+      safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
       this.notify('players_updated');
     }
 
@@ -2530,6 +2559,9 @@ class Store {
   }
 
   notify(eventName) {
+    if (eventName === 'players_updated') this._invalidateCache('players');
+    if (eventName === 'teams_updated') this._invalidateCache('teams');
+    if (eventName === 'fixtures_updated') this._invalidateCache('fixtures');
     window.dispatchEvent(new CustomEvent(eventName));
     if (this.broadcastChannel) {
       try {

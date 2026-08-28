@@ -1324,7 +1324,7 @@ function buildTournamentCarouselHTML(allTournaments) {
   const carouselCards = activeTourneys.map((ct, idx) => {
     const outlineColor = CARD_OUTLINE_COLORS[idx % CARD_OUTLINE_COLORS.length];
     const poster = ct.posterUrl
-      ? '<img src="' + ct.posterUrl + '" class="w-full h-full object-cover object-center" onerror="this.style.display=\'none\'" />'
+      ? '<img src="' + ct.posterUrl + '" loading="lazy" class="w-full h-full object-cover object-center" onerror="this.style.display=\'none\'" />'
       : renderTournamentFallbackPoster(ct);
     return '<div data-nav-route="t/' + ct.slug + '" data-tourney-name="' + (ct.name || '').toLowerCase() + '" data-tourney-venue="' + (ct.venue || '').toLowerCase() + '" class="tourney-card shrink-0 bg-white rounded-2xl shadow-md overflow-hidden cursor-pointer transition-all group" style="min-width:100%;border:3px solid white;outline:3px solid ' + outlineColor + ';">'
       + '<div class="relative w-full aspect-[16/9] overflow-hidden">'
@@ -1343,7 +1343,7 @@ function buildTournamentCarouselHTML(allTournaments) {
   const searchCards = allTournaments.map((ct, idx) => {
     const outlineColor = CARD_OUTLINE_COLORS[idx % CARD_OUTLINE_COLORS.length];
     const poster = ct.posterUrl
-      ? '<img src="' + ct.posterUrl + '" class="w-full h-full object-cover object-center" onerror="this.style.display=\'none\'" />'
+      ? '<img src="' + ct.posterUrl + '" loading="lazy" class="w-full h-full object-cover object-center" onerror="this.style.display=\'none\'" />'
       : renderTournamentFallbackPoster(ct);
     const statusBadge = (ct.status === 'ACTIVE' || !ct.status)
       ? '<span class="px-1 py-0.5 bg-emerald-500 text-white text-[7px] font-black rounded-full uppercase">LIVE</span>'

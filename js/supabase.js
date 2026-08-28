@@ -1244,7 +1244,8 @@ export async function dbFetchTournaments() {
     const { data, error } = await supabase
       .from('tournaments')
       .select('*')
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending: false })
+      .limit(200);
     if (!error && data) return data;
   } catch (err) {
     console.warn("[POSTGRES] dbFetchTournaments error:", err);
