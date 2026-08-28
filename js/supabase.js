@@ -351,7 +351,7 @@ export function initRealtimePushListener(onUpdateCallback, tournamentId) {
       activeRealtimeChannel = null;
     }
 
-    const tId = tournamentId || DEFAULT_TOURNAMENT_UUID;
+    const tId = toUUID(tournamentId) || DEFAULT_TOURNAMENT_UUID;
     const filter = `tournament_id=eq.${tId}`;
 
     const channel = supabase
@@ -389,13 +389,13 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
   if (!supabase) return empty;
 
   try {
-    const tId = tournamentId || DEFAULT_TOURNAMENT_UUID;
+    const tId = toUUID(tournamentId) || DEFAULT_TOURNAMENT_UUID;
 
     const [playersRes, teamsRes, matchesRes, tourneyRes] = await Promise.all([
       supabase.from('players').select('*').eq('tournament_id', tId),
       supabase.from('teams').select('*').eq('tournament_id', tId),
       supabase.from('matches').select('*').eq('tournament_id', tId),
-      supabase.from('tournaments').select('category_code, slug, name, registration_fee, total_team_budget, base_price').eq('id', tId).maybeSingle()
+      supabase.from('tournaments').select('category_code, slug, name, registration_fee, total_team_budget, icon_price, registration_settings').eq('id', tId).maybeSingle()
     ]);
     const tourneyMeta = tourneyRes?.data || {};
     const regPrefix = (tourneyMeta.category_code || tourneyMeta.slug || 'T').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -477,8 +477,8 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
       fixtures,
       liveAuction: null,
       playerProfiles: [],
-      auctionSettings: { defaultBasePrice: Number(tourneyMeta.base_price) || 300, defaultPurseBudget: Number(tourneyMeta.total_team_budget) || 8000 },
-      registrationSettings: { isPlayerRegOpen: true, isTeamRegOpen: true },
+      auctionSettings: { defaultBasePrice: Number(tourneyMeta.icon_price) || 300, defaultPurseBudget: Number(tourneyMeta.total_team_budget) || 8000 },
+      registrationSettings: (tourneyMeta.registration_settings && typeof tourneyMeta.registration_settings === 'object') ? tourneyMeta.registration_settings : { isPlayerRegOpen: true, isTeamRegOpen: true, isRegistrationOpen: true },
       tournamentMeta: tourneyMeta,
       clearedAt: 0,
       teamsClearedAt: 0,
@@ -935,19 +935,21 @@ export async function fetchAdSettingsFromCloud() {
   return localData || { isEnabled: false };
 }
 
-export async function saveRegistrationSettingsToCloud(settings) {
+export async function saveRegistrationSettingsToCloud(settings, tournamentId = null) {
   if (!supabase) return false;
   try {
-    await supabase.from('tournaments').update({ registration_settings: settings, updated_at: new Date().toISOString() }).eq('id', DEFAULT_TOURNAMENT_UUID);
+    const tId = toUUID(tournamentId) || DEFAULT_TOURNAMENT_UUID;
+    await supabase.from('tournaments').update({ registration_settings: settings, updated_at: new Date().toISOString() }).eq('id', tId);
     return true;
   } catch (e) { return false; }
 }
 
-export async function fetchRegistrationSettingsFromCloud() {
+export async function fetchRegistrationSettingsFromCloud(tournamentId = null) {
   const defaults = { isPlayerRegOpen: true, isTeamRegOpen: true, closedReason: "Registration is currently closed by the Admin." };
   if (!supabase) return defaults;
   try {
-    const { data } = await supabase.from('tournaments').select('registration_settings').eq('id', DEFAULT_TOURNAMENT_UUID).maybeSingle();
+    const tId = toUUID(tournamentId) || DEFAULT_TOURNAMENT_UUID;
+    const { data } = await supabase.from('tournaments').select('registration_settings').eq('id', tId).maybeSingle();
     return (data && data.registration_settings) ? data.registration_settings : defaults;
   } catch (e) { return defaults; }
 }
@@ -1094,6 +1096,26 @@ export async function saveCustomTournamentToCloud(tourney) {
   if (!supabase || !tourney) return null;
   try {
     const user = await getAuthUser();
+    const extraSettings = {};
+    if (tourney.kickoffDate || tourney.kickoff_date) extraSettings.kickoff_date = tourney.kickoffDate || tourney.kickoff_date;
+    if (tourney.prizeWinner || tourney.prize_winner) extraSettings.prize_winner = Number(tourney.prizeWinner || tourney.prize_winner);
+    if (tourney.organizer?.name || tourney.organiser_name) extraSettings.organiser_name = tourney.organizer?.name || tourney.organiser_name;
+    if (tourney.organizer?.phone || tourney.organiser_phone) extraSettings.organiser_phone = tourney.organizer?.phone || tourney.organiser_phone;
+    if (tourney.upiId || tourney.upi_id) extraSettings.upi_id = tourney.upiId || tourney.upi_id;
+    if (tourney.paymentQrUrl || tourney.payment_qr_url) extraSettings.payment_qr_url = tourney.paymentQrUrl || tourney.payment_qr_url;
+
+    // Preserve existing registration open/close flags when saving tournament meta
+    let existingRegSettings = {};
+    if (tourney.supabaseId) {
+      try {
+        const { data: existing } = await supabase.from('tournaments').select('registration_settings').eq('id', tourney.supabaseId).maybeSingle();
+        if (existing?.registration_settings && typeof existing.registration_settings === 'object') {
+          existingRegSettings = existing.registration_settings;
+        }
+      } catch (e) {}
+    }
+    const mergedRegSettings = { ...existingRegSettings, ...extraSettings };
+
     const payload = {
       slug: tourney.slug || tourney.shortCode || tourney.id,
       name: tourney.name || tourney.id,
@@ -1101,18 +1123,12 @@ export async function saveCustomTournamentToCloud(tourney) {
       mode: tourney.mode || 'registration_auction',
       registration_fee: Number(tourney.entryFee || tourney.playerEntryFee) || 0,
       total_team_budget: Number(tourney.teamPurse || tourney.auctionPurse || tourney.purse) || 10000,
-      base_price: Number(tourney.basePrice) || 300,
+      icon_price: Number(tourney.basePrice) || 300,
       venue_name: tourney.venue || 'TBD',
-      kickoff_date: tourney.kickoffDate || tourney.kickoff_date || null,
-      prize_winner: Number(tourney.prizeWinner || tourney.prize_winner) || 35000,
-      entry_fee: Number(tourney.entryFee || tourney.entry_fee) || 300,
-      organiser_name: tourney.organizer?.name || tourney.organiser_name || null,
-      organiser_phone: tourney.organizer?.phone || tourney.organiser_phone || null,
-      upi_id: tourney.upiId || tourney.upi_id || null,
-      payment_qr_url: tourney.paymentQrUrl || tourney.payment_qr_url || null,
-      poster_url: tourney.posterUrl || tourney.poster_url || null,
+      banner_url: tourney.posterUrl || tourney.poster_url || tourney.bannerUrl || tourney.banner_url || null,
       status: tourney.status === 'ACTIVE' ? 'active' : (tourney.status || 'active').toLowerCase(),
       organiser_id: user?.id || null,
+      registration_settings: mergedRegSettings,
       updated_at: new Date().toISOString()
     };
     if (tourney.supabaseId) payload.id = tourney.supabaseId;
@@ -1129,7 +1145,10 @@ export async function saveCustomTournamentToCloud(tourney) {
 export async function fetchCustomTournamentsFromCloud() {
   const data = await dbFetchTournaments();
   if (!data || !Array.isArray(data)) return [];
-  return data.map(t => ({
+  return data.map(t => {
+    let extra = {};
+    try { extra = typeof t.registration_settings === 'string' ? JSON.parse(t.registration_settings) : (t.registration_settings || {}); } catch(e) {}
+    return ({
     id: `t_${t.slug}`,
     supabaseId: t.id,
     tournament_id: t.id,
@@ -1138,21 +1157,21 @@ export async function fetchCustomTournamentsFromCloud() {
     shortCode: (t.category_code || t.slug || '').toUpperCase(),
     mode: t.mode,
     venue: t.venue_name,
-    kickoffDate: t.kickoff_date,
-    prizeWinner: Number(t.prize_winner) || 35000,
-    entryFee: Number(t.entry_fee || t.registration_fee) || 300,
+    kickoffDate: extra.kickoff_date || null,
+    prizeWinner: Number(extra.prize_winner) || 35000,
+    entryFee: Number(t.registration_fee) || 300,
     teamPurse: Number(t.total_team_budget) || 8000,
-    basePrice: Number(t.base_price) || 300,
-    posterUrl: t.poster_url || t.banner_url || '',
-    upiId: t.upi_id || '',
-    paymentQrUrl: t.payment_qr_url || '',
+    basePrice: Number(t.icon_price) || 300,
+    posterUrl: t.banner_url || '',
+    upiId: extra.upi_id || '',
+    paymentQrUrl: extra.payment_qr_url || '',
     organizer: {
-      name: t.organiser_name || '',
-      phone: t.organiser_phone || ''
+      name: extra.organiser_name || '',
+      phone: extra.organiser_phone || ''
     },
     status: (t.status || 'active').toUpperCase(),
     created_at: new Date(t.created_at).getTime()
-  }));
+  });});
 }
 
 export async function deleteCustomTournamentFromCloud(tourneyId) {

@@ -49,7 +49,7 @@ import {
   dbFetchTournaments,
   compressImageToTarget,
   saveUserAccountToCloud
-} from './supabase.js?v=13.0.0';
+} from './supabase.js?v=13.0.1';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -407,6 +407,24 @@ class Store {
 
           const merged = Array.from(cloudMap.values());
           safeSetLocalStorage(STORAGE_KEYS.CUSTOM_TOURNAMENTS, merged);
+          this.notify('custom_tournaments_updated');
+        }
+
+        // 6b. Retry cloud save for local-only tournaments (no supabaseId)
+        const afterMerge = JSON.parse(localStorage.getItem(STORAGE_KEYS.CUSTOM_TOURNAMENTS) || '[]');
+        let listChanged = false;
+        for (const t of afterMerge) {
+          if (!t.supabaseId) {
+            const sid = await saveCustomTournamentToCloud(t);
+            if (sid) {
+              t.supabaseId = sid;
+              t.tournament_id = sid;
+              listChanged = true;
+            }
+          }
+        }
+        if (listChanged) {
+          safeSetLocalStorage(STORAGE_KEYS.CUSTOM_TOURNAMENTS, afterMerge);
           this.notify('custom_tournaments_updated');
         }
 
@@ -1666,7 +1684,7 @@ class Store {
     const current = this.getRegistrationSettings();
     const updated = { ...current, ...settings };
     safeSetLocalStorage(STORAGE_KEYS.REGISTRATION_SETTINGS, updated);
-    saveRegistrationSettingsToCloud(updated);
+    saveRegistrationSettingsToCloud(updated, this.activeTournamentId);
     this.notify('registration_settings_updated');
     return updated;
   }
@@ -1905,52 +1923,7 @@ class Store {
       if (local) customList = JSON.parse(local);
     } catch(e) {}
 
-    // Ensure default seeded tournaments (JSL and KPL) are always present
-    const defaultTourneys = [
-      {
-        id: "tourney_jsl_2026",
-        slug: "jsl-2026",
-        name: "JHANKRA SUPER LEAGUE 2026",
-        shortCode: "JSL",
-        category_code: "JSL",
-        mode: "AUCTION_LEAGUE",
-        venue: "JHANKRA SCHOOL GROUND",
-        dates: "29, 30 & 31 AUGUST 2026",
-        kickoffDate: "2026-08-29",
-        entryFee: 300,
-        prizeWinner: 35000,
-        prizeRunner: 25000,
-        teamPurse: 8000,
-        status: "ACTIVE",
-        organizer: { name: "Pintu Santra", phone: "8972214416" }
-      },
-      {
-        id: "tourney_kpl_2026",
-        slug: "kpl-2026",
-        name: "KOTA PREMIER LEAGUE 2026",
-        shortCode: "KPL",
-        category_code: "KPL",
-        mode: "AUCTION_LEAGUE",
-        venue: "Kota Sports Ground",
-        dates: "15, 16 & 17 OCTOBER 2026",
-        kickoffDate: "2026-10-15",
-        entryFee: 500,
-        prizeWinner: 50000,
-        prizeRunner: 30000,
-        teamPurse: 10000,
-        status: "ACTIVE",
-        organizer: { name: "Kota Cricket Club", phone: "9800000000" }
-      }
-    ];
-
-    const merged = [...customList];
-    defaultTourneys.forEach(dt => {
-      if (!merged.some(t => t.slug === dt.slug || t.id === dt.id || (t.shortCode && t.shortCode.toUpperCase() === dt.shortCode.toUpperCase()))) {
-        merged.push(dt);
-      }
-    });
-
-    return merged;
+    return customList;
   }
 
   getCustomTournamentById(idOrSlug) {
@@ -2044,10 +2017,14 @@ class Store {
 
   async deleteCustomTournament(tourneyId) {
     if (!tourneyId) return false;
-    let list = this.getCustomTournaments();
-    list = list.filter(t => t.id !== tourneyId && t.slug !== tourneyId);
-    safeSetLocalStorage(STORAGE_KEYS.CUSTOM_TOURNAMENTS, list);
-    await deleteCustomTournamentFromCloud(tourneyId);
+    const list = this.getCustomTournaments();
+    const match = list.find(t => t.id === tourneyId || t.slug === tourneyId);
+    const cloudId = match?.supabaseId || match?.tournament_id || null;
+    const filtered = list.filter(t => t.id !== tourneyId && t.slug !== tourneyId);
+    safeSetLocalStorage(STORAGE_KEYS.CUSTOM_TOURNAMENTS, filtered);
+    if (cloudId) {
+      await deleteCustomTournamentFromCloud(cloudId);
+    }
     this.notify('custom_tournaments_updated');
     return true;
   }

@@ -3,10 +3,11 @@
 import { store } from './store.js?v=13.0.0';
 import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.0';
 import { renderAdminDashboard } from './admin.js?v=13.0.0';
-import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp } from './supabase.js?v=13.0.0';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp } from './supabase.js?v=13.0.1';
 import { shops } from './shopsData.js?v=12.0.2';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
+const CARD_OUTLINE_COLORS = ['#10b981','#3b82f6','#f59e0b','#f43f5e','#a855f7','#14b8a6','#f97316','#6366f1','#ec4899','#06b6d4'];
 let latestVisitorStats = { liveCount: 1, totalVisits: 286 };
 
 const CRICKET_THUMBNAILS = [
@@ -209,7 +210,11 @@ function initApp() {
   window.addEventListener('leagues_updated', safeRenderCurrentView);
   window.addEventListener('players_updated', safeRenderCurrentView);
   window.addEventListener('teams_updated', safeRenderCurrentView);
-  window.addEventListener('registration_settings_updated', safeRenderCurrentView);
+  window.addEventListener('registration_settings_updated', () => {
+    if (renderDebounceTimer) clearTimeout(renderDebounceTimer);
+    renderDebounceTimer = setTimeout(() => renderCurrentView(), 250);
+  });
+  window.addEventListener('custom_tournaments_updated', safeRenderCurrentView);
   
   // LIVE AUCTION SYNC: Only update auction page when on auction route to prevent unnecessary full-page refreshes
   window.addEventListener('live_auction_updated', () => {
@@ -644,6 +649,46 @@ export function compressImage(file, maxWidth = 800, maxHeight = 800, quality = 0
           estSize = Math.round((dataUrl.length - 22) * 0.75);
         }
 
+        resolve(dataUrl);
+      };
+      img.onerror = () => resolve(e.target.result);
+      img.src = e.target.result;
+    };
+    reader.onerror = () => resolve('');
+    reader.readAsDataURL(file);
+  });
+}
+
+// Center-crop image to 4:3 aspect ratio for tournament banner cards
+export function cropBannerImage(file, targetWidth = 600, quality = 0.82) {
+  return new Promise((resolve) => {
+    if (!file) { resolve(''); return; }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const targetHeight = Math.round(targetWidth * 3 / 4);
+        const srcAspect = img.width / img.height;
+        const targetAspect = 4 / 3;
+        let sx = 0, sy = 0, sw = img.width, sh = img.height;
+        if (srcAspect > targetAspect) {
+          sw = Math.round(img.height * targetAspect);
+          sx = Math.round((img.width - sw) / 2);
+        } else {
+          sh = Math.round(img.width / targetAspect);
+          sy = Math.round((img.height - sh) / 2);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+        canvas.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, targetWidth, targetHeight);
+        let dataUrl = canvas.toDataURL('image/jpeg', quality);
+        const maxBytes = 120 * 1024;
+        let q = quality;
+        while (Math.round((dataUrl.length - 22) * 0.75) > maxBytes && q > 0.3) {
+          q -= 0.08;
+          dataUrl = canvas.toDataURL('image/jpeg', q);
+        }
         resolve(dataUrl);
       };
       img.onerror = () => resolve(e.target.result);
@@ -1140,9 +1185,8 @@ function renderCurrentView() {
       const regTid = regTourney.supabaseId || regTourney.tournament_id || regTourney.id;
       if (regTid) store.setActiveTournament(regTid);
       renderFirstPageLanding(container);
-      setTimeout(() => openDynamicTournamentRegistrationModal(slug), 100);
+      store.syncWithCloud().then(() => openDynamicTournamentRegistrationModal(slug));
     } else {
-      // Wait for cloud sync then retry
       renderFirstPageLanding(container);
       store.syncWithCloud().then(() => {
         const retryTourney = store.getCustomTournamentById(slug);
@@ -1266,13 +1310,58 @@ function getTournamentThumbnail(name) {
 function renderTournamentFallbackPoster(ct) {
   const thumb = getTournamentThumbnail(ct.name || ct.slug || '');
   return `
-    <div class="absolute inset-0 bg-gradient-to-br ${thumb.gradient} flex flex-col items-center justify-center text-white p-4 text-center">
-      <div class="text-5xl mb-2 drop-shadow-lg">${thumb.emoji}</div>
-      <div class="text-base sm:text-lg font-black uppercase leading-tight tracking-wide drop-shadow-md">${ct.name || 'Tournament'}</div>
-      <div class="text-[10px] font-bold mt-1.5 opacity-80">${ct.kickoffDate || thumb.pattern}</div>
-      <div class="absolute inset-0 opacity-10" style="background-image: radial-gradient(circle at 20% 80%, white 1px, transparent 1px), radial-gradient(circle at 80% 20%, white 1px, transparent 1px), radial-gradient(circle at 50% 50%, white 0.5px, transparent 0.5px); background-size: 40px 40px, 60px 60px, 20px 20px;"></div>
+    <div class="absolute inset-0 bg-gradient-to-br ${thumb.gradient} flex flex-col items-center justify-center text-white p-2 text-center">
+      <div class="text-3xl mb-1 drop-shadow-lg">${thumb.emoji}</div>
+      <div class="text-[10px] sm:text-xs font-black uppercase leading-tight tracking-wide drop-shadow-md line-clamp-2">${ct.name || 'Tournament'}</div>
+      <div class="absolute inset-0 opacity-10" style="background-image: radial-gradient(circle at 20% 80%, white 1px, transparent 1px), radial-gradient(circle at 80% 20%, white 1px, transparent 1px); background-size: 40px 40px, 60px 60px;"></div>
     </div>
   `;
+}
+
+function buildTournamentCarouselHTML(allTournaments) {
+  const activeTourneys = allTournaments.filter(ct => ct.status === 'ACTIVE' || !ct.status);
+
+  const carouselCards = activeTourneys.map((ct, idx) => {
+    const outlineColor = CARD_OUTLINE_COLORS[idx % CARD_OUTLINE_COLORS.length];
+    const poster = ct.posterUrl
+      ? '<img src="' + ct.posterUrl + '" class="w-full h-full object-cover object-center" onerror="this.style.display=\'none\'" />'
+      : renderTournamentFallbackPoster(ct);
+    return '<div data-nav-route="t/' + ct.slug + '" data-tourney-name="' + (ct.name || '').toLowerCase() + '" data-tourney-venue="' + (ct.venue || '').toLowerCase() + '" class="tourney-card shrink-0 bg-white rounded-2xl shadow-md overflow-hidden cursor-pointer transition-all group" style="min-width:100%;border:3px solid white;outline:3px solid ' + outlineColor + ';">'
+      + '<div class="relative w-full aspect-[16/9] overflow-hidden">'
+      + poster
+      + '<div class="absolute top-2 left-2"><span class="px-2 py-0.5 bg-emerald-500 text-white text-[8px] font-black rounded-full uppercase shadow-md flex items-center gap-1"><span class="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span> LIVE</span></div>'
+      + '</div>'
+      + '<div class="px-3 py-2 bg-white"><h4 class="text-sm font-black text-slate-900 truncate group-hover:text-emerald-700 transition-colors">' + ct.name + '</h4></div>'
+      + '</div>';
+  }).join('');
+
+  const dots = activeTourneys.map((ct, idx) => {
+    const dotColor = idx === 0 ? CARD_OUTLINE_COLORS[idx % CARD_OUTLINE_COLORS.length] : '#cbd5e1';
+    return '<span class="carousel-dot w-2 h-2 rounded-full transition-all cursor-pointer" data-dot-idx="' + idx + '" style="background:' + dotColor + ';"></span>';
+  }).join('');
+
+  const searchCards = allTournaments.map((ct, idx) => {
+    const outlineColor = CARD_OUTLINE_COLORS[idx % CARD_OUTLINE_COLORS.length];
+    const poster = ct.posterUrl
+      ? '<img src="' + ct.posterUrl + '" class="w-full h-full object-cover object-center" onerror="this.style.display=\'none\'" />'
+      : renderTournamentFallbackPoster(ct);
+    const statusBadge = (ct.status === 'ACTIVE' || !ct.status)
+      ? '<span class="px-1 py-0.5 bg-emerald-500 text-white text-[7px] font-black rounded-full uppercase">LIVE</span>'
+      : '<span class="px-1 py-0.5 bg-slate-500 text-white text-[7px] font-black rounded-full uppercase">' + (ct.status || 'DRAFT') + '</span>';
+    return '<div data-nav-route="t/' + ct.slug + '" data-tourney-name="' + (ct.name || '').toLowerCase() + '" data-tourney-venue="' + (ct.venue || '').toLowerCase() + '" class="tourney-card-search bg-white rounded-xl shadow-sm hover:shadow-md overflow-hidden cursor-pointer transition-all group" style="border:2px solid white;outline:2px solid ' + outlineColor + ';">'
+      + '<div class="relative w-full aspect-[4/3] overflow-hidden bg-slate-100">'
+      + poster
+      + '<div class="absolute top-1 left-1">' + statusBadge + '</div>'
+      + '</div>'
+      + '<div class="px-2 py-1.5 bg-white"><h4 class="text-[11px] font-black text-slate-900 truncate leading-tight">' + ct.name + '</h4></div>'
+      + '</div>';
+  }).join('');
+
+  return '<div id="tourney-carousel-wrapper" class="relative overflow-hidden rounded-2xl">'
+    + '<div id="tourney-carousel" class="flex gap-0" style="will-change:transform;">' + carouselCards + '</div>'
+    + '<div id="tourney-carousel-dots" class="flex items-center justify-center gap-1.5 py-2 bg-white/80">' + dots + '</div>'
+    + '</div>'
+    + '<div id="landing-tournaments-grid" class="hidden grid grid-cols-2 sm:grid-cols-3 gap-2.5">' + searchCards + '</div>';
 }
 
 function renderFirstPageLanding(containerEl) {
@@ -1365,78 +1454,42 @@ function renderFirstPageLanding(containerEl) {
         </div>
       </div>
 
-      <!-- BROWSE ALL TOURNAMENTS -->
-      <div class="w-full max-w-4xl mx-auto px-2 space-y-3">
-        <div class="flex items-center justify-between flex-wrap gap-2">
-          <h3 class="text-sm sm:text-base font-black text-slate-900 flex items-center gap-2">
-            <i data-lucide="trophy" class="w-4 h-4 text-amber-600"></i>
-            Browse Tournaments
-            <span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-full border border-emerald-200">${allTournaments.length}</span>
+      <!-- BROWSE TOURNAMENTS -->
+      <div class="w-full max-w-4xl mx-auto px-2 space-y-2">
+        <div class="flex items-center justify-between gap-2">
+          <h3 class="text-xs sm:text-sm font-black text-slate-900 flex items-center gap-1.5">
+            <i data-lucide="trophy" class="w-3.5 h-3.5 text-amber-600"></i>
+            Tournaments
+            <span class="px-1.5 py-0.5 bg-emerald-100 text-emerald-800 text-[9px] font-black rounded-full border border-emerald-200">${allTournaments.length}</span>
           </h3>
-          <div class="flex items-center gap-2">
-            <div class="relative">
-              <input type="text" id="landing-tournament-search" placeholder="Search tournaments..." class="bg-white border border-slate-200 text-slate-900 text-xs rounded-xl py-2 pl-8 pr-3 focus:outline-none focus:border-emerald-400 w-44 sm:w-56 shadow-xs" />
-              <i data-lucide="search" class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none"></i>
-            </div>
+          <div class="relative">
+            <input type="text" id="landing-tournament-search" placeholder="Search..." class="bg-white border border-slate-200 text-slate-900 text-[11px] rounded-lg py-1.5 pl-7 pr-2 focus:outline-none focus:border-emerald-400 w-32 sm:w-44 shadow-xs" />
+            <i data-lucide="search" class="w-3 h-3 text-slate-400 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none"></i>
           </div>
         </div>
 
-        ${allTournaments.length === 0 ? `
-          <div class="text-center py-10 bg-white border-2 border-dashed border-slate-200 rounded-2xl">
-            <div class="text-4xl mb-2">🏏</div>
-            <h4 class="text-sm font-black text-slate-900">No Tournaments Yet</h4>
-            <p class="text-xs text-slate-500 mt-1">Be the first to host a tournament on Cricket Premier League!</p>
-          </div>
-        ` : `
-          <div id="landing-tournaments-grid" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
-            ${allTournaments.map(ct => `
-              <div data-nav-route="t/${ct.slug}" data-tourney-name="${(ct.name || '').toLowerCase()}" data-tourney-venue="${(ct.venue || '').toLowerCase()}" class="tourney-card group block bg-white rounded-2xl shadow-md hover:shadow-lg overflow-hidden transition-all no-underline border border-slate-200 hover:border-emerald-400 cursor-pointer">
-                <div class="relative w-full aspect-[16/10] overflow-hidden">
-                  ${ct.posterUrl ? `
-                    <img src="${ct.posterUrl}" class="w-full h-full object-cover" onerror="this.style.display='none'" />
-                  ` : renderTournamentFallbackPoster(ct)}
-                  <div class="absolute top-2.5 left-2.5">
-                    <span class="px-2 py-0.5 ${ct.status === 'ACTIVE' || !ct.status ? 'bg-emerald-500' : 'bg-slate-500'} text-white text-[9px] font-black rounded-full uppercase shadow-sm flex items-center gap-1">
-                      ${ct.status === 'ACTIVE' || !ct.status ? '<span class="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span> LIVE' : ct.status}
-                    </span>
-                  </div>
-                  <div class="absolute top-2.5 right-2.5">
-                    <span class="px-2 py-0.5 bg-slate-950/70 text-white text-[9px] font-bold rounded-full backdrop-blur-sm">
-                      ${ct.mode === 'AUCTION_LEAGUE' ? '🏆 Auction' : '🏏 Quick'}
-                    </span>
-                  </div>
-                </div>
-                <div class="p-3.5 space-y-0.5">
-                  <div class="text-[10px] text-slate-500 font-bold">${ct.venue ? '📍 ' + ct.venue : (ct.kickoffDate ? '📅 ' + ct.kickoffDate : '')}</div>
-                  <h4 class="text-sm font-black text-slate-900 truncate group-hover:text-emerald-700 transition-colors">${ct.name}</h4>
-                  <div class="flex items-center justify-between">
-                    <div class="text-[11px] text-slate-500 font-medium">${ct.organizer?.name || 'Tournament Organizer'}</div>
-                    ${ct.registration_fee ? `<span class="text-[10px] font-bold text-emerald-700">₹${ct.registration_fee}</span>` : ''}
-                  </div>
-                </div>
-              </div>
-            `).join('')}
-          </div>
-        `}
+        ${allTournaments.length === 0 ? '<div class="text-center py-8 bg-white border-2 border-dashed border-slate-200 rounded-xl"><div class="text-3xl mb-1">🏏</div><h4 class="text-xs font-black text-slate-900">No Tournaments Yet</h4><p class="text-[10px] text-slate-500 mt-0.5">Be the first to host a tournament!</p></div>' : buildTournamentCarouselHTML(allTournaments)}
       </div>
 
       <!-- HOST YOUR OWN TOURNAMENT BANNER -->
       <div class="w-full max-w-4xl mx-auto px-2 pt-2">
         <div class="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 rounded-2xl sm:rounded-3xl p-4 sm:p-5 text-slate-950 shadow-xl border-2 border-amber-300 flex flex-col md:flex-row items-center justify-between gap-3 sm:gap-4">
-          <div class="space-y-1.5 text-center md:text-left">
-            <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-slate-950 text-amber-300 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-wider shadow">
-              <span>🏆 CRICKET SAAS ENGINE • MULTI-TENANT</span>
-            </div>
+          <div class="space-y-1 text-center md:text-left">
             <h3 class="text-base sm:text-lg font-black text-slate-950 tracking-tight leading-tight">
-              Host Your Own Cricket Tournament Online
+              🏆 Host Your Own Cricket Tournament
             </h3>
-            <p class="text-[11px] sm:text-xs text-slate-900 font-bold max-w-lg">
-              ✨ <strong>Mode 1 (Full Suite)</strong>: Player Online Reg + Live Bidding Auction + Squads + Live Scorer<br/>
-              ⚡ <strong>Mode 2 (Quick Fixtures)</strong>: Manual Team/Player Entry + Auto Fixtures + Ball-by-Ball Live Scoring
+            <p class="text-[11px] sm:text-xs font-black text-slate-800 leading-snug">
+              নিজের ক্রিকেট টুর্নামেন্ট অনলাইনে তৈরি করুন
+            </p>
+            <p class="text-[10px] sm:text-[11px] text-slate-900 font-bold max-w-lg leading-relaxed">
+              ✨ <strong>Mode A</strong>: Player Registration + Live Auction + Squads + Live Scorer<br/>
+              <span class="text-slate-700">প্লেয়ার রেজিস্ট্রেশন + লাইভ নিলাম + স্কোয়াড + লাইভ স্কোরার</span><br/>
+              ⚡ <strong>Mode B</strong>: Team Entry + Auto Fixtures + Ball-by-Ball Scoring<br/>
+              <span class="text-slate-700">টিম এন্ট্রি + অটো ফিক্সচার + বল-বাই-বল স্কোরিং</span>
             </p>
           </div>
-          <button id="btn-home-create-tourney" class="w-full md:w-auto px-5 py-3 bg-slate-950 hover:bg-slate-900 text-amber-400 font-black text-xs sm:text-sm rounded-xl shadow-xl border-2 border-amber-400 flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-105 shrink-0 uppercase tracking-wider">
-            <span>+ Create Tournament ➔</span>
+          <button id="btn-home-create-tourney" class="w-full md:w-auto px-5 py-3 bg-slate-950 hover:bg-slate-900 text-amber-400 font-black text-xs sm:text-sm rounded-xl shadow-xl border-2 border-amber-400 flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-105 shrink-0">
+            <span>+ Create Tournament / টুর্নামেন্ট তৈরি করুন ➔</span>
           </button>
         </div>
       </div>
@@ -1454,16 +1507,83 @@ function renderFirstPageLanding(containerEl) {
   // START COUNTDOWN TIMER
   initTournamentCountdown();
 
-  // Search filter for tournaments
+  // Search filter: show grid on search, carousel when empty
   const searchInput = document.getElementById('landing-tournament-search');
+  const carouselWrapper = document.getElementById('tourney-carousel-wrapper');
+  const searchGrid = document.getElementById('landing-tournaments-grid');
   searchInput?.addEventListener('input', (e) => {
     const query = (e.target.value || '').toLowerCase().trim();
-    document.querySelectorAll('.tourney-card').forEach(card => {
-      const name = card.getAttribute('data-tourney-name') || '';
-      const venue = card.getAttribute('data-tourney-venue') || '';
-      card.style.display = (!query || name.includes(query) || venue.includes(query)) ? '' : 'none';
-    });
+    if (query) {
+      if (carouselWrapper) carouselWrapper.classList.add('hidden');
+      if (searchGrid) searchGrid.classList.remove('hidden');
+      document.querySelectorAll('.tourney-card-search').forEach(card => {
+        const name = card.getAttribute('data-tourney-name') || '';
+        const venue = card.getAttribute('data-tourney-venue') || '';
+        card.style.display = (name.includes(query) || venue.includes(query)) ? '' : 'none';
+      });
+    } else {
+      if (carouselWrapper) carouselWrapper.classList.remove('hidden');
+      if (searchGrid) searchGrid.classList.add('hidden');
+    }
   });
+
+  // Wire up search grid card clicks
+  document.querySelectorAll('.tourney-card-search[data-nav-route]').forEach(el => {
+    el.addEventListener('click', () => navigate(el.dataset.navRoute));
+  });
+
+  // Full-width carousel: slide one card at a time every 3.5 seconds
+  const carousel = document.getElementById('tourney-carousel');
+  const dotsContainer = document.getElementById('tourney-carousel-dots');
+  if (carousel && carousel.children.length > 1) {
+    const totalSlides = carousel.children.length;
+    let currentSlide = 0;
+    let autoTimer = null;
+
+    const goToSlide = (idx) => {
+      currentSlide = idx % totalSlides;
+      carousel.style.transition = 'transform 0.5s ease-in-out';
+      carousel.style.transform = 'translateX(-' + (currentSlide * 100) + '%)';
+      if (dotsContainer) {
+        dotsContainer.querySelectorAll('.carousel-dot').forEach((dot, i) => {
+          dot.style.background = i === currentSlide ? CARD_OUTLINE_COLORS[i % CARD_OUTLINE_COLORS.length] : '#cbd5e1';
+          dot.style.width = i === currentSlide ? '16px' : '8px';
+          dot.style.borderRadius = '999px';
+        });
+      }
+    };
+
+    const startAuto = () => {
+      if (autoTimer) clearInterval(autoTimer);
+      autoTimer = setInterval(() => goToSlide(currentSlide + 1), 3500);
+    };
+    startAuto();
+
+    // Dot click navigation
+    dotsContainer?.querySelectorAll('.carousel-dot').forEach(dot => {
+      dot.addEventListener('click', () => {
+        goToSlide(Number(dot.dataset.dotIdx));
+        startAuto();
+      });
+    });
+
+    // Touch swipe support
+    let touchStartX = 0;
+    carousel.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; clearInterval(autoTimer); }, { passive: true });
+    carousel.addEventListener('touchend', (e) => {
+      const diff = touchStartX - e.changedTouches[0].clientX;
+      if (Math.abs(diff) > 40) {
+        goToSlide(diff > 0 ? currentSlide + 1 : currentSlide - 1 + totalSlides);
+      }
+      startAuto();
+    }, { passive: true });
+
+    // Pause on hover
+    carousel.addEventListener('mouseenter', () => clearInterval(autoTimer));
+    carousel.addEventListener('mouseleave', startAuto);
+
+    goToSlide(0);
+  }
 
   document.getElementById('btn-home-create-tourney')?.addEventListener('click', () => openTournamentCreationWizard(false));
 }
@@ -1657,14 +1777,19 @@ export function renderCustomTournamentHub(container, tourney) {
           ` : ''}
         </div>
 
-        <!-- HIGHLIGHTED RED REGISTRATION LINK (IF AUCTION MODE) -->
-        ${isAuction ? `
+        <!-- HIGHLIGHTED RED REGISTRATION LINK (IF AUCTION MODE & REG OPEN) -->
+        ${isAuction && store.isRegistrationOpen() ? `
           <div class="p-4 bg-gradient-to-r from-red-600 via-rose-600 to-red-700 rounded-2xl mx-3 shadow-xl text-white text-center space-y-2 border-2 border-red-400 animate-pulse">
             <div class="text-sm sm:text-base font-black tracking-wide">🏏 PLAYER REGISTRATIONS ARE ACTIVE!</div>
             <p class="text-xs text-red-100 font-medium">Join the grand player auction pool for ₹${tourney.entryFee || 300} and get drafted into top franchise teams.</p>
             <button id="btn-home-hero-reg-link" class="w-full sm:w-auto px-8 py-3 bg-white hover:bg-slate-100 text-red-700 font-black text-sm rounded-xl shadow-lg cursor-pointer transition-all hover:scale-105 border border-red-200">
               📝 Register for ${tourney.name} Now ➔
             </button>
+          </div>
+        ` : isAuction ? `
+          <div class="p-4 bg-gradient-to-r from-slate-600 via-slate-700 to-slate-800 rounded-2xl mx-3 shadow-xl text-white text-center space-y-2 border-2 border-slate-400">
+            <div class="text-sm sm:text-base font-black tracking-wide">🔒 PLAYER REGISTRATIONS ARE CLOSED</div>
+            <p class="text-xs text-slate-300 font-medium">${store.getRegistrationSettings().closedReason || 'Registration is currently closed by the Admin.'}</p>
           </div>
         ` : ''}
       </div>
@@ -11043,21 +11168,19 @@ export function openTournamentCreationWizard(isTrialMode = false) {
       <div class="bg-white text-slate-900 max-w-2xl w-full max-h-[92vh] flex flex-col rounded-2xl sm:rounded-3xl border-2 border-amber-400 shadow-2xl overflow-hidden">
         
         <!-- MODAL HEADER -->
-        <div class="p-3.5 sm:p-4 bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50 border-b-2 border-amber-200 flex items-center justify-between gap-2 shrink-0">
-          <div class="flex items-center gap-2.5">
-            <span class="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-400 to-yellow-500 text-slate-950 border border-amber-300 flex items-center justify-center text-xl shrink-0 shadow-md font-black">
+        <div class="p-2.5 sm:p-3.5 bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50 border-b-2 border-amber-200 flex items-center justify-between gap-2 shrink-0">
+          <div class="flex items-center gap-2">
+            <span class="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-amber-400 to-yellow-500 text-slate-950 border border-amber-300 flex items-center justify-center text-lg sm:text-xl shrink-0 shadow-md font-black">
               🏆
             </span>
             <div>
-              <div class="flex items-center gap-1.5 flex-wrap">
-                <span class="text-[9.5px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-amber-200/90 text-amber-950 border border-amber-300">
-                  ${isTrialMode ? '🧪 TRIAL / DRAFT MODE' : 'HOST TOURNAMENT'}
-                </span>
-                <span class="text-[9px] font-mono text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300 font-bold">SAAS CREATOR</span>
-              </div>
-              <h2 class="text-base sm:text-lg font-black text-slate-900 tracking-tight leading-tight mt-0.5">
-                Create & Host Your Cricket Tournament
+              <span class="text-[9.5px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-amber-200/90 text-amber-950 border border-amber-300">
+                ${isTrialMode ? '🧪 TRIAL / DRAFT MODE' : '🏆 HOST TOURNAMENT'}
+              </span>
+              <h2 class="text-sm sm:text-base font-black text-slate-900 tracking-tight leading-tight mt-0.5">
+                Create Your Cricket Tournament
               </h2>
+              <p class="text-[10px] font-bold text-slate-500 leading-tight">আপনার ক্রিকেট টুর্নামেন্ট তৈরি করুন</p>
             </div>
           </div>
           
@@ -11067,196 +11190,183 @@ export function openTournamentCreationWizard(isTrialMode = false) {
         </div>
 
         <!-- PROGRESS STEPS BAR -->
-        <div class="p-2 sm:p-3 bg-slate-50 border-b border-slate-200 flex items-center justify-around text-[10px] sm:text-xs font-black shrink-0">
+        <div class="px-2 py-1.5 sm:p-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-around text-[10px] sm:text-xs font-black shrink-0">
           <div id="step-pill-1" class="flex items-center gap-1 px-2 sm:px-3 py-1 rounded-xl bg-amber-400 text-slate-950 shadow-xs border border-amber-300">
-            <span>1</span> <span>Identity</span>
+            <span>1</span> <span>পরিচয়</span>
           </div>
           <span class="text-slate-300 text-[10px]">➔</span>
           <div id="step-pill-2" class="flex items-center gap-1 px-2 sm:px-3 py-1 rounded-xl bg-white text-slate-500 border border-slate-200">
-            <span>2</span> <span>Mode</span>
+            <span>2</span> <span>মোড</span>
           </div>
           <span class="text-slate-300 text-[10px]">➔</span>
           <div id="step-pill-3" class="flex items-center gap-1 px-2 sm:px-3 py-1 rounded-xl bg-white text-slate-500 border border-slate-200">
-            <span>3</span> <span>Launch</span>
+            <span>3</span> <span>লঞ্চ</span>
           </div>
         </div>
 
         <!-- WIZARD BODY CONTAINER -->
-        <div id="tourney-wizard-content" class="p-4 sm:p-6 overflow-y-auto flex-1 space-y-4 bg-white">
-          <!-- Step 1: Basic Identity -->
-          <div id="wizard-step-1" class="space-y-4 animate-fade-in">
+        <div id="tourney-wizard-content" class="p-3 sm:p-5 overflow-y-auto flex-1 space-y-3 bg-white">
+          <!-- Step 1: Basic Identity / পরিচয় -->
+          <div id="wizard-step-1" class="space-y-2.5 animate-fade-in">
             <div>
-              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Tournament Full Name *</label>
-              <input type="text" id="wiz-tourney-name" placeholder="e.g. Medinipur Super Trophy 2026" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400" />
+              <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Tournament Name * <span class="normal-case text-slate-400 font-bold">/ টুর্নামেন্টের নাম</span></label>
+              <input type="text" id="wiz-tourney-name" placeholder="e.g. Medinipur Super Trophy 2026" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400" />
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="grid grid-cols-2 gap-2">
               <div>
-                <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Short Code / URL Slug *</label>
-                <input type="text" id="wiz-tourney-slug" placeholder="e.g. MST2026" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-amber-400 uppercase" />
-                <span class="text-[9px] text-slate-400 block mt-0.5">Generates link: yourdomain.com/#t/mst2026</span>
+                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Short Code * <span class="normal-case text-slate-400 font-bold">/ কোড</span></label>
+                <input type="text" id="wiz-tourney-slug" placeholder="MST2026" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-amber-400 uppercase" />
               </div>
               <div>
-                <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Venue / Ground Location *</label>
-                <input type="text" id="wiz-tourney-venue" placeholder="e.g. Town Club Ground, Medinipur" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400" />
-              </div>
-            </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Season / Year (Optional)</label>
-                <input type="text" id="wiz-tourney-season" placeholder="e.g. Season 1, 2026" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400" />
-              </div>
-              <div>
-                <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Total Teams *</label>
-                <input type="number" id="wiz-tourney-total-teams" placeholder="e.g. 8" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400 font-mono" />
+                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Venue * <span class="normal-case text-slate-400 font-bold">/ মাঠ</span></label>
+                <input type="text" id="wiz-tourney-venue" placeholder="Town Club Ground" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400" />
               </div>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="grid grid-cols-2 gap-2">
               <div>
-                <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Kickoff Date & Time *</label>
-                <input type="datetime-local" id="wiz-tourney-date" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400" />
+                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Season <span class="normal-case text-slate-400 font-bold">/ সিজন</span></label>
+                <input type="text" id="wiz-tourney-season" placeholder="Season 1, 2026" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400" />
               </div>
               <div>
-                <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">End Date (Optional)</label>
-                <input type="date" id="wiz-tourney-end-date" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400" />
+                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Total Teams * <span class="normal-case text-slate-400 font-bold">/ টিম</span></label>
+                <input type="number" id="wiz-tourney-total-teams" placeholder="8" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400 font-mono" />
               </div>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="grid grid-cols-2 gap-2">
               <div>
-                <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Winner Prize (₹) *</label>
-                <input type="number" id="wiz-tourney-prize" placeholder="e.g. 35000" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400 font-mono" />
+                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Start Date * <span class="normal-case text-slate-400 font-bold">/ তারিখ</span></label>
+                <input type="datetime-local" id="wiz-tourney-date" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-2 text-[11px] text-slate-900 font-bold focus:outline-none focus:border-amber-400" />
               </div>
               <div>
-                <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Runner-up Prize (₹)</label>
-                <input type="number" id="wiz-tourney-runner-prize" placeholder="e.g. 15000" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400 font-mono" />
+                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">End Date <span class="normal-case text-slate-400 font-bold">/ শেষ</span></label>
+                <input type="date" id="wiz-tourney-end-date" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-2 text-[11px] text-slate-900 font-bold focus:outline-none focus:border-amber-400" />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2">
+              <div>
+                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Winner Prize ₹ * <span class="normal-case text-slate-400 font-bold">/ পুরস্কার</span></label>
+                <input type="number" id="wiz-tourney-prize" placeholder="35000" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400 font-mono" />
+              </div>
+              <div>
+                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Runner-up ₹ <span class="normal-case text-slate-400 font-bold">/ রানার্স</span></label>
+                <input type="number" id="wiz-tourney-runner-prize" placeholder="15000" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400 font-mono" />
               </div>
             </div>
 
             <div>
-              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Tournament Poster / Banner (Optional)</label>
-              <input type="file" id="wiz-poster-file" accept="image/*" class="w-full text-xs text-slate-600 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-black file:bg-slate-900 file:text-white hover:file:bg-slate-800 cursor-pointer" />
+              <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Poster / Banner <span class="normal-case text-slate-400 font-bold">/ পোস্টার (ঐচ্ছিক)</span></label>
+              <input type="file" id="wiz-poster-file" accept="image/*" class="w-full text-[11px] text-slate-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:bg-slate-900 file:text-white hover:file:bg-slate-800 cursor-pointer" />
             </div>
           </div>
 
-          <!-- Step 2: Choose Mode & Rules (Hidden by Default) -->
-          <div id="wizard-step-2" class="space-y-4 hidden animate-fade-in">
-            <label class="block text-xs font-black text-slate-700 uppercase tracking-wider">Select Operating Mode *</label>
-            
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <!-- Step 2: Choose Mode / মোড নির্বাচন (Hidden by Default) -->
+          <div id="wizard-step-2" class="space-y-2.5 hidden animate-fade-in">
+            <label class="block text-[10px] font-black text-slate-700 uppercase">Select Mode * <span class="normal-case text-slate-400 font-bold">/ মোড নির্বাচন করুন</span></label>
+
+            <div class="grid grid-cols-2 gap-2">
               <!-- Mode A: Full Auction -->
-              <div id="select-mode-a" class="p-3.5 rounded-2xl border-2 border-amber-400 bg-amber-50/50 cursor-pointer shadow-xs transition-all flex flex-col justify-between space-y-2">
-                <div class="space-y-1">
-                  <div class="flex items-center justify-between">
-                    <span class="text-xs font-black text-amber-950 flex items-center gap-1.5">
-                      <span>🔨 Mode A: Full Auction</span>
-                    </span>
-                    <span class="w-4 h-4 rounded-full bg-amber-400 text-slate-950 text-[10px] font-black flex items-center justify-center">✓</span>
-                  </div>
-                  <p class="text-[11px] text-slate-600">
-                    Open player registration form + Custom UPI QR code + Live Auction Projector screen with franchise purse tracking.
-                  </p>
+              <div id="select-mode-a" class="p-2.5 rounded-xl border-2 border-amber-400 bg-amber-50/50 cursor-pointer transition-all space-y-1">
+                <div class="flex items-center justify-between">
+                  <span class="text-[11px] font-black text-amber-950">🔨 Mode A</span>
+                  <span class="w-4 h-4 rounded-full bg-amber-400 text-slate-950 text-[9px] font-black flex items-center justify-center">✓</span>
                 </div>
-                <span class="text-[9.5px] font-black text-amber-800 uppercase tracking-wider">RECOMMENDED MODEL</span>
+                <p class="text-[10px] font-bold text-amber-900">Full Auction / সম্পূর্ণ নিলাম</p>
+                <p class="text-[9px] text-slate-500 leading-tight">Registration + Auction + Squads + Live Scorer</p>
               </div>
 
               <!-- Mode B: Quick Fixtures -->
-              <div id="select-mode-b" class="p-3.5 rounded-2xl border-2 border-slate-200 bg-white hover:border-slate-300 cursor-pointer shadow-xs transition-all flex flex-col justify-between space-y-2">
-                <div class="space-y-1">
-                  <div class="flex items-center justify-between">
-                    <span class="text-xs font-black text-slate-900 flex items-center gap-1.5">
-                      <span>🏏 Mode B: Quick Fixtures</span>
-                    </span>
-                    <span class="w-4 h-4 rounded-full bg-slate-200 text-slate-500 text-[10px] font-black flex items-center justify-center"></span>
-                  </div>
-                  <p class="text-[11px] text-slate-600">
-                    No public player registration. Direct team squad entry, 1-click fixture generation, and ball-by-ball live scoring.
-                  </p>
+              <div id="select-mode-b" class="p-2.5 rounded-xl border-2 border-slate-200 bg-white hover:border-slate-300 cursor-pointer transition-all space-y-1">
+                <div class="flex items-center justify-between">
+                  <span class="text-[11px] font-black text-slate-900">🏏 Mode B</span>
+                  <span class="w-4 h-4 rounded-full bg-slate-200 text-slate-500 text-[9px] font-black flex items-center justify-center"></span>
                 </div>
-                <span class="text-[9.5px] font-black text-slate-400 uppercase tracking-wider">CLUB / KNOCKOUT MODEL</span>
+                <p class="text-[10px] font-bold text-slate-700">Quick Fixtures / কুইক ফিক্সচার</p>
+                <p class="text-[9px] text-slate-500 leading-tight">Team Entry + Fixtures + Ball-by-Ball Scoring</p>
               </div>
             </div>
 
             <!-- Mode A Specific Fields -->
-            <div id="mode-a-config-block" class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
-              <h4 class="text-xs font-black text-amber-900 uppercase tracking-wider">Mode A Auction & Registration Settings</h4>
-              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <div id="mode-a-config-block" class="p-2.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+              <h4 class="text-[10px] font-black text-amber-900 uppercase">Auction Settings <span class="normal-case text-slate-400 font-bold">/ নিলাম সেটিংস</span></h4>
+              <div class="grid grid-cols-3 gap-2">
                 <div>
-                  <label class="block text-[10px] font-black text-slate-600 uppercase mb-1">Player Entry Fee (₹)</label>
-                  <input type="number" id="wiz-entry-fee" value="300" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold font-mono" />
+                  <label class="block text-[9px] font-black text-slate-600 uppercase mb-0.5">Entry Fee ₹ <span class="normal-case text-slate-400">/ ফি</span></label>
+                  <input type="number" id="wiz-entry-fee" value="300" class="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-bold font-mono" />
                 </div>
                 <div>
-                  <label class="block text-[10px] font-black text-slate-600 uppercase mb-1">Team Purse (₹)</label>
-                  <input type="number" id="wiz-team-purse" value="8000" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold font-mono" />
+                  <label class="block text-[9px] font-black text-slate-600 uppercase mb-0.5">Purse ₹ <span class="normal-case text-slate-400">/ পার্স</span></label>
+                  <input type="number" id="wiz-team-purse" value="8000" class="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-bold font-mono" />
                 </div>
                 <div>
-                  <label class="block text-[10px] font-black text-slate-600 uppercase mb-1">Base Price (₹)</label>
-                  <input type="number" id="wiz-base-price" value="300" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold font-mono" />
+                  <label class="block text-[9px] font-black text-slate-600 uppercase mb-0.5">Base ₹ <span class="normal-case text-slate-400">/ বেস</span></label>
+                  <input type="number" id="wiz-base-price" value="300" class="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-bold font-mono" />
                 </div>
               </div>
 
               <div>
-                <label class="block text-[10px] font-black text-slate-600 uppercase mb-1">Organizer UPI ID (For Direct Payments) *</label>
-                <input type="text" id="wiz-upi-id" placeholder="e.g. organizer@okaxis or 8972214416@paytm" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold font-mono" />
+                <label class="block text-[9px] font-black text-slate-600 uppercase mb-0.5">UPI ID * <span class="normal-case text-slate-400">/ পেমেন্ট আইডি</span></label>
+                <input type="text" id="wiz-upi-id" placeholder="organizer@okaxis" class="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold font-mono" />
               </div>
 
               <div>
-                <label class="block text-[10px] font-black text-slate-600 uppercase mb-1">Upload Organizer Payment QR Code Image *</label>
-                <input type="file" id="wiz-qr-file" accept="image/*" class="w-full text-xs text-slate-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[11px] file:font-black file:bg-emerald-600 file:text-white hover:file:bg-emerald-500 cursor-pointer" />
+                <label class="block text-[9px] font-black text-slate-600 uppercase mb-0.5">Payment QR Code * <span class="normal-case text-slate-400">/ কিউআর কোড</span></label>
+                <input type="file" id="wiz-qr-file" accept="image/*" class="w-full text-[11px] text-slate-600 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:bg-emerald-600 file:text-white cursor-pointer" />
               </div>
             </div>
           </div>
 
-          <!-- Step 3: Organizer Contact & Launch (Hidden by Default) -->
-          <div id="wizard-step-3" class="space-y-4 hidden animate-fade-in">
-            <h4 class="text-xs font-black text-slate-900 uppercase tracking-wider">Organizer Admin Account Setup</h4>
-            
+          <!-- Step 3: Organizer / আয়োজকের তথ্য (Hidden by Default) -->
+          <div id="wizard-step-3" class="space-y-2.5 hidden animate-fade-in">
+            <h4 class="text-[10px] font-black text-slate-900 uppercase">Organizer Account <span class="normal-case text-slate-400 font-bold">/ আয়োজকের অ্যাকাউন্ট সেটআপ</span></h4>
+
             <div>
-              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Organizer / President Name *</label>
-              <input type="text" id="wiz-org-name" placeholder="e.g. Suman Kolay" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400" />
+              <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Name * <span class="normal-case text-slate-400 font-bold">/ আয়োজকের নাম</span></label>
+              <input type="text" id="wiz-org-name" placeholder="e.g. Suman Kolay" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400" />
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="grid grid-cols-2 gap-2">
               <div>
-                <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Organizer WhatsApp Number *</label>
-                <input type="tel" id="wiz-org-phone" placeholder="e.g. 8972214416" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-amber-400" />
+                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">WhatsApp * <span class="normal-case text-slate-400 font-bold">/ নম্বর</span></label>
+                <input type="tel" id="wiz-org-phone" placeholder="8972214416" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-amber-400" />
               </div>
               <div>
-                <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Admin Password *</label>
-                <input type="password" id="wiz-org-password" placeholder="Create Secret Password" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-amber-400" />
+                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Password * <span class="normal-case text-slate-400 font-bold">/ পাসওয়ার্ড</span></label>
+                <input type="password" id="wiz-org-password" placeholder="Secret Password" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-amber-400" />
               </div>
             </div>
           </div>
 
           <!-- Success Launch View (Hidden by Default) -->
-          <div id="wizard-step-success" class="space-y-4 hidden animate-fade-in text-center py-2">
-            <div class="w-14 h-14 rounded-3xl bg-emerald-100 text-emerald-800 mx-auto flex items-center justify-center text-2xl font-black shadow-xs">
+          <div id="wizard-step-success" class="space-y-3 hidden animate-fade-in text-center py-1">
+            <div class="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-800 mx-auto flex items-center justify-center text-xl font-black shadow-xs">
               🎉
             </div>
             <div class="space-y-1">
-              <span class="px-3 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-full border border-emerald-300 uppercase">
-                TOURNAMENT CREATED SUCCESSFULLY
+              <span class="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 text-[9px] font-black rounded-full border border-emerald-300 uppercase">
+                TOURNAMENT CREATED / টুর্নামেন্ট তৈরি হয়েছে ✅
               </span>
-              <h3 id="wiz-success-title" class="text-base sm:text-lg font-black text-slate-900">Tournament Name</h3>
-              <p class="text-xs text-slate-600">Your dedicated tournament portal and player registration links are live!</p>
+              <h3 id="wiz-success-title" class="text-sm sm:text-base font-black text-slate-900">Tournament Name</h3>
+              <p class="text-[11px] text-slate-600">আপনার টুর্নামেন্ট পোর্টাল ও রেজিস্ট্রেশন লিংক লাইভ!</p>
             </div>
 
-            <div class="bg-slate-50 border-2 border-slate-200 p-3.5 rounded-2xl text-left space-y-2.5 text-xs">
+            <div class="bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-left space-y-2 text-xs">
               <div>
-                <span class="text-[10px] font-black text-slate-500 uppercase block">Public Tournament Hub Link:</span>
-                <div class="flex items-center justify-between gap-2 mt-0.5">
-                  <span id="wiz-success-hub-link" class="font-mono text-[11px] text-blue-700 font-bold truncate">...</span>
-                  <button type="button" id="wiz-copy-hub-btn" class="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg text-[10px] font-black shrink-0 cursor-pointer">Copy</button>
+                <span class="text-[9px] font-black text-slate-500 uppercase block">Hub Link / হাব লিংক:</span>
+                <div class="flex items-center justify-between gap-1.5 mt-0.5">
+                  <span id="wiz-success-hub-link" class="font-mono text-[10px] text-blue-700 font-bold truncate">...</span>
+                  <button type="button" id="wiz-copy-hub-btn" class="px-2 py-0.5 bg-white hover:bg-slate-100 border border-slate-300 rounded text-[9px] font-black shrink-0 cursor-pointer">Copy</button>
                 </div>
               </div>
 
               <div id="wiz-success-reg-container">
-                <span class="text-[10px] font-black text-slate-500 uppercase block">Player Registration Link:</span>
-                <div class="flex items-center justify-between gap-2 mt-0.5">
-                  <span id="wiz-success-reg-link" class="font-mono text-[11px] text-emerald-700 font-bold truncate">...</span>
-                  <button type="button" id="wiz-copy-reg-btn" class="px-2.5 py-1 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 rounded-lg text-[10px] font-black shrink-0 cursor-pointer">Copy</button>
+                <span class="text-[9px] font-black text-slate-500 uppercase block">Registration Link / রেজিস্ট্রেশন লিংক:</span>
+                <div class="flex items-center justify-between gap-1.5 mt-0.5">
+                  <span id="wiz-success-reg-link" class="font-mono text-[10px] text-emerald-700 font-bold truncate">...</span>
+                  <button type="button" id="wiz-copy-reg-btn" class="px-2 py-0.5 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 rounded text-[9px] font-black shrink-0 cursor-pointer">Copy</button>
                 </div>
               </div>
             </div>
@@ -11265,13 +11375,13 @@ export function openTournamentCreationWizard(isTrialMode = false) {
         </div>
 
         <!-- MODAL FOOTER BUTTONS -->
-        <div class="p-3 sm:p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-2 shrink-0">
-          <button type="button" id="wiz-prev-btn" class="px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-xl border border-slate-300 cursor-pointer hidden">
-            ← Back
+        <div class="p-2.5 sm:p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-2 shrink-0">
+          <button type="button" id="wiz-prev-btn" class="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-lg border border-slate-300 cursor-pointer hidden">
+            ← পিছনে
           </button>
           <div class="flex-1"></div>
-          <button type="button" id="wiz-next-btn" class="px-6 py-2.5 bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-500 hover:to-yellow-500 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-xs border border-amber-300 cursor-pointer transition-all">
-            Continue →
+          <button type="button" id="wiz-next-btn" class="px-5 py-2 bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-500 hover:to-yellow-500 text-slate-950 font-black text-xs rounded-xl shadow-xs border border-amber-300 cursor-pointer transition-all">
+            Continue / এগিয়ে যান →
           </button>
         </div>
 
@@ -11288,25 +11398,23 @@ export function openTournamentCreationWizard(isTrialMode = false) {
 
   modeABox?.addEventListener('click', () => {
     selectedMode = 'AUCTION_LEAGUE';
-    modeABox.className = 'p-3.5 rounded-2xl border-2 border-amber-400 bg-amber-50/50 cursor-pointer shadow-xs transition-all flex flex-col justify-between space-y-2';
-    modeBBox.className = 'p-3.5 rounded-2xl border-2 border-slate-200 bg-white hover:border-slate-300 cursor-pointer shadow-xs transition-all flex flex-col justify-between space-y-2';
+    modeABox.className = 'p-2.5 rounded-xl border-2 border-amber-400 bg-amber-50/50 cursor-pointer transition-all space-y-1';
+    modeBBox.className = 'p-2.5 rounded-xl border-2 border-slate-200 bg-white hover:border-slate-300 cursor-pointer transition-all space-y-1';
     if (modeAConfig) modeAConfig.classList.remove('hidden');
   });
 
   modeBBox?.addEventListener('click', () => {
     selectedMode = 'FIXTURE_ONLY';
-    modeBBox.className = 'p-3.5 rounded-2xl border-2 border-emerald-500 bg-emerald-50/50 cursor-pointer shadow-xs transition-all flex flex-col justify-between space-y-2';
-    modeABox.className = 'p-3.5 rounded-2xl border-2 border-slate-200 bg-white hover:border-slate-300 cursor-pointer shadow-xs transition-all flex flex-col justify-between space-y-2';
+    modeBBox.className = 'p-2.5 rounded-xl border-2 border-emerald-500 bg-emerald-50/50 cursor-pointer transition-all space-y-1';
+    modeABox.className = 'p-2.5 rounded-xl border-2 border-slate-200 bg-white hover:border-slate-300 cursor-pointer transition-all space-y-1';
     if (modeAConfig) modeAConfig.classList.add('hidden');
   });
 
-  // Poster File handler
-  document.getElementById('wiz-poster-file')?.addEventListener('change', (e) => {
+  // Poster File handler — auto center-crop to 4:3 card aspect
+  document.getElementById('wiz-poster-file')?.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (ev) => { uploadedPosterBase64 = ev.target.result; };
-      reader.readAsDataURL(file);
+      uploadedPosterBase64 = await cropBannerImage(file, 600, 0.82);
     }
   });
 
@@ -11341,11 +11449,11 @@ export function openTournamentCreationWizard(isTrialMode = false) {
     if (prevBtn) prevBtn.classList.toggle('hidden', currentStep <= 1 || currentStep > 3);
     if (nextBtn) {
       if (currentStep === 3) {
-        nextBtn.textContent = '🚀 Launch & Create Tournament';
+        nextBtn.textContent = '🚀 Launch / টুর্নামেন্ট তৈরি করুন';
       } else if (currentStep > 3) {
-        nextBtn.textContent = 'Done & View Portal';
+        nextBtn.textContent = 'Done / পোর্টাল দেখুন';
       } else {
-        nextBtn.textContent = 'Continue →';
+        nextBtn.textContent = 'Continue / এগিয়ে যান →';
       }
     }
   };
@@ -11508,6 +11616,33 @@ export function openDynamicTournamentRegistrationModal(tourneyIdOrSlug) {
     upiId: '',
     paymentQrUrl: ''
   };
+
+  if (!store.isRegistrationOpen()) {
+    const regSettings = store.getRegistrationSettings();
+    const reason = regSettings.closedReason || 'Registration is currently closed by the Admin.';
+    const closedHtml = `
+      <div id="dynamic-tournament-reg-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4 animate-fade-in bg-slate-950/75 backdrop-blur-sm">
+        <div class="bg-white text-slate-900 max-w-md w-full rounded-2xl border-2 border-red-300 shadow-2xl overflow-hidden">
+          <div class="p-5 bg-gradient-to-r from-red-50 via-rose-50 to-red-50 border-b-2 border-red-200 flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <span class="w-10 h-10 rounded-2xl bg-red-600 text-white flex items-center justify-center text-xl shrink-0 shadow-md font-black">🚫</span>
+              <h2 class="text-lg font-black text-slate-900">Registration Closed</h2>
+            </div>
+            <button id="close-reg-closed-modal" class="w-8 h-8 rounded-full bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-950 border border-slate-300 flex items-center justify-center text-sm font-black transition-all shadow-xs cursor-pointer">✕</button>
+          </div>
+          <div class="p-6 text-center space-y-4">
+            <p class="text-sm font-bold text-slate-700">${tourney.name}</p>
+            <p class="text-xs text-slate-500">${reason}</p>
+            <button id="close-reg-closed-btn" class="px-6 py-2.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-black rounded-xl transition-all cursor-pointer">OK, Go Back</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.insertAdjacentHTML('beforeend', closedHtml);
+    const closeModal = () => document.getElementById('dynamic-tournament-reg-modal')?.remove();
+    document.getElementById('close-reg-closed-modal')?.addEventListener('click', closeModal);
+    document.getElementById('close-reg-closed-btn')?.addEventListener('click', closeModal);
+    return;
+  }
 
   let uploadedPhotoBase64 = '';
   let uploadedReceiptBase64 = '';

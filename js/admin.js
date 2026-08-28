@@ -2,7 +2,7 @@
 
 import { store } from './store.js?v=13.0.0';
 import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF } from './export.js?v=13.0.0';
-import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase } from './supabase.js?v=13.0.0';
+import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase } from './supabase.js?v=13.0.1';
 import { shops } from './shopsData.js?v=12.0.2';
 
 let activeAdminTab = (() => { try { return sessionStorage.getItem('cpl_admin_tab') || (store.isMasterAdmin() ? 'payments' : 'overview'); } catch(e) { return 'payments'; } })();
@@ -367,7 +367,32 @@ export function renderAdminDashboard(containerEl) {
                 <p class="text-xs text-slate-500 mt-0.5">There are no pending player registrations requiring approval right now.</p>
               </div>
             ` : `
-              <div class="overflow-x-auto border border-slate-200 rounded-2xl">
+              <div class="space-y-2 sm:hidden">
+                ${pendingPlayers.map(p => `
+                  <div class="p-3 bg-white border border-slate-200 rounded-xl space-y-2">
+                    <div class="flex items-center gap-2.5">
+                      <img src="${p.photoUrl || p.player_photo_url}" loading="lazy" decoding="async" class="w-10 h-10 rounded-xl object-cover border border-slate-200 shadow-2xs" onerror="this.src='assets/card_jsl_user.png'"/>
+                      <div class="flex-1 min-w-0">
+                        <div class="font-bold text-slate-900 text-xs truncate">${p.name}</div>
+                        <div class="flex items-center gap-1.5 mt-0.5">
+                          <span class="px-1.5 py-0.5 bg-slate-100 text-slate-700 font-mono text-[8px] font-black rounded border border-slate-200">${p.registrationId || p.regNo || 'REG-0001'}</span>
+                          <span class="text-[9px] text-sky-700 font-bold">${p.category || p.playingType || 'All Rounder'}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="flex items-center justify-between text-[9px] text-slate-500">
+                      <span>📞 ${p.phone || 'N/A'}</span>
+                      <span class="font-mono font-bold text-amber-800">UPI: ${p.paymentRef || 'N/A'}</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                      <button data-approve-id="${p.id}" class="approve-player-btn flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-[10px] rounded-lg shadow-xs text-center">Approve</button>
+                      <button data-reject-id="${p.id}" class="reject-player-btn flex-1 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-extrabold text-[10px] rounded-lg border border-rose-300 text-center">Reject</button>
+                      ${isMaster ? `<button data-edit-id="${p.id}" class="edit-player-btn p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg border border-slate-300"><i data-lucide="edit-2" class="w-3.5 h-3.5"></i></button><button data-delete-id="${p.id}" class="delete-player-btn p-1.5 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg border border-red-300"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>` : ''}
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+              <div class="hidden sm:block overflow-x-auto border border-slate-200 rounded-2xl">
                 <table class="w-full text-left text-xs sm:text-sm text-slate-800">
                   <thead class="bg-slate-100 text-[10px] sm:text-xs uppercase text-slate-700 font-black border-b border-slate-200">
                     <tr>
@@ -444,7 +469,7 @@ export function renderAdminDashboard(containerEl) {
 
             <div class="overflow-x-auto border border-slate-200 rounded-2xl">
               <table class="w-full text-left text-xs sm:text-sm text-slate-800">
-                <thead class="bg-slate-100 text-[10px] sm:text-xs uppercase text-slate-700 font-black border-b border-slate-200">
+                <thead class="hidden sm:table-header-group bg-slate-100 text-[10px] sm:text-xs uppercase text-slate-700 font-black border-b border-slate-200">
                   <tr>
                     <th class="py-3 px-3">Serial & Reg ID</th>
                     <th class="py-3 px-3">Player Name</th>
@@ -692,110 +717,132 @@ export function renderAdminDashboard(containerEl) {
               ` : ''}
             </div>
 
-            <!-- TAB 1: Sold Players & Squad Allocations Table -->
-            <div id="admin-auction-sold-container" class="${adminAuctionSubTab === 'sold' ? '' : 'hidden'} overflow-x-auto border border-slate-200 rounded-2xl">
-              <table class="w-full text-left text-xs text-slate-800">
-                <thead class="bg-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-700 border-b border-slate-200">
-                  <tr>
-                    <th class="py-2.5 px-3">PLAYER</th>
-                    <th class="py-2.5 px-3">ROLE</th>
-                    <th class="py-2.5 px-3">BOUGHT BY TEAM</th>
-                    <th class="py-2.5 px-3 text-center text-amber-800">SOLD PRICE</th>
-                    <th class="py-2.5 px-3 text-right">ACTION</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100 font-semibold">
-                  ${soldPlayers.length === 0 ? `
-                    <tr>
-                      <td colspan="5" class="py-8 text-center text-slate-500 italic">No players sold or allocated yet.</td>
-                    </tr>
-                  ` : soldPlayers.map(p => {
+            <!-- TAB 1: Sold Players & Squad Allocations -->
+            <div id="admin-auction-sold-container" class="${adminAuctionSubTab === 'sold' ? '' : 'hidden'}">
+              ${soldPlayers.length === 0 ? `
+                <div class="py-8 text-center text-slate-500 italic border border-slate-200 rounded-2xl">No players sold or allocated yet.</div>
+              ` : `
+              <!-- Mobile Cards -->
+              <div class="sm:hidden space-y-2">
+                ${soldPlayers.map(p => {
                     const assignedTeam = teams.find(t => t.id === p.teamId) || { name: 'Unknown Team' };
                     return `
+                    <div class="p-3 border border-slate-200 rounded-xl space-y-1.5">
+                      <div class="flex items-center gap-2.5">
+                        <img src="${p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png'}" class="w-9 h-9 rounded-lg object-cover border border-slate-200 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                        <div class="flex-1 min-w-0">
+                          <div class="font-black text-slate-900 text-xs flex items-center gap-1.5 truncate">
+                            ${p.name} ${(p.isIcon || p.isIconPlayer) ? `<span class="px-1 bg-amber-400 text-slate-950 font-black text-[7px] rounded">⭐ ICON</span>` : ''}
+                          </div>
+                          <div class="text-[9px] text-slate-500">${p.category || 'All Rounder'}</div>
+                        </div>
+                        <div class="text-right shrink-0">
+                          <div class="font-mono font-black text-emerald-700 text-xs">${(p.isIcon || p.isIconPlayer) ? '⭐ Icon' : `₹${(Number(p.soldPrice) || 0).toLocaleString('en-IN')}`}</div>
+                          <div class="text-[9px] text-sky-700 font-bold truncate">🛡️ ${assignedTeam.name}</div>
+                        </div>
+                      </div>
+                      ${!(p.isIcon || p.isIconPlayer) ? `<button class="admin-unsell-player-btn w-full py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-lg text-[9px] font-black cursor-pointer" data-player-id="${p.id}" data-player-name="${p.name}" data-team-name="${assignedTeam.name}" data-price="${p.soldPrice || 0}">❌ Remove & Refund</button>` : ''}
+                    </div>`;
+                }).join('')}
+              </div>
+              <!-- Desktop Table -->
+              <div class="hidden sm:block overflow-x-auto border border-slate-200 rounded-2xl">
+                <table class="w-full text-left text-xs text-slate-800">
+                  <thead class="bg-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-700 border-b border-slate-200">
+                    <tr>
+                      <th class="py-2.5 px-3">PLAYER</th>
+                      <th class="py-2.5 px-3">ROLE</th>
+                      <th class="py-2.5 px-3">BOUGHT BY TEAM</th>
+                      <th class="py-2.5 px-3 text-center text-amber-800">SOLD PRICE</th>
+                      <th class="py-2.5 px-3 text-right">ACTION</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100 font-semibold">
+                    ${soldPlayers.map(p => {
+                      const assignedTeam = teams.find(t => t.id === p.teamId) || { name: 'Unknown Team' };
+                      return `
+                        <tr class="hover:bg-slate-50 transition-colors">
+                          <td class="py-2.5 px-3">
+                            <div class="flex items-center gap-2.5">
+                              <img src="${p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png'}" class="w-8 h-8 rounded-lg object-cover border border-slate-200 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                              <div>
+                                <div class="font-black text-slate-900 text-xs flex items-center gap-1.5">
+                                  <span>${p.name}</span>
+                                  ${(p.isIcon || p.isIconPlayer) ? `<span class="px-1.5 py-0.2 bg-amber-400 text-slate-950 font-black text-[8px] rounded uppercase tracking-wider">⭐ ICON</span>` : ''}
+                                </div>
+                                <div class="text-[9px] text-slate-500">${p.village || 'N/A'}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[9px] font-bold border border-slate-200">${p.category || 'All Rounder'}</span></td>
+                          <td class="py-2.5 px-3 font-bold text-sky-800">🛡️ ${assignedTeam.name}</td>
+                          <td class="py-2.5 px-3 text-center font-mono font-black text-emerald-700">${(p.isIcon || p.isIconPlayer) ? '⭐ ₹ 1,000 (Icon)' : `₹ ${(Number(p.soldPrice) || Number(p.basePrice) || 0).toLocaleString('en-IN')}`}</td>
+                          <td class="py-2.5 px-3 text-right">${(p.isIcon || p.isIconPlayer) ? `<span class="text-[10px] text-amber-700 font-bold italic">Franchise Icon</span>` : `<button class="admin-unsell-player-btn px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-lg text-[10px] font-black transition-all shadow-2xs cursor-pointer" data-player-id="${p.id}" data-player-name="${p.name}" data-team-name="${assignedTeam.name}" data-price="${p.soldPrice || 0}">❌ Remove & Refund</button>`}</td>
+                        </tr>`;
+                    }).join('')}
+                  </tbody>
+                </table>
+              </div>
+              `}
+            </div>
+
+            <!-- TAB 2: Unsold Players Pool & Re-Bid Controls -->
+            <div id="admin-auction-unsold-container" class="${adminAuctionSubTab === 'unsold' ? '' : 'hidden'}">
+              ${unsoldPlayers.length === 0 ? `
+                <div class="py-8 text-center text-slate-500 italic border border-slate-200 rounded-2xl">No unsold players in this round.</div>
+              ` : `
+              <!-- Mobile Cards -->
+              <div class="sm:hidden space-y-2">
+                ${unsoldPlayers.map(p => `
+                  <div class="p-3 border border-slate-200 rounded-xl space-y-1.5">
+                    <div class="flex items-center gap-2.5">
+                      <img src="${p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png'}" class="w-9 h-9 rounded-lg object-cover border border-slate-200 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                      <div class="flex-1 min-w-0">
+                        <div class="font-black text-slate-900 text-xs truncate">${p.name}</div>
+                        <div class="text-[9px] text-slate-500">${p.category || 'All Rounder'} • ❌ UNSOLD</div>
+                      </div>
+                      <div class="font-mono font-black text-emerald-700 text-xs shrink-0">₹${(Number(p.basePrice) || 300).toLocaleString('en-IN')}</div>
+                    </div>
+                    <button class="admin-rebid-unsold-player-btn w-full py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black text-[10px] rounded-lg cursor-pointer" data-player-id="${p.id}">🔨 Re-Bid / Put on Block</button>
+                  </div>
+                `).join('')}
+              </div>
+              <!-- Desktop Table -->
+              <div class="hidden sm:block overflow-x-auto border border-slate-200 rounded-2xl">
+                <table class="w-full text-left text-xs text-slate-800">
+                  <thead class="bg-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-700 border-b border-slate-200">
+                    <tr>
+                      <th class="py-2.5 px-3">UNSOLD PLAYER</th>
+                      <th class="py-2.5 px-3">ROLE</th>
+                      <th class="py-2.5 px-3">STATUS</th>
+                      <th class="py-2.5 px-3 text-center text-amber-800">BASE PRICE</th>
+                      <th class="py-2.5 px-3 text-right">RE-AUCTION ACTION</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100 font-semibold">
+                    ${unsoldPlayers.map(p => `
                       <tr class="hover:bg-slate-50 transition-colors">
                         <td class="py-2.5 px-3">
                           <div class="flex items-center gap-2.5">
                             <img src="${p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png'}" class="w-8 h-8 rounded-lg object-cover border border-slate-200 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
                             <div>
-                              <div class="font-black text-slate-900 text-xs flex items-center gap-1.5">
-                                <span>${p.name}</span>
-                                ${(p.isIcon || p.isIconPlayer) ? `<span class="px-1.5 py-0.2 bg-amber-400 text-slate-950 font-black text-[8px] rounded uppercase tracking-wider">⭐ ICON</span>` : ''}
-                              </div>
+                              <div class="font-black text-slate-900 text-xs">${p.name}</div>
                               <div class="text-[9px] text-slate-500">${p.village || 'N/A'}</div>
                             </div>
                           </div>
                         </td>
-                        <td class="py-2.5 px-3">
-                          <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[9px] font-bold border border-slate-200">${p.category || 'All Rounder'}</span>
-                        </td>
-                        <td class="py-2.5 px-3 font-bold text-sky-800">
-                          🛡️ ${assignedTeam.name}
-                        </td>
-                        <td class="py-2.5 px-3 text-center font-mono font-black text-emerald-700">
-                          ${(p.isIcon || p.isIconPlayer) ? '⭐ ₹ 1,000 (Icon)' : `₹ ${(Number(p.soldPrice) || Number(p.basePrice) || 0).toLocaleString('en-IN')}`}
-                        </td>
+                        <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[9px] font-bold border border-slate-200">${p.category || 'All Rounder'}</span></td>
+                        <td class="py-2.5 px-3 font-bold text-rose-600">❌ UNSOLD (Round 1)</td>
+                        <td class="py-2.5 px-3 text-center font-mono font-black text-emerald-700">₹ ${(Number(p.basePrice) || 300).toLocaleString('en-IN')}</td>
                         <td class="py-2.5 px-3 text-right">
-                          ${(p.isIcon || p.isIconPlayer) ? `
-                            <span class="text-[10px] text-amber-700 font-bold italic">Franchise Icon</span>
-                          ` : `
-                            <button class="admin-unsell-player-btn px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-lg text-[10px] font-black transition-all shadow-2xs cursor-pointer" data-player-id="${p.id}" data-player-name="${p.name}" data-team-name="${assignedTeam.name}" data-price="${p.soldPrice || 0}">
-                              ❌ Remove & Refund
-                            </button>
-                          `}
+                          <button class="admin-rebid-unsold-player-btn px-3 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-xs transition-all cursor-pointer inline-flex items-center gap-1.5" data-player-id="${p.id}">🔨 Re-Bid / Put on Block</button>
                         </td>
                       </tr>
-                    `;
-                  }).join('')}
-                </tbody>
-              </table>
-            </div>
-
-            <!-- TAB 2: Unsold Players Pool & Re-Bid Controls -->
-            <div id="admin-auction-unsold-container" class="${adminAuctionSubTab === 'unsold' ? '' : 'hidden'} overflow-x-auto border border-slate-200 rounded-2xl">
-              <table class="w-full text-left text-xs text-slate-800">
-                <thead class="bg-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-700 border-b border-slate-200">
-                  <tr>
-                    <th class="py-2.5 px-3">UNSOLD PLAYER</th>
-                    <th class="py-2.5 px-3">ROLE</th>
-                    <th class="py-2.5 px-3">STATUS</th>
-                    <th class="py-2.5 px-3 text-center text-amber-800">BASE PRICE</th>
-                    <th class="py-2.5 px-3 text-right">RE-AUCTION ACTION</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100 font-semibold">
-                  ${unsoldPlayers.length === 0 ? `
-                    <tr>
-                      <td colspan="5" class="py-8 text-center text-slate-500 italic">No unsold players in this round.</td>
-                    </tr>
-                  ` : unsoldPlayers.map(p => `
-                    <tr class="hover:bg-slate-50 transition-colors">
-                      <td class="py-2.5 px-3">
-                        <div class="flex items-center gap-2.5">
-                          <img src="${p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png'}" class="w-8 h-8 rounded-lg object-cover border border-slate-200 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
-                          <div>
-                            <div class="font-black text-slate-900 text-xs">${p.name}</div>
-                            <div class="text-[9px] text-slate-500">${p.village || 'N/A'}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td class="py-2.5 px-3">
-                        <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[9px] font-bold border border-slate-200">${p.category || 'All Rounder'}</span>
-                      </td>
-                      <td class="py-2.5 px-3 font-bold text-rose-600">
-                        ❌ UNSOLD (Round 1)
-                      </td>
-                      <td class="py-2.5 px-3 text-center font-mono font-black text-emerald-700">
-                        ₹ ${(Number(p.basePrice) || 300).toLocaleString('en-IN')}
-                      </td>
-                      <td class="py-2.5 px-3 text-right">
-                        <button class="admin-rebid-unsold-player-btn px-3 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-xs transition-all cursor-pointer inline-flex items-center gap-1.5" data-player-id="${p.id}">
-                          🔨 Re-Bid / Put on Block
-                        </button>
-                      </td>
-                    </tr>
-                  `).join('')}
-                </tbody>
-              </table>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+              `}
             </div>
           </div>
         </div>
@@ -937,7 +984,7 @@ export function renderAdminDashboard(containerEl) {
               </div>
               <div class="overflow-x-auto border border-slate-200 rounded-2xl">
                 <table class="w-full text-left text-xs sm:text-sm text-slate-800">
-                  <thead class="bg-slate-100 text-[10px] uppercase text-slate-700 font-black border-b border-slate-200">
+                  <thead class="hidden sm:table-header-group bg-slate-100 text-[10px] uppercase text-slate-700 font-black border-b border-slate-200">
                     <tr>
                       <th class="py-3 px-3">Teams</th>
                       <th class="py-3 px-3">Stage / Group</th>
@@ -2007,9 +2054,38 @@ function renderAdminPlayersRows(playersList) {
   return playersList.map(p => {
     const isApproved = (p.registrationStatus || p.paymentStatus) === 'APPROVED';
     const isRejected = (p.registrationStatus || p.paymentStatus) === 'REJECTED';
+    const statusBadge = `<span class="px-2 py-0.5 text-[9px] font-black rounded-full border ${isApproved ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : isRejected ? 'bg-rose-100 text-rose-800 border-rose-300' : 'bg-amber-100 text-amber-800 border-amber-300'}">${isApproved ? '🟢 APPROVED' : isRejected ? '⚪ REJECTED' : '🔴 PENDING'}</span>`;
+
+    const actionBtns = `${isApproved ? `<button data-whatsapp-notify-id="${p.id}" title="Send Official Approval on WhatsApp" class="whatsapp-notify-btn px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[9px] rounded-lg shadow-2xs flex items-center gap-1 cursor-pointer"><span>💬 WhatsApp</span></button>` : ''}${p.aadharPhotoUrl || p.paymentReceiptUrl ? `<button data-purge-docs-id="${p.id}" title="Purge Docs" class="purge-player-docs-btn px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-[9px] rounded-lg border border-amber-300 shadow-2xs">🧹 Purge</button>` : p.docsPurged ? `<span class="text-[9px] text-emerald-700 font-bold">✅ Purged</span>` : ''}${isRejected ? `<button data-approve-id="${p.id}" class="approve-player-btn px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[9px] rounded-lg shadow-2xs">Approve</button><button data-restore-id="${p.id}" class="restore-player-btn px-2 py-1 bg-sky-600 hover:bg-sky-500 text-white font-black text-[9px] rounded-lg shadow-2xs">Reset</button>` : !isApproved ? `<button data-approve-id="${p.id}" class="approve-player-btn px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[9px] rounded-lg shadow-2xs">Approve</button><button data-reject-id="${p.id}" class="reject-player-btn px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-black text-[9px] rounded-lg border border-rose-300 shadow-2xs">Reject</button>` : `<button data-restore-id="${p.id}" class="restore-player-btn px-1.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 font-extrabold text-[9px] rounded-lg border border-amber-300 shadow-2xs">Reset</button>`}${isMaster ? `<button data-edit-id="${p.id}" class="edit-player-btn p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg border border-slate-300"><i data-lucide="edit-2" class="w-3.5 h-3.5 pointer-events-none"></i></button><button data-delete-id="${p.id}" class="delete-player-btn p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg border border-rose-300"><i data-lucide="trash-2" class="w-3.5 h-3.5 pointer-events-none"></i></button>` : ''}`;
 
     return `
-      <tr class="hover:bg-slate-50 transition-colors">
+      <!-- MOBILE CARD (visible below sm) -->
+      <tr class="sm:hidden">
+        <td colspan="7" class="p-0">
+          <div class="p-3 border-b border-slate-100 space-y-2">
+            <div class="flex items-center gap-2.5">
+              <img src="${getOptimizedImageUrl(p.photoUrl || p.player_photo_url, 80, 80)}" loading="lazy" decoding="async" class="w-10 h-10 rounded-xl object-cover border border-slate-200 shadow-2xs" onerror="this.src='assets/card_jsl_user.png'"/>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between gap-1">
+                  <span class="font-bold text-slate-900 text-xs truncate">${p.name}</span>
+                  ${statusBadge}
+                </div>
+                <div class="flex items-center gap-2 mt-0.5">
+                  <span class="px-1.5 py-0.5 bg-slate-100 text-slate-700 font-mono text-[8px] font-black rounded border border-slate-200">${p.registrationId || p.regNo || 'REG-0001'} (#${p.displayRegistrationNumber || p.serialNo})</span>
+                  <span class="text-[9px] text-indigo-700 font-bold">${p.category || p.playingType || 'All Rounder'}</span>
+                </div>
+              </div>
+            </div>
+            <div class="flex items-center justify-between text-[9px] text-slate-500">
+              <span>📞 ${p.phone || 'N/A'} • Age: ${p.age || 24}</span>
+              <span>📍 ${p.village || ''}, ${p.district || ''}</span>
+            </div>
+            <div class="flex items-center gap-1 flex-wrap">${actionBtns}</div>
+          </div>
+        </td>
+      </tr>
+      <!-- DESKTOP ROW (visible sm+) -->
+      <tr class="hidden sm:table-row hover:bg-slate-50 transition-colors">
         <td class="py-3 px-3">
           <span class="px-1.5 py-0.5 bg-slate-100 text-slate-800 font-mono text-[9px] font-black rounded border border-slate-300">
             ${p.registrationId || p.regNo || 'REG-0001'} (#${p.displayRegistrationNumber || p.serialNo})
@@ -2032,54 +2108,10 @@ function renderAdminPlayersRows(playersList) {
           <div class="font-bold text-indigo-700 text-[10px]">${p.category || p.playingType || 'All Rounder'}</div>
           <div class="text-[9px] text-slate-500">${p.battingStyle || 'Right Hand Bat'}</div>
         </td>
-        <td class="py-3 px-3 font-mono text-xs text-slate-700 font-bold">
-          📞 ${p.phone || 'N/A'}
-        </td>
-        <td class="py-3 px-3 font-mono font-bold text-xs">
-          <span class="px-2 py-0.5 text-[9px] font-black rounded-full border ${isApproved ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : isRejected ? 'bg-rose-100 text-rose-800 border-rose-300' : 'bg-amber-100 text-amber-800 border-amber-300'}">
-            ${isApproved ? '🟢 APPROVED' : isRejected ? '⚪ REJECTED' : '🔴 PENDING'}
-          </span>
-        </td>
+        <td class="py-3 px-3 font-mono text-xs text-slate-700 font-bold">📞 ${p.phone || 'N/A'}</td>
+        <td class="py-3 px-3 font-mono font-bold text-xs">${statusBadge}</td>
         <td class="py-3 px-3 text-right">
-          <div class="flex items-center justify-end gap-1">
-            ${isApproved ? `
-              <button data-whatsapp-notify-id="${p.id}" title="Send Official Approval on WhatsApp" class="whatsapp-notify-btn px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[9px] rounded-lg shadow-2xs flex items-center gap-1 cursor-pointer">
-                <span>💬 WhatsApp</span>
-              </button>
-            ` : ''}
-            ${p.aadharPhotoUrl || p.paymentReceiptUrl ? `
-              <button data-purge-docs-id="${p.id}" title="Purge Aadhaar & Receipt images to save storage memory" class="purge-player-docs-btn px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-[9px] rounded-lg border border-amber-300 shadow-2xs">
-                🧹 Purge Docs
-              </button>
-            ` : p.docsPurged ? `
-              <span class="text-[9px] text-emerald-700 font-bold">✅ Docs Purged</span>
-            ` : ''}
-            ${isRejected ? `
-              <button data-approve-id="${p.id}" title="Approve Player" class="approve-player-btn px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[9px] rounded-lg shadow-2xs">
-                Approve
-              </button>
-              <button data-restore-id="${p.id}" title="Reset to Pending" class="restore-player-btn px-2 py-1 bg-sky-600 hover:bg-sky-500 text-white font-black text-[9px] rounded-lg shadow-2xs">
-                Reset
-              </button>
-            ` : !isApproved ? `
-              <button data-approve-id="${p.id}" title="Approve Player" class="approve-player-btn px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[9px] rounded-lg shadow-2xs">
-                Approve
-              </button>
-              <button data-reject-id="${p.id}" title="Reject Player" class="reject-player-btn px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-black text-[9px] rounded-lg border border-rose-300 shadow-2xs">
-                Reject
-              </button>
-            ` : `
-              <button data-restore-id="${p.id}" title="Reset to Pending" class="restore-player-btn px-1.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 font-extrabold text-[9px] rounded-lg border border-amber-300 shadow-2xs">
-                Reset
-              </button>
-            `}
-            <button data-edit-id="${p.id}" class="edit-player-btn p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg border border-slate-300" style="${isMaster ? '' : 'display:none'}">
-              <i data-lucide="edit-2" class="w-3.5 h-3.5 pointer-events-none"></i>
-            </button>
-            <button data-delete-id="${p.id}" class="delete-player-btn p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg border border-rose-300" style="${isMaster ? '' : 'display:none'}">
-              <i data-lucide="trash-2" class="w-3.5 h-3.5 pointer-events-none"></i>
-            </button>
-          </div>
+          <div class="flex items-center justify-end gap-1">${actionBtns}</div>
         </td>
       </tr>
     `;
@@ -2874,39 +2906,50 @@ function renderAdminFixturesList() {
       stageBadge = '<span class="px-1.5 py-0.5 bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 font-mono text-[9px] font-black rounded border border-amber-300 shadow-xs">👑 Final</span>';
     }
 
+    const statusBadge = f.status === 'LIVE' ? `<span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full font-black text-[9px] border border-emerald-300 animate-pulse uppercase">LIVE</span>` : f.status === 'COMPLETED' ? `<span class="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-full font-black text-[9px] border border-slate-300 uppercase">COMPLETED</span>` : `<span class="px-2 py-0.5 bg-sky-100 text-sky-800 rounded-full font-black text-[9px] border border-sky-300 uppercase">SCHEDULED</span>`;
+
     return `
-    <tr class="hover:bg-slate-50">
+    <!-- Mobile Card -->
+    <tr class="sm:hidden">
+      <td colspan="6" class="p-0">
+        <div class="p-3 border-b border-slate-100 space-y-1.5">
+          <div class="flex items-center justify-between gap-2">
+            <div class="font-bold text-slate-900 text-xs flex items-center gap-1.5 min-w-0">
+              <span class="px-1 py-0.5 bg-slate-100 text-slate-700 font-mono text-[8px] font-black rounded border border-slate-200 shrink-0">${f.leagueCode || 'T'}</span>
+              <span class="truncate">${f.teamAName} vs ${f.teamBName}</span>
+            </div>
+            ${statusBadge}
+          </div>
+          <div class="flex items-center justify-between text-[9px] text-slate-500">
+            <span>${f.date} ${f.time} • ${f.oversLimit || 16} Overs</span>
+            ${stageBadge}
+          </div>
+          <div class="flex items-center gap-1.5">
+            <button data-edit-fixture-id="${f.id}" class="admin-edit-fixture-btn flex-1 py-1.5 bg-sky-50 text-sky-700 font-black text-[10px] rounded-lg border border-sky-300 text-center cursor-pointer">✏️ Edit</button>
+            <button data-delete-fixture-id="${f.id}" class="admin-delete-fixture-btn flex-1 py-1.5 bg-rose-50 text-rose-700 font-black text-[10px] rounded-lg border border-rose-300 text-center cursor-pointer">🗑️ Delete</button>
+          </div>
+        </div>
+      </td>
+    </tr>
+    <!-- Desktop Row -->
+    <tr class="hidden sm:table-row hover:bg-slate-50">
       <td class="py-3 px-3">
         <div class="font-bold text-slate-900 text-xs sm:text-sm flex items-center gap-1.5">
           <span class="px-1.5 py-0.5 bg-slate-100 text-slate-700 font-mono text-[9px] font-black rounded border border-slate-200">${f.leagueCode || 'T'}</span>
           <span>${f.teamAName} <span class="text-slate-400 font-semibold">vs</span> ${f.teamBName}</span>
         </div>
       </td>
-      <td class="py-3 px-3 text-xs">
-        ${stageBadge}
-      </td>
+      <td class="py-3 px-3 text-xs">${stageBadge}</td>
       <td class="py-3 px-3 text-xs">
         <div class="text-slate-800 font-bold">${f.date} at ${f.time}</div>
         <div class="text-slate-500 text-[10px]">📍 ${f.venue}</div>
       </td>
       <td class="py-3 px-3 text-xs text-slate-700 font-bold">${f.oversLimit || 16} Overs</td>
-      <td class="py-3 px-3 text-xs">
-        ${f.status === 'LIVE' ? `
-          <span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full font-black text-[9px] border border-emerald-300 animate-pulse uppercase">LIVE</span>
-        ` : f.status === 'COMPLETED' ? `
-          <span class="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-full font-black text-[9px] border border-slate-300 uppercase">COMPLETED</span>
-        ` : `
-          <span class="px-2 py-0.5 bg-sky-100 text-sky-800 rounded-full font-black text-[9px] border border-sky-300 uppercase">SCHEDULED</span>
-        `}
-      </td>
+      <td class="py-3 px-3 text-xs">${statusBadge}</td>
       <td class="py-3 px-3 text-right">
         <div class="flex items-center justify-end gap-1.5">
-          <button data-edit-fixture-id="${f.id}" class="admin-edit-fixture-btn px-2.5 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 hover:text-sky-900 font-black text-xs rounded-xl border border-sky-300 shadow-2xs flex items-center gap-1 cursor-pointer transition-all" title="Edit match, overs, date, venue or lineups">
-            ✏️ Edit
-          </button>
-          <button data-delete-fixture-id="${f.id}" class="admin-delete-fixture-btn px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-900 font-black text-xs rounded-xl border border-rose-300 shadow-2xs flex items-center gap-1 cursor-pointer transition-all" title="Delete match">
-            🗑️ Delete
-          </button>
+          <button data-edit-fixture-id="${f.id}" class="admin-edit-fixture-btn px-2.5 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 font-black text-xs rounded-xl border border-sky-300 shadow-2xs flex items-center gap-1 cursor-pointer transition-all">✏️ Edit</button>
+          <button data-delete-fixture-id="${f.id}" class="admin-delete-fixture-btn px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-black text-xs rounded-xl border border-rose-300 shadow-2xs flex items-center gap-1 cursor-pointer transition-all">🗑️ Delete</button>
         </div>
       </td>
     </tr>
