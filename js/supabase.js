@@ -1199,11 +1199,18 @@ export async function fetchCustomTournamentsFromCloud() {
   });});
 }
 
-export async function deleteCustomTournamentFromCloud(tourneyId) {
-  if (!supabase || !tourneyId) return;
+export async function deleteCustomTournamentFromCloud(tourneyId, slug = null) {
+  if (!supabase) return;
+  if (!tourneyId && !slug) return;
   try {
-    const id = toUUID(tourneyId);
-    await supabase.from('tournaments').delete().eq('id', id);
+    const isUUID = typeof tourneyId === 'string' && UUID_FORMAT_RE.test(tourneyId);
+    if (isUUID) {
+      await supabase.from('tournaments').delete().eq('id', tourneyId);
+    }
+    const cleanSlug = String(slug || tourneyId || '').replace(/^t_/, '').trim();
+    if (cleanSlug) {
+      await supabase.from('tournaments').delete().eq('slug', cleanSlug);
+    }
   } catch (e) { console.warn('[SUPABASE] deleteCustomTournament:', e.message); }
 }
 

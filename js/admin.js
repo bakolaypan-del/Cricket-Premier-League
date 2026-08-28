@@ -889,9 +889,10 @@ export function renderAdminDashboard(containerEl) {
               <div>
                 <label class="block text-[10px] font-black text-slate-600 uppercase tracking-wider mb-1">Tournament Format</label>
                 <select id="group-mgr-format-select" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2 font-bold cursor-pointer">
-                  <option value="TWO_GROUPS">2 Groups (Group A & Group B - 4+4 Teams)</option>
-                  <option value="FOUR_GROUPS">4 Groups (Groups A, B, C, D - 16 Teams)</option>
-                  <option value="SINGLE_TABLE">Single League Table (All Teams in 1 Table)</option>
+                  <option value="TWO_GROUPS">2 Groups (Group A & Group B)</option>
+                  <option value="THREE_GROUPS">3 Groups (Group A, Group B & Group C)</option>
+                  <option value="FOUR_GROUPS">4 Groups (Groups A, B, C & D)</option>
+                  <option value="SINGLE_TABLE">Single League Table (1 Group - All Teams)</option>
                 </select>
               </div>
 
@@ -2800,6 +2801,7 @@ function renderAdminGroupArena() {
 
   const activeFormat = formatSelect ? formatSelect.value : (format.format || 'TWO_GROUPS');
   let groups = ['A', 'B'];
+  if (activeFormat === 'THREE_GROUPS') groups = ['A', 'B', 'C'];
   if (activeFormat === 'FOUR_GROUPS') groups = ['A', 'B', 'C', 'D'];
   if (activeFormat === 'SINGLE_TABLE') groups = ['ALL'];
 
@@ -6997,7 +6999,7 @@ export function renderAdminSaasTournamentsPanel() {
                     <button type="button" class="btn-open-hub-link px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-300 rounded-lg text-[10px] font-black cursor-pointer shadow-2xs" data-slug="${t.slug}">
                       🌐 Hub
                     </button>
-                    <button type="button" class="btn-delete-tourney px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-[10px] font-black cursor-pointer shadow-2xs" data-id="${t.id}" data-name="${t.name}">
+                    <button type="button" class="btn-delete-tourney px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-[10px] font-black cursor-pointer shadow-2xs" data-id="${t.id}" data-slug="${t.slug}" data-supabase-id="${t.supabaseId || t.tournament_id || t.id || ''}" data-name="${t.name}">
                       🗑️ Delete
                     </button>
                   </div>
@@ -7042,9 +7044,11 @@ export function renderAdminSaasTournamentsPanel() {
   container.querySelectorAll('.btn-delete-tourney').forEach(b => {
     b.addEventListener('click', async (e) => {
       const id = e.currentTarget.getAttribute('data-id');
+      const slug = e.currentTarget.getAttribute('data-slug');
+      const supabaseId = e.currentTarget.getAttribute('data-supabase-id');
       const name = e.currentTarget.getAttribute('data-name');
       if (confirm(`⚠️ Are you sure you want to permanently delete tournament "${name}"?\n\nThis will remove this tournament, its settings, and organizer access.`)) {
-        await store.deleteCustomTournament(id);
+        await store.deleteCustomTournament(id, slug, supabaseId);
         renderAdminSaasTournamentsPanel();
       }
     });

@@ -116,10 +116,21 @@ function initIntroLoadingScreen() {
 }
 
 function initApp() {
-  // Deep-link: read hash route on initial page load (e.g. #t/jsl-2026, #admin, #fixtures)
-  const initialHash = location.hash.replace(/^#/, '');
+  // Deep-link & Refresh Persistence: read hash route or last session route on initial page load
+  let initialHash = location.hash.replace(/^#/, '');
+  if (!initialHash) {
+    try {
+      const saved = sessionStorage.getItem('cpl_last_route');
+      if (saved && saved !== 'landing') {
+        initialHash = saved;
+      }
+    } catch(e) {}
+  }
   if (initialHash) {
     currentRoute = initialHash;
+    if (!location.hash && history.replaceState) {
+      history.replaceState({ route: initialHash }, '', `#${initialHash}`);
+    }
   }
 
   // Initialize Real-time Live & Total Visitor Tracking
@@ -214,7 +225,21 @@ function initApp() {
     if (renderDebounceTimer) clearTimeout(renderDebounceTimer);
     renderDebounceTimer = setTimeout(() => renderCurrentView(), 250);
   });
-  window.addEventListener('custom_tournaments_updated', safeRenderCurrentView);
+  window.addEventListener('custom_tournaments_updated', () => {
+    if (currentRoute === 'admin') return;
+    if (renderDebounceTimer) clearTimeout(renderDebounceTimer);
+    renderDebounceTimer = setTimeout(() => {
+      const isUserBusy = document.querySelector('input:focus, select:focus, textarea:focus') ||
+                         document.getElementById('player-reg-modal') ||
+                         document.getElementById('team-reg-modal') ||
+                         document.getElementById('edit-player-modal') ||
+                         document.getElementById('edit-tournament-modal');
+      if (isUserBusy) return;
+      if (currentRoute === 'landing' || currentRoute === 'tournaments') {
+        renderCurrentView();
+      }
+    }, 200);
+  });
   
   // LIVE AUCTION SYNC: Only update auction page when on auction route to prevent unnecessary full-page refreshes
   window.addEventListener('live_auction_updated', () => {
@@ -245,6 +270,7 @@ function navigate(route, pushState = true) {
     auctionPollInterval = null;
   }
   currentRoute = route;
+  try { sessionStorage.setItem('cpl_last_route', route); } catch(e) {}
   if (pushState && history.pushState) {
     history.pushState({ route }, '', `#${route}`);
   }
@@ -823,6 +849,281 @@ export function openSquareImageCropModal(imageSrc, onCropComplete, title = "Crop
   });
 }
 
+// --- INTERACTIVE TOURNAMENT BANNER CROPPER MODAL (21:9 WIDE CARD RATIO) ---
+export function openTournamentBannerCropModal(imageSrc, onCropComplete, title = "Crop Tournament Banner (Wide 21:9)") {
+  document.getElementById('banner-cropper-modal')?.remove();
+
+  const modalHtml = `
+    <div id="banner-cropper-modal" class="fixed inset-0 z-[70] modal-overlay flex items-center justify-center p-3 bg-slate-950/80 backdrop-blur-xs animate-fade-in">
+      <div class="bg-white border-2 border-amber-400 max-w-lg w-full p-4 relative space-y-3 rounded-2xl sm:rounded-3xl shadow-2xl text-slate-900 modal-content-container">
+        
+        <div class="flex items-center justify-between border-b border-slate-200 pb-2.5">
+          <div class="flex items-center gap-2">
+            <span class="w-8 h-8 rounded-xl bg-amber-100 text-amber-900 border border-amber-300 flex items-center justify-center text-base font-black shadow-xs">
+              🖼️
+            </span>
+            <div>
+              <h3 class="text-sm sm:text-base font-black text-slate-900">${title}</h3>
+              <p class="text-[10px] text-slate-500 font-bold">Crop & position your banner perfectly for cards</p>
+            </div>
+          </div>
+          <button id="close-banner-cropper-modal-btn" type="button" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-950 border border-slate-200 flex items-center justify-center text-sm font-black cursor-pointer transition-all">
+            ✕
+          </button>
+        </div>
+
+        <!-- CROP CONTAINER -->
+        <div class="relative w-full max-h-[50vh] h-60 sm:h-72 bg-slate-900 rounded-xl overflow-hidden flex items-center justify-center border border-slate-200 p-1">
+          <img id="banner-cropper-target-img" src="${imageSrc}" crossorigin="anonymous" class="max-w-full max-h-full object-contain block mx-auto" />
+        </div>
+
+        <!-- CROP CONTROLS TOOLBAR -->
+        <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
+          <div class="flex items-center gap-1.5">
+            <button type="button" id="banner-cropper-zoom-in" title="Zoom In" class="p-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl border border-slate-300 text-xs font-bold flex items-center gap-1 cursor-pointer">
+              <i data-lucide="zoom-in" class="w-3.5 h-3.5"></i>
+            </button>
+            <button type="button" id="banner-cropper-zoom-out" title="Zoom Out" class="p-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl border border-slate-300 text-xs font-bold flex items-center gap-1 cursor-pointer">
+              <i data-lucide="zoom-out" class="w-3.5 h-3.5"></i>
+            </button>
+            <button type="button" id="banner-cropper-rotate-left" title="Rotate" class="p-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl border border-slate-300 text-xs font-bold flex items-center gap-1 cursor-pointer">
+              <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+            </button>
+            <button type="button" id="banner-cropper-reset" title="Reset Crop Box" class="p-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl border border-slate-300 text-xs font-bold flex items-center gap-1 cursor-pointer">
+              <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button type="button" id="banner-cropper-cancel-btn" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl border border-slate-300 cursor-pointer">
+              Cancel
+            </button>
+            <button type="button" id="banner-cropper-apply-btn" class="px-4 py-2 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-500 hover:to-yellow-500 text-slate-950 font-black text-xs rounded-xl shadow-md border border-amber-300 flex items-center gap-1.5 cursor-pointer">
+              <i data-lucide="check" class="w-4 h-4"></i> Crop & Apply
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  if (window.lucide) window.lucide.createIcons();
+
+  const imgEl = document.getElementById('banner-cropper-target-img');
+  let cropperInstance = null;
+
+  const initCropper = () => {
+    if (window.Cropper) {
+      cropperInstance = new window.Cropper(imgEl, {
+        aspectRatio: 21 / 9, // WIDE RATIO MATCHING TOURNAMENT CARD SHAPE
+        viewMode: 1,
+        dragMode: 'move',
+        autoCropArea: 1.0,
+        restore: false,
+        guides: true,
+        center: true,
+        highlight: false,
+        cropBoxMovable: true,
+        cropBoxResizable: true,
+        toggleDragModeOnDblclick: false,
+      });
+    }
+  };
+
+  if (imgEl.complete) {
+    setTimeout(initCropper, 100);
+  } else {
+    imgEl.onload = () => setTimeout(initCropper, 100);
+  }
+
+  // EVENT BUTTON CONTROLS
+  document.getElementById('banner-cropper-zoom-in')?.addEventListener('click', () => cropperInstance?.zoom(0.1));
+  document.getElementById('banner-cropper-zoom-out')?.addEventListener('click', () => cropperInstance?.zoom(-0.1));
+  document.getElementById('banner-cropper-rotate-left')?.addEventListener('click', () => cropperInstance?.rotate(-90));
+  document.getElementById('banner-cropper-reset')?.addEventListener('click', () => cropperInstance?.reset());
+
+  const removeCropperModal = () => {
+    cropperInstance?.destroy();
+    document.getElementById('banner-cropper-modal')?.remove();
+  };
+
+  document.getElementById('close-banner-cropper-modal-btn')?.addEventListener('click', removeCropperModal);
+  document.getElementById('banner-cropper-cancel-btn')?.addEventListener('click', removeCropperModal);
+
+  document.getElementById('banner-cropper-apply-btn')?.addEventListener('click', () => {
+    if (cropperInstance) {
+      const croppedCanvas = cropperInstance.getCroppedCanvas({
+        width: 1260,
+        height: 540,
+        imageSmoothingEnabled: true,
+        imageSmoothingQuality: 'high'
+      });
+      if (croppedCanvas) {
+        const croppedDataUrl = croppedCanvas.toDataURL('image/jpeg', 0.88);
+        onCropComplete(croppedDataUrl);
+      } else {
+        onCropComplete(imageSrc);
+      }
+    } else {
+      onCropComplete(imageSrc);
+    }
+    removeCropperModal();
+  });
+}
+
+// --- INTERACTIVE TOURNAMENT COMMENTS & QUERIES MODAL (CLEAN WHITE STYLISH THEME) ---
+export function openTournamentCommentsModal(tourney, onCommentAdded) {
+  document.getElementById('tournament-comments-modal')?.remove();
+
+  const slug = tourney.slug || 'jsl-2026';
+  const storageKey = 'cpl_comments_' + slug;
+  let comments = [];
+  try {
+    const raw = localStorage.getItem(storageKey);
+    comments = raw ? JSON.parse(raw) : [];
+  } catch(e) { comments = []; }
+
+  // Default seed questions/queries if empty
+  if (!comments || comments.length === 0) {
+    comments = [
+      {
+        id: 'c_1',
+        author: 'Rahul Sen',
+        text: 'What is the last date for player registration?',
+        timestamp: '2 hours ago',
+        isOrganizer: false
+      },
+      {
+        id: 'c_2',
+        author: tourney.organizer?.name || 'Tournament Committee',
+        text: 'Registration closes on August 25. Please register early to secure your spot in the auction pool!',
+        timestamp: '1 hour ago',
+        isOrganizer: true
+      }
+    ];
+    try { localStorage.setItem(storageKey, JSON.stringify(comments)); } catch(e) {}
+  }
+
+  const renderCommentList = () => {
+    if (comments.length === 0) {
+      return `
+        <div class="text-center py-8 text-slate-400 space-y-1">
+          <div class="text-2xl">💬</div>
+          <p class="text-xs font-bold text-slate-600">No queries posted yet</p>
+          <p class="text-[10px] text-slate-400">Be the first to ask a question or cheer for teams!</p>
+        </div>
+      `;
+    }
+    return comments.map(c => `
+      <div class="p-2.5 ${c.isOrganizer ? 'bg-amber-50/90 border-amber-200' : 'bg-slate-50 border-slate-200/90'} rounded-2xl border space-y-1 text-xs">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-1.5 min-w-0">
+            <span class="w-6 h-6 rounded-full ${c.isOrganizer ? 'bg-amber-400 text-slate-950' : 'bg-slate-200 text-slate-700'} flex items-center justify-center text-[10px] font-black shrink-0">
+              ${c.isOrganizer ? '👑' : (c.author || 'U')[0].toUpperCase()}
+            </span>
+            <span class="font-black text-slate-900 text-[11px] truncate">${c.author}</span>
+            ${c.isOrganizer ? '<span class="px-1.5 py-0.2 bg-amber-200 text-amber-900 font-black text-[8px] rounded-full uppercase">Organizer</span>' : ''}
+          </div>
+          <span class="text-[9px] text-slate-400 font-semibold shrink-0">${c.timestamp || 'Just now'}</span>
+        </div>
+        <p class="text-[11px] text-slate-700 font-medium leading-relaxed pl-7.5">${c.text}</p>
+      </div>
+    `).join('');
+  };
+
+  const modalHtml = `
+    <div id="tournament-comments-modal" class="fixed inset-0 z-[70] modal-overlay flex items-center justify-center p-3 bg-slate-950/70 backdrop-blur-xs animate-fade-in">
+      <div class="bg-white border-2 border-sky-400 max-w-md w-full p-4 sm:p-5 relative space-y-3 rounded-3xl shadow-2xl text-slate-900 modal-content-container">
+        
+        <!-- Header -->
+        <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+          <div class="flex items-center gap-2">
+            <span class="w-9 h-9 rounded-2xl bg-sky-100 text-sky-800 border border-sky-300 flex items-center justify-center text-lg font-black shadow-xs">
+              💬
+            </span>
+            <div>
+              <h3 class="text-sm sm:text-base font-black text-slate-900">Tournament Queries & Q&A</h3>
+              <p class="text-[10px] text-slate-500 font-bold">${tourney.name}</p>
+            </div>
+          </div>
+          <button id="close-comments-modal-btn" type="button" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-950 border border-slate-200 flex items-center justify-center text-sm font-black cursor-pointer transition-all">
+            ✕
+          </button>
+        </div>
+
+        <!-- Comments List -->
+        <div id="comments-scroll-container" class="max-h-72 overflow-y-auto space-y-2 p-1 pr-1.5 scrollbar-thin">
+          ${renderCommentList()}
+        </div>
+
+        <!-- Input Form -->
+        <div class="pt-2 border-t border-slate-100 space-y-2">
+          <div class="grid grid-cols-3 gap-2">
+            <input type="text" id="comment-author-input" placeholder="Your Name" class="col-span-1 bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-2 text-[11px] font-bold text-slate-900 focus:outline-none focus:border-sky-500" />
+            <input type="text" id="comment-text-input" placeholder="Ask a question or query..." class="col-span-2 bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-[11px] font-bold text-slate-900 focus:outline-none focus:border-sky-500" />
+          </div>
+          <button type="button" id="comment-submit-btn" class="w-full py-2 bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-500 hover:to-blue-600 text-white font-black text-xs rounded-xl shadow-xs border border-sky-400 flex items-center justify-center gap-1.5 cursor-pointer transition-all">
+            <span>Post Query / Message ➔</span>
+          </button>
+        </div>
+
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+  const container = document.getElementById('comments-scroll-container');
+  const authorInput = document.getElementById('comment-author-input');
+  const textInput = document.getElementById('comment-text-input');
+  const submitBtn = document.getElementById('comment-submit-btn');
+
+  // Pre-fill name if logged in
+  const currentUser = store.getCurrentUser ? store.getCurrentUser() : null;
+  if (currentUser?.name && authorInput) authorInput.value = currentUser.name;
+
+  const handlePost = () => {
+    const text = textInput?.value?.trim();
+    if (!text) {
+      alert('Please enter your question or comment.');
+      return;
+    }
+    const author = authorInput?.value?.trim() || 'Visitor';
+    const isOrg = Boolean(currentUser?.phone && (currentUser.phone === tourney.organizer?.phone || store.isMasterAdmin?.()));
+
+    const newComment = {
+      id: 'c_' + Date.now(),
+      author,
+      text,
+      timestamp: 'Just now',
+      isOrganizer: isOrg
+    };
+
+    comments.unshift(newComment);
+    try { localStorage.setItem(storageKey, JSON.stringify(comments)); } catch(e) {}
+
+    if (container) {
+      container.innerHTML = renderCommentList();
+      container.scrollTop = 0;
+    }
+    if (textInput) textInput.value = '';
+
+    if (typeof onCommentAdded === 'function') {
+      onCommentAdded(comments.length);
+    }
+  };
+
+  submitBtn?.addEventListener('click', handlePost);
+  textInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') handlePost();
+  });
+
+  const closeModal = () => document.getElementById('tournament-comments-modal')?.remove();
+  document.getElementById('close-comments-modal-btn')?.addEventListener('click', closeModal);
+}
+
 // --- BEAUTIFUL REGISTRATION SUCCESS POPUP MODAL ---
 function openRegistrationSuccessModal(details) {
   const modalHtml = `
@@ -1021,6 +1322,77 @@ function renderNavbar() {
   if (window.lucide) window.lucide.createIcons();
 }
 
+// --- HOST TOURNAMENT INTRO SHOWCASE MODAL (SUNSET & EMERALD 2 MODES) ---
+export function openHostTournamentIntroModal() {
+  document.getElementById('host-tourney-intro-modal')?.remove();
+
+  const modalHtml = `
+    <div id="host-tourney-intro-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3 animate-fade-in bg-slate-950/80 backdrop-blur-sm">
+      <div class="bg-gradient-to-br from-[#120B24] via-[#1A1438] to-[#0A0618] text-white max-w-md w-full p-4 sm:p-5 rounded-3xl border-2 border-purple-400/60 shadow-2xl space-y-3.5 relative overflow-hidden modal-content-container">
+        
+        <!-- Close Button -->
+        <button id="close-host-intro-modal-btn" class="absolute top-3 right-3 w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center text-xs font-black transition-all cursor-pointer">
+          ✕
+        </button>
+
+        <!-- Top Tag & Bengali Header -->
+        <div class="text-center space-y-1 pt-1">
+          <div class="inline-flex items-center gap-1 px-2.5 py-0.5 bg-emerald-400/20 border border-emerald-400/30 rounded-full text-[10px] font-black text-emerald-300">
+            <span>🚀</span> <span>Launch in 2 Minutes</span>
+          </div>
+          <h3 class="text-lg sm:text-xl font-black text-white tracking-tight flex items-center justify-center gap-1.5 pt-0.5 font-['Anek_Bangla','Hind_Siliguri',sans-serif] leading-tight">
+            <span>🏆</span> <span>আপনার নিজের টুর্নামেন্ট তৈরি করুন</span>
+          </h3>
+          <p class="text-[11px] text-slate-300 font-medium">Create custom leagues with automated tools</p>
+        </div>
+
+        <!-- 2 Modes Side-by-Side in SAME ROW -->
+        <div class="grid grid-cols-2 gap-2 sm:gap-2.5">
+          <!-- Mode A (Sunset Orange-Red Glow) -->
+          <div class="p-2.5 bg-gradient-to-b from-rose-500/30 via-orange-500/20 to-slate-900/80 rounded-2xl border border-rose-400/80 shadow-md shadow-rose-500/10 space-y-1 text-center flex flex-col items-center justify-between">
+            <div class="w-7 h-7 rounded-full bg-gradient-to-tr from-rose-500 to-orange-400 text-white flex items-center justify-center text-xs font-black shadow-xs shrink-0">
+              🔨
+            </div>
+            <h4 class="text-[10.5px] font-black text-orange-300 uppercase tracking-tight leading-tight">AUCTION MODE</h4>
+            <p class="text-[9px] text-orange-100/90 font-semibold leading-tight">
+              Player Reg • Live Bidding • Squad • Fixture • Live Score
+            </p>
+          </div>
+
+          <!-- Mode B (Emerald Green Glow) -->
+          <div class="p-2.5 bg-gradient-to-b from-emerald-500/30 via-teal-500/20 to-slate-900/80 rounded-2xl border border-emerald-400/80 shadow-md shadow-emerald-500/10 space-y-1 text-center flex flex-col items-center justify-between">
+            <div class="w-7 h-7 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 text-white flex items-center justify-center text-xs font-black shadow-xs shrink-0">
+              ⚡
+            </div>
+            <h4 class="text-[10.5px] font-black text-emerald-300 uppercase tracking-tight leading-tight">FIXTURE MODE</h4>
+            <p class="text-[9px] text-emerald-100/90 font-semibold leading-tight">
+              Direct Entry • Fixture • Live Score
+            </p>
+          </div>
+        </div>
+
+        <!-- Glowing Emerald CTA Button -->
+        <button id="btn-intro-create-tourney" class="w-full py-3 bg-gradient-to-r from-emerald-400 via-teal-400 to-emerald-500 hover:from-emerald-500 hover:to-teal-500 text-slate-950 font-black text-xs sm:text-sm rounded-2xl shadow-xl shadow-emerald-500/25 hover:scale-[1.01] active:scale-98 transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+          <span>+ Create Tournament</span>
+          <span class="text-sm">➔</span>
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+  document.getElementById('close-host-intro-modal-btn')?.addEventListener('click', () => {
+    document.getElementById('host-tourney-intro-modal')?.remove();
+  });
+
+  document.getElementById('btn-intro-create-tourney')?.addEventListener('click', () => {
+    document.getElementById('host-tourney-intro-modal')?.remove();
+    openTournamentCreationWizard(false);
+  });
+}
+window.openHostTournamentIntroModal = openHostTournamentIntroModal;
+
 // --- SLEEK FLOATING BOTTOM NAVIGATION BAR FOR MOBILE SCREENS ---
 function renderMobileNav() {
   let bottomNavEl = document.getElementById('mobile-bottom-nav');
@@ -1179,7 +1551,8 @@ function renderCurrentView() {
     renderFirstPageLanding(container);
     setTimeout(() => openTournamentCreationWizard(true), 100);
   } else if (currentRoute.startsWith('reg-')) {
-    const slug = currentRoute.replace(/^reg-/, '');
+    const rawSlug = currentRoute.replace(/^reg-/, '');
+    const slug = rawSlug.split('?')[0];
     const regTourney = store.getCustomTournamentById(slug);
     if (regTourney) {
       const regTid = regTourney.supabaseId || regTourney.tournament_id || regTourney.id;
@@ -1190,7 +1563,7 @@ function renderCurrentView() {
       renderFirstPageLanding(container);
       store.syncWithCloud().then(() => {
         const retryTourney = store.getCustomTournamentById(slug);
-        if (retryTourney && currentRoute === `reg-${slug}`) {
+        if (retryTourney && currentRoute.startsWith(`reg-${slug}`)) {
           const tid = retryTourney.supabaseId || retryTourney.tournament_id || retryTourney.id;
           if (tid) store.setActiveTournament(tid);
           openDynamicTournamentRegistrationModal(slug);
@@ -1198,7 +1571,8 @@ function renderCurrentView() {
       });
     }
   } else if (currentRoute.startsWith('t/')) {
-    const slug = currentRoute.replace(/^t\//, '');
+    const rawSlug = currentRoute.replace(/^t\//, '');
+    const slug = rawSlug.split('?')[0];
     const tourney = store.getCustomTournamentById(slug);
     if (tourney) {
       const tid = tourney.supabaseId || tourney.tournament_id || tourney.id;
@@ -1215,12 +1589,12 @@ function renderCurrentView() {
       `;
       store.syncWithCloud().then(() => {
         const retryTourney = store.getCustomTournamentById(slug);
-        if (retryTourney && currentRoute === `t/${slug}`) {
+        if (retryTourney && currentRoute.startsWith(`t/${slug}`)) {
           const tid = retryTourney.supabaseId || retryTourney.tournament_id || retryTourney.id;
           if (tid) store.setActiveTournament(tid);
           renderCustomTournamentHub(container, retryTourney);
           if (window.lucide) window.lucide.createIcons();
-        } else if (currentRoute === `t/${slug}`) {
+        } else if (currentRoute.startsWith(`t/${slug}`)) {
           container.innerHTML = `
             <div class="flex flex-col items-center justify-center py-20 text-center space-y-3 animate-fade-in">
               <div class="w-14 h-14 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center text-2xl font-black shadow-xs">❌</div>
@@ -1309,11 +1683,41 @@ function getTournamentThumbnail(name) {
 
 function renderTournamentFallbackPoster(ct) {
   const thumb = getTournamentThumbnail(ct.name || ct.slug || '');
+  const venue = ct.venue ? `
+    <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-black/30 backdrop-blur-xs rounded-full text-[10px] sm:text-xs text-white font-bold border border-white/20 shadow-xs">
+      <svg class="w-3.5 h-3.5 text-amber-300 shrink-0" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+        <circle cx="12" cy="9" r="2.5" fill="currentColor"/>
+      </svg>
+      <span>${ct.venue}</span>
+    </span>` : '';
+
+  const prize = ct.prizeWinner ? `
+    <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-400 text-slate-950 rounded-full text-[10px] sm:text-xs font-black shadow-xs border border-amber-300">
+      <svg class="w-3.5 h-3.5 text-slate-950 shrink-0" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M19 4h-2V2H7v2H5c-1.1 0-2 .9-2 2v3c0 3.86 2.89 7.02 6.64 7.42C10.3 17.5 11.08 18 12 18s1.7-.5 2.36-1.58C18.11 16.02 21 12.86 21 9V6c0-1.1-.9-2-2-2zM5 9V6h2v5.09C5.67 10.45 5 9.77 5 9zm14 0c0 .77-.67 1.45-2 2.09V6h2v3z"/>
+      </svg>
+      <span>₹${Number(ct.prizeWinner).toLocaleString('en-IN')} Prize</span>
+    </span>` : '';
+
   return `
-    <div class="absolute inset-0 bg-gradient-to-br ${thumb.gradient} flex flex-col items-center justify-center text-white p-2 text-center">
-      <div class="text-3xl mb-1 drop-shadow-lg">${thumb.emoji}</div>
-      <div class="text-[10px] sm:text-xs font-black uppercase leading-tight tracking-wide drop-shadow-md line-clamp-2">${ct.name || 'Tournament'}</div>
-      <div class="absolute inset-0 opacity-10" style="background-image: radial-gradient(circle at 20% 80%, white 1px, transparent 1px), radial-gradient(circle at 80% 20%, white 1px, transparent 1px); background-size: 40px 40px, 60px 60px;"></div>
+    <div class="absolute inset-0 bg-gradient-to-br ${thumb.gradient} flex flex-col items-center justify-center text-white p-3 text-center space-y-2">
+      <!-- Centered Emoji Icon -->
+      <div class="text-2xl sm:text-3xl drop-shadow-lg leading-none">${thumb.emoji}</div>
+      
+      <!-- Tournament Name: Middle Alignment -->
+      <h3 class="text-sm sm:text-base md:text-lg font-black uppercase tracking-wider text-white drop-shadow-md line-clamp-2 max-w-lg px-2 leading-tight">
+        ${ct.name || 'Tournament'}
+      </h3>
+      
+      <!-- Just Lower: Venue Place with SVG & Prize Badge -->
+      <div class="flex items-center justify-center gap-2 flex-wrap pt-0.5">
+        ${venue}
+        ${prize}
+      </div>
+
+      <!-- Subtle background grid pattern -->
+      <div class="absolute inset-0 opacity-10 pointer-events-none" style="background-image: radial-gradient(circle at 20% 80%, white 1px, transparent 1px), radial-gradient(circle at 80% 20%, white 1px, transparent 1px); background-size: 32px 32px, 48px 48px;"></div>
     </div>
   `;
 }
@@ -1325,15 +1729,28 @@ function buildTournamentCarouselHTML(allTournaments) {
 
   const carouselCards = featuredTourneys.map((ct, idx) => {
     const outlineColor = CARD_OUTLINE_COLORS[idx % CARD_OUTLINE_COLORS.length];
-    const poster = ct.posterUrl
-      ? '<img src="' + ct.posterUrl + '" loading="lazy" class="w-full h-full object-cover object-center" onerror="this.style.display=\'none\'" />'
+    const bannerSrc = ct.posterUrl || ct.bannerUrl || ct.poster_url || ct.banner_url || null;
+    const poster = bannerSrc
+      ? '<img src="' + bannerSrc + '" loading="lazy" class="w-full h-full object-cover object-center" onerror="this.style.display=\'none\'" />'
       : renderTournamentFallbackPoster(ct);
+    const venueHtml = ct.venue ? `
+      <div class="flex items-center justify-center gap-1 text-[10px] sm:text-[11px] font-bold text-slate-600 truncate max-w-full">
+        <svg class="w-3.5 h-3.5 text-red-600 shrink-0 inline-block" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+          <circle cx="12" cy="9" r="2.5" fill="currentColor"/>
+        </svg>
+        <span class="truncate">${ct.venue}</span>
+      </div>` : '';
+
     return '<div data-nav-route="t/' + ct.slug + '" data-tourney-name="' + (ct.name || '').toLowerCase() + '" data-tourney-venue="' + (ct.venue || '').toLowerCase() + '" class="tourney-card shrink-0 bg-white rounded-2xl shadow-md overflow-hidden cursor-pointer transition-all group" style="min-width:100%;border:3px solid white;outline:3px solid ' + outlineColor + ';">'
-      + '<div class="relative w-full aspect-[16/9] overflow-hidden">'
+      + '<div class="relative w-full aspect-[16/9] sm:aspect-[21/9] md:aspect-[24/9] max-h-[220px] sm:max-h-[260px] overflow-hidden">'
       + poster
       + '<div class="absolute top-2 left-2"><span class="px-2 py-0.5 bg-emerald-500 text-white text-[8px] font-black rounded-full uppercase shadow-md flex items-center gap-1"><span class="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span> LIVE</span></div>'
       + '</div>'
-      + '<div class="px-3 py-2 bg-white"><h4 class="text-sm font-black text-slate-900 truncate group-hover:text-emerald-700 transition-colors">' + ct.name + '</h4></div>'
+      + '<div class="px-3 py-2 sm:py-2.5 bg-white text-center flex flex-col items-center justify-center space-y-0.5">'
+      + '<h4 class="text-xs sm:text-sm font-black text-slate-900 truncate max-w-full group-hover:text-emerald-700 transition-colors uppercase tracking-wide">' + ct.name + '</h4>'
+      + venueHtml
+      + '</div>'
       + '</div>';
   }).join('');
 
@@ -1344,18 +1761,32 @@ function buildTournamentCarouselHTML(allTournaments) {
 
   const searchCards = allTournaments.map((ct, idx) => {
     const outlineColor = CARD_OUTLINE_COLORS[idx % CARD_OUTLINE_COLORS.length];
-    const poster = ct.posterUrl
-      ? '<img src="' + ct.posterUrl + '" loading="lazy" class="w-full h-full object-cover object-center" onerror="this.style.display=\'none\'" />'
+    const bannerSrc = ct.posterUrl || ct.bannerUrl || ct.poster_url || ct.banner_url || null;
+    const poster = bannerSrc
+      ? '<img src="' + bannerSrc + '" loading="lazy" class="w-full h-full object-cover object-center" onerror="this.style.display=\'none\'" />'
       : renderTournamentFallbackPoster(ct);
     const statusBadge = (ct.status === 'ACTIVE' || !ct.status)
       ? '<span class="px-1 py-0.5 bg-emerald-500 text-white text-[7px] font-black rounded-full uppercase">LIVE</span>'
       : '<span class="px-1 py-0.5 bg-slate-500 text-white text-[7px] font-black rounded-full uppercase">' + (ct.status || 'DRAFT') + '</span>';
+    
+    const searchVenueHtml = ct.venue ? `
+      <div class="flex items-center justify-center gap-0.5 text-[9px] sm:text-[10px] font-bold text-slate-600 truncate max-w-full">
+        <svg class="w-3 h-3 text-red-600 shrink-0 inline-block" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+          <circle cx="12" cy="9" r="2.5" fill="currentColor"/>
+        </svg>
+        <span class="truncate">${ct.venue}</span>
+      </div>` : '';
+
     return '<div data-nav-route="t/' + ct.slug + '" data-tourney-name="' + (ct.name || '').toLowerCase() + '" data-tourney-venue="' + (ct.venue || '').toLowerCase() + '" class="tourney-card-search bg-white rounded-xl shadow-sm hover:shadow-md overflow-hidden cursor-pointer transition-all group" style="border:2px solid white;outline:2px solid ' + outlineColor + ';">'
       + '<div class="relative w-full aspect-[4/3] overflow-hidden bg-slate-100">'
       + poster
       + '<div class="absolute top-1 left-1">' + statusBadge + '</div>'
       + '</div>'
-      + '<div class="px-2 py-1.5 bg-white"><h4 class="text-[11px] font-black text-slate-900 truncate leading-tight">' + ct.name + '</h4></div>'
+      + '<div class="px-2 py-1.5 bg-white text-center flex flex-col items-center justify-center space-y-0.5">'
+      + '<h4 class="text-[11px] font-black text-slate-900 truncate max-w-full leading-tight uppercase">' + ct.name + '</h4>'
+      + searchVenueHtml
+      + '</div>'
       + '</div>';
   }).join('');
 
@@ -1457,7 +1888,7 @@ function renderFirstPageLanding(containerEl) {
       </div>
 
       <!-- BROWSE TOURNAMENTS -->
-      <div class="w-full max-w-4xl mx-auto px-2 space-y-2">
+      <div class="w-full max-w-3xl mx-auto px-2 space-y-2">
         <div class="flex items-center justify-between gap-2">
           <h3 class="text-xs sm:text-sm font-black text-slate-900 flex items-center gap-1.5">
             <i data-lucide="trophy" class="w-3.5 h-3.5 text-amber-600"></i>
@@ -1473,28 +1904,53 @@ function renderFirstPageLanding(containerEl) {
         ${allTournaments.length === 0 ? '<div class="text-center py-8 bg-white border-2 border-dashed border-slate-200 rounded-xl"><div class="text-3xl mb-1">🏏</div><h4 class="text-xs font-black text-slate-900">No Tournaments Yet</h4><p class="text-[10px] text-slate-500 mt-0.5">Be the first to host a tournament!</p></div>' : buildTournamentCarouselHTML(allTournaments)}
       </div>
 
-      <!-- HOST YOUR OWN TOURNAMENT BANNER -->
-      <div class="w-full max-w-4xl mx-auto px-2 pt-2">
-        <div class="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 rounded-2xl sm:rounded-3xl p-4 sm:p-5 text-slate-950 shadow-xl border-2 border-amber-300 flex flex-col md:flex-row items-center justify-between gap-3 sm:gap-4">
-          <div class="space-y-1 text-center md:text-left">
-            <h3 class="text-base sm:text-lg font-black text-slate-950 tracking-tight leading-tight">
-              🏆 Host Your Own Cricket Tournament
+      <!-- HOST YOUR OWN TOURNAMENT BANNER (SUNSET & EMERALD COMPACT BOX) -->
+      <div class="w-full max-w-2xl mx-auto px-1 pt-1">
+        <div class="bg-gradient-to-br from-[#120B24] via-[#1A1438] to-[#0A0618] rounded-2xl sm:rounded-3xl p-3 sm:p-5 text-white shadow-xl border border-purple-400/40 space-y-2.5 sm:space-y-3.5 relative overflow-hidden">
+          
+          <!-- Top Tag & Bengali Header -->
+          <div class="text-center space-y-0.5 sm:space-y-1">
+            <div class="inline-flex items-center gap-1 px-2.5 py-0.2 bg-emerald-400/20 border border-emerald-400/30 rounded-full text-[9.5px] sm:text-[10.5px] font-black text-emerald-300">
+              <span>🚀</span> <span>Launch in 2 Minutes</span>
+            </div>
+            <h3 class="text-base sm:text-xl font-black text-white tracking-tight flex items-center justify-center gap-1.5 pt-0.5 font-['Anek_Bangla','Hind_Siliguri',sans-serif] leading-tight">
+              <span>🏆</span> <span>আপনার নিজের টুর্নামেন্ট তৈরি করুন</span>
             </h3>
-            <p class="text-[11px] sm:text-xs font-black text-slate-800 leading-snug">
-              Launch and manage your custom cricket tournament online
-            </p>
-            <p class="text-[10px] sm:text-[11px] text-slate-900 font-bold max-w-lg leading-relaxed">
-              ✨ <strong>Mode A</strong>: Player Registration + Live Auction + Squads + Live Scorer<br/>
-              ⚡ <strong>Mode B</strong>: Direct Team Entry + Auto Fixtures + Ball-by-Ball Scoring
-            </p>
+            <p class="text-[10.5px] sm:text-xs text-slate-300 font-medium">Create custom leagues with automated tools</p>
           </div>
-          <button id="btn-home-create-tourney" class="w-full md:w-auto px-5 py-3 bg-slate-950 hover:bg-slate-900 text-amber-400 font-black text-xs sm:text-sm rounded-xl shadow-xl border-2 border-amber-400 flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-105 shrink-0">
-            <span>+ Create Tournament ➔</span>
+
+          <!-- 2 Modes Side-by-Side in SAME ROW (grid-cols-2) -->
+          <div class="grid grid-cols-2 gap-2 sm:gap-3">
+            <!-- Mode A (Sunset Orange-Red Glow) -->
+            <div class="p-2 sm:p-3 bg-gradient-to-b from-rose-500/30 via-orange-500/20 to-slate-900/80 rounded-xl sm:rounded-2xl border border-rose-400/80 shadow-md shadow-rose-500/10 space-y-1 text-center flex flex-col items-center justify-between">
+              <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-tr from-rose-500 to-orange-400 text-white flex items-center justify-center text-xs sm:text-sm font-black shadow-xs shrink-0">
+                🔨
+              </div>
+              <h4 class="text-[10px] sm:text-xs font-black text-orange-300 uppercase tracking-tight leading-tight">AUCTION MODE</h4>
+              <p class="text-[8.5px] sm:text-[9.5px] text-orange-100/90 font-semibold leading-tight line-clamp-3">
+                Player Reg • Live Bidding • Squad • Fixture • Live Score
+              </p>
+            </div>
+
+            <!-- Mode B (Emerald Green Glow) -->
+            <div class="p-2 sm:p-3 bg-gradient-to-b from-emerald-500/30 via-teal-500/20 to-slate-900/80 rounded-xl sm:rounded-2xl border border-emerald-400/80 shadow-md shadow-emerald-500/10 space-y-1 text-center flex flex-col items-center justify-between">
+              <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 text-white flex items-center justify-center text-xs sm:text-sm font-black shadow-xs shrink-0">
+                ⚡
+              </div>
+              <h4 class="text-[10px] sm:text-xs font-black text-emerald-300 uppercase tracking-tight leading-tight">FIXTURE MODE</h4>
+              <p class="text-[8.5px] sm:text-[9.5px] text-emerald-100/90 font-semibold leading-tight line-clamp-3">
+                Direct Entry • Fixture • Live Score
+              </p>
+            </div>
+          </div>
+
+          <!-- Glowing Emerald CTA Button (Compact) -->
+          <button id="btn-home-create-tourney" class="w-full py-2.5 sm:py-3 bg-gradient-to-r from-emerald-400 via-teal-400 to-emerald-500 hover:from-emerald-500 hover:to-teal-500 text-slate-950 font-black text-xs sm:text-sm rounded-xl sm:rounded-2xl shadow-lg shadow-emerald-500/20 hover:scale-[1.01] active:scale-98 transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+            <span>+ Create Tournament</span>
+            <span class="text-sm sm:text-base">➔</span>
           </button>
         </div>
       </div>
-
-    </div>
 
     </div>
   `;
@@ -1635,12 +2091,18 @@ export function renderCustomTournamentHub(container, tourney) {
   });
   const soldPlayers = allPlayers.filter(p => p.teamId || p.auctionStatus === 'SOLD');
 
-  // Top Award Candidates & Tournament Leaders
-  const topBatsman = allPlayers.filter(p => (p.totalRuns || 0) > 0).sort((a, b) => (b.totalRuns || 0) - (a.totalRuns || 0))[0] || allPlayers[0];
-  const topBowler = allPlayers.filter(p => (p.totalWickets || 0) > 0).sort((a, b) => (b.totalWickets || 0) - (a.totalWickets || 0))[0] || allPlayers[1] || allPlayers[0];
-  const topKeeper = allPlayers.filter(p => (p.category || '').toUpperCase().includes('KEEPER') || p.isWicketKeeper)[0] || null;
-  const topFielder = allPlayers.filter(p => (p.catches || 0) > 0).sort((a, b) => (b.catches || 0) - (a.catches || 0))[0] || null;
-  const emergingPlayer = allPlayers.filter(p => p.age && Number(p.age) <= 19).sort((a, b) => (b.totalRuns || 0) - (a.totalRuns || 0))[0] || null;
+  // Top Award Candidates & Tournament Leaders (Calculated Match-by-Match, No Dummy Fallbacks)
+  const topBatsman = allPlayers.filter(p => Number(p.totalRuns || p.runs || 0) > 0).sort((a, b) => Number(b.totalRuns || b.runs || 0) - Number(a.totalRuns || a.runs || 0))[0] || null;
+  const topBowler = allPlayers.filter(p => Number(p.totalWickets || p.wickets || 0) > 0).sort((a, b) => Number(b.totalWickets || b.wickets || 0) - Number(a.totalWickets || a.wickets || 0))[0] || null;
+  const topSixes = allPlayers.filter(p => Number(p.totalSixes || p.sixes || 0) > 0).sort((a, b) => Number(b.totalSixes || b.sixes || 0) - Number(a.totalSixes || a.sixes || 0))[0] || null;
+  const topFours = allPlayers.filter(p => Number(p.totalFours || p.fours || 0) > 0).sort((a, b) => Number(b.totalFours || b.fours || 0) - Number(a.totalFours || a.fours || 0))[0] || null;
+  const topDotBalls = allPlayers.filter(p => Number(p.totalDotBalls || p.dotBalls || p.dots || 0) > 0).sort((a, b) => Number(b.totalDotBalls || b.dotBalls || b.dots || 0) - Number(a.totalDotBalls || a.dotBalls || a.dots || 0))[0] || null;
+  const topMaidens = allPlayers.filter(p => Number(p.totalMaidens || p.maidens || p.maidenOvers || 0) > 0).sort((a, b) => Number(b.totalMaidens || b.maidens || b.maidenOvers || 0) - Number(a.totalMaidens || a.maidens || a.maidenOvers || 0))[0] || null;
+  const topTwos = allPlayers.filter(p => Number(p.totalTwos || p.twos || p.doubleRuns || 0) > 0).sort((a, b) => Number(b.totalTwos || b.twos || b.doubleRuns || 0) - Number(a.totalTwos || a.twos || a.doubleRuns || 0))[0] || null;
+  const topKeeper = allPlayers.filter(p => Number(p.dismissals || p.catches || p.stumpings || 0) > 0 && ((p.category || '').toUpperCase().includes('KEEPER') || p.isWicketKeeper)).sort((a, b) => Number(b.dismissals || b.catches || 0) - Number(a.dismissals || a.catches || 0))[0] || null;
+  const topFielder = allPlayers.filter(p => Number(p.catches || p.fieldCatches || 0) > 0).sort((a, b) => Number(b.catches || 0) - Number(a.catches || 0))[0] || null;
+  const emergingPlayer = allPlayers.filter(p => p.age && Number(p.age) <= 19 && (Number(p.totalRuns || 0) > 0 || Number(p.totalWickets || 0) > 0)).sort((a, b) => (Number(b.totalRuns || 0) + Number(b.totalWickets || 0) * 20) - (Number(a.totalRuns || 0) + Number(a.totalWickets || 0) * 20))[0] || null;
+  const topMVP = allPlayers.filter(p => (Number(p.totalRuns || p.runs || 0) * 1 + Number(p.totalWickets || p.wickets || 0) * 25 + Number(p.totalSixes || p.sixes || 0) * 2) > 0).sort((a, b) => ((Number(b.totalRuns || 0) * 1 + Number(b.totalWickets || 0) * 25 + Number(b.totalSixes || 0) * 2) - (Number(a.totalRuns || 0) * 1 + Number(a.totalWickets || 0) * 25 + Number(a.totalSixes || 0) * 2)))[0] || null;
   const topTeam = allTeams[0] || null;
 
   // DYNAMIC TABS CONFIGURATION:
@@ -1661,10 +2123,25 @@ export function renderCustomTournamentHub(container, tourney) {
   ];
 
   let hubTab = 'home';
+  // 1. Read tab parameter from URL hash (e.g. #t/jsl-2026?tab=auction)
   try {
-    const saved = sessionStorage.getItem('cpl_hub_tab_' + tourney.slug);
-    if (saved && hubTabs.some(t => t.id === saved)) hubTab = saved;
+    const rawHash = location.hash.replace(/^#/, '');
+    if (rawHash.includes('?')) {
+      const q = new URLSearchParams(rawHash.split('?')[1]);
+      const tabParam = q.get('tab');
+      if (tabParam && hubTabs.some(t => t.id === tabParam)) {
+        hubTab = tabParam;
+      }
+    }
   } catch(e) {}
+
+  // 2. If not in URL, read from session storage
+  if (hubTab === 'home') {
+    try {
+      const saved = sessionStorage.getItem('cpl_hub_tab_' + tourney.slug);
+      if (saved && hubTabs.some(t => t.id === saved)) hubTab = saved;
+    } catch(e) {}
+  }
 
   const currentUser = store.getCurrentUser ? store.getCurrentUser() : null;
   const userPhone = (currentUser?.phone || currentUser?.mobile || '').replace(/[^0-9]/g, '');
@@ -1672,34 +2149,26 @@ export function renderCustomTournamentHub(container, tourney) {
   const isMaster = store.isMasterAdmin ? store.isMasterAdmin() : false;
   const isTourneyAdmin = isMaster || (userPhone && userPhone === orgPhone) || (Array.isArray(currentUser?.ownedTournaments) && currentUser.ownedTournaments.some(id => id && id.toLowerCase().includes(tourney.slug?.toLowerCase() || '')));
 
+  const slugKey = tourney.slug || 'jsl-2026';
+  let isUserLiked = false;
+  try { isUserLiked = localStorage.getItem('cpl_liked_' + slugKey) === 'true'; } catch(e) {}
+  const rawLikes = Number(tourney.format_config?.likes_count || tourney.likesCount || 148);
+  const likesCount = isUserLiked ? rawLikes + 1 : rawLikes;
+
+  let existingComments = [];
+  try {
+    const rawC = localStorage.getItem('cpl_comments_' + slugKey);
+    existingComments = rawC ? JSON.parse(rawC) : [];
+  } catch(e) { existingComments = []; }
+  const commentsCount = (existingComments && existingComments.length > 0) ? existingComments.length : 2;
+
   container.innerHTML = `
-    <div class="w-full max-w-4xl mx-auto animate-fade-in text-slate-900 pb-12">
+    <div class="w-full max-w-3xl mx-auto animate-fade-in text-slate-900 px-2 py-2 sm:py-4 pb-16 space-y-3">
 
-      <!-- TOP BAR -->
-      <div class="flex items-center justify-between gap-2 py-3 px-3 sm:px-4 bg-white border-b border-slate-200 shadow-2xs rounded-t-2xl">
-        <button id="btn-custom-hub-back" class="p-2 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer flex items-center gap-1 text-xs font-black text-slate-700 shadow-2xs">
-          <i data-lucide="arrow-left" class="w-4 h-4"></i> Back
-        </button>
-        <div class="text-center min-w-0">
-          <h2 class="text-xs sm:text-base font-black text-slate-900 truncate leading-tight">${tourney.name}</h2>
-          <span class="text-[9px] font-black font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 uppercase">${isAuction ? 'Mode A: Auction Championship' : 'Mode B: Fixtures & Live Scoring'}</span>
-        </div>
-        <div class="flex items-center gap-1.5">
-          <button id="btn-hub-share" class="p-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl transition-colors cursor-pointer" title="Share Tournament">
-            <i data-lucide="share-2" class="w-4 h-4"></i>
-          </button>
-          ${isTourneyAdmin ? `
-            <button id="btn-custom-hub-admin" class="px-3 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 rounded-xl font-black text-xs shadow-xs flex items-center gap-1 cursor-pointer border border-amber-300">
-              <i data-lucide="shield-check" class="w-3.5 h-3.5"></i> Admin
-            </button>
-          ` : ''}
-        </div>
-      </div>
-
-      <!-- DYNAMIC TAB NAVIGATION -->
-      <div class="flex bg-slate-50 border-b-2 border-slate-200 px-2 sm:px-4 overflow-x-auto scrollbar-hide shadow-inner">
+      <!-- DYNAMIC TAB NAVIGATION (STYLISH WHITE CONTAINER WITH HORIZONTAL MOBILE SCROLL) -->
+      <div class="bg-white border border-slate-200/90 rounded-2xl p-1.5 shadow-xs flex items-center gap-1 sm:gap-1.5 overflow-x-auto scrollbar-hide">
         ${hubTabs.map(t => `
-          <button data-hub-tab="${t.id}" class="hub-tab-btn px-3 sm:px-4 py-2.5 text-[10px] sm:text-xs font-black tracking-wide transition-all whitespace-nowrap cursor-pointer ${hubTab === t.id ? 'text-emerald-700 border-b-[3px] border-emerald-600 bg-white font-black' : 'text-slate-500 hover:text-slate-900'}">
+          <button data-hub-tab="${t.id}" class="hub-tab-btn px-3 sm:px-4 py-2 rounded-xl text-[11px] sm:text-xs font-black tracking-wide transition-all whitespace-nowrap cursor-pointer flex items-center gap-1 shrink-0 ${hubTab === t.id ? 'bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-xs font-black' : 'bg-slate-50 hover:bg-slate-100 text-slate-600'}">
             ${t.label}
           </button>
         `).join('')}
@@ -1708,175 +2177,348 @@ export function renderCustomTournamentHub(container, tourney) {
       <!-- ========================================== -->
       <!-- TAB 1: 🏠 HOME OVERVIEW                    -->
       <!-- ========================================== -->
-      <div id="hub-tab-home" class="${hubTab === 'home' ? '' : 'hidden'} space-y-4">
-        <!-- HERO POSTER BANNER -->
-        <div class="relative w-full aspect-[16/8] sm:aspect-[16/7] overflow-hidden bg-slate-900 border-b border-slate-200">
-          ${tourney.posterUrl ? `
-            <img src="${tourney.posterUrl}" class="w-full h-full object-cover" onerror="this.style.display='none'" />
-          ` : renderTournamentFallbackPoster(tourney)}
+      <div id="hub-tab-home" class="${hubTab === 'home' ? '' : 'hidden'} space-y-3 animate-fade-in">
+        
+        <!-- 1. HERO BANNER + 3-ACTION SOCIAL STRIP (JOINED TOGETHER IN ONE STYLISH WHITE CARD) -->
+        <div class="bg-white rounded-3xl p-2 sm:p-2.5 shadow-xs border border-slate-200/90 space-y-2">
+          <div class="relative w-full aspect-[16/9] sm:aspect-[21/9] md:aspect-[24/9] max-h-[220px] sm:max-h-[260px] overflow-hidden bg-slate-900 rounded-2xl shadow-inner border border-slate-100">
+            ${tourney.posterUrl ? `
+              <img src="${tourney.posterUrl}" class="w-full h-full object-cover object-center" onerror="this.style.display='none'" />
+            ` : renderTournamentFallbackPoster(tourney)}
+          </div>
+
+          <!-- 3-OPTION SOCIAL & INTERACTION ACTION BAR (DIRECTLY JOINED UNDER BANNER SHAPE) -->
+          <div class="grid grid-cols-3 gap-1.5 text-center pt-0.5">
+            <!-- Left: Love / Like Reaction with Real Reactive Count -->
+            <button type="button" id="btn-hub-like-tourney" class="py-2 px-2 rounded-xl bg-rose-50/80 hover:bg-rose-100 text-rose-700 font-black text-xs border border-rose-200/80 flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95 group">
+              <span id="hub-like-icon" class="text-base transition-transform group-hover:scale-125">${isUserLiked ? '❤️' : '🤍'}</span>
+              <span id="hub-like-count" class="font-mono text-xs font-black">${likesCount}</span>
+              <span class="hidden sm:inline text-[10px] text-rose-900 uppercase">Likes</span>
+            </button>
+
+            <!-- Middle: Comments & Queries -->
+            <button type="button" id="btn-hub-open-comments" class="py-2 px-2 rounded-xl bg-sky-50/80 hover:bg-sky-100 text-sky-800 font-black text-xs border border-sky-200/80 flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95 group">
+              <svg class="w-4 h-4 text-sky-600 shrink-0 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+              </svg>
+              <span id="hub-comment-count" class="font-mono text-xs font-black">${commentsCount}</span>
+              <span class="text-[10px] text-sky-900 uppercase">Queries</span>
+            </button>
+
+            <!-- Right: Share Link -->
+            <button type="button" id="btn-hub-share-link" class="py-2 px-2 rounded-xl bg-emerald-50/80 hover:bg-emerald-100 text-emerald-800 font-black text-xs border border-emerald-200/80 flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95 group">
+              <svg class="w-4 h-4 text-emerald-600 shrink-0 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
+              </svg>
+              <span class="text-[10px] sm:text-xs font-black text-emerald-900 uppercase">Share</span>
+            </button>
+          </div>
         </div>
 
-        <!-- PRIZE & KEY METRICS STRIP -->
-        <div class="p-3 bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 text-slate-950 rounded-2xl mx-3 shadow-md border-2 border-amber-300">
-          <div class="flex items-center justify-around text-center divide-x divide-amber-700/30">
-            <div class="px-2">
-              <span class="text-[8px] font-black uppercase tracking-wider block text-amber-950">🏆 Winner</span>
-              <span class="text-xs sm:text-base font-black">${tourney.prizeWinner ? '₹' + Number(tourney.prizeWinner).toLocaleString('en-IN') : 'Trophy + Prize'}</span>
+        <!-- 2. REGISTRATION BAR WITH INTEGRATED REGISTRATION SHARE SVG (IF REGISTRATION IS OPEN) -->
+        ${isAuction && store.isRegistrationOpen() ? `
+          <div class="py-2.5 px-3 sm:px-4 bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 text-white rounded-2xl shadow-md border-2 border-rose-400 flex items-center justify-between gap-2 transition-all">
+            <!-- Left & Maximum Portion: Register Here Clickable Area -->
+            <div id="btn-home-hero-reg-link" class="flex-1 min-w-0 flex items-center gap-2 cursor-pointer group">
+              <span class="w-2.5 h-2.5 rounded-full bg-white animate-ping shrink-0"></span>
+              <span class="text-xs sm:text-sm font-black truncate tracking-wide group-hover:underline">
+                🏏 Register Here for ${tourney.name}
+              </span>
+              <span class="px-2.5 py-0.5 bg-white text-rose-700 font-black text-[9.5px] sm:text-[10px] rounded-full uppercase tracking-wider shrink-0 shadow-xs hidden xs:inline-block">
+                Open ➔
+              </span>
             </div>
-            <div class="px-2">
-              <span class="text-[8px] font-black uppercase tracking-wider block text-amber-950">🥈 Runner-Up</span>
-              <span class="text-xs sm:text-base font-black">${tourney.prizeRunner ? '₹' + Number(tourney.prizeRunner).toLocaleString('en-IN') : 'Trophy + Medals'}</span>
-            </div>
-            <div class="px-2">
-              <span class="text-[8px] font-black uppercase tracking-wider block text-amber-950">💰 Entry Fee</span>
-              <span class="text-xs sm:text-base font-black">₹${tourney.entryFee || (isAuction ? 300 : 'Free')}</span>
-            </div>
-            <div class="px-2">
-              <span class="text-[8px] font-black uppercase tracking-wider block text-amber-950">🛡️ Teams</span>
-              <span class="text-xs sm:text-base font-black">${allTeams.length}</span>
-            </div>
-            ${isAuction ? `
-              <div class="px-2">
-                <span class="text-[8px] font-black uppercase tracking-wider block text-amber-950">👥 Players</span>
-                <span class="text-xs sm:text-base font-black">${allPlayers.length}</span>
+
+            <!-- Right: Small SVG Icon Button for Direct Share -->
+            <button type="button" id="btn-share-direct-reg-wa" title="Share Registration Link" class="p-1.5 sm:p-2 bg-white/20 hover:bg-white/35 active:scale-95 text-white rounded-xl border border-white/30 flex items-center justify-center shrink-0 cursor-pointer transition-all">
+              <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="2.3" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
+              </svg>
+            </button>
+          </div>
+        ` : ''}
+
+        <!-- 4. CORE 5-METRIC COLORFUL GRID ON CLEAN WHITE CARD -->
+        <div class="bg-white rounded-2xl p-3 shadow-xs border border-slate-200/90 space-y-2">
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <!-- Location -->
+            <div class="p-2.5 bg-rose-50/80 rounded-xl border border-rose-200/80 flex items-center gap-2">
+              <span class="p-1.5 bg-rose-100 text-rose-700 rounded-lg shrink-0">
+                <svg class="w-4 h-4 text-red-600 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+                  <circle cx="12" cy="9" r="2.5" fill="currentColor"/>
+                </svg>
+              </span>
+              <div class="min-w-0">
+                <span class="text-[8.5px] font-black uppercase text-rose-900 block">Ground / Location</span>
+                <span class="text-xs font-black text-slate-900 truncate block">${tourney.venue || 'Local Stadium / Ground'}</span>
               </div>
-            ` : ''}
+            </div>
+
+            <!-- Winner Prize -->
+            <div class="p-2.5 bg-amber-50/80 rounded-xl border border-amber-200/80 flex items-center gap-2">
+              <span class="p-1.5 bg-amber-100 text-amber-800 rounded-lg text-sm shrink-0">🏆</span>
+              <div class="min-w-0">
+                <span class="text-[8.5px] font-black uppercase text-amber-900 block">Winner Prize</span>
+                <span class="text-xs font-black text-slate-900 font-mono truncate block">${tourney.prizeWinner ? '₹' + Number(tourney.prizeWinner).toLocaleString('en-IN') : '₹ 35,000'}</span>
+              </div>
+            </div>
+
+            <!-- Runner-Up Prize -->
+            <div class="p-2.5 bg-blue-50/80 rounded-xl border border-blue-200/80 flex items-center gap-2">
+              <span class="p-1.5 bg-blue-100 text-blue-800 rounded-lg text-sm shrink-0">🥈</span>
+              <div class="min-w-0">
+                <span class="text-[8.5px] font-black uppercase text-blue-900 block">Runner-Up Prize</span>
+                <span class="text-xs font-black text-slate-900 truncate block">${tourney.prizeRunner ? '₹' + Number(tourney.prizeRunner).toLocaleString('en-IN') : (tourney.prizeRunners || 'Trophy + Medals')}</span>
+              </div>
+            </div>
+
+            <!-- Total Teams -->
+            <div class="p-2.5 bg-purple-50/80 rounded-xl border border-purple-200/80 flex items-center gap-2">
+              <span class="p-1.5 bg-purple-100 text-purple-800 rounded-lg text-sm shrink-0">🛡️</span>
+              <div class="min-w-0">
+                <span class="text-[8.5px] font-black uppercase text-purple-900 block">Total Teams</span>
+                <span class="text-xs font-black text-slate-900 font-mono truncate block">${tourney.totalTeams || allTeams.length || 8} Teams</span>
+              </div>
+            </div>
+
+            <!-- Start & End Dates -->
+            <div class="p-2.5 bg-emerald-50/80 rounded-xl border border-emerald-200/80 flex items-center gap-2 col-span-2 sm:col-span-2">
+              <span class="p-1.5 bg-emerald-100 text-emerald-800 rounded-lg text-sm shrink-0">📅</span>
+              <div class="min-w-0">
+                <span class="text-[8.5px] font-black uppercase text-emerald-900 block">Tournament Schedule Dates</span>
+                <span class="text-xs font-black text-slate-900 truncate block">${tourney.dates || (tourney.kickoffDate ? new Date(tourney.kickoffDate).toLocaleDateString('en-IN') : '29, 30 & 31 AUGUST 2026')}</span>
+              </div>
+            </div>
           </div>
         </div>
 
-        <!-- TOURNAMENT DETAILS & RULES CARD -->
-        <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm mx-3 space-y-3">
-          <h3 class="text-xs font-black text-slate-700 uppercase tracking-wider flex items-center gap-1.5">
-            <span>📋</span> Tournament Schedule & Specifications
-          </h3>
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs font-semibold">
-            <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
-              <span class="text-[9px] font-black text-slate-400 uppercase block">Ground / Venue</span>
-              <span class="text-slate-900 font-bold">📍 ${tourney.venue || 'Local Stadium / Ground'}</span>
+        <!-- 5. POINT-BY-POINT TOURNAMENT SPECIFICATIONS & RULE BOOK (PREMIUM EXECUTIVE SPORTS DESIGN) -->
+        <div class="bg-white rounded-3xl p-3.5 sm:p-5 shadow-xs border border-slate-200/90 space-y-3.5">
+          
+          <!-- Header -->
+          <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div class="flex items-center gap-2.5">
+              <span class="w-9 h-9 rounded-2xl bg-amber-50 text-amber-900 border border-amber-200/80 flex items-center justify-center text-base font-black shadow-2xs">
+                📋
+              </span>
+              <div>
+                <h3 class="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-wide">
+                  Tournament Guide & Specifications
+                </h3>
+                <p class="text-[10px] text-slate-400 font-bold">Official Rules, Financials & Eligibility Criteria</p>
+              </div>
             </div>
-            <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
-              <span class="text-[9px] font-black text-slate-400 uppercase block">Tournament Dates</span>
-              <span class="text-slate-900 font-bold">📅 ${tourney.dates || (tourney.kickoffDate ? new Date(tourney.kickoffDate).toLocaleDateString('en-IN') : 'Season 2026')}</span>
-            </div>
-            <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
-              <span class="text-[9px] font-black text-slate-400 uppercase block">Tournament Organizer</span>
-              <span class="text-slate-900 font-bold">👑 ${tourney.organizer?.name || 'Tournament Committee'}</span>
-            </div>
-            <div class="p-2.5 bg-slate-50 rounded-xl border border-slate-200">
-              <span class="text-[9px] font-black text-slate-400 uppercase block">Tournament Mode</span>
-              <span class="text-emerald-700 font-bold">${isAuction ? '🔨 Player Registration & Team Auction' : '⚔️ Direct Team Fixtures & Live Scoring'}</span>
-            </div>
+            <span class="px-2.5 py-1 bg-emerald-50 text-emerald-800 text-[9.5px] font-black rounded-full border border-emerald-300 uppercase tracking-wider shrink-0 flex items-center gap-1">
+              <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span> Official ✓
+            </span>
           </div>
 
-          ${tourney.ruleRestriction ? `
-            <div class="p-3 bg-red-50/80 border border-red-200 rounded-xl text-xs">
-              <span class="text-[9px] font-black text-red-700 uppercase block mb-0.5">⚠️ Player Eligibility / Rules</span>
-              <p class="text-slate-800 font-semibold leading-relaxed">${tourney.ruleRestriction}</p>
+          <!-- Professional 4-Card Spec Grid -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+            
+            <!-- 1. Player Registration -->
+            <div class="p-3.5 bg-gradient-to-br from-slate-50 to-white rounded-2xl border border-slate-200/90 shadow-2xs hover:border-emerald-400 transition-all space-y-1.5">
+              <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2">
+                  <span class="w-7 h-7 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center text-xs font-black shrink-0">
+                    🎫
+                  </span>
+                  <span class="font-black text-slate-900 text-xs">Player Registration</span>
+                </div>
+                <span class="px-2 py-0.5 bg-emerald-100 text-emerald-900 font-mono font-black text-[10px] rounded-lg shrink-0">
+                  ₹${tourney.playerEntryFee || tourney.entryFee || 300} / Entry
+                </span>
+              </div>
+              <p class="text-[11px] text-slate-600 font-medium leading-relaxed">
+                Includes verified player profile, digital player pass card, and eligibility for the grand live team auction pool.
+              </p>
+            </div>
+
+            <!-- 2. Team Package & Auction Purse -->
+            <div class="p-3.5 bg-gradient-to-br from-slate-50 to-white rounded-2xl border border-slate-200/90 shadow-2xs hover:border-amber-400 transition-all space-y-1.5">
+              <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2">
+                  <span class="w-7 h-7 rounded-xl bg-amber-100 text-amber-900 flex items-center justify-center text-xs font-black shrink-0">
+                    💼
+                  </span>
+                  <span class="font-black text-slate-900 text-xs">Team Package & Purse</span>
+                </div>
+                <span class="px-2 py-0.5 bg-amber-100 text-amber-950 font-mono font-black text-[10px] rounded-lg shrink-0">
+                  Total ₹${Number((tourney.entryFeePortion || 7000) + (tourney.auctionPurse || 8000)).toLocaleString('en-IN')}
+                </span>
+              </div>
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="px-2 py-0.5 bg-amber-50 text-amber-900 font-black text-[9.5px] rounded-md border border-amber-200">
+                  Entry: ₹${Number(tourney.entryFeePortion || 7000).toLocaleString('en-IN')}
+                </span>
+                <span class="text-slate-300">•</span>
+                <span class="px-2 py-0.5 bg-emerald-50 text-emerald-900 font-black text-[9.5px] rounded-md border border-emerald-200">
+                  Auction Purse: ₹${Number(tourney.auctionPurse || 8000).toLocaleString('en-IN')}
+                </span>
+              </div>
+            </div>
+
+            <!-- 3. Squad & Base Price -->
+            <div class="p-3.5 bg-gradient-to-br from-slate-50 to-white rounded-2xl border border-slate-200/90 shadow-2xs hover:border-blue-400 transition-all space-y-1.5">
+              <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2">
+                  <span class="w-7 h-7 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center text-xs font-black shrink-0">
+                    🏏
+                  </span>
+                  <span class="font-black text-slate-900 text-xs">Squad & Bidding Rules</span>
+                </div>
+                <span class="px-2 py-0.5 bg-blue-100 text-blue-900 font-black text-[10px] rounded-lg shrink-0">
+                  12–16 Players
+                </span>
+              </div>
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="px-2 py-0.5 bg-slate-100 text-slate-800 font-black text-[9.5px] rounded-md border border-slate-200">
+                  Base: ₹${tourney.playerEntryFee || 300}
+                </span>
+                <span class="text-slate-300">•</span>
+                <span class="px-2 py-0.5 bg-purple-50 text-purple-900 font-black text-[9.5px] rounded-md border border-purple-200">
+                  Icon Player: ₹${tourney.iconPrice || 2000}
+                </span>
+              </div>
+            </div>
+
+            <!-- 4. Eligibility & Geographic Restriction -->
+            <div class="p-3.5 bg-gradient-to-br from-slate-50 to-white rounded-2xl border border-slate-200/90 shadow-2xs hover:border-rose-400 transition-all space-y-1.5">
+              <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2">
+                  <span class="w-7 h-7 rounded-xl bg-rose-100 text-rose-800 flex items-center justify-center text-xs font-black shrink-0">
+                    📍
+                  </span>
+                  <span class="font-black text-slate-900 text-xs">Player Eligibility</span>
+                </div>
+                <span class="px-2 py-0.5 bg-rose-100 text-rose-900 font-black text-[9.5px] rounded-lg shrink-0">
+                  ID Verified
+                </span>
+              </div>
+              <p class="text-[11px] text-slate-700 font-semibold leading-relaxed">
+                ${tourney.ruleRestriction || 'Open to all registered and verified local players. Mandatory Aadhaar ID card verification at venue.'}
+              </p>
+            </div>
+
+          </div>
+
+          <!-- Custom Additional Notes (if organizer provided custom rules text) -->
+          ${tourney.rulesText || tourney.rules_text || tourney.additionalInfo ? `
+            <div class="p-3 bg-amber-50/70 rounded-2xl border border-amber-200 text-xs space-y-1">
+              <span class="text-[9px] font-black text-amber-950 uppercase block">Organizer's Special Instructions:</span>
+              <p class="text-[11px] text-slate-800 font-semibold leading-relaxed">
+                ${tourney.rulesText || tourney.rules_text || tourney.additionalInfo}
+              </p>
             </div>
           ` : ''}
         </div>
 
-        <!-- HIGHLIGHTED RED REGISTRATION LINK (IF AUCTION MODE & REG OPEN) -->
-        ${isAuction && store.isRegistrationOpen() ? `
-          <div class="p-4 bg-gradient-to-r from-red-600 via-rose-600 to-red-700 rounded-2xl mx-3 shadow-xl text-white text-center space-y-2 border-2 border-red-400 animate-pulse">
-            <div class="text-sm sm:text-base font-black tracking-wide">🏏 PLAYER REGISTRATIONS ARE ACTIVE!</div>
-            <p class="text-xs text-red-100 font-medium">Join the grand player auction pool for ₹${tourney.entryFee || 300} and get drafted into top franchise teams.</p>
-            <button id="btn-home-hero-reg-link" class="w-full sm:w-auto px-8 py-3 bg-white hover:bg-slate-100 text-red-700 font-black text-sm rounded-xl shadow-lg cursor-pointer transition-all hover:scale-105 border border-red-200">
-              📝 Register for ${tourney.name} Now ➔
-            </button>
-          </div>
-        ` : isAuction ? `
-          <div class="p-4 bg-gradient-to-r from-slate-600 via-slate-700 to-slate-800 rounded-2xl mx-3 shadow-xl text-white text-center space-y-2 border-2 border-slate-400">
-            <div class="text-sm sm:text-base font-black tracking-wide">🔒 PLAYER REGISTRATIONS ARE CLOSED</div>
-            <p class="text-xs text-slate-300 font-medium">${store.getRegistrationSettings().closedReason || 'Registration is currently closed by the Admin.'}</p>
-          </div>
-        ` : ''}
       </div>
 
       <!-- ========================================== -->
       <!-- TAB 2: 🛡️ TEAMS                             -->
       <!-- ========================================== -->
-      <div id="hub-tab-teams" class="${hubTab === 'teams' ? '' : 'hidden'} p-3 sm:p-4 space-y-4">
-        <div class="flex items-center justify-between">
-          <h3 class="text-sm font-black text-slate-800 flex items-center gap-1.5">
-            <span>🛡️</span> Participating Teams (${allTeams.length})
-          </h3>
-          ${isTourneyAdmin ? `
-            <span class="text-[10px] font-black text-amber-800 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-300">
-              👑 Admin Team Edit Enabled
+      <div id="hub-tab-teams" class="${hubTab === 'teams' ? '' : 'hidden'} space-y-3 animate-fade-in">
+        
+        <!-- Clean Header -->
+        <div class="flex items-center justify-between px-1">
+          <div class="flex items-center gap-2">
+            <span class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center text-sm font-black shadow-xs">
+              🛡️
             </span>
-          ` : ''}
+            <div>
+              <h3 class="text-sm sm:text-base font-black text-slate-900 leading-tight">
+                Franchise Teams (${allTeams.length})
+              </h3>
+              <p class="text-[10px] text-slate-400 font-bold">Participating Teams & Squad Roster</p>
+            </div>
+          </div>
+          <span class="px-2.5 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-black rounded-full border border-slate-200 uppercase">
+            ${allTeams.length} Active
+          </span>
         </div>
 
         ${allTeams.length > 0 ? `
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             ${allTeams.map((t, idx) => {
               const teamSquad = allPlayers.filter(p => p.teamId === t.id);
               const logo = t.logoUrl || t.teamLogoUrl || generateUniqueTeamBadge(t.name, idx);
 
               return `
-                <div class="bg-white rounded-2xl border-2 border-slate-200 hover:border-indigo-500 shadow-sm hover:shadow-md transition-all overflow-hidden flex flex-col justify-between">
-                  <!-- Team Header Banner -->
-                  <div class="p-3.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between gap-3">
-                    <div class="flex items-center gap-3 min-w-0">
-                      <div class="w-12 h-12 rounded-xl bg-white border-2 border-slate-300 shadow-2xs overflow-hidden flex items-center justify-center shrink-0">
-                        <img src="${logo}" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' viewBox=\\'0 0 100 100\\'%3E%3Crect width=\\'100\\' height=\\'100\\' fill=\\'%230F2C59\\'/%3E%3Ctext x=\\'50\\' y=\\'60\\' font-size=\\'40\\' text-anchor=\\'middle\\' fill=\\'white\\'%3E🏏%3C/text%3E%3C/svg%3E'" />
+                <div class="bg-white rounded-3xl p-3.5 sm:p-4 border border-slate-200/90 shadow-sm hover:shadow-md hover:border-emerald-400 transition-all space-y-3 flex flex-col justify-between">
+                  
+                  <!-- Header: Logo, Name, Badge, Edit -->
+                  <div class="flex items-center justify-between gap-2.5">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                      <div class="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-200/80 overflow-hidden flex items-center justify-center shrink-0 p-0.5 shadow-2xs">
+                        <img src="${logo}" class="w-full h-full object-cover rounded-xl" onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' viewBox=\\'0 0 100 100\\'%3E%3Crect width=\\'100\\' height=\\'100\\' fill=\\'%230F2C59\\'/%3E%3Ctext x=\\'50\\' y=\\'60\\' font-size=\\'40\\' text-anchor=\\'middle\\' fill=\\'white\\'%3E🏏%3C/text%3E%3C/svg%3E'" />
                       </div>
                       <div class="min-w-0">
-                        <h4 class="text-sm sm:text-base font-black text-slate-900 truncate leading-tight">${t.name}</h4>
-                        <span class="text-[10px] font-bold text-slate-500">${teamSquad.length} Players Drafted</span>
+                        <h4 class="text-xs sm:text-sm font-black text-slate-900 truncate leading-tight uppercase">${t.name}</h4>
+                        <div class="flex items-center gap-1.5 mt-1">
+                          <span class="px-2.5 py-0.5 bg-emerald-50 text-emerald-800 font-black text-[9.5px] rounded-full border border-emerald-200/90">
+                            ${teamSquad.length} Players Drafted
+                          </span>
+                        </div>
                       </div>
                     </div>
 
                     ${isTourneyAdmin ? `
-                      <button type="button" class="btn-hub-edit-team px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-lg text-[10px] font-black cursor-pointer shrink-0 shadow-2xs" data-team-id="${t.id}">
-                        ✏️ Edit Team
+                      <button type="button" class="btn-hub-edit-team px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-[10px] font-black cursor-pointer shrink-0 shadow-2xs transition-all" data-team-id="${t.id}">
+                        ✏️ Edit
                       </button>
                     ` : ''}
                   </div>
 
-                  <!-- Key Personnel Pods -->
-                  <div class="p-3 space-y-2 text-xs">
-                    <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                      <!-- Owner -->
-                      <div class="p-2 bg-amber-50/70 border border-amber-200 rounded-xl text-center">
-                        <div class="w-8 h-8 rounded-lg mx-auto mb-1 overflow-hidden bg-amber-100 flex items-center justify-center border border-amber-300 shadow-2xs">
-                          ${t.ownerPhotoUrl || t.ownerPhoto ? `<img src="${t.ownerPhotoUrl || t.ownerPhoto}" class="w-full h-full object-cover" />` : `<span>👑</span>`}
-                        </div>
-                        <span class="text-[8px] font-black uppercase text-amber-900 block">Owner</span>
-                        <span class="text-[11px] font-black text-slate-900 truncate block">${t.ownerName || 'TBD'}</span>
+                  <!-- Colorful Fine Background Personnel Strip -->
+                  <div class="grid grid-cols-2 ${t.mentorName || t.coOwnerName ? 'sm:grid-cols-3' : 'grid-cols-2'} gap-2 text-xs">
+                    <!-- Owner -->
+                    <div class="p-2 bg-gradient-to-r from-amber-50/90 to-amber-100/50 border border-amber-200/90 rounded-2xl flex items-center gap-2 min-w-0 shadow-2xs">
+                      <div class="w-7 h-7 rounded-xl overflow-hidden bg-amber-200/80 border border-amber-300/80 flex items-center justify-center shrink-0 text-xs shadow-2xs">
+                        ${t.ownerPhotoUrl || t.ownerPhoto ? `<img src="${t.ownerPhotoUrl || t.ownerPhoto}" class="w-full h-full object-cover" />` : `<span>👑</span>`}
                       </div>
-
-                      <!-- Icon Player -->
-                      <div class="p-2 bg-emerald-50/70 border border-emerald-200 rounded-xl text-center">
-                        <div class="w-8 h-8 rounded-lg mx-auto mb-1 overflow-hidden bg-emerald-100 flex items-center justify-center border border-emerald-300 shadow-2xs">
-                          ${t.iconPlayerPhotoUrl || t.iconPhoto ? `<img src="${t.iconPlayerPhotoUrl || t.iconPhoto}" class="w-full h-full object-cover" />` : `<span>⭐</span>`}
-                        </div>
-                        <span class="text-[8px] font-black uppercase text-emerald-900 block">Icon</span>
-                        <span class="text-[11px] font-black text-slate-900 truncate block">${t.iconPlayerName || t.iconName || 'None'}</span>
-                      </div>
-
-                      <!-- Mentor / Co-Owner -->
-                      <div class="p-2 bg-purple-50/70 border border-purple-200 rounded-xl text-center col-span-2 sm:col-span-1">
-                        <div class="w-8 h-8 rounded-lg mx-auto mb-1 overflow-hidden bg-purple-100 flex items-center justify-center border border-purple-300 shadow-2xs">
-                          ${t.mentorPhotoUrl || t.coOwnerPhotoUrl ? `<img src="${t.mentorPhotoUrl || t.coOwnerPhotoUrl}" class="w-full h-full object-cover" />` : `<span>🧠</span>`}
-                        </div>
-                        <span class="text-[8px] font-black uppercase text-purple-900 block">${t.mentorName ? 'Mentor' : 'Co-Owner'}</span>
-                        <span class="text-[11px] font-black text-slate-900 truncate block">${t.mentorName || t.coOwnerName || 'N/A'}</span>
+                      <div class="min-w-0">
+                        <span class="text-[8px] font-black uppercase text-amber-900 block leading-none">Owner</span>
+                        <span class="text-[11px] font-bold text-slate-900 truncate block mt-0.5">${t.ownerName || 'TBD'}</span>
                       </div>
                     </div>
 
-                    <!-- View Squad Button -->
-                    <button class="hub-view-squad-btn w-full py-2 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl shadow-xs flex items-center justify-center gap-1.5 cursor-pointer mt-1" data-team-id="${t.id}">
-                      <span>View Full Squad (${teamSquad.length} Players)</span>
-                    </button>
+                    <!-- Icon Player -->
+                    <div class="p-2 bg-gradient-to-r from-emerald-50/90 to-teal-50/90 border border-emerald-200/90 rounded-2xl flex items-center gap-2 min-w-0 shadow-2xs">
+                      <div class="w-7 h-7 rounded-xl overflow-hidden bg-emerald-200/80 border border-emerald-300/80 flex items-center justify-center shrink-0 text-xs shadow-2xs">
+                        ${t.iconPlayerPhotoUrl || t.iconPhoto ? `<img src="${t.iconPlayerPhotoUrl || t.iconPhoto}" class="w-full h-full object-cover" />` : `<span>⭐</span>`}
+                      </div>
+                      <div class="min-w-0">
+                        <span class="text-[8px] font-black uppercase text-emerald-900 block leading-none">Icon</span>
+                        <span class="text-[11px] font-bold text-slate-900 truncate block mt-0.5">${t.iconPlayerName || t.iconName || 'None'}</span>
+                      </div>
+                    </div>
+
+                    <!-- Mentor (if present) -->
+                    ${t.mentorName || t.coOwnerName ? `
+                      <div class="p-2 bg-gradient-to-r from-purple-50/90 to-indigo-50/90 border border-purple-200/90 rounded-2xl flex items-center gap-2 min-w-0 col-span-2 sm:col-span-1 shadow-2xs">
+                        <div class="w-7 h-7 rounded-xl overflow-hidden bg-purple-200/80 border border-purple-300/80 flex items-center justify-center shrink-0 text-xs shadow-2xs">
+                          ${t.mentorPhotoUrl || t.coOwnerPhotoUrl ? `<img src="${t.mentorPhotoUrl || t.coOwnerPhotoUrl}" class="w-full h-full object-cover" />` : `<span>🧠</span>`}
+                        </div>
+                        <div class="min-w-0">
+                          <span class="text-[8px] font-black uppercase text-purple-900 block leading-none">${t.mentorName ? 'Mentor' : 'Co-Owner'}</span>
+                          <span class="text-[11px] font-bold text-slate-900 truncate block mt-0.5">${t.mentorName || t.coOwnerName}</span>
+                        </div>
+                      </div>
+                    ` : ''}
                   </div>
+
+                  <!-- View Squad Button -->
+                  <button type="button" class="hub-view-squad-btn w-full py-2.5 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 hover:from-emerald-700 hover:to-teal-800 text-white font-black text-xs rounded-2xl shadow-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95" data-team-id="${t.id}">
+                    <span>View Full Squad (${teamSquad.length} Players) ➔</span>
+                  </button>
                 </div>
               `;
             }).join('')}
           </div>
         ` : `
-          <div class="text-center py-12 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-2">
+          <div class="text-center py-12 bg-white rounded-3xl border border-slate-200/90 shadow-sm space-y-2">
             <div class="text-3xl">🛡️</div>
             <p class="text-sm font-bold text-slate-700">No teams created yet</p>
             <p class="text-xs text-slate-400">Teams will be listed here once assigned by the tournament organizer.</p>
@@ -1885,56 +2527,90 @@ export function renderCustomTournamentHub(container, tourney) {
       </div>
 
       <!-- ============================================================= -->
-      <!-- TAB 3: 👥 REGISTERED PLAYERS (Square Photos, Masked Phone)    -->
+      <!-- TAB 3: 👥 REGISTERED PLAYERS (Classic Emerald Frame Design)    -->
       <!-- ============================================================= -->
       ${isAuction ? `
-        <div id="hub-tab-players" class="${hubTab === 'players' ? '' : 'hidden'} p-3 sm:p-4 space-y-4">
-          <div class="flex items-center justify-between gap-2">
-            <div>
-              <h3 class="text-sm font-black text-slate-900">Registered Players (${displayPlayers.length})</h3>
-              <p class="text-[11px] text-slate-500 font-semibold">Click "View Profile" to see complete player credentials</p>
-            </div>
-            <span class="text-[10px] font-black text-emerald-800 bg-emerald-100 px-2.5 py-1 rounded-full border border-emerald-300 shrink-0">
+        <div id="hub-tab-players" class="${hubTab === 'players' ? '' : 'hidden'} space-y-3 animate-fade-in">
+          
+          <!-- Header Strip -->
+          <div class="flex items-center justify-between gap-2 px-1">
+            <h3 class="text-base sm:text-lg font-black text-slate-900">
+              Registered Player List (<span id="hub-player-count-display">${displayPlayers.length}</span>)
+            </h3>
+            <span class="text-[10px] font-black text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-300 shrink-0">
               ${displayPlayers.filter(p => (p.registrationStatus || p.paymentStatus) === 'APPROVED').length} Verified
             </span>
           </div>
 
+          <!-- Real-Time Search Bar -->
+          <div class="relative w-full">
+            <input type="text" id="hub-player-search-input" placeholder="🔍 Search player by name, Reg ID (JSL2026-0001), phone, village..." class="w-full pl-9 pr-8 py-2.5 bg-white border border-slate-200 rounded-2xl text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 shadow-2xs transition-all" />
+            <span class="absolute left-3 top-2.5 text-slate-400 text-xs">🔍</span>
+            <button type="button" id="hub-player-search-clear" class="absolute right-3 top-2 text-slate-300 hover:text-slate-600 text-xs font-black hidden cursor-pointer">✕</button>
+          </div>
+
+          <!-- Category Filter Pills (Scrollable) -->
+          <div class="flex items-center gap-1.5 overflow-x-auto scrollbar-hide py-0.5">
+            <button type="button" data-cat-filter="all" class="hub-cat-filter-btn px-3.5 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1 shrink-0 bg-emerald-700 text-white shadow-xs">
+              <span>🏏</span> <span>All (${displayPlayers.length})</span>
+            </button>
+            <button type="button" data-cat-filter="batsman" class="hub-cat-filter-btn px-3.5 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1 shrink-0 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200">
+              <span>🏏</span> <span>Batsman</span>
+            </button>
+            <button type="button" data-cat-filter="bowler" class="hub-cat-filter-btn px-3.5 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1 shrink-0 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200">
+              <span>⚾</span> <span>Bowler</span>
+            </button>
+            <button type="button" data-cat-filter="allrounder" class="hub-cat-filter-btn px-3.5 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1 shrink-0 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200">
+              <span>⭐</span> <span>All Rounder</span>
+            </button>
+            <button type="button" data-cat-filter="wicketkeeper" class="hub-cat-filter-btn px-3.5 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1 shrink-0 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200">
+              <span>🧤</span> <span>Wicket Keeper</span>
+            </button>
+          </div>
+
+          <!-- No Search Results Found Alert -->
+          <div id="hub-player-no-results" class="hidden text-center py-10 bg-white rounded-3xl border border-slate-200 shadow-xs space-y-2">
+            <div class="text-2xl">🔍</div>
+            <p class="text-xs font-black text-slate-800">No matching players found</p>
+            <p class="text-[11px] text-slate-400">Try searching with a different name, serial number, or role category.</p>
+          </div>
+
           ${displayPlayers.length > 0 ? `
-            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+            <div id="hub-players-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
               ${displayPlayers.map((p, idx) => {
                 const serial = String(p.displayRegistrationNumber || p.serialNo || (idx + 1)).padStart(2, '0');
                 const isApproved = (p.registrationStatus || p.paymentStatus) === 'APPROVED';
                 const photo = p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png';
+                const regCode = `${(tourney.shortCode || 'JSL').toUpperCase()}-2026-${String(serial).padStart(4, '0')}`;
+                const searchTokens = `${p.name || ''} ${p.mobile || p.phone || ''} ${serial} ${regCode} ${p.village || ''} ${p.address || ''} ${p.category || ''} ${p.role || ''}`.toLowerCase();
+                const rawCat = (p.category || p.role || 'allrounder').toLowerCase().replace(/[^a-z]/g, '');
 
                 return `
-                  <div class="bg-white p-2.5 rounded-2xl border-2 border-slate-200 hover:border-emerald-500 shadow-xs hover:shadow-md transition-all flex flex-col justify-between text-center group">
-                    <!-- Square 1:1 Player Picture -->
-                    <div class="w-full aspect-square rounded-xl bg-slate-100 border border-slate-200 overflow-hidden relative mb-2 shadow-2xs">
+                  <div class="hub-player-card bg-white p-2.5 sm:p-3 rounded-3xl border border-slate-200/90 shadow-sm hover:shadow-md transition-all flex flex-col justify-between text-center group" data-search="${searchTokens}" data-category="${rawCat}">
+                    <!-- Square 1:1 Player Picture with Signature Emerald Green Frame -->
+                    <div class="w-full aspect-square rounded-2xl border-2 sm:border-[2.5px] border-emerald-500 overflow-hidden relative mb-2.5 shadow-2xs bg-slate-50">
                       <img src="${photo}" class="w-full h-full object-cover group-hover:scale-105 transition-transform" onerror="this.src='assets/card_jsl_user.png'" />
-                      <span class="absolute top-1.5 left-1.5 px-2 py-0.5 bg-slate-900/90 text-amber-300 font-mono font-black text-[10px] rounded border border-amber-400/50 shadow">
+                      <span class="absolute top-2 left-2 px-2 py-0.5 bg-black/90 text-amber-300 font-mono font-black text-[11px] rounded-lg border border-amber-400/80 shadow">
                         #${serial}
                       </span>
-                      <span class="absolute top-1.5 right-1.5 w-3 h-3 rounded-full ${isApproved ? 'bg-emerald-500' : 'bg-amber-400'} border-2 border-white shadow"></span>
+                      <span class="absolute top-2 right-2 w-3.5 h-3.5 rounded-full ${isApproved ? 'bg-emerald-500' : 'bg-amber-400'} ring-2 ring-white shadow"></span>
                     </div>
 
-                    <!-- Name & Category -->
-                    <div class="space-y-0.5 mb-2">
-                      <h4 class="text-xs font-black text-slate-900 truncate leading-tight">${p.name}</h4>
-                      <span class="inline-block px-2 py-0.5 bg-slate-100 text-slate-700 text-[8.5px] font-black uppercase rounded-full border border-slate-200">
-                        ${p.category || p.role || 'All Rounder'}
-                      </span>
+                    <!-- Centered Player Name -->
+                    <div class="mb-2 min-w-0">
+                      <h4 class="text-xs sm:text-sm font-bold text-slate-900 truncate leading-tight py-0.5">${p.name}</h4>
                     </div>
 
-                    <!-- View Profile Button -->
-                    <button class="hub-view-profile-btn w-full py-1.5 bg-slate-900 hover:bg-slate-800 text-white font-black text-[10px] rounded-xl shadow-xs flex items-center justify-center gap-1 cursor-pointer transition-colors" data-player-id="${p.id}">
-                      <i data-lucide="user" class="w-3 h-3 text-amber-400"></i> View Profile
+                    <!-- Pill Button: View Profile -->
+                    <button type="button" class="hub-view-profile-btn w-full py-2 bg-[#0F172A] hover:bg-[#1E293B] text-white font-bold text-xs rounded-full shadow-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95" data-player-id="${p.id}">
+                      <span>👤 View Profile</span>
                     </button>
                   </div>
                 `;
               }).join('')}
             </div>
           ` : `
-            <div class="text-center py-12 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-2">
+            <div class="text-center py-12 bg-white rounded-3xl border border-slate-200/90 shadow-sm space-y-2">
               <div class="text-3xl">📝</div>
               <p class="text-sm font-bold text-slate-700">No players registered yet</p>
               <button id="btn-tab-open-reg-empty" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow cursor-pointer">
@@ -1946,103 +2622,208 @@ export function renderCustomTournamentHub(container, tourney) {
       ` : ''}
 
       <!-- ============================================================= -->
-      <!-- TAB 4: 🔨 AUCTION ARCHIVE & SUMMARY PORTAL (5-YEAR RECORD)     -->
+      <!-- TAB 4: 🔨 AUCTION ARCHIVE & SUMMARY PORTAL (FULL SQUAD & ROSTER) -->
       <!-- ============================================================= -->
       ${isAuction ? `
-        <div id="hub-tab-auction" class="${hubTab === 'auction' ? '' : 'hidden'} p-3 sm:p-4 space-y-4">
+        <div id="hub-tab-auction" class="${hubTab === 'auction' ? '' : 'hidden'} space-y-3 animate-fade-in">
           
-          <!-- PREVIOUS AUCTION SUMMARY HEADER BANNER -->
-          <div class="bg-white p-4 sm:p-5 rounded-3xl border-2 border-slate-200 shadow-sm space-y-3">
-            <div class="flex items-start justify-between gap-2">
-              <div class="flex items-center gap-3">
-                <div class="w-12 h-12 rounded-2xl bg-amber-50 border border-amber-200 text-2xl flex items-center justify-center shadow-2xs shrink-0">
-                  📜
-                </div>
-                <div>
-                  <div class="flex items-center gap-2">
-                    <span class="text-[9px] font-black uppercase text-amber-900 tracking-wider">PREVIOUS AUCTION SUMMARY</span>
-                    <span class="px-2 py-0.5 bg-emerald-50 text-emerald-800 text-[8.5px] font-black rounded-full border border-emerald-300 flex items-center gap-1">
-                      🔒 5-YEAR ARCHIVE
+          <!-- AUCTION MASTER PORTAL HEADER BANNER -->
+          <div class="bg-white p-3.5 sm:p-4.5 rounded-3xl border border-slate-200/90 shadow-xs space-y-3">
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <span class="w-10 h-10 rounded-2xl bg-amber-50 text-amber-900 border border-amber-200 text-xl flex items-center justify-center shadow-2xs shrink-0">
+                  🏆
+                </span>
+                <div class="min-w-0">
+                  <div class="flex items-center gap-1.5 flex-wrap">
+                    <span class="px-2 py-0.5 bg-amber-100 text-amber-950 font-black text-[9px] rounded-md uppercase tracking-wider">
+                      PERMANENT 5-YEAR RECORD
+                    </span>
+                    <span class="px-2 py-0.5 bg-emerald-50 text-emerald-800 text-[8.5px] font-black rounded-md border border-emerald-300">
+                      🔒 LOCKED & PRESERVED
                     </span>
                   </div>
-                  <h3 class="text-sm sm:text-base font-black text-slate-900 leading-tight mt-0.5">
-                    ${tourney.name} Final Auction Summary & Roster Archives
+                  <h3 class="text-sm sm:text-base font-black text-slate-950 leading-tight mt-0.5">
+                    ${tourney.name} Official Final Auction Summary
                   </h3>
                 </div>
               </div>
 
-              <span class="px-2.5 py-1 bg-emerald-50 text-emerald-700 text-[10px] font-black rounded-full border border-emerald-300 flex items-center gap-1 shrink-0">
-                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                Auction Completed
+              <span class="px-2.5 py-1 bg-emerald-50 text-emerald-800 text-[10px] font-black rounded-full border border-emerald-300 flex items-center gap-1 shrink-0">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Completed
               </span>
             </div>
 
-            <p class="text-xs text-slate-500 font-medium">
-              All ${allTeams.length} franchise squads, player sold values, icon player ⭐ allocations, and purse balances are permanently preserved in the ${tourney.shortCode || 'TOURNAMENT'} Master Archive.
-            </p>
-
-            <!-- 3 ACTION BUTTONS -->
-            <div class="pt-1 flex flex-wrap items-center gap-2">
-              <button id="btn-open-final-auction-summary-modal" class="px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-sm flex items-center gap-1.5 cursor-pointer transition-all hover:scale-102">
-                <span>🏆</span> View Final Auction Summary
+            <!-- AUCTION SUB-TABS (Overview, Team Squads, All Players) -->
+            <div class="flex items-center gap-1.5 overflow-x-auto scrollbar-hide py-1 border-t border-slate-100 pt-2.5">
+              <button type="button" id="auction-portal-subtab-overview" class="auction-portal-tab-btn px-3.5 py-2 rounded-xl text-xs font-black transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 bg-amber-500 text-slate-950 shadow-xs">
+                <span>📊</span> Overview & Top Buys
               </button>
-              <button id="btn-download-all-squads-pdf" class="px-4 py-2.5 bg-emerald-700 hover:bg-emerald-600 text-white font-black text-xs rounded-xl shadow-sm flex items-center gap-1.5 cursor-pointer transition-all">
-                <span>📑</span> All Squads PDF
+              <button type="button" id="auction-portal-subtab-squads" class="auction-portal-tab-btn px-3.5 py-2 rounded-xl text-xs font-black transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200">
+                <span>🛡️</span> Team Squads (${allTeams.length})
               </button>
-              <button id="btn-download-json-backup" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-black text-xs rounded-xl border border-slate-300 flex items-center gap-1.5 cursor-pointer transition-all">
-                <span>💾</span> JSON Backup
+              <button type="button" id="auction-portal-subtab-players" class="auction-portal-tab-btn px-3.5 py-2 rounded-xl text-xs font-black transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200">
+                <span>📋</span> All Players (${allPlayers.length})
               </button>
+              
+              <div class="ml-auto flex items-center gap-1.5 shrink-0 pl-2">
+                <button type="button" id="btn-download-all-squads-pdf" class="px-3 py-2 bg-emerald-700 hover:bg-emerald-600 text-white font-black text-xs rounded-xl shadow-xs flex items-center gap-1 cursor-pointer transition-all active:scale-95">
+                  <span>📑</span> All Squads PDF
+                </button>
+                <button type="button" id="btn-download-json-backup" class="px-3 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-xs flex items-center gap-1 cursor-pointer transition-all active:scale-95">
+                  <span>📥</span> JSON Archive
+                </button>
+              </div>
             </div>
           </div>
 
-          <!-- TOP 8 HIGHEST BUYS INLINE PREVIEW -->
-          <div class="bg-white p-4 rounded-3xl border-2 border-slate-200 shadow-sm space-y-3">
-            <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
-              <h4 class="text-xs font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-                <span>🔥</span> TOP HIGHEST BUYS OF ${tourney.name} AUCTION
-              </h4>
-              <span class="text-[10px] font-bold text-slate-400">Top Bids</span>
+          <!-- SUB-VIEW 1: OVERVIEW & TOP BUYS -->
+          <div id="auction-subview-overview" class="space-y-3 animate-fade-in">
+            <!-- 4 Core Financial Metrics -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              <div class="p-3 bg-amber-50/80 border border-amber-200/90 rounded-2xl text-center space-y-0.5 shadow-2xs">
+                <span class="text-[8.5px] font-black uppercase text-amber-900 tracking-wider">TOTAL PURSE</span>
+                <div class="text-sm sm:text-lg font-black text-slate-900 font-mono">₹ ${(allTeams.length * 8000).toLocaleString('en-IN')}</div>
+              </div>
+              <div class="p-3 bg-rose-50/80 border border-rose-200/90 rounded-2xl text-center space-y-0.5 shadow-2xs">
+                <span class="text-[8.5px] font-black uppercase text-rose-900 tracking-wider">AUCTION SPENT</span>
+                <div class="text-sm sm:text-lg font-black text-rose-700 font-mono">₹ ${allPlayers.reduce((sum, p) => sum + Number(p.soldPrice || p.boughtPrice || 0), 0).toLocaleString('en-IN')}</div>
+              </div>
+              <div class="p-3 bg-emerald-50/80 border border-emerald-200/90 rounded-2xl text-center space-y-0.5 shadow-2xs">
+                <span class="text-[8.5px] font-black uppercase text-emerald-900 tracking-wider">REMAINING PURSE</span>
+                <div class="text-sm sm:text-lg font-black text-emerald-700 font-mono">₹ ${Math.max(0, (allTeams.length * 8000) - allPlayers.reduce((sum, p) => sum + Number(p.soldPrice || p.boughtPrice || 0), 0)).toLocaleString('en-IN')}</div>
+              </div>
+              <div class="p-3 bg-sky-50/80 border border-sky-200/90 rounded-2xl text-center space-y-0.5 shadow-2xs">
+                <span class="text-[8.5px] font-black uppercase text-sky-900 tracking-wider">PLAYERS SOLD</span>
+                <div class="text-sm sm:text-lg font-black text-sky-800 font-mono">${allPlayers.filter(p => Number(p.soldPrice || p.boughtPrice || 0) > 0 || p.teamId).length} / ${allPlayers.length}</div>
+              </div>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              ${(() => {
-                const sortedSold = allPlayers.filter(p => (Number(p.soldPrice || p.boughtPrice || 0) > 0)).sort((a, b) => (Number(b.soldPrice || b.boughtPrice || 0) - Number(a.soldPrice || a.boughtPrice || 0))).slice(0, 8);
-                
-                if (sortedSold.length === 0) {
-                  return `<div class="col-span-2 text-center py-6 text-xs text-slate-400 font-bold">No sold players recorded in auction yet.</div>`;
-                }
+            <!-- Top 8 Highest Buys Cards -->
+            <div class="bg-white p-3.5 sm:p-4.5 rounded-3xl border border-slate-200/90 shadow-xs space-y-2.5">
+              <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                <h4 class="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <span>🔥</span> Top Highest Buys of ${tourney.name} Auction
+                </h4>
+                <span class="text-[9.5px] font-black text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">Top 8 Bids</span>
+              </div>
 
-                return sortedSold.map((p, idx) => {
-                  const team = allTeams.find(t => t.id === p.teamId);
-                  const soldAmt = Number(p.soldPrice || p.boughtPrice || 0);
-                  const photo = p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png';
-
-                  return `
-                    <div class="p-3 bg-slate-50/70 border border-slate-200 rounded-2xl flex items-center justify-between gap-2.5 hover:border-amber-400 hover:bg-amber-50/20 transition-all">
-                      <div class="flex items-center gap-2.5 min-w-0">
-                        <span class="w-6 h-6 rounded-lg bg-amber-100 text-amber-900 border border-amber-300 font-mono font-black text-[10px] flex items-center justify-center shrink-0">
-                          #${idx + 1}
-                        </span>
-                        <div class="w-10 h-10 rounded-xl bg-white border border-slate-200 overflow-hidden shrink-0 shadow-2xs">
-                          <img src="${photo}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
-                        </div>
-                        <div class="min-w-0">
-                          <h5 class="text-xs font-black text-slate-900 truncate leading-tight">${p.name}</h5>
-                          <div class="text-[10px] font-bold text-slate-600 truncate flex items-center gap-1">
-                            <span>🛡️</span> ${team?.name || p.teamName || 'Franchise Team'}
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                ${(() => {
+                  const sortedSold = allPlayers.filter(p => (Number(p.soldPrice || p.boughtPrice || 0) > 0)).sort((a, b) => (Number(b.soldPrice || b.boughtPrice || 0) - Number(a.soldPrice || a.boughtPrice || 0))).slice(0, 8);
+                  if (sortedSold.length === 0) {
+                    return `<div class="col-span-2 text-center py-6 text-xs text-slate-400 font-bold">No sold players recorded in auction yet.</div>`;
+                  }
+                  return sortedSold.map((p, idx) => {
+                    const team = allTeams.find(t => t.id === p.teamId);
+                    const soldAmt = Number(p.soldPrice || p.boughtPrice || 0);
+                    const photo = p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png';
+                    return `
+                      <div class="p-2.5 bg-slate-50/80 border border-slate-200/80 rounded-2xl flex items-center justify-between gap-2.5 hover:border-amber-400 hover:bg-amber-50/20 transition-all">
+                        <div class="flex items-center gap-2.5 min-w-0">
+                          <span class="w-6 h-6 rounded-lg bg-amber-100 text-amber-900 border border-amber-300 font-mono font-black text-[10px] flex items-center justify-center shrink-0">
+                            #${idx + 1}
+                          </span>
+                          <div class="w-10 h-10 rounded-xl bg-white border border-slate-200 overflow-hidden shrink-0 shadow-2xs">
+                            <img src="${photo}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
                           </div>
-                          <span class="text-[9px] text-slate-400 font-medium">${p.category || 'All-rounder'}</span>
+                          <div class="min-w-0">
+                            <h5 class="text-xs font-black text-slate-900 truncate leading-tight">${p.name}</h5>
+                            <div class="text-[10px] font-bold text-slate-500 truncate flex items-center gap-1 mt-0.5">
+                              <span>🛡️</span> <span class="truncate">${team?.name || p.teamName || 'Franchise Team'}</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div class="text-right shrink-0">
+                          <div class="text-xs sm:text-sm font-mono font-black text-emerald-700">₹ ${soldAmt.toLocaleString('en-IN')}</div>
+                          <span class="text-[7.5px] font-black uppercase text-slate-400 block tracking-wider leading-none">FINAL BID</span>
                         </div>
                       </div>
+                    `;
+                  }).join('');
+                })()}
+              </div>
+            </div>
+          </div>
 
-                      <div class="text-right shrink-0">
-                        <div class="text-xs sm:text-sm font-mono font-black text-emerald-700">₹ ${soldAmt.toLocaleString('en-IN')}</div>
-                        <span class="text-[8px] font-black uppercase text-slate-400 block tracking-wider">FINAL BID</span>
-                      </div>
-                    </div>
-                  `;
-                }).join('');
-              })()}
+          <!-- SUB-VIEW 2: TEAM SQUADS ROSTER (WITH TEAM SWITCHER PILLS) -->
+          <div id="auction-subview-squads" class="hidden space-y-3 animate-fade-in">
+            <!-- Team Switcher Pills -->
+            <div class="flex items-center gap-1.5 overflow-x-auto scrollbar-hide py-1">
+              ${allTeams.map((t, idx) => `
+                <button type="button" data-auction-team-id="${t.id}" class="auction-team-filter-pill px-3.5 py-1.5 rounded-full text-xs font-black transition-all whitespace-nowrap cursor-pointer shrink-0 ${idx === 0 ? 'bg-amber-500 text-slate-950 shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'}">
+                  ${t.name}
+                </button>
+              `).join('')}
+            </div>
+
+            <!-- Team Squads Container (renders selected team roster) -->
+            <div id="auction-selected-team-roster-container">
+              <!-- Rendered via JS based on selected team -->
+            </div>
+          </div>
+
+          <!-- SUB-VIEW 3: ALL PLAYERS BUYING DETAILS & SEARCH -->
+          <div id="auction-subview-players" class="hidden space-y-3 animate-fade-in">
+            <!-- Search Bar -->
+            <div class="relative w-full">
+              <input type="text" id="auction-allplayers-search-input" placeholder="🔍 Search by player name, team, or village..." class="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:border-amber-500 shadow-2xs transition-all" />
+              <span class="absolute left-3 top-2.5 text-slate-400 text-xs">🔍</span>
+            </div>
+
+            <!-- All Players Table / Card List -->
+            <div class="bg-white rounded-3xl border border-slate-200/90 shadow-xs overflow-hidden">
+              <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs">
+                  <thead class="bg-slate-900 text-white text-[10px] font-black uppercase tracking-wider">
+                    <tr>
+                      <th class="p-3">Player</th>
+                      <th class="p-3">Role</th>
+                      <th class="p-3">Assigned Team</th>
+                      <th class="p-3">Village / Location</th>
+                      <th class="p-3 text-right">Final Bid</th>
+                    </tr>
+                  </thead>
+                  <tbody id="auction-allplayers-tbody" class="divide-y divide-slate-100 font-semibold text-slate-800">
+                    ${allPlayers.map((p, idx) => {
+                      const team = allTeams.find(t => t.id === p.teamId);
+                      const soldAmt = Number(p.soldPrice || p.boughtPrice || 0);
+                      const photo = p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png';
+                      const searchTokens = `${p.name || ''} ${team?.name || ''} ${p.village || ''} ${p.category || ''}`.toLowerCase();
+
+                      return `
+                        <tr class="auction-player-row hover:bg-amber-50/30 transition-colors" data-search="${searchTokens}">
+                          <td class="p-2.5">
+                            <div class="flex items-center gap-2">
+                              <div class="w-9 h-9 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden shrink-0 shadow-2xs">
+                                <img src="${photo}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
+                              </div>
+                              <div class="min-w-0">
+                                <span class="font-black text-slate-900 block leading-tight truncate">${p.name}</span>
+                                <span class="text-[9px] text-slate-400 font-mono">#${p.displayRegistrationNumber || p.serialNo || (idx + 1)}</span>
+                              </div>
+                            </div>
+                          </td>
+                          <td class="p-2.5 text-slate-600 font-medium">${p.category || p.role || 'All-rounder'}</td>
+                          <td class="p-2.5">
+                            ${team ? `
+                              <span class="px-2 py-0.5 bg-amber-50 text-amber-950 font-black text-[9.5px] rounded-md border border-amber-200/90 whitespace-nowrap">
+                                🛡️ ${team.name}
+                              </span>
+                            ` : `
+                              <span class="px-2 py-0.5 bg-slate-100 text-slate-500 font-bold text-[9.5px] rounded-md">Unassigned</span>
+                            `}
+                          </td>
+                          <td class="p-2.5 text-slate-500 truncate max-w-[130px]">${p.village || p.address || 'Local'}</td>
+                          <td class="p-2.5 text-right font-mono font-black text-xs ${soldAmt > 0 ? 'text-emerald-700' : 'text-slate-400'}">
+                            ${soldAmt > 0 ? `₹ ${soldAmt.toLocaleString('en-IN')}` : '-'}
+                          </td>
+                        </tr>
+                      `;
+                    }).join('')}
+                  </tbody>
+                </table>
+              </div>
             </div>
           </div>
 
@@ -2050,187 +2831,391 @@ export function renderCustomTournamentHub(container, tourney) {
       ` : ''}
 
       <!-- ============================================================= -->
-      <!-- TAB 5: 🏏 MATCH CORNER (Fixtures & Points Table)               -->
+      <!-- TAB 5: 🏏 MATCH CORNER (Fixtures & Group A/B Points Table)     -->
       <!-- ============================================================= -->
-      <div id="hub-tab-matches" class="${hubTab === 'matches' ? '' : 'hidden'} p-3 sm:p-4 space-y-4">
-        <!-- Subtabs: Fixtures vs Points Table -->
-        <div class="flex items-center gap-2 p-1 bg-slate-100 rounded-xl max-w-xs border border-slate-200">
-          <button id="hub-match-subtab-fixtures" class="flex-1 py-1.5 rounded-lg text-xs font-black bg-white text-slate-900 shadow-xs transition-all cursor-pointer">
-            📅 Matches (${allFixtures.length})
+      <div id="hub-tab-matches" class="${hubTab === 'matches' ? '' : 'hidden'} space-y-4 animate-fade-in">
+        <!-- Subtabs: Fixtures vs Points Table Switcher -->
+        <div class="flex items-center gap-2 p-1.5 bg-slate-100/90 rounded-2xl max-w-xs border border-slate-200/80 shadow-2xs">
+          <button id="hub-match-subtab-fixtures" class="flex-1 py-2 rounded-xl text-xs font-black bg-white text-slate-900 shadow-xs transition-all cursor-pointer flex items-center justify-center gap-1.5">
+            <span>🗓️</span> <span>Matches (${allFixtures.length})</span>
           </button>
-          <button id="hub-match-subtab-points" class="flex-1 py-1.5 rounded-lg text-xs font-black text-slate-500 hover:text-slate-900 transition-all cursor-pointer">
-            🏆 Points Table
+          <button id="hub-match-subtab-points" class="flex-1 py-2 rounded-xl text-xs font-black text-slate-600 hover:text-slate-900 transition-all cursor-pointer flex items-center justify-center gap-1.5">
+            <span>🏆</span> <span>Points Table</span>
           </button>
         </div>
 
         <!-- Section 1: Fixtures List -->
-        <div id="hub-matches-fixtures-container" class="space-y-3">
+        <div id="hub-matches-fixtures-container" class="space-y-3 animate-fade-in">
           ${allFixtures.length > 0 ? `
-            <div class="space-y-2.5">
+            <div class="space-y-3">
               ${allFixtures.map(f => {
                 const isLive = f.status === 'LIVE';
                 const isCompleted = f.status === 'COMPLETED';
+                const statusText = f.status || 'COMPLETED';
 
                 return `
-                  <div class="bg-white p-3.5 rounded-2xl border-2 ${isLive ? 'border-red-500 bg-red-50/20' : 'border-slate-200'} shadow-sm space-y-2">
-                    <div class="flex items-center justify-between text-[10px] font-black">
-                      <span class="text-slate-500 uppercase tracking-wider">Match #${f.matchNo || 1} • ${f.stage || f.groupCode || 'League Match'}</span>
-                      <span class="px-2 py-0.5 rounded-full text-[9px] ${isLive ? 'bg-red-500 text-white animate-pulse' : isCompleted ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-700'}">
-                        ${f.status || 'SCHEDULED'}
+                  <div class="bg-white p-4 sm:p-5 rounded-3xl border border-slate-200/90 shadow-sm hover:shadow-md transition-all space-y-3.5">
+                    <!-- Top Line: Match # & Status -->
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="text-[11px] font-black uppercase text-slate-500 tracking-wider">
+                        MATCH #${f.matchNo || 1} • ${f.stage || f.groupCode || 'GROUP_A'}
+                      </span>
+                      <span class="px-2.5 py-0.5 rounded-full text-[9.5px] font-black border ${isLive ? 'bg-red-500 text-white animate-pulse border-red-600' : isCompleted ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-slate-100 text-slate-700 border-slate-200'}">
+                        ${statusText}
                       </span>
                     </div>
 
-                    <div class="flex items-center justify-between gap-3 py-1">
+                    <!-- Middle Line: Team A vs Team B -->
+                    <div class="flex items-center justify-between gap-2 py-1">
                       <div class="flex-1 text-left min-w-0">
-                        <div class="text-xs sm:text-sm font-black text-slate-900 truncate">${f.teamAName || 'Team A'}</div>
-                        ${f.liveScoreTeamA ? `<div class="text-xs font-mono font-black text-slate-700">${f.liveScoreTeamA}</div>` : ''}
+                        <h4 class="text-sm sm:text-base font-black text-slate-900 truncate">${f.teamAName || 'Team A'}</h4>
+                        ${f.liveScoreTeamA ? `<div class="text-xs font-mono font-black text-slate-700 mt-0.5">${f.liveScoreTeamA}</div>` : ''}
                       </div>
 
-                      <span class="px-2 py-1 bg-slate-100 text-slate-500 font-black text-[10px] rounded-lg shrink-0">VS</span>
+                      <div class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 font-black text-[11px] flex items-center justify-center border border-slate-200 shrink-0 shadow-2xs">
+                        VS
+                      </div>
 
                       <div class="flex-1 text-right min-w-0">
-                        <div class="text-xs sm:text-sm font-black text-slate-900 truncate">${f.teamBName || 'Team B'}</div>
-                        ${f.liveScoreTeamB ? `<div class="text-xs font-mono font-black text-slate-700">${f.liveScoreTeamB}</div>` : ''}
+                        <h4 class="text-sm sm:text-base font-black text-slate-900 truncate">${f.teamBName || 'Team B'}</h4>
+                        ${f.liveScoreTeamB ? `<div class="text-xs font-mono font-black text-slate-700 mt-0.5">${f.liveScoreTeamB}</div>` : ''}
                       </div>
                     </div>
 
-                    <div class="flex items-center justify-between text-[10px] text-slate-500 pt-1 border-t border-slate-100">
-                      <span>📅 ${f.date || 'TBD'} ${f.time ? '• ⏰ ' + f.time : ''}</span>
-                      <span>📍 ${f.venue || tourney.venue || 'Ground'}</span>
+                    <!-- Bottom Line: Date, Time, Venue -->
+                    <div class="flex items-center gap-2 flex-wrap text-[10.5px] font-bold text-slate-500 pt-2 border-t border-slate-100">
+                      <span>🗓️ ${f.date || '2026-08-26'}</span>
+                      <span>•</span>
+                      <span>⏰ ${f.time || '09:00'}</span>
+                      <span>📍</span>
+                      <span class="uppercase">${f.venue || tourney.venue || 'JHANKRA SCHOOL GROUND'}</span>
                     </div>
                   </div>
                 `;
               }).join('')}
             </div>
           ` : `
-            <div class="text-center py-10 bg-white rounded-2xl border border-slate-200 shadow-sm space-y-2">
+            <div class="text-center py-12 bg-white rounded-3xl border border-slate-200/90 shadow-sm space-y-2">
               <div class="text-3xl">📅</div>
               <p class="text-sm font-bold text-slate-700">No matches scheduled yet</p>
-              <p class="text-xs text-slate-400">Fixtures will be published once announced by the tournament admin.</p>
+              <p class="text-xs text-slate-400">Fixtures will be published once announced by tournament committee.</p>
             </div>
           `}
         </div>
 
-        <!-- Section 2: Points Table -->
-        <div id="hub-matches-points-container" class="hidden bg-white p-4 rounded-2xl border border-slate-200 shadow-sm space-y-3">
-          <h4 class="text-xs font-black text-slate-700 uppercase tracking-wider">Tournament Standings</h4>
-          <div class="overflow-x-auto">
-            <table class="w-full text-left text-xs font-semibold">
-              <thead class="bg-slate-900 text-white text-[10px] font-black uppercase tracking-wider">
-                <tr>
-                  <th class="p-2.5">Team</th>
-                  <th class="p-2.5 text-center">P</th>
-                  <th class="p-2.5 text-center">W</th>
-                  <th class="p-2.5 text-center">L</th>
-                  <th class="p-2.5 text-center">NRR</th>
-                  <th class="p-2.5 text-right">PTS</th>
-                </tr>
-              </thead>
-              <tbody class="divide-y divide-slate-100">
-                ${allTeams.map((t, idx) => `
-                  <tr class="hover:bg-slate-50">
-                    <td class="p-2.5 font-bold text-slate-900 flex items-center gap-2">
-                      <span class="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center font-mono font-black text-[10px] text-slate-600">${idx + 1}</span>
-                      <span class="truncate">${t.name}</span>
-                    </td>
-                    <td class="p-2.5 text-center text-slate-600 font-mono">0</td>
-                    <td class="p-2.5 text-center text-emerald-700 font-mono font-bold">0</td>
-                    <td class="p-2.5 text-center text-red-600 font-mono">0</td>
-                    <td class="p-2.5 text-center text-slate-500 font-mono">+0.000</td>
-                    <td class="p-2.5 text-right text-emerald-800 font-mono font-black text-sm">0</td>
-                  </tr>
-                `).join('')}
-              </tbody>
-            </table>
-          </div>
+        <!-- Section 2: Points Table (Dynamic Groups Stacked One Below One) -->
+        <div id="hub-matches-points-container" class="hidden space-y-4 animate-fade-in">
+          ${(() => {
+            // Group teams dynamically according to Admin/Organizer settings
+            const groupMap = {};
+            const formatObj = store.getTournamentFormat ? store.getTournamentFormat(tourney.slug || tourney.id) : {};
+            const adminFormat = tourney.groupFormat || formatObj.format || (allTeams.some(t => t.group) ? 'CUSTOM' : (allTeams.length > 8 ? 'TWO_GROUPS' : 'SINGLE_TABLE'));
+
+            if (adminFormat === 'SINGLE_TABLE') {
+              groupMap['POINTS TABLE'] = allTeams;
+            } else {
+              const numGroups = adminFormat === 'FOUR_GROUPS' ? 4 : adminFormat === 'THREE_GROUPS' ? 3 : 2;
+              const teamsPerGroup = Math.ceil(allTeams.length / numGroups);
+
+              allTeams.forEach((t, i) => {
+                const explicitGroup = t.group || t.groupName || t.pool;
+                const gName = explicitGroup 
+                  ? (explicitGroup.toUpperCase().startsWith('GROUP') ? explicitGroup.toUpperCase() : `GROUP ${explicitGroup.toUpperCase()}`)
+                  : `GROUP ${String.fromCharCode(65 + Math.floor(i / teamsPerGroup))}`;
+                
+                if (!groupMap[gName]) groupMap[gName] = [];
+                groupMap[gName].push(t);
+              });
+            }
+
+            const groupColors = [
+              { dot: 'bg-emerald-500', text: 'text-emerald-800', hover: 'hover:bg-emerald-50/40' },
+              { dot: 'bg-blue-500', text: 'text-blue-800', hover: 'hover:bg-blue-50/40' },
+              { dot: 'bg-purple-500', text: 'text-purple-800', hover: 'hover:bg-purple-50/40' },
+              { dot: 'bg-amber-500', text: 'text-amber-800', hover: 'hover:bg-amber-50/40' },
+              { dot: 'bg-rose-500', text: 'text-rose-800', hover: 'hover:bg-rose-50/40' }
+            ];
+
+            return Object.entries(groupMap).map(([groupName, teams], gIdx) => {
+              const color = groupColors[gIdx % groupColors.length];
+
+              return `
+                <div class="space-y-2">
+                  <!-- Group Name Header -->
+                  <div class="flex items-center justify-between px-1.5 pt-1">
+                    <div class="flex items-center gap-2">
+                      <span class="w-2.5 h-2.5 rounded-full ${color.dot}"></span>
+                      <h4 class="text-xs sm:text-sm font-black uppercase text-slate-900 tracking-wider">
+                        ${groupName}
+                      </h4>
+                      <span class="text-[11px] font-bold text-slate-400">(${teams.length} Teams)</span>
+                    </div>
+                    <span class="px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+                      Top 2 Qualify
+                    </span>
+                  </div>
+
+                  <!-- Table Fitted in Single Mobile Screen -->
+                  <div class="bg-white rounded-3xl border border-slate-200/90 shadow-sm overflow-hidden">
+                    <table class="w-full table-fixed text-left">
+                      <thead class="bg-[#0F172A] text-white text-[9px] sm:text-[10px] font-black uppercase tracking-wider">
+                        <tr>
+                          <th class="w-6 text-center py-2.5">#</th>
+                          <th class="py-2.5 pl-1">Franchise Team</th>
+                          <th class="w-5 text-center py-2.5">P</th>
+                          <th class="w-5 text-center py-2.5">W</th>
+                          <th class="w-5 text-center py-2.5">L</th>
+                          <th class="w-8 text-center py-2.5">PTS</th>
+                          <th class="w-12 text-right pr-2 py-2.5">NRR</th>
+                        </tr>
+                      </thead>
+                      <tbody class="divide-y divide-slate-100 text-xs">
+                        ${teams.map((t, idx) => {
+                          const logo = t.logoUrl || t.teamLogoUrl || generateUniqueTeamBadge(t.name, idx + gIdx * 4);
+                          const isQ = idx < 2;
+                          const rankBg = idx === 0 ? 'bg-amber-400 text-slate-950' : idx === 1 ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600';
+
+                          return `
+                            <tr class="${color.hover} transition-colors">
+                              <td class="text-center py-2 pl-1">
+                                <span class="w-4 h-4 rounded-md ${rankBg} font-mono font-black text-[9px] inline-flex items-center justify-center">
+                                  ${idx + 1}
+                                </span>
+                              </td>
+                              <td class="py-2 pl-1 pr-1 min-w-0">
+                                <div class="flex items-center gap-1.5 min-w-0">
+                                  <div class="w-5 h-5 rounded-md bg-slate-100 border border-slate-200 overflow-hidden shrink-0">
+                                    <img src="${logo}" class="w-full h-full object-cover" onerror="this.parentElement.innerHTML='🏏'" />
+                                  </div>
+                                  <span class="text-[10.5px] sm:text-xs font-bold text-slate-900 truncate leading-tight uppercase">${t.name}</span>
+                                  ${isQ ? `<span class="px-1 py-0.2 bg-emerald-700 text-white text-[7.5px] font-black rounded-sm shrink-0 leading-none">Q</span>` : ''}
+                                </div>
+                              </td>
+                              <td class="text-center py-2 font-mono text-[10px] sm:text-xs text-slate-600">0</td>
+                              <td class="text-center py-2 font-mono text-[10px] sm:text-xs font-bold text-emerald-700">0</td>
+                              <td class="text-center py-2 font-mono text-[10px] sm:text-xs font-bold text-rose-600">0</td>
+                              <td class="text-center py-2">
+                                <span class="px-1.5 py-0.5 bg-blue-50 text-blue-700 font-mono font-black text-[10.5px] sm:text-xs rounded border border-blue-200">0</span>
+                              </td>
+                              <td class="text-right py-2 pr-2 font-mono font-bold text-[9.5px] sm:text-[10.5px] text-teal-700">0.000</td>
+                            </tr>
+                          `;
+                        }).join('')}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              `;
+            }).join('');
+          })()}
         </div>
       </div>
 
       <!-- ============================================================= -->
       <!-- TAB 6: 📊 STATISTICS & AWARDS LEADERBOARD                     -->
       <!-- ============================================================= -->
-      <div id="hub-tab-stats" class="${hubTab === 'stats' ? '' : 'hidden'} p-3 sm:p-4 space-y-4">
+      <div id="hub-tab-stats" class="${hubTab === 'stats' ? '' : 'hidden'} space-y-4 animate-fade-in">
+        
         <!-- 1. BEST MVP PLAYER PODIUM BOX -->
-        <div class="p-4 sm:p-5 bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 rounded-3xl text-slate-950 shadow-xl border-2 border-amber-300 flex items-center justify-between gap-4">
-          <div class="space-y-1">
-            <span class="px-2.5 py-0.5 bg-slate-950 text-amber-300 text-[9px] font-black rounded-full uppercase tracking-wider">🏆 TOURNAMENT MVP</span>
-            <h3 class="text-base sm:text-xl font-black text-slate-950 leading-tight">${topBatsman?.name || 'Tournament Leader'}</h3>
-            <p class="text-xs text-slate-900 font-semibold">Best Overall Performer of ${tourney.name}</p>
+        ${topMVP ? `
+          <div class="p-4 sm:p-5 bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 rounded-3xl text-slate-950 shadow-xl border-2 border-amber-300 flex items-center justify-between gap-4">
+            <div class="space-y-1">
+              <div class="flex items-center gap-2">
+                <span class="px-2.5 py-0.5 bg-slate-950 text-amber-300 text-[9px] font-black rounded-full uppercase tracking-wider">
+                  🏆 TOURNAMENT MVP
+                </span>
+                <span class="px-2 py-0.2 bg-amber-400 text-slate-950 text-[9px] font-bold rounded-md">Live Leader</span>
+              </div>
+              <h3 class="text-base sm:text-xl font-black text-slate-950 leading-tight">${topMVP.name}</h3>
+              <p class="text-xs text-slate-900 font-semibold">
+                Runs: <strong>${topMVP.totalRuns || 0}</strong> • Wickets: <strong>${topMVP.totalWickets || 0}</strong> • 6s: <strong>${topMVP.totalSixes || 0}</strong>
+              </p>
+            </div>
+            <div class="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white border-2 border-slate-950 overflow-hidden shadow-lg shrink-0">
+              <img src="${topMVP.photoUrl || topMVP.player_photo_url || 'assets/card_jsl_user.png'}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
+            </div>
           </div>
-          <div class="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white border-2 border-slate-950 overflow-hidden shadow-lg shrink-0">
-            <img src="${topBatsman?.photoUrl || 'assets/card_jsl_user.png'}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
+        ` : `
+          <div class="p-4 sm:p-5 bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 rounded-3xl text-slate-950 shadow-xl border-2 border-amber-300 flex items-center justify-between gap-4">
+            <div class="space-y-1">
+              <div class="flex items-center gap-2">
+                <span class="px-2.5 py-0.5 bg-slate-950 text-amber-300 text-[9px] font-black rounded-full uppercase tracking-wider">
+                  🏆 TOURNAMENT MVP
+                </span>
+                <span class="px-2 py-0.2 bg-amber-400 text-slate-950 text-[8.5px] font-bold rounded-md">Official Leaderboard</span>
+              </div>
+              <h3 class="text-base sm:text-xl font-black text-slate-950 leading-tight">Tournament MVP Leaderboard</h3>
+              <p class="text-xs text-slate-900 font-semibold">Leaderboard activates dynamically as matches are played and scorecards recorded.</p>
+            </div>
+            <div class="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white/90 border border-slate-950/20 flex items-center justify-center text-3xl shadow-sm shrink-0">
+              🏆
+            </div>
           </div>
-        </div>
+        `}
 
-        <!-- 2. AWARDS LEADERBOARD GRID -->
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <!-- Best Batsman -->
-          <div class="bg-white p-3.5 rounded-2xl border-2 border-orange-200 shadow-sm space-y-2">
-            <div class="flex items-center justify-between text-xs">
-              <span class="text-[10px] font-black uppercase text-orange-800 bg-orange-100 px-2 py-0.5 rounded-full">🏏 Best Batsman</span>
-              <span class="font-mono font-black text-orange-950">${topBatsman?.totalRuns || 0} Runs</span>
-            </div>
-            <div class="flex items-center gap-2.5">
-              <div class="w-10 h-10 rounded-xl bg-orange-50 border border-orange-200 overflow-hidden shrink-0">
-                <img src="${topBatsman?.photoUrl || 'assets/card_jsl_user.png'}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
-              </div>
-              <div class="min-w-0">
-                <h4 class="text-xs font-black text-slate-900 truncate">${topBatsman?.name || 'Candidate'}</h4>
-                <p class="text-[10px] text-slate-500 font-medium">${topBatsman?.category || 'Batsman'}</p>
-              </div>
-            </div>
-          </div>
+        <!-- 2. AWARDS LEADERBOARD GRID (EXACT USER SHAPE DESIGN) -->
+        <div class="grid grid-cols-2 gap-3">
+          
+          ${(() => {
+            const categories = [
+              {
+                id: 'runs',
+                title: 'BEST BATSMAN',
+                icon: '🏏',
+                iconBg: 'bg-emerald-600',
+                borderTop: 'border-t-emerald-500',
+                linkColor: 'text-emerald-700',
+                player: topBatsman,
+                val: topBatsman?.totalRuns || topBatsman?.runs || 0,
+                unit: 'Runs'
+              },
+              {
+                id: 'wickets',
+                title: 'BEST BOWLER',
+                icon: '⚡',
+                iconBg: 'bg-rose-500',
+                borderTop: 'border-t-rose-500',
+                linkColor: 'text-rose-700',
+                player: topBowler,
+                val: topBowler?.totalWickets || topBowler?.wickets || 0,
+                unit: 'Wickets'
+              },
+              {
+                id: 'sixes',
+                title: 'SIX HITTER',
+                icon: '6',
+                iconBg: 'bg-amber-500',
+                borderTop: 'border-t-amber-500',
+                linkColor: 'text-amber-700',
+                player: topSixes,
+                val: topSixes?.totalSixes || topSixes?.sixes || 0,
+                unit: 'Sixes'
+              },
+              {
+                id: 'fours',
+                title: 'FOUR HITTER',
+                icon: '4',
+                iconBg: 'bg-cyan-500',
+                borderTop: 'border-t-cyan-500',
+                linkColor: 'text-cyan-700',
+                player: topFours,
+                val: topFours?.totalFours || topFours?.fours || 0,
+                unit: 'Fours'
+              },
+              {
+                id: 'keeper',
+                title: 'BEST WICKETKEEPER',
+                icon: '🧤',
+                iconBg: 'bg-purple-600',
+                borderTop: 'border-t-purple-500',
+                linkColor: 'text-purple-700',
+                player: topKeeper,
+                val: topKeeper?.dismissals || topKeeper?.catches || 0,
+                unit: 'Dismissals'
+              },
+              {
+                id: 'fielder',
+                title: 'BEST FIELDER',
+                icon: '👤',
+                iconBg: 'bg-sky-500',
+                borderTop: 'border-t-sky-500',
+                linkColor: 'text-sky-700',
+                player: topFielder,
+                val: topFielder?.catches || 0,
+                unit: 'Catches'
+              },
+              {
+                id: 'maidens',
+                title: 'BEST MAIDEN OVERS',
+                icon: '🛡️',
+                iconBg: 'bg-slate-700',
+                borderTop: 'border-t-slate-700',
+                linkColor: 'text-slate-700',
+                player: topMaidens,
+                val: topMaidens?.totalMaidens || topMaidens?.maidens || 0,
+                unit: 'Maidens'
+              },
+              {
+                id: 'mvp',
+                title: 'TOURNAMENT MVP',
+                icon: '⭐',
+                iconBg: 'bg-fuchsia-600',
+                borderTop: 'border-t-fuchsia-500',
+                linkColor: 'text-fuchsia-700',
+                player: topMVP,
+                val: (topMVP?.totalRuns || 0) + (topMVP?.totalWickets || 0) * 25,
+                unit: 'Pts'
+              },
+              {
+                id: 'dotballs',
+                title: 'MAXIMUM DOT BALLS',
+                icon: '🎯',
+                iconBg: 'bg-teal-600',
+                borderTop: 'border-t-teal-500',
+                linkColor: 'text-teal-700',
+                player: topDotBalls,
+                val: topDotBalls?.totalDotBalls || topDotBalls?.dotBalls || 0,
+                unit: 'Dots'
+              },
+              {
+                id: 'twos',
+                title: 'MAXIMUM 2s (RUNS)',
+                icon: '🏃',
+                iconBg: 'bg-blue-600',
+                borderTop: 'border-t-blue-500',
+                linkColor: 'text-blue-700',
+                player: topTwos,
+                val: topTwos?.totalTwos || topTwos?.twos || 0,
+                unit: '2s'
+              },
+              {
+                id: 'team',
+                title: 'BEST TEAM',
+                icon: '🏆',
+                iconBg: 'bg-amber-500',
+                borderTop: 'border-t-amber-500',
+                linkColor: 'text-amber-700',
+                player: topTeam ? { name: topTeam.name } : null,
+                val: 0,
+                unit: 'Leader'
+              }
+            ];
 
-          <!-- Best Bowler -->
-          <div class="bg-white p-3.5 rounded-2xl border-2 border-purple-200 shadow-sm space-y-2">
-            <div class="flex items-center justify-between text-xs">
-              <span class="text-[10px] font-black uppercase text-purple-800 bg-purple-100 px-2 py-0.5 rounded-full">⚡ Best Bowler</span>
-              <span class="font-mono font-black text-purple-950">${topBowler?.totalWickets || 0} Wickets</span>
-            </div>
-            <div class="flex items-center gap-2.5">
-              <div class="w-10 h-10 rounded-xl bg-purple-50 border border-purple-200 overflow-hidden shrink-0">
-                <img src="${topBowler?.photoUrl || 'assets/card_jsl_user.png'}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
-              </div>
-              <div class="min-w-0">
-                <h4 class="text-xs font-black text-slate-900 truncate">${topBowler?.name || 'Candidate'}</h4>
-                <p class="text-[10px] text-slate-500 font-medium">${topBowler?.category || 'Bowler'}</p>
-              </div>
-            </div>
-          </div>
+            return categories.map(cat => {
+              const hasActiveLeader = cat.player && (Number(cat.val) > 0 || cat.id === 'team' && allTeams.length > 0);
 
-          <!-- Best Wicket Keeper -->
-          <div class="bg-white p-3.5 rounded-2xl border-2 border-sky-200 shadow-sm space-y-2">
-            <div class="flex items-center justify-between text-xs">
-              <span class="text-[10px] font-black uppercase text-sky-800 bg-sky-100 px-2 py-0.5 rounded-full">🧤 Best Keeper</span>
-              <span class="font-mono font-black text-sky-950">Active Dismissals</span>
-            </div>
-            <div class="flex items-center gap-2.5">
-              <div class="w-10 h-10 rounded-xl bg-sky-50 border border-sky-200 overflow-hidden shrink-0">
-                <img src="${topKeeper?.photoUrl || 'assets/card_jsl_user.png'}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
-              </div>
-              <div class="min-w-0">
-                <h4 class="text-xs font-black text-slate-900 truncate">${topKeeper?.name || 'Wicket Keeper'}</h4>
-                <p class="text-[10px] text-slate-500 font-medium">Safe Hands Award</p>
-              </div>
-            </div>
-          </div>
+              return `
+                <div class="bg-white rounded-2xl border border-slate-200/90 shadow-sm hover:shadow-md transition-all p-3 sm:p-3.5 space-y-2.5 flex flex-col justify-between border-t-[3.5px] ${cat.borderTop}">
+                  
+                  <!-- Top Icon + Category Title Header -->
+                  <div class="flex items-center gap-2 min-w-0">
+                    <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-xl ${cat.iconBg} text-white flex items-center justify-center font-black text-xs sm:text-sm shrink-0 shadow-2xs">
+                      ${cat.icon}
+                    </div>
+                    <span class="text-[9.5px] sm:text-[10.5px] font-black uppercase text-slate-700 tracking-wider truncate">
+                      ${cat.title}
+                    </span>
+                  </div>
 
-          <!-- Best Emerging Player -->
-          <div class="bg-white p-3.5 rounded-2xl border-2 border-emerald-200 shadow-sm space-y-2">
-            <div class="flex items-center justify-between text-xs">
-              <span class="text-[10px] font-black uppercase text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full">🌟 Emerging Player</span>
-              <span class="font-mono font-black text-emerald-950">Under 19 Talent</span>
-            </div>
-            <div class="flex items-center gap-2.5">
-              <div class="w-10 h-10 rounded-xl bg-emerald-50 border border-emerald-200 overflow-hidden shrink-0">
-                <img src="${emergingPlayer?.photoUrl || 'assets/card_jsl_user.png'}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
-              </div>
-              <div class="min-w-0">
-                <h4 class="text-xs font-black text-slate-900 truncate">${emergingPlayer?.name || 'Young Talent'}</h4>
-                <p class="text-[10px] text-slate-500 font-medium">Future Star</p>
-              </div>
-            </div>
-          </div>
+                  <!-- Leader Name or Awaiting Matches -->
+                  <div class="min-w-0 py-0.5">
+                    ${hasActiveLeader ? `
+                      <h4 class="text-xs sm:text-sm font-black text-slate-900 truncate leading-tight">${cat.player.name}</h4>
+                      ${Number(cat.val) > 0 ? `<span class="text-[10px] font-mono font-bold ${cat.linkColor}">${cat.val} ${cat.unit}</span>` : ''}
+                    ` : `
+                      <h4 class="text-xs sm:text-sm font-bold text-slate-400">Awaiting matches</h4>
+                    `}
+                  </div>
+
+                  <!-- View Full List Link -->
+                  <div class="${cat.linkColor} text-[10.5px] sm:text-xs font-bold flex items-center gap-1 cursor-pointer hover:underline">
+                    <span>View Full List →</span>
+                  </div>
+                </div>
+              `;
+            }).join('');
+          })()}
+
         </div>
       </div>
 
@@ -2244,6 +3229,13 @@ export function renderCustomTournamentHub(container, tourney) {
     btn.addEventListener('click', (e) => {
       const tab = e.currentTarget.dataset.hubTab;
       try { sessionStorage.setItem('cpl_hub_tab_' + tourney.slug, tab); } catch(ex) {}
+      
+      const targetHash = tab === 'home' ? `t/${tourney.slug}` : `t/${tourney.slug}?tab=${tab}`;
+      currentRoute = targetHash;
+      try { sessionStorage.setItem('cpl_last_route', targetHash); } catch(ex) {}
+      if (history.replaceState) {
+        history.replaceState({ route: targetHash }, '', `#${targetHash}`);
+      }
 
       container.querySelectorAll('.hub-tab-btn').forEach(b => {
         b.classList.remove('text-emerald-700', 'border-b-[3px]', 'border-emerald-600', 'bg-white', 'font-black');
@@ -2264,18 +3256,18 @@ export function renderCustomTournamentHub(container, tourney) {
     document.getElementById('hub-matches-fixtures-container')?.classList.remove('hidden');
     document.getElementById('hub-matches-points-container')?.classList.add('hidden');
     document.getElementById('hub-match-subtab-fixtures')?.classList.add('bg-white', 'text-slate-900', 'shadow-xs');
-    document.getElementById('hub-match-subtab-fixtures')?.classList.remove('text-slate-500');
+    document.getElementById('hub-match-subtab-fixtures')?.classList.remove('text-slate-600');
     document.getElementById('hub-match-subtab-points')?.classList.remove('bg-white', 'text-slate-900', 'shadow-xs');
-    document.getElementById('hub-match-subtab-points')?.classList.add('text-slate-500');
+    document.getElementById('hub-match-subtab-points')?.classList.add('text-slate-600');
   });
 
   document.getElementById('hub-match-subtab-points')?.addEventListener('click', () => {
     document.getElementById('hub-matches-points-container')?.classList.remove('hidden');
     document.getElementById('hub-matches-fixtures-container')?.classList.add('hidden');
     document.getElementById('hub-match-subtab-points')?.classList.add('bg-white', 'text-slate-900', 'shadow-xs');
-    document.getElementById('hub-match-subtab-points')?.classList.remove('text-slate-500');
+    document.getElementById('hub-match-subtab-points')?.classList.remove('text-slate-600');
     document.getElementById('hub-match-subtab-fixtures')?.classList.remove('bg-white', 'text-slate-900', 'shadow-xs');
-    document.getElementById('hub-match-subtab-fixtures')?.classList.add('text-slate-500');
+    document.getElementById('hub-match-subtab-fixtures')?.classList.add('text-slate-600');
   });
 
   // Action button listeners
@@ -2284,44 +3276,69 @@ export function renderCustomTournamentHub(container, tourney) {
   document.getElementById('btn-custom-hub-back')?.addEventListener('click', () => navigate('landing'));
   document.getElementById('btn-custom-hub-admin')?.addEventListener('click', () => navigate('admin'));
 
-  // Auction summary & backup buttons
-  document.getElementById('btn-open-final-auction-summary-modal')?.addEventListener('click', () => {
-    openFinalAuctionSummaryModal(tourney, allTeams, allPlayers);
+  // 1. Interactive Like / Love Reaction Handler
+  const likeBtn = document.getElementById('btn-hub-like-tourney');
+  if (likeBtn) {
+    likeBtn.addEventListener('click', () => {
+      let liked = false;
+      try { liked = localStorage.getItem('cpl_liked_' + slugKey) === 'true'; } catch(e) {}
+      liked = !liked;
+      try { localStorage.setItem('cpl_liked_' + slugKey, String(liked)); } catch(e) {}
+      
+      const iconEl = document.getElementById('hub-like-icon');
+      const countEl = document.getElementById('hub-like-count');
+      const currentCount = Number(countEl?.textContent || rawLikes);
+      const newCount = liked ? currentCount + 1 : Math.max(0, currentCount - 1);
+      
+      if (iconEl) iconEl.textContent = liked ? '❤️' : '🤍';
+      if (countEl) countEl.textContent = String(newCount);
+
+      // Heart bounce animation
+      likeBtn.classList.add('scale-110');
+      setTimeout(() => likeBtn.classList.remove('scale-110'), 200);
+    });
+  }
+
+  // 2. Interactive Comments & Queries Modal Handler
+  document.getElementById('btn-hub-open-comments')?.addEventListener('click', () => {
+    openTournamentCommentsModal(tourney, (newCount) => {
+      const countEl = document.getElementById('hub-comment-count');
+      if (countEl) countEl.textContent = String(newCount);
+    });
   });
 
-  document.getElementById('btn-download-all-squads-pdf')?.addEventListener('click', () => {
-    if (typeof window.print === 'function') {
-      window.print();
-    } else {
-      alert('Generating PDF summary...');
-    }
-  });
-
-  document.getElementById('btn-download-json-backup')?.addEventListener('click', () => {
-    const backupObj = {
-      tournament: tourney,
-      archivedAt: new Date().toISOString(),
-      teams: allTeams,
-      players: allPlayers,
-      topBuys: allPlayers.filter(p => Number(p.soldPrice || 0) > 0).sort((a, b) => Number(b.soldPrice || 0) - Number(a.soldPrice || 0)).slice(0, 20)
-    };
-    const blob = new Blob([JSON.stringify(backupObj, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${tourney.slug || 'tournament'}_auction_archive_backup.json`;
-    a.click();
-  });
-
-  document.getElementById('btn-hub-share')?.addEventListener('click', () => {
+  // 3. Interactive Share Link Handler
+  const handleShare = () => {
     const url = window.location.href;
     if (navigator.share) {
-      navigator.share({ title: tourney.name, url });
+      navigator.share({
+        title: tourney.name,
+        text: `🏏 Check out ${tourney.name} live fixtures, teams, and player registration!`,
+        url
+      }).catch(() => {});
     } else {
       navigator.clipboard?.writeText(url);
-      alert('Tournament link copied to clipboard!\n\n' + url);
+      alert(`✅ ${tourney.name} Hub Link copied to clipboard!\n\n${url}`);
+    }
+  };
+  // 4. Interactive Direct Registration Link Handlers
+  document.getElementById('btn-share-direct-reg-wa')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const directRegUrl = `${window.location.origin}${window.location.pathname}#register/${tourney.slug || 'jsl-2026'}`;
+    if (navigator.share) {
+      navigator.share({
+        title: `Register for ${tourney.name}`,
+        text: `🏏 Player Registration is NOW OPEN for ${tourney.name}! Register your profile & enter the auction here:`,
+        url: directRegUrl
+      }).catch(() => {});
+    } else {
+      navigator.clipboard?.writeText(directRegUrl);
+      alert(`✅ ${tourney.name} Registration link copied to clipboard!\n\n${directRegUrl}`);
     }
   });
+
+  document.getElementById('btn-hub-share-link')?.addEventListener('click', handleShare);
+  document.getElementById('btn-hub-share')?.addEventListener('click', handleShare);
 
   document.querySelectorAll('.hub-view-squad-btn').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -2337,6 +3354,243 @@ export function renderCustomTournamentHub(container, tourney) {
       const playerId = btn.getAttribute('data-player-id');
       const player = store.getPlayerById(playerId);
       if (player) openFullPlayerProfileModal(player);
+    });
+  });
+
+  // 5. Real-Time Registered Players Search & Category Filter
+  const playerSearchInput = document.getElementById('hub-player-search-input');
+  const playerSearchClear = document.getElementById('hub-player-search-clear');
+  const playerGrid = document.getElementById('hub-players-grid');
+  const noResultsEl = document.getElementById('hub-player-no-results');
+  const countDisplay = document.getElementById('hub-player-count-display');
+  let selectedCategoryFilter = 'all';
+
+  const filterPlayers = () => {
+    const q = playerSearchInput ? playerSearchInput.value.trim().toLowerCase() : '';
+    if (playerSearchClear) {
+      playerSearchClear.classList.toggle('hidden', q.length === 0);
+    }
+    
+    const cards = document.querySelectorAll('.hub-player-card');
+    let visibleCount = 0;
+
+    cards.forEach(card => {
+      const searchData = (card.getAttribute('data-search') || '').toLowerCase();
+      const cardCat = (card.getAttribute('data-category') || '').toLowerCase();
+      
+      const matchesSearch = !q || searchData.includes(q);
+      let matchesCat = true;
+      if (selectedCategoryFilter !== 'all') {
+        if (selectedCategoryFilter === 'batsman') matchesCat = cardCat.includes('bat');
+        else if (selectedCategoryFilter === 'bowler') matchesCat = cardCat.includes('bowl');
+        else if (selectedCategoryFilter === 'allrounder') matchesCat = cardCat.includes('all') || cardCat.includes('round');
+        else if (selectedCategoryFilter === 'wicketkeeper') matchesCat = cardCat.includes('keep') || cardCat.includes('wk');
+        else matchesCat = cardCat.includes(selectedCategoryFilter);
+      }
+
+      const isVisible = matchesSearch && matchesCat;
+      card.classList.toggle('hidden', !isVisible);
+      if (isVisible) visibleCount++;
+    });
+
+    if (countDisplay) {
+      countDisplay.textContent = String(visibleCount);
+    }
+
+    if (noResultsEl) {
+      noResultsEl.classList.toggle('hidden', visibleCount > 0);
+    }
+    if (playerGrid) {
+      playerGrid.classList.toggle('hidden', visibleCount === 0);
+    }
+  };
+
+  playerSearchInput?.addEventListener('input', filterPlayers);
+  playerSearchClear?.addEventListener('click', () => {
+    if (playerSearchInput) playerSearchInput.value = '';
+    filterPlayers();
+    playerSearchInput?.focus();
+  });
+
+  // Category filter pill buttons
+  document.querySelectorAll('.hub-cat-filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      selectedCategoryFilter = btn.getAttribute('data-cat-filter') || 'all';
+      
+      // Update UI active styles
+      document.querySelectorAll('.hub-cat-filter-btn').forEach(b => {
+        const isSelected = (b.getAttribute('data-cat-filter') || 'all') === selectedCategoryFilter;
+        b.className = `hub-cat-filter-btn px-3.5 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1 shrink-0 ${isSelected ? 'bg-emerald-700 text-white shadow-xs' : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200'}`;
+      });
+
+      filterPlayers();
+    });
+  });
+
+  // 6. Auction Portal Interactive Sub-Tabs & Team Roster Switcher
+  const subviewOverview = document.getElementById('auction-subview-overview');
+  const subviewSquads = document.getElementById('auction-subview-squads');
+  const subviewPlayers = document.getElementById('auction-subview-players');
+  const btnSubOverview = document.getElementById('auction-portal-subtab-overview');
+  const btnSubSquads = document.getElementById('auction-portal-subtab-squads');
+  const btnSubPlayers = document.getElementById('auction-portal-subtab-players');
+
+  const renderAuctionTeamRoster = (teamId) => {
+    const t = allTeams.find(x => x.id === teamId) || allTeams[0];
+    const container = document.getElementById('auction-selected-team-roster-container');
+    if (!container || !t) return;
+
+    // Update active team pill
+    document.querySelectorAll('.auction-team-filter-pill').forEach(b => {
+      const isSel = b.getAttribute('data-auction-team-id') === t.id;
+      b.className = `auction-team-filter-pill px-3.5 py-1.5 rounded-full text-xs font-black transition-all whitespace-nowrap cursor-pointer shrink-0 ${isSel ? 'bg-amber-500 text-slate-950 shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'}`;
+    });
+
+    const teamSquad = allPlayers.filter(p => p.teamId === t.id);
+    const spent = teamSquad.reduce((sum, p) => sum + Number(p.soldPrice || p.boughtPrice || 0), 0);
+    const purse = Number(t.purseBudget || t.purse || tourney.teamPurse || 8000);
+    const remaining = Math.max(0, purse - spent);
+    const iconPlayer = allPlayers.find(p => p.id === t.iconPlayerId || p.isIcon) || (t.iconPlayerName ? { name: t.iconPlayerName, phone: t.iconPlayerPhone, village: t.iconPlayerVillage, photoUrl: t.iconPlayerPhotoUrl, price: t.iconPrice || 1000 } : null);
+
+    container.innerHTML = `
+      <div class="space-y-3">
+        <!-- FRANCHISE ROSTER HEADER CARD (Dark Navy) -->
+        <div class="bg-[#0F172A] text-white p-4 sm:p-5 rounded-3xl shadow-md space-y-3">
+          <div class="flex items-center justify-between gap-2 flex-wrap">
+            <div>
+              <span class="text-[9px] font-black uppercase text-amber-400 tracking-wider block">FRANCHISE ROSTER</span>
+              <h3 class="text-base sm:text-lg font-black text-white uppercase tracking-tight">${t.name}</h3>
+              <div class="text-xs text-amber-200 font-bold flex items-center gap-1.5 mt-0.5">
+                <span>👑 Owner:</span> <span class="text-white">${t.ownerName || 'TBD'}</span>
+                ${t.ownerPhone ? `<span class="text-slate-300 font-mono">(📞 ${t.ownerPhone})</span>` : ''}
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <div class="px-3 py-1.5 bg-slate-900/90 rounded-2xl border border-slate-700/80 text-right">
+                <div class="text-xs sm:text-sm font-mono font-black text-emerald-400">₹ ${remaining.toLocaleString('en-IN')} Left</div>
+                <div class="text-[8px] text-slate-400 font-bold uppercase">Spent: ₹ ${spent.toLocaleString('en-IN')}</div>
+              </div>
+              <button type="button" class="btn-download-single-team-pdf px-3 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-xs flex items-center gap-1 cursor-pointer transition-all active:scale-95" data-team-id="${t.id}">
+                <span>📑</span> <span>PDF</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- SQUAD PLAYER CARDS LIST -->
+        <div class="space-y-2">
+          <!-- Icon Player Card (if present) -->
+          ${t.iconPlayerName || iconPlayer ? `
+            <div class="p-3 bg-amber-50/70 border-2 border-amber-400/90 rounded-2xl flex items-center justify-between gap-3 shadow-2xs">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <div class="w-12 h-12 rounded-xl bg-amber-100 border border-amber-300 overflow-hidden shrink-0 shadow-2xs">
+                  <img src="${iconPlayer?.photoUrl || t.iconPlayerPhotoUrl || 'assets/card_jsl_user.png'}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
+                </div>
+                <div class="min-w-0">
+                  <div class="flex items-center gap-1.5 flex-wrap">
+                    <h5 class="text-xs sm:text-sm font-black text-slate-900 truncate">⭐ ${iconPlayer?.name || t.iconPlayerName}</h5>
+                    <span class="px-1.5 py-0.2 bg-amber-500 text-slate-950 font-black text-[8px] rounded uppercase">ICON</span>
+                  </div>
+                  <div class="text-[10px] text-slate-600 font-semibold truncate mt-0.5">
+                    ${iconPlayer?.phone || t.iconPlayerPhone ? `📞 ${iconPlayer?.phone || t.iconPlayerPhone}` : ''}
+                    ${iconPlayer?.village || t.iconPlayerVillage ? ` • 📍 ${iconPlayer?.village || t.iconPlayerVillage}` : ''}
+                  </div>
+                  <div class="text-[9.5px] text-amber-900 font-bold">🏏 ${iconPlayer?.category || 'Icon All-Rounder'}</div>
+                </div>
+              </div>
+
+              <div class="text-right shrink-0">
+                <div class="text-xs sm:text-sm font-mono font-black text-amber-900">₹ ${(t.iconPrice || 1000).toLocaleString('en-IN')}</div>
+                <span class="text-[7.5px] font-black uppercase text-slate-400 block tracking-wider leading-none">ICON FEE</span>
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- Drafted Players -->
+          ${teamSquad.map((p, pIdx) => {
+            const soldAmt = Number(p.soldPrice || p.boughtPrice || 0);
+            const photo = p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png';
+            const serial = String(p.displayRegistrationNumber || p.serialNo || (pIdx + 1)).padStart(2, '0');
+
+            return `
+              <div class="p-3 bg-white border border-slate-200/90 rounded-2xl flex items-center justify-between gap-3 shadow-xs hover:border-emerald-400 transition-all">
+                <div class="flex items-center gap-2.5 min-w-0">
+                  <div class="w-12 h-12 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden shrink-0 shadow-2xs">
+                    <img src="${photo}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
+                  </div>
+                  <div class="min-w-0">
+                    <h5 class="text-xs sm:text-sm font-black text-slate-900 truncate leading-tight">#${serial} ${p.name}</h5>
+                    <div class="text-[10px] font-bold text-sky-700 mt-0.5">🏏 ${p.category || 'All-rounder'}</div>
+                    <div class="text-[9.5px] text-slate-500 font-medium truncate">
+                      ${p.mobile || p.phone ? `📞 ${p.mobile || p.phone}` : ''}
+                      ${p.village || p.address ? ` • 📍 ${p.village || p.address}` : ''}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="text-right shrink-0">
+                  <div class="text-xs sm:text-sm font-mono font-black text-emerald-700">₹ ${soldAmt.toLocaleString('en-IN')}</div>
+                  <span class="text-[7.5px] font-black uppercase text-slate-400 block tracking-wider leading-none">AUCTION SOLD</span>
+                </div>
+              </div>
+            `;
+          }).join('')}
+
+          ${teamSquad.length === 0 && !t.iconPlayerName ? `
+            <div class="text-center py-8 bg-white rounded-2xl border border-slate-200 text-xs text-slate-400 font-bold">
+              No players drafted for this team yet.
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    `;
+
+    // Hook single team PDF export
+    container.querySelector('.btn-download-single-team-pdf')?.addEventListener('click', () => {
+      exportSquadPDF(t.id);
+    });
+  };
+
+  const setAuctionPortalSubTab = (tab) => {
+    if (subviewOverview) subviewOverview.classList.toggle('hidden', tab !== 'overview');
+    if (subviewSquads) subviewSquads.classList.toggle('hidden', tab !== 'squads');
+    if (subviewPlayers) subviewPlayers.classList.toggle('hidden', tab !== 'players');
+
+    [
+      { el: btnSubOverview, id: 'overview' },
+      { el: btnSubSquads, id: 'squads' },
+      { el: btnSubPlayers, id: 'players' }
+    ].forEach(({ el, id }) => {
+      if (!el) return;
+      const isActive = id === tab;
+      el.className = `auction-portal-tab-btn px-3.5 py-2 rounded-xl text-xs font-black transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 ${isActive ? 'bg-amber-500 text-slate-950 shadow-xs' : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200'}`;
+    });
+
+    if (tab === 'squads' && allTeams.length > 0) {
+      renderAuctionTeamRoster(allTeams[0].id);
+    }
+  };
+
+  btnSubOverview?.addEventListener('click', () => setAuctionPortalSubTab('overview'));
+  btnSubSquads?.addEventListener('click', () => setAuctionPortalSubTab('squads'));
+  btnSubPlayers?.addEventListener('click', () => setAuctionPortalSubTab('players'));
+
+  // Team Switcher Pills Click Listener
+  document.querySelectorAll('.auction-team-filter-pill').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const teamId = btn.getAttribute('data-auction-team-id');
+      renderAuctionTeamRoster(teamId);
+    });
+  });
+
+  // All Players Tab Instant Search Filter
+  const auctionPlayersSearch = document.getElementById('auction-allplayers-search-input');
+  auctionPlayersSearch?.addEventListener('input', () => {
+    const q = auctionPlayersSearch.value.trim().toLowerCase();
+    document.querySelectorAll('.auction-player-row').forEach(row => {
+      const searchData = (row.getAttribute('data-search') || '').toLowerCase();
+      row.classList.toggle('hidden', Boolean(q && !searchData.includes(q)));
     });
   });
 
@@ -11206,59 +12460,67 @@ export function openTournamentCreationWizard(isTrialMode = false) {
         <!-- WIZARD BODY CONTAINER -->
         <div id="tourney-wizard-content" class="p-3 sm:p-5 overflow-y-auto flex-1 space-y-3 bg-white">
           <!-- Step 1: Basic Identity -->
-          <div id="wizard-step-1" class="space-y-2.5 animate-fade-in">
+          <div id="wizard-step-1" class="space-y-3 animate-fade-in">
             <div>
-              <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Tournament Name *</label>
-              <input type="text" id="wiz-tourney-name" placeholder="e.g. Medinipur Super Trophy 2026" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400" />
+              <label class="block text-[10.5px] font-black text-slate-800 uppercase mb-1">Tournament Name *</label>
+              <input type="text" id="wiz-tourney-name" placeholder="Tournament Name" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400 focus:bg-white transition-all shadow-2xs" />
             </div>
 
-            <div class="grid grid-cols-2 gap-2">
+            <div class="grid grid-cols-2 gap-2.5">
               <div>
-                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Short Code *</label>
-                <input type="text" id="wiz-tourney-slug" placeholder="MST2026" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-amber-400 uppercase" />
+                <label class="block text-[10.5px] font-black text-slate-800 uppercase mb-1">Short Code</label>
+                <input type="text" id="wiz-tourney-slug" placeholder="Auto / Short Code" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-amber-400 focus:bg-white uppercase transition-all shadow-2xs" />
               </div>
               <div>
-                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Venue *</label>
-                <input type="text" id="wiz-tourney-venue" placeholder="Town Club Ground" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400" />
-              </div>
-            </div>
-
-            <div class="grid grid-cols-2 gap-2">
-              <div>
-                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Season</label>
-                <input type="text" id="wiz-tourney-season" placeholder="Season 1, 2026" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400" />
-              </div>
-              <div>
-                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Total Teams *</label>
-                <input type="number" id="wiz-tourney-total-teams" placeholder="8" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400 font-mono" />
+                <label class="block text-[10.5px] font-black text-slate-800 uppercase mb-1">Venue *</label>
+                <input type="text" id="wiz-tourney-venue" placeholder="Ground / Stadium Venue" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400 focus:bg-white transition-all shadow-2xs" />
               </div>
             </div>
 
-            <div class="grid grid-cols-2 gap-2">
+            <div class="grid grid-cols-2 gap-2.5">
               <div>
-                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Start Date *</label>
-                <input type="date" id="wiz-tourney-date" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-2 text-[11px] text-slate-900 font-bold focus:outline-none focus:border-amber-400" />
+                <label class="block text-[10.5px] font-black text-slate-800 uppercase mb-1">Season</label>
+                <input type="text" id="wiz-tourney-season" placeholder="Season / Year" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400 focus:bg-white transition-all shadow-2xs" />
               </div>
               <div>
-                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">End Date</label>
-                <input type="date" id="wiz-tourney-end-date" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-2 text-[11px] text-slate-900 font-bold focus:outline-none focus:border-amber-400" />
-              </div>
-            </div>
-
-            <div class="grid grid-cols-2 gap-2">
-              <div>
-                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Winner Prize ₹ *</label>
-                <input type="number" id="wiz-tourney-prize" placeholder="35000" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400 font-mono" />
-              </div>
-              <div>
-                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Runner-Up ₹</label>
-                <input type="number" id="wiz-tourney-runner-prize" placeholder="15000" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400 font-mono" />
+                <label class="block text-[10.5px] font-black text-slate-800 uppercase mb-1">Total Teams *</label>
+                <input type="number" id="wiz-tourney-total-teams" placeholder="Number of Teams" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400 focus:bg-white font-mono transition-all shadow-2xs" />
               </div>
             </div>
 
+            <div class="grid grid-cols-2 gap-2.5">
+              <div>
+                <label class="block text-[10.5px] font-black text-slate-800 uppercase mb-1">Start Date *</label>
+                <input type="date" id="wiz-tourney-date" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400 focus:bg-white transition-all shadow-2xs" />
+              </div>
+              <div>
+                <label class="block text-[10.5px] font-black text-slate-800 uppercase mb-1">End Date</label>
+                <input type="date" id="wiz-tourney-end-date" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400 focus:bg-white transition-all shadow-2xs" />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2.5">
+              <div>
+                <label class="block text-[10.5px] font-black text-slate-800 uppercase mb-1">Winner Prize ₹ *</label>
+                <input type="number" id="wiz-tourney-prize" placeholder="Winner Amount" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400 focus:bg-white font-mono transition-all shadow-2xs" />
+              </div>
+              <div>
+                <label class="block text-[10.5px] font-black text-slate-800 uppercase mb-1">Runner-Up ₹</label>
+                <input type="number" id="wiz-tourney-runner-prize" placeholder="Runner-Up Amount" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400 focus:bg-white font-mono transition-all shadow-2xs" />
+              </div>
+            </div>
+
+            <!-- Upload Poster / Banner -->
+            <div class="p-3 bg-gradient-to-r from-amber-50/60 to-orange-50/60 rounded-2xl border border-amber-200/80 space-y-1.5 shadow-2xs">
+              <label class="block text-[10.5px] font-black text-slate-900 uppercase">Upload Poster / Banner</label>
+              <input type="file" id="wiz-poster-file" accept="image/*" class="w-full text-xs text-slate-600 file:mr-2.5 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-[11px] file:font-black file:bg-slate-950 file:text-white hover:file:bg-slate-800 cursor-pointer" />
+              <div id="wiz-poster-preview-container" class="hidden"></div>
+            </div>
+
+            <!-- Extra Information (If any) -->
             <div>
-              <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Poster / Banner (Optional)</label>
-              <input type="file" id="wiz-poster-file" accept="image/*" class="w-full text-[11px] text-slate-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:bg-slate-900 file:text-white hover:file:bg-slate-800 cursor-pointer" />
+              <label class="block text-[10.5px] font-black text-slate-800 uppercase mb-1">Extra Information (If any)</label>
+              <textarea id="wiz-extra-info" rows="2" placeholder="Rules, contact numbers, special instructions or notes..." class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-medium focus:outline-none focus:border-amber-400 focus:bg-white resize-none transition-all shadow-2xs"></textarea>
             </div>
           </div>
 
@@ -11409,12 +12671,81 @@ export function openTournamentCreationWizard(isTrialMode = false) {
     if (modeAConfig) modeAConfig.classList.add('hidden');
   });
 
-  // Poster File handler — auto center-crop to 4:3 card aspect
-  document.getElementById('wiz-poster-file')?.addEventListener('change', async (e) => {
+  // Poster File handler — interactive cropper + ~100KB compression + Cloudinary upload
+  document.getElementById('wiz-poster-file')?.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (file) {
-      uploadedPosterBase64 = await cropBannerImage(file, 600, 0.82);
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        const rawSrc = ev.target.result;
+        openTournamentBannerCropModal(rawSrc, async (croppedDataUrl) => {
+          uploadedPosterBase64 = croppedDataUrl;
+          const previewContainer = document.getElementById('wiz-poster-preview-container');
+          if (previewContainer) {
+            previewContainer.innerHTML = `
+              <div class="mt-2 p-2.5 bg-emerald-50 border border-emerald-300 rounded-xl flex items-center gap-2.5 text-emerald-800 text-xs font-black animate-pulse">
+                <span class="inline-block w-3.5 h-3.5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></span>
+                <span>Optimizing image (~100 KB) & uploading to CDN...</span>
+              </div>
+            `;
+            previewContainer.classList.remove('hidden');
+          }
+
+          try {
+            // 1. Compress to ~100 KB
+            const compressed = await compressImageToTarget(croppedDataUrl, 100, 1200);
+            const compressedDataUrl = compressed || croppedDataUrl;
+
+            // 2. Upload to Cloudinary CDN
+            const slugVal = (document.getElementById('wiz-tourney-slug')?.value || 'tourney').trim().toLowerCase();
+            const cdnUrl = await uploadHDImage(compressedDataUrl, `tournaments/${slugVal}`);
+
+            if (cdnUrl) {
+              uploadedPosterBase64 = cdnUrl;
+            }
+
+            if (previewContainer) {
+              previewContainer.innerHTML = `
+                <div class="mt-2 p-2 bg-emerald-50 border border-emerald-400 rounded-xl flex items-center justify-between gap-2 shadow-2xs">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <img src="${uploadedPosterBase64}" class="w-12 h-6 object-cover rounded-md border border-emerald-300 shrink-0" />
+                    <span class="text-xs font-black text-emerald-950 flex items-center gap-1">
+                      <span class="w-3.5 h-3.5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[9px]">✓</span> Image Uploaded
+                    </span>
+                  </div>
+                </div>
+              `;
+            }
+          } catch (uploadErr) {
+            console.warn('CDN upload notice, using local optimized image:', uploadErr);
+            if (previewContainer) {
+              previewContainer.innerHTML = `
+                <div class="mt-2 p-2 bg-emerald-50 border border-emerald-400 rounded-xl flex items-center justify-between gap-2 shadow-2xs">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <img src="${croppedDataUrl}" class="w-12 h-6 object-cover rounded-md border border-emerald-300 shrink-0" />
+                    <span class="text-xs font-black text-emerald-950">✓ Image Uploaded</span>
+                  </div>
+                </div>
+              `;
+            }
+          }
+        }, "Crop Tournament Banner (Wide 21:9)");
+      };
+      reader.readAsDataURL(file);
     }
+  });
+
+  // Auto-generate short code as user types tournament name
+  document.getElementById('wiz-tourney-name')?.addEventListener('input', (e) => {
+    const slugInput = document.getElementById('wiz-tourney-slug');
+    if (slugInput && (!slugInput.dataset.manual || !slugInput.value)) {
+      const val = e.target.value.trim();
+      const initials = val.split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 6);
+      slugInput.value = initials ? `${initials}${new Date().getFullYear()}` : '';
+    }
+  });
+  document.getElementById('wiz-tourney-slug')?.addEventListener('input', (e) => {
+    e.target.dataset.manual = 'true';
   });
 
   // QR File handler
@@ -11467,11 +12798,16 @@ export function openTournamentCreationWizard(isTrialMode = false) {
   document.getElementById('wiz-next-btn')?.addEventListener('click', async () => {
     if (currentStep === 1) {
       const name = document.getElementById('wiz-tourney-name')?.value.trim();
-      const slug = document.getElementById('wiz-tourney-slug')?.value.trim();
+      let slug = document.getElementById('wiz-tourney-slug')?.value.trim();
       const venue = document.getElementById('wiz-tourney-venue')?.value.trim();
-      if (!name || !slug || !venue) {
-        alert("⚠️ Please fill Tournament Name, Slug, and Venue.");
+      if (!name || !venue) {
+        alert("⚠️ Please fill Tournament Name and Venue.");
         return;
+      }
+      if (!slug) {
+        slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || ('tourney-' + Date.now());
+        const slugInput = document.getElementById('wiz-tourney-slug');
+        if (slugInput) slugInput.value = slug.toUpperCase();
       }
       currentStep = 2;
       updateStepsUI();
@@ -11480,10 +12816,13 @@ export function openTournamentCreationWizard(isTrialMode = false) {
       updateStepsUI();
     } else if (currentStep === 3) {
       const name = document.getElementById('wiz-tourney-name')?.value.trim();
-      const slug = document.getElementById('wiz-tourney-slug')?.value.trim().toLowerCase();
+      let slug = document.getElementById('wiz-tourney-slug')?.value.trim().toLowerCase();
+      if (!slug) {
+        slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || ('tourney-' + Date.now());
+      }
       const venue = document.getElementById('wiz-tourney-venue')?.value.trim();
       const date = document.getElementById('wiz-tourney-date')?.value;
-      const prize = document.getElementById('wiz-tourney-prize')?.value || 35000;
+      const prize = document.getElementById('wiz-tourney-prize')?.value || 0;
       const orgName = document.getElementById('wiz-org-name')?.value.trim();
       const orgPhone = document.getElementById('wiz-org-phone')?.value.trim();
       const orgPass = document.getElementById('wiz-org-password')?.value.trim();
@@ -11503,7 +12842,7 @@ export function openTournamentCreationWizard(isTrialMode = false) {
       const qrFile = document.getElementById('wiz-qr-file');
       try {
         const [posterResult, qrResult] = await Promise.all([
-          posterFile?.files[0] ? uploadHDImage(posterFile, `tournaments/${slug}`) : Promise.resolve(null),
+          (!posterUrl && posterFile?.files[0]) ? uploadHDImage(posterFile, `tournaments/${slug}`) : Promise.resolve(null),
           qrFile?.files[0] ? uploadHDImage(qrFile, `tournaments/${slug}`) : Promise.resolve(null)
         ]);
         if (posterResult) posterUrl = posterResult;
@@ -11518,6 +12857,7 @@ export function openTournamentCreationWizard(isTrialMode = false) {
       const totalTeams = Number(document.getElementById('wiz-tourney-total-teams')?.value || 8);
       const endDate = document.getElementById('wiz-tourney-end-date')?.value || '';
       const prizeRunner = Number(document.getElementById('wiz-tourney-runner-prize')?.value || 0);
+      const extraInfo = document.getElementById('wiz-extra-info')?.value.trim() || '';
 
       const tourneyRecord = {
         id: `t_${slug}`,
@@ -11533,6 +12873,7 @@ export function openTournamentCreationWizard(isTrialMode = false) {
         prizeRunner,
         mode: selectedMode,
         posterUrl,
+        extraInfo,
         entryFee: Number(document.getElementById('wiz-entry-fee')?.value || 300),
         teamPurse: Number(document.getElementById('wiz-team-purse')?.value || 8000),
         basePrice: Number(document.getElementById('wiz-base-price')?.value || 300),
@@ -11915,6 +13256,8 @@ export function openDynamicTournamentRegistrationModal(tourneyIdOrSlug) {
 }
 
 window.openTournamentCreationWizard = openTournamentCreationWizard;
+window.openTournamentBannerCropModal = openTournamentBannerCropModal;
+window.openTournamentCommentsModal = openTournamentCommentsModal;
 window.openDynamicTournamentRegistrationModal = openDynamicTournamentRegistrationModal;
 window.openMatchCenterModal = openMatchCenterModal;
 window.openMatchPlayingXIModal = openMatchPlayingXIModal;

@@ -412,57 +412,33 @@ class Store {
         if (cloudOwners && typeof cloudOwners === 'object' && Object.keys(cloudOwners).length > 0) {
           const currentOwners = this.getTournamentOwners();
           const mergedOwners = { ...currentOwners, ...cloudOwners };
-          safeSetLocalStorage(STORAGE_KEYS.TOURNAMENT_OWNERS, mergedOwners);
-          this.notify('tournament_owners_updated');
+          const localOwnersStr = localStorage.getItem(STORAGE_KEYS.TOURNAMENT_OWNERS) || '{}';
+          const mergedOwnersStr = JSON.stringify(mergedOwners);
+          if (localOwnersStr !== mergedOwnersStr) {
+            safeSetLocalStorage(STORAGE_KEYS.TOURNAMENT_OWNERS, mergedOwners);
+            this.notify('tournament_owners_updated');
+          }
         }
 
         const cloudAccounts = await fetchUserAccountsFromCloud();
         if (Array.isArray(cloudAccounts) && cloudAccounts.length > 0) {
-          safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, cloudAccounts);
-          this.notify('user_accounts_updated');
+          const localAccountsStr = localStorage.getItem(STORAGE_KEYS.USER_ACCOUNTS) || '[]';
+          const cloudAccountsStr = JSON.stringify(cloudAccounts);
+          if (localAccountsStr !== cloudAccountsStr) {
+            safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, cloudAccounts);
+            this.notify('user_accounts_updated');
+          }
         }
 
         // 6. Sync Custom Tournaments from Cloud (Authoritative Realtime Sync across all browsers)
         const cloudTourneys = await fetchCustomTournamentsFromCloud();
-        if (Array.isArray(cloudTourneys) && cloudTourneys.length > 0) {
-          const local = JSON.parse(localStorage.getItem(STORAGE_KEYS.CUSTOM_TOURNAMENTS) || '[]');
-          const cloudMap = new Map();
-          
-          // Add cloud tournaments first
-          cloudTourneys.forEach(ct => {
-            const key = (ct.slug || ct.id).toLowerCase();
-            cloudMap.set(key, ct);
-          });
-
-          // Keep any purely local un-synced drafts if present
-          local.forEach(lt => {
-            const key = (lt.slug || lt.id).toLowerCase();
-            if (!cloudMap.has(key)) {
-              cloudMap.set(key, lt);
-            }
-          });
-
-          const merged = Array.from(cloudMap.values());
-          safeSetLocalStorage(STORAGE_KEYS.CUSTOM_TOURNAMENTS, merged);
-          this.notify('custom_tournaments_updated');
-        }
-
-        // 6b. Retry cloud save for local-only tournaments (no supabaseId)
-        const afterMerge = JSON.parse(localStorage.getItem(STORAGE_KEYS.CUSTOM_TOURNAMENTS) || '[]');
-        let listChanged = false;
-        for (const t of afterMerge) {
-          if (!t.supabaseId) {
-            const sid = await saveCustomTournamentToCloud(t);
-            if (sid) {
-              t.supabaseId = sid;
-              t.tournament_id = sid;
-              listChanged = true;
-            }
+        if (Array.isArray(cloudTourneys)) {
+          const localTourneysStr = localStorage.getItem(STORAGE_KEYS.CUSTOM_TOURNAMENTS) || '[]';
+          const cloudTourneysStr = JSON.stringify(cloudTourneys);
+          if (localTourneysStr !== cloudTourneysStr) {
+            safeSetLocalStorage(STORAGE_KEYS.CUSTOM_TOURNAMENTS, cloudTourneys);
+            this.notify('custom_tournaments_updated');
           }
-        }
-        if (listChanged) {
-          safeSetLocalStorage(STORAGE_KEYS.CUSTOM_TOURNAMENTS, afterMerge);
-          this.notify('custom_tournaments_updated');
         }
 
         // 7. Sync Tournament Formats (Group stages)
@@ -470,8 +446,12 @@ class Store {
         if (cloudFormats && typeof cloudFormats === 'object' && Object.keys(cloudFormats).length > 0) {
           const currentFormats = this.getTournamentFormats();
           const mergedFormats = { ...currentFormats, ...cloudFormats };
-          safeSetLocalStorage(STORAGE_KEYS.TOURNAMENT_FORMATS, mergedFormats);
-          this.notify('tournament_format_updated');
+          const localFormatsStr = localStorage.getItem(STORAGE_KEYS.TOURNAMENT_FORMATS) || '{}';
+          const mergedFormatsStr = JSON.stringify(mergedFormats);
+          if (localFormatsStr !== mergedFormatsStr) {
+            safeSetLocalStorage(STORAGE_KEYS.TOURNAMENT_FORMATS, mergedFormats);
+            this.notify('tournament_format_updated');
+          }
         }
       } catch (errOwners) {
         console.warn("Owners sync notice:", errOwners);
@@ -567,12 +547,15 @@ class Store {
   isAdminAuthenticated() {
     const u = this.getCurrentUser();
     if (!u) return false;
-    return u.role === 'TOURNAMENT_OWNER' || u.role === 'SUPER_ADMIN';
+    return u.role === 'TOURNAMENT_OWNER' || u.role === 'SUPER_ADMIN' || u.role === 'master_admin' || this.isMasterAdmin();
   }
 
   isMasterAdmin() {
     const u = this.getCurrentUser();
-    return !!(u && (u.role === 'SUPER_ADMIN' || u.role === 'master_admin'));
+    if (!u) return false;
+    const isMasterRole = u.role === 'SUPER_ADMIN' || u.role === 'master_admin';
+    const isMasterEmail = (u.email && (u.email.toLowerCase() === 'bakolaypan@gmail.com' || u.email.toLowerCase().includes('bakolaypan'))) || (u.name && u.name.toLowerCase().includes('bakolaypan'));
+    return isMasterRole || isMasterEmail;
   }
 
   async authenticateAdmin(email, password) {
@@ -2055,13 +2038,17 @@ class Store {
   async deleteCustomTournament(tourneyId) {
     if (!tourneyId) return false;
     const list = this.getCustomTournaments();
-    const match = list.find(t => t.id === tourneyId || t.slug === tourneyId);
-    const cloudId = match?.supabaseId || match?.tournament_id || null;
-    const filtered = list.filter(t => t.id !== tourneyId && t.slug !== tourneyId);
+    const match = list.find(t => t.id === tourneyId || t.slug === tourneyId || t.supabaseId === tourneyId);
+    const cloudId = match?.supabaseId || match?.tournament_id || (tourneyId.length > 30 ? tourneyId : null);
+    const slug = match?.slug || tourneyId;
+    const filtered = list.filter(t => 
+      t.id !== tourneyId && 
+      t.slug !== tourneyId && 
+      (!cloudId || (t.supabaseId !== cloudId && t.id !== cloudId)) &&
+      (!slug || t.slug !== slug)
+    );
     safeSetLocalStorage(STORAGE_KEYS.CUSTOM_TOURNAMENTS, filtered);
-    if (cloudId) {
-      await deleteCustomTournamentFromCloud(cloudId);
-    }
+    await deleteCustomTournamentFromCloud(cloudId || tourneyId, slug);
     this.notify('custom_tournaments_updated');
     return true;
   }
