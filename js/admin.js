@@ -1511,7 +1511,7 @@ export function renderAdminDashboard(containerEl) {
   });
 
   // Bind Assign Tournament Owner Form Submit
-  document.getElementById('assign-tournament-owner-form')?.addEventListener('submit', (e) => {
+  document.getElementById('assign-tournament-owner-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const tId = document.getElementById('assign-owner-tournament-id').value;
     const sel = document.getElementById('assign-owner-player-select');
@@ -1521,7 +1521,7 @@ export function renderAdminDashboard(containerEl) {
 
     if (!phone) return alert('Please select a player from the dropdown to appoint as Tournament Owner!');
 
-    store.setTournamentOwner(tId, phone, name);
+    await store.setTournamentOwner(tId, phone, name);
     alert(`👑 Authority Granted!\n\n"${name}" (${phone}) is now the official Tournament Owner.`);
     activeAdminTab = 'owners';
     renderAdminDashboard(containerEl);

@@ -10724,7 +10724,7 @@ export function openFirstTimePasswordResetModal(phone, onSuccess) {
     navigate('profile');
   });
 
-  document.getElementById('first-login-pwd-form')?.addEventListener('submit', (e) => {
+  document.getElementById('first-login-pwd-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const p1 = document.getElementById('first-new-password').value;
     const p2 = document.getElementById('first-confirm-password').value;
@@ -10738,7 +10738,7 @@ export function openFirstTimePasswordResetModal(phone, onSuccess) {
       return;
     }
 
-    const res = store.updateUserPassword(phone, p1);
+    const res = await store.updateUserPassword(phone, p1);
     if (!res.success) {
       if (errEl) {
         errEl.textContent = res.message || 'Failed to update password';

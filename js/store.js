@@ -85,6 +85,12 @@ const SCOPED_KEYS = ['PLAYERS', 'TEAMS', 'FIXTURES', 'AUCTION_SETTINGS', 'REGIST
 
 const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23059669'/%3E%3Ctext x='50' y='62' font-size='45' text-anchor='middle' fill='white'%3E🏏%3C/text%3E%3C/svg%3E";
 
+async function hashPassword(plaintext) {
+  const enc = new TextEncoder().encode(String(plaintext));
+  const buf = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
 // Purge legacy version keys (cpl_players_v1..v6, etc.) to free up 5MB browser storage quota
 function clearOldStorageQuota() {
   try {
@@ -192,10 +198,20 @@ class Store {
     return scopedKey(STORAGE_KEYS[baseKeyName], this.activeTournamentId);
   }
 
+  _evictTournamentCache(tournamentId) {
+    if (!tournamentId) return;
+    for (const keyName of SCOPED_KEYS) {
+      const sk = scopedKey(STORAGE_KEYS[keyName], tournamentId);
+      try { localStorage.removeItem(sk); } catch (e) {}
+    }
+  }
+
   setActiveTournament(tournamentId) {
     if (this.activeTournamentId === tournamentId) return;
+    const prevId = this.activeTournamentId;
     this.activeTournamentId = tournamentId;
     this._invalidateCache();
+    if (prevId) this._evictTournamentCache(prevId);
     if (tournamentId) {
       localStorage.setItem(STORAGE_KEYS.ACTIVE_TOURNAMENT, tournamentId);
     }
@@ -240,20 +256,14 @@ class Store {
     }
   }
 
-  restoreAllRejectedPlayers() {
-    // No-op to prevent overwriting cloud data on startup
-  }
-
   // --- STABLE CLOUD SYNC WITH DYNAMIC CONTINUOUS RE-INDEXING & CROSS-DEVICE CLEAR SYNC ---
   async syncWithCloud() {
     if (this._isSyncingWithCloud) return;
+    const isUserFillingForm = document.getElementById('player-reg-modal') || document.getElementById('team-reg-modal');
+    if (isUserFillingForm) return;
     this._isSyncingWithCloud = true;
     try {
       const cloudData = await fetchCloudData(this.activeTournamentId);
-      
-      // If a registration modal or form is open, DO NOT interrupt the user!
-      const isUserFillingForm = document.getElementById('player-reg-modal') || document.getElementById('team-reg-modal');
-      if (isUserFillingForm) return;
 
       const lastLocalClearedAt = Number(localStorage.getItem('cpl_last_cleared_at') || '0');
 
@@ -556,9 +566,8 @@ class Store {
   // --- ADMIN & TOURNAMENT OWNER AUTHENTICATION ---
   isAdminAuthenticated() {
     const u = this.getCurrentUser();
-    if (u && (u.role === 'TOURNAMENT_OWNER' || u.role === 'SUPER_ADMIN')) return true;
-    const val = localStorage.getItem(STORAGE_KEYS.ADMIN_AUTH);
-    return val === 'true' || val === '"true"';
+    if (!u) return false;
+    return u.role === 'TOURNAMENT_OWNER' || u.role === 'SUPER_ADMIN';
   }
 
   isMasterAdmin() {
@@ -575,11 +584,11 @@ class Store {
       if (res && res.data && res.data.user) {
         const user = res.data.user;
         const profile = res.data.profile;
-        const isMaster = (profile && profile.role === 'master_admin') || cleanEmail === 'bakolaypan@gmail.com';
-        
+        const isMaster = !!(profile && profile.role === 'master_admin');
+
         const userObj = {
           id: user.id,
-          name: profile?.full_name || (cleanEmail === 'bakolaypan@gmail.com' ? 'Master Admin (Suman Kolay)' : (user.user_metadata?.full_name || 'Admin User')),
+          name: profile?.full_name || user.user_metadata?.full_name || 'Admin User',
           email: user.email,
           role: isMaster ? 'SUPER_ADMIN' : 'TOURNAMENT_OWNER',
           authProvider: 'supabase'
@@ -1161,6 +1170,7 @@ class Store {
   resetAuctionData() {
     const players = this.getPlayers();
     const now = Date.now();
+    const syncPromises = [];
     players.forEach(p => {
       p.teamId = null;
       p.teamName = null;
@@ -1169,8 +1179,9 @@ class Store {
       p.isSold = false;
       p.boughtByTeamId = null;
       p.updated_at = now;
-      syncPlayerToSupabase(p);
+      syncPromises.push(syncPlayerToSupabase(p));
     });
+    Promise.all(syncPromises).catch(e => console.warn('Batch auction reset sync:', e));
 
     const teams = (JSON.parse(localStorage.getItem(this._scopedKey('TEAMS'))) || []).map((t, idx) => {
       const hasIcon = !!(t.iconPlayerName || t.iconName);
@@ -1226,11 +1237,6 @@ class Store {
     const deduped = [];
     for (const t of teams) {
       if (!t || !t.id) continue;
-      if (t.name && (t.name.trim().toLowerCase() === 'arjo xi' || t.name.trim().toLowerCase() === 'arjo' || t.name.trim().toLowerCase() === 'arjo 11' || t.name.trim().toLowerCase() === 'team arjo xi')) {
-        t.name = 'SWEETY JEWELLERS';
-        t.ownerName = 'Partho Ghosh';
-        t.shortCode = 'SJ';
-      }
       const normName = (t.name || '').trim().toLowerCase();
       if (!normName) { deduped.push(t); continue; }
       
@@ -1357,6 +1363,7 @@ class Store {
     const teams = this.getTeams();
     const players = this.getPlayers();
     let changed = false;
+    const syncPromises = [];
 
     teams.forEach(t => {
       const iconName = (t.iconPlayerName || t.iconName || '').trim().toLowerCase();
@@ -1375,13 +1382,14 @@ class Store {
             p.boughtByTeamId = t.id;
             p.updated_at = Date.now();
             changed = true;
-            if (typeof syncPlayerToSupabase === 'function') syncPlayerToSupabase(p);
+            syncPromises.push(syncPlayerToSupabase(p));
           }
         });
       }
     });
 
     if (changed) {
+      Promise.all(syncPromises).catch(e => console.warn('Batch icon sync:', e));
       safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
       this.notify('players_updated');
     }
@@ -2284,7 +2292,7 @@ class Store {
     };
   }
 
-  setTournamentOwner(tournamentId, phone, name) {
+  async setTournamentOwner(tournamentId, phone, name) {
     const cleanPhone = (phone || '').replace(/[^0-9]/g, '');
     if (!cleanPhone) return false;
 
@@ -2296,23 +2304,11 @@ class Store {
     };
     safeSetLocalStorage(STORAGE_KEYS.TOURNAMENT_OWNERS, owners);
 
-    // Update user account role
     const players = this.getPlayers();
     const player = players.find(p => (p.phone || p.mobile || '').replace(/[^0-9]/g, '') === cleanPhone) || { phone: cleanPhone, name };
-    let userAcc = this.ensureUserAccountForPlayer(player);
+    let userAcc = await this.ensureUserAccountForPlayer(player);
     if (userAcc) {
       userAcc.role = 'TOURNAMENT_OWNER';
-      if (!userAcc.password) {
-        const enc = new TextEncoder().encode(cleanPhone);
-        crypto.subtle.digest('SHA-256', enc).then(buf => {
-          userAcc.password = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
-          const accs = this.getUserAccounts();
-          const i = accs.findIndex(a => a.phone === cleanPhone);
-          if (i !== -1) accs[i] = userAcc; else accs.push(userAcc);
-          safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, accs);
-        });
-        userAcc.password = '__hashing__';
-      }
       if (!userAcc.ownedTournaments) userAcc.ownedTournaments = [];
       if (!userAcc.ownedTournaments.includes(tournamentId)) userAcc.ownedTournaments.push(tournamentId);
       const accounts = this.getUserAccounts();
@@ -2325,7 +2321,7 @@ class Store {
     return true;
   }
 
-  ensureUserAccountForPlayer(player) {
+  async ensureUserAccountForPlayer(player) {
     if (!player) return null;
     const cleanPhone = (player.phone || player.mobile || '').replace(/[^0-9]/g, '');
     if (!cleanPhone || cleanPhone.length < 10) return null;
@@ -2336,9 +2332,10 @@ class Store {
     const isOwner = Object.values(owners).some(o => o && o.phone === cleanPhone);
 
     if (!acc) {
+      const hashedPw = await hashPassword(cleanPhone);
       acc = {
         phone: cleanPhone,
-        password: cleanPhone, // default password is mobile number
+        password: hashedPw,
         isFirstLogin: true,
         name: player.name || 'Player',
         playerId: player.id || null,
@@ -2350,7 +2347,11 @@ class Store {
       safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, accounts);
       saveUserAccountToCloud(acc);
     } else {
-      if (!acc.password) acc.password = cleanPhone;
+      if (!acc.password || acc.password === cleanPhone) {
+        acc.password = await hashPassword(cleanPhone);
+        safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, accounts);
+        saveUserAccountToCloud(acc);
+      }
       if (isOwner && acc.role !== 'TOURNAMENT_OWNER') {
         acc.role = 'TOURNAMENT_OWNER';
         safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, accounts);
@@ -2373,11 +2374,11 @@ class Store {
         const authedUser = authResult?.data?.user || authResult?.user;
         if (authedUser) {
           const profile = authResult?.data?.profile || (await fetchUserProfile(authedUser.id));
-          const isMaster = (profile && profile.role === 'master_admin') || rawId.toLowerCase() === 'bakolaypan@gmail.com';
+          const isMaster = !!(profile && profile.role === 'master_admin');
           const user = {
             id: authedUser.id,
             email: rawId,
-            name: profile?.full_name || (rawId.toLowerCase() === 'bakolaypan@gmail.com' ? 'Master Admin (Suman Kolay)' : (authedUser.user_metadata?.full_name || rawId.split('@')[0])),
+            name: profile?.full_name || authedUser.user_metadata?.full_name || rawId.split('@')[0],
             role: isMaster ? 'SUPER_ADMIN' : 'TOURNAMENT_OWNER',
             isFirstLogin: false,
             ownedTournaments: Object.keys(this.getTournamentOwners())
@@ -2417,7 +2418,7 @@ class Store {
     let acc = accounts.find(a => a.phone === cleanPhone);
 
     if (!acc && player) {
-      acc = this.ensureUserAccountForPlayer(player);
+      acc = await this.ensureUserAccountForPlayer(player);
       accounts = this.getUserAccounts();
     }
 
@@ -2425,9 +2426,10 @@ class Store {
       const ownerName = isTournamentOwner
         ? (Object.values(owners).find(o => o && (o.phone || '').replace(/[^0-9]/g, '') === cleanPhone)?.name || 'Tournament Admin')
         : 'Player';
+      const hashedPw = await hashPassword(cleanPhone);
       acc = {
         phone: cleanPhone,
-        password: cleanPhone,
+        password: hashedPw,
         name: player ? player.name : ownerName,
         role: isTournamentOwner ? 'TOURNAMENT_OWNER' : 'PLAYER',
         isFirstLogin: true,
@@ -2448,8 +2450,9 @@ class Store {
       safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, accounts);
     }
 
-    // Verify Password
-    if (acc.password !== password) {
+    // Verify Password (hash input and compare)
+    const hashedInput = await hashPassword(password);
+    if (acc.password !== hashedInput) {
       return { success: false, message: 'Incorrect password! (Default password is your 10-digit mobile number)' };
     }
 
@@ -2470,7 +2473,7 @@ class Store {
     };
   }
 
-  updateUserPassword(phone, newPassword) {
+  async updateUserPassword(phone, newPassword) {
     const cleanPhone = (phone || '').replace(/[^0-9]/g, '');
     if (!cleanPhone || !newPassword || newPassword.length < 4) {
       return { success: false, message: 'Password must be at least 4 characters long!' };
@@ -2483,14 +2486,14 @@ class Store {
       const players = this.getPlayers();
       const player = players.find(p => (p.phone || p.mobile || '').replace(/[^0-9]/g, '') === cleanPhone);
       if (player) {
-        acc = this.ensureUserAccountForPlayer(player);
+        acc = await this.ensureUserAccountForPlayer(player);
         accounts = this.getUserAccounts();
       }
     }
 
     if (!acc) return { success: false, message: 'Account not found!' };
 
-    acc.password = newPassword;
+    acc.password = await hashPassword(newPassword);
     acc.isFirstLogin = false;
     acc.passwordChangedAt = Date.now();
 

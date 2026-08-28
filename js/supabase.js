@@ -36,22 +36,32 @@ initSupabaseClient();
 const UUID_FORMAT_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function makeUUID(input) {
-  let hash = 0;
   const str = String(input);
+  let h0 = 0x6a09e667 | 0, h1 = 0xbb67ae85 | 0, h2 = 0x3c6ef372 | 0, h3 = 0xa54ff53a | 0;
   for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash;
+    const k = str.charCodeAt(i);
+    h0 = Math.imul(h0 ^ k, 0x9e3779b9) >>> 0;
+    h1 = Math.imul(h1 ^ k, 0x517cc1b7) >>> 0;
+    h2 = Math.imul(h2 ^ k, 0x6c62272e) >>> 0;
+    h3 = Math.imul(h3 ^ k, 0x2e1b2138) >>> 0;
+    h0 = (h0 ^ (h0 >>> 16)) >>> 0;
+    h1 = (h1 ^ (h1 >>> 16)) >>> 0;
+    h2 = (h2 ^ (h2 >>> 16)) >>> 0;
+    h3 = (h3 ^ (h3 >>> 16)) >>> 0;
   }
-  const hex = Math.abs(hash).toString(16).padStart(8, '0');
-  const base = hex.repeat(4).substring(0, 32);
-  return `${base.slice(0,8)}-${base.slice(8,12)}-4${base.slice(13,16)}-a${base.slice(17,20)}-${base.slice(20,32)}`;
+  const hex = [h0, h1, h2, h3].map(v => v.toString(16).padStart(8, '0')).join('');
+  return `${hex.slice(0,8)}-${hex.slice(8,12)}-4${hex.slice(13,16)}-a${hex.slice(17,20)}-${hex.slice(20,32)}`;
 }
+
+const LEGACY_UUID_MAP = {
+  'leg-jsl': '033bfc04-033b-4c04-a33b-fc04033bfc04'
+};
 
 export function toUUID(oldId) {
   if (!oldId) return null;
   const str = String(oldId);
   if (UUID_FORMAT_RE.test(str)) return str;
+  if (LEGACY_UUID_MAP[str]) return LEGACY_UUID_MAP[str];
   return makeUUID(str);
 }
 
