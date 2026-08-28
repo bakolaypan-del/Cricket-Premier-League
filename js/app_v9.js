@@ -1320,8 +1320,10 @@ function renderTournamentFallbackPoster(ct) {
 
 function buildTournamentCarouselHTML(allTournaments) {
   const activeTourneys = allTournaments.filter(ct => ct.status === 'ACTIVE' || !ct.status);
+  // Cap top carousel to featured/active 8 to keep mobile carousel responsive with 200+ tournaments
+  const featuredTourneys = activeTourneys.slice(0, 8);
 
-  const carouselCards = activeTourneys.map((ct, idx) => {
+  const carouselCards = featuredTourneys.map((ct, idx) => {
     const outlineColor = CARD_OUTLINE_COLORS[idx % CARD_OUTLINE_COLORS.length];
     const poster = ct.posterUrl
       ? '<img src="' + ct.posterUrl + '" loading="lazy" class="w-full h-full object-cover object-center" onerror="this.style.display=\'none\'" />'
@@ -1335,7 +1337,7 @@ function buildTournamentCarouselHTML(allTournaments) {
       + '</div>';
   }).join('');
 
-  const dots = activeTourneys.map((ct, idx) => {
+  const dots = featuredTourneys.map((ct, idx) => {
     const dotColor = idx === 0 ? CARD_OUTLINE_COLORS[idx % CARD_OUTLINE_COLORS.length] : '#cbd5e1';
     return '<span class="carousel-dot w-2 h-2 rounded-full transition-all cursor-pointer" data-dot-idx="' + idx + '" style="background:' + dotColor + ';"></span>';
   }).join('');
@@ -1479,17 +1481,15 @@ function renderFirstPageLanding(containerEl) {
               🏆 Host Your Own Cricket Tournament
             </h3>
             <p class="text-[11px] sm:text-xs font-black text-slate-800 leading-snug">
-              নিজের ক্রিকেট টুর্নামেন্ট অনলাইনে তৈরি করুন
+              Launch and manage your custom cricket tournament online
             </p>
             <p class="text-[10px] sm:text-[11px] text-slate-900 font-bold max-w-lg leading-relaxed">
               ✨ <strong>Mode A</strong>: Player Registration + Live Auction + Squads + Live Scorer<br/>
-              <span class="text-slate-700">প্লেয়ার রেজিস্ট্রেশন + লাইভ নিলাম + স্কোয়াড + লাইভ স্কোরার</span><br/>
-              ⚡ <strong>Mode B</strong>: Team Entry + Auto Fixtures + Ball-by-Ball Scoring<br/>
-              <span class="text-slate-700">টিম এন্ট্রি + অটো ফিক্সচার + বল-বাই-বল স্কোরিং</span>
+              ⚡ <strong>Mode B</strong>: Direct Team Entry + Auto Fixtures + Ball-by-Ball Scoring
             </p>
           </div>
           <button id="btn-home-create-tourney" class="w-full md:w-auto px-5 py-3 bg-slate-950 hover:bg-slate-900 text-amber-400 font-black text-xs sm:text-sm rounded-xl shadow-xl border-2 border-amber-400 flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-105 shrink-0">
-            <span>+ Create Tournament / টুর্নামেন্ট তৈরি করুন ➔</span>
+            <span>+ Create Tournament ➔</span>
           </button>
         </div>
       </div>
@@ -1616,8 +1616,7 @@ export function renderCustomTournamentHub(container, tourney) {
            (isJsl && (pTid.includes('jsl') || pSlug.includes('jsl') || pTName.includes('JHANKRA') || pTName.includes('JSL')));
   });
 
-  // If no players are specifically tagged for a custom tournament in testing, fallback to full active player pool
-  const displayPlayers = allPlayers.length > 0 ? allPlayers : store.getPlayers();
+  const displayPlayers = allPlayers;
 
   const allTeams = store.getTeams().filter(t => {
     if (isJsl && (!t.tournamentId && !t.tournament_id)) return true;
@@ -11180,7 +11179,7 @@ export function openTournamentCreationWizard(isTrialMode = false) {
               <h2 class="text-sm sm:text-base font-black text-slate-900 tracking-tight leading-tight mt-0.5">
                 Create Your Cricket Tournament
               </h2>
-              <p class="text-[10px] font-bold text-slate-500 leading-tight">আপনার ক্রিকেট টুর্নামেন্ট তৈরি করুন</p>
+              <p class="text-[10px] font-bold text-slate-500 leading-tight">Create and host your custom tournament online</p>
             </div>
           </div>
           
@@ -11192,80 +11191,80 @@ export function openTournamentCreationWizard(isTrialMode = false) {
         <!-- PROGRESS STEPS BAR -->
         <div class="px-2 py-1.5 sm:p-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-around text-[10px] sm:text-xs font-black shrink-0">
           <div id="step-pill-1" class="flex items-center gap-1 px-2 sm:px-3 py-1 rounded-xl bg-amber-400 text-slate-950 shadow-xs border border-amber-300">
-            <span>1</span> <span>পরিচয়</span>
+            <span>1</span> <span>Identity</span>
           </div>
           <span class="text-slate-300 text-[10px]">➔</span>
           <div id="step-pill-2" class="flex items-center gap-1 px-2 sm:px-3 py-1 rounded-xl bg-white text-slate-500 border border-slate-200">
-            <span>2</span> <span>মোড</span>
+            <span>2</span> <span>Mode</span>
           </div>
           <span class="text-slate-300 text-[10px]">➔</span>
           <div id="step-pill-3" class="flex items-center gap-1 px-2 sm:px-3 py-1 rounded-xl bg-white text-slate-500 border border-slate-200">
-            <span>3</span> <span>লঞ্চ</span>
+            <span>3</span> <span>Launch</span>
           </div>
         </div>
 
         <!-- WIZARD BODY CONTAINER -->
         <div id="tourney-wizard-content" class="p-3 sm:p-5 overflow-y-auto flex-1 space-y-3 bg-white">
-          <!-- Step 1: Basic Identity / পরিচয় -->
+          <!-- Step 1: Basic Identity -->
           <div id="wizard-step-1" class="space-y-2.5 animate-fade-in">
             <div>
-              <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Tournament Name * <span class="normal-case text-slate-400 font-bold">/ টুর্নামেন্টের নাম</span></label>
+              <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Tournament Name *</label>
               <input type="text" id="wiz-tourney-name" placeholder="e.g. Medinipur Super Trophy 2026" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400" />
             </div>
 
             <div class="grid grid-cols-2 gap-2">
               <div>
-                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Short Code * <span class="normal-case text-slate-400 font-bold">/ কোড</span></label>
+                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Short Code *</label>
                 <input type="text" id="wiz-tourney-slug" placeholder="MST2026" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-amber-400 uppercase" />
               </div>
               <div>
-                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Venue * <span class="normal-case text-slate-400 font-bold">/ মাঠ</span></label>
+                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Venue *</label>
                 <input type="text" id="wiz-tourney-venue" placeholder="Town Club Ground" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400" />
               </div>
             </div>
 
             <div class="grid grid-cols-2 gap-2">
               <div>
-                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Season <span class="normal-case text-slate-400 font-bold">/ সিজন</span></label>
+                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Season</label>
                 <input type="text" id="wiz-tourney-season" placeholder="Season 1, 2026" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400" />
               </div>
               <div>
-                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Total Teams * <span class="normal-case text-slate-400 font-bold">/ টিম</span></label>
+                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Total Teams *</label>
                 <input type="number" id="wiz-tourney-total-teams" placeholder="8" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400 font-mono" />
               </div>
             </div>
 
             <div class="grid grid-cols-2 gap-2">
               <div>
-                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Start Date * <span class="normal-case text-slate-400 font-bold">/ তারিখ</span></label>
-                <input type="datetime-local" id="wiz-tourney-date" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-2 text-[11px] text-slate-900 font-bold focus:outline-none focus:border-amber-400" />
+                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Start Date *</label>
+                <input type="date" id="wiz-tourney-date" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-2 text-[11px] text-slate-900 font-bold focus:outline-none focus:border-amber-400" />
               </div>
               <div>
-                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">End Date <span class="normal-case text-slate-400 font-bold">/ শেষ</span></label>
+                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">End Date</label>
                 <input type="date" id="wiz-tourney-end-date" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-2.5 py-2 text-[11px] text-slate-900 font-bold focus:outline-none focus:border-amber-400" />
               </div>
             </div>
 
             <div class="grid grid-cols-2 gap-2">
               <div>
-                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Winner Prize ₹ * <span class="normal-case text-slate-400 font-bold">/ পুরস্কার</span></label>
+                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Winner Prize ₹ *</label>
                 <input type="number" id="wiz-tourney-prize" placeholder="35000" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400 font-mono" />
               </div>
               <div>
-                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Runner-up ₹ <span class="normal-case text-slate-400 font-bold">/ রানার্স</span></label>
+                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Runner-Up ₹</label>
                 <input type="number" id="wiz-tourney-runner-prize" placeholder="15000" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400 font-mono" />
               </div>
             </div>
 
             <div>
-              <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Poster / Banner <span class="normal-case text-slate-400 font-bold">/ পোস্টার (ঐচ্ছিক)</span></label>
+              <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Poster / Banner (Optional)</label>
               <input type="file" id="wiz-poster-file" accept="image/*" class="w-full text-[11px] text-slate-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:bg-slate-900 file:text-white hover:file:bg-slate-800 cursor-pointer" />
             </div>
           </div>
 
-          <!-- Step 2: Choose Mode / মোড নির্বাচন (Hidden by Default) -->
+          <!-- Step 2: Choose Mode -->
           <div id="wizard-step-2" class="space-y-2.5 hidden animate-fade-in">
-            <label class="block text-[10px] font-black text-slate-700 uppercase">Select Mode * <span class="normal-case text-slate-400 font-bold">/ মোড নির্বাচন করুন</span></label>
+            <label class="block text-[10px] font-black text-slate-700 uppercase">Select Mode *</label>
 
             <div class="grid grid-cols-2 gap-2">
               <!-- Mode A: Full Auction -->
@@ -11274,7 +11273,7 @@ export function openTournamentCreationWizard(isTrialMode = false) {
                   <span class="text-[11px] font-black text-amber-950">🔨 Mode A</span>
                   <span class="w-4 h-4 rounded-full bg-amber-400 text-slate-950 text-[9px] font-black flex items-center justify-center">✓</span>
                 </div>
-                <p class="text-[10px] font-bold text-amber-900">Full Auction / সম্পূর্ণ নিলাম</p>
+                <p class="text-[10px] font-bold text-amber-900">Full Auction League</p>
                 <p class="text-[9px] text-slate-500 leading-tight">Registration + Auction + Squads + Live Scorer</p>
               </div>
 
@@ -11284,78 +11283,78 @@ export function openTournamentCreationWizard(isTrialMode = false) {
                   <span class="text-[11px] font-black text-slate-900">🏏 Mode B</span>
                   <span class="w-4 h-4 rounded-full bg-slate-200 text-slate-500 text-[9px] font-black flex items-center justify-center"></span>
                 </div>
-                <p class="text-[10px] font-bold text-slate-700">Quick Fixtures / কুইক ফিক্সচার</p>
+                <p class="text-[10px] font-bold text-slate-700">Quick Fixtures League</p>
                 <p class="text-[9px] text-slate-500 leading-tight">Team Entry + Fixtures + Ball-by-Ball Scoring</p>
               </div>
             </div>
 
             <!-- Mode A Specific Fields -->
             <div id="mode-a-config-block" class="p-2.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
-              <h4 class="text-[10px] font-black text-amber-900 uppercase">Auction Settings <span class="normal-case text-slate-400 font-bold">/ নিলাম সেটিংস</span></h4>
+              <h4 class="text-[10px] font-black text-amber-900 uppercase">Auction Settings</h4>
               <div class="grid grid-cols-3 gap-2">
                 <div>
-                  <label class="block text-[9px] font-black text-slate-600 uppercase mb-0.5">Entry Fee ₹ <span class="normal-case text-slate-400">/ ফি</span></label>
+                  <label class="block text-[9px] font-black text-slate-600 uppercase mb-0.5">Entry Fee ₹</label>
                   <input type="number" id="wiz-entry-fee" value="300" class="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-bold font-mono" />
                 </div>
                 <div>
-                  <label class="block text-[9px] font-black text-slate-600 uppercase mb-0.5">Purse ₹ <span class="normal-case text-slate-400">/ পার্স</span></label>
+                  <label class="block text-[9px] font-black text-slate-600 uppercase mb-0.5">Purse ₹</label>
                   <input type="number" id="wiz-team-purse" value="8000" class="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-bold font-mono" />
                 </div>
                 <div>
-                  <label class="block text-[9px] font-black text-slate-600 uppercase mb-0.5">Base ₹ <span class="normal-case text-slate-400">/ বেস</span></label>
+                  <label class="block text-[9px] font-black text-slate-600 uppercase mb-0.5">Base Price ₹</label>
                   <input type="number" id="wiz-base-price" value="300" class="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-bold font-mono" />
                 </div>
               </div>
 
               <div>
-                <label class="block text-[9px] font-black text-slate-600 uppercase mb-0.5">UPI ID * <span class="normal-case text-slate-400">/ পেমেন্ট আইডি</span></label>
+                <label class="block text-[9px] font-black text-slate-600 uppercase mb-0.5">UPI ID *</label>
                 <input type="text" id="wiz-upi-id" placeholder="organizer@okaxis" class="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold font-mono" />
               </div>
 
               <div>
-                <label class="block text-[9px] font-black text-slate-600 uppercase mb-0.5">Payment QR Code * <span class="normal-case text-slate-400">/ কিউআর কোড</span></label>
+                <label class="block text-[9px] font-black text-slate-600 uppercase mb-0.5">Payment QR Code *</label>
                 <input type="file" id="wiz-qr-file" accept="image/*" class="w-full text-[11px] text-slate-600 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:bg-emerald-600 file:text-white cursor-pointer" />
               </div>
             </div>
           </div>
 
-          <!-- Step 3: Organizer / আয়োজকের তথ্য (Hidden by Default) -->
+          <!-- Step 3: Organizer Account -->
           <div id="wizard-step-3" class="space-y-2.5 hidden animate-fade-in">
-            <h4 class="text-[10px] font-black text-slate-900 uppercase">Organizer Account <span class="normal-case text-slate-400 font-bold">/ আয়োজকের অ্যাকাউন্ট সেটআপ</span></h4>
+            <h4 class="text-[10px] font-black text-slate-900 uppercase">Organizer Account Setup</h4>
 
             <div>
-              <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Name * <span class="normal-case text-slate-400 font-bold">/ আয়োজকের নাম</span></label>
+              <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Organizer Name *</label>
               <input type="text" id="wiz-org-name" placeholder="e.g. Suman Kolay" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400" />
             </div>
 
             <div class="grid grid-cols-2 gap-2">
               <div>
-                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">WhatsApp * <span class="normal-case text-slate-400 font-bold">/ নম্বর</span></label>
+                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">WhatsApp / Phone Number *</label>
                 <input type="tel" id="wiz-org-phone" placeholder="8972214416" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-amber-400" />
               </div>
               <div>
-                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Password * <span class="normal-case text-slate-400 font-bold">/ পাসওয়ার্ড</span></label>
+                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Admin Password *</label>
                 <input type="password" id="wiz-org-password" placeholder="Secret Password" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-amber-400" />
               </div>
             </div>
           </div>
 
-          <!-- Success Launch View (Hidden by Default) -->
+          <!-- Success Launch View -->
           <div id="wizard-step-success" class="space-y-3 hidden animate-fade-in text-center py-1">
             <div class="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-800 mx-auto flex items-center justify-center text-xl font-black shadow-xs">
               🎉
             </div>
             <div class="space-y-1">
               <span class="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 text-[9px] font-black rounded-full border border-emerald-300 uppercase">
-                TOURNAMENT CREATED / টুর্নামেন্ট তৈরি হয়েছে ✅
+                TOURNAMENT CREATED SUCCESSFULLY ✅
               </span>
               <h3 id="wiz-success-title" class="text-sm sm:text-base font-black text-slate-900">Tournament Name</h3>
-              <p class="text-[11px] text-slate-600">আপনার টুর্নামেন্ট পোর্টাল ও রেজিস্ট্রেশন লিংক লাইভ!</p>
+              <p class="text-[11px] text-slate-600">Your tournament portal and registration link are now live!</p>
             </div>
 
             <div class="bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-left space-y-2 text-xs">
               <div>
-                <span class="text-[9px] font-black text-slate-500 uppercase block">Hub Link / হাব লিংক:</span>
+                <span class="text-[9px] font-black text-slate-500 uppercase block">Hub Link:</span>
                 <div class="flex items-center justify-between gap-1.5 mt-0.5">
                   <span id="wiz-success-hub-link" class="font-mono text-[10px] text-blue-700 font-bold truncate">...</span>
                   <button type="button" id="wiz-copy-hub-btn" class="px-2 py-0.5 bg-white hover:bg-slate-100 border border-slate-300 rounded text-[9px] font-black shrink-0 cursor-pointer">Copy</button>
@@ -11363,7 +11362,7 @@ export function openTournamentCreationWizard(isTrialMode = false) {
               </div>
 
               <div id="wiz-success-reg-container">
-                <span class="text-[9px] font-black text-slate-500 uppercase block">Registration Link / রেজিস্ট্রেশন লিংক:</span>
+                <span class="text-[9px] font-black text-slate-500 uppercase block">Registration Link:</span>
                 <div class="flex items-center justify-between gap-1.5 mt-0.5">
                   <span id="wiz-success-reg-link" class="font-mono text-[10px] text-emerald-700 font-bold truncate">...</span>
                   <button type="button" id="wiz-copy-reg-btn" class="px-2 py-0.5 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 rounded text-[9px] font-black shrink-0 cursor-pointer">Copy</button>
@@ -11377,11 +11376,11 @@ export function openTournamentCreationWizard(isTrialMode = false) {
         <!-- MODAL FOOTER BUTTONS -->
         <div class="p-2.5 sm:p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-2 shrink-0">
           <button type="button" id="wiz-prev-btn" class="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-lg border border-slate-300 cursor-pointer hidden">
-            ← পিছনে
+            ← Back
           </button>
           <div class="flex-1"></div>
           <button type="button" id="wiz-next-btn" class="px-5 py-2 bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-500 hover:to-yellow-500 text-slate-950 font-black text-xs rounded-xl shadow-xs border border-amber-300 cursor-pointer transition-all">
-            Continue / এগিয়ে যান →
+            Continue →
           </button>
         </div>
 
@@ -11449,11 +11448,11 @@ export function openTournamentCreationWizard(isTrialMode = false) {
     if (prevBtn) prevBtn.classList.toggle('hidden', currentStep <= 1 || currentStep > 3);
     if (nextBtn) {
       if (currentStep === 3) {
-        nextBtn.textContent = '🚀 Launch / টুর্নামেন্ট তৈরি করুন';
+        nextBtn.textContent = '🚀 Launch Tournament';
       } else if (currentStep > 3) {
-        nextBtn.textContent = 'Done / পোর্টাল দেখুন';
+        nextBtn.textContent = 'Done & View Portal';
       } else {
-        nextBtn.textContent = 'Continue / এগিয়ে যান →';
+        nextBtn.textContent = 'Continue →';
       }
     }
   };

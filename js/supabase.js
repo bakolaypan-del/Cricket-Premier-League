@@ -375,6 +375,9 @@ export function initRealtimePushListener(onUpdateCallback, tournamentId) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'matches', filter }, (payload) => {
         if (typeof onUpdateCallback === 'function') onUpdateCallback(payload);
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tournaments' }, (payload) => {
+        if (typeof onUpdateCallback === 'function') onUpdateCallback(payload);
+      })
       .subscribe();
 
     activeRealtimeChannel = channel;
@@ -780,10 +783,10 @@ export async function saveFullFixturesListToCloud(fixturesList) {
   await Promise.all(fixturesList.filter(f => f && f.id).map(f => syncFixtureToSupabase(f)));
 }
 
-export async function saveAuctionSettingsToCloud(settings) {
+export async function saveAuctionSettingsToCloud(settings, tournamentId = null) {
   if (!supabase) return;
   try {
-    const tId = DEFAULT_TOURNAMENT_UUID;
+    const tId = toUUID(tournamentId) || toUUID(typeof window !== 'undefined' && window.store?.activeTournamentId) || DEFAULT_TOURNAMENT_UUID;
     await supabase.from('tournaments').update({ auction_settings: settings, updated_at: new Date().toISOString() }).eq('id', tId);
   } catch (e) { console.warn('[SUPABASE] saveAuctionSettings:', e.message); }
 }
@@ -795,18 +798,20 @@ export async function saveLiveAuctionToCloud(state) {
   } catch (e) { console.warn('[SUPABASE] saveLiveAuction:', e.message); }
 }
 
-export async function saveAuctionPermanentArchiveToCloud(archiveData) {
+export async function saveAuctionPermanentArchiveToCloud(archiveData, tournamentId = null) {
   if (!supabase || !archiveData) return;
   try {
-    const id = archiveData.archiveId || 'AUCTION_VAULT';
-    await supabase.from('auction_archives').upsert({ id, tournament_id: DEFAULT_TOURNAMENT_UUID, snapshot: archiveData, created_at: new Date().toISOString() }, { onConflict: 'id' });
+    const tId = toUUID(tournamentId) || toUUID(typeof window !== 'undefined' && window.store?.activeTournamentId) || DEFAULT_TOURNAMENT_UUID;
+    const id = archiveData.archiveId || `AUCTION_VAULT_${tId.slice(0, 8)}`;
+    await supabase.from('auction_archives').upsert({ id, tournament_id: tId, snapshot: archiveData, created_at: new Date().toISOString() }, { onConflict: 'id' });
   } catch (e) { console.warn('[SUPABASE] saveAuctionArchive:', e.message); }
 }
 
-export async function fetchAuctionPermanentArchiveFromCloud() {
+export async function fetchAuctionPermanentArchiveFromCloud(tournamentId = null) {
   if (!supabase) return null;
   try {
-    const { data } = await supabase.from('auction_archives').select('snapshot').eq('tournament_id', DEFAULT_TOURNAMENT_UUID).limit(1).maybeSingle();
+    const tId = toUUID(tournamentId) || toUUID(typeof window !== 'undefined' && window.store?.activeTournamentId) || DEFAULT_TOURNAMENT_UUID;
+    const { data } = await supabase.from('auction_archives').select('snapshot').eq('tournament_id', tId).limit(1).maybeSingle();
     return data ? data.snapshot : null;
   } catch (e) { return null; }
 }
@@ -965,12 +970,13 @@ export async function fetchRegistrationSettingsFromCloud(tournamentId = null) {
 }
 
 // --- PUBLIC COMMUNITY QUERIES & REPLIES (community_queries table) ---
-export async function saveCommunityQueryToCloud(queryData) {
+export async function saveCommunityQueryToCloud(queryData, tournamentId = null) {
   if (!supabase || !queryData) return false;
   try {
+    const tId = toUUID(tournamentId) || toUUID(typeof window !== 'undefined' && window.store?.activeTournamentId) || DEFAULT_TOURNAMENT_UUID;
     await supabase.from('community_queries').upsert({
       id: queryData.id,
-      tournament_id: DEFAULT_TOURNAMENT_UUID,
+      tournament_id: tId,
       user_name: queryData.userName || 'Anonymous',
       user_role: queryData.userRole || 'VISITOR',
       message: queryData.message || '',
@@ -989,10 +995,11 @@ export async function deleteCommunityQueryFromCloud(queryId) {
   } catch (e) { return false; }
 }
 
-export async function fetchCommunityQueriesFromCloud() {
+export async function fetchCommunityQueriesFromCloud(tournamentId = null) {
   if (!supabase) return [];
   try {
-    const { data } = await supabase.from('community_queries').select('*').eq('tournament_id', DEFAULT_TOURNAMENT_UUID).order('created_at', { ascending: false });
+    const tId = toUUID(tournamentId) || toUUID(typeof window !== 'undefined' && window.store?.activeTournamentId) || DEFAULT_TOURNAMENT_UUID;
+    const { data } = await supabase.from('community_queries').select('*').eq('tournament_id', tId).order('created_at', { ascending: false });
     if (!data) return [];
     return data.map(q => ({
       id: q.id,
@@ -1070,16 +1077,17 @@ export async function saveUserAccountToCloud(account) {
 }
 
 // --- LIVE & TOTAL VISITOR TRACKER (visitor_stats table) ---
-export async function initVisitorTracking(onStatsChange) {
+export async function initVisitorTracking(onStatsChange, tournamentId = null) {
   if (!supabase) {
     if (typeof onStatsChange === 'function') onStatsChange({ totalVisits: 0, liveCount: 1 });
     return;
   }
   try {
-    const { data } = await supabase.from('visitor_stats').select('*').eq('tournament_id', DEFAULT_TOURNAMENT_UUID).maybeSingle();
+    const tId = toUUID(tournamentId) || toUUID(typeof window !== 'undefined' && window.store?.activeTournamentId) || DEFAULT_TOURNAMENT_UUID;
+    const { data } = await supabase.from('visitor_stats').select('*').eq('tournament_id', tId).maybeSingle();
     const stats = data || { total_visitors: 0, live_online: 1 };
     const newTotal = (stats.total_visitors || 0) + 1;
-    await supabase.from('visitor_stats').upsert({ id: data?.id || undefined, tournament_id: DEFAULT_TOURNAMENT_UUID, total_visitors: newTotal, unique_visitors: stats.unique_visitors || 0, live_online: (stats.live_online || 0) + 1, updated_at: new Date().toISOString() }, { onConflict: 'id' });
+    await supabase.from('visitor_stats').upsert({ id: data?.id || undefined, tournament_id: tId, total_visitors: newTotal, unique_visitors: stats.unique_visitors || 0, live_online: (stats.live_online || 0) + 1, updated_at: new Date().toISOString() }, { onConflict: 'id' });
     if (typeof onStatsChange === 'function') onStatsChange({ totalVisits: newTotal, liveCount: (stats.live_online || 0) + 1 });
   } catch (e) {
     if (typeof onStatsChange === 'function') onStatsChange({ totalVisits: 0, liveCount: 1 });

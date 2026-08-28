@@ -1,4 +1,4 @@
-﻿-- ==============================================================================
+-- ==============================================================================
 -- CRICKET PREMIER LEAGUE (CPL) MULTI-TENANT SAAS DATABASE SCHEMA
 -- Target Database: PostgreSQL / Supabase
 -- Architecture: Multi-Tenant with tournament_id Foreign Keys & Row Level Security (RLS)
@@ -399,7 +399,8 @@ CREATE POLICY "Master admin full access on profiles" ON public.profiles FOR ALL 
 
 -- TOURNAMENTS
 CREATE POLICY "Active tournaments viewable by everyone" ON public.tournaments FOR SELECT USING (true);
-CREATE POLICY "Organiser can manage own tournaments" ON public.tournaments FOR ALL USING (organiser_id = auth.uid());
+CREATE POLICY "Public can insert tournaments" ON public.tournaments FOR INSERT WITH CHECK (true);
+CREATE POLICY "Organiser can manage own tournaments" ON public.tournaments FOR ALL USING (organiser_id = auth.uid() OR organiser_id IS NULL);
 CREATE POLICY "Master admin full access on tournaments" ON public.tournaments FOR ALL USING (public.is_master_admin());
 
 -- PLAYERS

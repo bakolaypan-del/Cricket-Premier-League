@@ -76,8 +76,8 @@ const STORAGE_KEYS = {
 // Tournament-scoped localStorage key helper
 function scopedKey(baseKey, tournamentId) {
   if (!tournamentId) return baseKey;
-  const short = tournamentId.slice(0, 8);
-  return `${baseKey}_${short}`;
+  const cleanId = String(tournamentId).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 36);
+  return `${baseKey}_${cleanId}`;
 }
 
 // Keys that are scoped per tournament in localStorage
@@ -98,7 +98,7 @@ function clearOldStorageQuota() {
     const keysToRemove = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
-      const isScopedKey = k && activeKeys.has(k.replace(/_[a-f0-9]{8}$/, ''));
+      const isScopedKey = k && Array.from(activeKeys).some(base => k.startsWith(base + '_'));
       if (k && k.startsWith('cpl_') && !activeKeys.has(k) && !isScopedKey && !k.startsWith('cpl_last_') && !k.startsWith('cpl_active_')) {
         keysToRemove.push(k);
       }
@@ -2589,7 +2589,7 @@ class Store {
 
   async syncCommunityQueriesFromCloud() {
     try {
-      const cloudQueries = await fetchCommunityQueriesFromCloud();
+      const cloudQueries = await fetchCommunityQueriesFromCloud(this.activeTournamentId);
       if (Array.isArray(cloudQueries) && cloudQueries.length > 0) {
         safeSetLocalStorage(STORAGE_KEYS.COMMUNITY_QUERIES, cloudQueries);
         this.notify('queries_updated');
@@ -2612,7 +2612,7 @@ class Store {
     };
     queries.unshift(newQuery);
     safeSetLocalStorage(STORAGE_KEYS.COMMUNITY_QUERIES, queries);
-    saveCommunityQueryToCloud(newQuery);
+    saveCommunityQueryToCloud(newQuery, this.activeTournamentId);
     this.notify('queries_updated');
     return newQuery;
   }
@@ -2634,7 +2634,7 @@ class Store {
     query.replies.push(newReply);
 
     safeSetLocalStorage(STORAGE_KEYS.COMMUNITY_QUERIES, queries);
-    saveCommunityQueryToCloud(query);
+    saveCommunityQueryToCloud(query, this.activeTournamentId);
     this.notify('queries_updated');
     return newReply;
   }
