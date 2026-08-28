@@ -1,7 +1,7 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
 import { store } from './store.js?v=13.0.0';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.0';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.0';
 import { renderAdminDashboard } from './admin.js?v=13.0.0';
 import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp } from './supabase.js?v=13.0.1';
 import { shops } from './shopsData.js?v=12.0.2';
@@ -3720,6 +3720,29 @@ export function renderCustomTournamentHub(container, tourney) {
       }
       sharePointsTableToWhatsApp(gName, targetTeams.length ? targetTeams : allTeams, tourney);
     });
+  });
+
+  // Full Auction PDF Summary Export Listener
+  container.querySelector('#btn-download-all-squads-pdf')?.addEventListener('click', () => {
+    exportAuctionSummaryPDF(tourney, allTeams, allPlayers);
+  });
+
+  // JSON Archive Backup Listener
+  container.querySelector('#btn-download-json-backup')?.addEventListener('click', () => {
+    const archiveData = {
+      tournament: tourney,
+      teams: allTeams,
+      players: allPlayers,
+      fixtures: allFixtures,
+      exportedAt: new Date().toISOString()
+    };
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(archiveData, null, 2));
+    const dlAnchor = document.createElement('a');
+    dlAnchor.setAttribute("href", dataStr);
+    dlAnchor.setAttribute("download", `${tourney.slug || 'tournament'}_full_backup_${new Date().toISOString().slice(0,10)}.json`);
+    document.body.appendChild(dlAnchor);
+    dlAnchor.click();
+    dlAnchor.remove();
   });
 }
 
@@ -7883,9 +7906,14 @@ export function openMatchCenterModal(fixtureId) {
               </h2>
             </div>
           </div>
-          <span class="text-[10px] text-slate-400 font-bold bg-slate-800/70 border border-slate-700 px-2.5 py-1 rounded-xl hidden sm:inline-block shrink-0">
-            📍 ${fixture.venue || 'School Ground'}
-          </span>
+          <div class="flex items-center gap-1.5 shrink-0">
+            <button id="btn-export-mc-scorecard-pdf" class="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[11px] font-black flex items-center gap-1 shadow-sm transition-all cursor-pointer active:scale-95" title="Download Official PDF Scorecard">
+              <span>📄</span> <span>PDF Scorecard</span>
+            </button>
+            <span class="text-[10px] text-slate-400 font-bold bg-slate-800/70 border border-slate-700 px-2 py-1 rounded-xl hidden md:inline-block">
+              📍 ${fixture.venue || 'School Ground'}
+            </span>
+          </div>
         </div>
 
         <!-- Sticky Navigation Tabs (Mobile-Scrollable) -->
@@ -7930,6 +7958,12 @@ export function openMatchCenterModal(fixtureId) {
     document.getElementById('match-center-modal')?.remove();
   };
   document.getElementById('close-match-center-btn')?.addEventListener('click', removeModal);
+
+  document.getElementById('btn-export-mc-scorecard-pdf')?.addEventListener('click', () => {
+    const curFixture = store.getFixtures().find(f => f.id === fixtureId) || fixture;
+    const tourney = store.getCustomTournamentById(curFixture.tournamentId || curFixture.tournament_id || curFixture.tournamentSlug) || { name: `${curFixture.leagueCode || 'T'} PREMIER LEAGUE` };
+    exportMatchScorecardPDF(curFixture, tourney);
+  });
 
   const contentArea = document.getElementById('mc-tab-content-area');
 

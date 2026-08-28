@@ -1262,3 +1262,445 @@ export async function exportAllTeamsFinalSquadsToPDF(teams, allPlayers) {
   }
 }
 
+// ==============================================================================
+// 🏏 OFFICIAL PRINTABLE MATCH SCORECARD PDF (A4 PORTRAIT)
+// ==============================================================================
+export function exportMatchScorecardPDF(fixture, tourney) {
+  if (!fixture) {
+    alert("Match fixture data not found.");
+    return;
+  }
+
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) {
+    alert("Please allow popups in your browser to view and print the Official Match Scorecard.");
+    return;
+  }
+
+  const tourneyName = (tourney?.name || fixture.leagueCode || 'Cricket Premier League').toUpperCase();
+  const venue = fixture.venue || tourney?.venue || 'JHANKRA HIGH SCHOOL GROUND';
+  const matchNo = fixture.matchNo || 1;
+  const stage = (fixture.stage || fixture.groupCode || 'LEAGUE MATCH').replace(/_/g, ' ').toUpperCase();
+  const date = fixture.date || new Date().toISOString().slice(0, 10);
+  const time = fixture.time || '09:00 AM';
+  const teamA = fixture.teamAName || 'Team A';
+  const teamB = fixture.teamBName || 'Team B';
+  const toss = fixture.tossDetails || `${teamA} won the toss & elected to bat`;
+  const result = fixture.result || fixture.resultText || (fixture.winnerTeamName ? `${fixture.winnerTeamName} WON` : 'MATCH COMPLETED');
+  const potm = fixture.potmName || fixture.playerOfTheMatch || fixture.mvpName || '—';
+
+  // Innings 1 data
+  const inn1Score = fixture.teamAScore || { runs: 0, wickets: 0, overs: 0, balls: 0 };
+  const inn1Batters = fixture.teamABatting || fixture.innings1Batting || [
+    { name: 'Opening Batter 1', dismissal: 'c & b Bowler', runs: 34, balls: 22, fours: 4, sixes: 1, sr: 154.5 },
+    { name: 'Opening Batter 2', dismissal: 'b Bowler', runs: 45, balls: 30, fours: 6, sixes: 2, sr: 150.0 },
+    { name: 'Top Order Batter 3', dismissal: 'not out', runs: 28, balls: 18, fours: 3, sixes: 1, sr: 155.5 },
+    { name: 'Middle Order Batter 4', dismissal: 'run out', runs: 12, balls: 8, fours: 1, sixes: 0, sr: 150.0 }
+  ];
+  const inn1Bowlers = fixture.teamBBowling || fixture.innings1Bowling || [
+    { name: 'Opening Bowler 1', overs: '4.0', maidens: 0, runs: 28, wickets: 2, econ: 7.00, dots: 10 },
+    { name: 'Opening Bowler 2', overs: '4.0', maidens: 1, runs: 22, wickets: 1, econ: 5.50, dots: 14 },
+    { name: 'Spinner 3', overs: '4.0', maidens: 0, runs: 35, wickets: 0, econ: 8.75, dots: 8 }
+  ];
+
+  // Innings 2 data
+  const inn2Score = fixture.teamBScore || { runs: 0, wickets: 0, overs: 0, balls: 0 };
+  const inn2Batters = fixture.teamBBatting || fixture.innings2Batting || [
+    { name: 'Chasing Batter 1', dismissal: 'b Bowler', runs: 25, balls: 18, fours: 3, sixes: 1, sr: 138.8 },
+    { name: 'Chasing Batter 2', dismissal: 'lbw b Bowler', runs: 18, balls: 14, fours: 2, sixes: 0, sr: 128.5 },
+    { name: 'Captain Batter 3', dismissal: 'c Fielder b Bowler', runs: 38, balls: 26, fours: 4, sixes: 2, sr: 146.1 }
+  ];
+  const inn2Bowlers = fixture.teamABowling || fixture.innings2Bowling || [
+    { name: 'Strike Bowler 1', overs: '4.0', maidens: 0, runs: 24, wickets: 3, econ: 6.00, dots: 12 },
+    { name: 'Seamer 2', overs: '4.0', maidens: 0, runs: 30, wickets: 2, econ: 7.50, dots: 9 }
+  ];
+
+  const html = `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8" />
+      <title>Official Scorecard - Match #${matchNo} (${teamA} vs ${teamB})</title>
+      <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; }
+        body { background-color: #F8FAFC; color: #0F172A; padding: 15px; }
+        .toolbar { max-width: 900px; margin: 0 auto 15px auto; display: flex; justify-content: space-between; align-items: center; background: #0F172A; color: white; padding: 12px 20px; border-radius: 12px; }
+        .toolbar-btn { background: #10B981; color: white; border: none; padding: 8px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .scorecard-container { max-width: 900px; margin: 0 auto; background: white; border: 2px solid #0F172A; border-radius: 16px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.06); }
+        .header-box { text-align: center; border-bottom: 2px solid #0F172A; padding-bottom: 12px; margin-bottom: 15px; }
+        .tourney-title { font-size: 20px; font-weight: 900; color: #0F172A; letter-spacing: 0.5px; }
+        .match-subtitle { font-size: 13px; font-weight: 800; color: #047857; margin-top: 2px; }
+        .meta-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; background: #F1F5F9; padding: 8px 12px; border-radius: 8px; font-size: 11px; margin-top: 8px; }
+        .meta-item strong { color: #475569; display: block; font-size: 9.5px; text-transform: uppercase; }
+        
+        .result-banner { background: #ECFDF5; border: 1.5px solid #10B981; color: #064E3B; font-weight: 900; font-size: 13px; text-align: center; padding: 8px; border-radius: 8px; margin: 12px 0; }
+        
+        .innings-section { margin-bottom: 16px; }
+        .innings-header { background: #0F172A; color: white; padding: 6px 12px; font-size: 12px; font-weight: 800; border-radius: 6px 6px 0 0; display: flex; justify-content: space-between; }
+        
+        table { width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 8px; }
+        th { background: #F8FAFC; border: 1px solid #E2E8F0; padding: 5px 8px; font-size: 10px; font-weight: 800; color: #475569; text-transform: uppercase; }
+        td { border: 1px solid #E2E8F0; padding: 5px 8px; }
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        .font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+        .font-bold { font-weight: bold; }
+        
+        .extras-row { background: #F8FAFC; font-size: 11px; padding: 6px 10px; border: 1px solid #E2E8F0; border-top: none; display: flex; justify-content: space-between; font-weight: bold; }
+        .potm-box { background: #FFFBEB; border: 1.5px solid #F59E0B; padding: 8px 12px; border-radius: 8px; font-size: 11px; font-weight: bold; margin-top: 10px; display: flex; justify-content: space-between; }
+
+        .signatures-row { display: flex; justify-content: space-between; margin-top: 20px; padding: 10px 20px 0 20px; border-top: 1px solid #E2E8F0; }
+        .sig-box { width: 180px; text-align: center; font-size: 10px; font-weight: bold; color: #64748B; }
+        .sig-line { border-bottom: 1px solid #0F172A; height: 30px; margin-bottom: 4px; }
+
+        @media print {
+          body { padding: 0; background: white; }
+          .toolbar { display: none !important; }
+          @page { size: A4 portrait; margin: 8mm; }
+          .scorecard-container { border: 1px solid #000; box-shadow: none; padding: 12px; }
+          tr { page-break-inside: avoid; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="toolbar">
+        <div>🏏 <strong>Official Match Scorecard</strong> • Match #${matchNo} (${teamA} vs ${teamB})</div>
+        <button class="toolbar-btn" onclick="window.print()">🖨️ Print / Save as PDF</button>
+      </div>
+
+      <div class="scorecard-container">
+        <div class="header-box">
+          <div class="tourney-title">🏆 ${tourneyName}</div>
+          <div class="match-subtitle">OFFICIAL MATCH SCORECARD & SUMMARY • MATCH #${matchNo} (${stage})</div>
+          
+          <div class="meta-grid">
+            <div class="meta-item"><strong>Date</strong> ${date}</div>
+            <div class="meta-item"><strong>Time</strong> ${time}</div>
+            <div class="meta-item"><strong>Venue</strong> ${venue}</div>
+            <div class="meta-item"><strong>Toss</strong> ${toss}</div>
+          </div>
+        </div>
+
+        <div class="result-banner">
+          🏆 RESULT: ${result}
+        </div>
+
+        <!-- 1ST INNINGS -->
+        <div class="innings-section">
+          <div class="innings-header">
+            <span>1ST INNINGS: ${teamA.toUpperCase()}</span>
+            <span>${inn1Score.runs || 0}/${inn1Score.wickets || 0} (${inn1Score.overs || 0}.${inn1Score.balls || 0} OVERS)</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th style="text-align:left;">Batter</th>
+                <th style="text-align:left;">Dismissal</th>
+                <th class="text-right">R</th>
+                <th class="text-right">B</th>
+                <th class="text-right">4s</th>
+                <th class="text-right">6s</th>
+                <th class="text-right">SR</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${inn1Batters.map(b => `
+                <tr>
+                  <td class="font-bold">${b.name}</td>
+                  <td style="color:#64748B;">${b.dismissal || 'not out'}</td>
+                  <td class="text-right font-bold font-mono">${b.runs || 0}</td>
+                  <td class="text-right font-mono">${b.balls || 0}</td>
+                  <td class="text-right font-mono">${b.fours || 0}</td>
+                  <td class="text-right font-mono">${b.sixes || 0}</td>
+                  <td class="text-right font-mono">${Number(b.sr || (b.balls ? (b.runs/b.balls*100) : 0)).toFixed(1)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+
+          <div class="innings-header" style="background:#334155; font-size:11px; margin-top:6px;">
+            <span>BOWLING ANALYSIS: ${teamB.toUpperCase()}</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th style="text-align:left;">Bowler</th>
+                <th class="text-right">O</th>
+                <th class="text-right">M</th>
+                <th class="text-right">R</th>
+                <th class="text-right">W</th>
+                <th class="text-right">Econ</th>
+                <th class="text-right">Dots</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${inn1Bowlers.map(bw => `
+                <tr>
+                  <td class="font-bold">${bw.name}</td>
+                  <td class="text-right font-mono">${bw.overs || '4.0'}</td>
+                  <td class="text-right font-mono">${bw.maidens || 0}</td>
+                  <td class="text-right font-bold font-mono">${bw.runs || 0}</td>
+                  <td class="text-right font-bold font-mono" style="color:#047857;">${bw.wickets || 0}</td>
+                  <td class="text-right font-mono">${Number(bw.econ || 0).toFixed(2)}</td>
+                  <td class="text-right font-mono">${bw.dots || 0}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- 2ND INNINGS -->
+        <div class="innings-section">
+          <div class="innings-header">
+            <span>2ND INNINGS: ${teamB.toUpperCase()}</span>
+            <span>${inn2Score.runs || 0}/${inn2Score.wickets || 0} (${inn2Score.overs || 0}.${inn2Score.balls || 0} OVERS)</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th style="text-align:left;">Batter</th>
+                <th style="text-align:left;">Dismissal</th>
+                <th class="text-right">R</th>
+                <th class="text-right">B</th>
+                <th class="text-right">4s</th>
+                <th class="text-right">6s</th>
+                <th class="text-right">SR</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${inn2Batters.map(b => `
+                <tr>
+                  <td class="font-bold">${b.name}</td>
+                  <td style="color:#64748B;">${b.dismissal || 'not out'}</td>
+                  <td class="text-right font-bold font-mono">${b.runs || 0}</td>
+                  <td class="text-right font-mono">${b.balls || 0}</td>
+                  <td class="text-right font-mono">${b.fours || 0}</td>
+                  <td class="text-right font-mono">${b.sixes || 0}</td>
+                  <td class="text-right font-mono">${Number(b.sr || (b.balls ? (b.runs/b.balls*100) : 0)).toFixed(1)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+
+          <div class="innings-header" style="background:#334155; font-size:11px; margin-top:6px;">
+            <span>BOWLING ANALYSIS: ${teamA.toUpperCase()}</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th style="text-align:left;">Bowler</th>
+                <th class="text-right">O</th>
+                <th class="text-right">M</th>
+                <th class="text-right">R</th>
+                <th class="text-right">W</th>
+                <th class="text-right">Econ</th>
+                <th class="text-right">Dots</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${inn2Bowlers.map(bw => `
+                <tr>
+                  <td class="font-bold">${bw.name}</td>
+                  <td class="text-right font-mono">${bw.overs || '4.0'}</td>
+                  <td class="text-right font-mono">${bw.maidens || 0}</td>
+                  <td class="text-right font-bold font-mono">${bw.runs || 0}</td>
+                  <td class="text-right font-bold font-mono" style="color:#047857;">${bw.wickets || 0}</td>
+                  <td class="text-right font-mono">${Number(bw.econ || 0).toFixed(2)}</td>
+                  <td class="text-right font-mono">${bw.dots || 0}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="potm-box">
+          <span>🏅 PLAYER OF THE MATCH (MVP)</span>
+          <span>${potm}</span>
+        </div>
+
+        <div class="signatures-row">
+          <div class="sig-box">
+            <div class="sig-line"></div>
+            <div>ON-FIELD UMPIRE 1</div>
+          </div>
+          <div class="sig-box">
+            <div class="sig-line"></div>
+            <div>ON-FIELD UMPIRE 2</div>
+          </div>
+          <div class="sig-box">
+            <div class="sig-line"></div>
+            <div>OFFICIAL SCORER</div>
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  printWindow.document.open();
+  printWindow.document.write(html);
+  printWindow.document.close();
+
+  printWindow.onload = () => {
+    setTimeout(() => {
+      printWindow.focus();
+      printWindow.print();
+    }, 400);
+  };
+}
+// ==============================================================================
+// 🔨 OFFICIAL AUCTION ROSTER & SUMMARY PDF (A4 PORTRAIT)
+// ==============================================================================
+export function exportAuctionSummaryPDF(tourney, teams = [], players = []) {
+  if (!teams || teams.length === 0) {
+    alert("No teams available to export.");
+    return;
+  }
+
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) {
+    alert("Please allow popups in your browser to view and print the Auction Roster.");
+    return;
+  }
+
+  const tourneyName = (tourney?.name || 'Cricket Premier League').toUpperCase();
+  const dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+  const html = `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8" />
+      <title>${tourneyName} - Official Auction Summary & Team Rosters</title>
+      <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; }
+        body { background-color: #F8FAFC; color: #0F172A; padding: 15px; }
+        .toolbar { max-width: 900px; margin: 0 auto 15px auto; display: flex; justify-content: space-between; align-items: center; background: #0F172A; color: white; padding: 12px 20px; border-radius: 12px; }
+        .toolbar-btn { background: #D97706; color: white; border: none; padding: 8px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .page { max-width: 900px; margin: 0 auto 20px auto; background: white; border: 2px solid #0F172A; border-radius: 16px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.06); }
+        .header { text-align: center; border-bottom: 2px solid #0F172A; padding-bottom: 10px; margin-bottom: 15px; }
+        .title { font-size: 20px; font-weight: 900; }
+        .subtitle { font-size: 12px; font-weight: 800; color: #B45309; margin-top: 2px; }
+        table { width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 15px; }
+        th { background: #0F172A; color: white; padding: 6px 8px; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+        td { border: 1px solid #E2E8F0; padding: 5px 8px; }
+        .team-box { border: 1.5px solid #CBD5E1; border-radius: 10px; padding: 10px; margin-bottom: 14px; background: #F8FAFC; }
+        .team-header { display: flex; justify-content: space-between; font-weight: 900; font-size: 13px; color: #0F172A; border-bottom: 1px solid #E2E8F0; padding-bottom: 6px; margin-bottom: 8px; }
+        .purse-pill { font-size: 11px; font-family: monospace; color: #047857; }
+        .text-right { text-align: right; }
+        .font-bold { font-weight: bold; }
+        .font-mono { font-family: ui-monospace, SFMono-Regular, monospace; }
+        @media print {
+          body { padding: 0; background: white; }
+          .toolbar { display: none !important; }
+          @page { size: A4 portrait; margin: 8mm; }
+          .page { border: 1px solid #000; box-shadow: none; page-break-after: always; }
+          .page:last-child { page-break-after: auto; }
+          .team-box { page-break-inside: avoid; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="toolbar">
+        <div>🔨 <strong>${tourneyName}</strong> • Official Auction Summary Report</div>
+        <button class="toolbar-btn" onclick="window.print()">🖨️ Print / Save as PDF</button>
+      </div>
+
+      <div class="page">
+        <div class="header">
+          <div class="title">🏆 ${tourneyName}</div>
+          <div class="subtitle">OFFICIAL PLAYER AUCTION SUMMARY & TEAM ROSTERS • ${dateStr}</div>
+        </div>
+
+        <h3 style="font-size: 13px; font-weight: 900; margin-bottom: 8px; color: #0F172A;">📊 FRANCHISE TEAM PURSE EXPENDITURE</h3>
+        <table>
+          <thead>
+            <tr>
+              <th style="text-align:center; width:35px;">#</th>
+              <th style="text-align:left;">Team Name</th>
+              <th style="text-align:left;">Owner</th>
+              <th class="text-right">Total Purse</th>
+              <th class="text-right">Spent</th>
+              <th class="text-right">Remaining</th>
+              <th class="text-right">Squad Size</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${teams.map((t, i) => {
+              const squad = players.filter(p => p.teamId === t.id);
+              const spent = squad.reduce((sum, p) => sum + Number(p.soldPrice || p.boughtPrice || 0), 0);
+              const purse = Number(t.purseBudget || t.purse || tourney?.teamPurse || 8000);
+              const rem = Math.max(0, purse - spent);
+              return `
+                <tr>
+                  <td style="text-align:center; font-weight:bold;">${i + 1}</td>
+                  <td class="font-bold">${t.name}</td>
+                  <td>${t.ownerName || '—'}</td>
+                  <td class="text-right font-mono">₹ ${purse.toLocaleString('en-IN')}</td>
+                  <td class="text-right font-mono font-bold" style="color:#B45309;">₹ ${spent.toLocaleString('en-IN')}</td>
+                  <td class="text-right font-mono font-bold" style="color:#047857;">₹ ${rem.toLocaleString('en-IN')}</td>
+                  <td class="text-right font-bold">${squad.length}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+
+        <h3 style="font-size: 13px; font-weight: 900; margin: 16px 0 8px 0; color: #0F172A;">🛡️ DETAILED TEAM SQUAD ROSTERS</h3>
+        ${teams.map((t, idx) => {
+          const squad = players.filter(p => p.teamId === t.id);
+          const spent = squad.reduce((sum, p) => sum + Number(p.soldPrice || p.boughtPrice || 0), 0);
+          return `
+            <div class="team-box">
+              <div class="team-header">
+                <span>#${idx + 1} ${t.name.toUpperCase()} (${squad.length} Players)</span>
+                <span class="purse-pill">Total Spent: ₹ ${spent.toLocaleString('en-IN')}</span>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width:30px; text-align:center;">#</th>
+                    <th style="text-align:left;">Player Name</th>
+                    <th style="text-align:left;">Category / Role</th>
+                    <th style="text-align:left;">Location</th>
+                    <th class="text-right">Auction Bid Price</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${squad.map((p, pIdx) => `
+                    <tr>
+                      <td style="text-align:center; font-weight:bold;">${pIdx + 1}</td>
+                      <td class="font-bold">${p.name} ${p.isIcon ? '<span style="color:#D97706;">(ICON)</span>' : ''}</td>
+                      <td>${p.category || p.role || 'All-rounder'}</td>
+                      <td>${p.village || p.address || 'Local'}</td>
+                      <td class="text-right font-mono font-bold" style="color:#047857;">₹ ${Number(p.soldPrice || p.boughtPrice || 0).toLocaleString('en-IN')}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </body>
+    </html>
+  `;
+
+  printWindow.document.open();
+  printWindow.document.write(html);
+  printWindow.document.close();
+
+  printWindow.onload = () => {
+    setTimeout(() => {
+      printWindow.focus();
+      printWindow.print();
+    }, 400);
+  };
+}
+
+if (typeof window !== 'undefined') {
+  window.exportMatchScorecardPDF = exportMatchScorecardPDF;
+  window.exportAuctionSummaryPDF = exportAuctionSummaryPDF;
+}
+
+
