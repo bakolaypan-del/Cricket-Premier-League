@@ -1,8 +1,8 @@
 // Admin Master Data & Payment Verification Panel with Single Source Cloud Control (Developer: Suman Kolay)
 
-import { store } from './store.js?v=13.0.3';
+import { store } from './store.js?v=13.0.4';
 import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF } from './export.js?v=13.0.0';
-import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID } from './supabase.js?v=13.0.3';
+import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID } from './supabase.js?v=13.0.4';
 import { shops } from './shopsData.js?v=12.0.2';
 
 let activeAdminTab = (() => { try { return sessionStorage.getItem('cpl_admin_tab') || (store.isMasterAdmin() ? 'payments' : 'overview'); } catch(e) { return 'payments'; } })();
@@ -2435,28 +2435,40 @@ function openAdminEditPlayerModal(player, containerEl) {
             <!-- 2. ID CARD FRONT -->
             <div class="space-y-1">
               <span class="text-[9px] font-bold text-slate-600 block uppercase truncate">${player.docType || 'ID'} Front</span>
-              ${player.idCardFrontUrl || player.id_card_front_url || player.aadharPhotoUrl || player.aadhaar_url ? `
-                <img src="${player.idCardFrontUrl || player.id_card_front_url || player.aadharPhotoUrl || player.aadhaar_url}" class="doc-zoomable-img w-full h-20 rounded-xl object-cover border-2 border-sky-300 hover:border-sky-500 shadow-2xs cursor-pointer transition-all bg-white" title="Click to view ID Card Front" data-zoom-title="${player.name} - ID Card Front (${player.docType || 'Identity Card'})" onerror="this.src='assets/jsl_logo.jpg'" />
-                <span class="text-[9px] text-sky-700 block font-bold cursor-pointer hover:underline">🔍 Zoom Front</span>
-              ` : `<div class="h-20 rounded-xl bg-slate-200 border border-slate-300 flex items-center justify-center text-[10px] text-slate-500 font-bold">No ID Front</div>`}
+              <div id="admin-preview-id-front-wrap" class="relative">
+                <img id="admin-preview-id-front-img" src="${player.idCardFrontUrl || player.id_card_front_url || player.aadharPhotoUrl || player.aadhaar_url || 'assets/jsl_logo.jpg'}" class="doc-zoomable-img w-full h-20 rounded-xl object-cover border-2 border-sky-300 hover:border-sky-500 shadow-2xs cursor-pointer transition-all bg-white ${!(player.idCardFrontUrl || player.id_card_front_url || player.aadharPhotoUrl || player.aadhaar_url) ? 'hidden' : ''}" title="Click to view ID Card Front" data-zoom-title="${player.name} - ID Card Front (${player.docType || 'Identity Card'})" onerror="this.src='assets/jsl_logo.jpg'" />
+                <div id="admin-no-id-front-placeholder" class="h-20 rounded-xl bg-slate-200 border border-slate-300 flex items-center justify-center text-[10px] text-slate-500 font-bold ${(player.idCardFrontUrl || player.id_card_front_url || player.aadharPhotoUrl || player.aadhaar_url) ? 'hidden' : ''}">No ID Front</div>
+              </div>
+              <label class="text-[9px] text-sky-700 block font-bold cursor-pointer hover:underline">
+                <span>📁 Upload Front</span>
+                <input type="file" id="admin-edit-id-front-input" accept="image/*" class="hidden" />
+              </label>
             </div>
 
             <!-- 3. ID CARD BACK -->
             <div class="space-y-1">
               <span class="text-[9px] font-bold text-slate-600 block uppercase truncate">${player.docType || 'ID'} Back</span>
-              ${player.idCardBackUrl || player.id_card_back_url || player.aadharBackUrl ? `
-                <img src="${player.idCardBackUrl || player.id_card_back_url || player.aadharBackUrl}" class="doc-zoomable-img w-full h-20 rounded-xl object-cover border-2 border-sky-300 hover:border-sky-500 shadow-2xs cursor-pointer transition-all bg-white" title="Click to view ID Card Back" data-zoom-title="${player.name} - ID Card Back (${player.docType || 'Identity Card'})" onerror="this.src='assets/jsl_logo.jpg'" />
-                <span class="text-[9px] text-sky-700 block font-bold cursor-pointer hover:underline">🔍 Zoom Back</span>
-              ` : `<div class="h-20 rounded-xl bg-slate-200 border border-slate-300 flex items-center justify-center text-[10px] text-slate-500 font-bold">No ID Back</div>`}
+              <div id="admin-preview-id-back-wrap" class="relative">
+                <img id="admin-preview-id-back-img" src="${player.idCardBackUrl || player.id_card_back_url || player.aadharBackUrl || 'assets/jsl_logo.jpg'}" class="doc-zoomable-img w-full h-20 rounded-xl object-cover border-2 border-sky-300 hover:border-sky-500 shadow-2xs cursor-pointer transition-all bg-white ${!(player.idCardBackUrl || player.id_card_back_url || player.aadharBackUrl) ? 'hidden' : ''}" title="Click to view ID Card Back" data-zoom-title="${player.name} - ID Card Back (${player.docType || 'Identity Card'})" onerror="this.src='assets/jsl_logo.jpg'" />
+                <div id="admin-no-id-back-placeholder" class="h-20 rounded-xl bg-slate-200 border border-slate-300 flex items-center justify-center text-[10px] text-slate-500 font-bold ${(player.idCardBackUrl || player.id_card_back_url || player.aadharBackUrl) ? 'hidden' : ''}">No ID Back</div>
+              </div>
+              <label class="text-[9px] text-sky-700 block font-bold cursor-pointer hover:underline">
+                <span>📁 Upload Back</span>
+                <input type="file" id="admin-edit-id-back-input" accept="image/*" class="hidden" />
+              </label>
             </div>
 
             <!-- 4. PAYMENT RECEIPT -->
             <div class="space-y-1">
               <span class="text-[9px] font-bold text-slate-600 block uppercase">Payment Receipt</span>
-              ${player.paymentReceiptUrl || player.paymentProofUrl || player.payment_screenshot_url ? `
-                <img src="${player.paymentReceiptUrl || player.paymentProofUrl || player.payment_screenshot_url}" class="doc-zoomable-img w-full h-20 rounded-xl object-cover border-2 border-amber-300 hover:border-amber-500 shadow-2xs cursor-pointer transition-all bg-white" title="Click to view full HD payment receipt" data-zoom-title="${player.name} - Payment Receipt" onerror="this.src='assets/jsl_logo.jpg'" />
-                <span class="text-[9px] text-amber-700 block font-bold cursor-pointer hover:underline">🔍 Zoom Receipt</span>
-              ` : `<div class="h-20 rounded-xl bg-slate-200 border border-slate-300 flex items-center justify-center text-[10px] text-slate-500 font-bold">No Receipt</div>`}
+              <div id="admin-preview-receipt-wrap" class="relative">
+                <img id="admin-preview-receipt-img" src="${player.paymentReceiptUrl || player.paymentProofUrl || player.payment_screenshot_url || 'assets/jsl_logo.jpg'}" class="doc-zoomable-img w-full h-20 rounded-xl object-cover border-2 border-amber-300 hover:border-amber-500 shadow-2xs cursor-pointer transition-all bg-white ${!(player.paymentReceiptUrl || player.paymentProofUrl || player.payment_screenshot_url) ? 'hidden' : ''}" title="Click to view full HD payment receipt" data-zoom-title="${player.name} - Payment Receipt" onerror="this.src='assets/jsl_logo.jpg'" />
+                <div id="admin-no-receipt-placeholder" class="h-20 rounded-xl bg-slate-200 border border-slate-300 flex items-center justify-center text-[10px] text-slate-500 font-bold ${(player.paymentReceiptUrl || player.paymentProofUrl || player.payment_screenshot_url) ? 'hidden' : ''}">No Receipt</div>
+              </div>
+              <label class="text-[9px] text-amber-700 block font-bold cursor-pointer hover:underline">
+                <span>📁 Upload Receipt</span>
+                <input type="file" id="admin-edit-receipt-input" accept="image/*" class="hidden" />
+              </label>
             </div>
 
           </div>
@@ -2651,6 +2663,80 @@ function openAdminEditPlayerModal(player, containerEl) {
   document.getElementById('close-edit-player-modal')?.addEventListener('click', removeModal);
 
   let updatedPhotoUrl = player.photoUrl || player.player_photo_url || '';
+  let updatedIdFrontUrl = player.idCardFrontUrl || player.id_card_front_url || player.aadharPhotoUrl || player.aadhaar_url || '';
+  let updatedIdBackUrl = player.idCardBackUrl || player.id_card_back_url || player.aadharBackUrl || '';
+  let updatedReceiptUrl = player.paymentReceiptUrl || player.paymentProofUrl || player.payment_screenshot_url || '';
+
+  // Helper for quick image compression
+  const compressImage = (file, maxWidth = 900, maxHeight = 900, quality = 0.8) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target.result;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          if (width > height) {
+            if (width > maxWidth) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width = Math.round((width * maxHeight) / height);
+              height = maxHeight;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = (e) => resolve(event.target.result);
+      };
+      reader.onerror = (e) => reject(e);
+    });
+  };
+
+  // ID Front Upload Listener
+  document.getElementById('admin-edit-id-front-input')?.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const dataUrl = await compressImage(file, 900, 900, 0.8);
+    updatedIdFrontUrl = dataUrl;
+    const img = document.getElementById('admin-preview-id-front-img');
+    const ph = document.getElementById('admin-no-id-front-placeholder');
+    if (img) { img.src = dataUrl; img.classList.remove('hidden'); }
+    if (ph) ph.classList.add('hidden');
+  });
+
+  // ID Back Upload Listener
+  document.getElementById('admin-edit-id-back-input')?.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const dataUrl = await compressImage(file, 900, 900, 0.8);
+    updatedIdBackUrl = dataUrl;
+    const img = document.getElementById('admin-preview-id-back-img');
+    const ph = document.getElementById('admin-no-id-back-placeholder');
+    if (img) { img.src = dataUrl; img.classList.remove('hidden'); }
+    if (ph) ph.classList.add('hidden');
+  });
+
+  // Receipt Upload Listener
+  document.getElementById('admin-edit-receipt-input')?.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const dataUrl = await compressImage(file, 900, 900, 0.8);
+    updatedReceiptUrl = dataUrl;
+    const img = document.getElementById('admin-preview-receipt-img');
+    const ph = document.getElementById('admin-no-receipt-placeholder');
+    if (img) { img.src = dataUrl; img.classList.remove('hidden'); }
+    if (ph) ph.classList.add('hidden');
+  });
 
   const processAdminPhotoSelection = (file) => {
     if (!file) return;
@@ -2778,7 +2864,13 @@ function openAdminEditPlayerModal(player, containerEl) {
         regNo: regIdVal,
         teamId: player.teamId || null,
         photoUrl: finalPhotoUrl,
-        player_photo_url: finalPhotoUrl
+        player_photo_url: finalPhotoUrl,
+        idCardFrontUrl: updatedIdFrontUrl,
+        aadharPhotoUrl: updatedIdFrontUrl,
+        idCardBackUrl: updatedIdBackUrl,
+        aadharBackUrl: updatedIdBackUrl,
+        paymentReceiptUrl: updatedReceiptUrl,
+        paymentProofUrl: updatedReceiptUrl
       });
 
       removeModal();

@@ -51,7 +51,7 @@ import {
   saveUserAccountToCloud,
   flushSupabaseOfflineQueue,
   generateUUID
-} from './supabase.js?v=13.0.3';
+} from './supabase.js?v=13.0.4';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -305,7 +305,33 @@ class Store {
           return;
         }
 
-        const reindexedPlayers = cloudData.players;
+        const reindexedPlayers = cloudData.players.map(cp => {
+          const lp = localPlayers.find(p => p && (p.id === cp.id || (p.phone && cp.phone && p.phone.replace(/\D/g, '') === cp.phone.replace(/\D/g, ''))));
+          if (!lp) return cp;
+          return {
+            ...lp,
+            ...cp,
+            photoUrl: cp.photoUrl || lp.photoUrl || lp.player_photo_url || '',
+            player_photo_url: cp.player_photo_url || cp.photoUrl || lp.player_photo_url || lp.photoUrl || '',
+            aadharPhotoUrl: cp.aadharPhotoUrl || lp.aadharPhotoUrl || lp.idCardFrontUrl || lp.aadhaar_url || '',
+            idCardFrontUrl: cp.idCardFrontUrl || lp.idCardFrontUrl || lp.aadharPhotoUrl || lp.aadhaar_url || '',
+            idCardBackUrl: cp.idCardBackUrl || lp.idCardBackUrl || lp.aadharBackUrl || '',
+            paymentReceiptUrl: cp.paymentReceiptUrl || lp.paymentReceiptUrl || lp.paymentProofUrl || '',
+            paymentProofUrl: cp.paymentProofUrl || lp.paymentProofUrl || lp.paymentReceiptUrl || '',
+            paymentRef: cp.paymentRef || lp.paymentRef || lp.remarks || '',
+            remarks: cp.remarks || lp.remarks || lp.paymentRef || '',
+            fatherName: cp.fatherName || lp.fatherName || '',
+            dob: cp.dob || lp.dob || null,
+            age: cp.age || lp.age || '',
+            village: cp.village || lp.village || '',
+            district: cp.district || lp.district || 'Paschim Medinipur',
+            state: cp.state || lp.state || 'West Bengal',
+            address: cp.address || lp.address || (lp.village ? `${lp.village}, ${lp.district || ''}` : ''),
+            battingStyle: cp.battingStyle || lp.battingStyle || 'Right Hand Bat',
+            bowlingStyle: cp.bowlingStyle || lp.bowlingStyle || 'Right Hand Medium'
+          };
+        });
+
         const localSanitized = sanitizeForStorage(this.getPlayers());
         const cleanCloudSanitized = sanitizeForStorage(reindexedPlayers);
 
@@ -791,8 +817,34 @@ class Store {
       const effectiveAuctionStatus = matchingIconTeam ? 'SOLD' : (p.auctionStatus || (p.teamId ? 'SOLD' : 'PENDING'));
       const effectiveSoldPrice = matchingIconTeam ? (Number(p.soldPrice) || 1000) : (Number(p.soldPrice) || 0);
 
+      const prof = this.getPlayerProfileByPhone(p.phone) || {};
+      const finalDob = p.dob || prof.dob || null;
+      const finalVillage = p.village || prof.village || '';
+      const finalDistrict = p.district || prof.district || 'Paschim Medinipur';
+      const finalState = p.state || prof.state || 'West Bengal';
+      const finalFatherName = p.fatherName || p.father_name || prof.fatherName || '';
+      const finalAadhar = p.aadharPhotoUrl || p.idCardFrontUrl || p.aadhaar_url || prof.aadharPhotoUrl || prof.idCardFrontUrl || '';
+      const finalAadharBack = p.idCardBackUrl || p.aadharBackUrl || prof.idCardBackUrl || '';
+      const finalReceipt = p.paymentReceiptUrl || p.paymentProofUrl || p.payment_screenshot_url || prof.paymentReceiptUrl || '';
+      const finalPaymentRef = p.paymentRef || p.remarks || prof.paymentRef || '';
+
       return {
         ...p,
+        fatherName: finalFatherName,
+        dob: finalDob,
+        age: p.age || prof.age || '',
+        village: finalVillage,
+        district: finalDistrict,
+        state: finalState,
+        address: p.address || (finalVillage ? `${finalVillage}, ${finalDistrict}` : ''),
+        idCardFrontUrl: finalAadhar,
+        aadharPhotoUrl: finalAadhar,
+        idCardBackUrl: finalAadharBack,
+        aadharBackUrl: finalAadharBack,
+        paymentReceiptUrl: finalReceipt,
+        paymentProofUrl: finalReceipt,
+        paymentRef: finalPaymentRef,
+        remarks: finalPaymentRef,
         teamId: effectiveTeamId,
         teamName: effectiveTeamName,
         isIcon: isIcon,
@@ -929,6 +981,7 @@ class Store {
       } catch(e) {}
     }
 
+    this.createOrUpdatePlayerProfile(newPlayer);
     syncPlayerToSupabase(newPlayer);
     this.notify('players_updated');
     return newPlayer;
@@ -948,6 +1001,7 @@ class Store {
         updated_at: now
       };
       
+      this.createOrUpdatePlayerProfile(players[idx]);
       this._invalidateCache('players');
       safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
       syncPlayerToSupabase(players[idx]);
@@ -2260,30 +2314,48 @@ class Store {
 
   createOrUpdatePlayerProfile(playerData) {
     const profiles = this.getPlayerProfiles();
-    const phone = (playerData.phone || playerData.mobile || '').trim();
+    const phone = (playerData.phone || playerData.mobile || '').replace(/\D/g, '').slice(-10);
     if (!phone) return null;
 
-    let profile = profiles.find(pp => (pp.phone || '').trim() === phone);
+    let profile = profiles.find(pp => (pp.phone || '').replace(/\D/g, '').slice(-10) === phone);
     if (!profile) {
       profile = {
         id: 'prof-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
         phone,
         name: playerData.name || playerData.playerName,
+        fatherName: playerData.fatherName || playerData.father_name || '',
+        dob: playerData.dob || null,
+        age: playerData.age || '',
         village: playerData.village || playerData.address || '',
         district: playerData.district || 'Paschim Medinipur',
         state: playerData.state || 'West Bengal',
         battingStyle: playerData.battingStyle || 'Right Hand Bat',
         bowlingStyle: playerData.bowlingStyle || 'Right Hand Medium',
         photoUrl: playerData.photoUrl || playerData.player_photo_url || '',
+        aadharPhotoUrl: playerData.aadharPhotoUrl || playerData.idCardFrontUrl || '',
+        idCardFrontUrl: playerData.idCardFrontUrl || playerData.aadharPhotoUrl || '',
+        idCardBackUrl: playerData.idCardBackUrl || '',
+        paymentReceiptUrl: playerData.paymentReceiptUrl || playerData.paymentProofUrl || '',
+        paymentRef: playerData.paymentRef || playerData.remarks || '',
         created_at: new Date().toISOString()
       };
       profiles.push(profile);
     } else {
       profile.name = playerData.name || playerData.playerName || profile.name;
+      profile.fatherName = playerData.fatherName || playerData.father_name || profile.fatherName || '';
+      profile.dob = playerData.dob || profile.dob || null;
+      profile.age = playerData.age || profile.age || '';
       profile.village = playerData.village || playerData.address || profile.village;
+      profile.district = playerData.district || profile.district || 'Paschim Medinipur';
+      profile.state = playerData.state || profile.state || 'West Bengal';
       profile.battingStyle = playerData.battingStyle || profile.battingStyle;
       profile.bowlingStyle = playerData.bowlingStyle || profile.bowlingStyle;
       profile.photoUrl = playerData.photoUrl || playerData.player_photo_url || profile.photoUrl;
+      profile.aadharPhotoUrl = playerData.aadharPhotoUrl || playerData.idCardFrontUrl || profile.aadharPhotoUrl || '';
+      profile.idCardFrontUrl = playerData.idCardFrontUrl || playerData.aadharPhotoUrl || profile.idCardFrontUrl || '';
+      profile.idCardBackUrl = playerData.idCardBackUrl || profile.idCardBackUrl || '';
+      profile.paymentReceiptUrl = playerData.paymentReceiptUrl || playerData.paymentProofUrl || profile.paymentReceiptUrl || '';
+      profile.paymentRef = playerData.paymentRef || playerData.remarks || profile.paymentRef || '';
     }
 
     safeSetLocalStorage(STORAGE_KEYS.PLAYER_PROFILES, profiles);
