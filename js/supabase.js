@@ -464,7 +464,12 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
       supabase.from('player_verification_docs').select('*').eq('tournament_id', tId),
       supabase.from('person_profiles').select('*')
     ]);
-    const tourneyMeta = tourneyRes?.data || {};
+    let tourneyMeta = tourneyRes?.data;
+    if (!tourneyMeta) {
+      const { data: fallbackT } = await supabase.from('tournaments').select('category_code, slug, name, registration_fee, total_team_budget, icon_price, registration_settings, format_config').eq('slug', 'm2026').maybeSingle();
+      if (fallbackT) tourneyMeta = fallbackT;
+    }
+    tourneyMeta = tourneyMeta || {};
     const regPrefix = (tourneyMeta.category_code || tourneyMeta.slug || 'T').toUpperCase().replace(/[^A-Z0-9]/g, '');
     const playerStatuses = tourneyMeta?.format_config?.player_statuses || {};
 
@@ -617,7 +622,8 @@ function derivePlayerStatus(playerData) {
 export async function syncPlayerToSupabase(playerData) {
   if (!supabase || !playerData || !playerData.id) return null;
   try {
-    const tid = playerData.tournament_id || playerData.tournamentId || playerData.leagueId || '033bfc04-033b-4c04-a33b-fc04033bfc04';
+    const activeTid = (typeof window !== 'undefined' && window.store?.activeTournamentId) ? window.store.activeTournamentId : null;
+    const tid = playerData.tournament_id || playerData.tournamentId || playerData.leagueId || activeTid || '440f982b-6008-40f4-a6bc-0516a0985672';
     const isValidUUID = typeof tid === 'string' && tid.length >= 30 && tid.includes('-');
     const tournamentUUID = isValidUUID ? tid : toUUID(tid);
     const playerUUID = toUUID(playerData.id);
@@ -654,13 +660,22 @@ export async function syncPlayerToSupabase(playerData) {
     // Persist status permanently to tournament format_config (bypasses RLS constraints)
     const statusToSave = isApproved ? 'APPROVED' : (isRejected ? 'REJECTED' : 'PENDING');
     try {
-      const { data: currentTourney } = await supabase.from('tournaments').select('format_config').eq('id', tournamentUUID).maybeSingle();
+      let { data: currentTourney } = await supabase.from('tournaments').select('id, format_config').eq('id', tournamentUUID).maybeSingle();
+      let targetId = tournamentUUID;
+      if (!currentTourney) {
+        const { data: bySlug } = await supabase.from('tournaments').select('id, format_config').eq('slug', 'm2026').maybeSingle();
+        if (bySlug) {
+          currentTourney = bySlug;
+          targetId = bySlug.id;
+        }
+      }
       const existingConfig = currentTourney?.format_config || {};
       const existingStatuses = existingConfig.player_statuses || {};
       existingStatuses[playerUUID] = statusToSave;
+      existingStatuses[playerData.id] = statusToSave;
       if (cleanPhone) existingStatuses[cleanPhone] = statusToSave;
       existingConfig.player_statuses = existingStatuses;
-      await supabase.from('tournaments').update({ format_config: existingConfig }).eq('id', tournamentUUID);
+      await supabase.from('tournaments').update({ format_config: existingConfig }).eq('id', targetId);
     } catch(errConfig) {
       console.warn("[SUPABASE] tournament format_config status save warning:", errConfig);
     }

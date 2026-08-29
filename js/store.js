@@ -51,7 +51,7 @@ import {
   saveUserAccountToCloud,
   flushSupabaseOfflineQueue,
   generateUUID
-} from './supabase.js?v=13.0.5';
+} from './supabase.js?v=13.0.6';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -836,8 +836,26 @@ class Store {
       const finalReceipt = p.paymentReceiptUrl || p.paymentProofUrl || p.payment_screenshot_url || prof.paymentReceiptUrl || '';
       const finalPaymentRef = p.paymentRef || p.remarks || prof.paymentRef || '';
 
+      let overrideStatus = null;
+      try {
+        const statusMapKey = 'cpl_player_status_overrides_' + (this.activeTournamentId || 'default');
+        const overrides = JSON.parse(localStorage.getItem(statusMapKey) || '{}');
+        const cleanPPhone = (p.phone || '').replace(/\D/g, '');
+        overrideStatus = overrides[p.id] || (cleanPPhone && overrides[cleanPPhone]) || null;
+      } catch (e) {}
+
+      const effectiveStatus = overrideStatus || p.paymentStatus || p.registrationStatus || 'PENDING';
+      const isApproved = effectiveStatus === 'APPROVED' || p.verified === true;
+      const isRejected = effectiveStatus === 'REJECTED';
+      const finalPaymentStatus = isApproved ? 'APPROVED' : (isRejected ? 'REJECTED' : 'PENDING');
+
       return {
         ...p,
+        tournament_id: p.tournament_id || p.tournamentId || this.activeTournamentId || null,
+        tournamentId: p.tournamentId || p.tournament_id || this.activeTournamentId || null,
+        paymentStatus: finalPaymentStatus,
+        registrationStatus: finalPaymentStatus,
+        verified: isApproved,
         fatherName: finalFatherName,
         dob: finalDob,
         age: p.age || prof.age || '',
@@ -1001,13 +1019,27 @@ class Store {
     const idx = players.findIndex(p => p.id === updatedPlayerData.id);
     if (idx !== -1) {
       const now = Date.now();
-      const isApproved = (updatedPlayerData.paymentStatus === 'APPROVED' || updatedPlayerData.registrationStatus === 'APPROVED');
+      const s = (updatedPlayerData.paymentStatus || updatedPlayerData.registrationStatus || players[idx].paymentStatus || 'APPROVED').toUpperCase();
+      const isApproved = (s === 'APPROVED');
       players[idx] = { 
         ...players[idx], 
         ...updatedPlayerData,
+        paymentStatus: s,
+        registrationStatus: s,
         verified: isApproved,
+        tournament_id: players[idx].tournament_id || this.activeTournamentId || null,
+        tournamentId: players[idx].tournamentId || this.activeTournamentId || null,
         updated_at: now
       };
+
+      // Save to persistent status overrides map
+      try {
+        const statusMapKey = 'cpl_player_status_overrides_' + (this.activeTournamentId || 'default');
+        const overrides = JSON.parse(localStorage.getItem(statusMapKey) || '{}');
+        overrides[players[idx].id] = s;
+        if (players[idx].phone) overrides[players[idx].phone.replace(/\D/g, '')] = s;
+        localStorage.setItem(statusMapKey, JSON.stringify(overrides));
+      } catch (e) {}
       
       this.createOrUpdatePlayerProfile(players[idx]);
       this._invalidateCache('players');
@@ -1092,7 +1124,21 @@ class Store {
       player.verified = (s === 'APPROVED');
       player.updated_at = now;
       if (remarks) player.remarks = remarks;
+      if (!player.tournament_id && this.activeTournamentId) {
+        player.tournament_id = this.activeTournamentId;
+        player.tournamentId = this.activeTournamentId;
+      }
       
+      // Save to persistent status overrides map
+      try {
+        const statusMapKey = 'cpl_player_status_overrides_' + (this.activeTournamentId || 'default');
+        const overrides = JSON.parse(localStorage.getItem(statusMapKey) || '{}');
+        overrides[player.id] = s;
+        if (player.phone) overrides[player.phone.replace(/\D/g, '')] = s;
+        localStorage.setItem(statusMapKey, JSON.stringify(overrides));
+      } catch (e) {}
+
+      this.createOrUpdatePlayerProfile(player);
       this._invalidateCache('players');
       safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
       syncPlayerToSupabase(player);
