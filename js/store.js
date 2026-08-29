@@ -54,7 +54,7 @@ import {
   resolveTournamentUUID,
   registerTournamentUUID,
   toUUID
-} from './supabase.js?v=13.0.9';
+} from './supabase.js?v=13.0.10';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',

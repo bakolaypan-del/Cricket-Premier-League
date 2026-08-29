@@ -526,6 +526,7 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
     tourneyMeta = tourneyMeta || {};
     const regPrefix = (tourneyMeta.category_code || tourneyMeta.slug || 'T').toUpperCase().replace(/[^A-Z0-9]/g, '');
     const playerStatuses = tourneyMeta?.format_config?.player_statuses || {};
+    const playerOverrides = tourneyMeta?.format_config?.player_overrides || {};
 
     const dbPlayers = (!playersRes.error && Array.isArray(playersRes.data)) ? playersRes.data : [];
     const dbTeams = (!teamsRes.error && Array.isArray(teamsRes.data)) ? teamsRes.data : [];
@@ -545,7 +546,8 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
       const cleanPhone = (p.phone || '').replace(/[^0-9]/g, '');
       const prof = profilesByPhone.get(cleanPhone) || {};
 
-      const statusFromConfig = (playerStatuses[p.id] || (cleanPhone && playerStatuses[cleanPhone]) || '').toUpperCase();
+      const overrideData = playerOverrides[p.id] || (cleanPhone && playerOverrides[cleanPhone]) || {};
+      const statusFromConfig = (overrideData.paymentStatus || overrideData.registrationStatus || playerStatuses[p.id] || (cleanPhone && playerStatuses[cleanPhone]) || '').toUpperCase();
       const finalStatus = (statusFromConfig === 'APPROVED' || statusFromConfig === 'REJECTED' || statusFromConfig === 'PENDING')
         ? statusFromConfig
         : (p.verified === true ? 'APPROVED' : (p.status === 'rejected' ? 'REJECTED' : 'PENDING'));
@@ -556,47 +558,46 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
         id: p.id,
         tournament_id: p.tournament_id,
         leagueId: tId,
-        name: p.name,
+        name: overrideData.name || p.name,
         phone: p.phone,
         mobile: p.phone,
-        fatherName: p.father_name || prof.father_name || '',
-        photoUrl: p.photo_url,
-        hdPhotoUrl: p.photo_url,
-        player_photo_url: p.photo_url,
-        role: p.role || prof.role || 'All-Rounder',
-        playingType: p.role || prof.role || 'All-Rounder',
-        category: p.category_name || prof.role || 'All-Rounder',
-        basePrice: Number(p.base_price) || 300,
-        isIcon: p.is_icon === true,
-        teamId: p.team_id || null,
-        status: p.status,
-        soldPrice: p.sold_price || 0,
-        boughtPrice: p.sold_price || 0,
+        fatherName: overrideData.fatherName || p.father_name || prof.father_name || '',
+        photoUrl: overrideData.photoUrl || p.photo_url,
+        hdPhotoUrl: overrideData.photoUrl || p.photo_url,
+        player_photo_url: overrideData.photoUrl || p.photo_url,
+        role: overrideData.role || p.role || prof.role || 'All-Rounder',
+        playingType: overrideData.role || p.role || prof.role || 'All-Rounder',
+        category: overrideData.category || p.category_name || prof.role || 'All-Rounder',
+        basePrice: Number(overrideData.basePrice || p.base_price) || 300,
+        isIcon: (overrideData.isIcon !== undefined) ? overrideData.isIcon : (p.is_icon === true),
+        teamId: (overrideData.teamId !== undefined) ? overrideData.teamId : (p.team_id || null),
+        status: overrideData.status || p.status,
+        soldPrice: Number(overrideData.soldPrice !== undefined ? overrideData.soldPrice : p.sold_price) || 0,
+        boughtPrice: Number(overrideData.soldPrice !== undefined ? overrideData.soldPrice : p.sold_price) || 0,
         verified: isApproved,
         paymentStatus: finalStatus,
         registrationStatus: finalStatus,
+        remarks: overrideData.remarks || doc.payment_ref || p.remarks || '',
+        paymentRef: overrideData.remarks || doc.payment_ref || p.payment_ref || '',
+        dob: overrideData.dob || doc.dob || prof.dob || null,
+        age: overrideData.age || prof.age || null,
+        village: overrideData.village || prof.village || '',
+        district: overrideData.district || prof.district || 'Paschim Medinipur',
+        state: overrideData.state || prof.state || 'West Bengal',
+        idCardFrontUrl: doc.aadhaar_url || prof.idCardFrontUrl || '',
+        aadharPhotoUrl: doc.aadhaar_url || prof.aadharPhotoUrl || '',
+        idCardBackUrl: prof.idCardBackUrl || '',
+        aadharBackUrl: prof.idCardBackUrl || '',
+        paymentReceiptUrl: doc.payment_screenshot_url || prof.paymentReceiptUrl || '',
+        paymentProofUrl: doc.payment_screenshot_url || prof.paymentProofUrl || '',
         serialNo: serial,
         displayRegistrationNumber: serial,
         registrationId: `${regPrefix}-${String(serial).padStart(4, '0')}`,
         regNo: `${regPrefix}-${String(serial).padStart(4, '0')}`,
-        dob: prof.dob || p.dob || null,
-        age: p.age || prof.age || '',
-        village: p.village || prof.village || '',
-        district: p.district || prof.district || 'Paschim Medinipur',
-        state: p.state || prof.state || 'West Bengal',
-        address: p.address || (prof.village ? `${prof.village}, ${prof.district || ''}` : ''),
-        battingStyle: prof.batting_style || p.batting_style || p.battingStyle || 'Right Hand Bat',
-        bowlingStyle: prof.bowling_style || p.bowling_style || p.bowlingStyle || 'Right Hand Medium',
+        address: overrideData.address || (overrideData.village ? `${overrideData.village}, ${overrideData.district || 'Paschim Medinipur'}` : (prof.village ? `${prof.village}, ${prof.district || 'Paschim Medinipur'}` : '')),
+        battingStyle: overrideData.battingStyle || prof.batting_style || p.batting_style || p.battingStyle || 'Right Hand Bat',
+        bowlingStyle: overrideData.bowlingStyle || prof.bowling_style || p.bowling_style || p.bowlingStyle || 'Right Hand Medium',
         isWicketKeeper: !!(p.is_wicket_keeper || p.isWicketKeeper),
-        docType: doc.doc_type || 'ID Card',
-        idCardFrontUrl: doc.id_card_front_url || doc.aadhaar_url || null,
-        idCardBackUrl: doc.id_card_back_url || null,
-        aadharPhotoUrl: doc.id_card_front_url || doc.aadhaar_url || null,
-        aadharBackUrl: doc.id_card_back_url || null,
-        paymentReceiptUrl: doc.payment_screenshot_url || p.payment_screenshot_url || null,
-        paymentProofUrl: doc.payment_screenshot_url || p.payment_screenshot_url || null,
-        paymentRef: doc.payment_ref || p.payment_ref || '',
-        remarks: doc.payment_ref || p.payment_ref || '',
         created_at: p.created_at,
         updated_at: p.updated_at
       };
@@ -706,13 +707,13 @@ export async function syncPlayerToSupabase(playerData) {
     };
 
     const { data, error } = await supabase.from('players').upsert(payload).select().maybeSingle();
-    if (error) {
+    if (error && error.code !== '42501') {
       console.warn("[SUPABASE] syncPlayerToSupabase players table notice:", error);
     } else {
       console.log("[SUPABASE] Synced player:", playerData.name, "Verified:", isApproved);
     }
 
-    // Persist status permanently to tournament format_config (bypasses RLS constraints)
+    // Persist status & full player overrides permanently to tournament format_config (bypasses RLS constraints)
     const statusToSave = isApproved ? 'APPROVED' : (isRejected ? 'REJECTED' : 'PENDING');
     try {
       let { data: currentTourney } = await supabase.from('tournaments').select('id, format_config').eq('id', tournamentUUID).maybeSingle();
@@ -727,10 +728,28 @@ export async function syncPlayerToSupabase(playerData) {
       }
       const existingConfig = currentTourney?.format_config || {};
       const existingStatuses = existingConfig.player_statuses || {};
+      const existingOverrides = existingConfig.player_overrides || {};
+
       existingStatuses[playerUUID] = statusToSave;
       existingStatuses[playerData.id] = statusToSave;
       if (cleanPhone) existingStatuses[cleanPhone] = statusToSave;
+
+      const overrideObj = {
+        name: playerData.name,
+        role: playerData.role || playerData.category || playerData.playingType,
+        category: playerData.category || playerData.category_name,
+        basePrice: Number(playerData.basePrice || playerData.base_price) || 300,
+        paymentStatus: statusToSave,
+        registrationStatus: statusToSave,
+        verified: isApproved,
+        remarks: playerData.remarks || playerData.paymentRef || '',
+        updated_at: new Date().toISOString()
+      };
+      existingOverrides[playerUUID] = overrideObj;
+      existingOverrides[playerData.id] = overrideObj;
+
       existingConfig.player_statuses = existingStatuses;
+      existingConfig.player_overrides = existingOverrides;
       await supabase.from('tournaments').update({ format_config: existingConfig }).eq('id', targetId);
     } catch(errConfig) {
       console.warn("[SUPABASE] tournament format_config status save warning:", errConfig);
