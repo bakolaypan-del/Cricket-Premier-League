@@ -435,11 +435,13 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
   try {
     const tId = toUUID(tournamentId) || DEFAULT_TOURNAMENT_UUID;
 
-    const [playersRes, teamsRes, matchesRes, tourneyRes] = await Promise.all([
+    const [playersRes, teamsRes, matchesRes, tourneyRes, docsRes, profilesRes] = await Promise.all([
       supabase.from('players').select('*').eq('tournament_id', tId),
       supabase.from('teams').select('*').eq('tournament_id', tId),
       supabase.from('matches').select('*').eq('tournament_id', tId),
-      supabase.from('tournaments').select('category_code, slug, name, registration_fee, total_team_budget, icon_price, registration_settings').eq('id', tId).maybeSingle()
+      supabase.from('tournaments').select('category_code, slug, name, registration_fee, total_team_budget, icon_price, registration_settings').eq('id', tId).maybeSingle(),
+      supabase.from('player_verification_docs').select('*').eq('tournament_id', tId),
+      supabase.from('person_profiles').select('*')
     ]);
     const tourneyMeta = tourneyRes?.data || {};
     const regPrefix = (tourneyMeta.category_code || tourneyMeta.slug || 'T').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -447,9 +449,21 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
     const dbPlayers = (!playersRes.error && Array.isArray(playersRes.data)) ? playersRes.data : [];
     const dbTeams = (!teamsRes.error && Array.isArray(teamsRes.data)) ? teamsRes.data : [];
     const dbMatches = (!matchesRes.error && Array.isArray(matchesRes.data)) ? matchesRes.data : [];
+    const dbDocs = (!docsRes.error && Array.isArray(docsRes.data)) ? docsRes.data : [];
+    const dbProfiles = (!profilesRes.error && Array.isArray(profilesRes.data)) ? profilesRes.data : [];
+
+    const docsByPlayerId = new Map();
+    dbDocs.forEach(d => { if (d.player_id) docsByPlayerId.set(d.player_id, d); });
+
+    const profilesByPhone = new Map();
+    dbProfiles.forEach(pr => { if (pr.phone) profilesByPhone.set(pr.phone.replace(/[^0-9]/g, ''), pr); });
 
     const players = dbPlayers.map((p, idx) => {
       const serial = p.reg_number || (idx + 1);
+      const doc = docsByPlayerId.get(p.id) || {};
+      const cleanPhone = (p.phone || '').replace(/[^0-9]/g, '');
+      const prof = profilesByPhone.get(cleanPhone) || {};
+
       return {
         id: p.id,
         tournament_id: p.tournament_id,
@@ -475,6 +489,17 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
         displayRegistrationNumber: serial,
         registrationId: `${regPrefix}-${String(serial).padStart(4, '0')}`,
         regNo: `${regPrefix}-${String(serial).padStart(4, '0')}`,
+        dob: prof.dob || p.dob || null,
+        age: p.age || prof.age || '',
+        docType: doc.doc_type || 'ID Card',
+        idCardFrontUrl: doc.id_card_front_url || doc.aadhaar_url || null,
+        idCardBackUrl: doc.id_card_back_url || null,
+        aadharPhotoUrl: doc.id_card_front_url || doc.aadhaar_url || null,
+        aadharBackUrl: doc.id_card_back_url || null,
+        paymentReceiptUrl: doc.payment_screenshot_url || p.payment_screenshot_url || null,
+        paymentProofUrl: doc.payment_screenshot_url || p.payment_screenshot_url || null,
+        paymentRef: doc.payment_ref || p.payment_ref || '',
+        remarks: doc.payment_ref || p.payment_ref || '',
         created_at: p.created_at,
         updated_at: p.updated_at
       };

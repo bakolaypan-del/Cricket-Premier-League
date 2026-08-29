@@ -2423,29 +2423,38 @@ function openAdminEditPlayerModal(player, containerEl) {
             </span>
             <span class="text-[9px] text-slate-500 font-bold">Click any photo to Zoom HD</span>
           </div>
-          <div class="grid grid-cols-3 gap-2 text-center">
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
             
             <!-- 1. PLAYER PHOTO -->
             <div class="space-y-1">
               <span class="text-[9px] font-bold text-slate-600 block uppercase">Player Photo</span>
-              <img src="${player.photoUrl || player.player_photo_url}" class="doc-zoomable-img w-full h-20 rounded-xl object-cover border-2 border-emerald-300 hover:border-emerald-500 shadow-2xs cursor-pointer transition-all bg-white" title="Click to view full HD player photo" data-zoom-title="${player.name} - Player Photo" onerror="this.onerror=null; this.src='assets/card_jsl_user.png';" />
+              <img src="${player.photoUrl || player.player_photo_url || 'assets/card_jsl_user.png'}" class="doc-zoomable-img w-full h-20 rounded-xl object-cover border-2 border-emerald-300 hover:border-emerald-500 shadow-2xs cursor-pointer transition-all bg-white" title="Click to view full HD player photo" data-zoom-title="${player.name} - Player Photo" onerror="this.onerror=null; this.src='assets/card_jsl_user.png';" />
               <span class="text-[9px] text-emerald-700 block font-bold cursor-pointer hover:underline">🔍 Zoom Photo</span>
             </div>
 
-            <!-- 2. AADHAAR CARD -->
+            <!-- 2. ID CARD FRONT -->
             <div class="space-y-1">
-              <span class="text-[9px] font-bold text-slate-600 block uppercase">Aadhaar Proof</span>
-              ${player.aadharPhotoUrl || player.aadharBackUrl ? `
-                <img src="${player.aadharPhotoUrl || player.aadharBackUrl}" class="doc-zoomable-img w-full h-20 rounded-xl object-cover border-2 border-sky-300 hover:border-sky-500 shadow-2xs cursor-pointer transition-all bg-white" title="Click to view full HD Aadhaar document" data-zoom-title="${player.name} - Aadhaar Document" onerror="this.src='assets/jsl_logo.jpg'" />
-                <span class="text-[9px] text-sky-700 block font-bold cursor-pointer hover:underline">🔍 Zoom Aadhaar</span>
-              ` : `<div class="h-20 rounded-xl bg-slate-200 border border-slate-300 flex items-center justify-center text-[10px] text-slate-500 font-bold">No Aadhaar</div>`}
+              <span class="text-[9px] font-bold text-slate-600 block uppercase truncate">${player.docType || 'ID'} Front</span>
+              ${player.idCardFrontUrl || player.id_card_front_url || player.aadharPhotoUrl || player.aadhaar_url ? `
+                <img src="${player.idCardFrontUrl || player.id_card_front_url || player.aadharPhotoUrl || player.aadhaar_url}" class="doc-zoomable-img w-full h-20 rounded-xl object-cover border-2 border-sky-300 hover:border-sky-500 shadow-2xs cursor-pointer transition-all bg-white" title="Click to view ID Card Front" data-zoom-title="${player.name} - ID Card Front (${player.docType || 'Identity Card'})" onerror="this.src='assets/jsl_logo.jpg'" />
+                <span class="text-[9px] text-sky-700 block font-bold cursor-pointer hover:underline">🔍 Zoom Front</span>
+              ` : `<div class="h-20 rounded-xl bg-slate-200 border border-slate-300 flex items-center justify-center text-[10px] text-slate-500 font-bold">No ID Front</div>`}
             </div>
 
-            <!-- 3. PAYMENT RECEIPT -->
+            <!-- 3. ID CARD BACK -->
+            <div class="space-y-1">
+              <span class="text-[9px] font-bold text-slate-600 block uppercase truncate">${player.docType || 'ID'} Back</span>
+              ${player.idCardBackUrl || player.id_card_back_url || player.aadharBackUrl ? `
+                <img src="${player.idCardBackUrl || player.id_card_back_url || player.aadharBackUrl}" class="doc-zoomable-img w-full h-20 rounded-xl object-cover border-2 border-sky-300 hover:border-sky-500 shadow-2xs cursor-pointer transition-all bg-white" title="Click to view ID Card Back" data-zoom-title="${player.name} - ID Card Back (${player.docType || 'Identity Card'})" onerror="this.src='assets/jsl_logo.jpg'" />
+                <span class="text-[9px] text-sky-700 block font-bold cursor-pointer hover:underline">🔍 Zoom Back</span>
+              ` : `<div class="h-20 rounded-xl bg-slate-200 border border-slate-300 flex items-center justify-center text-[10px] text-slate-500 font-bold">No ID Back</div>`}
+            </div>
+
+            <!-- 4. PAYMENT RECEIPT -->
             <div class="space-y-1">
               <span class="text-[9px] font-bold text-slate-600 block uppercase">Payment Receipt</span>
-              ${player.paymentReceiptUrl || player.paymentProofUrl ? `
-                <img src="${player.paymentReceiptUrl || player.paymentProofUrl}" class="doc-zoomable-img w-full h-20 rounded-xl object-cover border-2 border-amber-300 hover:border-amber-500 shadow-2xs cursor-pointer transition-all bg-white" title="Click to view full HD payment receipt" data-zoom-title="${player.name} - Payment Receipt" onerror="this.src='assets/jsl_logo.jpg'" />
+              ${player.paymentReceiptUrl || player.paymentProofUrl || player.payment_screenshot_url ? `
+                <img src="${player.paymentReceiptUrl || player.paymentProofUrl || player.payment_screenshot_url}" class="doc-zoomable-img w-full h-20 rounded-xl object-cover border-2 border-amber-300 hover:border-amber-500 shadow-2xs cursor-pointer transition-all bg-white" title="Click to view full HD payment receipt" data-zoom-title="${player.name} - Payment Receipt" onerror="this.src='assets/jsl_logo.jpg'" />
                 <span class="text-[9px] text-amber-700 block font-bold cursor-pointer hover:underline">🔍 Zoom Receipt</span>
               ` : `<div class="h-20 rounded-xl bg-slate-200 border border-slate-300 flex items-center justify-center text-[10px] text-slate-500 font-bold">No Receipt</div>`}
             </div>
@@ -2461,7 +2470,7 @@ function openAdminEditPlayerModal(player, containerEl) {
           </div>
 
           <div class="flex items-center gap-3">
-            <img id="admin-edit-photo-preview" src="${player.photoUrl || player.player_photo_url}" class="w-14 h-14 rounded-2xl object-cover border-2 border-emerald-500 shadow-xs bg-white shrink-0" onerror="this.onerror=null; this.src='assets/card_jsl_user.png';" />
+            <img id="admin-edit-photo-preview" src="${player.photoUrl || player.player_photo_url || 'assets/card_jsl_user.png'}" class="w-14 h-14 rounded-2xl object-cover border-2 border-emerald-500 shadow-xs bg-white shrink-0" onerror="this.onerror=null; this.src='assets/card_jsl_user.png';" />
             
             <div class="flex items-center gap-1.5 flex-1 flex-wrap">
               <label class="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-800 font-bold text-[10px] rounded-xl border border-slate-300 cursor-pointer flex items-center gap-1 shadow-2xs transition-all">
@@ -2479,7 +2488,7 @@ function openAdminEditPlayerModal(player, containerEl) {
           </div>
         </div>
 
-        <!-- 3. COMPREHENSIVE FORM (ALL PLAYER FIELDS) -->
+        <!-- 3. COMPREHENSIVE FORM (EXACT REGISTRATION FIELDS) -->
         <form id="admin-edit-player-form" class="space-y-3.5 text-xs">
 
           <!-- Section A: Personal & Contact Information -->
@@ -2494,34 +2503,30 @@ function openAdminEditPlayerModal(player, containerEl) {
                 <input type="text" id="edit-ply-name" value="${player.name || ''}" required class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-2xs" />
               </div>
               <div>
-                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Father's Name</label>
-                <input type="text" id="edit-ply-father-name" value="${player.fatherName || ''}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-2xs" />
+                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Phone Number *</label>
+                <input type="tel" id="edit-ply-phone" value="${player.phone || player.mobile || ''}" required class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-mono font-bold rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-2xs" />
               </div>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div>
-                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Phone Number *</label>
-                <input type="tel" id="edit-ply-phone" value="${player.phone || player.mobile || ''}" required class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-mono font-bold rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-2xs" />
+                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Date of Birth (DOB)</label>
+                <input type="date" id="edit-ply-dob" value="${player.dob || ''}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-2xs" />
               </div>
               <div>
                 <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Age (Years)</label>
-                <input type="number" id="edit-ply-age" value="${player.age || 24}" min="10" max="60" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-2xs" />
+                <input type="text" id="edit-ply-age" value="${player.age || ''}" class="w-full bg-slate-100 border border-slate-300 text-slate-900 text-xs font-mono font-bold rounded-xl p-2.5 focus:outline-none shadow-2xs" placeholder="Auto-calculated from DOB" />
               </div>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div>
-                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Village / Town</label>
+                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Village / Town *</label>
                 <input type="text" id="edit-ply-village" value="${player.village || ''}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-2xs" />
               </div>
               <div>
                 <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">District</label>
                 <input type="text" id="edit-ply-district" value="${player.district || 'Paschim Medinipur'}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-2xs" />
-              </div>
-              <div>
-                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Pincode</label>
-                <input type="text" id="edit-ply-pincode" value="${player.pincode || player.pin || '721201'}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-mono font-bold rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-2xs" />
               </div>
             </div>
           </div>
@@ -2534,7 +2539,7 @@ function openAdminEditPlayerModal(player, containerEl) {
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div>
-                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Playing Category *</label>
+                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Playing Category / Role *</label>
                 <select id="edit-ply-category" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-blue-500 focus:outline-none shadow-2xs">
                   <option value="All-Rounder" ${currentCategory.toLowerCase().includes('all') ? 'selected' : ''}>All-Rounder</option>
                   <option value="Batsman" ${currentCategory.toLowerCase() === 'batsman' ? 'selected' : ''}>Batsman</option>
@@ -2555,8 +2560,8 @@ function openAdminEditPlayerModal(player, containerEl) {
               <div>
                 <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Bowling Style</label>
                 <select id="edit-ply-bowling" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-blue-500 focus:outline-none shadow-2xs">
-                  <option value="Right Hand Fast" ${currentBowling.includes('Fast') && currentBowling.includes('Right') ? 'selected' : ''}>Right Hand Fast</option>
                   <option value="Right Hand Medium" ${currentBowling.includes('Medium') ? 'selected' : ''}>Right Hand Medium</option>
+                  <option value="Right Hand Fast" ${currentBowling.includes('Fast') && currentBowling.includes('Right') ? 'selected' : ''}>Right Hand Fast</option>
                   <option value="Right Hand Spin" ${currentBowling.includes('Spin') && currentBowling.includes('Right') ? 'selected' : ''}>Right Hand Spin</option>
                   <option value="Left Hand Fast" ${currentBowling.includes('Fast') && currentBowling.includes('Left') ? 'selected' : ''}>Left Hand Fast</option>
                   <option value="Left Hand Spin" ${currentBowling.includes('Spin') && currentBowling.includes('Left') ? 'selected' : ''}>Left Hand Spin</option>
@@ -2586,8 +2591,8 @@ function openAdminEditPlayerModal(player, containerEl) {
                 </select>
               </div>
               <div>
-                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">UPI Reference / Txn ID</label>
-                <input type="text" id="edit-ply-upiref" value="${player.paymentRef || player.remarks || ''}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-mono font-bold rounded-xl p-2.5 focus:border-amber-500 focus:outline-none shadow-2xs" placeholder="e.g. 211492297161" />
+                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">UPI Reference / UTR / Txn ID</label>
+                <input type="text" id="edit-ply-upiref" value="${player.paymentRef || player.remarks || player.payment_ref || ''}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-mono font-bold rounded-xl p-2.5 focus:border-amber-500 focus:outline-none shadow-2xs" placeholder="e.g. UPI_211492297161" />
               </div>
             </div>
 
@@ -2660,6 +2665,22 @@ function openAdminEditPlayerModal(player, containerEl) {
     }
   });
 
+  // Real-time auto-age calculation from DOB
+  document.getElementById('edit-ply-dob')?.addEventListener('change', (e) => {
+    const dobVal = e.target.value;
+    if (dobVal) {
+      const birthDate = new Date(dobVal);
+      const today = new Date();
+      let calculatedAge = today.getFullYear() - birthDate.getFullYear();
+      const m = today.getMonth() - birthDate.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+        calculatedAge--;
+      }
+      const ageInput = document.getElementById('edit-ply-age');
+      if (ageInput) ageInput.value = `${calculatedAge} Years`;
+    }
+  });
+
   document.getElementById('admin-edit-player-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const saveBtn = e.target.querySelector('button[type="submit"]');
@@ -2704,13 +2725,12 @@ function openAdminEditPlayerModal(player, containerEl) {
       store.updatePlayer({
         id: player.id,
         name: document.getElementById('edit-ply-name').value.trim(),
-        fatherName: document.getElementById('edit-ply-father-name').value.trim(),
         phone: document.getElementById('edit-ply-phone').value.trim(),
         mobile: document.getElementById('edit-ply-phone').value.trim(),
-        age: parseInt(document.getElementById('edit-ply-age').value, 10) || 24,
+        dob: document.getElementById('edit-ply-dob')?.value || player.dob || null,
+        age: document.getElementById('edit-ply-age')?.value || player.age || '',
         village: document.getElementById('edit-ply-village').value.trim(),
         district: document.getElementById('edit-ply-district').value.trim(),
-        pincode: document.getElementById('edit-ply-pincode').value.trim(),
         category: document.getElementById('edit-ply-category').value,
         role: document.getElementById('edit-ply-category').value,
         playingType: document.getElementById('edit-ply-category').value,
@@ -2720,6 +2740,7 @@ function openAdminEditPlayerModal(player, containerEl) {
         paymentStatus: newStatus,
         registrationStatus: newStatus,
         paymentRef: document.getElementById('edit-ply-upiref').value.trim(),
+        remarks: document.getElementById('edit-ply-upiref').value.trim(),
         serialNo: serialNum,
         displayRegistrationNumber: serialNum,
         registrationId: regIdVal,
