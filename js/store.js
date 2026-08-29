@@ -54,7 +54,7 @@ import {
   resolveTournamentUUID,
   registerTournamentUUID,
   toUUID
-} from './supabase.js?v=13.0.10';
+} from './supabase.js?v=13.0.11';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -118,8 +118,17 @@ function clearOldStorageQuota() {
     const keysToRemove = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
-      const isScopedKey = k && Array.from(activeKeys).some(base => k.startsWith(base + '_'));
-      if (k && k.startsWith('cpl_') && !activeKeys.has(k) && !isScopedKey && !k.startsWith('cpl_last_') && !k.startsWith('cpl_active_')) {
+      if (!k || !k.startsWith('cpl_')) continue;
+      const isScopedKey = Array.from(activeKeys).some(base => k.startsWith(base + '_'));
+      const isPreserved = activeKeys.has(k) || isScopedKey ||
+        k.startsWith('cpl_last_') ||
+        k.startsWith('cpl_active_') ||
+        k.startsWith('cpl_player_status_overrides') ||
+        k.startsWith('cpl_popup_settings') ||
+        k.startsWith('cpl_ad_settings') ||
+        k.startsWith('cpl_user_') ||
+        k.startsWith('cpl_admin_');
+      if (!isPreserved) {
         keysToRemove.push(k);
       }
     }

@@ -706,12 +706,26 @@ export async function syncPlayerToSupabase(playerData) {
       updated_at: new Date().toISOString()
     };
 
-    const { data, error } = await supabase.from('players').upsert(payload).select().maybeSingle();
-    if (error && error.code !== '42501') {
-      console.warn("[SUPABASE] syncPlayerToSupabase players table notice:", error);
-    } else {
-      console.log("[SUPABASE] Synced player:", playerData.name, "Verified:", isApproved);
-    }
+    // Only attempt direct table mutation if logged into a Supabase Auth session (avoids 403 errors on anon client)
+    try {
+      const { data: sessionData } = await supabase.auth.getSession();
+      if (sessionData?.session) {
+        await supabase.from('players').upsert(payload);
+        if (cleanPhone) {
+          const profPayload = {
+            phone: cleanPhone,
+            name: playerData.name,
+            photo_url: playerData.hdPhotoUrl || playerData.photoUrl || playerData.player_photo_url || null,
+            role: playerData.role || playerData.category || playerData.playingType || 'All-Rounder',
+            batting_style: playerData.battingStyle || playerData.batting_style || 'Right Hand Bat',
+            bowling_style: playerData.bowlingStyle || playerData.bowling_style || 'Right Hand Medium',
+            dob: (playerData.dob && playerData.dob !== 'N/A') ? playerData.dob : null,
+            updated_at: new Date().toISOString()
+          };
+          await supabase.from('person_profiles').upsert(profPayload, { onConflict: 'phone' });
+        }
+      }
+    } catch (authErr) {}
 
     // Persist status & full player overrides permanently to tournament format_config (bypasses RLS constraints)
     const statusToSave = isApproved ? 'APPROVED' : (isRejected ? 'REJECTED' : 'PENDING');
@@ -751,6 +765,7 @@ export async function syncPlayerToSupabase(playerData) {
       existingConfig.player_statuses = existingStatuses;
       existingConfig.player_overrides = existingOverrides;
       await supabase.from('tournaments').update({ format_config: existingConfig }).eq('id', targetId);
+      console.log("[SUPABASE] Synced player to cloud config:", playerData.name, "Status:", statusToSave);
     } catch(errConfig) {
       console.warn("[SUPABASE] tournament format_config status save warning:", errConfig);
     }
@@ -783,26 +798,7 @@ export async function syncPlayerToSupabase(playerData) {
       }
     }
 
-    // Save/Update Universal Person Profile
-    if (cleanPhone) {
-      try {
-        const profPayload = {
-          phone: cleanPhone,
-          name: playerData.name,
-          photo_url: playerData.hdPhotoUrl || playerData.photoUrl || playerData.player_photo_url || null,
-          role: playerData.role || playerData.category || playerData.playingType || 'All-Rounder',
-          batting_style: playerData.battingStyle || playerData.batting_style || 'Right Hand Bat',
-          bowling_style: playerData.bowlingStyle || playerData.bowling_style || 'Right Hand Medium',
-          dob: (playerData.dob && playerData.dob !== 'N/A') ? playerData.dob : null,
-          updated_at: new Date().toISOString()
-        };
-        await supabase.from('person_profiles').upsert(profPayload, { onConflict: 'phone' });
-      } catch (profErr) {
-        console.warn("[SUPABASE] Person profile sync notice:", profErr);
-      }
-    }
-
-    return data;
+    return payload;
   } catch (err) {
     console.warn("[SUPABASE] syncPlayerToSupabase notice:", err);
     return null;
