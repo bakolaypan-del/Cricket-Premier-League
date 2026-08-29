@@ -337,23 +337,36 @@ class Store {
       }
 
       // 3. Sync Fixtures
-      // CRITICAL: never let a delayed cloud echo clobber the match that is being
-      // actively scored ball-by-ball on THIS device. Supabase writes echo back with
-      // network latency, so during rapid scoring an older snapshot can arrive and
-      // revert freshly-entered balls (only the last one "sticking"). While a LIVE
-      // match is being scored here, the local copy of that one fixture is authoritative.
+      // Protect live scoring from cloud echo overwrites using version counters.
+      // Each saveLiveMatchToCloud increments _v in live_state. During sync, if the
+      // local fixture has a higher _v than the cloud copy, keep the local version.
+      // This survives tab refresh (version is inside the data, not a window flag).
+      // The legacy __cplActiveScoringFixtureId guard is kept as a secondary shield.
       if (Array.isArray(cloudData.fixtures)) {
-        let nextFixtures = cloudData.fixtures;
+        const localFixtures = this.getFixtures();
+        let nextFixtures = cloudData.fixtures.map(cf => {
+          const localF = localFixtures.find(f => f.id === cf.id);
+          if (!localF) return cf;
+
+          // Version-based protection: reject cloud state with lower version
+          const localV = localF.liveMatchState?._v || localF.liveState?._v || 0;
+          const cloudV = cf.liveState?._v || 0;
+          if (localV > cloudV && localF.status === 'LIVE') {
+            return { ...cf, liveState: localF.liveMatchState || localF.liveState };
+          }
+          return cf;
+        });
+
+        // Legacy shield: also protect the actively-scored fixture by window flag
         const activeId = (typeof window !== 'undefined') ? window.__cplActiveScoringFixtureId : null;
         if (activeId) {
-          const localActive = this.getFixtures().find(f => f.id === activeId);
-          // Only shield it while it is genuinely LIVE; once it is COMPLETED the cloud
-          // result is allowed to sync normally again.
+          const localActive = localFixtures.find(f => f.id === activeId);
           if (localActive && localActive.status === 'LIVE') {
-            nextFixtures = cloudData.fixtures.map(f => f.id === activeId ? localActive : f);
+            nextFixtures = nextFixtures.map(f => f.id === activeId ? localActive : f);
             if (!nextFixtures.some(f => f.id === activeId)) nextFixtures = [...nextFixtures, localActive];
           }
         }
+
         const fixturesKey = this._scopedKey('FIXTURES');
         const localFixturesStr = localStorage.getItem(fixturesKey) || '[]';
         const cloudFixturesStr = JSON.stringify(nextFixtures);

@@ -292,27 +292,31 @@ function ensureFileObject(fileInput, defaultName = 'upload.jpg') {
   return fileInput;
 }
 
-// --- CLOUDINARY DIRECT HD IMAGE UPLOAD (PRIMARY 10GB FREE CDN WITH AUTO-COMPRESSION) ---
-const CLOUDINARY_CLOUD_NAME = "k483yjqc";
-const CLOUDINARY_UPLOAD_PRESET = "cpl_uploads";
+// --- CLOUDINARY SIGNED IMAGE UPLOAD VIA BACKEND (credentials stay server-side) ---
+
+async function fileToBase64DataUri(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
 
 export async function uploadImageToCloudinary(fileInput, folderName = 'photos') {
   if (!fileInput) return null;
   try {
-    // Automatically compress to ~90-100KB before upload
     const compressed = await compressImageToTarget(fileInput, 100, 1200);
     const file = ensureFileObject(compressed, `${folderName}_${Date.now()}.jpg`);
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
-    formData.append('folder', `cpl_uploads/${folderName}`);
+    const dataUri = await fileToBase64DataUri(file);
 
     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    const timeoutId = controller ? setTimeout(() => controller.abort(), 10000) : null;
+    const timeoutId = controller ? setTimeout(() => controller.abort(), 15000) : null;
 
-    const response = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
+    const response = await fetch('/api/cricket-league/upload-image', {
       method: 'POST',
-      body: formData,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ file: dataUri, folder: `cpl_uploads/${folderName}` }),
       signal: controller ? controller.signal : undefined
     });
     if (timeoutId) clearTimeout(timeoutId);
@@ -320,15 +324,15 @@ export async function uploadImageToCloudinary(fileInput, folderName = 'photos') 
     if (response.ok) {
       const data = await response.json();
       if (data && data.secure_url) {
-        console.log("⚡ Uploaded compressed image directly to Cloudinary CDN:", data.secure_url);
+        console.log("⚡ Uploaded image via signed backend proxy:", data.secure_url);
         return data.secure_url;
       }
     } else {
-      const errTxt = await response.text();
-      console.warn("Cloudinary upload response notice:", response.status, errTxt);
+      const errData = await response.json().catch(() => ({}));
+      console.warn("Upload proxy error:", response.status, errData.error || '');
     }
   } catch (err) {
-    console.warn("Cloudinary upload notice:", err);
+    console.warn("Image upload notice:", err);
   }
   return null;
 }
@@ -650,7 +654,7 @@ export async function syncFixtureToSupabase(fixtureData) {
       overs_limit: fixtureData.oversLimit || fixtureData.overs_limit || null,
       status: fixtureData.status || 'SCHEDULED',
       result: fixtureData.result || null,
-      live_state: fixtureData.liveState || fixtureData.live_state || null
+      live_state: fixtureData.liveMatchState || fixtureData.liveState || fixtureData.live_state || null
     };
     const { data, error } = await supabase.from('matches').upsert(payload).select().single();
     if (error) throw error;
@@ -820,7 +824,9 @@ export async function saveLiveMatchToCloud(matchId, state) {
   if (!supabase || !matchId) return;
   try {
     const id = toUUID(matchId);
-    await supabase.from('matches').update({ live_state: state || {}, updated_at: new Date().toISOString() }).eq('id', id);
+    const versionedState = { ...(state || {}), _v: (state?._v || 0) + 1 };
+    await supabase.from('matches').update({ live_state: versionedState, updated_at: new Date().toISOString() }).eq('id', id);
+    if (state) state._v = versionedState._v;
   } catch (e) { console.warn('[SUPABASE] saveLiveMatch:', e.message); }
 }
 
