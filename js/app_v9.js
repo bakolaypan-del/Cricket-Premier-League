@@ -2319,20 +2319,74 @@ export function renderCustomTournamentHub(container, tourney) {
   const tourneyCode = (tourney.shortCode || tourney.code || '').toUpperCase();
   const tourneyName = (tourney.name || '').toUpperCase();
 
-  const allPlayers = store.getPlayers().filter(p => {
-    if (isJsl && (!p.tournamentId && !p.tournament_id && !p.tournamentSlug)) return true;
-    const pTid = p.tournament_id || p.tournamentId || '';
-    const pSlug = (p.tournamentSlug || p.tournament_slug || '').toLowerCase();
-    const pCode = (p.tournamentCode || p.category_code || '').toUpperCase();
-    const pTName = (p.tournamentName || '').toUpperCase();
+  const allPlayers = (() => {
+    // 1. Start with store.getPlayers()
+    const list = store.getPlayers();
 
-    return (pTid && (pTid === tid || pTid === tourney.id || pTid === tourney.supabaseId)) ||
-           (pSlug && pSlug === tourneySlug) ||
-           (pCode && pCode === tourneyCode) ||
-           (tourneySlug.includes('kota') && (pTid.includes('kpl') || pSlug.includes('kpl') || pTName.includes('KOTA'))) ||
-           (tourneySlug.includes('khirpai') && (pTid.includes('khirpai') || pSlug.includes('khirpai') || pTName.includes('KHIRPAI'))) ||
-           (isJsl && (pTid.includes('jsl') || pSlug.includes('jsl') || pTName.includes('JHANKRA') || pTName.includes('JSL')));
-  });
+    // 2. Also search all localStorage keys for players registered for this tournament
+    const extraMatches = [];
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('cpl_players_v8_')) {
+          const raw = localStorage.getItem(k);
+          if (raw) {
+            const arr = JSON.parse(raw);
+            if (Array.isArray(arr)) {
+              arr.forEach(p => {
+                if (p && (p.id || p.phone)) {
+                  const pTid = (p.tournament_id || p.tournamentId || '').toLowerCase();
+                  const pSlug = (p.tournamentSlug || p.tournament_slug || '').toLowerCase();
+                  const pCode = (p.tournamentCode || p.category_code || '').toUpperCase();
+                  const pTName = (p.tournamentName || '').toUpperCase();
+
+                  const matches = (pTid && (pTid === (tid || '').toLowerCase() || pTid === (tourney.id || '').toLowerCase() || pTid === (tourney.supabaseId || '').toLowerCase())) ||
+                                  (pSlug && (pSlug === tourneySlug || tourneySlug.includes(pSlug) || pSlug.includes(tourneySlug))) ||
+                                  (pCode && pCode === tourneyCode) ||
+                                  (tourneySlug.includes('cgl') && (pTid.includes('cgl') || pSlug.includes('cgl') || pTName.includes('CGL'))) ||
+                                  (tourneySlug.includes('kota') && (pTid.includes('kpl') || pSlug.includes('kpl') || pTName.includes('KOTA'))) ||
+                                  (tourneySlug.includes('khirpai') && (pTid.includes('khirpai') || pSlug.includes('khirpai') || pTName.includes('KHIRPAI'))) ||
+                                  (isJsl && (pTid.includes('jsl') || pSlug.includes('jsl') || pTName.includes('JHANKRA') || pTName.includes('JSL')));
+                  if (matches) {
+                    extraMatches.push(p);
+                  }
+                }
+              });
+            }
+          }
+        }
+      }
+    } catch(e) {}
+
+    // Deduplicate combined list by id or normalized phone
+    const combined = [...list, ...extraMatches];
+    const unique = new Map();
+    combined.forEach(p => {
+      if (!p) return;
+      const pTid = (p.tournament_id || p.tournamentId || '').toLowerCase();
+      const pSlug = (p.tournamentSlug || p.tournament_slug || '').toLowerCase();
+      const pCode = (p.tournamentCode || p.category_code || '').toUpperCase();
+      const pTName = (p.tournamentName || '').toUpperCase();
+
+      const isMatch = (isJsl && (!p.tournamentId && !p.tournament_id && !p.tournamentSlug)) ||
+                      (pTid && (pTid === (tid || '').toLowerCase() || pTid === (tourney.id || '').toLowerCase() || pTid === (tourney.supabaseId || '').toLowerCase())) ||
+                      (pSlug && (pSlug === tourneySlug || tourneySlug.includes(pSlug) || pSlug.includes(tourneySlug))) ||
+                      (pCode && pCode === tourneyCode) ||
+                      (tourneySlug.includes('cgl') && (pTid.includes('cgl') || pSlug.includes('cgl') || pTName.includes('CGL'))) ||
+                      (tourneySlug.includes('kota') && (pTid.includes('kpl') || pSlug.includes('kpl') || pTName.includes('KOTA'))) ||
+                      (tourneySlug.includes('khirpai') && (pTid.includes('khirpai') || pSlug.includes('khirpai') || pTName.includes('KHIRPAI'))) ||
+                      (isJsl && (pTid.includes('jsl') || pSlug.includes('jsl') || pTName.includes('JHANKRA') || pTName.includes('JSL')));
+
+      if (isMatch) {
+        const uKey = p.id || (p.phone ? p.phone.replace(/[^0-9]/g, '') : Math.random());
+        if (!unique.has(uKey)) {
+          unique.set(uKey, p);
+        }
+      }
+    });
+
+    return Array.from(unique.values());
+  })();
 
   const displayPlayers = allPlayers;
 
