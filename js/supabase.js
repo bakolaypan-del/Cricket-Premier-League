@@ -706,27 +706,6 @@ export async function syncPlayerToSupabase(playerData) {
       updated_at: new Date().toISOString()
     };
 
-    // Only attempt direct table mutation if logged into a Supabase Auth session (avoids 403 errors on anon client)
-    try {
-      const { data: sessionData } = await supabase.auth.getSession();
-      if (sessionData?.session) {
-        await supabase.from('players').upsert(payload);
-        if (cleanPhone) {
-          const profPayload = {
-            phone: cleanPhone,
-            name: playerData.name,
-            photo_url: playerData.hdPhotoUrl || playerData.photoUrl || playerData.player_photo_url || null,
-            role: playerData.role || playerData.category || playerData.playingType || 'All-Rounder',
-            batting_style: playerData.battingStyle || playerData.batting_style || 'Right Hand Bat',
-            bowling_style: playerData.bowlingStyle || playerData.bowling_style || 'Right Hand Medium',
-            dob: (playerData.dob && playerData.dob !== 'N/A') ? playerData.dob : null,
-            updated_at: new Date().toISOString()
-          };
-          await supabase.from('person_profiles').upsert(profPayload, { onConflict: 'phone' });
-        }
-      }
-    } catch (authErr) {}
-
     // Persist status & full player overrides permanently to tournament format_config (bypasses RLS constraints)
     const statusToSave = isApproved ? 'APPROVED' : (isRejected ? 'REJECTED' : 'PENDING');
     try {
@@ -932,24 +911,8 @@ export async function syncUniversalPlayerToSupabase(profile) {
   try {
     const phone = (profile.phone || profile.mobile || '').trim().replace(/[^0-9]/g, '');
     if (!phone || phone.length < 10) return null;
-    const payload = {
-      phone,
-      name: profile.name || profile.fullName || null,
-      photo_url: profile.photoUrl || profile.hdPhotoUrl || null,
-      role: profile.role || profile.playingType || null,
-      batting_style: profile.battingStyle || null,
-      bowling_style: profile.bowlingStyle || null,
-      updated_at: new Date().toISOString()
-    };
-    const { data, error } = await supabase
-      .from('person_profiles')
-      .upsert(payload, { onConflict: 'phone' })
-      .select()
-      .single();
-    if (error) throw error;
-    return data;
+    return null;
   } catch (err) {
-    console.warn("[SUPABASE] syncUniversalPlayerToSupabase notice:", err);
     return null;
   }
 }
