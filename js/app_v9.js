@@ -2800,7 +2800,7 @@ export function renderCustomTournamentHub(container, tourney) {
               Registered Player List (<span id="hub-player-count-display">${displayPlayers.length}</span>)
             </h3>
             <span class="text-[10px] font-black text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-300 shrink-0">
-              ${displayPlayers.filter(p => (p.registrationStatus || p.paymentStatus) === 'APPROVED').length} Verified
+              ${displayPlayers.filter(p => (p.registrationStatus || p.paymentStatus || '').toUpperCase().includes('APPROVED') || (p.registrationStatus || p.paymentStatus || '').toUpperCase().includes('VERIFIED') || p.verified === true).length} Verified
             </span>
           </div>
 
@@ -2841,7 +2841,7 @@ export function renderCustomTournamentHub(container, tourney) {
             <div id="hub-players-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
               ${displayPlayers.map((p, idx) => {
                 const serial = String(p.displayRegistrationNumber || p.serialNo || (idx + 1)).padStart(2, '0');
-                const isApproved = (p.registrationStatus || p.paymentStatus) === 'APPROVED';
+                const isApproved = (p.registrationStatus || p.paymentStatus || '').toUpperCase().includes('APPROVED') || (p.registrationStatus || p.paymentStatus || '').toUpperCase().includes('VERIFIED') || p.verified === true;
                 const photo = p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png';
                 const regCode = `${(tourney.shortCode || 'JSL').toUpperCase()}-2026-${String(serial).padStart(4, '0')}`;
                 const searchTokens = `${p.name || ''} ${p.mobile || p.phone || ''} ${serial} ${regCode} ${p.village || ''} ${p.address || ''} ${p.category || ''} ${p.role || ''}`.toLowerCase();
@@ -2855,7 +2855,16 @@ export function renderCustomTournamentHub(container, tourney) {
                       <span class="absolute top-2 left-2 px-2 py-0.5 bg-black/90 text-amber-300 font-mono font-black text-[11px] rounded-lg border border-amber-400/80 shadow">
                         #${serial}
                       </span>
-                      <span class="absolute top-2 right-2 w-3.5 h-3.5 rounded-full ${isApproved ? 'bg-emerald-500' : 'bg-amber-400'} ring-2 ring-white shadow"></span>
+                      <!-- Status Indicator Dot: RED until Admin Approval, GREEN once Verified -->
+                      <span class="absolute top-2 right-2 flex items-center justify-center" title="${isApproved ? 'Verified & Approved Player' : 'Pending Verification by Admin'}">
+                        ${isApproved 
+                          ? `<span class="w-3.5 h-3.5 rounded-full bg-emerald-500 ring-2 ring-white shadow flex items-center justify-center text-[8px] text-white font-black">✓</span>`
+                          : `<span class="relative flex h-3.5 w-3.5">
+                               <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                               <span class="relative inline-flex rounded-full h-3.5 w-3.5 bg-rose-600 ring-2 ring-white shadow"></span>
+                             </span>`
+                        }
+                      </span>
                     </div>
 
                     <!-- Centered Player Name -->

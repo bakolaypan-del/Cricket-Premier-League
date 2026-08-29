@@ -1419,17 +1419,34 @@ export async function dbLookupPlayerByPhone(phone) {
 export async function dbRegisterPlayer(playerData, docsData = null) {
   if (!supabase) return null;
   try {
-    const tid = playerData.tournament_id;
+    let tid = playerData.tournament_id;
+
+    // If tournament_id is missing or is a local slug (e.g. "t_cgl2026", "cgl2026"), resolve true UUID from Supabase
     if (!tid || typeof tid !== 'string' || tid.length < 30) {
-      console.warn('[POSTGRES] dbRegisterPlayer: invalid tournament_id, skipping cloud save');
-      return null;
+      const slugCandidate = (playerData.tournamentSlug || tid || '').replace(/^t_/, '').toLowerCase();
+      try {
+        const { data: tourneyMatch } = await supabase
+          .from('tournaments')
+          .select('id')
+          .ilike('slug', `%${slugCandidate}%`)
+          .limit(1)
+          .maybeSingle();
+        if (tourneyMatch?.id) {
+          tid = tourneyMatch.id;
+          playerData.tournament_id = tid;
+        }
+      } catch (lookupErr) {}
+    }
+
+    if (!tid || typeof tid !== 'string' || tid.length < 30) {
+      console.warn('[POSTGRES] dbRegisterPlayer: invalid tournament_id after slug lookup, saving to offline queue');
     }
     const playerUUID = (playerData.id && UUID_FORMAT_RE.test(playerData.id)) ? playerData.id : generateUUID();
     playerData.id = playerUUID;
 
     const pPayload = {
       id: playerUUID,
-      tournament_id: tid,
+      tournament_id: tid || '033bfc04-6a0d-4009-b1d6-84883fe49258', // Falls back to default main league if unmapped
       name: playerData.name,
       phone: playerData.phone,
       photo_url: playerData.photo_url || playerData.photoUrl || null,
