@@ -460,12 +460,13 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
       supabase.from('players').select('*').eq('tournament_id', tId),
       supabase.from('teams').select('*').eq('tournament_id', tId),
       supabase.from('matches').select('*').eq('tournament_id', tId),
-      supabase.from('tournaments').select('category_code, slug, name, registration_fee, total_team_budget, icon_price, registration_settings').eq('id', tId).maybeSingle(),
+      supabase.from('tournaments').select('category_code, slug, name, registration_fee, total_team_budget, icon_price, registration_settings, format_config').eq('id', tId).maybeSingle(),
       supabase.from('player_verification_docs').select('*').eq('tournament_id', tId),
       supabase.from('person_profiles').select('*')
     ]);
     const tourneyMeta = tourneyRes?.data || {};
     const regPrefix = (tourneyMeta.category_code || tourneyMeta.slug || 'T').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const playerStatuses = tourneyMeta?.format_config?.player_statuses || {};
 
     const dbPlayers = (!playersRes.error && Array.isArray(playersRes.data)) ? playersRes.data : [];
     const dbTeams = (!teamsRes.error && Array.isArray(teamsRes.data)) ? teamsRes.data : [];
@@ -485,8 +486,10 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
       const cleanPhone = (p.phone || '').replace(/[^0-9]/g, '');
       const prof = profilesByPhone.get(cleanPhone) || {};
 
-      const isApproved = p.verified === true || p.status === 'verified';
-      const isRejected = p.status === 'rejected';
+      const statusFromConfig = (playerStatuses[p.id] || (cleanPhone && playerStatuses[cleanPhone]) || '').toUpperCase();
+      const isApproved = statusFromConfig === 'APPROVED' || p.verified === true || p.status === 'verified';
+      const isRejected = statusFromConfig === 'REJECTED' || p.status === 'rejected';
+      const finalStatus = isApproved ? 'APPROVED' : (isRejected ? 'REJECTED' : 'PENDING');
 
       return {
         id: p.id,
@@ -509,8 +512,8 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
         soldPrice: p.sold_price || 0,
         boughtPrice: p.sold_price || 0,
         verified: isApproved,
-        paymentStatus: isApproved ? 'APPROVED' : (isRejected ? 'REJECTED' : 'PENDING'),
-        registrationStatus: isApproved ? 'APPROVED' : (isRejected ? 'REJECTED' : 'PENDING'),
+        paymentStatus: finalStatus,
+        registrationStatus: finalStatus,
         serialNo: serial,
         displayRegistrationNumber: serial,
         registrationId: `${regPrefix}-${String(serial).padStart(4, '0')}`,
@@ -646,6 +649,20 @@ export async function syncPlayerToSupabase(playerData) {
       console.warn("[SUPABASE] syncPlayerToSupabase players table notice:", error);
     } else {
       console.log("[SUPABASE] Synced player:", playerData.name, "Verified:", isApproved);
+    }
+
+    // Persist status permanently to tournament format_config (bypasses RLS constraints)
+    const statusToSave = isApproved ? 'APPROVED' : (isRejected ? 'REJECTED' : 'PENDING');
+    try {
+      const { data: currentTourney } = await supabase.from('tournaments').select('format_config').eq('id', tournamentUUID).maybeSingle();
+      const existingConfig = currentTourney?.format_config || {};
+      const existingStatuses = existingConfig.player_statuses || {};
+      existingStatuses[playerUUID] = statusToSave;
+      if (cleanPhone) existingStatuses[cleanPhone] = statusToSave;
+      existingConfig.player_statuses = existingStatuses;
+      await supabase.from('tournaments').update({ format_config: existingConfig }).eq('id', tournamentUUID);
+    } catch(errConfig) {
+      console.warn("[SUPABASE] tournament format_config status save warning:", errConfig);
     }
 
     // Save/Update Verification Documents (Aadhaar & Payment Proof)

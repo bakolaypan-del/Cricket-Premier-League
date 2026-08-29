@@ -51,7 +51,7 @@ import {
   saveUserAccountToCloud,
   flushSupabaseOfflineQueue,
   generateUUID
-} from './supabase.js?v=13.0.4';
+} from './supabase.js?v=13.0.5';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -308,9 +308,17 @@ class Store {
         const reindexedPlayers = cloudData.players.map(cp => {
           const lp = localPlayers.find(p => p && (p.id === cp.id || (p.phone && cp.phone && p.phone.replace(/\D/g, '') === cp.phone.replace(/\D/g, ''))));
           if (!lp) return cp;
+
+          const effectivePaymentStatus = (cp.paymentStatus && cp.paymentStatus !== 'PENDING') ? cp.paymentStatus : (lp.paymentStatus || cp.paymentStatus || 'PENDING');
+          const effectiveRegStatus = (cp.registrationStatus && cp.registrationStatus !== 'PENDING') ? cp.registrationStatus : (lp.registrationStatus || effectivePaymentStatus);
+          const effectiveVerified = (effectivePaymentStatus === 'APPROVED' || cp.verified === true || lp.verified === true);
+
           return {
             ...lp,
             ...cp,
+            verified: effectiveVerified,
+            paymentStatus: effectivePaymentStatus,
+            registrationStatus: effectiveRegStatus,
             photoUrl: cp.photoUrl || lp.photoUrl || lp.player_photo_url || '',
             player_photo_url: cp.player_photo_url || cp.photoUrl || lp.player_photo_url || lp.photoUrl || '',
             aadharPhotoUrl: cp.aadharPhotoUrl || lp.aadharPhotoUrl || lp.idCardFrontUrl || lp.aadhaar_url || '',
