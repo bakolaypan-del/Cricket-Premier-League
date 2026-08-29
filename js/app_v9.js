@@ -1,9 +1,9 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=13.0.0';
+import { store } from './store.js?v=13.0.3';
 import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.0';
-import { renderAdminDashboard } from './admin.js?v=13.0.0';
-import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID } from './supabase.js?v=13.0.1';
+import { renderAdminDashboard } from './admin.js?v=13.0.3';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID } from './supabase.js?v=13.0.3';
 import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.0';
 import { shops } from './shopsData.js?v=12.0.2';
 
@@ -2311,8 +2311,8 @@ export function renderCustomTournamentHub(container, tourney) {
   if (!container || !tourney) return;
 
   const isJsl = (tourney.slug === 'jsl-2026' || tourney.slug === 'jsl' || (tourney.code || '').toUpperCase() === 'JSL' || (tourney.shortCode || '').toUpperCase() === 'JSL' || (tourney.name || '').toUpperCase().includes('JHANKRA'));
-  // Force JSL to Mode A (AUCTION_LEAGUE)
-  const isAuction = isJsl || (tourney.mode === 'AUCTION_LEAGUE') || (!tourney.mode);
+  // Support AUCTION_LEAGUE, registration_auction, or default mode
+  const isAuction = isJsl || (tourney.mode === 'AUCTION_LEAGUE') || (tourney.mode === 'registration_auction') || (!tourney.mode);
 
   const tid = tourney.supabaseId || tourney.tournament_id || tourney.id;
   const tourneySlug = (tourney.slug || '').toLowerCase();
@@ -5522,8 +5522,8 @@ function renderPlayerCardsWithSerial(playersList) {
         <!-- LARGE SQUARE PICTURE CONTAINER WITH TOP-LEFT SHORT SERIAL & TOP-RIGHT BLINKING STATUS DOT -->
         <div class="w-full aspect-square rounded-xl bg-slate-100 border-2 border-slate-200 flex items-center justify-center overflow-hidden shadow-xs relative mb-1.5 mx-auto">
           
-          <!-- PLAYER PHOTO WITH LAZY LOADING & ASYNC DECODING -->
-          <img src="${photoSrc}" loading="lazy" decoding="async" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Crect width=\'100\' height=\'100\' fill=\'%23059669\'/%3E%3Ctext x=\'50\' y=\'62\' font-size=\'45\' text-anchor=\'middle\' fill=\'white\'%3E🏏%3C/text%3E%3C/svg%3E';" />
+          <!-- PLAYER PHOTO WITH INSTANT DECODING & BULLETPROOF FALLBACK -->
+          <img src="${photoSrc}" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='assets/card_jsl_user.png';" />
 
           <!-- SHORT SERIAL NO ON PICTURE TOP-LEFT (E.G. #01, #02) -->
           <span class="absolute top-1.5 left-1.5 px-2 py-0.5 bg-slate-900/90 backdrop-blur-sm text-amber-300 font-mono font-black text-[10px] rounded-md border border-amber-400/60 shadow-sm">
@@ -5576,7 +5576,7 @@ function openFullPlayerProfileModal(player) {
         <!-- SQUARE 200 KB CROPPED PLAYER PHOTO DISPLAY -->
         <div class="pt-1 text-center">
           <div class="w-32 h-32 sm:w-40 sm:h-40 rounded-2xl bg-white border-2 border-emerald-500 shadow-xl mx-auto overflow-hidden flex items-center justify-center">
-            <img src="${getOptimizedImageUrl(player.photoUrl || player.player_photo_url, 400, 400)}" loading="lazy" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Crect width=\'100\' height=\'100\' fill=\'%23059669\'/%3E%3Ctext x=\'50\' y=\'62\' font-size=\'45\' text-anchor=\'middle\' fill=\'white\'%3E🏏%3C/text%3E%3C/svg%3E';" />
+            <img src="${getOptimizedImageUrl(player.photoUrl || player.player_photo_url, 400, 400)}" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='assets/card_jsl_user.png';" />
           </div>
         </div>
 

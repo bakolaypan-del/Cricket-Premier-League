@@ -358,6 +358,27 @@ export async function uploadImageToCloudinary(fileInput, folderName = 'photos') 
       const errData = await response.json().catch(() => ({}));
       console.warn("Upload proxy error:", response.status, errData.error || '');
     }
+
+    // Direct Cloudinary unsigned upload fallback (works on localhost without Vercel API backend)
+    try {
+      const formData = new FormData();
+      formData.append('file', dataUri);
+      formData.append('upload_preset', 'cpl_uploads');
+      formData.append('folder', `cpl_uploads/${folderName}`);
+      const directRes = await fetch('https://api.cloudinary.com/v1_1/k483yjqc/image/upload', {
+        method: 'POST',
+        body: formData
+      });
+      if (directRes.ok) {
+        const dData = await directRes.json();
+        if (dData && dData.secure_url) {
+          console.log("⚡ Uploaded image via direct Cloudinary upload:", dData.secure_url);
+          return dData.secure_url;
+        }
+      }
+    } catch (directErr) {
+      console.warn("Direct Cloudinary fallback notice:", directErr);
+    }
   } catch (err) {
     console.warn("Image upload notice:", err);
   }
@@ -464,6 +485,9 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
       const cleanPhone = (p.phone || '').replace(/[^0-9]/g, '');
       const prof = profilesByPhone.get(cleanPhone) || {};
 
+      const isApproved = p.verified === true || p.status === 'verified';
+      const isRejected = p.status === 'rejected';
+
       return {
         id: p.id,
         tournament_id: p.tournament_id,
@@ -471,26 +495,35 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
         name: p.name,
         phone: p.phone,
         mobile: p.phone,
+        fatherName: p.father_name || prof.father_name || '',
         photoUrl: p.photo_url,
         hdPhotoUrl: p.photo_url,
         player_photo_url: p.photo_url,
-        role: p.role,
-        playingType: p.role,
-        category: p.category_name,
-        basePrice: p.base_price,
+        role: p.role || prof.role || 'All-Rounder',
+        playingType: p.role || prof.role || 'All-Rounder',
+        category: p.category_name || prof.role || 'All-Rounder',
+        basePrice: Number(p.base_price) || 300,
         isIcon: p.is_icon === true,
         teamId: p.team_id || null,
         status: p.status,
         soldPrice: p.sold_price || 0,
         boughtPrice: p.sold_price || 0,
-        verified: p.verified === true,
-        paymentStatus: p.verified === true ? 'APPROVED' : 'PENDING',
+        verified: isApproved,
+        paymentStatus: isApproved ? 'APPROVED' : (isRejected ? 'REJECTED' : 'PENDING'),
+        registrationStatus: isApproved ? 'APPROVED' : (isRejected ? 'REJECTED' : 'PENDING'),
         serialNo: serial,
         displayRegistrationNumber: serial,
         registrationId: `${regPrefix}-${String(serial).padStart(4, '0')}`,
         regNo: `${regPrefix}-${String(serial).padStart(4, '0')}`,
         dob: prof.dob || p.dob || null,
         age: p.age || prof.age || '',
+        village: p.village || prof.village || '',
+        district: p.district || prof.district || 'Paschim Medinipur',
+        state: p.state || prof.state || 'West Bengal',
+        address: p.address || (prof.village ? `${prof.village}, ${prof.district || ''}` : ''),
+        battingStyle: prof.batting_style || p.batting_style || p.battingStyle || 'Right Hand Bat',
+        bowlingStyle: prof.bowling_style || p.bowling_style || p.bowlingStyle || 'Right Hand Medium',
+        isWicketKeeper: !!(p.is_wicket_keeper || p.isWicketKeeper),
         docType: doc.doc_type || 'ID Card',
         idCardFrontUrl: doc.id_card_front_url || doc.aadhaar_url || null,
         idCardBackUrl: doc.id_card_back_url || null,
@@ -567,39 +600,101 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
 // ==============================================================================
 
 function derivePlayerStatus(playerData) {
-  if (playerData.status) return playerData.status;
+  let s = playerData.status || playerData.auctionStatus;
   const teamId = playerData.teamId || playerData.team_id;
-  if (teamId) return 'SOLD';
-  if (playerData.auctionStatus) return playerData.auctionStatus;
-  return 'AVAILABLE';
+  if (teamId) s = 'sold';
+  if (!s) s = 'available';
+  s = String(s).toLowerCase();
+  if (!['available', 'sold', 'unsold', 'withdrawn'].includes(s)) {
+    s = 'available';
+  }
+  return s;
 }
 
 export async function syncPlayerToSupabase(playerData) {
   if (!supabase || !playerData || !playerData.id) return null;
   try {
-    const tid = playerData.tournament_id || playerData.tournamentId || playerData.leagueId || 'leg-jsl';
+    const tid = playerData.tournament_id || playerData.tournamentId || playerData.leagueId || '033bfc04-033b-4c04-a33b-fc04033bfc04';
     const isValidUUID = typeof tid === 'string' && tid.length >= 30 && tid.includes('-');
     const tournamentUUID = isValidUUID ? tid : toUUID(tid);
+    const playerUUID = toUUID(playerData.id);
+    const cleanPhone = (playerData.phone || playerData.mobile || '').replace(/[^0-9]/g, '');
+
+    const isApproved = (playerData.paymentStatus === 'APPROVED' || playerData.registrationStatus === 'APPROVED' || playerData.verified === true);
+    const isRejected = (playerData.paymentStatus === 'REJECTED' || playerData.registrationStatus === 'REJECTED');
+
     const payload = {
-      id: toUUID(playerData.id),
+      id: playerUUID,
       tournament_id: tournamentUUID,
       name: playerData.name,
-      phone: (playerData.phone || playerData.mobile || '').replace(/[^0-9]/g, ''),
+      phone: cleanPhone || playerData.phone,
       photo_url: playerData.hdPhotoUrl || playerData.photoUrl || playerData.player_photo_url || null,
-      role: playerData.role || playerData.playingType || 'All-Rounder',
-      category_name: playerData.category || 'Category B',
-      base_price: Number(playerData.basePrice) || 200,
-      is_icon: playerData.isIcon === true,
+      role: playerData.role || playerData.category || playerData.playingType || 'All-Rounder',
+      category_name: playerData.category || playerData.category_name || 'Category B',
+      base_price: Number(playerData.basePrice || playerData.base_price) || 300,
+      is_icon: playerData.isIcon === true || playerData.is_icon === true,
       team_id: (playerData.teamId || playerData.team_id) ? toUUID(playerData.teamId || playerData.team_id) : null,
       status: derivePlayerStatus(playerData),
-      sold_price: Number(playerData.soldPrice || playerData.boughtPrice) || 0,
-      verified: playerData.paymentStatus === 'APPROVED' || playerData.verified === true,
-      reg_number: playerData.serialNo || playerData.reg_number || null,
+      sold_price: Number(playerData.soldPrice || playerData.sold_price || playerData.boughtPrice) || 0,
+      verified: isApproved,
+      reg_number: Number(playerData.serialNo || playerData.displayRegistrationNumber || playerData.reg_number) || null,
       updated_at: new Date().toISOString()
     };
-    const { data, error } = await supabase.from('players').upsert(payload).select().single();
-    if (error) throw error;
-    console.log("[SUPABASE] Synced player:", playerData.name);
+
+    const { data, error } = await supabase.from('players').upsert(payload).select().maybeSingle();
+    if (error) {
+      console.warn("[SUPABASE] syncPlayerToSupabase players table notice:", error);
+    } else {
+      console.log("[SUPABASE] Synced player:", playerData.name, "Verified:", isApproved);
+    }
+
+    // Save/Update Verification Documents (Aadhaar & Payment Proof)
+    const idCardFront = playerData.idCardFrontUrl || playerData.id_card_front_url || playerData.aadharPhotoUrl || playerData.aadhaar_url || null;
+    const idCardBack = playerData.idCardBackUrl || playerData.id_card_back_url || playerData.aadharBackUrl || null;
+    const paymentReceipt = playerData.paymentReceiptUrl || playerData.paymentProofUrl || playerData.payment_screenshot_url || null;
+    const paymentRef = playerData.paymentRef || playerData.remarks || playerData.payment_ref || null;
+
+    if (idCardFront || paymentReceipt || paymentRef) {
+      try {
+        const docPayload = {
+          player_id: playerUUID,
+          tournament_id: tournamentUUID,
+          aadhaar_url: idCardFront,
+          payment_screenshot_url: paymentReceipt,
+          payment_ref: paymentRef,
+          status: isApproved ? 'verified' : (isRejected ? 'rejected' : 'pending'),
+          updated_at: new Date().toISOString()
+        };
+        const { data: existingDoc } = await supabase.from('player_verification_docs').select('id').eq('player_id', playerUUID).maybeSingle();
+        if (existingDoc?.id) {
+          await supabase.from('player_verification_docs').update(docPayload).eq('id', existingDoc.id);
+        } else {
+          await supabase.from('player_verification_docs').insert({ ...docPayload, id: generateUUID() });
+        }
+      } catch (docErr) {
+        console.warn("[SUPABASE] Verification docs sync notice:", docErr);
+      }
+    }
+
+    // Save/Update Universal Person Profile
+    if (cleanPhone) {
+      try {
+        const profPayload = {
+          phone: cleanPhone,
+          name: playerData.name,
+          photo_url: playerData.hdPhotoUrl || playerData.photoUrl || playerData.player_photo_url || null,
+          role: playerData.role || playerData.category || playerData.playingType || 'All-Rounder',
+          batting_style: playerData.battingStyle || playerData.batting_style || 'Right Hand Bat',
+          bowling_style: playerData.bowlingStyle || playerData.bowling_style || 'Right Hand Medium',
+          dob: (playerData.dob && playerData.dob !== 'N/A') ? playerData.dob : null,
+          updated_at: new Date().toISOString()
+        };
+        await supabase.from('person_profiles').upsert(profPayload, { onConflict: 'phone' });
+      } catch (profErr) {
+        console.warn("[SUPABASE] Person profile sync notice:", profErr);
+      }
+    }
+
     return data;
   } catch (err) {
     console.warn("[SUPABASE] syncPlayerToSupabase notice:", err);

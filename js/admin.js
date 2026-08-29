@@ -1,8 +1,8 @@
 // Admin Master Data & Payment Verification Panel with Single Source Cloud Control (Developer: Suman Kolay)
 
-import { store } from './store.js?v=13.0.0';
+import { store } from './store.js?v=13.0.3';
 import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF } from './export.js?v=13.0.0';
-import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID } from './supabase.js?v=13.0.1';
+import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID } from './supabase.js?v=13.0.3';
 import { shops } from './shopsData.js?v=12.0.2';
 
 let activeAdminTab = (() => { try { return sessionStorage.getItem('cpl_admin_tab') || (store.isMasterAdmin() ? 'payments' : 'overview'); } catch(e) { return 'payments'; } })();
@@ -2510,23 +2510,33 @@ function openAdminEditPlayerModal(player, containerEl) {
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div>
-                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Date of Birth (DOB)</label>
-                <input type="date" id="edit-ply-dob" value="${player.dob || ''}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-2xs" />
+                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Father's Name</label>
+                <input type="text" id="edit-ply-father-name" value="${player.fatherName || player.father_name || ''}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-2xs" placeholder="Father / Guardian Name" />
               </div>
-              <div>
-                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Age (Years)</label>
-                <input type="text" id="edit-ply-age" value="${player.age || ''}" class="w-full bg-slate-100 border border-slate-300 text-slate-900 text-xs font-mono font-bold rounded-xl p-2.5 focus:outline-none shadow-2xs" placeholder="Auto-calculated from DOB" />
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">DOB</label>
+                  <input type="date" id="edit-ply-dob" value="${player.dob || ''}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-2xs" />
+                </div>
+                <div>
+                  <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Age</label>
+                  <input type="text" id="edit-ply-age" value="${player.age || ''}" class="w-full bg-slate-100 border border-slate-300 text-slate-900 text-xs font-mono font-bold rounded-xl p-2.5 focus:outline-none shadow-2xs" placeholder="Age" />
+                </div>
               </div>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               <div>
                 <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Village / Town *</label>
-                <input type="text" id="edit-ply-village" value="${player.village || ''}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-2xs" />
+                <input type="text" id="edit-ply-village" value="${player.village || player.address || ''}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-2xs" placeholder="Village / Area" />
               </div>
               <div>
                 <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">District</label>
                 <input type="text" id="edit-ply-district" value="${player.district || 'Paschim Medinipur'}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-2xs" />
+              </div>
+              <div>
+                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">State</label>
+                <input type="text" id="edit-ply-state" value="${player.state || 'West Bengal'}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-2xs" />
               </div>
             </div>
           </div>
@@ -2575,15 +2585,15 @@ function openAdminEditPlayerModal(player, containerEl) {
             </div>
           </div>
 
-          <!-- Section C: Registration, Approval & Franchise Squad -->
+          <!-- Section C: Payment Verification & Registration Status -->
           <div class="p-3.5 bg-amber-50/50 rounded-2xl border border-amber-200 space-y-2.5">
             <span class="text-[10px] font-black text-amber-900 uppercase tracking-wider block flex items-center gap-1">
-              <span>🏆</span> Registration & Team Allocation
+              <span>💳</span> Payment Verification & Registration Status
             </span>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div>
-                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Registration Status</label>
+                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Registration & Payment Status</label>
                 <select id="edit-ply-status" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-amber-500 focus:outline-none shadow-2xs">
                   <option value="APPROVED" ${currentStatus === 'APPROVED' ? 'selected' : ''}>APPROVED (🟢 Green)</option>
                   <option value="PENDING" ${currentStatus === 'PENDING' ? 'selected' : ''}>PENDING (🔴 Red)</option>
@@ -2596,7 +2606,7 @@ function openAdminEditPlayerModal(player, containerEl) {
               </div>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div>
                 <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Serial Number (#)</label>
                 <input type="number" id="edit-ply-serial" value="${player.displayRegistrationNumber || player.serialNo || 1}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-mono font-bold rounded-xl p-2.5 focus:border-amber-500 focus:outline-none shadow-2xs" />
@@ -2605,20 +2615,21 @@ function openAdminEditPlayerModal(player, containerEl) {
                 <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Registration ID</label>
                 <input type="text" id="edit-ply-reg-id" value="${player.registrationId || player.regNo || 'REG-0001'}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-mono font-bold rounded-xl p-2.5 focus:border-amber-500 focus:outline-none shadow-2xs" />
               </div>
-              <div>
-                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Franchise Squad</label>
-                <select id="edit-ply-team" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-amber-500 focus:outline-none shadow-2xs">
-                  <option value="">-- Free Agent (No Team) --</option>
-                  ${teams.map(t => `<option value="${t.id}" ${player.teamId === t.id ? 'selected' : ''}>${t.name}</option>`).join('')}
-                </select>
-              </div>
             </div>
           </div>
 
-          <!-- Save Button -->
-          <button type="submit" class="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-sm rounded-2xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-2">
-            <i data-lucide="check-circle-2" class="w-4 h-4"></i> Save Player Changes
-          </button>
+          <!-- Action Buttons Bar -->
+          <div class="flex flex-col sm:flex-row gap-2 pt-1">
+            <button type="button" id="modal-quick-approve-btn" class="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm rounded-2xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95">
+              <i data-lucide="check-circle" class="w-4 h-4"></i> Approve & Verify
+            </button>
+            <button type="button" id="modal-quick-reject-btn" class="flex-1 py-3 bg-rose-600 hover:bg-rose-500 text-white font-black text-xs sm:text-sm rounded-2xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95">
+              <i data-lucide="x-circle" class="w-4 h-4"></i> Reject
+            </button>
+            <button type="submit" id="modal-save-changes-btn" class="flex-1 py-3 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs sm:text-sm rounded-2xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95">
+              <i data-lucide="save" class="w-4 h-4"></i> Save Changes
+            </button>
+          </div>
         </form>
       </div>
     </div>
@@ -2681,16 +2692,39 @@ function openAdminEditPlayerModal(player, containerEl) {
     }
   });
 
+  // Quick Approve Button Handler inside Modal
+  document.getElementById('modal-quick-approve-btn')?.addEventListener('click', () => {
+    const statusSelect = document.getElementById('edit-ply-status');
+    if (statusSelect) statusSelect.value = 'APPROVED';
+    store.updatePlayerStatus(player.id, 'APPROVED', 'APPROVED', document.getElementById('edit-ply-upiref')?.value || '');
+    removeModal();
+    renderAdminDashboard(containerEl);
+    if (confirm(`✅ Player "${player.name}" APPROVED!\n\nDo you want to send the official Approval Confirmation to ${player.name} on WhatsApp now?`)) {
+      sendWhatsAppPlayerApproval(player);
+    }
+  });
+
+  // Quick Reject Button Handler inside Modal
+  document.getElementById('modal-quick-reject-btn')?.addEventListener('click', () => {
+    if (confirm(`⚠️ Reject registration for "${player.name}"?`)) {
+      const statusSelect = document.getElementById('edit-ply-status');
+      if (statusSelect) statusSelect.value = 'REJECTED';
+      store.updatePlayerStatus(player.id, 'REJECTED', 'REJECTED', document.getElementById('edit-ply-upiref')?.value || '');
+      removeModal();
+      renderAdminDashboard(containerEl);
+    }
+  });
+
   document.getElementById('admin-edit-player-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const saveBtn = e.target.querySelector('button[type="submit"]');
-    const originalText = saveBtn ? saveBtn.innerHTML : "Save Player Changes";
+    const saveBtn = document.getElementById('modal-save-changes-btn');
+    const originalText = saveBtn ? saveBtn.innerHTML : "Save Changes";
     if (saveBtn) {
       saveBtn.disabled = true;
       saveBtn.innerHTML = `
         <div class="flex items-center justify-center gap-2">
           <div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-          <span>Saving & Uploading to Cloud...</span>
+          <span>Saving...</span>
         </div>
       `;
     }
@@ -2708,29 +2742,26 @@ function openAdminEditPlayerModal(player, containerEl) {
         if (uploadedUrl && (uploadedUrl.startsWith('http://') || uploadedUrl.startsWith('https://'))) {
           finalPhotoUrl = uploadedUrl;
         } else {
-          if (saveBtn) {
-            saveBtn.disabled = false;
-            saveBtn.innerHTML = originalText;
-          }
-          alert("⚠️ Photo Upload Failed!\n\nUnable to upload photo to Cloudinary CDN. Please check your internet connection and try again.");
-          return;
+          finalPhotoUrl = updatedPhotoUrl;
         }
       }
 
       const newStatus = document.getElementById('edit-ply-status').value;
       const serialNum = parseInt(document.getElementById('edit-ply-serial').value, 10) || player.serialNo || 1;
       const regIdVal = document.getElementById('edit-ply-reg-id').value.trim() || player.registrationId || `REG-${String(serialNum).padStart(4, '0')}`;
-      const selectedTeamId = document.getElementById('edit-ply-team').value || null;
 
       store.updatePlayer({
         id: player.id,
         name: document.getElementById('edit-ply-name').value.trim(),
         phone: document.getElementById('edit-ply-phone').value.trim(),
         mobile: document.getElementById('edit-ply-phone').value.trim(),
+        fatherName: document.getElementById('edit-ply-father-name')?.value.trim() || player.fatherName || '',
         dob: document.getElementById('edit-ply-dob')?.value || player.dob || null,
         age: document.getElementById('edit-ply-age')?.value || player.age || '',
         village: document.getElementById('edit-ply-village').value.trim(),
         district: document.getElementById('edit-ply-district').value.trim(),
+        state: document.getElementById('edit-ply-state')?.value.trim() || 'West Bengal',
+        address: `${document.getElementById('edit-ply-village').value.trim()}, ${document.getElementById('edit-ply-district').value.trim()}`,
         category: document.getElementById('edit-ply-category').value,
         role: document.getElementById('edit-ply-category').value,
         playingType: document.getElementById('edit-ply-category').value,
@@ -2745,7 +2776,7 @@ function openAdminEditPlayerModal(player, containerEl) {
         displayRegistrationNumber: serialNum,
         registrationId: regIdVal,
         regNo: regIdVal,
-        teamId: selectedTeamId,
+        teamId: player.teamId || null,
         photoUrl: finalPhotoUrl,
         player_photo_url: finalPhotoUrl
       });

@@ -51,7 +51,7 @@ import {
   saveUserAccountToCloud,
   flushSupabaseOfflineQueue,
   generateUUID
-} from './supabase.js?v=13.0.1';
+} from './supabase.js?v=13.0.3';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -129,7 +129,7 @@ function clearOldStorageQuota() {
   }
 }
 
-// Sanitize player/team records so heavy base64 images never bloat localStorage
+// Sanitize player/team records so heavy base64 documents (aadhaar/receipts) never bloat localStorage
 export function sanitizeForStorage(data) {
   if (!data) return data;
   if (Array.isArray(data)) {
@@ -137,12 +137,7 @@ export function sanitizeForStorage(data) {
   }
   if (typeof data === 'object') {
     const itemCopy = { ...data };
-    if (itemCopy.photoUrl && typeof itemCopy.photoUrl === 'string' && itemCopy.photoUrl.startsWith('data:image')) {
-      itemCopy.photoUrl = DEFAULT_AVATAR;
-    }
-    if (itemCopy.player_photo_url && typeof itemCopy.player_photo_url === 'string' && itemCopy.player_photo_url.startsWith('data:image')) {
-      itemCopy.player_photo_url = DEFAULT_AVATAR;
-    }
+    // DO NOT wipe player photos! Keep valid photoUrl so real pictures always display
     if (itemCopy.aadharPhotoUrl && typeof itemCopy.aadharPhotoUrl === 'string' && itemCopy.aadharPhotoUrl.startsWith('data:image')) {
       itemCopy.aadharPhotoUrl = 'Attached Document';
     }
@@ -940,16 +935,20 @@ class Store {
   }
 
   updatePlayer(updatedPlayerData) {
+    this._invalidateCache('players');
     const players = this.getPlayers();
     const idx = players.findIndex(p => p.id === updatedPlayerData.id);
     if (idx !== -1) {
       const now = Date.now();
+      const isApproved = (updatedPlayerData.paymentStatus === 'APPROVED' || updatedPlayerData.registrationStatus === 'APPROVED');
       players[idx] = { 
         ...players[idx], 
         ...updatedPlayerData,
+        verified: isApproved,
         updated_at: now
       };
       
+      this._invalidateCache('players');
       safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
       syncPlayerToSupabase(players[idx]);
       this.notify('players_updated');
@@ -960,6 +959,7 @@ class Store {
 
   // --- AUTOMATIC CONTINUOUS RE-INDEXING ON DELETE PLAYER (NO GAPS IN NUMBERING) ---
   deletePlayer(playerId) {
+    this._invalidateCache('players');
     let players = this.getPlayers();
     const playerToDelete = players.find(p => p.id === playerId);
     
@@ -994,6 +994,7 @@ class Store {
       p.regNo = p.registrationId;
     });
 
+    this._invalidateCache('players');
     safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
     deletePlayerFromSupabase(playerId);
     this.notify('players_updated');
@@ -1002,6 +1003,7 @@ class Store {
   clearAllPlayers() {
     const timestamp = Date.now();
     localStorage.setItem('cpl_last_cleared_at', String(timestamp));
+    this._invalidateCache('players');
     safeSetLocalStorage(this._scopedKey('PLAYERS'), []);
     clearAllPlayersFromCloud();
     this.notify('players_updated');
@@ -1010,25 +1012,32 @@ class Store {
   clearAllTeams() {
     const timestamp = Date.now();
     localStorage.setItem('cpl_last_teams_cleared_at', String(timestamp));
+    this._invalidateCache('teams');
     safeSetLocalStorage(this._scopedKey('TEAMS'), []);
     clearAllTeamsFromCloud();
     this.notify('teams_updated');
   }
 
   updatePlayerStatus(playerId, paymentStatus, registrationStatus, remarks = '') {
+    this._invalidateCache('players');
     const players = this.getPlayers();
     const player = players.find(p => p.id === playerId);
     if (player) {
       const now = Date.now();
-      player.paymentStatus = paymentStatus.toUpperCase();
-      player.registrationStatus = (registrationStatus || paymentStatus).toUpperCase();
+      const s = (paymentStatus || 'APPROVED').toUpperCase();
+      player.paymentStatus = s;
+      player.registrationStatus = (registrationStatus || s).toUpperCase();
+      player.verified = (s === 'APPROVED');
       player.updated_at = now;
       if (remarks) player.remarks = remarks;
       
+      this._invalidateCache('players');
       safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
       syncPlayerToSupabase(player);
       this.notify('players_updated');
+      return player;
     }
+    return null;
   }
 
   purgePlayerSensitiveDocs(playerId) {
