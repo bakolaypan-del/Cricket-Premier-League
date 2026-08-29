@@ -13,6 +13,29 @@ function startServerOnPort(index) {
   const server = http.createServer((req, res) => {
     console.log(`[Request] ${req.method} ${req.url}`);
     let reqUrl = req.url.split('?')[0];
+
+    // Handle Cloudinary upload API endpoint
+    if (reqUrl === '/api/cricket-league/upload-image' || reqUrl === '/api/upload-image') {
+      const uploadHandler = require('./api/upload-image');
+      let bodyStr = '';
+      req.on('data', chunk => { bodyStr += chunk; });
+      req.on('end', () => {
+        try {
+          req.body = bodyStr ? JSON.parse(bodyStr) : {};
+        } catch (e) {
+          req.body = {};
+        }
+        res.status = (code) => { res.statusCode = code; return res; };
+        res.json = (data) => {
+          res.setHeader('Content-Type', 'application/json');
+          res.end(JSON.stringify(data));
+          return res;
+        };
+        uploadHandler(req, res);
+      });
+      return;
+    }
+
     let filePath = path.join(__dirname, reqUrl === '/' ? 'index.html' : reqUrl);
 
     fs.stat(filePath, (err, stats) => {

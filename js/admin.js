@@ -2,7 +2,7 @@
 
 import { store } from './store.js?v=13.0.0';
 import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF } from './export.js?v=13.0.0';
-import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase } from './supabase.js?v=13.0.1';
+import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID } from './supabase.js?v=13.0.1';
 import { shops } from './shopsData.js?v=12.0.2';
 
 let activeAdminTab = (() => { try { return sessionStorage.getItem('cpl_admin_tab') || (store.isMasterAdmin() ? 'payments' : 'overview'); } catch(e) { return 'payments'; } })();
@@ -1834,7 +1834,7 @@ export function renderAdminDashboard(containerEl) {
       const photoUrl = `https://randomuser.me/api/portraits/${randomGender}/${randomImgId}.jpg`;
 
       const pData = {
-        id: `ply-seed-${Date.now()}-${i}-${Math.random().toString(36).slice(2, 6)}`,
+        id: generateUUID(),
         tournament_id: targetTid,
         tournamentId: targetTid,
         serialNo: sNo,

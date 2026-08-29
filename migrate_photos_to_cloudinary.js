@@ -18,9 +18,9 @@
  * (Node.js mode generates SQL only, doesn't update Firebase)
  */
 
-const FIREBASE_DB_URL = "https://cpl-jsl-2026-default-rtdb.firebaseio.com";
-const CLOUDINARY_CLOUD_NAME = "k483yjqc";
-const CLOUDINARY_UPLOAD_PRESET = "cpl_uploads";
+const FIREBASE_DB_URL = process.env.FIREBASE_DB_URL || "https://cpl-jsl-2026-default-rtdb.firebaseio.com";
+const CLOUDINARY_CLOUD_NAME = process.env.CLOUDINARY_CLOUD_NAME || "k483yjqc";
+const CLOUDINARY_UPLOAD_PRESET = process.env.CLOUDINARY_UPLOAD_PRESET || "cpl_uploads";
 
 function makeUUID(input) {
   let hash = 0;

@@ -1,6 +1,8 @@
 // Automatic Zero-Setup Cloud Database, Supabase & Realtime Cloud Storage Integration (Developer: Suman Kolay)
 
 
+import { enqueueOfflineMutation, processOfflineQueue } from './offlineQueue.js';
+
 export const SUPABASE_URL = typeof window !== 'undefined' && localStorage.getItem('cpl_supabase_url')
   ? localStorage.getItem('cpl_supabase_url')
   : "https://eunwcvdackphjqpyujwn.supabase.co";
@@ -56,6 +58,16 @@ export function makeUUID(input) {
 const LEGACY_UUID_MAP = {
   'leg-jsl': '033bfc04-033b-4c04-a33b-fc04033bfc04'
 };
+
+export function generateUUID() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
+  }
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
 
 export function toUUID(oldId) {
   if (!oldId) return null;
@@ -313,21 +325,36 @@ export async function uploadImageToCloudinary(fileInput, folderName = 'photos') 
     const controller = typeof AbortController !== 'undefined' ? new AbortController() : null;
     const timeoutId = controller ? setTimeout(() => controller.abort(), 15000) : null;
 
-    const response = await fetch('/api/cricket-league/upload-image', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ file: dataUri, folder: `cpl_uploads/${folderName}` }),
-      signal: controller ? controller.signal : undefined
-    });
+    let response = null;
+    try {
+      response = await fetch('/api/cricket-league/upload-image', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ file: dataUri, folder: `cpl_uploads/${folderName}` }),
+        signal: controller ? controller.signal : undefined
+      });
+    } catch (e) {
+      // If primary endpoint fails, try alternative path
+      try {
+        response = await fetch('/api/upload-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ file: dataUri, folder: `cpl_uploads/${folderName}` }),
+          signal: controller ? controller.signal : undefined
+        });
+      } catch (err2) {
+        response = null;
+      }
+    }
     if (timeoutId) clearTimeout(timeoutId);
 
-    if (response.ok) {
+    if (response && response.ok) {
       const data = await response.json();
       if (data && data.secure_url) {
         console.log("⚡ Uploaded image via signed backend proxy:", data.secure_url);
         return data.secure_url;
       }
-    } else {
+    } else if (response) {
       const errData = await response.json().catch(() => ({}));
       console.warn("Upload proxy error:", response.status, errData.error || '');
     }
@@ -824,9 +851,24 @@ export async function saveLiveMatchToCloud(matchId, state) {
   if (!supabase || !matchId) return;
   try {
     const id = toUUID(matchId);
-    const versionedState = { ...(state || {}), _v: (state?._v || 0) + 1 };
-    await supabase.from('matches').update({ live_state: versionedState, updated_at: new Date().toISOString() }).eq('id', id);
-    if (state) state._v = versionedState._v;
+    const prevV = (typeof state?._v === 'number') ? state._v : 0;
+    const nextV = prevV + 1;
+    const versionedState = { ...(state || {}), _v: nextV, _updatedAt: Date.now() };
+
+    // Persist in localStorage so active scoring lock survives tab reloads
+    if (typeof localStorage !== 'undefined') {
+      try {
+        localStorage.setItem(`cpl_active_scoring_fixture_id`, String(matchId));
+        localStorage.setItem(`cpl_active_scoring_${matchId}_v`, String(nextV));
+      } catch (e) {}
+    }
+
+    await supabase.from('matches').update({
+      live_state: versionedState,
+      updated_at: new Date().toISOString()
+    }).eq('id', id);
+
+    if (state) state._v = nextV;
   } catch (e) { console.warn('[SUPABASE] saveLiveMatch:', e.message); }
 }
 
@@ -1360,7 +1402,11 @@ export async function dbRegisterPlayer(playerData, docsData = null) {
       console.warn('[POSTGRES] dbRegisterPlayer: invalid tournament_id, skipping cloud save');
       return null;
     }
+    const playerUUID = (playerData.id && UUID_FORMAT_RE.test(playerData.id)) ? playerData.id : generateUUID();
+    playerData.id = playerUUID;
+
     const pPayload = {
+      id: playerUUID,
       tournament_id: tid,
       name: playerData.name,
       phone: playerData.phone,
@@ -1412,9 +1458,33 @@ export async function dbRegisterPlayer(playerData, docsData = null) {
 
     return player;
   } catch (err) {
-    console.error("[POSTGRES] dbRegisterPlayer error:", err);
+    console.warn("[POSTGRES] dbRegisterPlayer network notice, saving to offline queue:", err.message || err);
+    try {
+      await enqueueOfflineMutation({
+        type: 'REGISTER_PLAYER',
+        payload: { playerData, docsData }
+      });
+    } catch (qErr) {}
     return null;
   }
+}
+
+// --- FLUSH OFFLINE QUEUE (Triggered when online or before cloud pull) ---
+export async function flushSupabaseOfflineQueue() {
+  return processOfflineQueue({
+    'REGISTER_PLAYER': async (payload) => {
+      const res = await dbRegisterPlayer(payload.playerData, payload.docsData);
+      return !!res;
+    },
+    'SAVE_LIVE_MATCH': async (payload) => {
+      await saveLiveMatchToCloud(payload.matchId, payload.state);
+      return true;
+    },
+    'SAVE_CLOUD_DATA': async (payload) => {
+      await saveCloudData(payload.players, payload.teams, payload.fixtures, payload.settings);
+      return true;
+    }
+  });
 }
 
 // --- VERIFY PLAYER (AUTO-PURGES AADHAAR VIA TRIGGER) ---

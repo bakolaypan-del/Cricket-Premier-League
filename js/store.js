@@ -48,7 +48,9 @@ import {
   dbCreateTournament,
   dbFetchTournaments,
   compressImageToTarget,
-  saveUserAccountToCloud
+  saveUserAccountToCloud,
+  flushSupabaseOfflineQueue,
+  generateUUID
 } from './supabase.js?v=13.0.1';
 
 const STORAGE_KEYS = {
@@ -85,10 +87,25 @@ const SCOPED_KEYS = ['PLAYERS', 'TEAMS', 'FIXTURES', 'AUCTION_SETTINGS', 'REGIST
 
 const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23059669'/%3E%3Ctext x='50' y='62' font-size='45' text-anchor='middle' fill='white'%3E🏏%3C/text%3E%3C/svg%3E";
 
-async function hashPassword(plaintext) {
-  const enc = new TextEncoder().encode(String(plaintext));
+async function hashPassword(plaintext, salt = 'cpl_secure_salt_v2') {
+  if (!plaintext) return '';
+  const saltedText = `__CPL_SALT_v2_${salt}__:${plaintext}`;
+  const enc = new TextEncoder().encode(saltedText);
   const buf = await crypto.subtle.digest('SHA-256', enc);
-  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+  return 'cpl_s2_' + Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function verifyPasswordMatch(inputPassword, storedHash, salt = 'cpl_secure_salt_v2') {
+  if (!inputPassword || !storedHash) return false;
+  if (typeof storedHash === 'string' && storedHash.startsWith('cpl_s2_')) {
+    const computed = await hashPassword(inputPassword, salt);
+    return computed === storedHash;
+  }
+  // Legacy SHA-256 fallback during transition
+  const legacyEnc = new TextEncoder().encode(String(inputPassword));
+  const legacyBuf = await crypto.subtle.digest('SHA-256', legacyEnc);
+  const legacyHex = Array.from(new Uint8Array(legacyBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
+  return (storedHash === legacyHex) || (storedHash === inputPassword);
 }
 
 // Purge legacy version keys (cpl_players_v1..v6, etc.) to free up 5MB browser storage quota
@@ -263,6 +280,11 @@ class Store {
     if (isUserFillingForm) return;
     this._isSyncingWithCloud = true;
     try {
+      // First flush any pending offline mutations before pulling cloud data
+      try {
+        await flushSupabaseOfflineQueue();
+      } catch (e) {}
+
       const cloudData = await fetchCloudData(this.activeTournamentId);
 
       const lastLocalClearedAt = Number(localStorage.getItem('cpl_last_cleared_at') || '0');
@@ -349,19 +371,21 @@ class Store {
           if (!localF) return cf;
 
           // Version-based protection: reject cloud state with lower version
-          const localV = localF.liveMatchState?._v || localF.liveState?._v || 0;
+          const storedV = Number(localStorage.getItem(`cpl_active_scoring_${cf.id}_v`)) || 0;
+          const localV = Math.max(localF.liveMatchState?._v || 0, localF.liveState?._v || 0, storedV);
           const cloudV = cf.liveState?._v || 0;
-          if (localV > cloudV && localF.status === 'LIVE') {
-            return { ...cf, liveState: localF.liveMatchState || localF.liveState };
+          if (localV >= cloudV && (localF.status === 'LIVE' || cf.status === 'LIVE')) {
+            return { ...cf, liveState: localF.liveMatchState || localF.liveState || cf.liveState };
           }
           return cf;
         });
 
-        // Legacy shield: also protect the actively-scored fixture by window flag
-        const activeId = (typeof window !== 'undefined') ? window.__cplActiveScoringFixtureId : null;
+        // Shield: protect actively-scored fixture by window flag or persisted localStorage key
+        const activeId = (typeof window !== 'undefined' ? window.__cplActiveScoringFixtureId : null) ||
+                         (typeof localStorage !== 'undefined' ? localStorage.getItem('cpl_active_scoring_fixture_id') : null);
         if (activeId) {
           const localActive = localFixtures.find(f => f.id === activeId);
-          if (localActive && localActive.status === 'LIVE') {
+          if (localActive && (localActive.status === 'LIVE' || !localActive.status)) {
             nextFixtures = nextFixtures.map(f => f.id === activeId ? localActive : f);
             if (!nextFixtures.some(f => f.id === activeId)) nextFixtures = [...nextFixtures, localActive];
           }
@@ -506,6 +530,7 @@ class Store {
     });
 
     window.addEventListener('online', () => {
+      this.flushOfflineQueue();
       this.syncWithCloud();
       this.notify('live_auction_updated');
       this.notify('players_updated');
@@ -556,6 +581,14 @@ class Store {
     }
   }
 
+  async flushOfflineQueue() {
+    try {
+      await flushSupabaseOfflineQueue();
+    } catch (e) {
+      console.warn("[STORE] flushOfflineQueue notice:", e);
+    }
+  }
+
   // --- ADMIN & TOURNAMENT OWNER AUTHENTICATION ---
   isAdminAuthenticated() {
     const u = this.getCurrentUser();
@@ -600,17 +633,10 @@ class Store {
       console.warn("[AUTH] Supabase signIn notice:", err);
     }
 
-    // 2. Tournament Owner login via registered phone (compare hashed password)
+    // 2. Tournament Owner login via registered phone (compare salted hashed password)
     const owners = this.getTournamentOwners();
-    const hashPw = async (pw) => {
-      const enc = new TextEncoder().encode(pw);
-      const buf = await crypto.subtle.digest('SHA-256', enc);
-      return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
-    };
-    const inputHash = await hashPw(password);
     for (const [tId, o] of Object.entries(owners)) {
-      const storedIsHash = o.password && o.password.length === 64 && /^[0-9a-f]+$/.test(o.password);
-      const match = storedIsHash ? (o.password === inputHash) : (o.password === password);
+      const match = await verifyPasswordMatch(password, o.password, o.phone);
       if (o && ((o.email && o.email.toLowerCase() === cleanEmail) || o.phone === cleanEmail) && match) {
         const userObj = {
           id: `owner-${tId}`,
@@ -1398,7 +1424,7 @@ class Store {
     const teams = this.getTeams();
     const serialNo = teams.length + 1;
     const newTeam = {
-      id: `team-${Date.now()}`,
+      id: teamData.id || generateUUID(),
       serialNo,
       tournament_id: teamData.tournament_id || this.activeTournamentId || null,
       tournamentId: teamData.tournamentId || teamData.tournament_id || this.activeTournamentId || null,
@@ -1483,7 +1509,7 @@ class Store {
   registerFixture(fixtureData) {
     const fixtures = this.getFixtures();
     const newFixture = {
-      id: 'fix-' + Date.now(),
+      id: fixtureData.id || generateUUID(),
       status: 'SCHEDULED',
       innings: 1,
       teamAScore: { runs: 0, wickets: 0, overs: 0, balls: 0 },
@@ -2002,11 +2028,10 @@ class Store {
       const org = tourneyData.organizer;
       const owners = this.getTournamentOwners();
       const ownerKey = record.supabaseId || id;
-      const enc = new TextEncoder().encode(org.password || org.phone);
-      const buf = await crypto.subtle.digest('SHA-256', enc);
-      const hashedPw = Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+      const cleanPhone = org.phone.replace(/[^0-9]/g, '');
+      const hashedPw = await hashPassword(org.password || org.phone, cleanPhone);
       owners[ownerKey] = {
-        phone: org.phone.replace(/[^0-9]/g, ''),
+        phone: cleanPhone,
         name: org.name || 'Tournament Owner',
         email: org.email || '',
         password: hashedPw,
@@ -2332,7 +2357,7 @@ class Store {
     const isOwner = Object.values(owners).some(o => o && o.phone === cleanPhone);
 
     if (!acc) {
-      const hashedPw = await hashPassword(cleanPhone);
+      const hashedPw = await hashPassword(cleanPhone, cleanPhone);
       acc = {
         phone: cleanPhone,
         password: hashedPw,
@@ -2348,7 +2373,7 @@ class Store {
       saveUserAccountToCloud(acc);
     } else {
       if (!acc.password || acc.password === cleanPhone) {
-        acc.password = await hashPassword(cleanPhone);
+        acc.password = await hashPassword(cleanPhone, cleanPhone);
         safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, accounts);
         saveUserAccountToCloud(acc);
       }
@@ -2426,7 +2451,7 @@ class Store {
       const ownerName = isTournamentOwner
         ? (Object.values(owners).find(o => o && (o.phone || '').replace(/[^0-9]/g, '') === cleanPhone)?.name || 'Tournament Admin')
         : 'Player';
-      const hashedPw = await hashPassword(cleanPhone);
+      const hashedPw = await hashPassword(cleanPhone, cleanPhone);
       acc = {
         phone: cleanPhone,
         password: hashedPw,
@@ -2450,9 +2475,9 @@ class Store {
       safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, accounts);
     }
 
-    // Verify Password (hash input and compare)
-    const hashedInput = await hashPassword(password);
-    if (acc.password !== hashedInput) {
+    // Verify Password (salted hash verification with legacy fallback)
+    const isPwValid = await verifyPasswordMatch(password, acc.password, cleanPhone);
+    if (!isPwValid) {
       return { success: false, message: 'Incorrect password! (Default password is your 10-digit mobile number)' };
     }
 
@@ -2493,7 +2518,7 @@ class Store {
 
     if (!acc) return { success: false, message: 'Account not found!' };
 
-    acc.password = await hashPassword(newPassword);
+    acc.password = await hashPassword(newPassword, cleanPhone);
     acc.isFirstLogin = false;
     acc.passwordChangedAt = Date.now();
 
