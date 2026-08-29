@@ -492,9 +492,11 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
       const prof = profilesByPhone.get(cleanPhone) || {};
 
       const statusFromConfig = (playerStatuses[p.id] || (cleanPhone && playerStatuses[cleanPhone]) || '').toUpperCase();
-      const isApproved = statusFromConfig === 'APPROVED' || p.verified === true || p.status === 'verified';
-      const isRejected = statusFromConfig === 'REJECTED' || p.status === 'rejected';
-      const finalStatus = isApproved ? 'APPROVED' : (isRejected ? 'REJECTED' : 'PENDING');
+      const finalStatus = (statusFromConfig === 'APPROVED' || statusFromConfig === 'REJECTED' || statusFromConfig === 'PENDING')
+        ? statusFromConfig
+        : (p.verified === true ? 'APPROVED' : (p.status === 'rejected' ? 'REJECTED' : 'PENDING'));
+      const isApproved = (finalStatus === 'APPROVED');
+      const isRejected = (finalStatus === 'REJECTED');
 
       return {
         id: p.id,
@@ -628,9 +630,9 @@ export async function syncPlayerToSupabase(playerData) {
     const tournamentUUID = isValidUUID ? tid : toUUID(tid);
     const playerUUID = toUUID(playerData.id);
     const cleanPhone = (playerData.phone || playerData.mobile || '').replace(/[^0-9]/g, '');
-
-    const isApproved = (playerData.paymentStatus === 'APPROVED' || playerData.registrationStatus === 'APPROVED' || playerData.verified === true);
-    const isRejected = (playerData.paymentStatus === 'REJECTED' || playerData.registrationStatus === 'REJECTED');
+    const s = (playerData.paymentStatus || playerData.registrationStatus || (playerData.verified === true ? 'APPROVED' : 'PENDING')).toUpperCase();
+    const isApproved = (s === 'APPROVED');
+    const isRejected = (s === 'REJECTED');
 
     const payload = {
       id: playerUUID,

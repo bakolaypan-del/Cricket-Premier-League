@@ -1,9 +1,9 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=13.0.6';
+import { store } from './store.js?v=13.0.7';
 import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.0';
-import { renderAdminDashboard } from './admin.js?v=13.0.6';
-import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID } from './supabase.js?v=13.0.6';
+import { renderAdminDashboard } from './admin.js?v=13.0.7';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID } from './supabase.js?v=13.0.7';
 import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.0';
 import { shops } from './shopsData.js?v=12.0.2';
 
@@ -210,17 +210,39 @@ function initApp() {
       }
     }
 
-    // IF ON TOURNAMENT-HUB TAB, NEVER WIPE CAROUSEL OR POSTER: Smooth in-place counter updates
+    // IF ON TOURNAMENT-HUB TAB: Smooth in-place counter updates & real-time modal update
     if (currentRoute === 'tournament-hub') {
       const pCountEl = document.getElementById('tournament-hub-players-count');
       const tCountEl = document.getElementById('tournament-hub-teams-count');
       if (pCountEl) pCountEl.textContent = store.getPlayers().length;
       if (tCountEl) tCountEl.textContent = store.getTeams().length;
+
+      // If registered player list modal is currently open, dynamically update it in real-time!
+      const playerListContainer = document.getElementById('players-list-container');
+      if (playerListContainer && typeof renderPlayerCardsWithSerial === 'function') {
+        const allPlayers = store.getPlayers();
+        const countDisplay = document.getElementById('player-count-display');
+        if (countDisplay) countDisplay.textContent = `(${allPlayers.length})`;
+        playerListContainer.innerHTML = `
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+            ${renderPlayerCardsWithSerial(allPlayers)}
+          </div>
+        `;
+        if (window.lucide) window.lucide.createIcons();
+      }
       return;
     }
 
-    // IF ON ADMIN TAB, NEVER WIPE THE ENTIRE DASHBOARD ON REALTIME EVENTS (PREVENTS FLICKER):
+    // IF ON ADMIN TAB: Smooth in-place real-time table refresh
     if (currentRoute === 'admin') {
+      const isModalOpen = document.getElementById('admin-edit-player-modal');
+      const isUserEditing = document.querySelector('input:focus, select:focus, textarea:focus');
+      if (!isModalOpen && !isUserEditing) {
+        const adminAppContainer = document.getElementById('app-admin');
+        if (adminAppContainer) {
+          renderAdminDashboard(adminAppContainer);
+        }
+      }
       return;
     }
 
