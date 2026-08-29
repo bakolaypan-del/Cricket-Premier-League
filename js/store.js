@@ -50,8 +50,11 @@ import {
   compressImageToTarget,
   saveUserAccountToCloud,
   flushSupabaseOfflineQueue,
-  generateUUID
-} from './supabase.js?v=13.0.7';
+  generateUUID,
+  resolveTournamentUUID,
+  registerTournamentUUID,
+  toUUID
+} from './supabase.js?v=13.0.8';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -190,11 +193,11 @@ function getPlayerTimestamp(p) {
   return 0;
 }
 
-class Store {
   constructor() {
     clearOldStorageQuota();
     this._cache = { players: null, teams: null, fixtures: null };
-    this.activeTournamentId = localStorage.getItem(STORAGE_KEYS.ACTIVE_TOURNAMENT) || null;
+    const rawTid = localStorage.getItem(STORAGE_KEYS.ACTIVE_TOURNAMENT);
+    this.activeTournamentId = rawTid ? (toUUID(rawTid) || rawTid) : '440f982b-6008-40f4-a6bc-0516a0985672';
     this.init();
     this.setupRealtimeListeners();
     this.syncWithCloud();
@@ -207,28 +210,30 @@ class Store {
   }
 
   _scopedKey(baseKeyName) {
-    return scopedKey(STORAGE_KEYS[baseKeyName], this.activeTournamentId);
+    const canonicalTid = toUUID(this.activeTournamentId) || this.activeTournamentId;
+    return scopedKey(STORAGE_KEYS[baseKeyName], canonicalTid);
   }
 
   _evictTournamentCache(tournamentId) {
     if (!tournamentId) return;
+    const canonicalTid = toUUID(tournamentId) || tournamentId;
     for (const keyName of SCOPED_KEYS) {
-      const sk = scopedKey(STORAGE_KEYS[keyName], tournamentId);
+      const sk = scopedKey(STORAGE_KEYS[keyName], canonicalTid);
       try { localStorage.removeItem(sk); } catch (e) {}
     }
   }
 
   setActiveTournament(tournamentId) {
-    if (this.activeTournamentId === tournamentId) return;
-    this.activeTournamentId = tournamentId;
+    if (!tournamentId) return;
+    const resolvedId = toUUID(tournamentId) || tournamentId;
+    if (this.activeTournamentId === resolvedId) return;
+    this.activeTournamentId = resolvedId;
     this._invalidateCache();
-    if (tournamentId) {
-      localStorage.setItem(STORAGE_KEYS.ACTIVE_TOURNAMENT, tournamentId);
-    }
+    localStorage.setItem(STORAGE_KEYS.ACTIVE_TOURNAMENT, resolvedId);
     this.syncWithCloud();
     initRealtimePushListener((event) => {
       this.syncWithCloud();
-    }, tournamentId);
+    }, resolvedId);
   }
 
   init() {
@@ -2123,10 +2128,14 @@ class Store {
   getCustomTournamentById(idOrSlug) {
     if (!idOrSlug) return null;
     const clean = idOrSlug.trim().toLowerCase();
+    const cleanNoPrefix = clean.replace(/^t_/, '');
     return this.getCustomTournaments().find(t => 
-      (t.id && t.id.toLowerCase() === clean) || 
-      (t.slug && t.slug.toLowerCase() === clean) ||
-      (t.shortCode && t.shortCode.toLowerCase() === clean)
+      (t.id && (t.id.toLowerCase() === clean || t.id.toLowerCase() === cleanNoPrefix)) || 
+      (t.supabaseId && t.supabaseId.toLowerCase() === clean) ||
+      (t.tournament_id && t.tournament_id.toLowerCase() === clean) ||
+      (t.slug && (t.slug.toLowerCase() === clean || t.slug.toLowerCase() === cleanNoPrefix)) ||
+      (t.shortCode && (t.shortCode.toLowerCase() === clean || t.shortCode.toLowerCase() === cleanNoPrefix)) ||
+      (t.name && t.name.toLowerCase() === clean)
     ) || null;
   }
 

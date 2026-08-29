@@ -55,9 +55,29 @@ export function makeUUID(input) {
   return `${hex.slice(0,8)}-${hex.slice(8,12)}-4${hex.slice(13,16)}-a${hex.slice(17,20)}-${hex.slice(20,32)}`;
 }
 
-const LEGACY_UUID_MAP = {
-  'leg-jsl': '033bfc04-033b-4c04-a33b-fc04033bfc04'
-};
+export const TOURNAMENT_UUID_REGISTRY = new Map([
+  ['leg-jsl', '033bfc04-033b-4c04-a33b-fc04033bfc04'],
+  ['jsl-2026', '033bfc04-033b-4c04-a33b-fc04033bfc04'],
+  ['t_jsl-2026', '033bfc04-033b-4c04-a33b-fc04033bfc04'],
+  ['jhankra super league 2026', '033bfc04-033b-4c04-a33b-fc04033bfc04'],
+  ['m2026', '440f982b-6008-40f4-a6bc-0516a0985672'],
+  ['t_m2026', '440f982b-6008-40f4-a6bc-0516a0985672'],
+  ['mtcl2026', '440f982b-6008-40f4-a6bc-0516a0985672'],
+  ['mtcl', '440f982b-6008-40f4-a6bc-0516a0985672'],
+  ['k22026', '65a0731e-3b17-499d-8d61-3f45760ffc35'],
+  ['t_k22026', '65a0731e-3b17-499d-8d61-3f45760ffc35'],
+  ['kpl 2026', '65a0731e-3b17-499d-8d61-3f45760ffc35'],
+  ['kpl', '65a0731e-3b17-499d-8d61-3f45760ffc35']
+]);
+
+export function registerTournamentUUID(key, uuid) {
+  if (!key || !uuid) return;
+  const cleanKey = String(key).trim().toLowerCase();
+  const cleanNoPrefix = cleanKey.replace(/^t_/, '');
+  TOURNAMENT_UUID_REGISTRY.set(cleanKey, uuid);
+  TOURNAMENT_UUID_REGISTRY.set(cleanNoPrefix, uuid);
+  TOURNAMENT_UUID_REGISTRY.set(`t_${cleanNoPrefix}`, uuid);
+}
 
 export function generateUUID() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
@@ -71,10 +91,40 @@ export function generateUUID() {
 
 export function toUUID(oldId) {
   if (!oldId) return null;
-  const str = String(oldId);
+  const str = String(oldId).trim();
   if (UUID_FORMAT_RE.test(str)) return str;
-  if (LEGACY_UUID_MAP[str]) return LEGACY_UUID_MAP[str];
+  const lower = str.toLowerCase();
+  if (TOURNAMENT_UUID_REGISTRY.has(lower)) {
+    return TOURNAMENT_UUID_REGISTRY.get(lower);
+  }
+  const clean = lower.replace(/^t_/, '');
+  if (TOURNAMENT_UUID_REGISTRY.has(clean)) {
+    return TOURNAMENT_UUID_REGISTRY.get(clean);
+  }
   return makeUUID(str);
+}
+
+export async function resolveTournamentUUID(idOrSlug) {
+  if (!idOrSlug) return DEFAULT_TOURNAMENT_UUID;
+  const direct = toUUID(idOrSlug);
+  if (direct && UUID_FORMAT_RE.test(direct) && TOURNAMENT_UUID_REGISTRY.has(String(idOrSlug).toLowerCase())) {
+    return direct;
+  }
+  if (UUID_FORMAT_RE.test(String(idOrSlug))) return String(idOrSlug);
+
+  const clean = String(idOrSlug).replace(/^t_/, '').trim().toLowerCase();
+  if (supabase) {
+    try {
+      const { data } = await supabase.from('tournaments').select('id, slug, category_code, name').or(`slug.ilike.${clean},category_code.ilike.${clean},name.ilike.${clean}`).maybeSingle();
+      if (data?.id) {
+        registerTournamentUUID(data.slug, data.id);
+        registerTournamentUUID(data.category_code, data.id);
+        registerTournamentUUID(data.name, data.id);
+        return data.id;
+      }
+    } catch (e) {}
+  }
+  return direct || DEFAULT_TOURNAMENT_UUID;
 }
 
 // ==============================================================================
@@ -413,27 +463,30 @@ export function initRealtimePushListener(onUpdateCallback, tournamentId) {
       activeRealtimeChannel = null;
     }
 
-    const tId = toUUID(tournamentId) || DEFAULT_TOURNAMENT_UUID;
-    const filter = `tournament_id=eq.${tId}`;
-
     const channel = supabase
-      .channel(`cpl_changes_${tId}`)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'players', filter }, (payload) => {
+      .channel('cpl_universal_realtime_stream')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, (payload) => {
         if (typeof onUpdateCallback === 'function') onUpdateCallback(payload);
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'teams', filter }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'teams' }, (payload) => {
         if (typeof onUpdateCallback === 'function') onUpdateCallback(payload);
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'matches', filter }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, (payload) => {
         if (typeof onUpdateCallback === 'function') onUpdateCallback(payload);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tournaments' }, (payload) => {
         if (typeof onUpdateCallback === 'function') onUpdateCallback(payload);
       })
-      .subscribe();
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'player_verification_docs' }, (payload) => {
+        if (typeof onUpdateCallback === 'function') onUpdateCallback(payload);
+      })
+      .subscribe((status) => {
+        if (status === 'SUBSCRIBED') {
+          console.log("[SUPABASE REALTIME] Connected to universal realtime stream.");
+        }
+      });
 
     activeRealtimeChannel = channel;
-    console.log(`[SUPABASE] Realtime listener subscribed for tournament ${tId}`);
     return channel;
   } catch (err) {
     console.warn("[SUPABASE] initRealtimePushListener notice:", err);
@@ -454,7 +507,7 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
   if (!supabase) return empty;
 
   try {
-    const tId = toUUID(tournamentId) || DEFAULT_TOURNAMENT_UUID;
+    const tId = await resolveTournamentUUID(tournamentId) || toUUID(tournamentId) || DEFAULT_TOURNAMENT_UUID;
 
     const [playersRes, teamsRes, matchesRes, tourneyRes, docsRes, profilesRes] = await Promise.all([
       supabase.from('players').select('*').eq('tournament_id', tId),
@@ -465,8 +518,9 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
       supabase.from('person_profiles').select('*')
     ]);
     let tourneyMeta = tourneyRes?.data;
-    if (!tourneyMeta) {
-      const { data: fallbackT } = await supabase.from('tournaments').select('category_code, slug, name, registration_fee, total_team_budget, icon_price, registration_settings, format_config').eq('slug', 'm2026').maybeSingle();
+    if (!tourneyMeta && tournamentId) {
+      const cleanSlug = String(tournamentId).replace(/^t_/, '').trim();
+      const { data: fallbackT } = await supabase.from('tournaments').select('category_code, slug, name, registration_fee, total_team_budget, icon_price, registration_settings, format_config').or(`slug.ilike.${cleanSlug},category_code.ilike.${cleanSlug}`).maybeSingle();
       if (fallbackT) tourneyMeta = fallbackT;
     }
     tourneyMeta = tourneyMeta || {};
@@ -625,9 +679,8 @@ export async function syncPlayerToSupabase(playerData) {
   if (!supabase || !playerData || !playerData.id) return null;
   try {
     const activeTid = (typeof window !== 'undefined' && window.store?.activeTournamentId) ? window.store.activeTournamentId : null;
-    const tid = playerData.tournament_id || playerData.tournamentId || playerData.leagueId || activeTid || '440f982b-6008-40f4-a6bc-0516a0985672';
-    const isValidUUID = typeof tid === 'string' && tid.length >= 30 && tid.includes('-');
-    const tournamentUUID = isValidUUID ? tid : toUUID(tid);
+    const rawTid = playerData.tournament_id || playerData.tournamentId || playerData.leagueId || activeTid || '440f982b-6008-40f4-a6bc-0516a0985672';
+    const tournamentUUID = await resolveTournamentUUID(rawTid) || toUUID(rawTid) || DEFAULT_TOURNAMENT_UUID;
     const playerUUID = toUUID(playerData.id);
     const cleanPhone = (playerData.phone || playerData.mobile || '').replace(/[^0-9]/g, '');
     const s = (playerData.paymentStatus || playerData.registrationStatus || (playerData.verified === true ? 'APPROVED' : 'PENDING')).toUpperCase();
@@ -664,8 +717,9 @@ export async function syncPlayerToSupabase(playerData) {
     try {
       let { data: currentTourney } = await supabase.from('tournaments').select('id, format_config').eq('id', tournamentUUID).maybeSingle();
       let targetId = tournamentUUID;
-      if (!currentTourney) {
-        const { data: bySlug } = await supabase.from('tournaments').select('id, format_config').eq('slug', 'm2026').maybeSingle();
+      if (!currentTourney && rawTid) {
+        const cleanSlug = String(rawTid).replace(/^t_/, '').trim();
+        const { data: bySlug } = await supabase.from('tournaments').select('id, format_config').or(`slug.ilike.${cleanSlug},category_code.ilike.${cleanSlug}`).maybeSingle();
         if (bySlug) {
           currentTourney = bySlug;
           targetId = bySlug.id;
@@ -1372,6 +1426,11 @@ export async function fetchCustomTournamentsFromCloud() {
   const data = await dbFetchTournaments();
   if (!data || !Array.isArray(data)) return [];
   return data.map(t => {
+    if (t.id) {
+      if (t.slug) registerTournamentUUID(t.slug, t.id);
+      if (t.category_code) registerTournamentUUID(t.category_code, t.id);
+      if (t.name) registerTournamentUUID(t.name, t.id);
+    }
     let extra = {};
     try { extra = typeof t.registration_settings === 'string' ? JSON.parse(t.registration_settings) : (t.registration_settings || {}); } catch(e) {}
     const frontendMode = (t.mode === 'manual' || t.mode === 'FIXTURE_ONLY') ? 'FIXTURE_ONLY' : 'AUCTION_LEAGUE';

@@ -1,8 +1,8 @@
 // Admin Master Data & Payment Verification Panel with Single Source Cloud Control (Developer: Suman Kolay)
 
-import { store } from './store.js?v=13.0.7';
+import { store } from './store.js?v=13.0.8';
 import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF } from './export.js?v=13.0.0';
-import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID } from './supabase.js?v=13.0.7';
+import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.8';
 import { shops } from './shopsData.js?v=12.0.2';
 
 let activeAdminTab = (() => { try { return sessionStorage.getItem('cpl_admin_tab') || (store.isMasterAdmin() ? 'payments' : 'overview'); } catch(e) { return 'payments'; } })();
@@ -94,8 +94,11 @@ export function renderAdminDashboard(containerEl) {
     }
   }
 
-  if (allTournaments.length === 0) allTournaments.push({ id: store.activeTournamentId || 'default', name: 'My Tournament', slug: 'default', status: 'ACTIVE' });
+  if (allTournaments.length === 0) allTournaments.push({ id: store.activeTournamentId || '440f982b-6008-40f4-a6bc-0516a0985672', name: 'My Tournament', slug: 'm2026', status: 'ACTIVE' });
   const activeTid = (allTournaments.some(t => t.id === store.activeTournamentId) ? store.activeTournamentId : allTournaments[0]?.id) || allTournaments[0]?.id;
+  if (activeTid && store.activeTournamentId !== activeTid) {
+    store.activeTournamentId = activeTid;
+  }
 
   const activeTourneyName = allTournaments.find(t => t.id === activeTid)?.name || 'Tournament';
   const panelTitle = isMaster ? 'Master Admin Control Panel' : `${activeTourneyName} Control Console`;
