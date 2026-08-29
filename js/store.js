@@ -916,6 +916,22 @@ class Store {
 
     players.push(newPlayer);
     safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
+
+    // Also persist directly into the target tournament's specific scoped storage key if different from active
+    const targetTid = playerData.tournament_id || playerData.tournamentId;
+    if (targetTid && targetTid !== this.activeTournamentId) {
+      try {
+        const targetKey = STORAGE_KEYS.PLAYERS + '_' + targetTid;
+        let targetList = [];
+        const rawTarget = localStorage.getItem(targetKey);
+        if (rawTarget) targetList = JSON.parse(rawTarget) || [];
+        if (!targetList.some(p => p.id === newPlayer.id || p.phone === newPlayer.phone)) {
+          targetList.push(newPlayer);
+          safeSetLocalStorage(targetKey, targetList);
+        }
+      } catch(e) {}
+    }
+
     syncPlayerToSupabase(newPlayer);
     this.notify('players_updated');
     return newPlayer;
@@ -2105,23 +2121,49 @@ class Store {
       }
     } catch(e) {}
 
-    // 2. Fallback check from existing players across all current databases
-    const allExistingPlayers = this.getPlayers();
-    const found = allExistingPlayers.find(p => {
-      const pPhone = (p.phone || p.mobile || '').replace(/[^0-9]/g, '');
-      return pPhone === cleanPhone || (pPhone.endsWith(cleanPhone) && cleanPhone.length >= 10);
-    });
+    // 2. Check current active tournament player cache
+    let found = null;
+    try {
+      const allExistingPlayers = this.getPlayers();
+      found = allExistingPlayers.find(p => {
+        const pPhone = (p.phone || p.mobile || '').replace(/[^0-9]/g, '');
+        return pPhone === cleanPhone || (pPhone.endsWith(cleanPhone) && cleanPhone.length >= 10);
+      });
+    } catch(e) {}
+
+    // 3. Check across ALL scoped tournament player lists in localStorage (e.g. JSL, JPL, CGL)
+    if (!found && typeof localStorage !== 'undefined') {
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith(STORAGE_KEYS.PLAYERS)) {
+            const raw = localStorage.getItem(k);
+            if (raw) {
+              const list = JSON.parse(raw);
+              if (Array.isArray(list)) {
+                found = list.find(p => {
+                  const pPhone = (p.phone || p.mobile || '').replace(/[^0-9]/g, '');
+                  return pPhone === cleanPhone || (pPhone.endsWith(cleanPhone) && cleanPhone.length >= 10);
+                });
+                if (found) break;
+              }
+            }
+          }
+        }
+      } catch(e) {}
+    }
 
     if (found) {
       return {
         phone: cleanPhone,
-        name: found.name || '',
+        name: (found.name || '').trim(),
         photoUrl: found.hdPhotoUrl || found.photoUrl || found.player_photo_url || '',
         category: found.category || found.playingType || found.role || 'All Rounder',
         battingStyle: found.battingStyle || found.batting_style || 'Right Hand Bat',
         bowlingStyle: found.bowlingStyle || found.bowling_style || 'Right Arm Medium',
         village: found.village || found.address || '',
         district: found.district || 'Paschim Medinipur',
+        dob: found.dob || null,
         age: found.age || '',
         isVerified: true
       };
@@ -2139,7 +2181,7 @@ class Store {
       if (local) pool = JSON.parse(local);
     } catch(e) {}
 
-    const profile = {
+    pool[phone] = {
       phone,
       name: playerData.name || '',
       photoUrl: playerData.hdPhotoUrl || playerData.photoUrl || playerData.player_photo_url || '',
@@ -2148,14 +2190,14 @@ class Store {
       bowlingStyle: playerData.bowlingStyle || playerData.bowling_style || 'Right Arm Medium',
       village: playerData.village || playerData.address || '',
       district: playerData.district || 'Paschim Medinipur',
+      dob: playerData.dob || null,
       age: playerData.age || '',
+      updatedAt: Date.now(),
       updated_at: Date.now()
     };
-
-    pool[phone] = profile;
     safeSetLocalStorage(STORAGE_KEYS.UNIVERSAL_PLAYERS, pool);
-    await saveUniversalPlayerToCloud(profile);
-    return profile;
+    await saveUniversalPlayerToCloud(pool[phone]);
+    return pool[phone];
   }
 
   // --- PLAYER PROFILES ---

@@ -999,6 +999,153 @@ export function openTournamentBannerCropModal(imageSrc, onCropComplete, title = 
   });
 }
 
+// --- INTERACTIVE PLAYER PROFILE PHOTO CROPPER MODAL (1:1 SQUARE PASSPORT RATIO WITH ZOOM SLIDER) ---
+export function openPlayerPhotoCropModal(imageSrc, onCropComplete, title = "Crop & Center Player Photo") {
+  document.getElementById('player-photo-cropper-modal')?.remove();
+
+  const modalHtml = `
+    <div id="player-photo-cropper-modal" class="fixed inset-0 z-[80] modal-overlay flex items-center justify-center p-3 bg-slate-950/85 backdrop-blur-xs animate-fade-in">
+      <div class="bg-white border-2 border-emerald-500 max-w-md w-full p-4 relative space-y-3 rounded-2xl sm:rounded-3xl shadow-2xl text-slate-900 modal-content-container">
+        
+        <div class="flex items-center justify-between border-b border-slate-200 pb-2.5">
+          <div class="flex items-center gap-2">
+            <span class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center justify-center text-base font-black shadow-xs">
+              ✂️
+            </span>
+            <div>
+              <h3 class="text-sm sm:text-base font-black text-slate-900">${title}</h3>
+              <p class="text-[10px] text-slate-500 font-bold">Zoom, slide & center your passport face photo</p>
+            </div>
+          </div>
+          <button id="close-player-cropper-modal-btn" type="button" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-950 border border-slate-200 flex items-center justify-center text-sm font-black cursor-pointer transition-all">
+            ✕
+          </button>
+        </div>
+
+        <!-- CROP CONTAINER (SQUARE) -->
+        <div class="relative w-full h-64 sm:h-72 bg-slate-900 rounded-2xl overflow-hidden flex items-center justify-center border border-slate-300 p-1">
+          <img id="player-cropper-target-img" src="${imageSrc}" crossorigin="anonymous" class="max-w-full max-h-full object-contain block mx-auto" />
+        </div>
+
+        <!-- ZOOM SLIDER (Slide right to zoom in, left to zoom out) -->
+        <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-1.5">
+          <div class="flex items-center justify-between text-[10.5px] font-black text-slate-700 uppercase">
+            <span class="flex items-center gap-1">🔍 <span>Zoom & Scale</span></span>
+            <span id="player-cropper-zoom-val" class="font-mono text-emerald-700">1.0x</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-slate-500">➖</span>
+            <input type="range" id="player-cropper-zoom-slider" min="0.5" max="3" step="0.05" value="1" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600" />
+            <span class="text-xs text-slate-500">➕</span>
+          </div>
+        </div>
+
+        <!-- CROP CONTROLS & ROTATION -->
+        <div class="flex items-center justify-between gap-2 pt-0.5">
+          <div class="flex items-center gap-1.5">
+            <button type="button" id="player-cropper-rotate-left" title="Rotate 90°" class="p-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl border border-slate-300 text-xs font-bold flex items-center gap-1 cursor-pointer">
+              ↺ Rotate
+            </button>
+            <button type="button" id="player-cropper-reset" title="Reset" class="p-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl border border-slate-300 text-xs font-bold flex items-center gap-1 cursor-pointer">
+              Reset
+            </button>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button type="button" id="player-cropper-cancel-btn" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl border border-slate-300 cursor-pointer">
+              Cancel
+            </button>
+            <button type="button" id="player-cropper-apply-btn" class="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-black text-xs rounded-xl shadow-md border border-emerald-400 flex items-center gap-1.5 cursor-pointer">
+              ✓ Apply & Upload
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+  const imgEl = document.getElementById('player-cropper-target-img');
+  let cropperInstance = null;
+  let initialRatio = 1;
+
+  const initCropper = () => {
+    if (window.Cropper) {
+      cropperInstance = new window.Cropper(imgEl, {
+        aspectRatio: 1 / 1, // 1:1 SQUARE PASSPORT
+        viewMode: 1,
+        dragMode: 'move',
+        autoCropArea: 0.9,
+        restore: false,
+        guides: true,
+        center: true,
+        highlight: false,
+        cropBoxMovable: true,
+        cropBoxResizable: true,
+        toggleDragModeOnDblclick: false,
+        ready: function () {
+          const imgData = cropperInstance.getImageData();
+          initialRatio = imgData.width / imgData.naturalWidth;
+        }
+      });
+    }
+  };
+
+  if (imgEl.complete) {
+    setTimeout(initCropper, 100);
+  } else {
+    imgEl.onload = () => setTimeout(initCropper, 100);
+  }
+
+  // ZOOM SLIDER EVENT LISTENER
+  const zoomSlider = document.getElementById('player-cropper-zoom-slider');
+  const zoomVal = document.getElementById('player-cropper-zoom-val');
+  zoomSlider?.addEventListener('input', (e) => {
+    const scale = parseFloat(e.target.value);
+    if (zoomVal) zoomVal.textContent = scale.toFixed(2) + 'x';
+    if (cropperInstance) {
+      cropperInstance.zoomTo(scale * initialRatio);
+    }
+  });
+
+  document.getElementById('player-cropper-rotate-left')?.addEventListener('click', () => cropperInstance?.rotate(-90));
+  document.getElementById('player-cropper-reset')?.addEventListener('click', () => {
+    cropperInstance?.reset();
+    if (zoomSlider) zoomSlider.value = "1";
+    if (zoomVal) zoomVal.textContent = "1.0x";
+  });
+
+  const removeCropperModal = () => {
+    cropperInstance?.destroy();
+    document.getElementById('player-photo-cropper-modal')?.remove();
+  };
+
+  document.getElementById('close-player-cropper-modal-btn')?.addEventListener('click', removeCropperModal);
+  document.getElementById('player-cropper-cancel-btn')?.addEventListener('click', removeCropperModal);
+
+  document.getElementById('player-cropper-apply-btn')?.addEventListener('click', () => {
+    if (cropperInstance) {
+      const croppedCanvas = cropperInstance.getCroppedCanvas({
+        width: 600,
+        height: 600,
+        imageSmoothingEnabled: true,
+        imageSmoothingQuality: 'high'
+      });
+      if (croppedCanvas) {
+        const croppedDataUrl = croppedCanvas.toDataURL('image/jpeg', 0.88);
+        onCropComplete(croppedDataUrl);
+      } else {
+        onCropComplete(imageSrc);
+      }
+    } else {
+      onCropComplete(imageSrc);
+    }
+    removeCropperModal();
+  });
+}
+
 // --- INTERACTIVE TOURNAMENT COMMENTS & QUERIES MODAL (CLEAN WHITE STYLISH THEME) ---
 export function openTournamentCommentsModal(tourney, onCommentAdded) {
   document.getElementById('tournament-comments-modal')?.remove();
@@ -1726,34 +1873,34 @@ function getTournamentThumbnail(name) {
 function renderTournamentFallbackPoster(ct) {
   const thumb = getTournamentThumbnail(ct.name || ct.slug || '');
   const venue = ct.venue ? `
-    <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-black/30 backdrop-blur-xs rounded-full text-[10px] sm:text-xs text-white font-bold border border-white/20 shadow-xs">
-      <svg class="w-3.5 h-3.5 text-amber-300 shrink-0" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+    <span class="inline-flex items-center gap-1 px-2.5 py-0.5 sm:px-3 sm:py-1 bg-black/40 backdrop-blur-xs rounded-full text-[9px] sm:text-xs text-white font-bold border border-white/20 shadow-xs max-w-full truncate">
+      <svg class="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-300 shrink-0" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
         <path stroke-linecap="round" stroke-linejoin="round" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
         <circle cx="12" cy="9" r="2.5" fill="currentColor"/>
       </svg>
-      <span>${ct.venue}</span>
+      <span class="truncate">${ct.venue}</span>
     </span>` : '';
 
   const prize = ct.prizeWinner ? `
-    <span class="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-400 text-slate-950 rounded-full text-[10px] sm:text-xs font-black shadow-xs border border-amber-300">
-      <svg class="w-3.5 h-3.5 text-slate-950 shrink-0" fill="currentColor" viewBox="0 0 24 24">
+    <span class="inline-flex items-center gap-1 px-2.5 py-0.5 sm:px-3 sm:py-1 bg-amber-400 text-slate-950 rounded-full text-[9px] sm:text-xs font-black shadow-xs border border-amber-300 shrink-0">
+      <svg class="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-950 shrink-0" fill="currentColor" viewBox="0 0 24 24">
         <path d="M19 4h-2V2H7v2H5c-1.1 0-2 .9-2 2v3c0 3.86 2.89 7.02 6.64 7.42C10.3 17.5 11.08 18 12 18s1.7-.5 2.36-1.58C18.11 16.02 21 12.86 21 9V6c0-1.1-.9-2-2-2zM5 9V6h2v5.09C5.67 10.45 5 9.77 5 9zm14 0c0 .77-.67 1.45-2 2.09V6h2v3z"/>
       </svg>
-      <span>₹${Number(ct.prizeWinner).toLocaleString('en-IN')} Prize</span>
+      <span>₹${Number(ct.prizeWinner).toLocaleString('en-IN')}</span>
     </span>` : '';
 
   return `
-    <div class="absolute inset-0 bg-gradient-to-br ${thumb.gradient} flex flex-col items-center justify-center text-white p-3 text-center space-y-2">
+    <div class="absolute inset-0 bg-gradient-to-br ${thumb.gradient} flex flex-col items-center justify-center text-white p-2.5 sm:p-4 text-center space-y-1 sm:space-y-2">
       <!-- Centered Emoji Icon -->
-      <div class="text-2xl sm:text-3xl drop-shadow-lg leading-none">${thumb.emoji}</div>
+      <div class="text-xl sm:text-2xl md:text-3xl drop-shadow-lg leading-none">${thumb.emoji}</div>
       
       <!-- Tournament Name: Middle Alignment -->
-      <h3 class="text-sm sm:text-base md:text-lg font-black uppercase tracking-wider text-white drop-shadow-md line-clamp-2 max-w-lg px-2 leading-tight">
+      <h3 class="text-xs sm:text-base md:text-lg font-black uppercase tracking-wider text-white drop-shadow-md line-clamp-2 max-w-lg px-1.5 leading-tight">
         ${ct.name || 'Tournament'}
       </h3>
       
       <!-- Just Lower: Venue Place with SVG & Prize Badge -->
-      <div class="flex items-center justify-center gap-2 flex-wrap pt-0.5">
+      <div class="flex items-center justify-center gap-1.5 flex-wrap pt-0.5">
         ${venue}
         ${prize}
       </div>
@@ -1784,12 +1931,12 @@ function buildTournamentCarouselHTML(allTournaments) {
         <span class="truncate">${ct.venue}</span>
       </div>` : '';
 
-    return '<div data-nav-route="t/' + ct.slug + '" data-tourney-name="' + (ct.name || '').toLowerCase() + '" data-tourney-venue="' + (ct.venue || '').toLowerCase() + '" class="tourney-card shrink-0 bg-white rounded-2xl shadow-md overflow-hidden cursor-pointer transition-all group" style="min-width:100%;border:3px solid white;outline:3px solid ' + outlineColor + ';">'
-      + '<div class="relative w-full aspect-[16/9] sm:aspect-[21/9] md:aspect-[24/9] max-h-[220px] sm:max-h-[260px] overflow-hidden">'
+    return '<div data-nav-route="t/' + ct.slug + '" data-tourney-name="' + (ct.name || '').toLowerCase() + '" data-tourney-venue="' + (ct.venue || '').toLowerCase() + '" class="tourney-card shrink-0 bg-white rounded-2xl shadow-sm hover:shadow-md overflow-hidden cursor-pointer transition-all group border border-slate-200/80" style="width:100%;min-width:100%;max-width:100%;box-sizing:border-box;">'
+      + '<div class="relative w-full aspect-[16/9] sm:aspect-[21/9] md:aspect-[24/9] min-h-[160px] sm:min-h-[190px] max-h-[240px] overflow-hidden">'
       + poster
-      + '<div class="absolute top-2 left-2"><span class="px-2 py-0.5 bg-emerald-500 text-white text-[8px] font-black rounded-full uppercase shadow-md flex items-center gap-1"><span class="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span> LIVE</span></div>'
+      + '<div class="absolute top-2 left-2 z-10"><span class="px-2 py-0.5 bg-emerald-500 text-white text-[8px] sm:text-[9px] font-black rounded-full uppercase shadow-md flex items-center gap-1"><span class="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span> LIVE</span></div>'
       + '</div>'
-      + '<div class="px-3 py-2 sm:py-2.5 bg-white text-center flex flex-col items-center justify-center space-y-0.5">'
+      + '<div class="px-2.5 py-1.5 sm:py-2 bg-white text-center flex flex-col items-center justify-center space-y-0.5 border-t border-slate-100">'
       + '<h4 class="text-xs sm:text-sm font-black text-slate-900 truncate max-w-full group-hover:text-emerald-700 transition-colors uppercase tracking-wide">' + ct.name + '</h4>'
       + venueHtml
       + '</div>'
@@ -1797,7 +1944,7 @@ function buildTournamentCarouselHTML(allTournaments) {
   }).join('');
 
   const dots = featuredTourneys.map((ct, idx) => {
-    const dotColor = idx === 0 ? CARD_OUTLINE_COLORS[idx % CARD_OUTLINE_COLORS.length] : '#cbd5e1';
+    const dotColor = idx === 0 ? '#10b981' : '#cbd5e1';
     return '<span class="carousel-dot w-2 h-2 rounded-full transition-all cursor-pointer" data-dot-idx="' + idx + '" style="background:' + dotColor + ';"></span>';
   }).join('');
 
@@ -1820,7 +1967,7 @@ function buildTournamentCarouselHTML(allTournaments) {
         <span class="truncate">${ct.venue}</span>
       </div>` : '';
 
-    return '<div data-nav-route="t/' + ct.slug + '" data-tourney-name="' + (ct.name || '').toLowerCase() + '" data-tourney-venue="' + (ct.venue || '').toLowerCase() + '" class="tourney-card-search bg-white rounded-xl shadow-sm hover:shadow-md overflow-hidden cursor-pointer transition-all group" style="border:2px solid white;outline:2px solid ' + outlineColor + ';">'
+    return '<div data-nav-route="t/' + ct.slug + '" data-tourney-name="' + (ct.name || '').toLowerCase() + '" data-tourney-venue="' + (ct.venue || '').toLowerCase() + '" class="tourney-card-search bg-white rounded-xl shadow-sm hover:shadow-md overflow-hidden cursor-pointer transition-all group border border-slate-200">'
       + '<div class="relative w-full aspect-[4/3] overflow-hidden bg-slate-100">'
       + poster
       + '<div class="absolute top-1 left-1">' + statusBadge + '</div>'
@@ -1832,9 +1979,9 @@ function buildTournamentCarouselHTML(allTournaments) {
       + '</div>';
   }).join('');
 
-  return '<div id="tourney-carousel-wrapper" class="relative overflow-hidden rounded-2xl">'
+  return '<div id="tourney-carousel-wrapper" class="relative overflow-hidden rounded-2xl p-0.5">'
     + '<div id="tourney-carousel" class="flex gap-0" style="will-change:transform;">' + carouselCards + '</div>'
-    + '<div id="tourney-carousel-dots" class="flex items-center justify-center gap-1.5 py-2 bg-white/80">' + dots + '</div>'
+    + '<div id="tourney-carousel-dots" class="flex items-center justify-center gap-1.5 py-1.5 bg-white/80">' + dots + '</div>'
     + '</div>'
     + '<div id="landing-tournaments-grid" class="hidden grid grid-cols-2 sm:grid-cols-3 gap-2.5">' + searchCards + '</div>';
 }
@@ -12810,6 +12957,7 @@ export function openTournamentCreationWizard(isTrialMode = false) {
               <div>
                 <label class="block text-[9px] font-black text-slate-600 uppercase mb-0.5">Payment QR Code *</label>
                 <input type="file" id="wiz-qr-file" accept="image/*" class="w-full text-[11px] text-slate-600 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:bg-emerald-600 file:text-white cursor-pointer" />
+                <div id="wiz-qr-preview-container" class="hidden"></div>
               </div>
             </div>
           </div>
@@ -12825,12 +12973,16 @@ export function openTournamentCreationWizard(isTrialMode = false) {
 
             <div class="grid grid-cols-2 gap-2">
               <div>
-                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">WhatsApp / Phone Number *</label>
+                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">
+                  Organizer Phone Number * <span class="text-amber-600 font-bold lowercase block sm:inline text-[9px]">(Admin Login ID)</span>
+                </label>
                 <input type="tel" id="wiz-org-phone" placeholder="8972214416" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-amber-400" />
               </div>
               <div>
-                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Admin Password *</label>
-                <input type="password" id="wiz-org-password" placeholder="Secret Password" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-amber-400" />
+                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">
+                  Set Admin Password *
+                </label>
+                <input type="password" id="wiz-org-password" placeholder="Create Admin Password" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-amber-400" />
               </div>
             </div>
           </div>
@@ -12982,12 +13134,65 @@ export function openTournamentCreationWizard(isTrialMode = false) {
     e.target.dataset.manual = 'true';
   });
 
-  // QR File handler
-  document.getElementById('wiz-qr-file')?.addEventListener('change', (e) => {
+  // QR File handler with ~100KB auto-compression, spinner, and Cloudinary upload
+  document.getElementById('wiz-qr-file')?.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (file) {
+      const previewContainer = document.getElementById('wiz-qr-preview-container');
+      if (previewContainer) {
+        previewContainer.innerHTML = `
+          <div class="mt-2 p-2 bg-emerald-50 border border-emerald-300 rounded-xl flex items-center gap-2 text-emerald-800 text-[11px] font-black animate-pulse">
+            <span class="inline-block w-3.5 h-3.5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></span>
+            <span>Optimizing QR (~100 KB) & uploading to CDN...</span>
+          </div>
+        `;
+        previewContainer.classList.remove('hidden');
+      }
+
       const reader = new FileReader();
-      reader.onload = (ev) => { uploadedQrBase64 = ev.target.result; };
+      reader.onload = async (ev) => {
+        const rawDataUrl = ev.target.result;
+        uploadedQrBase64 = rawDataUrl;
+
+        try {
+          // 1. Compress to ~100 KB
+          const compressed = await compressImageToTarget(rawDataUrl, 100, 1200);
+          const compressedDataUrl = compressed || rawDataUrl;
+
+          // 2. Upload to Cloudinary CDN
+          const slugVal = (document.getElementById('wiz-tourney-slug')?.value || 'tourney').trim().toLowerCase();
+          const cdnUrl = await uploadHDImage(compressedDataUrl, `tournaments/${slugVal}/qr`);
+
+          if (cdnUrl) {
+            uploadedQrBase64 = cdnUrl;
+          }
+
+          if (previewContainer) {
+            previewContainer.innerHTML = `
+              <div class="mt-2 p-1.5 bg-emerald-50 border border-emerald-400 rounded-xl flex items-center justify-between gap-2 shadow-2xs">
+                <div class="flex items-center gap-2 min-w-0">
+                  <img src="${uploadedQrBase64}" class="w-8 h-8 object-cover rounded-md border border-emerald-300 shrink-0" />
+                  <span class="text-[11px] font-black text-emerald-950 flex items-center gap-1">
+                    <span class="w-3.5 h-3.5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[9px]">✓</span> QR Code Uploaded
+                  </span>
+                </div>
+              </div>
+            `;
+          }
+        } catch (uploadErr) {
+          console.warn('QR CDN upload notice, using local image:', uploadErr);
+          if (previewContainer) {
+            previewContainer.innerHTML = `
+              <div class="mt-2 p-1.5 bg-emerald-50 border border-emerald-400 rounded-xl flex items-center justify-between gap-2 shadow-2xs">
+                <div class="flex items-center gap-2 min-w-0">
+                  <img src="${rawDataUrl}" class="w-8 h-8 object-cover rounded-md border border-emerald-300 shrink-0" />
+                  <span class="text-[11px] font-black text-emerald-950">✓ QR Code Uploaded</span>
+                </div>
+              </div>
+            `;
+          }
+        }
+      };
       reader.readAsDataURL(file);
     }
   });
@@ -13277,6 +13482,21 @@ export function openDynamicTournamentRegistrationModal(tourneyIdOrSlug) {
             </div>
           </div>
 
+          <!-- DOB & AUTO-CALCULATED AGE -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Date of Birth (DOB) *</label>
+              <input type="date" id="dyn-reg-dob" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-400" required />
+            </div>
+            <div>
+              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1 flex items-center justify-between">
+                <span>Calculated Age</span>
+                <span class="text-[9px] font-mono text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">AUTO-FETCH</span>
+              </label>
+              <input type="text" id="dyn-reg-age" placeholder="Age auto-computed" readonly class="w-full bg-slate-100 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono font-black select-none cursor-not-allowed" />
+            </div>
+          </div>
+
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Batting Style</label>
@@ -13308,47 +13528,118 @@ export function openDynamicTournamentRegistrationModal(tourneyIdOrSlug) {
             </div>
           </div>
 
-          <!-- PHOTO UPLOAD & PREVIEW -->
-          <div class="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-200">
-            <div class="w-12 h-12 rounded-xl bg-slate-200 overflow-hidden shrink-0 border border-slate-300">
-              <img id="dyn-preview-photo" src="assets/card_jsl_user.png" class="w-full h-full object-cover" />
+          <!-- PHOTO UPLOAD & PREVIEW WITH ZOOM & CROP -->
+          <div class="p-3 bg-slate-50 rounded-2xl border-2 border-slate-200 space-y-2">
+            <label class="block text-xs font-black text-slate-800 uppercase tracking-wider flex items-center justify-between">
+              <span>Player HD Passport Photo *</span>
+              <span class="text-[9px] font-mono text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">🔍 ZOOM & CROP</span>
+            </label>
+            <div class="flex items-center gap-3">
+              <div class="w-14 h-14 rounded-2xl bg-slate-200 overflow-hidden shrink-0 border-2 border-emerald-400 shadow-sm relative group">
+                <img id="dyn-preview-photo" src="assets/card_jsl_user.png" class="w-full h-full object-cover" />
+              </div>
+              <div class="flex-1 space-y-1">
+                <input type="file" id="dyn-photo-file" accept="image/*" class="w-full text-xs text-slate-600 file:mr-2.5 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-[10px] file:font-black file:bg-slate-900 file:text-white hover:file:bg-slate-800 cursor-pointer" />
+                <div id="dyn-photo-upload-status" class="hidden"></div>
+              </div>
             </div>
-            <div class="flex-1">
-              <label class="block text-[10px] font-black text-slate-700 uppercase mb-1">Player HD Photo</label>
-              <input type="file" id="dyn-photo-file" accept="image/*" class="w-full text-xs text-slate-600 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:bg-slate-900 file:text-white hover:file:bg-slate-800 cursor-pointer" />
+          </div>
+
+          <!-- IDENTITY CARD (AADHAAR / VOTER / PAN) FRONT & BACK -->
+          <div class="p-3.5 bg-gradient-to-br from-slate-50 to-blue-50/50 rounded-2xl border-2 border-blue-200/80 space-y-3">
+            <div class="flex items-center justify-between">
+              <label class="block text-xs font-black text-blue-950 uppercase tracking-wider">
+                🪪 Identity Card Verification
+              </label>
+              <select id="dyn-reg-doctype" class="text-[10px] font-black bg-white border border-blue-300 rounded-lg px-2 py-1 text-blue-900 focus:outline-none">
+                <option value="Aadhaar Card">Aadhaar Card</option>
+                <option value="Voter ID Card">Voter ID Card</option>
+                <option value="PAN Card">PAN Card</option>
+                <option value="Driving License">Driving License</option>
+              </select>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <!-- FRONT SIDE -->
+              <div class="bg-white p-2.5 rounded-xl border border-blue-200 space-y-1">
+                <label class="block text-[10px] font-black text-slate-700 uppercase">1. ID Card Front Side *</label>
+                <input type="file" id="dyn-id-front-file" accept="image/*" class="w-full text-[11px] text-slate-600 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-[9.5px] file:font-black file:bg-blue-600 file:text-white cursor-pointer" required />
+                <div id="dyn-id-front-status" class="hidden"></div>
+              </div>
+              <!-- BACK SIDE -->
+              <div class="bg-white p-2.5 rounded-xl border border-blue-200 space-y-1">
+                <label class="block text-[10px] font-black text-slate-700 uppercase">2. ID Card Back Side *</label>
+                <input type="file" id="dyn-id-back-file" accept="image/*" class="w-full text-[11px] text-slate-600 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-[9.5px] file:font-black file:bg-blue-600 file:text-white cursor-pointer" required />
+                <div id="dyn-id-back-status" class="hidden"></div>
+              </div>
             </div>
           </div>
 
           <!-- TOURNAMENT UPI PAYMENT & QR CODE SECTION -->
-          <div class="p-3.5 rounded-2xl bg-gradient-to-br from-amber-50 to-yellow-50/80 border-2 border-amber-300 space-y-2.5 text-center">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-black text-amber-950 uppercase tracking-wider">Tournament Entry Fee</span>
-              <span class="text-base font-black text-emerald-700 font-mono">₹ ${tourney.entryFee || 300}</span>
+          <div class="p-3.5 rounded-2xl bg-gradient-to-br from-amber-50/90 via-yellow-50/90 to-orange-50/90 border-2 border-amber-300 space-y-3 text-center">
+            <div class="flex items-center justify-between border-b border-amber-200/80 pb-2">
+              <span class="text-xs font-black text-amber-950 uppercase tracking-wider">Player Registration Fee</span>
+              <span class="text-lg font-black text-emerald-700 font-mono">₹ ${Number(tourney.entryFee || tourney.playerEntryFee || 300).toLocaleString('en-IN')}</span>
             </div>
 
             ${tourney.paymentQrUrl ? `
-              <div class="w-36 h-36 mx-auto bg-white p-2 rounded-2xl border-2 border-amber-300 shadow-sm">
-                <img src="${tourney.paymentQrUrl}" class="w-full h-full object-contain" alt="Tournament UPI QR Code" />
+              <div class="space-y-1">
+                <div class="w-32 h-32 mx-auto bg-white p-2 rounded-2xl border-2 border-amber-300 shadow-sm flex items-center justify-center">
+                  <img src="${tourney.paymentQrUrl}" class="max-w-full max-h-full object-contain" alt="Tournament UPI QR Code" />
+                </div>
+                <p class="text-[9.5px] font-bold text-amber-900">Scan QR code using GPay, PhonePe, Paytm, or BHIM</p>
               </div>
             ` : ''}
 
             ${tourney.upiId ? `
-              <div class="text-[11px] font-bold text-amber-900">
-                <span>UPI ID: </span><span class="font-mono font-black text-slate-950">${tourney.upiId}</span>
+              <div class="space-y-2.5 pt-0.5">
+                <div class="bg-white px-3.5 py-1.5 rounded-xl border border-amber-300 inline-block shadow-2xs">
+                  <p class="text-[11px] font-medium text-slate-700 leading-tight">
+                    You can directly payment with UPI Id: <strong class="font-mono text-slate-950 font-black text-xs select-all">${tourney.upiId}</strong>
+                  </p>
+                </div>
+
+                <!-- SEPARATE APP PAYMENT BUTTONS: GPAY, PHONEPE, ANY UPI -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 max-w-md mx-auto pt-1">
+                  <!-- GOOGLE PAY BUTTON -->
+                  <a href="gpay://upi/pay?pa=${encodeURIComponent(tourney.upiId)}&pn=${encodeURIComponent(tourney.name || 'Tournament')}&am=${encodeURIComponent(tourney.entryFee || 300)}&cu=INR" class="flex items-center justify-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-800 rounded-xl border-2 border-slate-300 shadow-xs text-[11px] font-black transition-all cursor-pointer">
+                    <span class="text-sm">🔵</span>
+                    <span>Google Pay</span>
+                  </a>
+
+                  <!-- PHONEPE BUTTON -->
+                  <a href="phonepe://pay?pa=${encodeURIComponent(tourney.upiId)}&pn=${encodeURIComponent(tourney.name || 'Tournament')}&am=${encodeURIComponent(tourney.entryFee || 300)}&cu=INR" class="flex items-center justify-center gap-1.5 px-3 py-2 bg-[#5f259f] hover:bg-[#521e8a] text-white rounded-xl border border-[#4a1880] shadow-xs text-[11px] font-black transition-all cursor-pointer">
+                    <span class="text-sm">🟣</span>
+                    <span>PhonePe</span>
+                  </a>
+
+                  <!-- ANY UPI APP BUTTON -->
+                  <a href="upi://pay?pa=${encodeURIComponent(tourney.upiId)}&pn=${encodeURIComponent(tourney.name || 'Tournament')}&am=${encodeURIComponent(tourney.entryFee || 300)}&cu=INR" class="flex items-center justify-center gap-1.5 px-3 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl border border-emerald-500 shadow-xs text-[11px] font-black transition-all cursor-pointer">
+                    <span class="text-sm">⚡</span>
+                    <span>Any UPI App</span>
+                  </a>
+                </div>
               </div>
             ` : ''}
 
-            <p class="text-[10px] text-slate-600">Scan QR Code using PhonePe / GPay, pay ₹${tourney.entryFee || 300}, and upload payment screenshot below:</p>
+            <!-- PAYMENT ID / UTR / TRANSACTION REF -->
+            <div class="text-left bg-white p-3 rounded-xl border border-amber-200 space-y-2">
+              <div>
+                <label class="block text-[10.5px] font-black text-slate-800 uppercase mb-0.5">UPI Payment ID / UTR / Transaction No. *</label>
+                <input type="text" id="dyn-payment-ref" placeholder="e.g. 423456789012 or UPI Ref ID" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-amber-400" required />
+              </div>
 
-            <div class="text-left bg-white p-2.5 rounded-xl border border-amber-200">
-              <label class="block text-[10px] font-black text-slate-700 uppercase mb-1">Payment Receipt Screenshot *</label>
-              <input type="file" id="dyn-receipt-file" accept="image/*" class="w-full text-xs text-slate-600 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:bg-emerald-600 file:text-white cursor-pointer" required />
+              <div>
+                <label class="block text-[10.5px] font-black text-slate-800 uppercase mb-0.5">Payment Screenshot Proof *</label>
+                <input type="file" id="dyn-receipt-file" accept="image/*" class="w-full text-xs text-slate-600 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:bg-emerald-600 file:text-white cursor-pointer" required />
+                <div id="dyn-receipt-status" class="hidden"></div>
+              </div>
             </div>
           </div>
 
           <!-- SUBMIT BUTTON -->
           <div class="pt-2">
-            <button type="submit" id="dyn-submit-reg-btn" class="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-xs sm:text-sm rounded-xl shadow-md flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-emerald-400">
+            <button type="submit" id="dyn-submit-reg-btn" class="w-full py-3.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-emerald-400">
               <span>Submit Registration to ${tourney.shortCode || 'League'} ➔</span>
             </button>
           </div>
@@ -13360,6 +13651,52 @@ export function openDynamicTournamentRegistrationModal(tourneyIdOrSlug) {
   `;
 
   document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+  // Auto-Calculate Age from DOB on change
+  const dobInput = document.getElementById('dyn-reg-dob');
+  const ageInput = document.getElementById('dyn-reg-age');
+  dobInput?.addEventListener('change', (e) => {
+    const dobVal = e.target.value;
+    if (dobVal) {
+      const birth = new Date(dobVal);
+      const today = new Date();
+      let age = today.getFullYear() - birth.getFullYear();
+      const m = today.getMonth() - birth.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+        age--;
+      }
+      if (age >= 5 && age <= 100) {
+        if (ageInput) ageInput.value = `${age} Years Old`;
+      } else {
+        if (ageInput) ageInput.value = `${age} Years`;
+      }
+    }
+  });
+
+  // Helper to reset form fields to blank when phone is cleared or changed
+  const resetPlayerFormFields = () => {
+    const nameEl = document.getElementById('dyn-reg-name');
+    const roleEl = document.getElementById('dyn-reg-role');
+    const battingEl = document.getElementById('dyn-reg-batting');
+    const bowlingEl = document.getElementById('dyn-reg-bowling');
+    const villageEl = document.getElementById('dyn-reg-village');
+    const districtEl = document.getElementById('dyn-reg-district');
+    const dobEl = document.getElementById('dyn-reg-dob');
+    const ageEl = document.getElementById('dyn-reg-age');
+    const previewEl = document.getElementById('dyn-preview-photo');
+
+    if (nameEl) nameEl.value = '';
+    if (roleEl) roleEl.value = 'All Rounder';
+    if (battingEl) battingEl.value = 'Right Hand Bat';
+    if (bowlingEl) bowlingEl.value = 'Right Arm Medium';
+    if (villageEl) villageEl.value = '';
+    if (districtEl) districtEl.value = 'Paschim Medinipur';
+    if (dobEl) dobEl.value = '';
+    if (ageEl) ageEl.value = '';
+    if (previewEl) previewEl.src = 'assets/card_jsl_user.png';
+    uploadedPhotoBase64 = '';
+    document.getElementById('dyn-autofill-notice')?.classList.add('hidden');
+  };
 
   // 1-Second Smart Auto-Fill on Mobile Input (Supabase Postgres + Universal Store)
   const phoneInput = document.getElementById('dyn-reg-phone');
@@ -13377,6 +13714,13 @@ export function openDynamicTournamentRegistrationModal(tourneyIdOrSlug) {
         document.getElementById('dyn-reg-bowling').value = existing.bowlingStyle || existing.bowling_style || 'Right Arm Medium';
         document.getElementById('dyn-reg-village').value = existing.village || '';
         document.getElementById('dyn-reg-district').value = existing.district || 'Paschim Medinipur';
+        if (existing.dob) {
+          const dobEl = document.getElementById('dyn-reg-dob');
+          if (dobEl) {
+            dobEl.value = existing.dob;
+            dobEl.dispatchEvent(new Event('change'));
+          }
+        }
         const photo = existing.photoUrl || existing.photo_url;
         if (photo) {
           uploadedPhotoBase64 = photo;
@@ -13384,35 +13728,178 @@ export function openDynamicTournamentRegistrationModal(tourneyIdOrSlug) {
         }
         document.getElementById('dyn-autofill-notice')?.classList.remove('hidden');
       } else {
-        document.getElementById('dyn-autofill-notice')?.classList.add('hidden');
+        // 10 digits entered but no record found: keep blank
+        resetPlayerFormFields();
       }
     } else {
-      document.getElementById('dyn-autofill-notice')?.classList.add('hidden');
+      // If any digit is changed/deleted (less than 10 digits or mismatched): clear form immediately
+      resetPlayerFormFields();
     }
   });
 
-  // Photo change with auto-compression (< 100 KB)
-  document.getElementById('dyn-photo-file')?.addEventListener('change', async (e) => {
+  // Photo change with Zoom & Crop Modal + Auto-Compression (~90-100 KB) + Cloudinary Upload
+  document.getElementById('dyn-photo-file')?.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (file) {
-      const compressed = await compressImageToTarget(file, 100, 1200);
       const reader = new FileReader();
       reader.onload = (ev) => {
-        uploadedPhotoBase64 = ev.target.result;
-        document.getElementById('dyn-preview-photo').src = uploadedPhotoBase64;
+        const rawSrc = ev.target.result;
+        openPlayerPhotoCropModal(rawSrc, async (croppedDataUrl) => {
+          uploadedPhotoBase64 = croppedDataUrl;
+          document.getElementById('dyn-preview-photo').src = croppedDataUrl;
+
+          const statusEl = document.getElementById('dyn-photo-upload-status');
+          if (statusEl) {
+            statusEl.innerHTML = `
+              <div class="mt-1 p-1.5 bg-emerald-50 border border-emerald-300 rounded-lg flex items-center gap-1.5 text-emerald-800 text-[10px] font-black animate-pulse">
+                <span class="inline-block w-3 h-3 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></span>
+                <span>Compressing (~90 KB) & uploading to CDN...</span>
+              </div>
+            `;
+            statusEl.classList.remove('hidden');
+          }
+
+          try {
+            const compressed = await compressImageToTarget(croppedDataUrl, 95, 800);
+            const slugVal = (tourney.slug || 'tourney').toLowerCase();
+            const cdnUrl = await uploadHDImage(compressed || croppedDataUrl, `players/${slugVal}`);
+            if (cdnUrl) {
+              uploadedPhotoBase64 = cdnUrl;
+            }
+            if (statusEl) {
+              statusEl.innerHTML = `
+                <div class="mt-1 p-1 bg-emerald-50 border border-emerald-400 rounded-lg flex items-center gap-1 text-[10px] font-black text-emerald-950">
+                  <span class="w-3 h-3 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[8px]">✓</span> Photo Uploaded
+                </div>
+              `;
+            }
+          } catch(err) {
+            if (statusEl) {
+              statusEl.innerHTML = `<span class="text-[9.5px] font-black text-emerald-800">✓ Photo Ready</span>`;
+            }
+          }
+        });
       };
-      reader.readAsDataURL(compressed || file);
+      reader.readAsDataURL(file);
     }
   });
 
-  // Receipt change with auto-compression (< 100 KB)
+  // ID Card Front File Handler (~90-100 KB compression + CDN upload)
+  let uploadedIdFrontUrl = '';
+  document.getElementById('dyn-id-front-file')?.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const statusEl = document.getElementById('dyn-id-front-status');
+      if (statusEl) {
+        statusEl.innerHTML = `
+          <div class="mt-1 p-1 bg-blue-50 border border-blue-300 rounded-md flex items-center gap-1 text-blue-800 text-[9.5px] font-black animate-pulse">
+            <span class="inline-block w-2.5 h-2.5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></span>
+            <span>Compressing & uploading...</span>
+          </div>
+        `;
+        statusEl.classList.remove('hidden');
+      }
+
+      try {
+        const compressed = await compressImageToTarget(file, 95, 1200);
+        const slugVal = (tourney.slug || 'tourney').toLowerCase();
+        const cdnUrl = await uploadHDImage(compressed || file, `verification/${slugVal}/front`);
+        if (cdnUrl) {
+          uploadedIdFrontUrl = cdnUrl;
+        } else {
+          const reader = new FileReader();
+          reader.onload = (ev) => { uploadedIdFrontUrl = ev.target.result; };
+          reader.readAsDataURL(compressed || file);
+        }
+        if (statusEl) {
+          statusEl.innerHTML = `
+            <div class="mt-1 p-0.5 bg-emerald-50 border border-emerald-400 rounded-md flex items-center gap-1 text-[9.5px] font-black text-emerald-950">
+              <span class="w-3 h-3 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[8px]">✓</span> Front Side Uploaded
+            </div>
+          `;
+        }
+      } catch(e2) {
+        if (statusEl) statusEl.innerHTML = `<span class="text-[9px] font-black text-emerald-800">✓ Front Ready</span>`;
+      }
+    }
+  });
+
+  // ID Card Back File Handler (~90-100 KB compression + CDN upload)
+  let uploadedIdBackUrl = '';
+  document.getElementById('dyn-id-back-file')?.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const statusEl = document.getElementById('dyn-id-back-status');
+      if (statusEl) {
+        statusEl.innerHTML = `
+          <div class="mt-1 p-1 bg-blue-50 border border-blue-300 rounded-md flex items-center gap-1 text-blue-800 text-[9.5px] font-black animate-pulse">
+            <span class="inline-block w-2.5 h-2.5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></span>
+            <span>Compressing & uploading...</span>
+          </div>
+        `;
+        statusEl.classList.remove('hidden');
+      }
+
+      try {
+        const compressed = await compressImageToTarget(file, 95, 1200);
+        const slugVal = (tourney.slug || 'tourney').toLowerCase();
+        const cdnUrl = await uploadHDImage(compressed || file, `verification/${slugVal}/back`);
+        if (cdnUrl) {
+          uploadedIdBackUrl = cdnUrl;
+        } else {
+          const reader = new FileReader();
+          reader.onload = (ev) => { uploadedIdBackUrl = ev.target.result; };
+          reader.readAsDataURL(compressed || file);
+        }
+        if (statusEl) {
+          statusEl.innerHTML = `
+            <div class="mt-1 p-0.5 bg-emerald-50 border border-emerald-400 rounded-md flex items-center gap-1 text-[9.5px] font-black text-emerald-950">
+              <span class="w-3 h-3 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[8px]">✓</span> Back Side Uploaded
+            </div>
+          `;
+        }
+      } catch(e2) {
+        if (statusEl) statusEl.innerHTML = `<span class="text-[9px] font-black text-emerald-800">✓ Back Ready</span>`;
+      }
+    }
+  });
+
+  // Receipt change with auto-compression (< 100 KB) + CDN upload
   document.getElementById('dyn-receipt-file')?.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (file) {
-      const compressed = await compressImageToTarget(file, 100, 1200);
-      const reader = new FileReader();
-      reader.onload = (ev) => { uploadedReceiptBase64 = ev.target.result; };
-      reader.readAsDataURL(compressed || file);
+      const statusEl = document.getElementById('dyn-receipt-status');
+      if (statusEl) {
+        statusEl.innerHTML = `
+          <div class="mt-1 p-1 bg-emerald-50 border border-emerald-300 rounded-md flex items-center gap-1 text-emerald-800 text-[9.5px] font-black animate-pulse">
+            <span class="inline-block w-2.5 h-2.5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></span>
+            <span>Compressing receipt & uploading...</span>
+          </div>
+        `;
+        statusEl.classList.remove('hidden');
+      }
+
+      try {
+        const compressed = await compressImageToTarget(file, 95, 1200);
+        const slugVal = (tourney.slug || 'tourney').toLowerCase();
+        const cdnUrl = await uploadHDImage(compressed || file, `receipts/${slugVal}`);
+        if (cdnUrl) {
+          uploadedReceiptBase64 = cdnUrl;
+        } else {
+          const reader = new FileReader();
+          reader.onload = (ev) => { uploadedReceiptBase64 = ev.target.result; };
+          reader.readAsDataURL(compressed || file);
+        }
+        if (statusEl) {
+          statusEl.innerHTML = `
+            <div class="mt-1 p-0.5 bg-emerald-50 border border-emerald-400 rounded-md flex items-center gap-1 text-[9.5px] font-black text-emerald-950">
+              <span class="w-3 h-3 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[8px]">✓</span> Receipt Uploaded
+            </div>
+          `;
+        }
+      } catch(e3) {
+        if (statusEl) statusEl.innerHTML = `<span class="text-[9px] font-black text-emerald-800">✓ Receipt Ready</span>`;
+      }
     }
   });
 
@@ -13429,6 +13916,10 @@ export function openDynamicTournamentRegistrationModal(tourneyIdOrSlug) {
     const bowlingStyle = document.getElementById('dyn-reg-bowling').value;
     const village = document.getElementById('dyn-reg-village').value.trim();
     const district = document.getElementById('dyn-reg-district').value.trim();
+    const dob = document.getElementById('dyn-reg-dob')?.value || null;
+    const age = document.getElementById('dyn-reg-age')?.value || '';
+    const docType = document.getElementById('dyn-reg-doctype')?.value || 'Aadhaar Card';
+    const paymentRef = document.getElementById('dyn-payment-ref')?.value.trim() || `UPI_${Date.now()}`;
 
     // Use Supabase UUID for tournament_id (falls back to local ID)
     const effectiveTournamentId = tourney.supabaseId || tourney.tournament_id || tourney.id;
@@ -13444,6 +13935,9 @@ export function openDynamicTournamentRegistrationModal(tourneyIdOrSlug) {
       bowlingStyle,
       village,
       district,
+      dob,
+      age,
+      docType,
       tournamentId: tourney.id,
       tournament_id: effectiveTournamentId,
       tournamentSlug: tourney.slug,
@@ -13459,16 +13953,24 @@ export function openDynamicTournamentRegistrationModal(tourneyIdOrSlug) {
     };
 
     const docsData = {
+      doc_type: docType,
+      aadhaar_url: uploadedIdFrontUrl || '',
+      id_card_front_url: uploadedIdFrontUrl || '',
+      id_card_back_url: uploadedIdBackUrl || '',
       payment_screenshot_url: uploadedReceiptBase64 || '',
-      payment_ref: `UPI_${Date.now()}`
+      payment_ref: paymentRef
     };
 
     // 1. Save to Supabase Postgres (Multi-Tenant RLS Database)
     await dbRegisterPlayer(playerData, docsData);
 
-    // 2. Save locally and globally in reactive store
+    // 2. Set active tournament context and save to local store
+    if (effectiveTournamentId) {
+      store.setActiveTournament(effectiveTournamentId);
+    }
     await store.saveUniversalPlayer(playerData);
     store.registerPlayer(playerData);
+    store.notify('players_updated');
 
     document.getElementById('dynamic-tournament-reg-modal')?.remove();
 

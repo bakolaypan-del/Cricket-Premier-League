@@ -1388,6 +1388,28 @@ export async function dbLookupPlayerByPhone(phone) {
         .maybeSingle();
       if (!error && data) return data;
     } catch (e) {}
+
+    // 2. Fallback: Search globally across registered players table in Postgres
+    try {
+      const { data: pData, error: pErr } = await supabase
+        .from('players')
+        .select('*')
+        .eq('phone', cleanPhone)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!pErr && pData) {
+        return {
+          phone: pData.phone,
+          name: pData.name,
+          photo_url: pData.photo_url,
+          role: pData.role,
+          category: pData.category_name,
+          batting_style: pData.batting_style || 'Right Hand Bat',
+          bowling_style: pData.bowling_style || 'Right Arm Medium'
+        };
+      }
+    } catch (e) {}
   }
 
   return null;
@@ -1452,6 +1474,7 @@ export async function dbRegisterPlayer(playerData, docsData = null) {
           name: player.name,
           photo_url: player.photo_url,
           role: player.role,
+          dob: playerData.dob || null,
           updated_at: new Date().toISOString()
         }, { onConflict: 'phone' });
     }
