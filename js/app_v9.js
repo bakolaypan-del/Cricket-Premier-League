@@ -2026,7 +2026,7 @@ function renderFirstPageLanding(containerEl) {
           <span class="p-1 sm:p-1.5 bg-blue-100 text-blue-800 rounded-xl text-[10px] sm:text-xs border border-blue-300 shrink-0 leading-none">🏏</span>
           <div class="flex flex-col">
             <span class="text-[8px] sm:text-[10px] font-black text-blue-800 uppercase tracking-wider whitespace-nowrap leading-none">Registered</span>
-            <span id="landing-registered-count" class="text-xs sm:text-base font-black text-slate-900 font-mono leading-tight mt-0.5">${players.length}</span>
+            <span id="landing-registered-count" class="text-xs sm:text-base font-black text-slate-900 font-mono leading-tight mt-0.5">${store.getTotalRegisteredPlayersCount ? store.getTotalRegisteredPlayersCount() : players.length}</span>
           </div>
         </div>
       </div>

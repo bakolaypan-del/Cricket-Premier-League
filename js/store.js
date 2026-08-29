@@ -225,10 +225,8 @@ class Store {
 
   setActiveTournament(tournamentId) {
     if (this.activeTournamentId === tournamentId) return;
-    const prevId = this.activeTournamentId;
     this.activeTournamentId = tournamentId;
     this._invalidateCache();
-    if (prevId) this._evictTournamentCache(prevId);
     if (tournamentId) {
       localStorage.setItem(STORAGE_KEYS.ACTIVE_TOURNAMENT, tournamentId);
     }
@@ -2198,6 +2196,42 @@ class Store {
     safeSetLocalStorage(STORAGE_KEYS.UNIVERSAL_PLAYERS, pool);
     await saveUniversalPlayerToCloud(pool[phone]);
     return pool[phone];
+  }
+
+  getTotalRegisteredPlayersCount() {
+    const unique = new Set();
+    // 1. Check universal players pool
+    try {
+      const rawUniv = localStorage.getItem(STORAGE_KEYS.UNIVERSAL_PLAYERS);
+      if (rawUniv) {
+        const pool = JSON.parse(rawUniv);
+        Object.keys(pool).forEach(k => unique.add(k));
+      }
+    } catch(e) {}
+
+    // 2. Check all tournament scoped keys
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(STORAGE_KEYS.PLAYERS)) {
+          const raw = localStorage.getItem(k);
+          if (raw) {
+            const arr = JSON.parse(raw);
+            if (Array.isArray(arr)) {
+              arr.forEach(p => {
+                if (p) {
+                  const idKey = p.phone ? p.phone.replace(/[^0-9]/g, '') : p.id;
+                  if (idKey) unique.add(idKey);
+                }
+              });
+            }
+          }
+        }
+      }
+    } catch(e) {}
+
+    // 3. Fallback to active tournament players length if set is empty
+    return Math.max(unique.size, this.getPlayers().length);
   }
 
   // --- PLAYER PROFILES ---
