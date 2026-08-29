@@ -54,7 +54,7 @@ import {
   resolveTournamentUUID,
   registerTournamentUUID,
   toUUID
-} from './supabase.js?v=13.0.8';
+} from './supabase.js?v=13.0.9';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -193,6 +193,7 @@ function getPlayerTimestamp(p) {
   return 0;
 }
 
+class Store {
   constructor() {
     clearOldStorageQuota();
     this._cache = { players: null, teams: null, fixtures: null };
