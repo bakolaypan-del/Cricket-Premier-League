@@ -59,15 +59,20 @@ export const TOURNAMENT_UUID_REGISTRY = new Map([
   ['leg-jsl', '033bfc04-033b-4c04-a33b-fc04033bfc04'],
   ['jsl-2026', '033bfc04-033b-4c04-a33b-fc04033bfc04'],
   ['t_jsl-2026', '033bfc04-033b-4c04-a33b-fc04033bfc04'],
+  ['jsl', '033bfc04-033b-4c04-a33b-fc04033bfc04'],
   ['jhankra super league 2026', '033bfc04-033b-4c04-a33b-fc04033bfc04'],
+  ['k2026', '5cf4f50c-3930-486a-83c3-3f59414a7d6f'],
+  ['t_k2026', '5cf4f50c-3930-486a-83c3-3f59414a7d6f'],
+  ['k22026', '5cf4f50c-3930-486a-83c3-3f59414a7d6f'],
+  ['t_k22026', '5cf4f50c-3930-486a-83c3-3f59414a7d6f'],
+  ['kpl 2026', '5cf4f50c-3930-486a-83c3-3f59414a7d6f'],
+  ['kpl', '5cf4f50c-3930-486a-83c3-3f59414a7d6f'],
+  ['kuapur', '5cf4f50c-3930-486a-83c3-3f59414a7d6f'],
+  ['kuapur premier league', '5cf4f50c-3930-486a-83c3-3f59414a7d6f'],
   ['m2026', '440f982b-6008-40f4-a6bc-0516a0985672'],
   ['t_m2026', '440f982b-6008-40f4-a6bc-0516a0985672'],
   ['mtcl2026', '440f982b-6008-40f4-a6bc-0516a0985672'],
-  ['mtcl', '440f982b-6008-40f4-a6bc-0516a0985672'],
-  ['k22026', '65a0731e-3b17-499d-8d61-3f45760ffc35'],
-  ['t_k22026', '65a0731e-3b17-499d-8d61-3f45760ffc35'],
-  ['kpl 2026', '65a0731e-3b17-499d-8d61-3f45760ffc35'],
-  ['kpl', '65a0731e-3b17-499d-8d61-3f45760ffc35']
+  ['mtcl', '440f982b-6008-40f4-a6bc-0516a0985672']
 ]);
 
 export function registerTournamentUUID(key, uuid) {

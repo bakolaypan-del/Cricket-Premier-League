@@ -1,8 +1,8 @@
 // Admin Master Data & Payment Verification Panel with Single Source Cloud Control (Developer: Suman Kolay)
 
-import { store } from './store.js?v=13.0.52';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.52';
-import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID, compressImageToTarget } from './supabase.js?v=13.0.52';
+import { store } from './store.js?v=13.0.53';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.53';
+import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID, compressImageToTarget } from './supabase.js?v=13.0.53';
 import { shops } from './shopsData.js?v=12.0.2';
 
 let activeAdminTab = (() => { try { return sessionStorage.getItem('cpl_admin_tab') || (store.isMasterAdmin() ? 'payments' : 'overview'); } catch(e) { return 'payments'; } })();
@@ -16,6 +16,57 @@ export function renderAdminDashboard(containerEl) {
     return;
   }
 
+  const isMaster = store.isMasterAdmin();
+  const currentUser = store.getCurrentUser();
+
+  // 1. Resolve Tournament List & Active Tournament ID FIRST
+  const customTournaments = store.getCustomTournaments ? store.getCustomTournaments() : [];
+  let allTournaments = customTournaments.map(t => ({ id: t.supabaseId || t.id, name: t.name, slug: t.slug, category_code: t.category_code || t.category || '', status: t.status || 'ACTIVE' }));
+  
+  if (!isMaster && currentUser) {
+    const userPhone = (currentUser.phone || currentUser.mobile || '').replace(/[^0-9]/g, '');
+    const userName = (currentUser.name || currentUser.email || '').toLowerCase().trim();
+    const owners = store.getTournamentOwners ? store.getTournamentOwners() : {};
+    const ownedIds = [];
+    
+    for (const [tId, ownerInfo] of Object.entries(owners)) {
+      if (ownerInfo && (ownerInfo.phone || '').replace(/[^0-9]/g, '') === userPhone) {
+        ownedIds.push(tId.toLowerCase());
+      }
+    }
+    if (Array.isArray(currentUser.ownedTournaments)) {
+      currentUser.ownedTournaments.forEach(id => {
+        if (id && !ownedIds.includes(id.toLowerCase())) ownedIds.push(id.toLowerCase());
+      });
+    }
+
+    // Match by phone, owned IDs, or username/slug
+    allTournaments = allTournaments.filter(t => {
+      const tId = (t.id || '').toLowerCase();
+      const tSlug = (t.slug || '').toLowerCase();
+      const tCode = (t.category_code || '').toLowerCase();
+      const tName = (t.name || '').toLowerCase();
+
+      if (ownedIds.some(oid => oid.includes(tId) || tId.includes(oid) || oid.includes(tSlug) || tSlug.includes(oid) || oid.includes(tCode))) return true;
+      if (userName && (userName.includes(tSlug) || tSlug.includes(userName) || userName.includes(tCode) || tCode.includes(userName) || (userName.includes('kuapur') && tSlug.includes('k2026')) || (userName.includes('pintu') && tSlug.includes('jsl')))) return true;
+      return false;
+    });
+  }
+
+  if (allTournaments.length === 0) {
+    allTournaments = customTournaments.map(t => ({ id: t.supabaseId || t.id, name: t.name, slug: t.slug, category_code: t.category_code || t.category || '', status: t.status || 'ACTIVE' }));
+  }
+  if (allTournaments.length === 0) {
+    allTournaments.push({ id: store.activeTournamentId || '5cf4f50c-3930-486a-83c3-3f59414a7d6f', name: 'My Tournament', slug: 'm2026', status: 'ACTIVE' });
+  }
+
+  const activeTid = (allTournaments.some(t => t.id === store.activeTournamentId) ? store.activeTournamentId : allTournaments[0]?.id) || allTournaments[0]?.id;
+  if (activeTid && store.activeTournamentId !== activeTid) {
+    if (store.setActiveTournament) store.setActiveTournament(activeTid);
+    else store.activeTournamentId = activeTid;
+  }
+
+  // 2. NOW query players, teams, leagues for the ACTIVE TOURNAMENT
   const leagues = store.getAccessibleLeagues();
   const players = store.getPlayers();
   const teams = store.getTeams();
@@ -29,8 +80,6 @@ export function renderAdminDashboard(containerEl) {
   const unsoldPlayers = players.filter(p => p.auctionStatus === 'UNSOLD' && !p.teamId);
   const queuePlayers = players.filter(p => (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED') && !p.teamId && p.auctionStatus !== 'SOLD' && p.auctionStatus !== 'UNSOLD');
 
-  const isMaster = store.isMasterAdmin();
-  const currentUser = store.getCurrentUser();
   const regSettings = store.getRegistrationSettings();
   const isRegOpen = store.isRegistrationOpen();
   
@@ -63,41 +112,6 @@ export function renderAdminDashboard(containerEl) {
       <option value="SEMI_FINAL_2">🏆 Semi-Final 2 (2nd vs 3rd)</option>
       <option value="FINAL">👑 Grand Final</option>
     `;
-  }
-
-  // Build tournament list for selector (Scoped strictly to owned tournaments for non-master admins)
-  const customTournaments = store.getCustomTournaments ? store.getCustomTournaments() : [];
-  let allTournaments = customTournaments.map(t => ({ id: t.supabaseId || t.id, name: t.name, slug: t.slug, status: t.status || 'ACTIVE' }));
-  
-  if (!isMaster && currentUser) {
-    const userPhone = (currentUser.phone || currentUser.mobile || '').replace(/[^0-9]/g, '');
-    const owners = store.getTournamentOwners ? store.getTournamentOwners() : {};
-    const ownedIds = [];
-    
-    for (const [tId, ownerInfo] of Object.entries(owners)) {
-      if (ownerInfo && (ownerInfo.phone || '').replace(/[^0-9]/g, '') === userPhone) {
-        ownedIds.push(tId.toLowerCase());
-      }
-    }
-    if (Array.isArray(currentUser.ownedTournaments)) {
-      currentUser.ownedTournaments.forEach(id => {
-        if (id && !ownedIds.includes(id.toLowerCase())) ownedIds.push(id.toLowerCase());
-      });
-    }
-
-    if (ownedIds.length > 0) {
-      allTournaments = allTournaments.filter(t => {
-        const tId = (t.id || '').toLowerCase();
-        const tSlug = (t.slug || '').toLowerCase();
-        return ownedIds.some(oid => oid.includes(tId) || tId.includes(oid) || oid.includes(tSlug) || tSlug.includes(oid));
-      });
-    }
-  }
-
-  if (allTournaments.length === 0) allTournaments.push({ id: store.activeTournamentId || '440f982b-6008-40f4-a6bc-0516a0985672', name: 'My Tournament', slug: 'm2026', status: 'ACTIVE' });
-  const activeTid = (allTournaments.some(t => t.id === store.activeTournamentId) ? store.activeTournamentId : allTournaments[0]?.id) || allTournaments[0]?.id;
-  if (activeTid && store.activeTournamentId !== activeTid) {
-    store.activeTournamentId = activeTid;
   }
 
   const activeTourneyName = allTournaments.find(t => t.id === activeTid)?.name || 'Tournament';

@@ -59,7 +59,7 @@ import {
   updateTournamentApprovalStatus,
   fetchLiveAuctionFromCloud,
   fetchGlobalLiveAuctionStatus
-} from './supabase.js?v=13.0.52';
+} from './supabase.js?v=13.0.53';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -733,13 +733,15 @@ class Store {
     for (const [tId, o] of Object.entries(owners)) {
       const match = await verifyPasswordMatch(password, o.password, o.phone);
       if (o && ((o.email && o.email.toLowerCase() === cleanEmail) || o.phone === cleanEmail) && match) {
+        const canonicalTid = toUUID(tId) || tId;
+        this.setActiveTournament(canonicalTid);
         const userObj = {
-          id: `owner-${tId}`,
+          id: `owner-${canonicalTid}`,
           name: o.name || 'Tournament Organiser',
           email: o.email || `${o.phone}@cpl.local`,
           phone: o.phone,
           role: 'TOURNAMENT_OWNER',
-          ownedTournaments: [tId.toUpperCase()]
+          ownedTournaments: [canonicalTid]
         };
         this.setCurrentUser(userObj);
         localStorage.setItem(STORAGE_KEYS.ADMIN_AUTH, 'true');
@@ -3070,11 +3072,14 @@ class Store {
       const local = localStorage.getItem(STORAGE_KEYS.TOURNAMENT_OWNERS);
       if (local) {
         const parsed = JSON.parse(local);
-        if (parsed && typeof parsed === 'object') return parsed;
+        if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) return parsed;
       }
     } catch (e) {}
     return {
-      'tournament-jsl-2026': { phone: '8972144166', name: 'Pintu Santra', assignedAt: Date.now() }
+      '033bfc04-033b-4c04-a33b-fc04033bfc04': { phone: '8972144166', name: 'Pintu Santra', assignedAt: Date.now() },
+      'tournament-jsl-2026': { phone: '8972144166', name: 'Pintu Santra', assignedAt: Date.now() },
+      '5cf4f50c-3930-486a-83c3-3f59414a7d6f': { phone: '9732710001', name: 'Kuapur Organiser', assignedAt: Date.now() },
+      'tournament-k2026': { phone: '9732710001', name: 'Kuapur Organiser', assignedAt: Date.now() }
     };
   }
 
@@ -3248,6 +3253,10 @@ class Store {
     // Auto-unlock admin controls if Tournament Owner or Super Admin
     if (acc.role === 'TOURNAMENT_OWNER' || acc.role === 'SUPER_ADMIN') {
       localStorage.setItem(STORAGE_KEYS.ADMIN_AUTH, 'true');
+      if (Array.isArray(acc.ownedTournaments) && acc.ownedTournaments.length > 0) {
+        const targetTid = toUUID(acc.ownedTournaments[0]) || acc.ownedTournaments[0];
+        this.setActiveTournament(targetTid);
+      }
     }
 
     return {
