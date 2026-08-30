@@ -2165,11 +2165,10 @@ export async function fetchGlobalUniquePlayersCount() {
             return;
           }
         }
-        if (clean && clean.length >= 10) {
-          unique.add(clean);
-        } else if (p.id) {
-          unique.add(p.id);
-        }
+        const normName = (p.name || '').toLowerCase().trim();
+        const tid = p.tournament_id || 'unassigned';
+        const entryKey = (normName && clean) ? `${tid}|${normName}|${clean}` : `${tid}|${p.id}`;
+        unique.add(entryKey);
       });
       return unique.size;
     }

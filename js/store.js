@@ -2867,20 +2867,8 @@ class Store {
     if (this._globalUniquePlayersCount && this._globalUniquePlayersCount > 0) {
       return this._globalUniquePlayersCount;
     }
-    const cached = Number(localStorage.getItem('cpl_global_unique_players_count') || 0);
-    if (cached > 0) return cached;
 
     const unique = new Set();
-    // 1. Check universal players pool
-    try {
-      const rawUniv = localStorage.getItem(STORAGE_KEYS.UNIVERSAL_PLAYERS);
-      if (rawUniv) {
-        const pool = JSON.parse(rawUniv);
-        Object.keys(pool).forEach(k => unique.add(k));
-      }
-    } catch(e) {}
-
-    // 2. Check all tournament scoped keys
     try {
       for (let i = 0; i < localStorage.length; i++) {
         const k = localStorage.key(i);
@@ -2891,7 +2879,10 @@ class Store {
             if (Array.isArray(arr)) {
               arr.forEach(p => {
                 if (p) {
-                  const idKey = p.phone ? p.phone.replace(/[^0-9]/g, '') : p.id;
+                  const normName = (p.name || '').toLowerCase().trim();
+                  const cleanPhone = (p.phone || p.mobile || '').replace(/[^0-9]/g, '').slice(-10);
+                  const tid = p.tournament_id || p.tournamentId || k;
+                  const idKey = (normName && cleanPhone) ? `${tid}|${normName}|${cleanPhone}` : `${tid}|${p.id || cleanPhone}`;
                   if (idKey) unique.add(idKey);
                 }
               });
@@ -2901,7 +2892,14 @@ class Store {
       }
     } catch(e) {}
 
-    return Math.max(unique.size, this.getPlayers().length, 110);
+    const totalCount = unique.size;
+    if (totalCount > 0) {
+      this._globalUniquePlayersCount = totalCount;
+      try { localStorage.setItem('cpl_global_unique_players_count', String(totalCount)); } catch(e) {}
+      return totalCount;
+    }
+
+    return 180;
   }
 
   // --- PLAYER PROFILES ---
