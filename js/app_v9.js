@@ -1,10 +1,10 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=13.0.24';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.24';
-import { renderAdminDashboard } from './admin.js?v=13.0.24';
-import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.24';
-import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.24';
+import { store } from './store.js?v=13.0.25';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.25';
+import { renderAdminDashboard } from './admin.js?v=13.0.25';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.25';
+import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.25';
 import { shops } from './shopsData.js?v=12.0.2';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
@@ -14061,62 +14061,80 @@ export function openDynamicTournamentRegistrationModal(tourneyIdOrSlug) {
           </div>
 
           <!-- TOURNAMENT UPI PAYMENT & QR CODE SECTION -->
-          <div class="p-3.5 rounded-2xl bg-gradient-to-br from-amber-50/90 via-yellow-50/90 to-orange-50/90 border-2 border-amber-300 space-y-3 text-center">
-            <div class="flex items-center justify-between border-b border-amber-200/80 pb-2">
-              <span class="text-xs font-black text-amber-950 uppercase tracking-wider">Player Registration Fee</span>
-              <span class="text-lg font-black text-emerald-700 font-mono">₹ ${Number(tourney.entryFee || tourney.playerEntryFee || 300).toLocaleString('en-IN')}</span>
+          <div class="rounded-3xl bg-slate-900 text-white p-4 sm:p-6 shadow-2xl border border-slate-800 space-y-4 text-center">
+            
+            <!-- Fee Header -->
+            <div class="flex items-center justify-between bg-slate-800/90 px-4 py-3 rounded-2xl border border-slate-700/80">
+              <div class="text-left">
+                <span class="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Player Registration Fee</span>
+                <span class="text-xs font-bold text-slate-200">${tourney.name || 'Tournament'}</span>
+              </div>
+              <div class="text-right">
+                <span class="text-2xl font-black text-emerald-400 font-mono">₹ ${Number(tourney.entryFee || tourney.playerEntryFee || 300).toLocaleString('en-IN')}</span>
+              </div>
             </div>
 
-            ${tourney.paymentQrUrl ? `
-              <div class="space-y-1">
-                <div class="w-32 h-32 mx-auto bg-white p-2 rounded-2xl border-2 border-amber-300 shadow-sm flex items-center justify-center">
-                  <img src="${tourney.paymentQrUrl}" class="max-w-full max-h-full object-contain" alt="Tournament UPI QR Code" />
+            <!-- MAXIMUM SIZE QR CODE DISPLAY (EDGE-TO-EDGE, NO TIGHT BORDERS) -->
+            ${(tourney.paymentQrUrl || tourney.upiId) ? `
+              <div class="space-y-2.5">
+                <div class="w-full max-w-[280px] sm:max-w-[340px] aspect-square mx-auto bg-white p-2.5 sm:p-3.5 rounded-3xl shadow-2xl flex items-center justify-center relative overflow-hidden group border-4 border-emerald-500/30">
+                  <img src="${tourney.paymentQrUrl || `https://api.qrserver.com/v1/create-qr-code/?size=450x450&data=${encodeURIComponent(`upi://pay?pa=${tourney.upiId}&pn=${tourney.name || 'Tournament'}&am=${tourney.entryFee || 300}&cu=INR`)}`}" class="w-full h-full object-contain rounded-2xl" alt="Tournament UPI QR Code" />
                 </div>
-                <p class="text-[9.5px] font-bold text-amber-900">Scan QR code using GPay, PhonePe, Paytm, or BHIM</p>
+                
+                <div class="flex items-center justify-center gap-1.5 text-slate-300 text-xs font-bold bg-slate-800/60 py-1.5 px-3 rounded-full max-w-sm mx-auto">
+                  <span class="text-sm">📸</span>
+                  <span>Scan with GPay, PhonePe, Paytm, BHIM, or Any UPI App</span>
+                </div>
               </div>
             ` : ''}
 
+            <!-- UPI ID & 1-TAP COPY -->
             ${tourney.upiId ? `
-              <div class="space-y-2.5 pt-0.5">
-                <div class="bg-white px-3.5 py-1.5 rounded-xl border border-amber-300 inline-block shadow-2xs">
-                  <p class="text-[11px] font-medium text-slate-700 leading-tight">
-                    You can directly payment with UPI Id: <strong class="font-mono text-slate-950 font-black text-xs select-all">${tourney.upiId}</strong>
-                  </p>
+              <div class="space-y-2.5 pt-1">
+                <div class="flex items-center justify-between bg-slate-800/95 hover:bg-slate-800 px-4 py-2.5 rounded-2xl border border-slate-700 max-w-md mx-auto transition-all shadow-inner">
+                  <div class="text-left min-w-0 pr-2">
+                    <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Official Tournament UPI ID</span>
+                    <span class="font-mono text-emerald-400 font-black text-xs sm:text-sm select-all truncate block">${tourney.upiId}</span>
+                  </div>
+                  <button type="button" onclick="navigator.clipboard.writeText('${tourney.upiId}'); this.textContent='✅ Copied!'; setTimeout(()=>this.textContent='📋 Copy', 2000)" class="px-3.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-[11px] font-black rounded-xl shadow-xs cursor-pointer transition-all shrink-0">
+                    📋 Copy
+                  </button>
                 </div>
 
-                <!-- SEPARATE APP PAYMENT BUTTONS: GPAY, PHONEPE, ANY UPI -->
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 max-w-md mx-auto pt-1">
-                  <!-- GOOGLE PAY BUTTON -->
-                  <a href="gpay://upi/pay?pa=${encodeURIComponent(tourney.upiId)}&pn=${encodeURIComponent(tourney.name || 'Tournament')}&am=${encodeURIComponent(tourney.entryFee || 300)}&cu=INR" class="flex items-center justify-center gap-1.5 px-3 py-2 bg-white hover:bg-slate-50 text-slate-800 rounded-xl border-2 border-slate-300 shadow-xs text-[11px] font-black transition-all cursor-pointer">
-                    <span class="text-sm">🔵</span>
+                <!-- 1-TAP APP PAYMENT LAUNCH BUTTONS -->
+                <div class="grid grid-cols-3 gap-2 max-w-md mx-auto">
+                  <a href="gpay://upi/pay?pa=${encodeURIComponent(tourney.upiId)}&pn=${encodeURIComponent(tourney.name || 'Tournament')}&am=${encodeURIComponent(tourney.entryFee || 300)}&cu=INR" class="flex flex-col items-center justify-center py-2.5 px-1 bg-white hover:bg-slate-100 text-slate-900 rounded-2xl font-black text-[10px] shadow-sm transition-transform active:scale-95 cursor-pointer">
+                    <span class="text-base leading-none mb-0.5">🔵</span>
                     <span>Google Pay</span>
                   </a>
 
-                  <!-- PHONEPE BUTTON -->
-                  <a href="phonepe://pay?pa=${encodeURIComponent(tourney.upiId)}&pn=${encodeURIComponent(tourney.name || 'Tournament')}&am=${encodeURIComponent(tourney.entryFee || 300)}&cu=INR" class="flex items-center justify-center gap-1.5 px-3 py-2 bg-[#5f259f] hover:bg-[#521e8a] text-white rounded-xl border border-[#4a1880] shadow-xs text-[11px] font-black transition-all cursor-pointer">
-                    <span class="text-sm">🟣</span>
+                  <a href="phonepe://pay?pa=${encodeURIComponent(tourney.upiId)}&pn=${encodeURIComponent(tourney.name || 'Tournament')}&am=${encodeURIComponent(tourney.entryFee || 300)}&cu=INR" class="flex flex-col items-center justify-center py-2.5 px-1 bg-[#5f259f] hover:bg-[#521e8a] text-white rounded-2xl font-black text-[10px] shadow-sm transition-transform active:scale-95 cursor-pointer">
+                    <span class="text-base leading-none mb-0.5">🟣</span>
                     <span>PhonePe</span>
                   </a>
 
-                  <!-- ANY UPI APP BUTTON -->
-                  <a href="upi://pay?pa=${encodeURIComponent(tourney.upiId)}&pn=${encodeURIComponent(tourney.name || 'Tournament')}&am=${encodeURIComponent(tourney.entryFee || 300)}&cu=INR" class="flex items-center justify-center gap-1.5 px-3 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white rounded-xl border border-emerald-500 shadow-xs text-[11px] font-black transition-all cursor-pointer">
-                    <span class="text-sm">⚡</span>
-                    <span>Any UPI App</span>
+                  <a href="upi://pay?pa=${encodeURIComponent(tourney.upiId)}&pn=${encodeURIComponent(tourney.name || 'Tournament')}&am=${encodeURIComponent(tourney.entryFee || 300)}&cu=INR" class="flex flex-col items-center justify-center py-2.5 px-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-2xl font-black text-[10px] shadow-sm transition-transform active:scale-95 cursor-pointer">
+                    <span class="text-base leading-none mb-0.5">⚡</span>
+                    <span>Paytm / UPI</span>
                   </a>
                 </div>
               </div>
             ` : ''}
 
             <!-- PAYMENT ID / UTR / TRANSACTION REF -->
-            <div class="text-left bg-white p-3 rounded-xl border border-amber-200 space-y-2">
+            <div class="text-left bg-slate-800/90 p-3.5 sm:p-4 rounded-2xl border border-slate-700 space-y-3">
               <div>
-                <label class="block text-[10.5px] font-black text-slate-800 uppercase mb-0.5">UPI Payment ID / UTR / Transaction No. *</label>
-                <input type="text" id="dyn-payment-ref" placeholder="e.g. 423456789012 or UPI Ref ID" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs font-mono font-bold text-slate-900 focus:outline-none focus:border-amber-400" required />
+                <label class="block text-[11px] font-black text-slate-200 uppercase tracking-wider mb-1">
+                  1. UPI Payment ID / UTR / Transaction No. <span class="text-rose-400">*</span>
+                </label>
+                <input type="text" id="dyn-payment-ref" placeholder="e.g. 423456789012 (12-Digit UTR No.)" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-mono font-bold text-emerald-400 placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-all" required />
               </div>
 
               <div>
-                <label class="block text-[10.5px] font-black text-slate-800 uppercase mb-0.5">Payment Screenshot Proof *</label>
-                <input type="file" id="dyn-receipt-file" accept="image/*" class="w-full text-xs text-slate-600 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:bg-emerald-600 file:text-white cursor-pointer" required />
+                <label class="block text-[11px] font-black text-slate-200 uppercase tracking-wider mb-1">
+                  2. Payment Screenshot Proof <span class="text-rose-400">*</span>
+                </label>
+                <input type="file" id="dyn-receipt-file" accept="image/*" class="w-full text-xs text-slate-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-[10.5px] file:font-black file:bg-emerald-600 file:text-white hover:file:bg-emerald-500 cursor-pointer" required />
                 <div id="dyn-receipt-status" class="hidden"></div>
               </div>
             </div>
