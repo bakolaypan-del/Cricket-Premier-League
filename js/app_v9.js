@@ -1,10 +1,10 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=13.0.17';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.17';
-import { renderAdminDashboard } from './admin.js?v=13.0.17';
-import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.17';
-import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.17';
+import { store } from './store.js?v=13.0.18';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.18';
+import { renderAdminDashboard } from './admin.js?v=13.0.18';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.18';
+import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.18';
 import { shops } from './shopsData.js?v=12.0.2';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
@@ -1496,7 +1496,7 @@ function renderNavbar() {
     }
   });
   document.getElementById('nav-install-app-btn')?.addEventListener('click', handleInstallAppClick);
-  document.getElementById('nav-host-saas-btn')?.addEventListener('click', () => openTournamentCreationWizard(false));
+  document.getElementById('nav-host-saas-btn')?.addEventListener('click', () => openTournamentCreationRoadmapModal(false));
   document.getElementById('nav-admin-btn')?.addEventListener('click', () => {
     if (!store.getCurrentUser()) {
       openPlayerLoginModal(() => navigate('profile'));
@@ -1602,7 +1602,7 @@ export function openHostTournamentIntroModal() {
 
   document.getElementById('btn-intro-create-tourney')?.addEventListener('click', () => {
     document.getElementById('host-tourney-intro-modal')?.remove();
-    openTournamentCreationWizard(false);
+    openTournamentCreationRoadmapModal(false);
   });
 }
 window.openHostTournamentIntroModal = openHostTournamentIntroModal;
@@ -2255,7 +2255,7 @@ function renderFirstPageLanding(containerEl) {
     goToSlide(0);
   }
 
-  document.getElementById('btn-home-create-tourney')?.addEventListener('click', () => openTournamentCreationWizard(false));
+  document.getElementById('btn-home-create-tourney')?.addEventListener('click', () => openTournamentCreationRoadmapModal(false));
 }
 
 // --- WHATSAPP 1-CLICK SHARING UTILITIES ---
@@ -12338,7 +12338,7 @@ export function openPlayerLoginModal(onSuccess) {
 
   document.getElementById('modal-goto-host-btn')?.addEventListener('click', () => {
     removeModal();
-    openTournamentCreationWizard(false);
+    openTournamentCreationRoadmapModal(false);
   });
 
   document.getElementById('player-login-form')?.addEventListener('submit', async (e) => {
@@ -12877,6 +12877,148 @@ window.openSquareImageCropModal = openSquareImageCropModal;
 window.compressImage = compressImage;
 window.openYouTubePromoModal = openYouTubePromoModal;
 window.openLiveAuctionProjectorView = openLiveAuctionProjectorView;
+
+// --- BENGALI TOURNAMENT ROADMAP & SETUP INSTRUCTIONS MODAL ---
+export function openTournamentCreationRoadmapModal(isTrialMode = false) {
+  document.getElementById('tournament-roadmap-intro-modal')?.remove();
+
+  const modalHtml = `
+    <div id="tournament-roadmap-intro-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-2.5 sm:p-4 animate-fade-in bg-slate-950/80 backdrop-blur-md font-sans">
+      <div class="bg-white text-slate-900 max-w-xl w-full max-h-[92vh] flex flex-col rounded-2xl sm:rounded-3xl border-2 border-amber-400 shadow-2xl overflow-hidden">
+        
+        <!-- HEADER -->
+        <div class="p-3 sm:p-4 bg-gradient-to-r from-amber-500 via-orange-500 to-yellow-500 text-slate-950 flex items-center justify-between gap-2 shrink-0 shadow-sm">
+          <div class="flex items-center gap-2.5">
+            <span class="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-white/95 text-slate-950 flex items-center justify-center text-lg sm:text-xl shrink-0 shadow-md font-black">
+              🏆
+            </span>
+            <div>
+              <span class="text-[9px] sm:text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-black/20 text-white border border-white/30">
+                ✨ FAST 2-MINUTE SETUP • টুর্নামেন্ট গাইড
+              </span>
+              <h2 class="text-sm sm:text-base font-black text-white tracking-tight leading-tight mt-0.5" style="font-family: 'Hind Siliguri', 'Anek Bangla', sans-serif;">
+                টুর্নামেন্ট তৈরি ও পরিচালনার নিয়মাবলী
+              </h2>
+            </div>
+          </div>
+          
+          <button id="close-tourney-roadmap-btn" class="w-8 h-8 rounded-full bg-white/90 hover:bg-white text-slate-900 flex items-center justify-center text-sm font-black transition-all shadow-xs cursor-pointer">
+            ✕
+          </button>
+        </div>
+
+        <!-- SCROLLABLE BODY -->
+        <div class="p-3.5 sm:p-5 overflow-y-auto flex-1 space-y-2.5 bg-gradient-to-b from-slate-50 to-white text-left" style="font-family: 'Hind Siliguri', 'Anek Bangla', sans-serif;">
+          
+          <!-- Intro Subtitle -->
+          <p class="text-xs sm:text-[13px] text-slate-700 leading-relaxed font-semibold text-center pb-0.5">
+            খুব সহজেই আপনার নিজস্ব ক্রিকেট টুর্নামেন্ট তৈরি করুন। নিচের <strong>সহজ ৪টি ধাপ</strong> অনুসরণ করে আপনার টুর্নামেন্ট চালু করুন:
+          </p>
+
+          <!-- Step 1: Basic Details -->
+          <div class="p-2.5 sm:p-3 bg-white rounded-2xl border-2 border-amber-200 shadow-2xs hover:border-amber-400 transition-all flex items-start gap-2.5">
+            <span class="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-gradient-to-br from-amber-400 to-orange-400 text-slate-950 flex items-center justify-center text-xs sm:text-sm font-black shrink-0 shadow-xs mt-0.5">
+              ১
+            </span>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-1.5">
+                <span class="text-xs font-black text-slate-900">ধাপ ১: টুর্নামেন্টের সাধারণ বিবরণ (Tournament Details)</span>
+              </div>
+              <p class="text-[11px] sm:text-[11.5px] text-slate-600 leading-snug mt-0.5">
+                টুর্নামেন্টের নাম, খেলার মাঠ (Venue), শুরুর তারিখ, চ্যাম্পিয়ন ও রানার্স প্রাইজমানি এবং ব্যানার পোস্টার নির্বাচন করুন।
+              </p>
+            </div>
+          </div>
+
+          <!-- Step 2: Mode Selection -->
+          <div class="p-2.5 sm:p-3 bg-white rounded-2xl border-2 border-emerald-200 shadow-2xs hover:border-emerald-400 transition-all flex items-start gap-2.5">
+            <span class="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 text-white flex items-center justify-center text-xs sm:text-sm font-black shrink-0 shadow-xs mt-0.5">
+              ২
+            </span>
+            <div class="min-w-0 flex-1 space-y-1">
+              <div class="flex items-center gap-1.5">
+                <span class="text-xs font-black text-slate-900">ধাপ ২: পরিচালনার মোড নির্বাচন (Choose Mode)</span>
+              </div>
+              <p class="text-[11px] sm:text-[11.5px] text-slate-600 leading-snug">
+                আপনার টুর্নামেন্টের আয়োজন অনুযায়ী যেকোনো একটি মোড বেছে নিন:
+              </p>
+              
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-0.5">
+                <div class="p-2 bg-amber-50/90 rounded-xl border border-amber-300 text-[11px] text-amber-950">
+                  <strong class="font-bold block text-amber-900">🔨 Mode A: Auction League</strong>
+                  <span>প্লেয়ার রেজিস্ট্রেশন + লাইভ অকশন নিলাম + টিম বাজেট + লাইভ স্কোরার।</span>
+                </div>
+                <div class="p-2 bg-emerald-50/90 rounded-xl border border-emerald-300 text-[11px] text-emerald-950">
+                  <strong class="font-bold block text-emerald-900">🏏 Mode B: Fixture Only</strong>
+                  <span>সরাসরি টিম এন্ট্রি + অটো ফিক্সচার শিডিউলার + বল-বাই-বল লাইভ স্কোরার।</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 3: Admin Account Creation -->
+          <div class="p-2.5 sm:p-3 bg-white rounded-2xl border-2 border-sky-200 shadow-2xs hover:border-sky-400 transition-all flex items-start gap-2.5">
+            <span class="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-gradient-to-br from-sky-400 to-blue-500 text-white flex items-center justify-center text-xs sm:text-sm font-black shrink-0 shadow-xs mt-0.5">
+              ৩
+            </span>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-1.5">
+                <span class="text-xs font-black text-slate-900">ধাপ ৩: অ্যাডমিন আইডি ও পাসওয়ার্ড তৈরি (Admin Credentials)</span>
+              </div>
+              <p class="text-[11px] sm:text-[11.5px] text-slate-600 leading-snug mt-0.5">
+                আপনার নাম, মোবাইল নম্বর এবং পাসওয়ার্ড সেট করুন। এই আইডি দিয়ে আপনি পরবর্তীতে অ্যাডমিন প্যানেলে লগইন করে প্লেয়ার ও ম্যাচ পরিচালনা করবেন।
+              </p>
+            </div>
+          </div>
+
+          <!-- Step 4: Master Admin Approval & Go Live -->
+          <div class="p-2.5 sm:p-3 bg-white rounded-2xl border-2 border-purple-200 shadow-2xs hover:border-purple-400 transition-all flex items-start gap-2.5">
+            <span class="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-gradient-to-br from-purple-400 to-indigo-500 text-white flex items-center justify-center text-xs sm:text-sm font-black shrink-0 shadow-xs mt-0.5">
+              ৪
+            </span>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-1.5">
+                <span class="text-xs font-black text-slate-900">ধাপ ৪: মাস্টার অ্যাডমিন অনুমোদন ও লাইভ (Approval & Go LIVE)</span>
+              </div>
+              <p class="text-[11px] sm:text-[11.5px] text-slate-600 leading-snug mt-0.5">
+                ফর্ম সাবমিট করার পর মাস্টার অ্যাডমিনের কাছে অনুমোদনের জন্য যাবে। অ্যাডমিন অনুমোদন (Approve) করলেই আপনার টুর্নামেন্ট ও প্লেয়ার রেজিস্ট্রেশন লিঙ্ক সবার জন্য স্বয়ংক্রিয়ভাবে লাইভ হয়ে যাবে!
+              </p>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- FOOTER WITH PROCEED BUTTON -->
+        <div class="p-3 sm:p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-2.5 shrink-0">
+          <div class="text-[11px] text-slate-500 font-semibold text-center sm:text-left flex items-center gap-1.5">
+            <span>🛡️</span> <span>100% সুরক্ষিত ও স্বয়ংক্রিয় ক্লাউড সিস্টেম</span>
+          </div>
+
+          <button type="button" id="btn-proceed-to-tourney-wizard" class="w-full sm:w-auto px-5 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg border border-emerald-400/40 flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-[1.02]">
+            <span style="font-family: 'Hind Siliguri', 'Anek Bangla', sans-serif;">🚀 এগিয়ে যান ও টুর্নামেন্ট তৈরি করুন (Proceed)</span>
+            <span>➔</span>
+          </button>
+        </div>
+
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+  const removeModal = () => {
+    document.getElementById('tournament-roadmap-intro-modal')?.remove();
+  };
+
+  document.getElementById('close-tourney-roadmap-btn')?.addEventListener('click', removeModal);
+
+  document.getElementById('btn-proceed-to-tourney-wizard')?.addEventListener('click', () => {
+    removeModal();
+    openTournamentCreationWizard(isTrialMode);
+  });
+}
+
+window.openTournamentCreationRoadmapModal = openTournamentCreationRoadmapModal;
 
 // --- MULTI-TENANT TOURNAMENT SAAS CREATION WIZARD (MODE A & MODE B) ---
 export function openTournamentCreationWizard(isTrialMode = false) {
