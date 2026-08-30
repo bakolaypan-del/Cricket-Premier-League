@@ -1,10 +1,10 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=13.0.41';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.41';
-import { renderAdminDashboard } from './admin.js?v=13.0.41';
-import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.41';
-import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.41';
+import { store } from './store.js?v=13.0.42';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.42';
+import { renderAdminDashboard } from './admin.js?v=13.0.42';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.42';
+import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.42';
 import { shops } from './shopsData.js?v=12.0.2';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
@@ -10899,7 +10899,7 @@ export function openLiveAuctionProjectorView() {
 
             <img src="assets/jsl_logo.jpg" class="w-24 h-24 sm:w-32 sm:h-32 rounded-3xl object-cover border-4 border-amber-400 shadow-md mb-4 animate-bounce" onerror="this.src='assets/card_jsl_user.png'" />
             <h2 class="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight uppercase">
-              JHANKRA SUPER LEAGUE 2026
+              ${store.getActiveTournamentName ? store.getActiveTournamentName() : 'JHANKRA SUPER LEAGUE 2026'}
             </h2>
             <div class="inline-flex items-center gap-2 px-4 py-1.5 bg-amber-100 text-amber-900 font-mono font-black text-sm rounded-full border border-amber-300 my-3 shadow-2xs">
               <span>🔨 LIVE AUCTION ARENA</span>
@@ -10914,23 +10914,28 @@ export function openLiveAuctionProjectorView() {
 
     // 4. Render 8 Franchise Team Cards (EXTRA LARGE FONTS, ZERO FLICKER DIFF GUARD)
     const activeBidderId = (state && state.status === 'BIDDING') ? state.highest_bidder_team_id : null;
-    const currentPursesHash = teams.slice(0, 8).map(t => `${t.id}:${t.remainingPurse}:${t.squadCount}`).join('|') + '||' + activeBidderId;
+    const currentTableHash = allPlayers.map(p => p.id + ':' + (p.auctionStatus || '') + ':' + (p.teamId || '') + ':' + (p.soldPrice || 0)).join('|');
+    const currentPursesHash = teams.slice(0, 8).map(t => `${t.id}:${t.remainingPurse}:${t.squadCount}`).join('|') + '||' + activeBidderId + '||' + currentTableHash;
 
     if (currentPursesHash !== lastProjectorPursesHash || franchiseList.children.length === 0) {
       lastProjectorPursesHash = currentPursesHash;
+      const defaultIconFee = Number(store.getAuctionSettings().defaultIconPrice) || 1000;
+      const targetSquadSize = Number(store.getAuctionSettings().maxSquadSize) || 13;
       
       franchiseList.innerHTML = teams.slice(0, 8).map(t => {
-        const hasIcon = !!((t.iconPlayerName && t.iconPlayerName.trim()) || (t.iconName && t.iconName.trim()));
-        const iconDeduction = hasIcon ? 1000 : 0;
+        const hasIcon = !!((t.iconPlayerName && t.iconPlayerName.trim()) || (t.iconName && t.iconName.trim()) || (t.iconPlayerId && t.iconPlayerId.trim()));
+        const iconDeduction = hasIcon ? defaultIconFee : 0;
         const totalPurse = Number(t.purseBudget || t.purse || 8000);
         const purchasedNonIconPlayers = allPlayers.filter(p => {
-          const isMatch = (p.teamId === t.id) || (p.teamName && (p.teamName || '').trim().toLowerCase() === (t.name || '').trim().toLowerCase());
-          const isSoldStatus = (p.auctionStatus === 'SOLD' || p.isSold === true || !!p.teamId);
+          if (!p) return false;
+          const pTeamId = p.teamId || p.team_id;
+          const isMatch = (pTeamId && (pTeamId === t.id || toUUID(pTeamId) === toUUID(t.id))) || (p.teamName && (p.teamName || '').trim().toLowerCase() === (t.name || '').trim().toLowerCase());
+          const isSoldStatus = (p.auctionStatus === 'SOLD' || p.isSold === true || !!pTeamId);
           const iconPlayerName = (t.iconPlayerName || t.iconName || '').trim().toLowerCase();
-          const isIcon = hasIcon && ((p.name || '').trim().toLowerCase() === iconPlayerName || (t.iconPlayerId && p.id === t.iconPlayerId));
+          const isIcon = hasIcon && (((p.name || '').trim().toLowerCase() === iconPlayerName) || (t.iconPlayerId && (p.id === t.iconPlayerId || toUUID(p.id) === toUUID(t.iconPlayerId))));
           return isMatch && isSoldStatus && !isIcon;
         });
-        const auctionSpent = purchasedNonIconPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || 0), 0);
+        const auctionSpent = purchasedNonIconPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || Number(p.basePrice) || 300), 0);
         const spent = iconDeduction + auctionSpent;
         const left = Math.max(0, totalPurse - spent);
         const squadCount = (hasIcon ? 1 : 0) + purchasedNonIconPlayers.length;
@@ -10948,7 +10953,7 @@ export function openLiveAuctionProjectorView() {
                   ${isLeaderNow ? '<span class="px-1.5 py-0.5 bg-amber-500 text-slate-950 font-mono text-[9px] font-black rounded uppercase animate-pulse shrink-0 shadow-2xs">🔥 BID</span>' : ''}
                 </div>
                 <div class="text-[11px] sm:text-xs text-slate-600 font-mono font-bold">
-                  Squad: <strong class="text-sky-800">${squadCount}/13</strong> ${hasIcon ? '• ⭐ Icon' : ''}
+                  Squad: <strong class="text-sky-800">${squadCount}/${targetSquadSize}</strong> ${hasIcon ? '• ⭐ Icon' : ''}
                 </div>
               </div>
             </div>
