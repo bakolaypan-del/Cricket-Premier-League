@@ -716,22 +716,64 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
 
     const teams = Array.from(teamsMap.values());
 
-    const fixtures = dbMatches.map(m => ({
-      id: m.id,
-      tournament_id: m.tournament_id,
-      matchNo: m.match_no,
-      stage: m.stage,
-      groupCode: m.group_code,
-      teamAId: m.team_a_id,
-      teamBId: m.team_b_id,
-      date: m.date,
-      time: m.time,
-      venue: m.venue,
-      oversLimit: m.overs_limit,
-      status: m.status,
-      result: m.result,
-      liveState: m.live_state
-    }));
+    const configMatches = Array.isArray(tourneyMeta?.format_config?.custom_matches) ? tourneyMeta.format_config.custom_matches : [];
+    const matchesMap = new Map();
+
+    dbMatches.forEach(m => {
+      if (!m || !m.id) return;
+      matchesMap.set(m.id, {
+        id: m.id,
+        tournament_id: m.tournament_id || tId,
+        leagueId: m.tournament_id || tId,
+        matchNo: m.match_no,
+        stage: m.stage || 'GROUP_A',
+        groupCode: m.group_code || 'A',
+        teamAId: m.team_a_id,
+        teamBId: m.team_b_id,
+        teamAName: m.team_a_name || 'Team A',
+        teamBName: m.team_b_name || 'Team B',
+        date: m.date,
+        time: m.time,
+        venue: m.venue,
+        oversLimit: m.overs_limit || 16,
+        status: m.status || 'SCHEDULED',
+        result: m.result,
+        liveState: m.live_state,
+        created_at: m.created_at,
+        updated_at: m.updated_at
+      });
+    });
+
+    configMatches.forEach(cm => {
+      if (!cm || !cm.id) return;
+      const existing = matchesMap.get(cm.id);
+      matchesMap.set(cm.id, {
+        ...(existing || {}),
+        ...cm,
+        id: cm.id,
+        tournament_id: cm.tournament_id || cm.leagueId || tId,
+        leagueId: cm.tournament_id || cm.leagueId || tId,
+        leagueCode: cm.leagueCode || tourneyMeta.category_code || 'T',
+        matchNo: cm.matchNo || cm.match_no || existing?.matchNo || 1,
+        stage: cm.stage || existing?.stage || 'GROUP_A',
+        groupCode: cm.groupCode || cm.group_code || existing?.groupCode || 'A',
+        teamAId: cm.teamAId || cm.team_a_id || existing?.teamAId,
+        teamBId: cm.teamBId || cm.team_b_id || existing?.teamBId,
+        teamAName: cm.teamAName || cm.team_a_name || existing?.teamAName || 'Team A',
+        teamBName: cm.teamBName || cm.team_b_name || existing?.teamBName || 'Team B',
+        date: cm.date || existing?.date,
+        time: cm.time || existing?.time,
+        venue: cm.venue || existing?.venue || 'Ground',
+        oversLimit: cm.oversLimit || cm.overs_limit || existing?.oversLimit || 16,
+        status: cm.status || existing?.status || 'SCHEDULED',
+        result: cm.result || existing?.result || null,
+        liveState: cm.liveMatchState || cm.liveState || existing?.liveState || null,
+        created_at: cm.created_at || existing?.created_at || new Date().toISOString(),
+        updated_at: cm.updated_at || Date.now()
+      });
+    });
+
+    const fixtures = Array.from(matchesMap.values());
 
     return {
       players,
@@ -1102,12 +1144,16 @@ export async function clearAllTeamsFromSupabase(tournamentId = null) {
   }
 }
 
-export async function syncFixtureToSupabase(fixtureData) {
+export async function syncFixtureToSupabase(fixtureData, tournamentId = null) {
   if (!supabase || !fixtureData || !fixtureData.id) return null;
   try {
+    const tid = tournamentId || fixtureData.tournament_id || fixtureData.leagueId || (typeof window !== 'undefined' && window.store?.activeTournamentId) || 'leg-jsl';
+    const tournamentUUID = (await resolveTournamentUUID(tid)) || toUUID(tid);
+    const fixtureUUID = toUUID(fixtureData.id);
+
     const payload = {
-      id: toUUID(fixtureData.id),
-      tournament_id: toUUID(fixtureData.leagueId || fixtureData.tournament_id || 'leg-jsl'),
+      id: fixtureUUID,
+      tournament_id: tournamentUUID,
       match_no: fixtureData.matchNo || fixtureData.match_no || null,
       stage: fixtureData.stage || null,
       group_code: fixtureData.groupCode || fixtureData.group_code || null,
@@ -1121,23 +1167,118 @@ export async function syncFixtureToSupabase(fixtureData) {
       result: fixtureData.result || null,
       live_state: fixtureData.liveMatchState || fixtureData.liveState || fixtureData.live_state || null
     };
-    const { data, error } = await supabase.from('matches').upsert(payload).select().single();
-    if (error) throw error;
-    return data;
+
+    // Primary: Try saving to matches table
+    try {
+      await supabase.from('matches').upsert(payload);
+    } catch (dbErr) {}
+
+    // Guaranteed Multi-Tenant Sync: Save to tournaments.format_config.custom_matches
+    try {
+      let { data: currentTourney } = await supabase.from('tournaments').select('id, format_config').eq('id', tournamentUUID).maybeSingle();
+      if (!currentTourney && tid) {
+        const cleanSlug = String(tid).replace(/^t_/, '').trim();
+        const { data: bySlug } = await supabase.from('tournaments').select('id, format_config').or(`slug.ilike.${cleanSlug},category_code.ilike.${cleanSlug}`).maybeSingle();
+        if (bySlug) currentTourney = bySlug;
+      }
+      if (currentTourney?.id) {
+        const existingConfig = currentTourney.format_config || {};
+        const customMatches = Array.isArray(existingConfig.custom_matches) ? existingConfig.custom_matches : [];
+        const existingIdx = customMatches.findIndex(m => m.id === fixtureData.id || m.id === fixtureUUID);
+        
+        const matchEntry = {
+          ...fixtureData,
+          id: fixtureUUID,
+          tournament_id: currentTourney.id,
+          leagueId: currentTourney.id,
+          updated_at: Date.now()
+        };
+
+        if (existingIdx !== -1) {
+          customMatches[existingIdx] = { ...customMatches[existingIdx], ...matchEntry };
+        } else {
+          customMatches.push(matchEntry);
+        }
+        existingConfig.custom_matches = customMatches;
+
+        await supabase.from('tournaments').update({ format_config: existingConfig, updated_at: new Date().toISOString() }).eq('id', currentTourney.id);
+        console.log("[SUPABASE] Synced match #" + (matchEntry.matchNo || 1) + " to tournament format_config:", matchEntry.teamAName, 'vs', matchEntry.teamBName);
+      }
+    } catch (cfgErr) {
+      console.warn("[SUPABASE] tournament format_config match save notice:", cfgErr);
+    }
+
+    return fixtureData;
   } catch (err) {
     console.warn("[SUPABASE] syncFixtureToSupabase notice:", err);
     return null;
   }
 }
 
-export async function deleteFixtureFromSupabase(fixtureId) {
+export async function deleteFixtureFromSupabase(fixtureId, tournamentId = null) {
   if (!supabase || !fixtureId) return false;
   try {
-    const { error } = await supabase.from('matches').delete().eq('id', toUUID(fixtureId));
-    if (error) throw error;
+    const fixtureUUID = toUUID(fixtureId);
+    try {
+      await supabase.from('matches').delete().eq('id', fixtureUUID);
+    } catch (e) {}
+
+    // Remove from tournament format_config.custom_matches
+    try {
+      const tId = tournamentId ? (await resolveTournamentUUID(tournamentId)) : null;
+      let tourneyQuery = supabase.from('tournaments').select('id, format_config');
+      if (tId) {
+        tourneyQuery = tourneyQuery.eq('id', tId);
+      }
+      const { data: tourneys } = await tourneyQuery;
+      if (Array.isArray(tourneys)) {
+        for (const t of tourneys) {
+          if (Array.isArray(t.format_config?.custom_matches)) {
+            const initialLen = t.format_config.custom_matches.length;
+            const updatedMatches = t.format_config.custom_matches.filter(item => item.id !== fixtureId && item.id !== fixtureUUID);
+            if (updatedMatches.length !== initialLen) {
+              const updatedConfig = { ...t.format_config, custom_matches: updatedMatches };
+              await supabase.from('tournaments').update({ format_config: updatedConfig, updated_at: new Date().toISOString() }).eq('id', t.id);
+            }
+          }
+        }
+      }
+    } catch (e) {}
+
     return true;
   } catch (err) {
     console.warn("[SUPABASE] deleteFixtureFromSupabase notice:", err);
+    return false;
+  }
+}
+
+export async function clearAllFixturesFromSupabase(tournamentId = null) {
+  if (!supabase) return false;
+  try {
+    const tId = tournamentId ? (await resolveTournamentUUID(tournamentId)) : toUUID('leg-jsl');
+    try {
+      await supabase.from('matches').delete().eq('tournament_id', tId);
+    } catch (e) {}
+
+    // Clear from tournament format_config.custom_matches
+    try {
+      let tourneyQuery = supabase.from('tournaments').select('id, format_config');
+      if (tId) {
+        tourneyQuery = tourneyQuery.eq('id', tId);
+      }
+      const { data: tourneys } = await tourneyQuery;
+      if (Array.isArray(tourneys)) {
+        for (const t of tourneys) {
+          const updatedConfig = { ...(t.format_config || {}), custom_matches: [], matches_cleared_at: Date.now() };
+          await supabase.from('tournaments').update({ format_config: updatedConfig, updated_at: new Date().toISOString() }).eq('id', t.id);
+        }
+      }
+    } catch (e) {}
+
+    console.log("[SUPABASE] Cleared all matches for tournament:", tId);
+    return true;
+  } catch (err) {
+    console.warn("[SUPABASE] clearAllFixturesFromSupabase notice:", err);
     return false;
   }
 }
@@ -1223,17 +1364,21 @@ export async function clearAllTeamsFromCloud() {
   return clearAllTeamsFromSupabase();
 }
 
-export async function saveFixtureToCloud(fixture) {
-  return syncFixtureToSupabase(fixture);
+export async function saveFixtureToCloud(fixture, tournamentId = null) {
+  return syncFixtureToSupabase(fixture, tournamentId);
 }
 
-export async function deleteFixtureFromCloud(fixtureId) {
-  return deleteFixtureFromSupabase(fixtureId);
+export async function deleteFixtureFromCloud(fixtureId, tournamentId = null) {
+  return deleteFixtureFromSupabase(fixtureId, tournamentId);
 }
 
-export async function saveFullFixturesListToCloud(fixturesList) {
+export async function clearAllFixturesFromCloud(tournamentId = null) {
+  return clearAllFixturesFromSupabase(tournamentId);
+}
+
+export async function saveFullFixturesListToCloud(fixturesList, tournamentId = null) {
   if (!Array.isArray(fixturesList)) return;
-  await Promise.all(fixturesList.filter(f => f && f.id).map(f => syncFixtureToSupabase(f)));
+  await Promise.all(fixturesList.filter(f => f && f.id).map(f => syncFixtureToSupabase(f, tournamentId)));
 }
 
 export async function saveAuctionSettingsToCloud(settings, tournamentId = null) {

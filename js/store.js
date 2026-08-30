@@ -14,6 +14,7 @@ import {
   clearAllTeamsFromCloud,
   saveFixtureToCloud,
   deleteFixtureFromCloud,
+  clearAllFixturesFromCloud,
   saveAuctionSettingsToCloud,
   saveLiveAuctionToCloud,
   saveLiveMatchToCloud,
@@ -58,7 +59,7 @@ import {
   updateTournamentApprovalStatus,
   fetchLiveAuctionFromCloud,
   fetchGlobalLiveAuctionStatus
-} from './supabase.js?v=13.0.45';
+} from './supabase.js?v=13.0.46';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -441,6 +442,16 @@ class Store {
       // The legacy __cplActiveScoringFixtureId guard is kept as a secondary shield.
       if (Array.isArray(cloudData.fixtures)) {
         const localFixtures = this.getFixtures();
+
+        if (cloudData.fixtures.length === 0 && cloudData.matchesClearedAt > 0) {
+          if (localFixtures.length > 0) {
+            safeSetLocalStorage(this._scopedKey('FIXTURES'), []);
+            this._invalidateCache('fixtures');
+            this.notify('fixtures_updated');
+          }
+          return;
+        }
+
         let nextFixtures = cloudData.fixtures.map(cf => {
           const localF = localFixtures.find(f => f.id === cf.id);
           if (!localF) return cf;
@@ -452,8 +463,17 @@ class Store {
           if (localV >= cloudV && (localF.status === 'LIVE' || cf.status === 'LIVE')) {
             return { ...cf, liveState: localF.liveMatchState || localF.liveState || cf.liveState };
           }
-          return cf;
+          return { ...cf, teamAName: cf.teamAName || localF.teamAName, teamBName: cf.teamBName || localF.teamBName };
         });
+
+        // Retain uncommitted locally scheduled fixtures (e.g. freshly added matches before cloud echo)
+        const cloudIds = new Set(cloudData.fixtures.map(f => f.id));
+        const uncommittedLocals = localFixtures.filter(lf => lf && lf.id && !cloudIds.has(lf.id));
+        if (uncommittedLocals.length > 0 && !(cloudData.matchesClearedAt > 0 && cloudData.fixtures.length === 0)) {
+          nextFixtures = [...nextFixtures, ...uncommittedLocals];
+          // Proactively persist uncommitted local fixtures to cloud
+          uncommittedLocals.forEach(f => saveFixtureToCloud(f, this.activeTournamentId));
+        }
 
         // Shield: protect actively-scored fixture by window flag or persisted localStorage key
         const activeId = (typeof window !== 'undefined' ? window.__cplActiveScoringFixtureId : null) ||
@@ -1740,16 +1760,21 @@ class Store {
     const fixtures = this.getFixtures();
     const newFixture = {
       id: fixtureData.id || generateUUID(),
+      tournament_id: fixtureData.tournament_id || fixtureData.leagueId || this.activeTournamentId,
+      leagueId: fixtureData.leagueId || fixtureData.tournament_id || this.activeTournamentId,
       status: 'SCHEDULED',
       innings: 1,
       teamAScore: { runs: 0, wickets: 0, overs: 0, balls: 0 },
       teamBScore: { runs: 0, wickets: 0, overs: 0, balls: 0 },
       liveMatchState: null,
+      created_at: new Date().toISOString(),
+      updated_at: Date.now(),
       ...fixtureData
     };
     fixtures.push(newFixture);
+    this._invalidateCache('fixtures');
     safeSetLocalStorage(this._scopedKey('FIXTURES'), fixtures);
-    saveFixtureToCloud(newFixture);
+    saveFixtureToCloud(newFixture, this.activeTournamentId);
     this.notify('fixtures_updated');
     return newFixture;
   }
@@ -1758,9 +1783,10 @@ class Store {
     const fixtures = this.getFixtures();
     const idx = fixtures.findIndex(f => f.id === updatedFixture.id);
     if (idx !== -1) {
-      fixtures[idx] = { ...fixtures[idx], ...updatedFixture };
+      fixtures[idx] = { ...fixtures[idx], ...updatedFixture, updated_at: Date.now() };
+      this._invalidateCache('fixtures');
       safeSetLocalStorage(this._scopedKey('FIXTURES'), fixtures);
-      saveFixtureToCloud(fixtures[idx]);
+      saveFixtureToCloud(fixtures[idx], this.activeTournamentId);
       this.notify('fixtures_updated');
       return fixtures[idx];
     }
@@ -1770,8 +1796,16 @@ class Store {
   deleteFixture(fixtureId) {
     let fixtures = this.getFixtures();
     fixtures = fixtures.filter(f => f.id !== fixtureId);
+    this._invalidateCache('fixtures');
     safeSetLocalStorage(this._scopedKey('FIXTURES'), fixtures);
-    deleteFixtureFromCloud(fixtureId);
+    deleteFixtureFromCloud(fixtureId, this.activeTournamentId);
+    this.notify('fixtures_updated');
+  }
+
+  clearAllFixtures() {
+    this._invalidateCache('fixtures');
+    safeSetLocalStorage(this._scopedKey('FIXTURES'), []);
+    clearAllFixturesFromCloud(this.activeTournamentId);
     this.notify('fixtures_updated');
   }
 

@@ -1,8 +1,8 @@
 // Admin Master Data & Payment Verification Panel with Single Source Cloud Control (Developer: Suman Kolay)
 
-import { store } from './store.js?v=13.0.45';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.45';
-import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID, compressImageToTarget } from './supabase.js?v=13.0.45';
+import { store } from './store.js?v=13.0.46';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.46';
+import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID, compressImageToTarget } from './supabase.js?v=13.0.46';
 import { shops } from './shopsData.js?v=12.0.2';
 
 let activeAdminTab = (() => { try { return sessionStorage.getItem('cpl_admin_tab') || (store.isMasterAdmin() ? 'payments' : 'overview'); } catch(e) { return 'payments'; } })();
@@ -2047,12 +2047,14 @@ export function renderAdminDashboard(containerEl) {
     else if (stageVal === 'GROUP_C') grpCode = 'C';
     else if (stageVal === 'GROUP_D') grpCode = 'D';
 
-    const lCode = document.getElementById('fixture-league-category').value;
+    const lCode = document.getElementById('fixture-league-category')?.value || 'T';
     const matchNoInput = document.getElementById('fixture-match-no')?.value;
-    const existingLeagueFix = store.getFixtures().filter(f => (f.leagueCode || 'T').toUpperCase() === lCode.toUpperCase());
+    const existingLeagueFix = store.getFixtures().filter(f => (f.leagueCode || 'T').toUpperCase() === lCode.toUpperCase() || f.tournament_id === activeTid || f.leagueId === activeTid);
     const matchNo = matchNoInput ? Number(matchNoInput) : (existingLeagueFix.length + 1);
 
     store.registerFixture({
+      tournament_id: activeTid,
+      leagueId: activeTid,
       leagueCode: lCode,
       matchNo: matchNo,
       stage: stageVal,
@@ -2068,7 +2070,8 @@ export function renderAdminDashboard(containerEl) {
       status: 'SCHEDULED'
     });
     alert(`Match #${matchNo} scheduled successfully!`);
-    renderAdminDashboard(containerEl);
+    renderAdminFixturesList();
+    renderScorerMatchesList();
   });
 
 
@@ -3324,9 +3327,12 @@ function renderAdminFixturesList() {
 
   const accessibleLeagues = store.getAccessibleLeagues();
   const accessibleCodes = accessibleLeagues.map(l => (l.code || l.category || 'T').toUpperCase());
-  const fixtures = store.getFixtures().filter(f => store.isMasterAdmin() || accessibleCodes.includes((f.leagueCode || 'T').toUpperCase()));
+  const fixtures = store.getFixtures()
+    .filter(f => store.isMasterAdmin() || accessibleCodes.includes((f.leagueCode || 'T').toUpperCase()) || f.tournament_id === store.activeTournamentId || f.leagueId === store.activeTournamentId)
+    .sort((a, b) => (Number(a.matchNo) || 0) - (Number(b.matchNo) || 0));
+
   if (fixtures.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-xs text-slate-500">No matches scheduled yet.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-xs text-slate-500 font-bold">No matches scheduled yet.</td></tr>`;
     return;
   }
 
@@ -3437,7 +3443,7 @@ function renderAdminFixturesList() {
     }
 
     if (confirm(`⚠️ DANGER: Delete ALL Matches Confirmation\n\nAre you sure you want to permanently delete ALL ${fixtures.length} scheduled and completed matches?\n\nThis will clear the entire match schedule from the system.`)) {
-      fixtures.forEach(f => store.deleteFixture(f.id));
+      store.clearAllFixtures();
       renderAdminFixturesList();
       renderScorerMatchesList();
       alert(`✅ All ${fixtures.length} matches have been cleared successfully!`);
