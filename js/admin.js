@@ -1,8 +1,8 @@
 // Admin Master Data & Payment Verification Panel with Single Source Cloud Control (Developer: Suman Kolay)
 
-import { store } from './store.js?v=13.0.29';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.29';
-import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID, compressImageToTarget } from './supabase.js?v=13.0.29';
+import { store } from './store.js?v=13.0.30';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.30';
+import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID, compressImageToTarget } from './supabase.js?v=13.0.30';
 import { shops } from './shopsData.js?v=12.0.2';
 
 let activeAdminTab = (() => { try { return sessionStorage.getItem('cpl_admin_tab') || (store.isMasterAdmin() ? 'payments' : 'overview'); } catch(e) { return 'payments'; } })();
@@ -628,19 +628,59 @@ export function renderAdminDashboard(containerEl) {
             <!-- Setup & Settings -->
             <div class="p-4 sm:p-5 bg-white border-2 border-slate-200 rounded-3xl shadow-sm space-y-3.5">
               <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
-                <i data-lucide="settings" class="w-5 h-5 text-amber-600"></i> Auction Parameters
+                <i data-lucide="settings" class="w-5 h-5 text-amber-600"></i> Auction Parameters & Dynamic Slabs
               </h3>
               <form id="admin-auction-settings-form" class="space-y-3">
-                <div>
-                  <label class="block text-xs font-bold text-slate-600 mb-1">DEFAULT PLAYER BASE PRICE (INR)</label>
-                  <input type="number" id="auction-setting-base-price" value="${store.getAuctionSettings().defaultBasePrice}" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold" />
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                  <div>
+                    <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">DEFAULT BASE PRICE (₹)</label>
+                    <input type="number" id="auction-setting-base-price" value="${store.getAuctionSettings().defaultBasePrice}" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2 font-bold" />
+                  </div>
+                  <div>
+                    <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">TEAM PURSE BUDGET (₹)</label>
+                    <input type="number" id="auction-setting-purse-budget" value="${store.getAuctionSettings().defaultPurseBudget}" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2 font-bold" />
+                  </div>
+                  <div>
+                    <label class="block text-[10px] font-bold text-amber-800 uppercase mb-1">⭐ ICON PLAYER PRICE (₹)</label>
+                    <input type="number" id="auction-setting-icon-price" value="${store.getAuctionSettings().defaultIconPrice || 1000}" class="w-full bg-amber-50/60 border border-amber-300 text-amber-950 text-xs rounded-xl p-2 font-bold" title="Auto-deducted from team purse upon assigning an icon player" />
+                  </div>
                 </div>
-                <div>
-                  <label class="block text-xs font-bold text-slate-600 mb-1">DEFAULT TEAM PURSE BUDGET</label>
-                  <input type="number" id="auction-setting-purse-budget" value="${store.getAuctionSettings().defaultPurseBudget}" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold" />
+
+                <!-- Dynamic Bid Increment Slabs -->
+                <div class="p-3 bg-amber-50/40 rounded-2xl border border-amber-200/80 space-y-2">
+                  <div class="flex items-center justify-between">
+                    <span class="text-[10.5px] font-black text-amber-900 uppercase tracking-wider flex items-center gap-1">
+                      <span>📈</span> Tiered Bid Increment Rules
+                    </span>
+                    <span class="text-[9px] font-bold text-amber-700">Tournament Slabs</span>
+                  </div>
+                  <div class="grid grid-cols-3 gap-2">
+                    <div>
+                      <label class="block text-[9px] font-bold text-slate-600 uppercase mb-0.5">Up to ₹1,000</label>
+                      <div class="flex items-center gap-1">
+                        <span class="text-[10px] font-bold text-slate-500">+₹</span>
+                        <input type="number" id="auction-slab-1" value="${store.getAuctionSettings().bidIncrementSlabs?.[0]?.increment || 50}" min="10" step="10" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-lg p-1.5" />
+                      </div>
+                    </div>
+                    <div>
+                      <label class="block text-[9px] font-bold text-slate-600 uppercase mb-0.5">₹1,000 - ₹2,000</label>
+                      <div class="flex items-center gap-1">
+                        <span class="text-[10px] font-bold text-slate-500">+₹</span>
+                        <input type="number" id="auction-slab-2" value="${store.getAuctionSettings().bidIncrementSlabs?.[1]?.increment || 100}" min="10" step="10" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-lg p-1.5" />
+                      </div>
+                    </div>
+                    <div>
+                      <label class="block text-[9px] font-bold text-slate-600 uppercase mb-0.5">Above ₹2,000</label>
+                      <div class="flex items-center gap-1">
+                        <span class="text-[10px] font-bold text-slate-500">+₹</span>
+                        <input type="number" id="auction-slab-3" value="${store.getAuctionSettings().bidIncrementSlabs?.[2]?.increment || 200}" min="10" step="10" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-lg p-1.5" />
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <button type="submit" class="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl border border-amber-400 shadow-xs cursor-pointer">
-                  Update Settings
+
+                <button type="submit" class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl border border-amber-400 shadow-xs cursor-pointer flex items-center justify-center gap-1.5">
+                  <i data-lucide="save" class="w-3.5 h-3.5"></i> Save Tournament Auction Rules
                 </button>
               </form>
 
@@ -1620,10 +1660,21 @@ export function renderAdminDashboard(containerEl) {
   // Bind Auction Settings Form Submit
   document.getElementById('admin-auction-settings-form')?.addEventListener('submit', (e) => {
     e.preventDefault();
-    const defaultBasePrice = Number(document.getElementById('auction-setting-base-price').value) || 300;
-    const defaultPurseBudget = Number(document.getElementById('auction-setting-purse-budget').value) || 8000;
-    store.updateAuctionSettings({ defaultBasePrice, defaultPurseBudget });
-    alert("Auction parameters updated successfully!");
+    const defaultBasePrice = Number(document.getElementById('auction-setting-base-price')?.value) || 300;
+    const defaultPurseBudget = Number(document.getElementById('auction-setting-purse-budget')?.value) || 8000;
+    const defaultIconPrice = Number(document.getElementById('auction-setting-icon-price')?.value) || 1000;
+    const slab1Inc = Number(document.getElementById('auction-slab-1')?.value) || 50;
+    const slab2Inc = Number(document.getElementById('auction-slab-2')?.value) || 100;
+    const slab3Inc = Number(document.getElementById('auction-slab-3')?.value) || 200;
+
+    const bidIncrementSlabs = [
+      { maxLimit: 1000, increment: slab1Inc },
+      { maxLimit: 2000, increment: slab2Inc },
+      { maxLimit: 999999, increment: slab3Inc }
+    ];
+
+    store.updateAuctionSettings({ defaultBasePrice, defaultPurseBudget, defaultIconPrice, bidIncrementSlabs });
+    alert("✅ Tournament Auction parameters, Icon Price & Bid Slabs updated successfully!");
     renderAdminDashboard(containerEl);
   });
 
@@ -5540,9 +5591,9 @@ export function renderActiveAuctionBlock() {
   const p = activeAuction.player;
   const timerClass = activeAuction.timerSecs <= 5 ? 'text-rose-400 animate-pulse border-rose-500 bg-rose-950/50' : activeAuction.timerSecs <= 10 ? 'text-amber-400 border-amber-500 bg-amber-950/50' : 'text-emerald-400 border-emerald-500 bg-emerald-950/50';
 
-  // Calculate Next Increment (If no team has bid yet, next bid is the Base Price; otherwise +50 under 1000, +100 at/above 1000)
+  // Calculate Dynamic Next Increment using Tournament Tiered Slabs
   const isOpeningBid = !activeAuction.leadingTeam;
-  const inc = activeAuction.currentBid < 1000 ? 50 : 100;
+  const inc = store.calculateNextBidIncrement(activeAuction.currentBid);
   const nextInc = isOpeningBid ? 0 : inc;
   const nextBidAmount = isOpeningBid ? activeAuction.currentBid : (activeAuction.currentBid + inc);
 
@@ -5678,7 +5729,7 @@ export function renderActiveAuctionBlock() {
       if (!team) return;
 
       const isOpening = !activeAuction.leadingTeam;
-      const inc = activeAuction.currentBid < 1000 ? 50 : 100;
+      const inc = store.calculateNextBidIncrement(activeAuction.currentBid);
       const newBid = isOpening ? activeAuction.currentBid : (activeAuction.currentBid + inc);
 
       if (team.remainingPurse < newBid) {

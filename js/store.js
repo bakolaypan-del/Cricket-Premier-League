@@ -56,7 +56,7 @@ import {
   toUUID,
   fetchGlobalUniquePlayersCount,
   updateTournamentApprovalStatus
-} from './supabase.js?v=13.0.29';
+} from './supabase.js?v=13.0.30';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -1477,9 +1477,8 @@ class Store {
     const filteredTeams = deduped;
 
     const teamResult = filteredTeams.map((t, idx) => {
-      const iconPlayerName = (t.iconPlayerName || t.iconName || '').trim().toLowerCase();
-      const hasIcon = !!iconPlayerName;
-      const iconDeduction = hasIcon ? 1000 : 0;
+      const defaultIconFee = Number(this.getAuctionSettings().defaultIconPrice) || 1000;
+      const iconDeduction = hasIcon ? defaultIconFee : 0;
       
       // Calculate total spent on purchased auction players (excluding icon player to avoid double deduction)
       const purchasedNonIconPlayers = allPlayers.filter(p => {
@@ -1553,12 +1552,13 @@ class Store {
       players.forEach(p => {
         const isNew = (newIconId && p.id === newIconId) || (newIconName && (p.name || '').trim().toLowerCase() === newIconName);
         if (isNew) {
+          const iconFee = Number(this.getAuctionSettings().defaultIconPrice) || 1000;
           p.teamId = newTeam.id;
           p.teamName = newTeam.name;
           p.isIcon = true;
           p.isIconPlayer = true;
           p.auctionStatus = 'SOLD';
-          p.soldPrice = 1000;
+          p.soldPrice = iconFee;
           p.isSold = true;
           p.boughtByTeamId = newTeam.id;
           p.updated_at = Date.now();
@@ -1878,7 +1878,16 @@ class Store {
 
   // --- AUCTION CONFIG ---
   getAuctionSettings() {
-    const defaultSettings = { defaultBasePrice: 300, defaultPurseBudget: 8000 };
+    const defaultSettings = {
+      defaultBasePrice: 300,
+      defaultPurseBudget: 8000,
+      defaultIconPrice: 1000,
+      bidIncrementSlabs: [
+        { maxLimit: 1000, increment: 50 },
+        { maxLimit: 2000, increment: 100 },
+        { maxLimit: 999999, increment: 200 }
+      ]
+    };
     try {
       const s = localStorage.getItem(this._scopedKey('AUCTION_SETTINGS'));
       if (!s) return defaultSettings;
@@ -1886,16 +1895,39 @@ class Store {
       return {
         ...defaultSettings,
         ...parsed,
-        defaultBasePrice: (!parsed.defaultBasePrice || Number(parsed.defaultBasePrice) === 200) ? 300 : Number(parsed.defaultBasePrice)
+        defaultBasePrice: (!parsed.defaultBasePrice || Number(parsed.defaultBasePrice) === 200) ? 300 : Number(parsed.defaultBasePrice),
+        defaultPurseBudget: Number(parsed.defaultPurseBudget) || 8000,
+        defaultIconPrice: (parsed.defaultIconPrice !== undefined) ? Number(parsed.defaultIconPrice) : 1000,
+        bidIncrementSlabs: Array.isArray(parsed.bidIncrementSlabs) && parsed.bidIncrementSlabs.length > 0
+          ? parsed.bidIncrementSlabs
+          : defaultSettings.bidIncrementSlabs
       };
     } catch (e) {
       return defaultSettings;
     }
   }
 
+  calculateNextBidIncrement(currentBid) {
+    const settings = this.getAuctionSettings();
+    const slabs = settings.bidIncrementSlabs || [
+      { maxLimit: 1000, increment: 50 },
+      { maxLimit: 2000, increment: 100 },
+      { maxLimit: 999999, increment: 200 }
+    ];
+    const numBid = Number(currentBid) || 0;
+    for (const slab of slabs) {
+      if (numBid < Number(slab.maxLimit || Infinity)) {
+        return Number(slab.increment) || 50;
+      }
+    }
+    return slabs[slabs.length - 1]?.increment || 200;
+  }
+
   updateAuctionSettings(settings) {
-    safeSetLocalStorage(this._scopedKey('AUCTION_SETTINGS'), settings);
-    saveAuctionSettingsToCloud(settings);
+    const current = this.getAuctionSettings();
+    const merged = { ...current, ...settings };
+    safeSetLocalStorage(this._scopedKey('AUCTION_SETTINGS'), merged);
+    saveAuctionSettingsToCloud(merged);
     this.notify('auction_settings_updated');
   }
 
