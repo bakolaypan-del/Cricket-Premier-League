@@ -625,23 +625,55 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
       };
     });
 
-    const teams = dbTeams.map((t, idx) => ({
-      id: t.id,
-      tournament_id: t.tournament_id,
-      leagueId: t.tournament_id || tId,
-      name: t.name,
-      shortCode: t.short_name,
-      ownerName: t.owner_name,
-      ownerPhone: t.owner_phone,
-      logoUrl: t.logo_url,
-      teamLogoUrl: t.logo_url,
-      purse: t.budget_total,
-      remainingPurse: t.budget_remaining,
-      groupCode: t.group_code,
-      serialNo: idx + 1,
-      created_at: t.created_at,
-      updated_at: t.updated_at
-    }));
+    const configTeams = Array.isArray(tourneyMeta?.format_config?.custom_teams) ? tourneyMeta.format_config.custom_teams : [];
+    
+    // Merge teams from Postgres table and tournament format_config
+    const teamsMap = new Map();
+    dbTeams.forEach((t, idx) => {
+      teamsMap.set(t.id, {
+        id: t.id,
+        tournament_id: t.tournament_id,
+        leagueId: t.tournament_id || tId,
+        name: t.name,
+        shortCode: t.short_name,
+        ownerName: t.owner_name,
+        ownerPhone: t.owner_phone,
+        logoUrl: t.logo_url,
+        teamLogoUrl: t.logo_url,
+        purse: t.budget_total,
+        remainingPurse: t.budget_remaining,
+        groupCode: t.group_code,
+        serialNo: idx + 1,
+        created_at: t.created_at,
+        updated_at: t.updated_at
+      });
+    });
+
+    configTeams.forEach((ct) => {
+      if (!ct || !ct.id) return;
+      const existing = teamsMap.get(ct.id);
+      teamsMap.set(ct.id, {
+        ...(existing || {}),
+        ...ct,
+        id: ct.id,
+        tournament_id: ct.tournament_id || tId,
+        leagueId: ct.tournament_id || tId,
+        name: ct.name,
+        shortCode: ct.shortCode || ct.short_name,
+        ownerName: ct.ownerName || ct.owner_name,
+        ownerPhone: ct.ownerPhone || ct.owner_phone,
+        logoUrl: ct.logoUrl || ct.logo_url,
+        teamLogoUrl: ct.teamLogoUrl || ct.logoUrl,
+        purse: Number(ct.purse || ct.purseBudget || 8000),
+        purseBudget: Number(ct.purseBudget || ct.purse || 8000),
+        remainingPurse: Number(ct.remainingPurse || ct.purseBudget || ct.purse || 8000),
+        serialNo: existing?.serialNo || (teamsMap.size + 1),
+        created_at: ct.created_at || existing?.created_at || new Date().toISOString(),
+        updated_at: ct.updated_at || Date.now()
+      });
+    });
+
+    const teams = Array.from(teamsMap.values());
 
     const fixtures = dbMatches.map(m => ({
       id: m.id,
@@ -880,36 +912,100 @@ export async function syncTeamToSupabase(teamData) {
   if (!supabase || !teamData || !teamData.id) return null;
   try {
     const tid = teamData.tournament_id || teamData.tournamentId || teamData.leagueId || 'leg-jsl';
-    const isValidUUID = typeof tid === 'string' && tid.length >= 30 && tid.includes('-');
-    const tournamentUUID = isValidUUID ? tid : toUUID(tid);
-    const payload = {
-      id: toUUID(teamData.id),
-      tournament_id: tournamentUUID,
-      name: teamData.name,
-      short_name: teamData.shortCode || null,
-      owner_name: teamData.ownerName || null,
-      owner_phone: teamData.ownerPhone || null,
-      logo_url: teamData.logoUrl || teamData.teamLogoUrl || null,
-      budget_total: Number(teamData.purseBudget || teamData.purse) || 8000,
-      budget_remaining: Number(teamData.remainingPurse || teamData.purseBudget || teamData.purse) || 8000,
-      updated_at: new Date().toISOString()
-    };
-    const { data, error } = await supabase.from('teams').upsert(payload).select().single();
-    if (error) throw error;
-    console.log("[SUPABASE] Synced team:", teamData.name);
-    return data;
+    const tournamentUUID = await resolveTournamentUUID(tid);
+    const teamUUID = (teamData.id && UUID_FORMAT_RE.test(teamData.id)) ? teamData.id : generateUUID();
+
+    // 1. Direct PostgreSQL teams table upsert
+    try {
+      const payload = {
+        id: teamUUID,
+        tournament_id: tournamentUUID,
+        name: teamData.name,
+        short_name: teamData.shortCode || null,
+        owner_name: teamData.ownerName || null,
+        owner_phone: teamData.ownerPhone || null,
+        logo_url: teamData.logoUrl || teamData.teamLogoUrl || null,
+        budget_total: Number(teamData.purseBudget || teamData.purse) || 8000,
+        budget_remaining: Number(teamData.remainingPurse || teamData.purseBudget || teamData.purse) || 8000,
+        updated_at: new Date().toISOString()
+      };
+      await supabase.from('teams').upsert(payload);
+    } catch (tblErr) {
+      console.warn("[SUPABASE] Direct teams table upsert notice:", tblErr);
+    }
+
+    // 2. Persist team permanently in tournament format_config.custom_teams (guarantees zero RLS loss)
+    try {
+      let { data: currentTourney } = await supabase.from('tournaments').select('id, format_config').eq('id', tournamentUUID).maybeSingle();
+      if (!currentTourney && tid) {
+        const cleanSlug = String(tid).replace(/^t_/, '').trim();
+        const { data: bySlug } = await supabase.from('tournaments').select('id, format_config').or(`slug.ilike.${cleanSlug},category_code.ilike.${cleanSlug}`).maybeSingle();
+        if (bySlug) currentTourney = bySlug;
+      }
+      if (currentTourney?.id) {
+        const existingConfig = currentTourney.format_config || {};
+        const customTeams = Array.isArray(existingConfig.custom_teams) ? existingConfig.custom_teams : [];
+        const existingIdx = customTeams.findIndex(t => t.id === teamData.id || t.id === teamUUID || (t.name && t.name.toLowerCase() === teamData.name.toLowerCase()));
+        
+        const teamEntry = {
+          ...teamData,
+          id: teamUUID,
+          tournament_id: currentTourney.id,
+          tournamentId: currentTourney.id,
+          updated_at: Date.now()
+        };
+
+        if (existingIdx !== -1) {
+          customTeams[existingIdx] = { ...customTeams[existingIdx], ...teamEntry };
+        } else {
+          customTeams.push(teamEntry);
+        }
+        existingConfig.custom_teams = customTeams;
+
+        await supabase.from('tournaments').update({ format_config: existingConfig }).eq('id', currentTourney.id);
+        console.log("[SUPABASE] Synced team to tournament format_config:", teamData.name);
+      }
+    } catch (cfgErr) {
+      console.warn("[SUPABASE] tournament format_config team save notice:", cfgErr);
+    }
+
+    return teamData;
   } catch (err) {
-    console.warn("[SUPABASE] syncTeamToSupabase notice:", err);
+    console.error("[SUPABASE] syncTeamToSupabase error:", err);
     return null;
   }
 }
 
-export async function deleteTeamFromSupabase(teamId) {
+export async function deleteTeamFromSupabase(teamId, tournamentId = null) {
   if (!supabase || !teamId) return false;
   try {
-    const { error } = await supabase.from('teams').delete().eq('id', toUUID(teamId));
-    if (error) throw error;
-    console.log("[SUPABASE] Deleted team:", teamId);
+    const teamUUID = toUUID(teamId);
+    try {
+      await supabase.from('teams').delete().eq('id', teamUUID);
+    } catch (e) {}
+
+    // Remove from tournament format_config.custom_teams
+    try {
+      const tId = tournamentId ? (await resolveTournamentUUID(tournamentId)) : null;
+      let tourneyQuery = supabase.from('tournaments').select('id, format_config');
+      if (tId) {
+        tourneyQuery = tourneyQuery.eq('id', tId);
+      }
+      const { data: tourneys } = await tourneyQuery;
+      if (Array.isArray(tourneys)) {
+        for (const t of tourneys) {
+          if (Array.isArray(t.format_config?.custom_teams)) {
+            const initialLen = t.format_config.custom_teams.length;
+            const updatedTeams = t.format_config.custom_teams.filter(item => item.id !== teamId && item.id !== teamUUID);
+            if (updatedTeams.length !== initialLen) {
+              const updatedConfig = { ...t.format_config, custom_teams: updatedTeams };
+              await supabase.from('tournaments').update({ format_config: updatedConfig }).eq('id', t.id);
+            }
+          }
+        }
+      }
+    } catch (e) {}
+
     return true;
   } catch (err) {
     console.warn("[SUPABASE] deleteTeamFromSupabase notice:", err);

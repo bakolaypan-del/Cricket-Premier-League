@@ -56,7 +56,7 @@ import {
   toUUID,
   fetchGlobalUniquePlayersCount,
   updateTournamentApprovalStatus
-} from './supabase.js?v=13.0.26';
+} from './supabase.js?v=13.0.27';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -1635,6 +1635,7 @@ class Store {
       t.serialNo = idx + 1;
     });
     
+    delete this._cache.teams;
     safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
     syncTeamToSupabase(newTeam);
     this.syncIconPlayerAllocation(null, newTeam);
@@ -1651,6 +1652,7 @@ class Store {
       teams.forEach((t, i) => {
         t.serialNo = i + 1;
       });
+      delete this._cache.teams;
       safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
       syncTeamToSupabase(teams[idx]);
       this.syncIconPlayerAllocation(oldTeam, teams[idx]);
@@ -1684,9 +1686,10 @@ class Store {
       }
     });
 
+    delete this._cache.teams;
     safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
     safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
-    deleteTeamFromSupabase(teamId);
+    deleteTeamFromSupabase(teamId, this.activeTournamentId);
     this.notify('teams_updated');
     this.notify('players_updated');
   }
