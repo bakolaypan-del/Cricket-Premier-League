@@ -56,8 +56,9 @@ import {
   toUUID,
   fetchGlobalUniquePlayersCount,
   updateTournamentApprovalStatus,
-  fetchLiveAuctionFromCloud
-} from './supabase.js?v=13.0.44';
+  fetchLiveAuctionFromCloud,
+  fetchGlobalLiveAuctionStatus
+} from './supabase.js?v=13.0.45';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -345,7 +346,9 @@ class Store {
 
           const effectiveTeamId = cp.teamId || lp.teamId || null;
           const effectiveTeamName = cp.teamName || lp.teamName || null;
-          const effectiveSoldPrice = Number(cp.soldPrice !== undefined ? cp.soldPrice : (lp.soldPrice || 0)) || 0;
+          const effectiveSoldPrice = (Number(cp.soldPrice) > 0)
+            ? Number(cp.soldPrice)
+            : ((Number(lp.soldPrice) > 0) ? Number(lp.soldPrice) : (Number(cp.boughtPrice) || Number(lp.boughtPrice) || (effectiveTeamId ? 300 : 0)));
           const effectiveAuctionStatus = cp.auctionStatus || lp.auctionStatus || (effectiveTeamId ? 'SOLD' : 'PENDING');
           const effectiveIsSold = (effectiveAuctionStatus === 'SOLD' || cp.isSold === true || lp.isSold === true || !!effectiveTeamId);
           const effectiveIsUnsold = (effectiveAuctionStatus === 'UNSOLD' || cp.isUnsold === true || lp.isUnsold === true);
@@ -2074,6 +2077,64 @@ class Store {
     }
     await saveLiveAuctionToCloud(updatedState, this.activeTournamentId);
     this.notify('live_auction_updated');
+  }
+
+  async getGlobalLiveAuctionInfo() {
+    try {
+      const globalInfo = await fetchGlobalLiveAuctionStatus();
+      if (globalInfo && (globalInfo.isLive || globalInfo.recentTournaments?.length)) {
+        return globalInfo;
+      }
+    } catch(e) {}
+    
+    // Fallback using locally cached tournament metadata
+    const activeTourney = this.getCustomTournaments().find(t => (t.supabaseId || t.id) === this.activeTournamentId) || {};
+    const localState = this.getLiveAuctionStateSync();
+    const isLive = localState && (localState.status === 'BIDDING' || localState.status === 'SOLD' || localState.status === 'UNSOLD') && localState.active_player_id && !localState.is_ended && localState.status !== 'ENDED';
+    return {
+      isLive: !!isLive,
+      liveTournament: isLive ? activeTourney : null,
+      liveState: isLive ? localState : null,
+      recentTournaments: this.getCustomTournaments().map(t => ({
+        id: t.supabaseId || t.id,
+        name: t.name,
+        slug: t.slug,
+        logoUrl: t.posterUrl || t.logoUrl || 'assets/jsl_logo.jpg',
+        customTeamsCount: t.teamsCount || 4,
+        auctionStatus: 'CONCLUDED'
+      }))
+    };
+  }
+
+  async concludeLiveAuction(tournamentId = null) {
+    const targetTid = tournamentId || this.activeTournamentId;
+    const concludedState = {
+      status: 'ENDED',
+      is_ended: true,
+      active_player_id: null,
+      name: null,
+      current_bid: 0,
+      highest_bidder_team_id: null,
+      timer_left: 0,
+      updated_at: Date.now()
+    };
+    
+    this.liveAuctionState = concludedState;
+    safeSetLocalStorage(this._scopedKey('LIVE_AUCTION_STATE'), concludedState);
+    localStorage.removeItem('cpl_live_auction_state');
+    
+    await saveLiveAuctionToCloud(concludedState, targetTid);
+    
+    // Lock & save the permanent snapshot automatically
+    try {
+      await this.commitAndSyncAuctionPermanentArchive(targetTid);
+    } catch(errArchive) {
+      console.warn("Permanent archive commit warning:", errArchive);
+    }
+
+    this.notify('live_auction_updated');
+    this.notify('auction_ended');
+    return true;
   }
 
   // --- PERMANENT 5-YEAR AUCTION ARCHIVE & RECORD VAULT ---

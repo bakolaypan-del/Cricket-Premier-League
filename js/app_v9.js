@@ -1,10 +1,10 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=13.0.44';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.44';
-import { renderAdminDashboard } from './admin.js?v=13.0.44';
-import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.44';
-import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.44';
+import { store } from './store.js?v=13.0.45';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.45';
+import { renderAdminDashboard } from './admin.js?v=13.0.45';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.45';
+import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.45';
 import { shops } from './shopsData.js?v=12.0.2';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
@@ -9262,205 +9262,342 @@ function renderLiveAuctionView(container) {
     auctionPollInterval = null;
   }
 
+  let isLiveMode = false;
   let playerSearchQuery = '';
   let activeStatusTab = 'all'; // 'all', 'sold', 'unsold', 'pending'
-
-  // 1. Render outer shell ONCE in crisp professional theme
-  container.innerHTML = `
-    <div class="space-y-5 sm:space-y-6 animate-fade-in pb-16 max-w-4xl mx-auto px-1 sm:px-4">
-      
-      <!-- Top Header matching screenshot -->
-      <div class="bg-white border-2 border-slate-200/90 rounded-2xl sm:rounded-3xl p-3 sm:p-4 shadow-xs flex items-center justify-between flex-wrap gap-2">
-        <div class="flex items-center gap-3">
-          <span class="w-10 h-10 bg-amber-100 text-amber-800 rounded-2xl flex items-center justify-center shrink-0 text-xl shadow-2xs">
-            🔨
-          </span>
-          <div>
-            <h1 class="text-base sm:text-xl font-black text-slate-900 tracking-tight">
-              Live Player Auction Hub
-            </h1>
-            <p class="text-[10px] sm:text-xs text-slate-500 font-bold">Real-time bids, live purse tracking & official team squads</p>
-          </div>
-        </div>
-        <div class="flex items-center gap-2">
-          <button id="auction-open-projector-view-btn" onclick="window.openLiveAuctionProjectorView ? window.openLiveAuctionProjectorView() : null" class="px-3.5 py-2 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-md flex items-center gap-1.5 transition-all hover:scale-105 border border-amber-300 cursor-pointer active:scale-95 select-none" title="Open Single-Screen Live Projector View">
-            <span class="text-base">📽️</span> <span>Projector Screen</span>
-          </button>
-          <span class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 font-extrabold text-xs rounded-xl border border-emerald-200 shadow-2xs">
-            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span> LIVE
-          </span>
-        </div>
-      </div>
-
-      <!-- Active Player Live Block (Waiting / Active Bidding) -->
-      <div id="auction-active-block-container" class="space-y-4"></div>
-
-      <!-- FRANCHISE PURSES SECTION (ALL TEAMS SHOWN FIRST) -->
-      <div class="space-y-3 pt-1">
-        <div class="flex justify-between items-center px-1">
-          <h3 class="text-xs sm:text-sm font-black text-slate-800 uppercase tracking-wider">
-            FRANCHISE PURSES
-          </h3>
-          <span class="text-xs font-bold text-slate-500 font-mono">Target: ${store.getAuctionSettings().maxSquadSize || 13} Players</span>
-        </div>
-
-        <div class="space-y-3" id="auction-franchise-purses-list"></div>
-      </div>
-
-      <!-- LOWER PORTION: Compact & Ultra-Stylish Player Auction Status & Record Card -->
-      <div class="bg-white border-2 border-slate-200/90 rounded-2xl sm:rounded-3xl shadow-xs overflow-hidden">
-        
-        <!-- Sleek Click-to-Open Accordion Header (Strict Single-Line Design) -->
-        <button id="toggle-player-status-accordion-btn" class="w-full flex items-center justify-between p-2.5 sm:p-3.5 bg-white hover:bg-slate-50 transition-all text-left cursor-pointer group select-none">
-          <div class="flex items-center gap-2.5 min-w-0 pr-1">
-            <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-black text-sm shrink-0 shadow-xs group-hover:scale-105 transition-transform">
-              📋
-            </div>
-            <div class="min-w-0 flex flex-col justify-center">
-              <!-- Single Line 1: Header - Auction Record + Total Badge -->
-              <div class="flex items-center gap-1.5 whitespace-nowrap">
-                <h3 class="text-xs sm:text-sm font-black text-slate-900 tracking-tight whitespace-nowrap">
-                  Auction Record
-                </h3>
-                <span class="px-1.5 py-0.2 bg-slate-900 text-white rounded-full text-[9px] sm:text-[10px] font-mono font-bold whitespace-nowrap" id="accordion-total-players-badge">
-                  0 Players
-                </span>
-              </div>
-              
-              <!-- Mini Stats Row: Sold, Unsold & Queue in single line, respective Numbers in next line -->
-              <div class="flex items-center gap-2.5 sm:gap-4 mt-1">
-                <!-- Sold -->
-                <div class="flex flex-col items-center">
-                  <span class="text-[9px] font-extrabold text-emerald-700 flex items-center gap-0.5 whitespace-nowrap">
-                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span> Sold
-                  </span>
-                  <span class="text-[11px] sm:text-xs font-black text-emerald-900 font-mono leading-tight" id="accordion-sold-count">
-                    0
-                  </span>
-                </div>
-
-                <div class="h-4 w-[1px] bg-slate-200 shrink-0"></div>
-
-                <!-- Unsold -->
-                <div class="flex flex-col items-center">
-                  <span class="text-[9px] font-extrabold text-rose-600 flex items-center gap-0.5 whitespace-nowrap">
-                    <span class="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0"></span> Unsold
-                  </span>
-                  <span class="text-[11px] sm:text-xs font-black text-rose-900 font-mono leading-tight" id="accordion-unsold-count">
-                    0
-                  </span>
-                </div>
-
-                <div class="h-4 w-[1px] bg-slate-200 shrink-0"></div>
-
-                <!-- Queue -->
-                <div class="flex flex-col items-center">
-                  <span class="text-[9px] font-extrabold text-slate-500 flex items-center gap-0.5 whitespace-nowrap">
-                    <span class="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0"></span> Queue
-                  </span>
-                  <span class="text-[11px] sm:text-xs font-black text-slate-800 font-mono leading-tight" id="accordion-pending-count">
-                    0
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <div class="flex items-center shrink-0 pl-1">
-            <span id="accordion-toggle-btn-badge" class="px-2.5 sm:px-3 py-1.5 bg-blue-600 group-hover:bg-blue-700 text-white font-black text-[11px] sm:text-xs rounded-xl shadow-xs flex items-center gap-1 transition-all whitespace-nowrap">
-              <span id="accordion-toggle-label">Open Table</span>
-              <span id="accordion-toggle-arrow" class="text-[9px] transition-transform duration-300">▼</span>
-            </span>
-          </div>
-        </button>
-
-        <!-- Collapsible Content (Hidden by Default) -->
-        <div id="player-auction-status-collapsible" class="hidden border-t border-slate-100 bg-slate-50/40 p-3 sm:p-4 space-y-3 animate-fade-in">
-          
-          <!-- Compact Segmented Filter Tabs -->
-          <div class="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar" id="auction-status-filter-tabs">
-            <button class="status-tab-btn px-2.5 py-1.2 rounded-lg font-black text-xs transition-all cursor-pointer bg-slate-900 text-white shadow-xs shrink-0" data-tab="all">
-              All (<span id="count-all">0</span>)
-            </button>
-            <button class="status-tab-btn px-2.5 py-1.2 rounded-lg font-bold text-xs transition-all cursor-pointer bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 shrink-0" data-tab="sold">
-              ✅ Sold (<span id="count-sold">0</span>)
-            </button>
-            <button class="status-tab-btn px-2.5 py-1.2 rounded-lg font-bold text-xs transition-all cursor-pointer bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 shrink-0" data-tab="unsold">
-              ❌ Unsold (<span id="count-unsold">0</span>)
-            </button>
-            <button class="status-tab-btn px-2.5 py-1.2 rounded-lg font-bold text-xs transition-all cursor-pointer bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 shrink-0" data-tab="pending">
-              ⏳ In Queue (<span id="count-pending">0</span>)
-            </button>
-          </div>
-
-          <!-- Compact Search Bar -->
-          <div class="relative">
-            <input type="text" id="auction-player-search-input" placeholder="🔍 Search by name, village, role, or team..." class="w-full bg-white border border-slate-200 text-slate-800 text-xs rounded-xl py-2 px-3 pl-3 focus:outline-none focus:border-blue-500 font-bold placeholder-slate-400 shadow-2xs" />
-          </div>
-
-          <!-- Stylish Compact Table Container -->
-          <div class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
-            <div id="auction-players-full-table-content" class="overflow-x-auto max-h-[460px] overflow-y-auto"></div>
-          </div>
-
-        </div>
-
-      </div>
-
-    </div>
-  `;
-
-  if (window.lucide) window.lucide.createIcons();
-
   let lastActivePlayerId = undefined;
   let lastActiveStatus = undefined;
+  let lastAuctionSyncTimestamp = 0;
+  let lastAuctionCloudHeartbeat = 0;
+  let lastRenderedTableHash = '';
+  let lastRenderedPursesHash = '';
+  let lastRenderedLiveBid = null;
 
-  // Toggle Accordion Click Handler
-  let isTableOpen = false;
-  const toggleBtn = document.getElementById('toggle-player-status-accordion-btn');
-  const collapsibleDiv = document.getElementById('player-auction-status-collapsible');
-  const toggleLabel = document.getElementById('accordion-toggle-label');
-  const toggleArrow = document.getElementById('accordion-toggle-arrow');
+  const renderConcludedView = (globalInfo) => {
+    const recentTourneys = globalInfo.recentTournaments || [];
+    const mainTourney = globalInfo.liveTournament || recentTourneys.find(t => t.customTeamsCount > 0) || recentTourneys[0] || { name: 'Kuapur Premier League', slug: 'k2026' };
+    const allTourneys = store.getCustomTournaments();
 
-  if (toggleBtn && collapsibleDiv) {
-    toggleBtn.addEventListener('click', () => {
-      isTableOpen = !isTableOpen;
-      if (isTableOpen) {
-        collapsibleDiv.classList.remove('hidden');
-        if (toggleLabel) toggleLabel.textContent = 'Close';
-        if (toggleArrow) toggleArrow.textContent = '▲';
-        renderPlayerStatusTable();
-      } else {
-        collapsibleDiv.classList.add('hidden');
-        if (toggleLabel) toggleLabel.textContent = 'Open Table';
-        if (toggleArrow) toggleArrow.textContent = '▼';
-      }
-    });
-  }
+    container.innerHTML = `
+      <div class="space-y-6 animate-fade-in pb-16 max-w-4xl mx-auto px-2 sm:px-4 text-slate-900">
+        
+        <!-- Top Status Bar -->
+        <div class="bg-white border-2 border-slate-200/90 rounded-2xl sm:rounded-3xl p-4 shadow-xs flex items-center justify-between flex-wrap gap-3">
+          <div class="flex items-center gap-3">
+            <span class="w-11 h-11 bg-amber-100 text-amber-800 rounded-2xl flex items-center justify-center shrink-0 text-2xl shadow-2xs">
+              🔨
+            </span>
+            <div>
+              <h1 class="text-base sm:text-xl font-black text-slate-900 tracking-tight">
+                Grand Player Auction Arena
+              </h1>
+              <p class="text-[11px] sm:text-xs text-slate-500 font-bold">Multi-Tenant Real-Time Auction & Squad Allocation Portal</p>
+            </div>
+          </div>
+          
+          <div class="flex items-center gap-2">
+            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-700 font-black text-xs rounded-xl border border-slate-200 shadow-2xs">
+              <span class="w-2.5 h-2.5 rounded-full bg-slate-400"></span> NO AUCTION CURRENTLY LIVE
+            </span>
+          </div>
+        </div>
 
-  // Tab switching
-  document.querySelectorAll('.status-tab-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      activeStatusTab = e.currentTarget.getAttribute('data-tab');
-      document.querySelectorAll('.status-tab-btn').forEach(b => {
-        b.className = 'status-tab-btn px-2.5 py-1.2 rounded-lg font-bold text-xs transition-all cursor-pointer bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 shrink-0';
+        <!-- Featured Recent Auction Highlight Card -->
+        <div class="bg-gradient-to-br from-slate-900 via-[#0F172A] to-slate-950 text-white rounded-3xl p-5 sm:p-7 border-2 border-amber-400/80 shadow-xl space-y-4">
+          <div class="flex items-center justify-between flex-wrap gap-2">
+            <div class="flex items-center gap-2">
+              <span class="px-2.5 py-0.5 bg-amber-500 text-slate-950 font-black text-[9px] sm:text-[10px] rounded-full uppercase tracking-wider">
+                RECENT COMPLETED AUCTION
+              </span>
+              <span class="px-2.5 py-0.5 bg-emerald-500/20 text-emerald-400 font-bold text-[9px] sm:text-[10px] rounded-full border border-emerald-500/40">
+                🔒 5-YEAR ARCHIVE LOCKED
+              </span>
+            </div>
+            <span class="text-xs text-slate-400 font-bold">Official League Vault</span>
+          </div>
+
+          <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+            <div>
+              <h2 class="text-xl sm:text-3xl font-black text-white uppercase tracking-tight">
+                🏆 ${mainTourney.name}
+              </h2>
+              <p class="text-xs sm:text-sm text-amber-200/90 font-medium mt-0.5">
+                All franchise player allocations, icon fees, and financial balance sheets are finalized.
+              </p>
+            </div>
+
+            <a href="#t/${mainTourney.slug || 'k2026'}?tab=auction" class="w-full sm:w-auto px-5 py-3 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black text-xs sm:text-sm rounded-2xl shadow-lg flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-95 cursor-pointer select-none">
+              <span>👉 View ${mainTourney.name} Hub & Squads</span>
+              <span class="text-base">➔</span>
+            </a>
+          </div>
+
+          <!-- 4 Fast Metrics for Recent Tournament -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+            <div class="p-3 bg-slate-900/90 rounded-2xl border border-slate-800 text-center">
+              <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider block">TEAMS</span>
+              <div class="text-base sm:text-lg font-black text-white font-mono mt-0.5">${mainTourney.customTeamsCount || 4} Franchises</div>
+            </div>
+            <div class="p-3 bg-slate-900/90 rounded-2xl border border-slate-800 text-center">
+              <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider block">SQUAD SIZE</span>
+              <div class="text-base sm:text-lg font-black text-amber-400 font-mono mt-0.5">13 Players / Team</div>
+            </div>
+            <div class="p-3 bg-slate-900/90 rounded-2xl border border-slate-800 text-center">
+              <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider block">ROSTERS</span>
+              <div class="text-base sm:text-lg font-black text-emerald-400 font-mono mt-0.5">Finalized ✅</div>
+            </div>
+            <div class="p-3 bg-slate-900/90 rounded-2xl border border-slate-800 text-center">
+              <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider block">RECORD VAULT</span>
+              <div class="text-base sm:text-lg font-black text-sky-400 font-mono mt-0.5">Preserved 🏛️</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- All Tournaments Hub Directory Grid -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between px-1">
+            <h3 class="text-xs sm:text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+              <span>🏛️</span> Browse Tournament Auction Archives & Squads
+            </h3>
+            <span class="text-xs font-bold text-slate-500">${allTourneys.length} Leagues Available</span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            ${allTourneys.map(t => `
+              <div class="p-4 bg-white border-2 border-slate-200/90 hover:border-amber-400 rounded-3xl shadow-xs hover:shadow-md transition-all flex items-center justify-between gap-3 group">
+                <div class="flex items-center gap-3 min-w-0">
+                  <div class="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0 shadow-2xs">
+                    <img src="${t.posterUrl || t.logoUrl || 'assets/jsl_logo.jpg'}" class="w-full h-full object-cover" onerror="this.src='assets/jsl_logo.jpg'" />
+                  </div>
+                  <div class="min-w-0">
+                    <h4 class="text-xs sm:text-sm font-black text-slate-900 truncate group-hover:text-amber-800 transition-colors">${t.name}</h4>
+                    <div class="text-[10px] text-slate-500 font-bold truncate mt-0.5">📍 ${t.venue || 'West Bengal'} • ${t.teamsCount || 4} Teams</div>
+                  </div>
+                </div>
+
+                <a href="#t/${t.slug}?tab=auction" class="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-amber-400 font-black text-xs rounded-xl shadow-xs flex items-center gap-1 shrink-0 transition-transform active:scale-95">
+                  <span>View Hub</span> <span>➔</span>
+                </a>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <!-- Realtime Live Stream Standby Notice -->
+        <div class="p-4 bg-blue-50 border border-blue-200 rounded-3xl flex items-center gap-3 text-xs text-blue-900 font-bold">
+          <span class="text-xl shrink-0">📡</span>
+          <div>
+            <strong>Automated Live Auction Feed:</strong> Whenever a tournament organizer starts a live bidding round, this page will automatically connect and stream live player bids and countdown timers in real-time.
+          </div>
+        </div>
+
+      </div>
+    `;
+    if (window.lucide) window.lucide.createIcons();
+  };
+
+  const renderActiveLiveView = (globalInfo) => {
+    const liveTourney = globalInfo.liveTournament || store.getCustomTournaments().find(t => (t.supabaseId || t.id) === store.activeTournamentId) || { name: 'Live Auction', slug: 'k2026' };
+    
+    container.innerHTML = `
+      <div class="space-y-5 sm:space-y-6 animate-fade-in pb-16 max-w-4xl mx-auto px-1 sm:px-4">
+        
+        <!-- Top Header matching screenshot -->
+        <div class="bg-white border-2 border-slate-200/90 rounded-2xl sm:rounded-3xl p-3 sm:p-4 shadow-xs flex items-center justify-between flex-wrap gap-2">
+          <div class="flex items-center gap-3">
+            <span class="w-10 h-10 bg-amber-100 text-amber-800 rounded-2xl flex items-center justify-center shrink-0 text-xl shadow-2xs">
+              🔨
+            </span>
+            <div>
+              <h1 class="text-base sm:text-xl font-black text-slate-900 tracking-tight">
+                ${liveTourney.name} Live Auction Arena
+              </h1>
+              <p class="text-[10px] sm:text-xs text-slate-500 font-bold">Real-time bids, live purse tracking & official team squads</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button id="auction-open-projector-view-btn" class="px-3.5 py-2 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-md flex items-center gap-1.5 transition-all hover:scale-105 border border-amber-300 cursor-pointer active:scale-95 select-none" title="Open Single-Screen Live Projector View">
+              <span class="text-base">📽️</span> <span>Projector Screen</span>
+            </button>
+            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 font-extrabold text-xs rounded-xl border border-emerald-200 shadow-2xs">
+              <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span> LIVE NOW
+            </span>
+          </div>
+        </div>
+
+        <!-- Active Player Live Block (Waiting / Active Bidding) -->
+        <div id="auction-active-block-container" class="space-y-4"></div>
+
+        <!-- FRANCHISE PURSES SECTION (ALL TEAMS SHOWN FIRST) -->
+        <div class="space-y-3 pt-1">
+          <div class="flex justify-between items-center px-1">
+            <h3 class="text-xs sm:text-sm font-black text-slate-800 uppercase tracking-wider">
+              FRANCHISE PURSES
+            </h3>
+            <span class="text-xs font-bold text-slate-500 font-mono">Target: ${store.getAuctionSettings().maxSquadSize || 13} Players</span>
+          </div>
+
+          <div class="space-y-3" id="auction-franchise-purses-list"></div>
+        </div>
+
+        <!-- LOWER PORTION: Compact & Ultra-Stylish Player Auction Status & Record Card -->
+        <div class="bg-white border-2 border-slate-200/90 rounded-2xl sm:rounded-3xl shadow-xs overflow-hidden">
+          
+          <!-- Sleek Click-to-Open Accordion Header (Strict Single-Line Design) -->
+          <button id="toggle-player-status-accordion-btn" class="w-full flex items-center justify-between p-2.5 sm:p-3.5 bg-white hover:bg-slate-50 transition-all text-left cursor-pointer group select-none">
+            <div class="flex items-center gap-2.5 min-w-0 pr-1">
+              <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-black text-sm shrink-0 shadow-xs group-hover:scale-105 transition-transform">
+                📋
+              </div>
+              <div class="min-w-0 flex flex-col justify-center">
+                <!-- Single Line 1: Header - Auction Record + Total Badge -->
+                <div class="flex items-center gap-1.5 whitespace-nowrap">
+                  <h3 class="text-xs sm:text-sm font-black text-slate-900 tracking-tight whitespace-nowrap">
+                    Auction Record
+                  </h3>
+                  <span class="px-1.5 py-0.2 bg-slate-900 text-white rounded-full text-[9px] sm:text-[10px] font-mono font-bold whitespace-nowrap" id="accordion-total-players-badge">
+                    0 Players
+                  </span>
+                </div>
+                
+                <!-- Mini Stats Row: Sold, Unsold & Queue in single line, respective Numbers in next line -->
+                <div class="flex items-center gap-2.5 sm:gap-4 mt-1">
+                  <!-- Sold -->
+                  <div class="flex flex-col items-center">
+                    <span class="text-[9px] font-extrabold text-emerald-700 flex items-center gap-0.5 whitespace-nowrap">
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span> Sold
+                    </span>
+                    <span class="text-[11px] sm:text-xs font-black text-emerald-900 font-mono leading-tight" id="accordion-sold-count">
+                      0
+                    </span>
+                  </div>
+
+                  <div class="h-4 w-[1px] bg-slate-200 shrink-0"></div>
+
+                  <!-- Unsold -->
+                  <div class="flex flex-col items-center">
+                    <span class="text-[9px] font-extrabold text-rose-600 flex items-center gap-0.5 whitespace-nowrap">
+                      <span class="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0"></span> Unsold
+                    </span>
+                    <span class="text-[11px] sm:text-xs font-black text-rose-900 font-mono leading-tight" id="accordion-unsold-count">
+                      0
+                    </span>
+                  </div>
+
+                  <div class="h-4 w-[1px] bg-slate-200 shrink-0"></div>
+
+                  <!-- Queue -->
+                  <div class="flex flex-col items-center">
+                    <span class="text-[9px] font-extrabold text-slate-500 flex items-center gap-0.5 whitespace-nowrap">
+                      <span class="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0"></span> Queue
+                    </span>
+                    <span class="text-[11px] sm:text-xs font-black text-slate-800 font-mono leading-tight" id="accordion-pending-count">
+                      0
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="flex items-center shrink-0 pl-1">
+              <span id="accordion-toggle-btn-badge" class="px-2.5 sm:px-3 py-1.5 bg-blue-600 group-hover:bg-blue-700 text-white font-black text-[11px] sm:text-xs rounded-xl shadow-xs flex items-center gap-1 transition-all whitespace-nowrap">
+                <span id="accordion-toggle-label">Open Table</span>
+                <span id="accordion-toggle-arrow" class="text-[9px] transition-transform duration-300">▼</span>
+              </span>
+            </div>
+          </button>
+
+          <!-- Collapsible Content (Hidden by Default) -->
+          <div id="player-auction-status-collapsible" class="hidden border-t border-slate-100 bg-slate-50/40 p-3 sm:p-4 space-y-3 animate-fade-in">
+            
+            <!-- Compact Segmented Filter Tabs -->
+            <div class="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar" id="auction-status-filter-tabs">
+              <button class="status-tab-btn px-2.5 py-1.2 rounded-lg font-black text-xs transition-all cursor-pointer bg-slate-900 text-white shadow-xs shrink-0" data-tab="all">
+                All (<span id="count-all">0</span>)
+              </button>
+              <button class="status-tab-btn px-2.5 py-1.2 rounded-lg font-bold text-xs transition-all cursor-pointer bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 shrink-0" data-tab="sold">
+                ✅ Sold (<span id="count-sold">0</span>)
+              </button>
+              <button class="status-tab-btn px-2.5 py-1.2 rounded-lg font-bold text-xs transition-all cursor-pointer bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 shrink-0" data-tab="unsold">
+                ❌ Unsold (<span id="count-unsold">0</span>)
+              </button>
+              <button class="status-tab-btn px-2.5 py-1.2 rounded-lg font-bold text-xs transition-all cursor-pointer bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 shrink-0" data-tab="pending">
+                ⏳ In Queue (<span id="count-pending">0</span>)
+              </button>
+            </div>
+
+            <!-- Compact Search Bar -->
+            <div class="relative">
+              <input type="text" id="auction-player-search-input" placeholder="🔍 Search by name, village, role, or team..." class="w-full bg-white border border-slate-200 text-slate-800 text-xs rounded-xl py-2 px-3 pl-3 focus:outline-none focus:border-blue-500 font-bold placeholder-slate-400 shadow-2xs" />
+            </div>
+
+            <!-- Stylish Compact Table Container -->
+            <div class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
+              <div id="auction-players-full-table-content" class="overflow-x-auto max-h-[460px] overflow-y-auto"></div>
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+    `;
+
+    if (window.lucide) window.lucide.createIcons();
+
+    // Attach Accordion Toggle
+    let isTableOpen = false;
+    const toggleBtn = document.getElementById('toggle-player-status-accordion-btn');
+    const collapsibleDiv = document.getElementById('player-auction-status-collapsible');
+    const toggleLabel = document.getElementById('accordion-toggle-label');
+    const toggleArrow = document.getElementById('accordion-toggle-arrow');
+
+    if (toggleBtn && collapsibleDiv) {
+      toggleBtn.addEventListener('click', () => {
+        isTableOpen = !isTableOpen;
+        if (isTableOpen) {
+          collapsibleDiv.classList.remove('hidden');
+          if (toggleLabel) toggleLabel.textContent = 'Close';
+          if (toggleArrow) toggleArrow.textContent = '▲';
+          renderPlayerStatusTable();
+        } else {
+          collapsibleDiv.classList.add('hidden');
+          if (toggleLabel) toggleLabel.textContent = 'Open Table';
+          if (toggleArrow) toggleArrow.textContent = '▼';
+        }
       });
-      e.currentTarget.className = 'status-tab-btn px-2.5 py-1.2 rounded-lg font-black text-xs transition-all cursor-pointer bg-slate-900 text-white shadow-xs shrink-0';
-      renderPlayerStatusTable();
-    });
-  });
+    }
 
-  // Search input handler
-  const searchInput = document.getElementById('auction-player-search-input');
-  if (searchInput) {
-    searchInput.addEventListener('input', (e) => {
-      playerSearchQuery = e.target.value.toLowerCase().trim();
-      renderPlayerStatusTable();
+    // Attach Status Tab Filter Buttons
+    document.querySelectorAll('.status-tab-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        activeStatusTab = e.currentTarget.getAttribute('data-tab');
+        document.querySelectorAll('.status-tab-btn').forEach(b => {
+          b.className = 'status-tab-btn px-2.5 py-1.2 rounded-lg font-bold text-xs transition-all cursor-pointer bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 shrink-0';
+        });
+        e.currentTarget.className = 'status-tab-btn px-2.5 py-1.2 rounded-lg font-black text-xs transition-all cursor-pointer bg-slate-900 text-white shadow-xs shrink-0';
+        renderPlayerStatusTable();
+      });
     });
-  }
+
+    // Attach Search Input
+    const searchInput = document.getElementById('auction-player-search-input');
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        playerSearchQuery = e.target.value.toLowerCase().trim();
+        renderPlayerStatusTable();
+      });
+    }
+
+    // Attach Projector Button
+    document.getElementById('auction-open-projector-view-btn')?.addEventListener('click', () => {
+      openLiveAuctionProjectorView();
+    });
+  };
 
   const renderPlayerStatusTable = () => {
     const tableContainer = document.getElementById('auction-players-full-table-content');
+    const collapsibleDiv = document.getElementById('player-auction-status-collapsible');
     const allPlayers = store.getPlayers().filter(p => p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED');
     const teams = store.getTeams();
 
@@ -9589,7 +9726,6 @@ function renderLiveAuctionView(container) {
 
         activeBlockWrapper.innerHTML = `
           <div id="auction-player-card-box" class="relative rounded-3xl overflow-hidden shadow-2xl border-2 ${isSoldState ? 'border-emerald-500' : isUnsoldState ? 'border-rose-500' : 'border-emerald-500/40'} min-h-[460px] sm:min-h-[540px] md:min-h-[580px] max-w-2xl mx-auto flex flex-col justify-between p-3 sm:p-4 bg-slate-900 animate-fade-in">
-            <!-- Full Crystal Clear Real Player Photo (Zero Dark Shading/Light Overlay) -->
             <img id="auction-player-photo-img" src="${playerPhoto}" class="absolute inset-0 w-full h-full object-cover sm:object-contain object-top" alt="${state.name}" onerror="this.src='assets/card_jsl_user.png'" />
 
             <div id="auction-stamp-slot">
@@ -9603,16 +9739,6 @@ function renderLiveAuctionView(container) {
                       <text fill="#059669" font-size="22" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="6">
                         <textPath href="#sold-arc-top-v9" startOffset="50%" text-anchor="middle">LIVE AUCTION</textPath>
                       </text>
-                      <text x="105" y="94" fill="#059669" font-size="20" text-anchor="middle">★</text>
-                      <text x="150" y="82" fill="#059669" font-size="28" text-anchor="middle">★</text>
-                      <text x="195" y="94" fill="#059669" font-size="20" text-anchor="middle">★</text>
-                      <text x="105" y="222" fill="#059669" font-size="20" text-anchor="middle">★</text>
-                      <text x="150" y="234" fill="#059669" font-size="28" text-anchor="middle">★</text>
-                      <text x="195" y="222" fill="#059669" font-size="20" text-anchor="middle">★</text>
-                      <path id="sold-arc-bottom-v9" d="M 265,150 A 115,115 0 0,1 35,150" fill="none" />
-                      <text fill="#059669" font-size="20" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="6">
-                        <textPath href="#sold-arc-bottom-v9" startOffset="50%" text-anchor="middle">OFFICIALLY SIGNED</textPath>
-                      </text>
                       <rect x="5" y="106" width="290" height="88" rx="16" fill="#059669" stroke="#ffffff" stroke-width="4" />
                       <text x="150" y="152" fill="#ffffff" font-size="46" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="8" text-anchor="middle">SOLD</text>
                       <text x="150" y="178" fill="#fef08a" font-size="14" font-weight="900" font-family="'Arial', sans-serif" text-anchor="middle">${bidderTeam ? bidderTeam.name + ' • ' : ''}₹ ${Number(state.sold_price || state.current_bid || 300).toLocaleString('en-IN')}</text>
@@ -9624,21 +9750,6 @@ function renderLiveAuctionView(container) {
                   <svg viewBox="0 0 300 300" class="w-60 h-60 sm:w-80 sm:h-80 stamp-slam-animate select-none drop-shadow-2xl" xmlns="http://www.w3.org/2000/svg">
                     <g transform="rotate(-15 150 150)">
                       <circle cx="150" cy="150" r="140" fill="none" stroke="#C5221F" stroke-width="7" stroke-dasharray="18 4 12 3 24 5" />
-                      <circle cx="150" cy="150" r="128" fill="none" stroke="#C5221F" stroke-width="2.5" />
-                      <path id="unsold-arc-top-v9" d="M 35,150 A 115,115 0 0,1 265,150" fill="none" />
-                      <text fill="#C5221F" font-size="28" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="14">
-                        <textPath href="#unsold-arc-top-v9" startOffset="50%" text-anchor="middle">UNSOLD</textPath>
-                      </text>
-                      <text x="105" y="94" fill="#C5221F" font-size="20" text-anchor="middle">★</text>
-                      <text x="150" y="82" fill="#C5221F" font-size="28" text-anchor="middle">★</text>
-                      <text x="195" y="94" fill="#C5221F" font-size="20" text-anchor="middle">★</text>
-                      <text x="105" y="222" fill="#C5221F" font-size="20" text-anchor="middle">★</text>
-                      <text x="150" y="234" fill="#C5221F" font-size="28" text-anchor="middle">★</text>
-                      <text x="195" y="222" fill="#C5221F" font-size="20" text-anchor="middle">★</text>
-                      <path id="unsold-arc-bottom-v9" d="M 265,150 A 115,115 0 0,1 35,150" fill="none" />
-                      <text fill="#C5221F" font-size="24" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="12">
-                        <textPath href="#unsold-arc-bottom-v9" startOffset="50%" text-anchor="middle">UNSOLD</textPath>
-                      </text>
                       <rect x="5" y="110" width="290" height="80" rx="16" fill="#C5221F" stroke="#ffffff" stroke-width="4" />
                       <text x="150" y="167" fill="#ffffff" font-size="52" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="6" text-anchor="middle">UNSOLD</text>
                     </g>
@@ -9647,17 +9758,13 @@ function renderLiveAuctionView(container) {
               ` : ''}
             </div>
 
-            <!-- TOP ROW: Upper Right Red Box with Serial ID -->
             <div class="relative z-10 flex justify-end items-center w-full">
               <span class="px-3.5 py-1.5 bg-red-600 text-white font-black font-mono text-xs sm:text-sm rounded-xl border-2 border-red-400 shadow-lg tracking-wider">
                 ${state.registrationId || state.regNo || ('REG-' + String(state.displayRegistrationNumber || state.serialNo || 1).padStart(4, '0'))}
               </span>
             </div>
 
-            <!-- LOWEST PORTION: Compact Player Details Box & Bid Shape (Max Image Visibility) -->
             <div class="relative z-10 mt-auto space-y-1.5">
-              
-              <!-- Compact Details Box with Larger Name & Category, SVG Icons -->
               <div class="p-2 sm:p-2.5 bg-white/95 backdrop-blur-md rounded-2xl border border-white/80 shadow-md space-y-0.5">
                 <div class="flex items-center justify-between gap-2">
                   <h2 class="text-lg sm:text-2xl font-black text-slate-950 tracking-tight leading-tight truncate">
@@ -9670,44 +9777,18 @@ function renderLiveAuctionView(container) {
 
                 <div class="flex items-center justify-between text-[10px] sm:text-xs text-slate-700 font-bold border-t border-slate-200/80 pt-1 flex-wrap gap-x-2 gap-y-0.5">
                   <div class="flex items-center gap-2 flex-wrap min-w-0">
-                    <!-- Red Pin SVG + Address -->
                     <span class="inline-flex items-center gap-0.5 truncate text-slate-800">
-                      <svg class="w-3.5 h-3.5 text-red-500 fill-red-500 shrink-0 inline-block" viewBox="0 0 24 24">
-                        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
-                      </svg>
-                      ${state.village || 'Paschim Medinipur'}
+                      📍 ${state.village || 'Paschim Medinipur'}
                     </span>
-
-                    <!-- SVG Bat + Batting Style -->
                     <span class="inline-flex items-center gap-0.5 truncate text-slate-700">
-                      <svg class="w-3.5 h-3.5 text-amber-600 shrink-0 inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="m14 13-7.5 7.5c-.83.83-2.17.83-3 0 0 0 0 0 0 0-.83-.83-.83-2.17 0-3L11 10"/>
-                        <path d="m16 16 6-6"/>
-                      </svg>
-                      ${state.battingStyle || 'Right Hand Bat'}
+                      🏏 ${state.battingStyle || 'Right Hand Bat'}
                     </span>
-
-                    <!-- SVG Ball + Bowling Style -->
-                    ${state.bowlingStyle && state.bowlingStyle !== 'None' ? `
-                      <span class="inline-flex items-center gap-0.5 truncate text-slate-700">
-                        <svg class="w-3.5 h-3.5 text-rose-600 shrink-0 inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <circle cx="12" cy="12" r="9"/>
-                          <path d="m4.93 4.93 4.24 4.24"/>
-                          <path d="m14.83 14.83 4.24 4.24"/>
-                        </svg>
-                        ${state.bowlingStyle}
-                      </span>
-                    ` : ''}
                   </div>
-
-                  <!-- Base Price -->
                   <span class="text-amber-800 font-mono font-black shrink-0 ml-auto text-xs sm:text-sm">Base: ₹${state.basePrice || 300}</span>
                 </div>
               </div>
 
-              <!-- High-Impact Bold Bid Shape (Red High-Glow Amount & LEADER BIDDER 🔥) -->
               <div class="grid grid-cols-2 gap-2 ${isUnsoldState ? 'bg-rose-950/95 border-2 sm:border-3 border-rose-500' : 'bg-slate-950/95 border-2 sm:border-3 border-amber-400'} backdrop-blur-2xl p-2.5 sm:p-3 rounded-2xl sm:rounded-3xl shadow-2xl">
-                <!-- LEFT: CURRENT HIGH BID (Massive Glowing RED Display) -->
                 <div class="flex flex-col justify-center">
                   <span id="auction-status-label" class="text-[9px] sm:text-[11px] font-black ${isUnsoldState ? 'text-rose-300' : 'text-amber-300'} uppercase tracking-widest block">
                     ${isSoldState ? 'AUCTION RESULT' : isUnsoldState ? 'Auction Status' : 'CURRENT HIGH BID'}
@@ -9717,7 +9798,6 @@ function renderLiveAuctionView(container) {
                   </div>
                 </div>
                 
-                <!-- RIGHT: LEADER BIDDER 🔥 & TEAM NAME -->
                 <div class="text-right border-l border-slate-800/90 pl-2.5 flex flex-col justify-center">
                   <span id="auction-bidder-label" class="text-[9px] sm:text-[11px] font-black ${isSoldState ? 'text-emerald-400' : isUnsoldState ? 'text-rose-400' : 'text-amber-400'} uppercase tracking-widest flex items-center justify-end gap-1">
                     ${isSoldState ? 'WINNING FRANCHISE 🏆' : isUnsoldState ? 'ROUND 2 STATUS ⚡' : 'LEADER BIDDER 🔥'}
@@ -9733,7 +9813,6 @@ function renderLiveAuctionView(container) {
         `;
         if (window.lucide) window.lucide.createIcons();
       } else {
-        // SAME PLAYER ALREADY SHOWN: SMOOTH IN-PLACE UPDATES WITHOUT TOUCHING PHOTO!
         const stampSlot = document.getElementById('auction-stamp-slot');
         const stampOverlay = document.getElementById('auction-stamp-overlay');
 
@@ -9745,20 +9824,6 @@ function renderLiveAuctionView(container) {
                   <g transform="rotate(-13 150 150)">
                     <circle cx="150" cy="150" r="140" fill="none" stroke="#059669" stroke-width="7" stroke-dasharray="20 4 15 3 25 5" />
                     <circle cx="150" cy="150" r="128" fill="none" stroke="#059669" stroke-width="2.5" />
-                    <path id="sold-arc-top-v9" d="M 35,150 A 115,115 0 0,1 265,150" fill="none" />
-                    <text fill="#059669" font-size="22" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="6">
-                      <textPath href="#sold-arc-top-v9" startOffset="50%" text-anchor="middle">LIVE AUCTION</textPath>
-                    </text>
-                    <text x="105" y="94" fill="#059669" font-size="20" text-anchor="middle">★</text>
-                    <text x="150" y="82" fill="#059669" font-size="28" text-anchor="middle">★</text>
-                    <text x="195" y="94" fill="#059669" font-size="20" text-anchor="middle">★</text>
-                    <text x="105" y="222" fill="#059669" font-size="20" text-anchor="middle">★</text>
-                    <text x="150" y="234" fill="#059669" font-size="28" text-anchor="middle">★</text>
-                    <text x="195" y="222" fill="#059669" font-size="20" text-anchor="middle">★</text>
-                    <path id="sold-arc-bottom-v9" d="M 265,150 A 115,115 0 0,1 35,150" fill="none" />
-                    <text fill="#059669" font-size="20" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="6">
-                      <textPath href="#sold-arc-bottom-v9" startOffset="50%" text-anchor="middle">OFFICIALLY SIGNED</textPath>
-                    </text>
                     <rect x="5" y="106" width="290" height="88" rx="16" fill="#059669" stroke="#ffffff" stroke-width="4" />
                     <text x="150" y="152" fill="#ffffff" font-size="46" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="8" text-anchor="middle">SOLD</text>
                     <text x="150" y="178" fill="#fef08a" font-size="14" font-weight="900" font-family="'Arial', sans-serif" text-anchor="middle">${bidderTeam ? bidderTeam.name + ' • ' : ''}₹ ${Number(state.sold_price || state.current_bid || 300).toLocaleString('en-IN')}</text>
@@ -9774,7 +9839,7 @@ function renderLiveAuctionView(container) {
           if (statusLabel) statusLabel.textContent = 'AUCTION RESULT';
           if (bidEl) {
             bidEl.textContent = '🔨 SOLD';
-            bidEl.className = 'text-3xl sm:text-5xl md:text-6xl font-black text-emerald-400 font-mono leading-none mt-0.5 drop-shadow-[0_4px_16px_rgba(16,185,129,0.5)]';
+            bidEl.className = 'text-3xl sm:text-5xl md:text-6xl font-black text-emerald-400 font-mono leading-none mt-0.5 drop-shadow-[0_4px_16px_rgba(5,150,105,0.6)]';
           }
           if (bidderLabel) bidderLabel.textContent = 'WINNING FRANCHISE 🏆';
           if (teamEl) teamEl.textContent = bidderTeam ? '🛡️ ' + bidderTeam.name : 'Sold';
@@ -9785,21 +9850,6 @@ function renderLiveAuctionView(container) {
                 <svg viewBox="0 0 300 300" class="w-60 h-60 sm:w-80 sm:h-80 stamp-slam-animate select-none drop-shadow-2xl" xmlns="http://www.w3.org/2000/svg">
                   <g transform="rotate(-15 150 150)">
                     <circle cx="150" cy="150" r="140" fill="none" stroke="#C5221F" stroke-width="7" stroke-dasharray="18 4 12 3 24 5" />
-                    <circle cx="150" cy="150" r="128" fill="none" stroke="#C5221F" stroke-width="2.5" />
-                    <path id="unsold-arc-top-v9" d="M 35,150 A 115,115 0 0,1 265,150" fill="none" />
-                    <text fill="#C5221F" font-size="28" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="14">
-                      <textPath href="#unsold-arc-top-v9" startOffset="50%" text-anchor="middle">UNSOLD</textPath>
-                    </text>
-                    <text x="105" y="94" fill="#C5221F" font-size="20" text-anchor="middle">★</text>
-                    <text x="150" y="82" fill="#C5221F" font-size="28" text-anchor="middle">★</text>
-                    <text x="195" y="94" fill="#C5221F" font-size="20" text-anchor="middle">★</text>
-                    <text x="105" y="222" fill="#C5221F" font-size="20" text-anchor="middle">★</text>
-                    <text x="150" y="234" fill="#C5221F" font-size="28" text-anchor="middle">★</text>
-                    <text x="195" y="222" fill="#C5221F" font-size="20" text-anchor="middle">★</text>
-                    <path id="unsold-arc-bottom-v9" d="M 265,150 A 115,115 0 0,1 35,150" fill="none" />
-                    <text fill="#C5221F" font-size="24" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="12">
-                      <textPath href="#unsold-arc-bottom-v9" startOffset="50%" text-anchor="middle">UNSOLD</textPath>
-                    </text>
                     <rect x="5" y="110" width="290" height="80" rx="16" fill="#C5221F" stroke="#ffffff" stroke-width="4" />
                     <text x="150" y="167" fill="#ffffff" font-size="52" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="6" text-anchor="middle">UNSOLD</text>
                   </g>
@@ -9819,7 +9869,6 @@ function renderLiveAuctionView(container) {
           if (bidderLabel) bidderLabel.textContent = 'ROUND 2 STATUS ⚡';
           if (teamEl) teamEl.textContent = 'Eligible for Re-Bid';
         } else {
-          // NORMAL BIDDING IN PROGRESS: Update text only + trigger pulse flash animation on change!
           if (stampOverlay && stampSlot) stampSlot.innerHTML = '';
           const statusLabel = document.getElementById('auction-status-label');
           const bidEl = document.getElementById('auction-live-bid-display');
@@ -9834,7 +9883,7 @@ function renderLiveAuctionView(container) {
             if (lastRenderedLiveBid !== currentBidVal) {
               lastRenderedLiveBid = currentBidVal;
               bidEl.classList.remove('bid-pulse-flash');
-              void bidEl.offsetWidth; // Force CSS reflow to replay flash
+              void bidEl.offsetWidth;
               bidEl.classList.add('bid-pulse-flash');
             }
           }
@@ -9851,13 +9900,7 @@ function renderLiveAuctionView(container) {
         activeBlockWrapper.innerHTML = `
           <div id="auction-waiting-block-box" class="text-center p-6 sm:p-8 ${isAuctionCompleted ? 'bg-gradient-to-br from-amber-500/10 to-emerald-500/10 border-2 border-amber-400/60' : 'bg-white border-2 border-dashed border-slate-300'} rounded-2xl sm:rounded-3xl shadow-xs animate-fade-in">
             <div class="w-12 h-12 rounded-2xl ${isAuctionCompleted ? 'bg-amber-100 text-amber-600' : 'bg-blue-50 text-blue-500'} flex items-center justify-center mx-auto mb-3 shadow-2xs">
-              <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="m14 13-7.5 7.5c-.83.83-2.17.83-3 0 0 0 0 0 0 0-.83-.83-.83-2.17 0-3L11 10"/>
-                <path d="m16 16 6-6"/>
-                <path d="m8 8 6-6"/>
-                <path d="m9 7 8 8"/>
-                <path d="m21 11-8-8"/>
-              </svg>
+              🔨
             </div>
             <h3 class="text-slate-900 font-black text-base sm:text-lg">
               ${isAuctionCompleted ? '🏆 Live Auction Concluded!' : 'Waiting for Auctioneer to Place Player on Block...'}
@@ -9950,7 +9993,7 @@ function renderLiveAuctionView(container) {
 
           <div class="flex items-center justify-between text-[10px] text-slate-400 font-bold pt-1 group-hover:text-amber-700 transition-colors">
             <span class="flex items-center gap-1">
-              <i data-lucide="users" class="w-3 h-3 text-amber-500"></i> Full Squad Details
+              👥 Full Squad Details
             </span>
             <span class="text-amber-600 font-black">➔</span>
           </div>
@@ -9968,21 +10011,6 @@ function renderLiveAuctionView(container) {
     });
   };
 
-  let lastAuctionSyncTimestamp = 0;
-  let lastAuctionCloudHeartbeat = 0;
-  let lastRenderedTableHash = '';
-  let lastRenderedPursesHash = '';
-  let lastRenderedLiveBid = null;
-
-  // --- IMMEDIATE 0ms SYNCHRONOUS FIRST RENDER ---
-  const initialTeams = store.getTeams();
-  const initialPlayers = store.getPlayers();
-  const initialLiveState = store.getLiveAuctionStateSync();
-
-  renderActiveBlock(initialLiveState, initialTeams, initialPlayers);
-  renderFranchisePurses(initialTeams, initialPlayers);
-  renderPlayerStatusTable();
-
   pollActiveAuctionState = async () => {
     if (currentRoute !== 'auction') {
       if (auctionPollInterval) {
@@ -9992,19 +10020,35 @@ function renderLiveAuctionView(container) {
       return;
     }
 
-    const state = await store.getLiveAuctionState();
+    const globalInfo = await store.getGlobalLiveAuctionInfo();
     if (currentRoute !== 'auction') return;
 
+    if (!globalInfo.isLive) {
+      if (isLiveMode || !document.getElementById('auction-franchise-purses-list')) {
+        isLiveMode = false;
+        renderConcludedView(globalInfo);
+      }
+      return;
+    }
+
+    // LIVE AUCTION IN PROGRESS: Switch to live mode if not already
+    if (!isLiveMode) {
+      isLiveMode = true;
+      if (globalInfo.liveTournament?.id) {
+        store.activeTournamentId = globalInfo.liveTournament.id;
+      }
+      renderActiveLiveView(globalInfo);
+    }
+
+    const state = globalInfo.liveState || (await store.getLiveAuctionState());
     const now = Date.now();
     const stateUpdatedAt = Number(state?.updated_at || state?.timestamp || 0);
 
-    // MONOTONIC VERSION GUARD: Discard any stale in-flight packet older than what we already rendered
     if (stateUpdatedAt < lastAuctionSyncTimestamp && stateUpdatedAt > 0) {
       return;
     }
     lastAuctionSyncTimestamp = Math.max(lastAuctionSyncTimestamp, stateUpdatedAt);
 
-    // If state version changed OR periodic heartbeat (every 10s), sync cloud data
     if (now - lastAuctionCloudHeartbeat > 10000) {
       lastAuctionCloudHeartbeat = now;
       try {
@@ -10031,20 +10075,15 @@ function renderLiveAuctionView(container) {
     renderFranchisePurses(teams, allPlayers);
   };
 
-  // Attach Projector View Button Listener
-  document.getElementById('auction-open-projector-view-btn')?.addEventListener('click', () => {
-    openLiveAuctionProjectorView();
-  });
-
+  // Immediate Initial Render
   pollActiveAuctionState();
-  auctionPollInterval = setInterval(pollActiveAuctionState, 800);
+  auctionPollInterval = setInterval(pollActiveAuctionState, 1000);
 
   const onAuctionChange = () => {
     if (currentRoute === 'auction') pollActiveAuctionState();
   };
   window.addEventListener('cpl_live_auction_updated', onAuctionChange);
   window.addEventListener('cpl_players_updated', onAuctionChange);
-  window.addEventListener('cpl_teams_updated', onAuctionChange);
 }
 
 // --- 📽️ WORLD-CLASS LIVE AUCTION PROJECTOR SCREEN (ENHANCED OFF-WHITE THEME, AUTO-NAVIGATE & 2-PAGE SQUADS) ---

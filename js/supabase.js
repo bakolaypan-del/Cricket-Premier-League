@@ -1295,6 +1295,51 @@ export async function fetchLiveAuctionFromCloud(tournamentId = null) {
   } catch (e) { return null; }
 }
 
+export async function fetchGlobalLiveAuctionStatus() {
+  if (!supabase) return { isLive: false, liveTournament: null, liveState: null, recentTournaments: [] };
+  try {
+    const { data: tournaments, error } = await supabase
+      .from('tournaments')
+      .select('id, name, slug, logo_url, poster_url, format_config, updated_at')
+      .order('updated_at', { ascending: false });
+
+    if (error || !Array.isArray(tournaments)) {
+      return { isLive: false, liveTournament: null, liveState: null, recentTournaments: [] };
+    }
+
+    // 1. Find if ANY tournament currently has an active bidding session
+    let liveTourney = null;
+    let liveState = null;
+
+    for (const t of tournaments) {
+      const state = t.format_config?.live_auction;
+      if (state && (state.status === 'BIDDING' || state.status === 'SOLD' || state.status === 'UNSOLD') && state.active_player_id && !state.is_ended && state.status !== 'ENDED') {
+        liveTourney = t;
+        liveState = state;
+        break;
+      }
+    }
+
+    return {
+      isLive: !!liveTourney,
+      liveTournament: liveTourney,
+      liveState: liveState,
+      recentTournaments: tournaments.map(t => ({
+        id: t.id,
+        name: t.name,
+        slug: t.slug,
+        logoUrl: t.logo_url || t.poster_url || 'assets/jsl_logo.jpg',
+        customTeamsCount: t.format_config?.custom_teams?.length || 0,
+        auctionStatus: (t.format_config?.live_auction?.is_ended || t.format_config?.live_auction?.status === 'ENDED' || (t.format_config?.custom_teams?.length > 0 && !t.format_config?.live_auction?.active_player_id)) ? 'CONCLUDED' : 'IDLE',
+        updatedAt: t.updated_at
+      }))
+    };
+  } catch (e) {
+    console.warn('[SUPABASE] fetchGlobalLiveAuctionStatus error:', e);
+    return { isLive: false, liveTournament: null, liveState: null, recentTournaments: [] };
+  }
+}
+
 export async function saveAuctionPermanentArchiveToCloud(archiveData, tournamentId = null) {
   if (!supabase || !archiveData) return;
   try {

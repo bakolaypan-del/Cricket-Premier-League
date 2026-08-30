@@ -1,8 +1,8 @@
 // Admin Master Data & Payment Verification Panel with Single Source Cloud Control (Developer: Suman Kolay)
 
-import { store } from './store.js?v=13.0.44';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.44';
-import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID, compressImageToTarget } from './supabase.js?v=13.0.44';
+import { store } from './store.js?v=13.0.45';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.45';
+import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID, compressImageToTarget } from './supabase.js?v=13.0.45';
 import { shops } from './shopsData.js?v=12.0.2';
 
 let activeAdminTab = (() => { try { return sessionStorage.getItem('cpl_admin_tab') || (store.isMasterAdmin() ? 'payments' : 'overview'); } catch(e) { return 'payments'; } })();
@@ -798,6 +798,9 @@ export function renderAdminDashboard(containerEl) {
               </div>
             </div>
             <div class="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+              <button type="button" id="admin-end-conclude-auction-btn" class="flex-1 sm:flex-none px-3.5 py-2 bg-rose-600 hover:bg-rose-500 text-white font-black text-xs rounded-xl shadow-md border border-rose-400 flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95" title="Conclude Live Auction & Update Public Spectator Screens">
+                <i data-lucide="power-off" class="w-4 h-4 text-white"></i> 🔴 End Live Auction
+              </button>
               <button type="button" id="admin-sync-permanent-archive-btn" class="flex-1 sm:flex-none px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-amber-300 font-bold text-xs rounded-xl shadow-xs border border-amber-400/40 flex items-center justify-center gap-1.5 cursor-pointer transition-all" title="Sync & Lock Permanent 5-Year Auction Record in Cloud">
                 <i data-lucide="shield-check" class="w-4 h-4 text-emerald-400"></i> Sync 5-Year Vault
               </button>
@@ -2207,6 +2210,21 @@ export function renderAdminDashboard(containerEl) {
   document.getElementById('download-all-teams-squad-pdf-btn')?.addEventListener('click', () => exportAllTeamsFinalSquadsToPDF(store.getTeams(), store.getPlayers()));
   document.getElementById('export-teams-csv-btn')?.addEventListener('click', () => exportTeamsToCSV(store.getTeams()));
   document.getElementById('auction-tab-download-all-pdf-btn')?.addEventListener('click', () => exportAllTeamsFinalSquadsToPDF(store.getTeams(), store.getPlayers()));
+  document.getElementById('admin-end-conclude-auction-btn')?.addEventListener('click', async () => {
+    const activeTourney = store.getCustomTournaments().find(t => (t.supabaseId || t.id) === store.activeTournamentId) || {};
+    const tName = activeTourney.name || 'this tournament';
+    const confirmed = confirm(`🔴 Conclude & End Live Auction for ${tName}?\n\n• Live bidding will be concluded.\n• All spectator phones will immediately show "No Auction Currently Live" with a direct link to your tournament hub.\n• All drafted squads and financial balances will be archived in the 5-Year Vault.\n\nClick OK to confirm.`);
+    if (!confirmed) return;
+
+    try {
+      await store.concludeLiveAuction();
+      alert(`🏆 Live Auction for "${tName}" has been successfully concluded and archived!\n\nPublic spectator screens have been updated.`);
+      renderAdminDashboard(containerEl);
+    } catch(e) {
+      alert("Notice: " + (e.message || e));
+    }
+  });
+
   document.getElementById('admin-sync-permanent-archive-btn')?.addEventListener('click', async () => {
     const btn = document.getElementById('admin-sync-permanent-archive-btn');
     if (btn) btn.innerHTML = '<span>⏳ Syncing...</span>';
