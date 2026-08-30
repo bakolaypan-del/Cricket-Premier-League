@@ -287,19 +287,35 @@ class Store {
 
       // 3. Sync Fixtures
       // CRITICAL: never let a delayed cloud echo clobber the match that is being
-      // actively scored ball-by-ball on THIS device. Firebase writes echo back with
-      // network latency, so during rapid scoring an older snapshot can arrive and
-      // revert freshly-entered balls (only the last one "sticking"). While a LIVE
-      // match is being scored here, the local copy of that one fixture is authoritative.
+      // actively scored ball-by-ball on THIS device. Uses dual-shield:
+      // (1) window.__cplActiveScoringFixtureId for active in-memory session,
+      // (2) persistent localStorage lock & monotonic version _v to survive page reloads and mobile app backgrounding.
       if (Array.isArray(cloudData.fixtures)) {
-        let nextFixtures = cloudData.fixtures;
-        const activeId = (typeof window !== 'undefined') ? window.__cplActiveScoringFixtureId : null;
+        const localFixtures = this.getFixtures();
+        const activeId = (typeof window !== 'undefined' ? window.__cplActiveScoringFixtureId : null) ||
+                         (typeof localStorage !== 'undefined' ? localStorage.getItem('cpl_active_scoring_fixture_id') : null);
+
+        let nextFixtures = cloudData.fixtures.map(cf => {
+          const localF = localFixtures.find(f => f.id === cf.id);
+          if (!localF) return cf;
+
+          // Version-based protection: reject older cloud state
+          const storedV = (typeof localStorage !== 'undefined') ? (Number(localStorage.getItem(`cpl_active_scoring_${cf.id}_v`)) || 0) : 0;
+          const localV = Math.max(Number(localF.liveMatchState?._v || 0), storedV);
+          const cloudV = Number(cf.liveMatchState?._v || 0);
+
+          if (localV > 0 && localV >= cloudV && (localF.status === 'LIVE' || cf.status === 'LIVE')) {
+            return { ...cf, liveMatchState: localF.liveMatchState || cf.liveMatchState };
+          }
+          return cf;
+        });
+
         if (activeId) {
-          const localActive = this.getFixtures().find(f => f.id === activeId);
+          const localActive = localFixtures.find(f => f.id === activeId);
           // Only shield it while it is genuinely LIVE; once it is COMPLETED the cloud
           // result is allowed to sync normally again.
           if (localActive && localActive.status === 'LIVE') {
-            nextFixtures = cloudData.fixtures.map(f => f.id === activeId ? localActive : f);
+            nextFixtures = nextFixtures.map(f => f.id === activeId ? localActive : f);
             if (!nextFixtures.some(f => f.id === activeId)) nextFixtures = [...nextFixtures, localActive];
           }
         }
@@ -1385,6 +1401,30 @@ class Store {
     const fixtures = this.getFixtures();
     const idx = fixtures.findIndex(f => f.id === updatedFixture.id);
     if (idx !== -1) {
+      // If actively scoring a LIVE match, increment monotonic version counter
+      if (updatedFixture.status === 'LIVE' && updatedFixture.liveMatchState) {
+        const prevV = Number(updatedFixture.liveMatchState._v || 0);
+        const nextV = prevV + 1;
+        updatedFixture.liveMatchState._v = nextV;
+        updatedFixture.liveMatchState._updatedAt = Date.now();
+
+        if (typeof localStorage !== 'undefined') {
+          try {
+            localStorage.setItem('cpl_active_scoring_fixture_id', String(updatedFixture.id));
+            localStorage.setItem(`cpl_active_scoring_${updatedFixture.id}_v`, String(nextV));
+          } catch(e) {}
+        }
+      } else if (updatedFixture.status === 'COMPLETED') {
+        if (typeof localStorage !== 'undefined') {
+          try {
+            localStorage.removeItem('cpl_active_scoring_fixture_id');
+          } catch(e) {}
+        }
+        if (typeof window !== 'undefined' && window.__cplActiveScoringFixtureId === updatedFixture.id) {
+          window.__cplActiveScoringFixtureId = null;
+        }
+      }
+
       fixtures[idx] = { ...fixtures[idx], ...updatedFixture };
       safeSetLocalStorage(STORAGE_KEYS.FIXTURES, fixtures);
       saveFixtureToFirebase(fixtures[idx]);

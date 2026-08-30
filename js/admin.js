@@ -2836,6 +2836,7 @@ function renderScorerActivePanel() {
 
   // Shield this match's live state from cloud-echo overwrites while it's on-screen.
   window.__cplActiveScoringFixtureId = fixture.id;
+  try { localStorage.setItem('cpl_active_scoring_fixture_id', String(fixture.id)); } catch(e) {}
 
   const state = fixture.liveMatchState || {};
   
@@ -3122,20 +3123,7 @@ function renderScorerActivePanel() {
           return alert("Innings 2 is already in progress or completed!");
         }
         if (confirm(`Confirm Close Innings 1?\n\n${battingTeamName} scored ${state.runs}/${state.wickets} in ${state.overs}.${state.balls} overs.\nTarget for ${bowlingTeamName} will be ${state.runs + 1} runs.`)) {
-          fixture.liveMatchState.innings = 2;
-          fixture.liveMatchState.target = fixture.liveMatchState.runs + 1;
-          fixture.liveMatchState.strikerId = '';
-          fixture.liveMatchState.nonStrikerId = '';
-          fixture.liveMatchState.bowlerId = '';
-          fixture.liveMatchState.runs = 0;
-          fixture.liveMatchState.wickets = 0;
-          fixture.liveMatchState.overs = 0;
-          fixture.liveMatchState.balls = 0;
-          fixture.liveMatchState.overBalls = [];
-          fixture.liveMatchState.currentOverBowlerRuns = 0;
-          store.updateFixture(fixture);
-          renderScorerActivePanel();
-          alert(`✅ Innings 1 Closed! Target set to ${fixture.liveMatchState.target}. Now select new opening batsmen and bowler for Innings 2.`);
+          endInningsOrFinishMatch(fixture);
         }
       }
     };
@@ -3145,30 +3133,7 @@ function renderScorerActivePanel() {
   if (finishMatchBtn) {
     finishMatchBtn.onclick = () => {
       if (confirm("🏆 Are you sure you want to finalize this match and record the official result?")) {
-        let winnerId = null;
-        let resultTxt = 'Match Tied';
-
-        const teamAScore = fixture.teamAScore || { runs: 0, wickets: 0 };
-        const teamBScore = fixture.teamBScore || { runs: 0, wickets: 0 };
-
-        if (teamAScore.runs > teamBScore.runs) {
-          winnerId = fixture.teamAId;
-          resultTxt = `${fixture.teamAName} won by ${teamAScore.runs - teamBScore.runs} runs`;
-        } else if (teamBScore.runs > teamAScore.runs) {
-          winnerId = fixture.teamBId;
-          resultTxt = `${fixture.teamBName} won by ${10 - teamBScore.wickets} wickets`;
-        }
-
-        fixture.status = 'COMPLETED';
-        fixture.endedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        fixture.result = resultTxt;
-        fixture.winnerTeamId = winnerId;
-        
-        store.updateFixture(fixture);
-        document.getElementById('scorer-active-panel')?.classList.add('hidden');
-        renderScorerMatchesList();
-        renderAdminFixturesList();
-        alert(`🎉 Match Completed!\n\nResult: ${resultTxt}`);
+        endInningsOrFinishMatch(fixture);
       }
     };
   }
@@ -3246,6 +3211,9 @@ function endInningsOrFinishMatch(fixture) {
   }
 
   // Innings 2 over -> decide the result
+  if (state.innings === 2) {
+    fixture.teamBScore = { runs: state.runs, wickets: state.wickets, overs: state.overs, balls: state.balls, extras: state.extras || 0 };
+  }
   const teamAScore = fixture.teamAScore || { runs: 0, wickets: 0 };
   const teamBScore = fixture.teamBScore || { runs: 0, wickets: 0 };
   let winnerId = null, resultTxt = 'Match Tied';
@@ -3262,6 +3230,7 @@ function endInningsOrFinishMatch(fixture) {
   fixture.winnerTeamId = winnerId;
   // Match is over -> release the live-scoring cloud shield so the final result syncs.
   if (window.__cplActiveScoringFixtureId === fixture.id) window.__cplActiveScoringFixtureId = null;
+  try { localStorage.removeItem('cpl_active_scoring_fixture_id'); } catch(e) {}
   store.updateFixture(fixture);
   renderScorerActivePanel();
   if (window.renderActiveMatchCenter) window.renderActiveMatchCenter();
@@ -3311,6 +3280,7 @@ function processScorerBall(runsScored) {
   // Tell the store which fixture is being actively scored so cloud echoes can't
   // clobber the local ball-by-ball state mid-over (see syncWithCloud fixture guard).
   window.__cplActiveScoringFixtureId = fixture.id;
+  try { localStorage.setItem('cpl_active_scoring_fixture_id', String(fixture.id)); } catch(e) {}
 
   const state = fixture.liveMatchState;
 
@@ -3567,6 +3537,9 @@ function processScorerBall(runsScored) {
 function openScorerWicketModal() {
   const fixture = store.getFixtures().find(f => f.id === activeScoringMatchId);
   if (!fixture) return;
+
+  window.__cplActiveScoringFixtureId = fixture.id;
+  try { localStorage.setItem('cpl_active_scoring_fixture_id', String(fixture.id)); } catch(e) {}
 
   const state = fixture.liveMatchState;
   // Firebase strips empty arrays/objects; re-init defensively before wicket writes.
@@ -3836,6 +3809,12 @@ function openScorerWicketModal() {
       return;
     }
 
+    // 2nd innings target chased on this delivery -> finish the match immediately
+    if (state.innings === 2 && state.target && state.runs >= state.target) {
+      endInningsOrFinishMatch(fixture);
+      return;
+    }
+
     // Prompt for the new incoming batter; if the over also ended, chain the bowler prompt.
     openSelectNextBatterModal(fixture, vacantRole, () => {
       if (overCompletedNow) openSelectNextBowlerModal(fixture);
@@ -3850,7 +3829,9 @@ function openSelectNextBatterModal(fixture, vacantRole, onDone) {
   if (!state.playerStats || typeof state.playerStats !== 'object') state.playerStats = {};
 
   const battingTeamId = state.innings === 2 ? fixture.teamBId : fixture.teamAId;
-  const batPlayers = store.getPlayers().filter(p => p.teamId === battingTeamId);
+  const allBatPlayers = store.getPlayers().filter(p => p.teamId === battingTeamId);
+  const batPXI = fixture.playingXI?.[battingTeamId]?.playing11Ids;
+  const batPlayers = (batPXI && batPXI.length > 0) ? allBatPlayers.filter(p => batPXI.includes(p.id)) : allBatPlayers;
 
   // The batter still at the crease occupies the other slot
   const stillInId = vacantRole === 'striker' ? state.nonStrikerId : state.strikerId;
@@ -3912,7 +3893,9 @@ function openSelectNextBowlerModal(fixture, onDone) {
   if (!state.playerStats || typeof state.playerStats !== 'object') state.playerStats = {};
 
   const bowlingTeamId = state.innings === 2 ? fixture.teamAId : fixture.teamBId;
-  const bowlPlayers = store.getPlayers().filter(p => p.teamId === bowlingTeamId);
+  const allBowlPlayers = store.getPlayers().filter(p => p.teamId === bowlingTeamId);
+  const bowlPXI = fixture.playingXI?.[bowlingTeamId]?.playing11Ids;
+  const bowlPlayers = (bowlPXI && bowlPXI.length > 0) ? allBowlPlayers.filter(p => bowlPXI.includes(p.id)) : allBowlPlayers;
 
   const lastBowlerId = state.bowlerId;
   // A bowler cannot bowl two overs back to back; exclude the previous bowler

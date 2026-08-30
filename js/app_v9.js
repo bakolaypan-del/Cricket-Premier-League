@@ -4132,7 +4132,16 @@ function renderFixturesView(container) {
         : m.group === 'bowl' ? (r.ballsBowled > 0 || r.wickets > 0)
         : m.group === 'keep' ? (r.stumpings > 0 || r.catches > 0)
         : (r.fielding > 0);
-      const list = (rows || []).filter(include).sort((a, b) => (b[key]||0) - (a[key]||0) || (b.mvp||0) - (a.mvp||0));
+      const getEcon = (r) => r.ballsBowled > 0 ? (r.runsConceded / (r.ballsBowled / 6)) : 999;
+      const list = (rows || []).filter(include).sort((a, b) => {
+        const diff = (b[key] || 0) - (a[key] || 0);
+        if (diff !== 0) return diff;
+        if (key === 'wickets') {
+          const econDiff = getEcon(a) - getEcon(b);
+          if (Math.abs(econDiff) > 0.001) return econDiff;
+        }
+        return (b.mvp || 0) - (a.mvp || 0);
+      });
       bodyRows = list.map((r, i) => ({
         rank: i+1, name: r.name, sub: r.team || '—',
         cells: cols.map(c => c.k === key ? `<span class="font-black text-${m.accent}-600">${c.v(r)}</span>` : c.v(r))
@@ -4613,7 +4622,16 @@ function renderFixturesView(container) {
       });
 
       const topBy = (key) => {
-        const s = rows.filter(r => (r[key] || 0) > 0).sort((x, y) => (y[key]||0) - (x[key]||0) || (y.mvp||0) - (x.mvp||0));
+        const getEcon = (r) => r.ballsBowled > 0 ? (r.runsConceded / (r.ballsBowled / 6)) : 999;
+        const s = rows.filter(r => (r[key] || 0) > 0).sort((x, y) => {
+          const diff = (y[key] || 0) - (x[key] || 0);
+          if (diff !== 0) return diff;
+          if (key === 'wickets') {
+            const econDiff = getEcon(x) - getEcon(y);
+            if (Math.abs(econDiff) > 0.001) return econDiff;
+          }
+          return (y.mvp || 0) - (x.mvp || 0);
+        });
         return s.length ? { win: s[0], runner: s[1] || null } : null;
       };
 
