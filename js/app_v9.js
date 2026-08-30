@@ -24,6 +24,87 @@ const CRICKET_THUMBNAILS = [
   { gradient: 'from-indigo-800 via-blue-600 to-violet-900', emoji: '💫', pattern: 'Galaxy Cup' },
 ];
 
+function computeTeamStandings(teamList, categoryFixtures) {
+  if (!Array.isArray(teamList)) return [];
+  const fixtures = Array.isArray(categoryFixtures) ? categoryFixtures : [];
+
+  const standings = teamList.map(t => {
+    const teamId = t.id;
+    const teamFixtures = fixtures.filter(f => f && f.status === 'COMPLETED' && (f.teamAId === teamId || f.teamBId === teamId));
+    
+    let played = teamFixtures.length;
+    let won = 0;
+    let lost = 0;
+    let nr = 0;
+    let points = 0;
+    let totalRunsScored = 0;
+    let totalOversFaced = 0;
+    let totalRunsConceded = 0;
+    let totalOversBowled = 0;
+
+    teamFixtures.forEach(f => {
+      const isTeamA = f.teamAId === teamId;
+      const myScore = isTeamA ? f.teamAScore : f.teamBScore;
+      const oppScore = isTeamA ? f.teamBScore : f.teamAScore;
+
+      if (f.winnerTeamId === teamId) {
+        won += 1;
+        points += 2;
+      } else if (!f.winnerTeamId) {
+        nr += 1;
+        points += 1;
+      } else {
+        lost += 1;
+      }
+
+      if (myScore && oppScore) {
+        totalRunsScored += myScore.runs || 0;
+        const myOversLimit = f.oversLimit || 16;
+        if (myScore.wickets === 10) {
+          totalOversFaced += myOversLimit;
+        } else {
+          const balls = (myScore.overs || 0) * 6 + (myScore.balls || 0);
+          totalOversFaced += balls / 6;
+        }
+
+        totalRunsConceded += oppScore.runs || 0;
+        if (oppScore.wickets === 10) {
+          totalOversBowled += myOversLimit;
+        } else {
+          const oppBalls = (oppScore.overs || 0) * 6 + (oppScore.balls || 0);
+          totalOversBowled += oppBalls / 6;
+        }
+      }
+    });
+
+    const myRR = totalOversFaced > 0 ? (totalRunsScored / totalOversFaced) : 0;
+    const oppRR = totalOversBowled > 0 ? (totalRunsConceded / totalOversBowled) : 0;
+    const nrrVal = myRR - oppRR;
+
+    return {
+      ...t,
+      id: t.id,
+      name: t.name,
+      group: (t.group || 'A').toUpperCase(),
+      played,
+      won,
+      lost,
+      nr,
+      points,
+      nrr: nrrVal.toFixed(3)
+    };
+  });
+
+  standings.sort((a, b) => {
+    if (b.points !== a.points) return b.points - a.points;
+    if (parseFloat(b.nrr) !== parseFloat(a.nrr)) return parseFloat(b.nrr) - parseFloat(a.nrr);
+    return b.won - a.won;
+  });
+
+  return standings;
+}
+window.computeTeamStandings = computeTeamStandings;
+
 // PWA Deferred Prompt Capture
 let deferredPrompt = null;
 window.addEventListener('beforeinstallprompt', (e) => {
