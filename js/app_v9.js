@@ -7400,9 +7400,38 @@ function renderFixturesView(container) {
     const rawFixtures = (selectedCategory === 'ALL')
       ? allCrossFixtures
       : allCrossFixtures.filter(f => {
-          const fCode = (f.leagueCode || '').toUpperCase();
-          const cat = selectedCategory.toUpperCase();
-          return fCode === cat || (cat === 'KPL' && (fCode === 'K2026' || fCode === 'KPL')) || (cat === 'K2026' && (fCode === 'KPL' || fCode === 'K2026')) || f.tournamentId === selectedCategory || f.tournament_id === selectedCategory || f.leagueId === selectedCategory;
+          if (!f) return false;
+          const catUpper = String(selectedCategory).toUpperCase().trim();
+          const fCode = String(f.leagueCode || '').toUpperCase().trim();
+          const fTid = String(f.tournament_id || f.tournamentId || f.leagueId || '').toUpperCase().trim();
+
+          if (fTid && (fTid === catUpper || (toUUID(fTid) && toUUID(fTid).toUpperCase() === catUpper))) return true;
+
+          const targetTourney = allTourneys.find(l => {
+            const lid = String(l.supabaseId || l.id || '').toUpperCase();
+            const lslug = String(l.slug || '').toUpperCase();
+            const lcode = String(l.code || l.category_code || '').toUpperCase();
+            return lid === catUpper || lslug === catUpper || lcode === catUpper;
+          });
+
+          if (targetTourney) {
+            const targetId = String(targetTourney.supabaseId || targetTourney.id || '').toUpperCase();
+            if (targetId && fTid && (targetId === fTid || toUUID(targetId) === toUUID(fTid))) return true;
+
+            const tCodes = new Set([
+              String(targetTourney.code || '').toUpperCase(),
+              String(targetTourney.category_code || '').toUpperCase(),
+              String(targetTourney.slug || '').toUpperCase()
+            ].filter(Boolean));
+
+            if (tCodes.has(fCode)) return true;
+          }
+
+          if (fCode === catUpper) return true;
+          if ((catUpper.includes('KPL') || catUpper.includes('K2026') || catUpper.includes('KUAPUR')) && (fCode.includes('KPL') || fCode.includes('K2026') || fCode.includes('KUAPUR') || fCode === 'T2')) return true;
+          if ((catUpper.includes('JSL') || catUpper.includes('J2026') || catUpper.includes('JHANKRA')) && (fCode.includes('JSL') || fCode.includes('J2026') || fCode.includes('JHANKRA'))) return true;
+
+          return false;
         });
 
     // Apply Match Group Filter
@@ -7468,7 +7497,10 @@ function renderFixturesView(container) {
       const startTs = m.startedAtTimestamp || Date.now();
       const startClock = m.startedAt || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-      return `
+          const tMatchObj = allTourneys.find(l => (l.supabaseId || l.id) === (m.tournamentId || m.tournament_id || m.leagueId) || (l.code || l.category || l.category_code || l.slug || '').toUpperCase() === (m.leagueCode || '').toUpperCase());
+          const fullMatchTourneyName = (m.tournamentName || tMatchObj?.name || (m.leagueCode === 'JSL' ? 'JHANKRA SUPER LEAGUE 2026' : ((m.leagueCode === 'KPL' || m.leagueCode === 'K2026' || m.leagueCode === 'T2') ? 'KUAPUR PREMIER LEAGUE' : 'CRICKET PREMIER LEAGUE'))).toUpperCase();
+
+          return `
         <div class="cpl-match-card bg-white border-2 ${isLive ? 'border-rose-500 shadow-md ring-2 ring-rose-500/20' : isCompleted ? 'border-slate-200 hover:border-emerald-500 shadow-2xs' : 'border-slate-200 hover:border-sky-500 shadow-2xs'} rounded-3xl p-4 sm:p-5 shadow-xs hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between space-y-3 relative group" data-fixture-id="${m.id}" onclick="window.openMatchCenterModal('${m.id}')">
           <!-- Top Line: Stage, T20/T16, Time & Status -->
           <div class="flex items-center justify-between gap-2 text-xs">
@@ -7543,7 +7575,7 @@ function renderFixturesView(container) {
             <div class="min-w-0">
               <div class="text-[10px] text-emerald-800 font-extrabold uppercase tracking-wider truncate flex items-center gap-1.5">
                 <span class="w-2 h-2 rounded-full ${isLive ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500'} shrink-0"></span>
-                <span class="truncate">${m.tournamentName || (m.leagueCode ? `${m.leagueCode} PREMIER LEAGUE` : 'CRICKET PREMIER LEAGUE')}</span>
+                <span class="truncate">${fullMatchTourneyName}</span>
                 <span>•</span>
                 <span class="text-slate-500 font-bold truncate">${m.venue || 'JHANKRA SCHOOL GROUND'}</span>
               </div>
@@ -7552,7 +7584,7 @@ function renderFixturesView(container) {
               </div>
             </div>
             <div class="flex items-center gap-1.5 shrink-0">
-              <button type="button" class="btn-share-fixture-wa px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-xl border border-emerald-300 flex items-center gap-1 shadow-2xs hover:scale-105 active:scale-95 transition-all cursor-pointer" data-fixture-id="${m.id}" onclick="event.stopPropagation(); window.shareMatchToWhatsApp(store.getFixtureById('${m.id}') || ${JSON.stringify(m).replace(/"/g, '&quot;')}, { name: '${m.tournamentName || m.leagueCode || selectedCategory} PREMIER LEAGUE', venue: '${m.venue || 'JHANKRA SCHOOL GROUND'}' });">
+              <button type="button" class="btn-share-fixture-wa px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-xl border border-emerald-300 flex items-center gap-1 shadow-2xs hover:scale-105 active:scale-95 transition-all cursor-pointer" data-fixture-id="${m.id}" onclick="event.stopPropagation(); window.shareMatchToWhatsApp(store.getFixtureById('${m.id}') || ${JSON.stringify(m).replace(/"/g, '&quot;')}, { name: '${fullMatchTourneyName}', venue: '${m.venue || 'JHANKRA SCHOOL GROUND'}' });">
                 <span>💬</span> <span>Share</span>
               </button>
               <span class="text-[11px] font-black ${isLive ? 'bg-rose-50 text-rose-800 border-rose-300' : 'bg-slate-100 text-slate-800 border-slate-300'} border px-3 py-1 rounded-xl shadow-2xs">
@@ -8221,10 +8253,17 @@ function renderFixturesView(container) {
             </button>
             ${allTourneys.map(l => {
               const code = (l.code || l.category || l.category_code || l.shortCode || l.slug || 'T').toUpperCase();
+              const tid = l.supabaseId || l.id;
               const lName = l.name || `${code} Premier League`;
               const lLogo = l.logoUrl || l.logo_url || l.banner_url || 'assets/card_jsl_user.png';
-              const lMatchesCount = allCrossFixtures.filter(f => (f.leagueCode || '').toUpperCase() === code || f.tournamentId === (l.supabaseId || l.id)).length;
-              const isSelected = activeFixtureCategory === code;
+              const lMatchesCount = allCrossFixtures.filter(f => {
+                if (!f) return false;
+                const fCode = (f.leagueCode || '').toUpperCase();
+                const fTid = f.tournament_id || f.tournamentId || f.leagueId;
+                if (fTid && (fTid === tid || (toUUID(fTid) && toUUID(fTid) === toUUID(tid)))) return true;
+                return fCode === code || (code === 'KPL' && (fCode === 'K2026' || fCode === 'KPL' || fCode === 'T2')) || (code === 'K2026' && (fCode === 'KPL' || fCode === 'K2026' || fCode === 'T2')) || (code === 'JSL' && fCode === 'JSL');
+              }).length;
+              const isSelected = activeFixtureCategory === code || activeFixtureCategory === tid || (toUUID(activeFixtureCategory) && toUUID(activeFixtureCategory) === toUUID(tid));
               return `
                 <button data-cat="${code}" class="fixture-cat-btn ${isSelected ? 'bg-gradient-to-r from-slate-900 to-slate-800 text-white font-black shadow-md border-2 border-emerald-400 scale-[1.02]' : 'bg-white text-slate-800 hover:bg-slate-50 font-bold border border-slate-200'} px-3 py-2 text-xs rounded-2xl transition-all cursor-pointer whitespace-nowrap snap-start flex items-center gap-2 shrink-0">
                   <img src="${lLogo}" class="w-6 h-6 rounded-lg object-cover border border-slate-200 bg-slate-50 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
