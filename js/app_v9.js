@@ -1,10 +1,10 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=13.0.16';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.16';
-import { renderAdminDashboard } from './admin.js?v=13.0.16';
-import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.16';
-import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.16';
+import { store } from './store.js?v=13.0.17';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.17';
+import { renderAdminDashboard } from './admin.js?v=13.0.17';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.17';
+import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.17';
 import { shops } from './shopsData.js?v=12.0.2';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
@@ -13443,62 +13443,178 @@ export function openTournamentCreationWizard(isTrialMode = false) {
         const regUrl = `${hostUrl}#reg-${slug}`;
 
         successContainer.innerHTML = `
-          <div class="w-14 h-14 rounded-2xl bg-amber-100 text-amber-900 mx-auto flex items-center justify-center text-2xl font-black shadow-md border border-amber-300 animate-pulse">
-            ⏳
-          </div>
-          
-          <div class="space-y-1.5 pt-1">
-            <span class="px-3 py-1 bg-amber-100 text-amber-950 text-[10px] font-black rounded-full border border-amber-300 uppercase inline-block">
-              ⏳ APPLICATION SUBMITTED FOR MASTER ADMIN APPROVAL
-            </span>
-            <h3 class="text-base sm:text-lg font-black text-slate-900">${name}</h3>
-            <p class="text-xs text-slate-600 max-w-md mx-auto leading-relaxed">
-              Your tournament application has been received and is currently under review by <strong>Platform Master Admin</strong>.
-            </p>
-          </div>
-
-          <!-- Process Explanation Card -->
-          <div class="p-3.5 bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl border border-amber-200 text-left space-y-2 text-xs">
-            <div class="flex items-center gap-2 text-amber-950 font-black">
-              <span>🛡️</span> <span>Approval & Activation Process:</span>
-            </div>
-            <ul class="text-[11px] text-amber-900 space-y-1 list-disc list-inside font-medium">
-              <li>Master Admin will review your tournament details, poster, and UPI settings.</li>
-              <li>Once approved, <strong>Player Registration</strong> will unlock and go LIVE automatically.</li>
-              <li>Your tournament hub will become publicly visible across the platform.</li>
-            </ul>
-          </div>
-
-          <!-- Link Previews (Locked Status) -->
-          <div class="bg-slate-50 border border-slate-200 p-3 rounded-2xl text-left space-y-2 text-xs">
-            <div>
-              <div class="flex items-center justify-between">
-                <span class="text-[9px] font-black text-slate-500 uppercase">Tournament Hub:</span>
-                <span class="text-[9px] font-black text-amber-800 bg-amber-100 px-1.5 py-0.2 rounded">Awaiting Approval</span>
-              </div>
-              <div class="flex items-center justify-between gap-1.5 mt-0.5">
-                <span class="font-mono text-[10px] text-blue-700 font-bold truncate">${hubUrl}</span>
-                <button type="button" id="wiz-copy-hub-btn" class="px-2 py-0.5 bg-white hover:bg-slate-100 border border-slate-300 rounded text-[9px] font-black shrink-0 cursor-pointer">Copy</button>
+          <div class="space-y-3 py-1 text-center font-sans">
+            
+            <!-- Glowing Animated Header Icon -->
+            <div class="relative w-14 h-14 mx-auto flex items-center justify-center">
+              <div class="absolute inset-0 rounded-2xl bg-gradient-to-tr from-amber-400 via-orange-400 to-yellow-300 animate-pulse blur-sm opacity-75"></div>
+              <div class="relative w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center text-2xl font-black shadow-lg border-2 border-white/70">
+                ⏳
               </div>
             </div>
+            
+            <!-- Status Badge & Header -->
+            <div class="space-y-1">
+              <span class="px-3.5 py-0.5 bg-gradient-to-r from-amber-100 via-orange-100 to-yellow-100 text-amber-950 text-[10px] font-black rounded-full border border-amber-300 uppercase shadow-2xs tracking-wider inline-flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+                <span>APPLICATION UNDER REVIEW • আবেদন যাচাই চলছে</span>
+              </span>
+              
+              <h3 class="text-base sm:text-lg font-black text-slate-900 tracking-tight pt-0.5">${name}</h3>
+              
+              <p class="text-[12px] text-slate-600 max-w-md mx-auto leading-relaxed font-semibold" style="font-family: 'Hind Siliguri', 'Anek Bangla', sans-serif;">
+                আপনার টুর্নামেন্ট আবেদনটি সফলভাবে জমা হয়েছে এবং <strong>মাস্টার অ্যাডমিনের অনুমোদনের</strong> অপেক্ষায় রয়েছে।
+              </p>
+            </div>
 
-            <div id="wiz-success-reg-container">
-              <div class="flex items-center justify-between">
-                <span class="text-[9px] font-black text-slate-500 uppercase">Player Registration Link:</span>
-                <span class="text-[9px] font-black text-amber-800 bg-amber-100 px-1.5 py-0.2 rounded">Opens on Approval</span>
+            <!-- Colourful Approval & Activation Process Box (Bengali & English) -->
+            <div class="p-3 sm:p-3.5 bg-gradient-to-br from-amber-50/90 via-orange-50/60 to-yellow-50/90 rounded-2xl border-2 border-amber-300/80 text-left space-y-2 shadow-xs">
+              <div class="flex items-center justify-between border-b border-amber-200/90 pb-1.5">
+                <div class="flex items-center gap-1.5 text-slate-900 font-black text-xs">
+                  <span class="w-5 h-5 rounded-lg bg-amber-500 text-white flex items-center justify-center text-[11px] font-black shrink-0 shadow-2xs">🛡️</span>
+                  <span>অনুমোদন ও চালুকরণ প্রক্রিয়া (Approval & Activation Process)</span>
+                </div>
+                <span class="text-[8.5px] font-black uppercase tracking-wider px-2 py-0.2 rounded-full bg-amber-200/80 text-amber-950">10-30 MINS</span>
               </div>
-              <div class="flex items-center justify-between gap-1.5 mt-0.5">
-                <span class="font-mono text-[10px] text-emerald-700 font-bold truncate">${regUrl}</span>
-                <button type="button" id="wiz-copy-reg-btn" class="px-2 py-0.5 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 rounded text-[9px] font-black shrink-0 cursor-pointer">Copy</button>
+
+              <div class="space-y-1.5 text-xs" style="font-family: 'Hind Siliguri', 'Anek Bangla', sans-serif;">
+                <div class="flex items-start gap-2">
+                  <span class="w-4 h-4 rounded-full bg-amber-200 text-amber-900 flex items-center justify-center text-[9.5px] font-black shrink-0 mt-0.5">১</span>
+                  <div class="min-w-0">
+                    <strong class="text-amber-950 font-bold text-[11.5px]">মাস্টার অ্যাডমিন ভেরিফিকেশন:</strong>
+                    <p class="text-slate-700 text-[11px] leading-snug">মাস্টার অ্যাডমিন আপনার টুর্নামেন্টের নাম, গ্রাউন্ড ভেন্যু, ব্যানার পোস্টার এবং UPI পেমেন্ট বিবরণ যাচাই করবেন।</p>
+                  </div>
+                </div>
+
+                <div class="flex items-start gap-2">
+                  <span class="w-4 h-4 rounded-full bg-emerald-200 text-emerald-900 flex items-center justify-center text-[9.5px] font-black shrink-0 mt-0.5">২</span>
+                  <div class="min-w-0">
+                    <strong class="text-emerald-950 font-bold text-[11.5px]">স্বয়ংক্রিয় লাইভ ও রেজিস্ট্রেশন ওপেন:</strong>
+                    <p class="text-slate-700 text-[11px] leading-snug">অনুমোদন (Approve) পাওয়ার পর স্বয়ংক্রিয়ভাবে অনলাইন প্লেয়ার রেজিস্ট্রেশন লিঙ্ক সবার জন্য লাইভ হয়ে যাবে।</p>
+                  </div>
+                </div>
+
+                <div class="flex items-start gap-2">
+                  <span class="w-4 h-4 rounded-full bg-blue-200 text-blue-900 flex items-center justify-center text-[9.5px] font-black shrink-0 mt-0.5">৩</span>
+                  <div class="min-w-0">
+                    <strong class="text-blue-950 font-bold text-[11.5px]">টুর্নামেন্ট হাব ও স্কোরবোর্ড দৃশ্যমান:</strong>
+                    <p class="text-slate-700 text-[11px] leading-snug">আপনার টুর্নামেন্ট হাব, লাইভ স্কোরার এবং পয়েন্ট টেবিল প্ল্যাটফর্মের হোমপেজে সবার জন্য চালু হয়ে যাবে।</p>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
 
-          <!-- Quick WhatsApp Alert to Master Admin -->
-          <div class="pt-1">
-            <a href="https://wa.me/919732710002?text=${encodeURIComponent(`👋 Hello Master Admin,\nI have submitted a new tournament for approval:\n\n🏆 *Tournament:* ${name}\n📍 *Venue:* ${venue}\n📱 *Organizer:* ${orgName} (${orgPhone})\n🔗 *Slug:* ${slug}\n\nPlease review and approve from the Admin Panel.`)}" target="_blank" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 cursor-pointer">
-              <span>💬 Notify Master Admin on WhatsApp</span>
-            </a>
+            <!-- Direct Contact Helpline: Bumba & Suman -->
+            <div class="p-3 bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white rounded-2xl border border-slate-700 shadow-md text-left space-y-2">
+              <div class="flex items-center justify-between border-b border-slate-700 pb-1.5">
+                <div class="flex items-center gap-1.5 text-xs font-black text-amber-400">
+                  <span>📞</span>
+                  <span>দ্রুত অনুমোদনের জন্য সরাসরি যোগাযোগ করুন (Helpline):</span>
+                </div>
+                <span class="text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/30 text-emerald-300 border border-emerald-500/40">24x7 Help</span>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-0.5">
+                
+                <!-- Bumba Contact with Phone Call SVG Dialer -->
+                <div class="p-2.5 bg-slate-800/90 hover:bg-slate-800 rounded-xl border border-slate-700 flex items-center justify-between gap-2 transition-all">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <span class="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center shrink-0">
+                      <!-- Call SVG Icon -->
+                      <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                      </svg>
+                    </span>
+                    <div class="min-w-0">
+                      <div class="text-[11px] font-black text-white truncate">Bumba (বুম্বা)</div>
+                      <a href="tel:8145313902" class="text-xs font-mono font-black text-emerald-400 hover:text-emerald-300 flex items-center gap-1 cursor-pointer">
+                        <span>8145313902</span>
+                      </a>
+                    </div>
+                  </div>
+
+                  <div class="flex items-center gap-1 shrink-0">
+                    <!-- Call Button (Opens Phone Dialer) -->
+                    <a href="tel:8145313902" title="Click to Call Bumba" class="p-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-black shadow-xs transition-all flex items-center gap-1 cursor-pointer">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                      </svg>
+                      <span>Call</span>
+                    </a>
+                    <!-- WhatsApp Button -->
+                    <a href="https://wa.me/918145313902?text=${encodeURIComponent(`👋 Hello Bumba,\nI have submitted a new tournament for approval:\n\n🏆 *Tournament:* ${name}\n📍 *Venue:* ${venue}\n📱 *Organizer:* ${orgName} (${orgPhone})\n🔗 *Slug:* ${slug}\n\nPlease review and approve.`)}" target="_blank" title="WhatsApp Bumba" class="p-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded-lg text-xs font-bold transition-all cursor-pointer">
+                      💬
+                    </a>
+                  </div>
+                </div>
+
+                <!-- Suman Contact with Email SVG -->
+                <div class="p-2.5 bg-slate-800/90 hover:bg-slate-800 rounded-xl border border-slate-700 flex items-center justify-between gap-2 transition-all">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <span class="w-8 h-8 rounded-lg bg-sky-500/20 border border-sky-500/40 flex items-center justify-center shrink-0">
+                      <!-- Mail SVG Icon -->
+                      <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                      </svg>
+                    </span>
+                    <div class="min-w-0">
+                      <div class="text-[11px] font-black text-white truncate">Suman (সুমন)</div>
+                      <a href="mailto:jecanimcet@gmail.com" class="text-[10.5px] font-mono text-sky-400 hover:text-sky-300 truncate block">
+                        jecanimcet@gmail.com
+                      </a>
+                    </div>
+                  </div>
+
+                  <div class="flex items-center gap-1 shrink-0">
+                    <!-- Email Button -->
+                    <a href="mailto:jecanimcet@gmail.com?subject=${encodeURIComponent(`Tournament Approval Request: ${name}`)}" title="Email Suman" class="p-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-[10px] font-black shadow-xs transition-all flex items-center gap-1 cursor-pointer">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                      </svg>
+                      <span>Mail</span>
+                    </a>
+                    <!-- WhatsApp Button -->
+                    <a href="https://wa.me/919732710002?text=${encodeURIComponent(`👋 Hello Suman,\nI have submitted a new tournament for approval:\n\n🏆 *Tournament:* ${name}\n📍 *Venue:* ${venue}\n📱 *Organizer:* ${orgName} (${orgPhone})\n🔗 *Slug:* ${slug}\n\nPlease review and approve.`)}" target="_blank" title="WhatsApp Suman" class="p-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded-lg text-xs font-bold transition-all cursor-pointer">
+                      💬
+                    </a>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            <!-- Tournament Shareable Links (Guarded Previews) -->
+            <div class="bg-slate-50 border-2 border-slate-200/80 p-3 rounded-2xl text-left space-y-2 text-xs">
+              <div>
+                <div class="flex items-center justify-between">
+                  <span class="text-[9.5px] font-black text-slate-600 uppercase tracking-wider">Tournament Hub (টুর্নামেন্ট হাব):</span>
+                  <span class="text-[9px] font-black text-amber-900 bg-amber-100 border border-amber-300 px-2 py-0.2 rounded-full">⏳ Awaiting Approval</span>
+                </div>
+                <div class="flex items-center justify-between gap-1.5 mt-1 bg-white p-1.5 rounded-xl border border-slate-200">
+                  <span class="font-mono text-[10px] text-blue-700 font-bold truncate">${hubUrl}</span>
+                  <button type="button" id="wiz-copy-hub-btn" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-lg text-[9.5px] font-black shrink-0 cursor-pointer transition-all">Copy</button>
+                </div>
+              </div>
+
+              <div id="wiz-success-reg-container">
+                <div class="flex items-center justify-between">
+                  <span class="text-[9.5px] font-black text-slate-600 uppercase tracking-wider">Player Registration (প্লেয়ার রেজিস্ট্রেশন লিঙ্ক):</span>
+                  <span class="text-[9px] font-black text-emerald-900 bg-emerald-100 border border-emerald-300 px-2 py-0.2 rounded-full">🚀 Opens on Approval</span>
+                </div>
+                <div class="flex items-center justify-between gap-1.5 mt-1 bg-white p-1.5 rounded-xl border border-slate-200">
+                  <span class="font-mono text-[10px] text-emerald-700 font-bold truncate">${regUrl}</span>
+                  <button type="button" id="wiz-copy-reg-btn" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[9.5px] font-black shrink-0 cursor-pointer shadow-xs transition-all">Copy</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Primary Notify Master Admin Button -->
+            <div class="pt-0.5">
+              <a href="https://wa.me/918145313902?text=${encodeURIComponent(`👋 Hello Master Admin (Bumba),\nI have submitted a new tournament for approval:\n\n🏆 *Tournament:* ${name}\n📍 *Venue:* ${venue}\n📱 *Organizer:* ${orgName} (${orgPhone})\n🔗 *Slug:* ${slug}\n\nPlease review and approve from the Admin Panel.`)}" target="_blank" class="w-full py-2.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg border border-emerald-400/40 flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-[1.01]">
+                <span class="text-base">💬</span>
+                <span style="font-family: 'Hind Siliguri', 'Anek Bangla', sans-serif;">মাস্টার অ্যাডমিনকে হোয়াটসঅ্যাপে জানান (Notify Master Admin)</span>
+              </a>
+            </div>
           </div>
         `;
 
@@ -13543,26 +13659,36 @@ export function openDynamicTournamentRegistrationModal(tourneyIdOrSlug) {
   if (tourneyStatus === 'PENDING_APPROVAL' || tourneyStatus === 'PENDING') {
     const underReviewHtml = `
       <div id="dynamic-tournament-reg-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4 animate-fade-in bg-slate-950/75 backdrop-blur-sm">
-        <div class="bg-white text-slate-900 max-w-md w-full rounded-2xl border-2 border-amber-300 shadow-2xl overflow-hidden">
-          <div class="p-5 bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50 border-b-2 border-amber-200 flex items-center justify-between">
+        <div class="bg-white text-slate-900 max-w-md w-full rounded-2xl border-2 border-amber-300 shadow-2xl overflow-hidden font-sans">
+          <div class="p-4 bg-gradient-to-r from-amber-50 via-orange-50 to-yellow-50 border-b-2 border-amber-200 flex items-center justify-between">
             <div class="flex items-center gap-2.5">
               <span class="w-10 h-10 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center text-xl shrink-0 shadow-md font-black">⏳</span>
               <div>
-                <h2 class="text-base font-black text-slate-900 leading-tight">Tournament Under Review</h2>
+                <h2 class="text-sm sm:text-base font-black text-slate-900 leading-tight">টুর্নামেন্ট যাচাই চলছে • Under Review</h2>
                 <span class="text-[10px] font-bold text-amber-800">Pending Master Admin Approval</span>
               </div>
             </div>
             <button id="close-reg-review-modal" class="w-8 h-8 rounded-full bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-950 border border-slate-300 flex items-center justify-center text-sm font-black transition-all shadow-xs cursor-pointer">✕</button>
           </div>
-          <div class="p-6 text-center space-y-3">
+          <div class="p-5 text-center space-y-3">
             <p class="text-sm font-black text-slate-900">${tourney.name}</p>
-            <p class="text-xs text-slate-600 leading-relaxed">
-              This tournament application has been submitted by the organizer and is currently awaiting verification and activation from Platform Master Admin.
+            <p class="text-xs text-slate-600 leading-relaxed" style="font-family: 'Hind Siliguri', 'Anek Bangla', sans-serif;">
+              এই টুর্নামেন্টটির আবেদন বর্তমানে প্ল্যাটফর্ম মাস্টার অ্যাডমিনের অনুমোদনের অপেক্ষায় রয়েছে। অনুমোদন পাওয়ার সাথে সাথে প্লেয়ার রেজিস্ট্রেশন পোর্টাল স্বয়ংক্রিয়ভাবে খুলে যাবে।
             </p>
-            <div class="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 text-[11px] font-bold">
-              🚀 Player registration will open automatically as soon as it is approved.
+            
+            <div class="p-3 bg-gradient-to-r from-slate-900 to-indigo-950 text-white rounded-xl text-left text-xs space-y-1.5 border border-slate-700">
+              <span class="text-[10px] font-black text-amber-400 uppercase tracking-wider block">জরুরি হেল্পলাইন (Contact Support):</span>
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-[11px] font-bold text-slate-200">📞 Bumba: <a href="tel:8145313902" class="font-mono text-emerald-400 hover:underline">8145313902</a></span>
+                <a href="tel:8145313902" class="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[10px] font-bold">Call</a>
+              </div>
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-[11px] font-bold text-slate-200">✉️ Suman: <a href="mailto:jecanimcet@gmail.com" class="font-mono text-sky-400 hover:underline">jecanimcet@gmail.com</a></span>
+                <a href="mailto:jecanimcet@gmail.com" class="px-2 py-0.5 bg-sky-600 hover:bg-sky-500 text-white rounded text-[10px] font-bold">Mail</a>
+              </div>
             </div>
-            <button id="close-reg-review-btn" class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-black rounded-xl transition-all cursor-pointer">Got It, Back to Home</button>
+
+            <button id="close-reg-review-btn" class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-black rounded-xl transition-all cursor-pointer">ঠিক আছে, হোমপেজে ফিরে যান (Got It)</button>
           </div>
         </div>
       </div>`;
