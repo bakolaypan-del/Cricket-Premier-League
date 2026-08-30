@@ -966,7 +966,70 @@ class Store {
 
   getPlayerById(id) {
     if (!id) return null;
-    return this.getPlayers().find(p => String(p.id) === String(id) || p.id == id);
+    return (this.getAllPlayersAcrossTournaments() || this.getPlayers()).find(p => String(p.id) === String(id) || (id && p.id && toUUID(p.id) === toUUID(id)));
+  }
+
+  getAllPlayersAcrossTournaments() {
+    const all = new Map();
+    const currentScoped = this.getPlayers();
+    currentScoped.forEach(p => {
+      if (p && p.id) all.set(p.id, p);
+    });
+
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith('cpl_players_v8_') || k === 'cpl_global_players')) {
+          const raw = localStorage.getItem(k);
+          if (raw) {
+            const list = JSON.parse(raw);
+            if (Array.isArray(list)) {
+              list.forEach(p => {
+                if (p && p.id) {
+                  const existing = all.get(p.id);
+                  if (!existing || (!existing.teamId && p.teamId) || (p.auctionStatus === 'SOLD' && existing.auctionStatus !== 'SOLD')) {
+                    all.set(p.id, p);
+                  }
+                }
+              });
+            }
+          }
+        }
+      }
+    } catch(e) {}
+
+    return Array.from(all.values());
+  }
+
+  getAllTeamsAcrossTournaments() {
+    const all = new Map();
+    const currentScoped = this.getTeams();
+    currentScoped.forEach(t => {
+      if (t && t.id) all.set(t.id, t);
+    });
+
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith('cpl_teams_v8_') || k === 'cpl_global_teams')) {
+          const raw = localStorage.getItem(k);
+          if (raw) {
+            const list = JSON.parse(raw);
+            if (Array.isArray(list)) {
+              list.forEach(t => {
+                if (t && t.id) {
+                  if (!all.has(t.id)) {
+                    all.set(t.id, t);
+                  }
+                }
+              });
+            }
+          }
+        }
+      }
+    } catch(e) {}
+
+    return Array.from(all.values());
   }
 
   // --- REGISTER NEW PLAYER WITH ATOMIC TIMESTAMP QUEUE & ZERO DUPLICATES ---

@@ -10067,8 +10067,8 @@ function renderLiveAuctionView(container) {
   const renderPlayerStatusTable = () => {
     const tableContainer = document.getElementById('auction-players-full-table-content');
     const collapsibleDiv = document.getElementById('player-auction-status-collapsible');
-    const allPlayers = store.getPlayers().filter(p => p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED');
-    const teams = store.getTeams();
+    const allPlayers = (store.getAllPlayersAcrossTournaments ? store.getAllPlayersAcrossTournaments() : store.getPlayers()).filter(p => p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED');
+    const teams = (store.getAllTeamsAcrossTournaments ? store.getAllTeamsAcrossTournaments() : store.getTeams());
 
     const soldList = allPlayers.filter(p => p.teamId || p.auctionStatus === 'SOLD');
     const unsoldList = allPlayers.filter(p => p.auctionStatus === 'UNSOLD' && !p.teamId);
@@ -11031,8 +11031,8 @@ export function openLiveAuctionProjectorView() {
   const renderHistoryOverlay = () => {
     const box = document.getElementById('proj-history-content-box');
     if (!box) return;
-    const allPlayers = store.getPlayers();
-    const teams = store.getTeams();
+    const allPlayers = (store.getAllPlayersAcrossTournaments ? store.getAllPlayersAcrossTournaments() : store.getPlayers());
+    const teams = (store.getAllTeamsAcrossTournaments ? store.getAllTeamsAcrossTournaments() : store.getTeams());
 
     // Reverse so latest sold/unsold appear first!
     const soldPlayers = allPlayers.filter(p => p.teamId || p.auctionStatus === 'SOLD').reverse();
@@ -11120,8 +11120,8 @@ export function openLiveAuctionProjectorView() {
   const renderTeamsOverlay = () => {
     const box = document.getElementById('proj-teams-content-box');
     if (!box) return;
-    const allPlayers = store.getPlayers();
-    const teams = store.getTeams();
+    const allPlayers = (store.getAllPlayersAcrossTournaments ? store.getAllPlayersAcrossTournaments() : store.getPlayers());
+    const teams = (store.getAllTeamsAcrossTournaments ? store.getAllTeamsAcrossTournaments() : store.getTeams());
     const targetSquadSize = Number(store.getAuctionSettings().maxSquadSize) || 13;
 
     const startIdx = (teamsCurrentPage - 1) * 4;
