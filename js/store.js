@@ -2867,6 +2867,8 @@ class Store {
     if (this._globalUniquePlayersCount && this._globalUniquePlayersCount > 0) {
       return this._globalUniquePlayersCount;
     }
+    const cached = Number(localStorage.getItem('cpl_global_unique_players_count') || 0);
+    if (cached > 0) return cached;
 
     const unique = new Set();
     try {
@@ -2879,10 +2881,8 @@ class Store {
             if (Array.isArray(arr)) {
               arr.forEach(p => {
                 if (p) {
-                  const normName = (p.name || '').toLowerCase().trim();
                   const cleanPhone = (p.phone || p.mobile || '').replace(/[^0-9]/g, '').slice(-10);
-                  const tid = p.tournament_id || p.tournamentId || k;
-                  const idKey = (normName && cleanPhone) ? `${tid}|${normName}|${cleanPhone}` : `${tid}|${p.id || cleanPhone}`;
+                  const idKey = cleanPhone && cleanPhone.length >= 10 ? cleanPhone : p.id;
                   if (idKey) unique.add(idKey);
                 }
               });
@@ -2899,7 +2899,7 @@ class Store {
       return totalCount;
     }
 
-    return 180;
+    return 168;
   }
 
   // --- PLAYER PROFILES ---
