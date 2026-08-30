@@ -10189,7 +10189,9 @@ function renderLiveAuctionView(container) {
       if (isNewPlayer || !playerCardEl) {
         lastActivePlayerId = state.active_player_id;
         lastActiveStatus = state.status;
-        const playerPhoto = getOptimizedImageUrl(state.photoUrl, 600, 600) || 'assets/card_jsl_user.png';
+        const pObj = store.getPlayerById(state.active_player_id) || store.getPlayers().find(p => p.id === state.active_player_id || (state.active_player_id && p.id && toUUID(p.id) === toUUID(state.active_player_id)));
+        const rawPhoto = state.photoUrl || state.player_photo_url || pObj?.photoUrl || pObj?.photo_url || pObj?.player_photo_url || pObj?.photo || pObj?.image || '';
+        const playerPhoto = getOptimizedImageUrl(rawPhoto, 600, 600) || 'assets/card_jsl_user.png';
 
         activeBlockWrapper.innerHTML = `
           <div id="auction-player-card-box" class="relative rounded-3xl overflow-hidden shadow-2xl border-2 ${isSoldState ? 'border-emerald-500' : isUnsoldState ? 'border-rose-500' : 'border-emerald-500/40'} min-h-[460px] sm:min-h-[540px] md:min-h-[580px] max-w-2xl mx-auto flex flex-col justify-between p-3 sm:p-4 bg-slate-900 animate-fade-in">
@@ -11305,7 +11307,9 @@ export function openLiveAuctionProjectorView() {
       if (isNewPlayer || !document.getElementById('proj-player-card-box')) {
         lastProjectorPlayerId = state.active_player_id;
         lastProjectorStatus = state.status;
-        const playerPhoto = getOptimizedImageUrl(state.photoUrl, 700, 700) || 'assets/card_jsl_user.png';
+        const pObjProj = store.getPlayerById(state.active_player_id) || store.getPlayers().find(p => p.id === state.active_player_id || (state.active_player_id && p.id && toUUID(p.id) === toUUID(state.active_player_id)));
+        const rawPhotoProj = state.photoUrl || state.player_photo_url || pObjProj?.photoUrl || pObjProj?.photo_url || pObjProj?.player_photo_url || pObjProj?.photo || pObjProj?.image || '';
+        const playerPhoto = getOptimizedImageUrl(rawPhotoProj, 700, 700) || 'assets/card_jsl_user.png';
 
         heroContainer.innerHTML = `
           <div id="proj-player-card-box" class="flex-1 relative rounded-2xl sm:rounded-3xl border-2 ${isSoldState ? 'border-emerald-500' : isUnsoldState ? 'border-rose-500' : 'border-slate-300'} overflow-hidden bg-slate-900 shadow-lg flex flex-col justify-between p-3 sm:p-4 min-h-0 relative animate-fade-in">

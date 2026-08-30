@@ -6415,10 +6415,13 @@ export function initAuctionStartListener() {
       isSold: false,
       isUnsold: false
     };
+    const resolvedPhoto = player.photoUrl || player.photo_url || player.player_photo_url || player.photo || player.image || '';
+
     store.updateLiveAuctionState({
       active_player_id: player.id,
       name: player.name,
-      photoUrl: player.photoUrl || player.player_photo_url,
+      photoUrl: resolvedPhoto,
+      player_photo_url: resolvedPhoto,
       category: player.category || player.playingType || 'All Rounder',
       basePrice: Number(player.basePrice) || 300,
       current_bid: Number(player.basePrice) || 300,
