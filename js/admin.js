@@ -1,8 +1,8 @@
 // Admin Master Data & Payment Verification Panel with Single Source Cloud Control (Developer: Suman Kolay)
 
-import { store } from './store.js?v=13.0.25';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.25';
-import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.25';
+import { store } from './store.js?v=13.0.26';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.26';
+import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.26';
 import { shops } from './shopsData.js?v=12.0.2';
 
 let activeAdminTab = (() => { try { return sessionStorage.getItem('cpl_admin_tab') || (store.isMasterAdmin() ? 'payments' : 'overview'); } catch(e) { return 'payments'; } })();
@@ -500,6 +500,9 @@ export function renderAdminDashboard(containerEl) {
                 <p class="text-xs text-slate-500">Manage franchise teams, squad allocations & print official auction rosters.</p>
               </div>
               <div class="flex items-center gap-2 flex-wrap">
+                <button id="admin-add-new-team-btn" class="px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer transition-all">
+                  <i data-lucide="plus-circle" class="w-4 h-4"></i> + Add New Team
+                </button>
                 <button id="download-all-teams-squad-pdf-btn" class="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer transition-all">
                   <i data-lucide="file-down" class="w-4 h-4 text-slate-950"></i> 📄 Download All Squads PDF
                 </button>
@@ -510,9 +513,17 @@ export function renderAdminDashboard(containerEl) {
             </div>
 
             ${teams.length === 0 ? `
-              <div class="text-center py-10 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50">
-                <i data-lucide="shield-off" class="w-10 h-10 text-slate-400 mx-auto mb-2"></i>
-                <p class="text-slate-800 font-bold text-xs">No teams registered yet!</p>
+              <div class="text-center py-12 border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50 space-y-3">
+                <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-700 mx-auto flex items-center justify-center text-xl font-black border border-emerald-200 shadow-2xs">
+                  🛡️
+                </div>
+                <div class="space-y-1">
+                  <h4 class="text-slate-900 font-black text-sm">No teams registered yet for this tournament!</h4>
+                  <p class="text-slate-500 text-xs max-w-sm mx-auto">Create franchise teams, assign team owner details, logos, and auction purse budgets.</p>
+                </div>
+                <button type="button" id="admin-empty-add-team-btn" class="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs rounded-xl shadow-md cursor-pointer transition-all inline-flex items-center gap-1.5">
+                  <i data-lucide="plus-circle" class="w-4 h-4"></i> + Register First Team
+                </button>
               </div>
             ` : `
               <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
@@ -2038,6 +2049,13 @@ export function renderAdminDashboard(containerEl) {
       }
     });
   });
+
+  // --- ADD NEW TEAM LISTENERS ---
+  const handleAddNewTeam = () => {
+    openEditTeamModal(null, () => renderAdminDashboard(containerEl));
+  };
+  document.getElementById('admin-add-new-team-btn')?.addEventListener('click', handleAddNewTeam);
+  document.getElementById('admin-empty-add-team-btn')?.addEventListener('click', handleAddNewTeam);
 
   // Action Listeners on Tables
   document.getElementById('admin-create-new-tourney-btn')?.addEventListener('click', () => {
@@ -6587,19 +6605,27 @@ export function openTeamFinalSquadPDFModal() {
   });
 }
 
-// --- EDIT TEAM MODAL WITH WHITE BACKGROUND & INSTANT CDN UPLOAD ---
-export function openEditTeamModal(team, onSaved) {
+// --- EDIT OR ADD TEAM MODAL WITH WHITE BACKGROUND & INSTANT CDN UPLOAD ---
+export function openEditTeamModal(team = null, onSaved = null) {
   document.getElementById('edit-team-modal')?.remove();
 
-  const maxPurse = Number(team.purse || team.purseBudget || 8000);
-  const spent = Number(team.purseSpent || 0);
-  const remPurse = (team.remainingPurse !== undefined) ? Number(team.remainingPurse) : (maxPurse - spent);
+  const isNew = !team || !team.id;
+  const currentTourneys = store.getAllAvailableTournaments ? store.getAllAvailableTournaments() : (store.getCustomTournaments() || []);
+  const currentTourney = currentTourneys.find(t => (t.supabaseId || t.id) === store.activeTournamentId || t.slug === store.activeTournamentId) || {};
+  
+  const maxPurse = isNew 
+    ? Number(currentTourney.teamPurse || 8000) 
+    : Number(team.purse || team.purseBudget || 8000);
+  const spent = isNew ? 0 : Number(team.purseSpent || 0);
+  const remPurse = isNew 
+    ? maxPurse 
+    : ((team.remainingPurse !== undefined) ? Number(team.remainingPurse) : (maxPurse - spent));
 
-  let ownerPhotoData = team.ownerPhotoUrl || team.ownerPhoto || '';
-  let iconPhotoData = team.iconPlayerPhotoUrl || team.iconPhotoUrl || team.iconPhoto || '';
-  let teamLogoData = team.logoUrl || team.teamLogoUrl || '';
-  let coOwnerPhotoData = team.coOwnerPhotoUrl || team.coOwner1PhotoUrl || '';
-  let mentorPhotoData = team.mentorPhotoUrl || '';
+  let ownerPhotoData = isNew ? '' : (team.ownerPhotoUrl || team.ownerPhoto || '');
+  let iconPhotoData = isNew ? '' : (team.iconPlayerPhotoUrl || team.iconPhotoUrl || team.iconPhoto || '');
+  let teamLogoData = isNew ? '' : (team.logoUrl || team.teamLogoUrl || '');
+  let coOwnerPhotoData = isNew ? '' : (team.coOwnerPhotoUrl || team.coOwner1PhotoUrl || '');
+  let mentorPhotoData = isNew ? '' : (team.mentorPhotoUrl || '');
 
   let isUploadingImage = false;
 
@@ -6610,12 +6636,12 @@ export function openEditTeamModal(team, onSaved) {
         <!-- Header -->
         <div class="flex justify-between items-center pb-3 border-b border-slate-200 mb-4">
           <div class="flex items-center gap-3">
-            <span class="p-2.5 bg-blue-50 text-blue-600 rounded-2xl border border-blue-200">
-              <i data-lucide="shield-check" class="w-5 h-5"></i>
+            <span class="p-2.5 ${isNew ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-blue-50 text-blue-600 border border-blue-200'} rounded-2xl">
+              <i data-lucide="${isNew ? 'plus-circle' : 'shield-check'}" class="w-5 h-5"></i>
             </span>
             <div>
-              <h3 class="text-base sm:text-lg font-black text-slate-900">Edit Team: ${team.name}</h3>
-              <p class="text-xs text-slate-500 font-medium">Update franchise details, icon player, logos & purse budget</p>
+              <h3 class="text-base sm:text-lg font-black text-slate-900">${isNew ? '+ Register / Add Franchise Team' : `Edit Team: ${team.name}`}</h3>
+              <p class="text-xs text-slate-500 font-medium">${isNew ? `Create team roster & purse for ${currentTourney.name || 'this tournament'}` : 'Update franchise details, icon player, logos & purse budget'}</p>
             </div>
           </div>
           <button id="close-edit-team-modal-btn" class="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors">
@@ -6632,11 +6658,11 @@ export function openEditTeamModal(team, onSaved) {
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Team Name *</label>
-                <input type="text" id="edit-team-name" required value="${team.name || ''}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-blue-500 focus:outline-none shadow-sm" />
+                <input type="text" id="edit-team-name" required placeholder="e.g. Kuapur Kings" value="${isNew ? '' : (team.name || '')}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-blue-500 focus:outline-none shadow-sm font-bold" />
               </div>
               <div>
-                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Short Code (e.g. KH)</label>
-                <input type="text" id="edit-team-code" value="${team.shortCode || team.name.substring(0, 3).toUpperCase()}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-blue-500 focus:outline-none shadow-sm" />
+                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Short Code (e.g. KK)</label>
+                <input type="text" id="edit-team-code" placeholder="e.g. KK" value="${isNew ? '' : (team.shortCode || (team.name ? team.name.substring(0, 3).toUpperCase() : ''))}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-blue-500 focus:outline-none shadow-sm uppercase font-mono font-bold" />
               </div>
             </div>
 
@@ -6662,11 +6688,11 @@ export function openEditTeamModal(team, onSaved) {
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Owner Name *</label>
-                <input type="text" id="edit-owner-name" required value="${team.ownerName || ''}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-amber-500 focus:outline-none shadow-sm" />
+                <input type="text" id="edit-owner-name" required placeholder="e.g. Rajesh Ghosh" value="${isNew ? '' : (team.ownerName || '')}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-amber-500 focus:outline-none shadow-sm font-bold" />
               </div>
               <div>
                 <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Owner Phone *</label>
-                <input type="tel" id="edit-owner-phone" required value="${team.ownerPhone || ''}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-amber-500 focus:outline-none shadow-sm" />
+                <input type="tel" id="edit-owner-phone" required placeholder="10-digit Mobile No." value="${isNew ? '' : (team.ownerPhone || '')}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-amber-500 focus:outline-none shadow-sm font-mono font-bold" />
               </div>
             </div>
 
@@ -6689,31 +6715,32 @@ export function openEditTeamModal(team, onSaved) {
           <!-- 3. Icon Player Details (Dropdown from Approved Players) -->
           <div class="p-3.5 bg-emerald-50/50 rounded-2xl border border-emerald-200/80 space-y-3">
             <div class="flex items-center justify-between">
-              <span class="text-[11px] font-black text-emerald-800 uppercase tracking-wider block">🌟 Icon Player (₹1,000 Fee)</span>
-              <span class="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">Auto-deducts ₹1,000 & Roster 1/13</span>
+              <span class="text-[11px] font-black text-emerald-800 uppercase tracking-wider block">🌟 Icon Player (Optional)</span>
+              <span class="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">Pre-assigned captain/marquee player</span>
             </div>
 
             <div>
-              <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Select Icon Player from Approved Registry *</label>
+              <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Select Icon Player from Approved Registry</label>
               <select id="edit-icon-select" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-sm">
                 <option value="">-- No Icon Player Assigned --</option>
-                <option value="__CUSTOM__" ${team.iconPlayerName && !store.getPlayers().some(p => p.name === team.iconPlayerName) ? 'selected' : ''}>✍️ Custom Name / Outside Registry</option>
-                ${store.getPlayers().filter(p => (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED')).map(p => {
-                  const isSelected = (team.iconPlayerName === p.name || team.iconName === p.name || team.iconPlayerId === p.id);
-                  return `<option value="${p.id}" data-name="${p.name}" data-photo="${p.photoUrl || p.player_photo_url || ''}" ${isSelected ? 'selected' : ''}>${p.name} (${p.category || 'All Rounder'} • ${p.village || 'N/A'}${p.displayRegistrationNumber ? ' • #' + p.displayRegistrationNumber : ''})</option>`;
-                }).join('')}
+                <option value="__CUSTOM__" ${!isNew && team.iconPlayerName && !store.getPlayers().some(p => p.name === team.iconPlayerName) ? 'selected' : ''}>✍️ Custom Name / Outside Registry</option>
+                ${store.getPlayers().map(p => `
+                  <option value="${p.id}" data-name="${p.name}" data-photo="${p.photoUrl || p.player_photo_url || ''}" ${!isNew && (team.iconPlayerId === p.id || team.iconPlayerName === p.name) ? 'selected' : ''}>
+                    ${p.name} (${p.category || 'All-Rounder'}) - ${p.village || 'Local'}
+                  </option>
+                `).join('')}
               </select>
             </div>
 
-            <div id="custom-icon-name-wrapper" class="${team.iconPlayerName && !store.getPlayers().some(p => p.name === team.iconPlayerName) ? '' : 'hidden'}">
-              <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Custom Icon Player Name</label>
-              <input type="text" id="edit-icon-name" value="${team.iconPlayerName || team.iconName || ''}" placeholder="e.g. Bijay Haldar" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-sm" />
+            <div id="custom-icon-name-wrapper" class="${(!isNew && team.iconPlayerName && !store.getPlayers().some(p => p.name === team.iconPlayerName)) ? '' : 'hidden'} space-y-2">
+              <label class="block text-[10px] font-bold text-slate-700 uppercase">Custom Icon Player Name</label>
+              <input type="text" id="edit-icon-name" placeholder="Enter full name of icon player" value="${isNew ? '' : (team.iconPlayerName || '')}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-sm" />
             </div>
 
-            <!-- Icon Photo (Auto-Compressed < 100KB & Instant CDN Upload) -->
+            <!-- Icon Photo Upload -->
             <div>
               <div class="flex items-center justify-between mb-1">
-                <label class="block text-[10px] font-bold text-emerald-800 uppercase">Icon Player Photo (Auto-populated or Upload)</label>
+                <label class="block text-[10px] font-bold text-emerald-800 uppercase">Icon Player Photo (Optional)</label>
                 <div id="icon-photo-upload-status" class="text-[10px] font-bold"></div>
               </div>
               <div class="flex items-center gap-2.5">
@@ -6732,11 +6759,11 @@ export function openEditTeamModal(team, onSaved) {
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Co-Owner Name</label>
-                <input type="text" id="edit-coowner-name" value="${team.coOwnerName || team.coOwner1Name || ''}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2 focus:border-purple-500 focus:outline-none shadow-sm" />
+                <input type="text" id="edit-coowner-name" placeholder="Optional" value="${isNew ? '' : (team.coOwnerName || team.coOwner1Name || '')}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2 focus:border-purple-500 focus:outline-none shadow-sm" />
               </div>
               <div>
                 <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Mentor Name</label>
-                <input type="text" id="edit-mentor-name" value="${team.mentorName || ''}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2 focus:border-purple-500 focus:outline-none shadow-sm" />
+                <input type="text" id="edit-mentor-name" placeholder="Optional" value="${isNew ? '' : (team.mentorName || '')}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2 focus:border-purple-500 focus:outline-none shadow-sm" />
               </div>
             </div>
           </div>
@@ -6747,28 +6774,28 @@ export function openEditTeamModal(team, onSaved) {
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Total Purse Budget (₹)</label>
-                <input type="number" id="edit-team-purse" required value="${maxPurse}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-rose-500 focus:outline-none shadow-sm" />
+                <input type="number" id="edit-team-purse" required value="${maxPurse}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-rose-500 focus:outline-none shadow-sm font-mono font-bold" />
               </div>
               <div>
                 <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Remaining Purse (₹)</label>
-                <input type="number" id="edit-team-rem-purse" required value="${remPurse}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-rose-500 focus:outline-none shadow-sm" />
+                <input type="number" id="edit-team-rem-purse" required value="${remPurse}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-rose-500 focus:outline-none shadow-sm font-mono font-bold" />
               </div>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Registration Status</label>
-                <select id="edit-team-status" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:outline-none shadow-sm">
-                  <option value="APPROVED" ${team.registrationStatus === 'APPROVED' ? 'selected' : ''}>APPROVED</option>
-                  <option value="PENDING" ${team.registrationStatus === 'PENDING' ? 'selected' : ''}>PENDING</option>
-                  <option value="REJECTED" ${team.registrationStatus === 'REJECTED' ? 'selected' : ''}>REJECTED</option>
+                <select id="edit-team-status" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:outline-none shadow-sm font-bold">
+                  <option value="APPROVED" ${!isNew && team.registrationStatus === 'APPROVED' ? 'selected' : ''}>APPROVED</option>
+                  <option value="PENDING" ${!isNew && team.registrationStatus === 'PENDING' ? 'selected' : ''}>PENDING</option>
+                  <option value="REJECTED" ${!isNew && team.registrationStatus === 'REJECTED' ? 'selected' : ''}>REJECTED</option>
                 </select>
               </div>
               <div>
                 <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Payment Status</label>
-                <select id="edit-team-payment-status" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:outline-none shadow-sm">
-                  <option value="APPROVED" ${team.paymentStatus === 'APPROVED' ? 'selected' : ''}>APPROVED</option>
-                  <option value="PENDING" ${team.paymentStatus === 'PENDING' ? 'selected' : ''}>PENDING</option>
+                <select id="edit-team-payment-status" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:outline-none shadow-sm font-bold">
+                  <option value="APPROVED" ${!isNew && team.paymentStatus === 'APPROVED' ? 'selected' : ''}>APPROVED</option>
+                  <option value="PENDING" ${!isNew && team.paymentStatus === 'PENDING' ? 'selected' : ''}>PENDING</option>
                 </select>
               </div>
             </div>
@@ -6779,8 +6806,8 @@ export function openEditTeamModal(team, onSaved) {
             <button type="button" id="cancel-edit-team-btn" class="w-1/3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors cursor-pointer border border-slate-300">
               Cancel
             </button>
-            <button type="submit" id="save-edit-team-btn" class="w-2/3 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer">
-              <i data-lucide="save" class="w-4 h-4"></i> Save Team Changes
+            <button type="submit" id="save-edit-team-btn" class="w-2/3 py-2.5 ${isNew ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700' : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700'} text-white font-black rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer">
+              <i data-lucide="${isNew ? 'plus-circle' : 'save'}" class="w-4 h-4"></i> ${isNew ? 'Register Team Now' : 'Save Team Changes'}
             </button>
           </div>
 
@@ -6811,7 +6838,7 @@ export function openEditTeamModal(team, onSaved) {
         `;
       } else {
         saveBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-        saveBtn.innerHTML = `<i data-lucide="save" class="w-4 h-4"></i> Save Team Changes`;
+        saveBtn.innerHTML = `<i data-lucide="${isNew ? 'plus-circle' : 'save'}" class="w-4 h-4"></i> ${isNew ? 'Register Team Now' : 'Save Team Changes'}`;
         if (window.lucide) window.lucide.createIcons();
       }
     }
@@ -6843,7 +6870,7 @@ export function openEditTeamModal(team, onSaved) {
 
       statusEl.innerHTML = `
         <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
-          <span>✅ CDN Uploaded (< 100KB)</span>
+          <span>✅ CDN Uploaded (&lt; 100KB)</span>
         </span>
       `;
     } catch (err) {
@@ -6963,12 +6990,74 @@ export function openEditTeamModal(team, onSaved) {
       saveBtn.innerHTML = `
         <div class="flex items-center justify-center gap-2">
           <div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-          <span>Saving Team Changes...</span>
+          <span>${isNew ? 'Registering Team...' : 'Saving Team Changes...'}</span>
         </div>
       `;
     }
 
     try {
+      const iconSelect = document.getElementById('edit-icon-select');
+      const iconPlayerIdVal = (iconSelect?.value !== '__CUSTOM__' && iconSelect?.value) || (!isNew ? team.iconPlayerId : '') || '';
+      const iconNameVal = (() => {
+        if (!iconSelect) return '';
+        if (iconSelect.value === '__CUSTOM__') return (document.getElementById('edit-icon-name')?.value || '').trim();
+        if (iconSelect.value === '') return '';
+        const opt = iconSelect.options[iconSelect.selectedIndex];
+        return (opt?.getAttribute('data-name') || '').trim();
+      })();
+
+      if (isNew) {
+        // --- NEW TEAM REGISTRATION ---
+        const teamName = document.getElementById('edit-team-name').value.trim();
+        const shortCode = document.getElementById('edit-team-code').value.trim().toUpperCase() || teamName.substring(0, 3).toUpperCase();
+        
+        const newTeamData = {
+          id: generateUUID(),
+          tournament_id: store.activeTournamentId,
+          tournamentId: store.activeTournamentId,
+          name: teamName,
+          shortCode: shortCode,
+          ownerName: document.getElementById('edit-owner-name').value.trim(),
+          ownerPhone: document.getElementById('edit-owner-phone').value.trim(),
+          ownerPhotoUrl: ownerPhotoData,
+          ownerPhoto: ownerPhotoData,
+          captainName: document.getElementById('edit-owner-name').value.trim(),
+          iconPlayerId: iconPlayerIdVal,
+          iconPlayerName: iconNameVal,
+          iconName: iconNameVal,
+          iconPlayerPhotoUrl: iconPhotoData,
+          iconPhotoUrl: iconPhotoData,
+          iconPhoto: iconPhotoData,
+          logoUrl: teamLogoData || 'assets/jsl_logo.jpg',
+          teamLogoUrl: teamLogoData || 'assets/jsl_logo.jpg',
+          coOwnerName: document.getElementById('edit-coowner-name')?.value.trim() || '',
+          coOwner1Name: document.getElementById('edit-coowner-name')?.value.trim() || '',
+          mentorName: document.getElementById('edit-mentor-name')?.value.trim() || '',
+          purse: Number(document.getElementById('edit-team-purse').value) || maxPurse,
+          purseBudget: Number(document.getElementById('edit-team-purse').value) || maxPurse,
+          remainingPurse: Number(document.getElementById('edit-team-rem-purse').value) || maxPurse,
+          registrationStatus: document.getElementById('edit-team-status').value,
+          paymentStatus: document.getElementById('edit-team-payment-status').value,
+          status: 'VERIFIED',
+          squadCount: 0,
+          maxSquad: 15,
+          created_at: new Date().toISOString()
+        };
+
+        store.registerTeam(newTeamData);
+        try {
+          await syncTeamToSupabase(newTeamData);
+        } catch (cloudErr) {
+          console.warn('Supabase team sync notice:', cloudErr);
+        }
+
+        removeModal();
+        if (onSaved) onSaved();
+        alert(`✅ Team "${newTeamData.name}" registered successfully!`);
+        return;
+      }
+
+      // --- EDIT EXISTING TEAM ---
       const updatedTeam = {
         ...team,
         name: document.getElementById('edit-team-name').value.trim(),
@@ -6978,23 +7067,9 @@ export function openEditTeamModal(team, onSaved) {
         ownerPhotoUrl: ownerPhotoData,
         ownerPhoto: ownerPhotoData,
         captainName: document.getElementById('edit-owner-name').value.trim(),
-        iconPlayerId: (document.getElementById('edit-icon-select')?.value !== '__CUSTOM__' && document.getElementById('edit-icon-select')?.value) || team.iconPlayerId || '',
-        iconPlayerName: (() => {
-          const sel = document.getElementById('edit-icon-select');
-          if (!sel) return '';
-          if (sel.value === '__CUSTOM__') return (document.getElementById('edit-icon-name')?.value || '').trim();
-          if (sel.value === '') return '';
-          const opt = sel.options[sel.selectedIndex];
-          return (opt?.getAttribute('data-name') || '').trim();
-        })(),
-        iconName: (() => {
-          const sel = document.getElementById('edit-icon-select');
-          if (!sel) return '';
-          if (sel.value === '__CUSTOM__') return (document.getElementById('edit-icon-name')?.value || '').trim();
-          if (sel.value === '') return '';
-          const opt = sel.options[sel.selectedIndex];
-          return (opt?.getAttribute('data-name') || '').trim();
-        })(),
+        iconPlayerId: iconPlayerIdVal,
+        iconPlayerName: iconNameVal,
+        iconName: iconNameVal,
         iconPlayerPhotoUrl: iconPhotoData,
         iconPhotoUrl: iconPhotoData,
         iconPhoto: iconPhotoData,
