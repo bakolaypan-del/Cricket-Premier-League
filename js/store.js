@@ -1307,11 +1307,18 @@ class Store {
   assignPlayerToTeam(playerId, teamId, soldPrice) {
     this._invalidateCache('players');
     this._invalidateCache('teams');
-    const players = this.getPlayers();
-    const teams = this.getTeams();
+    let players = this.getPlayers();
+    let teams = this.getTeams();
     
-    const player = players.find(p => p.id === playerId || (playerId && p.id && toUUID(p.id) === toUUID(playerId)));
-    const team = teams.find(t => t.id === teamId || (teamId && t.id && toUUID(t.id) === toUUID(teamId)));
+    let player = players.find(p => p.id === playerId || (playerId && p.id && toUUID(p.id) === toUUID(playerId)));
+    if (!player && this.getAllPlayersAcrossTournaments) {
+      player = this.getAllPlayersAcrossTournaments().find(p => p.id === playerId || (playerId && p.id && toUUID(p.id) === toUUID(playerId)));
+    }
+
+    let team = teams.find(t => t.id === teamId || (teamId && t.id && toUUID(t.id) === toUUID(teamId)));
+    if (!team && this.getAllTeamsAcrossTournaments) {
+      team = this.getAllTeamsAcrossTournaments().find(t => t.id === teamId || (teamId && t.id && toUUID(t.id) === toUUID(teamId)));
+    }
 
     if (player && team) {
       if (player.teamId) {
