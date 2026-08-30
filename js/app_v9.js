@@ -2508,22 +2508,41 @@ export function renderCustomTournamentHub(container, tourney) {
   const curTourneyId = tid || tourney.id || tourney.supabaseId || (isJsl ? 'leg-jsl' : '');
 
   const allTeams = (store.getAllTeamsAcrossTournaments ? store.getAllTeamsAcrossTournaments() : store.getTeams()).filter(t => {
-    const tTid = t.tournament_id || t.tournamentId || t.leagueId;
-    const tCode = (t.leagueCode || (tTid === 'leg-jsl' ? 'JSL' : '')).toUpperCase();
+    if (!t) return false;
+    const tTid = (t.tournament_id || t.tournamentId || t.leagueId || '').toString();
+    const tCode = (t.leagueCode || t.category_code || '').toUpperCase();
 
-    if (tTid && (tTid === curTourneyId || tTid === tourney.id || tTid === tourney.supabaseId)) return true;
-    if (tCode && curTourneyCode && (tCode === curTourneyCode || (curTourneyCode === 'KPL' && (tCode === 'K2026' || tCode === 'KPL')) || (curTourneyCode === 'K2026' && (tCode === 'KPL' || tCode === 'K2026')) || (curTourneyCode === 'JSL' && tCode === 'JSL'))) return true;
-    if (isJsl && !tTid && (!tCode || tCode === 'JSL')) return true;
+    if (tTid && (tTid === curTourneyId || tTid === String(tourney.id) || tTid === String(tourney.supabaseId) || toUUID(tTid) === toUUID(curTourneyId))) return true;
+    if (tCode && curTourneyCode && tCode !== 'T') {
+      if (tCode === curTourneyCode) return true;
+      if (curTourneyCode === 'KPL' && (tCode === 'K2026' || tCode === 'KPL')) return true;
+      if (curTourneyCode === 'JSL' && (tCode === 'J2026' || tCode === 'JSL')) return true;
+    }
     return false;
   });
 
-  const allFixtures = (store.getAllFixturesAcrossTournaments ? store.getAllFixturesAcrossTournaments() : (store.getFixtures ? store.getFixtures() : [])).filter(f => {
-    const fTid = f.tournament_id || f.tournamentId || f.leagueId;
-    const fCode = (f.leagueCode || '').toUpperCase();
+  const allTeamIds = new Set(allTeams.map(t => String(t.id)));
 
-    if (fTid && (fTid === curTourneyId || fTid === tourney.id || fTid === tourney.supabaseId)) return true;
-    if (fCode && curTourneyCode && (fCode === curTourneyCode || (curTourneyCode === 'KPL' && (fCode === 'K2026' || fCode === 'KPL')) || (curTourneyCode === 'K2026' && (fCode === 'KPL' || fCode === 'K2026')) || (curTourneyCode === 'JSL' && fCode === 'JSL'))) return true;
-    if (isJsl && !fTid && (!fCode || fCode === 'JSL')) return true;
+  const allFixtures = (store.getAllFixturesAcrossTournaments ? store.getAllFixturesAcrossTournaments() : (store.getFixtures ? store.getFixtures() : [])).filter(f => {
+    if (!f) return false;
+    const fTid = (f.tournament_id || f.tournamentId || f.leagueId || '').toString();
+    const fCode = (f.leagueCode || f.category_code || '').toUpperCase();
+    const fTeamA = f.teamAId ? String(f.teamAId) : '';
+    const fTeamB = f.teamBId ? String(f.teamBId) : '';
+
+    // Rule 1: Match by exact tournament UUID / ID / Slug
+    if (fTid && (fTid === curTourneyId || fTid === String(tourney.id) || fTid === String(tourney.supabaseId) || fTid === tourneySlug || toUUID(fTid) === toUUID(curTourneyId))) return true;
+
+    // Rule 2: Match by Team Ownership (If Team A or Team B belongs to this tournament's team list)
+    if (allTeamIds.has(fTeamA) || allTeamIds.has(fTeamB)) return true;
+
+    // Rule 3: Match by explicit League Code ONLY if team ownership doesn't belong to another tournament
+    if (fCode && curTourneyCode && fCode !== 'T') {
+      if (fCode === curTourneyCode) return true;
+      if (curTourneyCode === 'KPL' && (fCode === 'K2026' || fCode === 'KPL')) return true;
+      if (curTourneyCode === 'JSL' && (fCode === 'J2026' || fCode === 'JSL')) return true;
+    }
+
     return false;
   });
 
