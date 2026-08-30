@@ -1513,11 +1513,17 @@ export async function saveCustomTournamentToCloud(tourney) {
   }
 }
 
-export async function updateTournamentApprovalStatus(tourneyId, newStatus, reason = '') {
-  if (!supabase || !tourneyId) return false;
+export async function updateTournamentApprovalStatus(tourneyId, newStatus, reason = '', slug = null) {
+  if (!supabase || (!tourneyId && !slug)) return false;
   try {
     const isUUID = typeof tourneyId === 'string' && UUID_FORMAT_RE.test(tourneyId);
-    let target = supabase.from('tournaments');
+    let targetIds = [];
+    if (isUUID) targetIds.push(tourneyId);
+    const resolvedUUID = resolveTournamentUUID(slug || tourneyId);
+    if (resolvedUUID && UUID_FORMAT_RE.test(resolvedUUID) && !targetIds.includes(resolvedUUID)) {
+      targetIds.push(resolvedUUID);
+    }
+    const cleanSlug = String(slug || tourneyId || '').replace(/^t_/, '').trim();
     
     let dbStatus = 'active';
     let appStatus = 'approved';
@@ -1530,27 +1536,41 @@ export async function updateTournamentApprovalStatus(tourneyId, newStatus, reaso
     }
     
     // Fetch existing registration_settings to preserve fields
-    let query = isUUID ? supabase.from('tournaments').select('id, registration_settings').eq('id', tourneyId) : supabase.from('tournaments').select('id, registration_settings').eq('slug', String(tourneyId).replace(/^t_/, ''));
-    const { data: existing } = await query.maybeSingle();
+    let existingRegSettings = {};
+    for (const uid of targetIds) {
+      try {
+        const { data: existing } = await supabase.from('tournaments').select('registration_settings').eq('id', uid).maybeSingle();
+        if (existing?.registration_settings && typeof existing.registration_settings === 'object') {
+          existingRegSettings = { ...existingRegSettings, ...existing.registration_settings };
+        }
+      } catch(e) {}
+    }
+    if (cleanSlug && Object.keys(existingRegSettings).length === 0) {
+      try {
+        const { data: existing } = await supabase.from('tournaments').select('registration_settings').eq('slug', cleanSlug).maybeSingle();
+        if (existing?.registration_settings && typeof existing.registration_settings === 'object') {
+          existingRegSettings = { ...existingRegSettings, ...existing.registration_settings };
+        }
+      } catch(e) {}
+    }
 
-    const regSettings = (existing?.registration_settings && typeof existing.registration_settings === 'object') ? existing.registration_settings : {};
-    regSettings.approval_status = appStatus;
-    if (reason) regSettings.rejection_reason = reason;
-    regSettings.approval_updated_at = new Date().toISOString();
+    existingRegSettings.approval_status = appStatus;
+    if (reason) existingRegSettings.rejection_reason = reason;
+    existingRegSettings.approval_updated_at = new Date().toISOString();
 
     const updatePayload = {
       status: dbStatus,
-      registration_settings: regSettings,
+      registration_settings: existingRegSettings,
       updated_at: new Date().toISOString()
     };
 
-    let updateQuery = isUUID 
-      ? supabase.from('tournaments').update(updatePayload).eq('id', tourneyId)
-      : supabase.from('tournaments').update(updatePayload).eq('slug', String(tourneyId).replace(/^t_/, ''));
-    
-    const { error } = await updateQuery;
-    if (error) throw error;
-    console.log("[SUPABASE] Updated tournament approval status:", tourneyId, "->", dbStatus, "(", appStatus, ")");
+    for (const uid of targetIds) {
+      await supabase.from('tournaments').update(updatePayload).eq('id', uid);
+    }
+    if (cleanSlug) {
+      await supabase.from('tournaments').update(updatePayload).eq('slug', cleanSlug);
+    }
+    console.log("[SUPABASE] Updated tournament approval status:", tourneyId, slug, "->", dbStatus, "(", appStatus, ")");
     return true;
   } catch (err) {
     console.warn("[SUPABASE] updateTournamentApprovalStatus notice:", err);
@@ -1572,10 +1592,13 @@ export async function fetchCustomTournamentsFromCloud() {
     const frontendMode = (t.mode === 'manual' || t.mode === 'FIXTURE_ONLY') ? 'FIXTURE_ONLY' : 'AUCTION_LEAGUE';
     
     let resolvedStatus = 'ACTIVE';
-    if (t.status === 'suspended' || extra.approval_status === 'pending_approval') {
-      resolvedStatus = 'PENDING_APPROVAL';
-    } else if (t.status === 'archived' || extra.approval_status === 'rejected') {
+    const appStatus = extra.approval_status;
+    if (appStatus === 'approved') {
+      resolvedStatus = 'ACTIVE';
+    } else if (appStatus === 'rejected' || t.status === 'archived') {
       resolvedStatus = 'REJECTED';
+    } else if (appStatus === 'pending_approval' || t.status === 'suspended') {
+      resolvedStatus = 'PENDING_APPROVAL';
     } else {
       resolvedStatus = (t.status || 'active').toUpperCase();
     }

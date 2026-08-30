@@ -1,8 +1,8 @@
 // Admin Master Data & Payment Verification Panel with Single Source Cloud Control (Developer: Suman Kolay)
 
-import { store } from './store.js?v=13.0.15';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.15';
-import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.15';
+import { store } from './store.js?v=13.0.16';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.16';
+import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.16';
 import { shops } from './shopsData.js?v=12.0.2';
 
 let activeAdminTab = (() => { try { return sessionStorage.getItem('cpl_admin_tab') || (store.isMasterAdmin() ? 'payments' : 'overview'); } catch(e) { return 'payments'; } })();
@@ -7164,14 +7164,14 @@ export function renderAdminSaasTournamentsPanel() {
                 <td class="py-2.5 px-3 text-right">
                   <div class="flex items-center justify-end gap-1.5 flex-wrap">
                     ${isPending ? `
-                      <button type="button" class="btn-approve-tourney px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-black cursor-pointer shadow-xs flex items-center gap-1" data-id="${t.id}" data-name="${t.name}" data-phone="${t.organizer?.phone || ''}" data-slug="${t.slug}">
+                      <button type="button" class="btn-approve-tourney px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-black cursor-pointer shadow-xs flex items-center gap-1" data-id="${t.id}" data-name="${t.name}" data-phone="${t.organizer?.phone || ''}" data-slug="${t.slug}" data-supabase-id="${t.supabaseId || t.tournament_id || t.id || ''}">
                         ✅ Approve
                       </button>
-                      <button type="button" class="btn-reject-tourney px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-lg text-[10px] font-black cursor-pointer shadow-2xs" data-id="${t.id}" data-name="${t.name}">
+                      <button type="button" class="btn-reject-tourney px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-lg text-[10px] font-black cursor-pointer shadow-2xs" data-id="${t.id}" data-name="${t.name}" data-slug="${t.slug}" data-supabase-id="${t.supabaseId || t.tournament_id || t.id || ''}">
                         ❌ Reject
                       </button>
                     ` : isRejected ? `
-                      <button type="button" class="btn-approve-tourney px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-black cursor-pointer shadow-xs flex items-center gap-1" data-id="${t.id}" data-name="${t.name}" data-phone="${t.organizer?.phone || ''}" data-slug="${t.slug}">
+                      <button type="button" class="btn-approve-tourney px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-black cursor-pointer shadow-xs flex items-center gap-1" data-id="${t.id}" data-name="${t.name}" data-phone="${t.organizer?.phone || ''}" data-slug="${t.slug}" data-supabase-id="${t.supabaseId || t.tournament_id || t.id || ''}">
                         🔄 Re-Approve
                       </button>
                     ` : ''}
@@ -7207,8 +7207,11 @@ export function renderAdminSaasTournamentsPanel() {
       const name = e.currentTarget.getAttribute('data-name');
       const phone = e.currentTarget.getAttribute('data-phone');
       const slug = e.currentTarget.getAttribute('data-slug');
+      const supabaseId = e.currentTarget.getAttribute('data-supabase-id');
       if (confirm(`✅ Approve & Activate tournament "${name}"?\n\nThis will open player registration and activate the public hub immediately.`)) {
-        await store.approveTournament(id);
+        b.disabled = true;
+        b.textContent = '⏳ Approving...';
+        await store.approveTournament(id, slug, supabaseId);
         renderAdminSaasTournamentsPanel();
 
         // 1-Tap WhatsApp notify organizer
@@ -7227,9 +7230,13 @@ export function renderAdminSaasTournamentsPanel() {
     b.addEventListener('click', async (e) => {
       const id = e.currentTarget.getAttribute('data-id');
       const name = e.currentTarget.getAttribute('data-name');
+      const slug = e.currentTarget.getAttribute('data-slug');
+      const supabaseId = e.currentTarget.getAttribute('data-supabase-id');
       const reason = prompt(`❌ Enter rejection reason for tournament "${name}":`, "Application details could not be verified.");
       if (reason !== null) {
-        await store.rejectTournament(id, reason);
+        b.disabled = true;
+        b.textContent = '⏳ Rejecting...';
+        await store.rejectTournament(id, reason, slug, supabaseId);
         renderAdminSaasTournamentsPanel();
       }
     });
