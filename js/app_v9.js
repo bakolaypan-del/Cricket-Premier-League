@@ -1,10 +1,10 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=13.0.42';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.42';
-import { renderAdminDashboard } from './admin.js?v=13.0.42';
-import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.42';
-import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.42';
+import { store } from './store.js?v=13.0.43';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.43';
+import { renderAdminDashboard } from './admin.js?v=13.0.43';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.43';
+import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.43';
 import { shops } from './shopsData.js?v=12.0.2';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
@@ -3033,71 +3033,105 @@ export function renderCustomTournamentHub(container, tourney) {
 
           <!-- SUB-VIEW 1: OVERVIEW & TOP BUYS -->
           <div id="auction-subview-overview" class="space-y-3 animate-fade-in">
-            <!-- 4 Core Financial Metrics -->
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-              <div class="p-3 bg-amber-50/80 border border-amber-200/90 rounded-2xl text-center space-y-0.5 shadow-2xs">
-                <span class="text-[8.5px] font-black uppercase text-amber-900 tracking-wider">TOTAL PURSE</span>
-                <div class="text-sm sm:text-lg font-black text-slate-900 font-mono">₹ ${(allTeams.length * 8000).toLocaleString('en-IN')}</div>
-              </div>
-              <div class="p-3 bg-rose-50/80 border border-rose-200/90 rounded-2xl text-center space-y-0.5 shadow-2xs">
-                <span class="text-[8.5px] font-black uppercase text-rose-900 tracking-wider">AUCTION SPENT</span>
-                <div class="text-sm sm:text-lg font-black text-rose-700 font-mono">₹ ${allPlayers.reduce((sum, p) => sum + Number(p.soldPrice || p.boughtPrice || 0), 0).toLocaleString('en-IN')}</div>
-              </div>
-              <div class="p-3 bg-emerald-50/80 border border-emerald-200/90 rounded-2xl text-center space-y-0.5 shadow-2xs">
-                <span class="text-[8.5px] font-black uppercase text-emerald-900 tracking-wider">REMAINING PURSE</span>
-                <div class="text-sm sm:text-lg font-black text-emerald-700 font-mono">₹ ${Math.max(0, (allTeams.length * 8000) - allPlayers.reduce((sum, p) => sum + Number(p.soldPrice || p.boughtPrice || 0), 0)).toLocaleString('en-IN')}</div>
-              </div>
-              <div class="p-3 bg-sky-50/80 border border-sky-200/90 rounded-2xl text-center space-y-0.5 shadow-2xs">
-                <span class="text-[8.5px] font-black uppercase text-sky-900 tracking-wider">PLAYERS SOLD</span>
-                <div class="text-sm sm:text-lg font-black text-sky-800 font-mono">${allPlayers.filter(p => Number(p.soldPrice || p.boughtPrice || 0) > 0 || p.teamId).length} / ${allPlayers.length}</div>
-              </div>
-            </div>
+            ${(() => {
+              const defaultIconFee = Number(store.getAuctionSettings().defaultIconPrice) || 1000;
+              const totalPurse = allTeams.reduce((sum, t) => sum + Number(t.purseBudget || t.purse || tourney.teamPurse || 8000), 0) || (allTeams.length * 8000);
+              const totalSpent = allTeams.reduce((sum, t) => {
+                const hasIcon = !!((t.iconPlayerName && t.iconPlayerName.trim()) || (t.iconName && t.iconName.trim()) || (t.iconPlayerId && t.iconPlayerId.trim()));
+                const iconDeduction = hasIcon ? defaultIconFee : 0;
+                const teamPlayers = allPlayers.filter(p => {
+                  if (!p) return false;
+                  const pTeamId = p.teamId || p.team_id;
+                  const isMatch = (pTeamId && (pTeamId === t.id || toUUID(pTeamId) === toUUID(t.id))) || (p.teamName && (p.teamName || '').trim().toLowerCase() === (t.name || '').trim().toLowerCase());
+                  const isSold = (p.auctionStatus === 'SOLD' || p.isSold === true || !!pTeamId);
+                  const iconName = (t.iconPlayerName || t.iconName || '').trim().toLowerCase();
+                  const isIcon = hasIcon && (((p.name || '').trim().toLowerCase() === iconName) || (t.iconPlayerId && (p.id === t.iconPlayerId || toUUID(p.id) === toUUID(t.iconPlayerId))));
+                  return isMatch && isSold && !isIcon;
+                });
+                const squadSpent = teamPlayers.reduce((pSum, p) => pSum + (Number(p.soldPrice) || Number(p.boughtPrice) || Number(p.basePrice) || 300), 0);
+                return sum + iconDeduction + squadSpent;
+              }, 0);
+              const remainingPurse = Math.max(0, totalPurse - totalSpent);
+              const soldPlayersCount = allPlayers.filter(p => p.teamId || p.auctionStatus === 'SOLD' || p.isSold === true || Number(p.soldPrice || p.boughtPrice || 0) > 0).length;
 
-            <!-- Top 8 Highest Buys Cards -->
-            <div class="bg-white p-3.5 sm:p-4.5 rounded-3xl border border-slate-200/90 shadow-xs space-y-2.5">
-              <div class="flex items-center justify-between border-b border-slate-100 pb-2">
-                <h4 class="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                  <span>🔥</span> Top Highest Buys of ${tourney.name} Auction
-                </h4>
-                <span class="text-[9.5px] font-black text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">Top 8 Bids</span>
-              </div>
+              const sortedSold = allPlayers.filter(p => p.teamId || p.auctionStatus === 'SOLD' || p.isSold === true || Number(p.soldPrice || p.boughtPrice || 0) > 0).map(p => {
+                const team = allTeams.find(t => {
+                  const pTeamId = p.teamId || p.team_id;
+                  return (pTeamId && (t.id === pTeamId || toUUID(t.id) === toUUID(pTeamId))) || (p.teamName && (t.name || '').trim().toLowerCase() === (p.teamName || '').trim().toLowerCase());
+                });
+                const isIcon = p.isIcon || p.isIconPlayer || (team && (
+                  (team.iconPlayerId && (p.id === team.iconPlayerId || toUUID(p.id) === toUUID(team.iconPlayerId))) ||
+                  (team.iconPlayerName && p.name && p.name.trim().toLowerCase() === team.iconPlayerName.trim().toLowerCase()) ||
+                  (team.iconName && p.name && p.name.trim().toLowerCase() === team.iconName.trim().toLowerCase())
+                ));
+                const finalPrice = isIcon ? defaultIconFee : (Number(p.soldPrice) || Number(p.boughtPrice) || Number(p.basePrice) || 300);
+                return { ...p, team, isIcon, finalPrice };
+              }).sort((a, b) => b.finalPrice - a.finalPrice).slice(0, 8);
 
-              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                ${(() => {
-                  const sortedSold = allPlayers.filter(p => (Number(p.soldPrice || p.boughtPrice || 0) > 0)).sort((a, b) => (Number(b.soldPrice || b.boughtPrice || 0) - Number(a.soldPrice || a.boughtPrice || 0))).slice(0, 8);
-                  if (sortedSold.length === 0) {
-                    return `<div class="col-span-2 text-center py-6 text-xs text-slate-400 font-bold">No sold players recorded in auction yet.</div>`;
-                  }
-                  return sortedSold.map((p, idx) => {
-                    const team = allTeams.find(t => t.id === p.teamId);
-                    const soldAmt = Number(p.soldPrice || p.boughtPrice || 0);
-                    const photo = p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png';
-                    return `
-                      <div class="p-2.5 bg-slate-50/80 border border-slate-200/80 rounded-2xl flex items-center justify-between gap-2.5 hover:border-amber-400 hover:bg-amber-50/20 transition-all">
-                        <div class="flex items-center gap-2.5 min-w-0">
-                          <span class="w-6 h-6 rounded-lg bg-amber-100 text-amber-900 border border-amber-300 font-mono font-black text-[10px] flex items-center justify-center shrink-0">
-                            #${idx + 1}
-                          </span>
-                          <div class="w-10 h-10 rounded-xl bg-white border border-slate-200 overflow-hidden shrink-0 shadow-2xs">
-                            <img src="${photo}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
-                          </div>
-                          <div class="min-w-0">
-                            <h5 class="text-xs font-black text-slate-900 truncate leading-tight">${p.name}</h5>
-                            <div class="text-[10px] font-bold text-slate-500 truncate flex items-center gap-1 mt-0.5">
-                              <span>🛡️</span> <span class="truncate">${team?.name || p.teamName || 'Franchise Team'}</span>
+              return `
+                <!-- 4 Core Financial Metrics -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <div class="p-3 bg-amber-50/80 border border-amber-200/90 rounded-2xl text-center space-y-0.5 shadow-2xs">
+                    <span class="text-[8.5px] font-black uppercase text-amber-900 tracking-wider">TOTAL PURSE</span>
+                    <div class="text-sm sm:text-lg font-black text-slate-900 font-mono">₹ ${totalPurse.toLocaleString('en-IN')}</div>
+                  </div>
+                  <div class="p-3 bg-rose-50/80 border border-rose-200/90 rounded-2xl text-center space-y-0.5 shadow-2xs">
+                    <span class="text-[8.5px] font-black uppercase text-rose-900 tracking-wider">AUCTION SPENT</span>
+                    <div class="text-sm sm:text-lg font-black text-rose-700 font-mono">₹ ${totalSpent.toLocaleString('en-IN')}</div>
+                  </div>
+                  <div class="p-3 bg-emerald-50/80 border border-emerald-200/90 rounded-2xl text-center space-y-0.5 shadow-2xs">
+                    <span class="text-[8.5px] font-black uppercase text-emerald-900 tracking-wider">REMAINING PURSE</span>
+                    <div class="text-sm sm:text-lg font-black text-emerald-700 font-mono">₹ ${remainingPurse.toLocaleString('en-IN')}</div>
+                  </div>
+                  <div class="p-3 bg-sky-50/80 border border-sky-200/90 rounded-2xl text-center space-y-0.5 shadow-2xs">
+                    <span class="text-[8.5px] font-black uppercase text-sky-900 tracking-wider">PLAYERS SOLD</span>
+                    <div class="text-sm sm:text-lg font-black text-sky-800 font-mono">${soldPlayersCount} / ${allPlayers.length}</div>
+                  </div>
+                </div>
+
+                <!-- Top 8 Highest Buys Cards -->
+                <div class="bg-white p-3.5 sm:p-4.5 rounded-3xl border border-slate-200/90 shadow-xs space-y-2.5">
+                  <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                    <h4 class="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                      <span>🔥</span> Top Highest Buys of ${tourney.name} Auction
+                    </h4>
+                    <span class="text-[9.5px] font-black text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">Top 8 Bids</span>
+                  </div>
+
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    ${sortedSold.length === 0 ? `
+                      <div class="col-span-2 text-center py-6 text-xs text-slate-400 font-bold">No sold players recorded in auction yet.</div>
+                    ` : sortedSold.map((p, idx) => {
+                      const photo = p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png';
+                      return `
+                        <div class="p-2.5 bg-slate-50/80 border border-slate-200/80 rounded-2xl flex items-center justify-between gap-2.5 hover:border-amber-400 hover:bg-amber-50/20 transition-all">
+                          <div class="flex items-center gap-2.5 min-w-0">
+                            <span class="w-6 h-6 rounded-lg bg-amber-100 text-amber-900 border border-amber-300 font-mono font-black text-[10px] flex items-center justify-center shrink-0">
+                              #${idx + 1}
+                            </span>
+                            <div class="w-10 h-10 rounded-xl bg-white border border-slate-200 overflow-hidden shrink-0 shadow-2xs">
+                              <img src="${photo}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
+                            </div>
+                            <div class="min-w-0">
+                              <h5 class="text-xs font-black text-slate-900 truncate leading-tight">
+                                ${p.name} ${p.isIcon ? '<span class="text-amber-600 font-bold text-[8.5px]">(ICON)</span>' : ''}
+                              </h5>
+                              <div class="text-[10px] font-bold text-slate-500 truncate flex items-center gap-1 mt-0.5">
+                                <span>🛡️</span> <span class="truncate">${p.team?.name || p.teamName || 'Franchise Team'}</span>
+                              </div>
                             </div>
                           </div>
+                          <div class="text-right shrink-0">
+                            <div class="text-xs sm:text-sm font-mono font-black text-emerald-700">₹ ${p.finalPrice.toLocaleString('en-IN')}</div>
+                            <span class="text-[7.5px] font-black uppercase text-slate-400 block tracking-wider leading-none">${p.isIcon ? 'ICON FEE' : 'FINAL BID'}</span>
+                          </div>
                         </div>
-                        <div class="text-right shrink-0">
-                          <div class="text-xs sm:text-sm font-mono font-black text-emerald-700">₹ ${soldAmt.toLocaleString('en-IN')}</div>
-                          <span class="text-[7.5px] font-black uppercase text-slate-400 block tracking-wider leading-none">FINAL BID</span>
-                        </div>
-                      </div>
-                    `;
-                  }).join('');
-                })()}
-              </div>
-            </div>
+                      `;
+                    }).join('')}
+                  </div>
+                </div>
+              `;
+            })()}
           </div>
 
           <!-- SUB-VIEW 2: TEAM SQUADS ROSTER (WITH TEAM SWITCHER PILLS) -->
@@ -3139,42 +3173,56 @@ export function renderCustomTournamentHub(container, tourney) {
                     </tr>
                   </thead>
                   <tbody id="auction-allplayers-tbody" class="divide-y divide-slate-100 font-semibold text-slate-800">
-                    ${allPlayers.map((p, idx) => {
-                      const team = allTeams.find(t => t.id === p.teamId);
-                      const soldAmt = Number(p.soldPrice || p.boughtPrice || 0);
-                      const photo = p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png';
-                      const searchTokens = `${p.name || ''} ${team?.name || ''} ${p.village || ''} ${p.category || ''}`.toLowerCase();
+                    ${(() => {
+                      const defaultIconFee = Number(store.getAuctionSettings().defaultIconPrice) || 1000;
+                      return allPlayers.map((p, idx) => {
+                        const team = allTeams.find(t => {
+                          const pTeamId = p.teamId || p.team_id;
+                          return (pTeamId && (t.id === pTeamId || toUUID(t.id) === toUUID(pTeamId))) || (p.teamName && (t.name || '').trim().toLowerCase() === (p.teamName || '').trim().toLowerCase());
+                        });
+                        const isSold = !!(p.teamId || p.auctionStatus === 'SOLD' || p.isSold === true || team);
+                        const isIcon = p.isIcon || p.isIconPlayer || (team && (
+                          (team.iconPlayerId && (p.id === team.iconPlayerId || toUUID(p.id) === toUUID(team.iconPlayerId))) ||
+                          (team.iconPlayerName && p.name && p.name.trim().toLowerCase() === team.iconPlayerName.trim().toLowerCase()) ||
+                          (team.iconName && p.name && p.name.trim().toLowerCase() === team.iconName.trim().toLowerCase())
+                        ));
+                        const soldAmt = isSold ? (isIcon ? defaultIconFee : (Number(p.soldPrice) || Number(p.boughtPrice) || Number(p.basePrice) || 300)) : 0;
+                        const photo = p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png';
+                        const searchTokens = `${p.name || ''} ${team?.name || ''} ${p.village || ''} ${p.category || ''}`.toLowerCase();
 
-                      return `
-                        <tr class="auction-player-row hover:bg-amber-50/30 transition-colors" data-search="${searchTokens}">
-                          <td class="p-2.5">
-                            <div class="flex items-center gap-2">
-                              <div class="w-9 h-9 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden shrink-0 shadow-2xs">
-                                <img src="${photo}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
+                        return `
+                          <tr class="auction-player-row hover:bg-amber-50/30 transition-colors" data-search="${searchTokens}">
+                            <td class="p-2.5">
+                              <div class="flex items-center gap-2">
+                                <div class="w-9 h-9 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden shrink-0 shadow-2xs">
+                                  <img src="${photo}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
+                                </div>
+                                <div class="min-w-0">
+                                  <span class="font-black text-slate-900 block leading-tight truncate">
+                                    ${p.name} ${isIcon ? '<span class="text-amber-600 font-bold text-[9px]">(ICON)</span>' : ''}
+                                  </span>
+                                  <span class="text-[9px] text-slate-400 font-mono">#${p.displayRegistrationNumber || p.serialNo || (idx + 1)}</span>
+                                </div>
                               </div>
-                              <div class="min-w-0">
-                                <span class="font-black text-slate-900 block leading-tight truncate">${p.name}</span>
-                                <span class="text-[9px] text-slate-400 font-mono">#${p.displayRegistrationNumber || p.serialNo || (idx + 1)}</span>
-                              </div>
-                            </div>
-                          </td>
-                          <td class="p-2.5 text-slate-600 font-medium">${p.category || p.role || 'All-rounder'}</td>
-                          <td class="p-2.5">
-                            ${team ? `
-                              <span class="px-2 py-0.5 bg-amber-50 text-amber-950 font-black text-[9.5px] rounded-md border border-amber-200/90 whitespace-nowrap">
-                                🛡️ ${team.name}
-                              </span>
-                            ` : `
-                              <span class="px-2 py-0.5 bg-slate-100 text-slate-500 font-bold text-[9.5px] rounded-md">Unassigned</span>
-                            `}
-                          </td>
-                          <td class="p-2.5 text-slate-500 truncate max-w-[130px]">${p.village || p.address || 'Local'}</td>
-                          <td class="p-2.5 text-right font-mono font-black text-xs ${soldAmt > 0 ? 'text-emerald-700' : 'text-slate-400'}">
-                            ${soldAmt > 0 ? `₹ ${soldAmt.toLocaleString('en-IN')}` : '-'}
-                          </td>
-                        </tr>
-                      `;
-                    }).join('')}
+                            </td>
+                            <td class="p-2.5 text-slate-600 font-medium">${p.category || p.role || 'All-rounder'}</td>
+                            <td class="p-2.5">
+                              ${team ? `
+                                <span class="px-2 py-0.5 bg-amber-50 text-amber-950 font-black text-[9.5px] rounded-md border border-amber-200/90 whitespace-nowrap">
+                                  🛡️ ${team.name}
+                                </span>
+                              ` : `
+                                <span class="px-2 py-0.5 bg-slate-100 text-slate-500 font-bold text-[9.5px] rounded-md">Unassigned</span>
+                              `}
+                            </td>
+                            <td class="p-2.5 text-slate-500 truncate max-w-[130px]">${p.village || p.address || 'Local'}</td>
+                            <td class="p-2.5 text-right font-mono font-black text-xs ${soldAmt > 0 ? 'text-emerald-700' : 'text-slate-400'}">
+                              ${soldAmt > 0 ? `₹ ${soldAmt.toLocaleString('en-IN')}` : '-'}
+                            </td>
+                          </tr>
+                        `;
+                      }).join('');
+                    })()}
                   </tbody>
                 </table>
               </div>
@@ -3823,11 +3871,23 @@ export function renderCustomTournamentHub(container, tourney) {
       b.className = `auction-team-filter-pill px-3.5 py-1.5 rounded-full text-xs font-black transition-all whitespace-nowrap cursor-pointer shrink-0 ${isSel ? 'bg-amber-500 text-slate-950 shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'}`;
     });
 
-    const teamSquad = allPlayers.filter(p => p.teamId === t.id);
-    const spent = teamSquad.reduce((sum, p) => sum + Number(p.soldPrice || p.boughtPrice || 0), 0);
+    const defaultIconFee = Number(store.getAuctionSettings().defaultIconPrice) || 1000;
+    const hasIcon = !!((t.iconPlayerName && t.iconPlayerName.trim()) || (t.iconName && t.iconName.trim()) || (t.iconPlayerId && t.iconPlayerId.trim()));
+    const iconDeduction = hasIcon ? defaultIconFee : 0;
+    const teamSquad = allPlayers.filter(p => {
+      if (!p) return false;
+      const pTeamId = p.teamId || p.team_id;
+      const isMatch = (pTeamId && (pTeamId === t.id || toUUID(pTeamId) === toUUID(t.id))) || (p.teamName && (p.teamName || '').trim().toLowerCase() === (t.name || '').trim().toLowerCase());
+      const isSold = (p.auctionStatus === 'SOLD' || p.isSold === true || !!pTeamId);
+      const iconName = (t.iconPlayerName || t.iconName || '').trim().toLowerCase();
+      const isIcon = hasIcon && (((p.name || '').trim().toLowerCase() === iconName) || (t.iconPlayerId && (p.id === t.iconPlayerId || toUUID(p.id) === toUUID(t.iconPlayerId))));
+      return isMatch && isSold && !isIcon;
+    });
+    const squadSpent = teamSquad.reduce((sum, p) => sum + (Number(p.soldPrice) || Number(p.boughtPrice) || Number(p.basePrice) || 300), 0);
+    const spent = iconDeduction + squadSpent;
     const purse = Number(t.purseBudget || t.purse || tourney.teamPurse || 8000);
     const remaining = Math.max(0, purse - spent);
-    const iconPlayer = allPlayers.find(p => p.id === t.iconPlayerId || p.isIcon) || (t.iconPlayerName ? { name: t.iconPlayerName, phone: t.iconPlayerPhone, village: t.iconPlayerVillage, photoUrl: t.iconPlayerPhotoUrl, price: t.iconPrice || 1000 } : null);
+    const iconPlayer = allPlayers.find(p => (t.iconPlayerId && (p.id === t.iconPlayerId || toUUID(p.id) === toUUID(t.iconPlayerId))) || (t.iconPlayerName && p.name && p.name.trim().toLowerCase() === t.iconPlayerName.trim().toLowerCase())) || (hasIcon ? { name: t.iconPlayerName || t.iconName, phone: t.iconPlayerPhone, village: t.iconPlayerVillage, photoUrl: t.iconPlayerPhotoUrl, price: defaultIconFee } : null);
 
     container.innerHTML = `
       <div class="space-y-3">
@@ -3858,15 +3918,15 @@ export function renderCustomTournamentHub(container, tourney) {
         <!-- SQUAD PLAYER CARDS LIST -->
         <div class="space-y-2">
           <!-- Icon Player Card (if present) -->
-          ${t.iconPlayerName || iconPlayer ? `
+          ${hasIcon ? `
             <div class="p-3 bg-amber-50/70 border-2 border-amber-400/90 rounded-2xl flex items-center justify-between gap-3 shadow-2xs">
               <div class="flex items-center gap-2.5 min-w-0">
                 <div class="w-12 h-12 rounded-xl bg-amber-100 border border-amber-300 overflow-hidden shrink-0 shadow-2xs">
-                  <img src="${iconPlayer?.photoUrl || t.iconPlayerPhotoUrl || 'assets/card_jsl_user.png'}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
+                  <img src="${iconPlayer?.photoUrl || t.iconPlayerPhotoUrl || 'assets/card_jsl_user.png'" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
                 </div>
                 <div class="min-w-0">
                   <div class="flex items-center gap-1.5 flex-wrap">
-                    <h5 class="text-xs sm:text-sm font-black text-slate-900 truncate">⭐ ${iconPlayer?.name || t.iconPlayerName}</h5>
+                    <h5 class="text-xs sm:text-sm font-black text-slate-900 truncate">⭐ ${iconPlayer?.name || t.iconPlayerName || 'Official Icon'}</h5>
                     <span class="px-1.5 py-0.2 bg-amber-500 text-slate-950 font-black text-[8px] rounded uppercase">ICON</span>
                   </div>
                   <div class="text-[10px] text-slate-600 font-semibold truncate mt-0.5">
@@ -3878,7 +3938,7 @@ export function renderCustomTournamentHub(container, tourney) {
               </div>
 
               <div class="text-right shrink-0">
-                <div class="text-xs sm:text-sm font-mono font-black text-amber-900">₹ ${(t.iconPrice || 1000).toLocaleString('en-IN')}</div>
+                <div class="text-xs sm:text-sm font-mono font-black text-amber-900">₹ ${defaultIconFee.toLocaleString('en-IN')}</div>
                 <span class="text-[7.5px] font-black uppercase text-slate-400 block tracking-wider leading-none">ICON FEE</span>
               </div>
             </div>
@@ -3886,7 +3946,7 @@ export function renderCustomTournamentHub(container, tourney) {
 
           <!-- Drafted Players -->
           ${teamSquad.map((p, pIdx) => {
-            const soldAmt = Number(p.soldPrice || p.boughtPrice || 0);
+            const soldAmt = Number(p.soldPrice) || Number(p.boughtPrice) || Number(p.basePrice) || 300;
             const photo = p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png';
             const serial = String(p.displayRegistrationNumber || p.serialNo || (pIdx + 1)).padStart(2, '0');
 
@@ -3914,7 +3974,7 @@ export function renderCustomTournamentHub(container, tourney) {
             `;
           }).join('')}
 
-          ${teamSquad.length === 0 && !t.iconPlayerName ? `
+          ${teamSquad.length === 0 && !hasIcon ? `
             <div class="text-center py-8 bg-white rounded-2xl border border-slate-200 text-xs text-slate-400 font-bold">
               No players drafted for this team yet.
             </div>
@@ -4200,12 +4260,41 @@ function openEditTeamModalForAdmin(team, tourney, onSaveCallback) {
 function openFinalAuctionSummaryModal(tourney, allTeams, allPlayers) {
   document.getElementById('final-auction-summary-modal')?.remove();
 
-  const soldPlayers = allPlayers.filter(p => Number(p.soldPrice || p.boughtPrice || 0) > 0 || p.auctionStatus === 'SOLD');
+  const defaultIconFee = Number(store.getAuctionSettings().defaultIconPrice) || 1000;
   const totalPurse = allTeams.reduce((sum, t) => sum + (Number(t.purseBudget || t.purse || tourney.teamPurse || 8000)), 0) || (allTeams.length * 8000);
-  const totalSpent = soldPlayers.reduce((sum, p) => sum + (Number(p.soldPrice || p.boughtPrice || 0)), 0);
-  const remainingPurse = Math.max(0, totalPurse - totalSpent);
+  
+  const totalSpent = allTeams.reduce((sum, t) => {
+    const hasIcon = !!((t.iconPlayerName && t.iconPlayerName.trim()) || (t.iconName && t.iconName.trim()) || (t.iconPlayerId && t.iconPlayerId.trim()));
+    const iconDeduction = hasIcon ? defaultIconFee : 0;
+    const teamPlayers = allPlayers.filter(p => {
+      if (!p) return false;
+      const pTeamId = p.teamId || p.team_id;
+      const isMatch = (pTeamId && (pTeamId === t.id || toUUID(pTeamId) === toUUID(t.id))) || (p.teamName && (p.teamName || '').trim().toLowerCase() === (t.name || '').trim().toLowerCase());
+      const isSold = (p.auctionStatus === 'SOLD' || p.isSold === true || !!pTeamId);
+      const iconName = (t.iconPlayerName || t.iconName || '').trim().toLowerCase();
+      const isIcon = hasIcon && (((p.name || '').trim().toLowerCase() === iconName) || (t.iconPlayerId && (p.id === t.iconPlayerId || toUUID(p.id) === toUUID(t.iconPlayerId))));
+      return isMatch && isSold && !isIcon;
+    });
+    const squadSpent = teamPlayers.reduce((pSum, p) => pSum + (Number(p.soldPrice) || Number(p.boughtPrice) || Number(p.basePrice) || 300), 0);
+    return sum + iconDeduction + squadSpent;
+  }, 0);
 
-  const sortedTopBuys = [...soldPlayers].sort((a, b) => (Number(b.soldPrice || b.boughtPrice || 0) - Number(a.soldPrice || a.boughtPrice || 0))).slice(0, 8);
+  const remainingPurse = Math.max(0, totalPurse - totalSpent);
+  const soldPlayers = allPlayers.filter(p => p.teamId || p.auctionStatus === 'SOLD' || p.isSold === true || Number(p.soldPrice || p.boughtPrice || 0) > 0);
+
+  const sortedTopBuys = soldPlayers.map(p => {
+    const team = allTeams.find(t => {
+      const pTeamId = p.teamId || p.team_id;
+      return (pTeamId && (t.id === pTeamId || toUUID(t.id) === toUUID(pTeamId))) || (p.teamName && (t.name || '').trim().toLowerCase() === (p.teamName || '').trim().toLowerCase());
+    });
+    const isIcon = p.isIcon || p.isIconPlayer || (team && (
+      (team.iconPlayerId && (p.id === team.iconPlayerId || toUUID(p.id) === toUUID(team.iconPlayerId))) ||
+      (team.iconPlayerName && p.name && p.name.trim().toLowerCase() === team.iconPlayerName.trim().toLowerCase()) ||
+      (team.iconName && p.name && p.name.trim().toLowerCase() === team.iconName.trim().toLowerCase())
+    ));
+    const finalPrice = isIcon ? defaultIconFee : (Number(p.soldPrice) || Number(p.boughtPrice) || Number(p.basePrice) || 300);
+    return { ...p, team, isIcon, finalPrice };
+  }).sort((a, b) => b.finalPrice - a.finalPrice).slice(0, 8);
 
   let activeSubTab = 'overview';
 
@@ -4309,8 +4398,6 @@ function openFinalAuctionSummaryModal(tourney, allTeams, allPlayers) {
 
               <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 ${sortedTopBuys.map((p, idx) => {
-                  const team = allTeams.find(t => t.id === p.teamId);
-                  const soldAmt = Number(p.soldPrice || p.boughtPrice || 0);
                   const photo = p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png';
 
                   return `
@@ -4323,17 +4410,19 @@ function openFinalAuctionSummaryModal(tourney, allTeams, allPlayers) {
                           <img src="${photo}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
                         </div>
                         <div class="min-w-0">
-                          <h5 class="text-xs sm:text-sm font-black text-slate-900 truncate leading-tight">${p.name}</h5>
+                          <h5 class="text-xs sm:text-sm font-black text-slate-900 truncate leading-tight">
+                            ${p.name} ${p.isIcon ? '<span class="text-amber-600 font-bold text-[8.5px]">(ICON)</span>' : ''}
+                          </h5>
                           <div class="text-[10px] font-bold text-slate-600 truncate flex items-center gap-1">
-                            <span>🛡️</span> ${team?.name || p.teamName || 'Franchise Team'}
+                            <span>🛡️</span> ${p.team?.name || p.teamName || 'Franchise Team'}
                           </div>
                           <span class="text-[9px] text-slate-400 font-medium">🏏 ${p.category || 'All-rounder'}</span>
                         </div>
                       </div>
 
                       <div class="text-right shrink-0">
-                        <div class="text-xs sm:text-base font-mono font-black text-emerald-700">₹ ${soldAmt.toLocaleString('en-IN')}</div>
-                        <span class="text-[8px] font-black uppercase text-slate-400 block tracking-wider">FINAL BID</span>
+                        <div class="text-xs sm:text-base font-mono font-black text-emerald-700">₹ ${p.finalPrice.toLocaleString('en-IN')}</div>
+                        <span class="text-[8px] font-black uppercase text-slate-400 block tracking-wider">${p.isIcon ? 'ICON FEE' : 'FINAL BID'}</span>
                       </div>
                     </div>
                   `;
@@ -4346,8 +4435,19 @@ function openFinalAuctionSummaryModal(tourney, allTeams, allPlayers) {
             <!-- ALL TEAM SQUADS BREAKDOWN -->
             <div class="space-y-4">
               ${allTeams.map(t => {
-                const teamSquad = allPlayers.filter(p => p.teamId === t.id);
-                const spent = teamSquad.reduce((sum, p) => sum + Number(p.soldPrice || p.boughtPrice || 0), 0);
+                const hasIcon = !!((t.iconPlayerName && t.iconPlayerName.trim()) || (t.iconName && t.iconName.trim()) || (t.iconPlayerId && t.iconPlayerId.trim()));
+                const iconDeduction = hasIcon ? defaultIconFee : 0;
+                const teamSquad = allPlayers.filter(p => {
+                  if (!p) return false;
+                  const pTeamId = p.teamId || p.team_id;
+                  const isMatch = (pTeamId && (pTeamId === t.id || toUUID(pTeamId) === toUUID(t.id))) || (p.teamName && (p.teamName || '').trim().toLowerCase() === (t.name || '').trim().toLowerCase());
+                  const isSold = (p.auctionStatus === 'SOLD' || p.isSold === true || !!pTeamId);
+                  const iconName = (t.iconPlayerName || t.iconName || '').trim().toLowerCase();
+                  const isIcon = hasIcon && (((p.name || '').trim().toLowerCase() === iconName) || (t.iconPlayerId && (p.id === t.iconPlayerId || toUUID(p.id) === toUUID(t.iconPlayerId))));
+                  return isMatch && isSold && !isIcon;
+                });
+                const squadSpent = teamSquad.reduce((sum, p) => sum + (Number(p.soldPrice) || Number(p.boughtPrice) || Number(p.basePrice) || 300), 0);
+                const spent = iconDeduction + squadSpent;
                 const purse = Number(t.purseBudget || t.purse || tourney.teamPurse || 8000);
                 const remaining = Math.max(0, purse - spent);
 
@@ -4364,17 +4464,24 @@ function openFinalAuctionSummaryModal(tourney, allTeams, allPlayers) {
                         </div>
                       </div>
                       <div class="text-right font-mono">
-                        <div class="text-xs font-black text-slate-900">${teamSquad.length} Players</div>
+                        <div class="text-xs font-black text-slate-900">${(hasIcon ? 1 : 0) + teamSquad.length} Players</div>
                         <div class="text-[10px] text-emerald-700 font-bold">Left: ₹${remaining.toLocaleString('en-IN')}</div>
                       </div>
                     </div>
 
                     <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      ${hasIcon ? `
+                        <div class="p-2 bg-amber-50 border border-amber-200 rounded-xl text-center">
+                          <div class="text-xs font-black text-slate-900 truncate">⭐ ${t.iconPlayerName || t.iconName || 'Official Icon'}</div>
+                          <div class="text-[9px] text-amber-800 font-bold">ICON ALLOCATION</div>
+                          <div class="text-[10px] font-mono font-black text-amber-900 mt-0.5">₹${defaultIconFee.toLocaleString('en-IN')}</div>
+                        </div>
+                      ` : ''}
                       ${teamSquad.map(p => `
                         <div class="p-2 bg-slate-50 border border-slate-200 rounded-xl text-center">
                           <div class="text-xs font-black text-slate-900 truncate">${p.name}</div>
                           <div class="text-[9px] text-slate-500">${p.category || 'Player'}</div>
-                          <div class="text-[10px] font-mono font-black text-emerald-700 mt-0.5">₹${Number(p.soldPrice || 0).toLocaleString('en-IN')}</div>
+                          <div class="text-[10px] font-mono font-black text-emerald-700 mt-0.5">₹${Number(p.soldPrice || p.boughtPrice || p.basePrice || 300).toLocaleString('en-IN')}</div>
                         </div>
                       `).join('')}
                     </div>
