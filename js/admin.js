@@ -1,8 +1,8 @@
 // Admin Master Data & Payment Verification Panel with Single Source Cloud Control (Developer: Suman Kolay)
 
-import { store } from './store.js?v=13.0.20';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.20';
-import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.20';
+import { store } from './store.js?v=13.0.21';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.21';
+import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.21';
 import { shops } from './shopsData.js?v=12.0.2';
 
 let activeAdminTab = (() => { try { return sessionStorage.getItem('cpl_admin_tab') || (store.isMasterAdmin() ? 'payments' : 'overview'); } catch(e) { return 'payments'; } })();
@@ -2292,16 +2292,19 @@ function bindAdminTableActions(containerEl) {
   }
 
   // Realtime custom tournaments update listener
-  store.on('custom_tournaments_updated', () => {
-    if (activeAdminTab === 'saas-tournaments') {
-      renderAdminSaasTournamentsPanel();
-    }
-    const selector = document.getElementById('admin-tournament-selector');
-    if (selector && store.getAllAvailableTournaments) {
-      const allTourneys = store.getAllAvailableTournaments();
-      selector.innerHTML = allTourneys.map(t => `<option value="${t.id}" ${t.id === store.activeTournamentId ? 'selected' : ''} class="bg-slate-900 text-white">${t.name}</option>`).join('');
-    }
-  });
+  const listenTourneyUpdates = store.on ? store.on.bind(store) : (store.subscribe ? store.subscribe.bind(store) : null);
+  if (listenTourneyUpdates) {
+    listenTourneyUpdates('custom_tournaments_updated', () => {
+      if (activeAdminTab === 'saas-tournaments') {
+        renderAdminSaasTournamentsPanel();
+      }
+      const selector = document.getElementById('admin-tournament-selector');
+      if (selector && store.getAllAvailableTournaments) {
+        const allTourneys = store.getAllAvailableTournaments();
+        selector.innerHTML = allTourneys.map(t => `<option value="${t.id}" ${t.id === store.activeTournamentId ? 'selected' : ''} class="bg-slate-900 text-white">${t.name}</option>`).join('');
+      }
+    });
+  }
 }
 
 // --- ADMIN & TOURNAMENT OWNER LOGIN SCREEN ---

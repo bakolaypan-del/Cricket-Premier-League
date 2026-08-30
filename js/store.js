@@ -56,7 +56,7 @@ import {
   toUUID,
   fetchGlobalUniquePlayersCount,
   updateTournamentApprovalStatus
-} from './supabase.js?v=13.0.20';
+} from './supabase.js?v=13.0.21';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -2966,6 +2966,15 @@ class Store {
     const handler = (e) => callback(e.detail || e);
     window.addEventListener(eventName, handler);
     return () => window.removeEventListener(eventName, handler);
+  }
+
+  on(eventName, callback) {
+    return this.subscribe(eventName, callback);
+  }
+
+  off(eventName, callback) {
+    if (typeof window === 'undefined') return;
+    window.removeEventListener(eventName, callback);
   }
 
   // --- PUBLIC COMMUNITY QUERIES & DISCUSSION BOARD ---
