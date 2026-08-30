@@ -1,10 +1,10 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=13.0.51';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.51';
-import { renderAdminDashboard } from './admin.js?v=13.0.51';
-import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.51';
-import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.51';
+import { store } from './store.js?v=13.0.52';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.52';
+import { renderAdminDashboard } from './admin.js?v=13.0.52';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.52';
+import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.52';
 import { shops } from './shopsData.js?v=12.0.2';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
@@ -2423,15 +2423,28 @@ export function renderCustomTournamentHub(container, tourney) {
 
   const displayPlayers = allPlayers;
 
-  const allTeams = store.getTeams().filter(t => {
-    if (isJsl && (!t.tournamentId && !t.tournament_id)) return true;
-    return t.tournament_id === tid || t.tournamentId === tourney.id || (isJsl && (t.leagueId === 'leg-jsl' || (t.leagueCode || '').toUpperCase() === 'JSL'));
+  const curTourneyCode = (tourney.category_code || tourney.code || tourney.category || tourney.shortCode || tourney.slug || (isJsl ? 'JSL' : '')).toUpperCase();
+  const curTourneyId = tid || tourney.id || tourney.supabaseId || (isJsl ? 'leg-jsl' : '');
+
+  const allTeams = (store.getAllTeamsAcrossTournaments ? store.getAllTeamsAcrossTournaments() : store.getTeams()).filter(t => {
+    const tTid = t.tournament_id || t.tournamentId || t.leagueId;
+    const tCode = (t.leagueCode || (tTid === 'leg-jsl' ? 'JSL' : '')).toUpperCase();
+
+    if (tTid && (tTid === curTourneyId || tTid === tourney.id || tTid === tourney.supabaseId)) return true;
+    if (tCode && curTourneyCode && (tCode === curTourneyCode || (curTourneyCode === 'KPL' && (tCode === 'K2026' || tCode === 'KPL')) || (curTourneyCode === 'K2026' && (tCode === 'KPL' || tCode === 'K2026')) || (curTourneyCode === 'JSL' && tCode === 'JSL'))) return true;
+    if (isJsl && !tTid && (!tCode || tCode === 'JSL')) return true;
+    return false;
   });
 
-  const allFixtures = store.getFixtures ? store.getFixtures().filter(f => {
-    if (isJsl && (!f.tournamentId && !f.tournament_id)) return true;
-    return f.tournament_id === tid || f.tournamentId === tourney.id || f.leagueCode === (tourney.shortCode || 'JSL').toUpperCase();
-  }) : [];
+  const allFixtures = (store.getAllFixturesAcrossTournaments ? store.getAllFixturesAcrossTournaments() : (store.getFixtures ? store.getFixtures() : [])).filter(f => {
+    const fTid = f.tournament_id || f.tournamentId || f.leagueId;
+    const fCode = (f.leagueCode || '').toUpperCase();
+
+    if (fTid && (fTid === curTourneyId || fTid === tourney.id || fTid === tourney.supabaseId)) return true;
+    if (fCode && curTourneyCode && (fCode === curTourneyCode || (curTourneyCode === 'KPL' && (fCode === 'K2026' || fCode === 'KPL')) || (curTourneyCode === 'K2026' && (fCode === 'KPL' || fCode === 'K2026')) || (curTourneyCode === 'JSL' && fCode === 'JSL'))) return true;
+    if (isJsl && !fTid && (!fCode || fCode === 'JSL')) return true;
+    return false;
+  });
 
   const pendingPlayers = allPlayers.filter(p => (p.registrationStatus || p.paymentStatus || '').toUpperCase().includes('PENDING'));
   const approvedPlayers = allPlayers.filter(p => {
@@ -7575,7 +7588,10 @@ function renderFixturesView(container) {
         const tourneysWithMatches = allTourneys.filter(l => {
           const code = (l.code || l.category || l.category_code || l.shortCode || l.slug || 'T').toUpperCase();
           const tid = l.supabaseId || l.id;
-          return filteredFixtures.some(f => (f.leagueCode || '').toUpperCase() === code || f.tournamentId === tid);
+          return filteredFixtures.some(f => {
+            const fCode = (f.leagueCode || '').toUpperCase();
+            return (fCode === code) || (code === 'KPL' && (fCode === 'K2026' || fCode === 'KPL')) || (code === 'K2026' && (fCode === 'KPL' || fCode === 'K2026')) || (code === 'JSL' && fCode === 'JSL') || f.tournamentId === tid || f.tournament_id === tid;
+          });
         });
 
         // If no custom tourney matches mapped, group by distinct tournament name/code on fixtures
@@ -7599,7 +7615,10 @@ function renderFixturesView(container) {
           tourneysWithMatches.forEach(l => {
             const code = (l.code || l.category || l.category_code || l.shortCode || l.slug || 'T').toUpperCase();
             const tid = l.supabaseId || l.id;
-            const tMatches = filteredFixtures.filter(f => (f.leagueCode || '').toUpperCase() === code || f.tournamentId === tid);
+            const tMatches = filteredFixtures.filter(f => {
+              const fCode = (f.leagueCode || '').toUpperCase();
+              return (fCode === code) || (code === 'KPL' && (fCode === 'K2026' || fCode === 'KPL')) || (code === 'K2026' && (fCode === 'KPL' || fCode === 'K2026')) || (code === 'JSL' && fCode === 'JSL') || f.tournamentId === tid || f.tournament_id === tid;
+            });
             if (tMatches.length === 0) return;
 
             const tName = l.name || `${code} Premier League`;
