@@ -1,10 +1,10 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=13.0.50';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.50';
-import { renderAdminDashboard } from './admin.js?v=13.0.50';
-import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.50';
-import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.50';
+import { store } from './store.js?v=13.0.51';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.51';
+import { renderAdminDashboard } from './admin.js?v=13.0.51';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.51';
+import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.51';
 import { shops } from './shopsData.js?v=12.0.2';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
@@ -7370,6 +7370,9 @@ function renderFixturesView(container) {
     let selectedCategory = activeFixtureCategory || 'ALL';
     if (selectedCategory === 'T') selectedCategory = 'ALL';
     const allCrossFixtures = store.getAllFixturesAcrossTournaments();
+    const allCrossTeams = store.getAllTeamsAcrossTournaments();
+    const allTourneys = (store.getLeagues ? store.getLeagues() : []);
+
     const rawFixtures = (selectedCategory === 'ALL')
       ? allCrossFixtures
       : allCrossFixtures.filter(f => {
@@ -7377,7 +7380,7 @@ function renderFixturesView(container) {
           const cat = selectedCategory.toUpperCase();
           return fCode === cat || (cat === 'KPL' && (fCode === 'K2026' || fCode === 'KPL')) || (cat === 'K2026' && (fCode === 'KPL' || fCode === 'K2026')) || f.tournamentId === selectedCategory || f.tournament_id === selectedCategory || f.leagueId === selectedCategory;
         });
-    
+
     // Apply Match Group Filter
     let filteredFixtures = rawFixtures;
     if (activeFixtureGroupFilter === 'A') {
@@ -7397,205 +7400,286 @@ function renderFixturesView(container) {
     const completedMatches = filteredFixtures.filter(f => f.status === 'COMPLETED' || f.result);
 
     // Filter teams strictly by selected tournament category
-    const leagueTeams = store.getTeams().filter(t => {
-      const code = (t.leagueCode || (t.leagueId === 'leg-jsl' ? 'JSL' : (t.leagueId === 'leg-jpl' ? 'JPL' : (t.leagueId === 'leg-kpl' ? 'KPL' : 'T'))));
-      return code.toUpperCase() === selectedCategory.toUpperCase();
-    });
+    const leagueTeams = (selectedCategory === 'ALL')
+      ? allCrossTeams
+      : allCrossTeams.filter(t => {
+          const code = (t.leagueCode || (t.leagueId === 'leg-jsl' ? 'JSL' : (t.leagueId === 'leg-jpl' ? 'JPL' : (t.leagueId === 'leg-kpl' ? 'KPL' : 'T')))).toUpperCase();
+          const cat = selectedCategory.toUpperCase();
+          return code === cat || (cat === 'KPL' && (code === 'K2026' || code === 'KPL')) || (cat === 'K2026' && (code === 'KPL' || code === 'K2026')) || t.tournamentId === selectedCategory || t.tournament_id === selectedCategory;
+        });
 
     const format = store.getTournamentFormat(selectedCategory);
-    const isMultiGroup = format.format === 'TWO_GROUPS' || format.format === 'FOUR_GROUPS';
+    const isMultiGroup = (format.format === 'TWO_GROUPS' || format.format === 'FOUR_GROUPS') && selectedCategory !== 'ALL';
+
+    // Helper: render a single match card
+    const renderSingleMatchCard = (m, idx) => {
+      const teamAObj = store.getTeamById(m.teamAId);
+      const teamBObj = store.getTeamById(m.teamBId);
+      const logoA = teamAObj?.logoUrl || teamAObj?.teamLogoUrl || 'assets/card_jsl_user.png';
+      const logoB = teamBObj?.logoUrl || teamBObj?.teamLogoUrl || 'assets/card_jsl_user.png';
+
+      const isLive = m.status === 'LIVE';
+      const isCompleted = m.status === 'COMPLETED' || !!m.result;
+      const aScore = m.teamAScore || {};
+      const bScore = m.teamBScore || {};
+      const liveState = m.liveMatchState || {};
+
+      let teamAScoreTxt = '-';
+      let teamBScoreTxt = '-';
+      if (isLive) {
+        const isBattingTeamA = liveState.innings !== 2;
+        teamAScoreTxt = isBattingTeamA ? `${liveState.runs || 0}/${liveState.wickets || 0} (${liveState.overs || 0}.${liveState.balls || 0})` : (m.teamAScore ? `${m.teamAScore.runs}/${m.teamAScore.wickets}` : '-');
+        teamBScoreTxt = !isBattingTeamA ? `${liveState.runs || 0}/${liveState.wickets || 0} (${liveState.overs || 0}.${liveState.balls || 0})` : (m.teamBScore ? `${m.teamBScore.runs}/${m.teamBScore.wickets}` : '-');
+      } else if (isCompleted) {
+        teamAScoreTxt = aScore.runs !== undefined ? `${aScore.runs}/${aScore.wickets || 0} (${aScore.overs || 0}.${aScore.balls || 0} ov)` : '-';
+        teamBScoreTxt = bScore.runs !== undefined ? `${bScore.runs}/${bScore.wickets || 0} (${bScore.overs || 0}.${bScore.balls || 0} ov)` : '-';
+      }
+
+      const startTs = m.startedAtTimestamp || Date.now();
+      const startClock = m.startedAt || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+      return `
+        <div class="cpl-match-card bg-white border-2 ${isLive ? 'border-rose-500 shadow-md ring-2 ring-rose-500/20' : isCompleted ? 'border-slate-200 hover:border-emerald-500 shadow-2xs' : 'border-slate-200 hover:border-sky-500 shadow-2xs'} rounded-3xl p-4 sm:p-5 shadow-xs hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between space-y-3 relative group" data-fixture-id="${m.id}" onclick="window.openMatchCenterModal('${m.id}')">
+          <!-- Top Line: Stage, T20/T16, Time & Status -->
+          <div class="flex items-center justify-between gap-2 text-xs">
+            <div class="font-medium text-slate-600 truncate flex items-center gap-1.5 min-w-0">
+              <span class="font-black text-slate-900">${m.group ? `GROUP ${m.group} Match ${m.matchNo || idx + 1}` : `Match ${m.matchNo || idx + 1}`}</span>
+              <span>•</span>
+              <span class="font-bold text-slate-700">T${m.oversLimit || 16}</span>
+              <span>•</span>
+              <span class="text-slate-500 truncate">${isLive ? `⏱️ <span class="cpl-live-match-timer font-mono font-black text-rose-600" data-start="${startTs}">0m 0s</span>` : `🗓️ ${m.date || 'Today'} ${m.time ? `(${m.time})` : ''}`}</span>
+            </div>
+            <div class="shrink-0">
+              ${isLive ? `
+                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black bg-rose-500 text-white animate-pulse shadow-xs">
+                  <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span> LIVE
+                </span>
+              ` : isCompleted ? `
+                <span class="text-emerald-700 font-black tracking-wider uppercase text-xs bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded-full">
+                  FINISHED
+                </span>
+              ` : `
+                <span class="text-sky-700 font-black tracking-wider uppercase text-xs bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full">
+                  SCHEDULED
+                </span>
+              `}
+            </div>
+          </div>
+
+          <!-- Teams List -->
+          <div class="space-y-2.5 py-1">
+            <div class="flex items-center justify-between gap-3">
+              <div class="flex items-center gap-3 min-w-0">
+                <img src="${logoA}" class="w-9 h-9 rounded-full object-cover border border-slate-200 bg-slate-50 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                <span class="font-black text-slate-900 text-sm sm:text-base tracking-wide uppercase truncate leading-tight group-hover:text-emerald-700 transition-colors">
+                  ${m.teamAName}
+                </span>
+              </div>
+              <div class="text-xs sm:text-sm font-black font-mono ${isLive ? 'text-rose-600 font-bold' : 'text-slate-900'} shrink-0">
+                ${teamAScoreTxt}
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between gap-3">
+              <div class="flex items-center gap-3 min-w-0">
+                <img src="${logoB}" class="w-9 h-9 rounded-full object-cover border border-slate-200 bg-slate-50 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                <span class="font-black text-slate-900 text-sm sm:text-base tracking-wide uppercase truncate leading-tight group-hover:text-emerald-700 transition-colors">
+                  ${m.teamBName}
+                </span>
+              </div>
+              <div class="text-xs sm:text-sm font-black font-mono ${isLive ? 'text-rose-600 font-bold' : 'text-slate-900'} shrink-0">
+                ${teamBScoreTxt}
+              </div>
+            </div>
+          </div>
+
+          <!-- Toss / Target Equation or Result -->
+          ${isLive && liveState.innings === 2 && liveState.target ? `
+            <div class="bg-amber-50 border border-amber-200 text-amber-900 text-[11px] font-black p-2 rounded-xl text-center shadow-2xs">
+              🎯 Target: ${liveState.target} | Need ${liveState.target - (liveState.runs || 0)} runs off ${(m.oversLimit * 6) - (((liveState.overs || 0) * 6) + (liveState.balls || 0))} balls
+            </div>
+          ` : (isCompleted && m.result) ? `
+            <div class="text-xs bg-emerald-50 border border-emerald-300 text-emerald-950 font-black p-2 rounded-xl text-center shadow-2xs uppercase tracking-wide flex items-center justify-center gap-1.5">
+              <span>🏆</span> <span>${m.result}</span>
+            </div>
+          ` : (m.tossDetails || liveState.tossDetails) ? `
+            <div class="bg-slate-50 border border-slate-200 text-slate-700 text-[10px] font-bold p-1.5 rounded-xl truncate flex items-center gap-1">
+              <span>🪙</span> <span class="truncate">${m.tossDetails || liveState.tossDetails}</span>
+            </div>
+          ` : ''}
+
+          <!-- Footer: Tournament Name & Click Action -->
+          <div class="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+            <div class="min-w-0">
+              <div class="text-[10px] text-emerald-800 font-extrabold uppercase tracking-wider truncate flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full ${isLive ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500'} shrink-0"></span>
+                <span class="truncate">${m.tournamentName || (m.leagueCode ? `${m.leagueCode} PREMIER LEAGUE` : 'CRICKET PREMIER LEAGUE')}</span>
+                <span>•</span>
+                <span class="text-slate-500 font-bold truncate">${m.venue || 'JHANKRA SCHOOL GROUND'}</span>
+              </div>
+              <div class="text-xs font-black text-emerald-700 group-hover:text-emerald-800 transition-colors flex items-center gap-1 mt-0.5">
+                ${isLive ? 'View Live Match Centre' : isCompleted ? 'View Full Scorecard' : 'View Match Preview'} <span class="text-emerald-600 font-bold transition-transform group-hover:translate-x-1">→</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-1.5 shrink-0">
+              <button type="button" class="btn-share-fixture-wa px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-xl border border-emerald-300 flex items-center gap-1 shadow-2xs hover:scale-105 active:scale-95 transition-all cursor-pointer" data-fixture-id="${m.id}" onclick="event.stopPropagation(); window.shareMatchToWhatsApp(store.getFixtureById('${m.id}') || ${JSON.stringify(m).replace(/"/g, '&quot;')}, { name: '${m.tournamentName || m.leagueCode || selectedCategory} PREMIER LEAGUE', venue: '${m.venue || 'JHANKRA SCHOOL GROUND'}' });">
+                <span>💬</span> <span>Share</span>
+              </button>
+              <span class="text-[11px] font-black ${isLive ? 'bg-rose-50 text-rose-800 border-rose-300' : 'bg-slate-100 text-slate-800 border-slate-300'} border px-3 py-1 rounded-xl shadow-2xs">
+                ${isLive ? '🔴 Live' : isCompleted ? '📊 Result' : '📊 Preview'}
+              </span>
+            </div>
+          </div>
+        </div>
+      `;
+    };
 
     let mainContentHtml = '';
 
     if (activeFixtureSubTab === 'matches') {
-      mainContentHtml = `
-        <!-- MATCH STAGE & GROUP FILTER PILLS -->
-        ${isMultiGroup ? `
-          <div class="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none bg-white p-2 rounded-2xl border border-slate-200/90 shadow-2xs">
-            <button class="match-grp-filter-btn px-3 py-1.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer ${activeFixtureGroupFilter === 'ALL' ? 'bg-slate-900 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}" data-grp="ALL">
-              All Matches (${rawFixtures.length})
-            </button>
-            <button class="match-grp-filter-btn px-3 py-1.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer ${activeFixtureGroupFilter === 'A' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}" data-grp="A">
-              🟢 Group A Matches
-            </button>
-            <button class="match-grp-filter-btn px-3 py-1.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer ${activeFixtureGroupFilter === 'B' ? 'bg-sky-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}" data-grp="B">
-              🔵 Group B Matches
-            </button>
-            ${format.format === 'FOUR_GROUPS' ? `
-              <button class="match-grp-filter-btn px-3 py-1.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer ${activeFixtureGroupFilter === 'C' ? 'bg-amber-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}" data-grp="C">
-                🟡 Group C
-              </button>
-              <button class="match-grp-filter-btn px-3 py-1.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer ${activeFixtureGroupFilter === 'D' ? 'bg-purple-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}" data-grp="D">
-                🟣 Group D
-              </button>
-            ` : ''}
-            <button class="match-grp-filter-btn px-3 py-1.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer ${activeFixtureGroupFilter === 'KNOCKOUT' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}" data-grp="KNOCKOUT">
-              🏆 Semi-Finals & Final
-            </button>
+      if (filteredFixtures.length === 0) {
+        mainContentHtml = `
+          <div class="bg-white border-2 border-dashed border-slate-200 rounded-3xl p-8 text-center space-y-2 shadow-2xs">
+            <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center mx-auto text-xl shadow-2xs">
+              🏏
+            </div>
+            <h4 class="text-sm font-black text-slate-800">No Matches Scheduled Yet</h4>
+            <p class="text-xs text-slate-500 max-w-sm mx-auto">Fixtures for ${selectedCategory} 2026 are being scheduled and will appear here shortly.</p>
           </div>
-        ` : ''}
+        `;
+      } else if (selectedCategory === 'ALL') {
+        // --- 🌟 ALL TOURNAMENTS GROUPED VIEW ---
+        const sections = [];
 
-        <!-- DYNAMIC MATCH SECTIONS: LIVE, SCHEDULED, COMPLETED -->
-        ${(() => {
-          if (filteredFixtures.length === 0) {
-            return `
-              <div class="bg-white border-2 border-dashed border-slate-200 rounded-3xl p-8 text-center space-y-2 shadow-2xs">
-                <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center mx-auto text-xl shadow-2xs">
-                  🏏
-                </div>
-                <h4 class="text-sm font-black text-slate-800">No Matches Scheduled Yet</h4>
-                <p class="text-xs text-slate-500 max-w-sm mx-auto">Fixtures for ${selectedCategory} 2026 are being scheduled and will appear here shortly.</p>
+        // 1. Live Matches Across Any League
+        if (liveMatches.length > 0) {
+          sections.push(`
+            <div class="space-y-3">
+              <div class="bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 text-white px-4 py-2.5 rounded-2xl shadow-sm flex items-center justify-between">
+                <h2 class="text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-2">
+                  <span class="w-2.5 h-2.5 rounded-full bg-white animate-ping"></span> 🔴 Live Match Scoreboard
+                </h2>
+                <span class="px-3 py-0.5 bg-white/20 backdrop-blur-sm text-white font-mono text-[10px] font-black rounded-full border border-white/30">
+                  ${liveMatches.length} LIVE NOW
+                </span>
               </div>
-            `;
-          }
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                ${liveMatches.map((m, idx) => renderSingleMatchCard(m, idx)).join('')}
+              </div>
+            </div>
+          `);
+        }
 
-          const sections = [];
+        // 2. Group Remaining Matches By Tournament
+        // Find which tournaments actually have matches
+        const tourneysWithMatches = allTourneys.filter(l => {
+          const code = (l.code || l.category || l.category_code || l.shortCode || l.slug || 'T').toUpperCase();
+          const tid = l.supabaseId || l.id;
+          return filteredFixtures.some(f => (f.leagueCode || '').toUpperCase() === code || f.tournamentId === tid);
+        });
 
-          const getMatchBadgeInfo = (m, idx = 1) => {
-            const matchNum = m.matchNo || idx;
-            let label = `Match #${matchNum}`;
-            let pillClass = 'bg-slate-800 text-white';
-            let borderClass = 'border-slate-200 hover:border-slate-400';
+        // If no custom tourney matches mapped, group by distinct tournament name/code on fixtures
+        if (tourneysWithMatches.length === 0) {
+          sections.push(`
+            <div class="space-y-3">
+              <div class="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white px-4 py-2.5 rounded-2xl shadow-sm flex items-center justify-between">
+                <h2 class="text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-2">
+                  <span>📅</span> All Scheduled & Completed Matches
+                </h2>
+                <span class="px-3 py-0.5 bg-white/20 backdrop-blur-sm text-white font-mono text-[10px] font-black rounded-full border border-white/30">
+                  ${filteredFixtures.length} TOTAL
+                </span>
+              </div>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                ${filteredFixtures.map((m, idx) => renderSingleMatchCard(m, idx)).join('')}
+              </div>
+            </div>
+          `);
+        } else {
+          tourneysWithMatches.forEach(l => {
+            const code = (l.code || l.category || l.category_code || l.shortCode || l.slug || 'T').toUpperCase();
+            const tid = l.supabaseId || l.id;
+            const tMatches = filteredFixtures.filter(f => (f.leagueCode || '').toUpperCase() === code || f.tournamentId === tid);
+            if (tMatches.length === 0) return;
 
-            if (m.stage === 'GROUP_A' || m.groupCode === 'A') {
-              label = `🟢 Group A • Match ${matchNum}`;
-              pillClass = 'bg-emerald-100 text-emerald-900 border border-emerald-300';
-              borderClass = 'border-emerald-200 hover:border-emerald-400';
-            } else if (m.stage === 'GROUP_B' || m.groupCode === 'B') {
-              label = `🔵 Group B • Match ${matchNum}`;
-              pillClass = 'bg-sky-100 text-sky-900 border border-sky-300';
-              borderClass = 'border-sky-200 hover:border-sky-400';
-            } else if (m.stage === 'GROUP_C' || m.groupCode === 'C') {
-              label = `🟡 Group C • Match ${matchNum}`;
-              pillClass = 'bg-amber-100 text-amber-900 border border-amber-300';
-              borderClass = 'border-amber-200 hover:border-amber-400';
-            } else if (m.stage === 'GROUP_D' || m.groupCode === 'D') {
-              label = `🟣 Group D • Match ${matchNum}`;
-              pillClass = 'bg-purple-100 text-purple-900 border border-purple-300';
-              borderClass = 'border-purple-200 hover:border-purple-400';
-            } else {
-              label = `${m.leagueCode || 'T'} • Match ${matchNum}`;
-            }
+            const tName = l.name || `${code} Premier League`;
+            const tLogo = l.logoUrl || l.logo_url || l.banner_url || 'assets/card_jsl_user.png';
+            const tVenue = l.venue || 'Jharkra School Ground';
 
-            return { label, pillClass, borderClass, matchNum };
-          };
-
-          // 1. LIVE MATCH SCOREBOARD (ONLY IF LIVE MATCHES EXIST)
-          if (liveMatches.length > 0) {
             sections.push(`
-              <div class="space-y-3">
-                <div class="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white px-4 py-2.5 rounded-2xl shadow-sm flex items-center justify-between">
-                  <h2 class="text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-2">
-                    <span class="w-2.5 h-2.5 rounded-full bg-red-400 animate-ping"></span> 🔴 Live Match Scoreboard
-                  </h2>
-                  <span class="px-3 py-0.5 bg-white/20 backdrop-blur-sm text-white font-mono text-[10px] font-black rounded-full border border-white/30">
-                    LIVE NOW
-                  </span>
+              <div class="space-y-3 bg-slate-50/80 border border-slate-200/90 rounded-3xl p-3.5 sm:p-4 shadow-2xs">
+                <!-- Tournament Card Header Banner -->
+                <div class="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white p-3.5 rounded-2xl flex items-center justify-between shadow-xs border border-slate-700/80 gap-2 flex-wrap">
+                  <div class="flex items-center gap-3 min-w-0">
+                    <img src="${tLogo}" class="w-10 h-10 rounded-xl object-cover border border-white/20 shrink-0 shadow-xs bg-slate-800" onerror="this.src='assets/card_jsl_user.png'" />
+                    <div class="min-w-0">
+                      <h3 class="text-xs sm:text-sm font-black uppercase text-white truncate tracking-wide">${tName}</h3>
+                      <p class="text-[10px] text-slate-300 font-medium truncate">📍 ${tVenue} • ${tMatches.length} Matches</p>
+                    </div>
+                  </div>
+                  <button data-cat="${code}" class="fixture-cat-btn px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-black text-[10px] rounded-xl shadow-xs transition-all cursor-pointer shrink-0 flex items-center gap-1">
+                    <span>View Standings</span> <span>→</span>
+                  </button>
                 </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                  ${liveMatches.map((m, idx) => {
-                    const state = m.liveMatchState || {};
-                    const teamAObj = store.getTeamById(m.teamAId);
-                    const teamBObj = store.getTeamById(m.teamBId);
-                    const logoA = teamAObj?.logoUrl || teamAObj?.teamLogoUrl || 'assets/card_jsl_user.png';
-                    const logoB = teamBObj?.logoUrl || teamBObj?.teamLogoUrl || 'assets/card_jsl_user.png';
 
-                    const isBattingTeamA = state.innings !== 2;
-                    const teamAScoreTxt = isBattingTeamA ? `${state.runs}/${state.wickets} (${state.overs}.${state.balls})` : (m.teamAScore ? `${m.teamAScore.runs}/${m.teamAScore.wickets}` : '-');
-                    const teamBScoreTxt = !isBattingTeamA ? `${state.runs}/${state.wickets} (${state.overs}.${state.balls})` : (m.teamBScore ? `${m.teamBScore.runs}/${m.teamBScore.wickets}` : '-');
-
-                    const startTs = m.startedAtTimestamp || Date.now();
-                    const startClock = m.startedAt || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-                    return `
-                      <div class="cpl-match-card bg-white border-2 border-slate-200 hover:border-emerald-500 rounded-3xl p-4 sm:p-5 shadow-xs hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between space-y-3 relative group" data-fixture-id="${m.id}" onclick="window.openMatchCenterModal('${m.id}')">
-                        <!-- Top Line: Stage, Start Time & Real-time Live Running Duration -->
-                        <div class="flex items-center justify-between gap-2 text-xs">
-                          <div class="font-medium text-slate-600 truncate flex items-center gap-1.5 min-w-0">
-                            <span class="font-black text-slate-900">${m.group ? `GROUP ${m.group} Match ${m.matchNo || idx + 1}` : `Match ${m.matchNo || idx + 1}`}</span>
-                            <span>•</span>
-                            <span class="font-bold text-slate-700">T${m.oversLimit || 16}</span>
-                            <span>•</span>
-                            <span class="text-slate-500 truncate">🗓️ Started: ${startClock} (⏱️ <span class="cpl-live-match-timer font-mono font-black text-emerald-700" data-start="${startTs}">0m 0s</span>)</span>
-                          </div>
-                          <div class="shrink-0">
-                            <span class="text-rose-600 font-black tracking-wider uppercase text-xs flex items-center gap-1.5 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
-                              <span class="w-2 h-2 rounded-full bg-rose-600 animate-ping"></span> LIVE
-                            </span>
-                          </div>
-                        </div>
-
-                        <!-- Teams List with Circular Logos & Live Scores -->
-                        <div class="space-y-2.5 py-1">
-                          <div class="flex items-center justify-between gap-3">
-                            <div class="flex items-center gap-3 min-w-0">
-                              <img src="${logoA}" class="w-9 h-9 rounded-full object-cover border border-slate-200 bg-slate-50 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
-                              <span class="font-black text-slate-900 text-sm sm:text-base tracking-wide uppercase truncate leading-tight group-hover:text-emerald-700 transition-colors">
-                                ${m.teamAName}
-                              </span>
-                            </div>
-                            <div class="text-xs sm:text-sm font-black font-mono ${isBattingTeamA ? 'text-emerald-700' : 'text-slate-500'} shrink-0">
-                              ${teamAScoreTxt}
-                            </div>
-                          </div>
-
-                          <div class="flex items-center justify-between gap-3">
-                            <div class="flex items-center gap-3 min-w-0">
-                              <img src="${logoB}" class="w-9 h-9 rounded-full object-cover border border-slate-200 bg-slate-50 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
-                              <span class="font-black text-slate-900 text-sm sm:text-base tracking-wide uppercase truncate leading-tight group-hover:text-emerald-700 transition-colors">
-                                ${m.teamBName}
-                              </span>
-                            </div>
-                            <div class="text-xs sm:text-sm font-black font-mono ${!isBattingTeamA ? 'text-emerald-700' : 'text-slate-500'} shrink-0">
-                              ${teamBScoreTxt}
-                            </div>
-                          </div>
-                        </div>
-
-                        <!-- Toss / Target Equation if any -->
-                        ${state.innings === 2 && state.target ? `
-                          <div class="bg-amber-50 border border-amber-200 text-amber-900 text-[11px] font-black p-2 rounded-xl text-center shadow-2xs">
-                            🎯 Target: ${state.target} | Need ${state.target - state.runs} runs off ${(m.oversLimit * 6) - ((state.overs * 6) + state.balls)} balls
-                          </div>
-                        ` : ((m.tossDetails || state.tossDetails) ? `
-                          <div class="bg-slate-50 border border-slate-200 text-slate-700 text-[10px] font-bold p-1.5 rounded-xl truncate flex items-center gap-1">
-                            <span>🪙</span> <span class="truncate">${m.tossDetails || state.tossDetails}</span>
-                          </div>
-                        ` : '')}
-
-                        <!-- Footer: Tournament Name & Direct Match Centre Prompt -->
-                        <div class="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
-                          <div class="min-w-0">
-                            <div class="text-[10px] text-emerald-800 font-extrabold uppercase tracking-wider truncate flex items-center gap-1.5">
-                              <span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0 animate-pulse"></span>
-                              <span class="truncate">${m.tournamentName || (m.leagueCode ? `${m.leagueCode} PREMIER LEAGUE` : 'CRICKET PREMIER LEAGUE')}</span>
-                              <span>•</span>
-                              <span class="text-slate-500 font-bold truncate">${m.venue || 'JHANKRA SCHOOL GROUND'}</span>
-                            </div>
-                            <div class="text-xs font-black text-emerald-700 group-hover:text-emerald-800 transition-colors flex items-center gap-1 mt-0.5">
-                              View Match Centre <span class="text-emerald-600 font-bold transition-transform group-hover:translate-x-1">→</span>
-                            </div>
-                          </div>
-                          <div class="flex items-center gap-1.5 shrink-0">
-                            <button type="button" class="btn-share-fixture-wa px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-xl border border-emerald-300 flex items-center gap-1 shadow-2xs hover:scale-105 active:scale-95 transition-all cursor-pointer" data-fixture-id="${m.id}" onclick="event.stopPropagation(); window.shareMatchToWhatsApp(store.getFixtureById('${m.id}') || ${JSON.stringify(m).replace(/"/g, '&quot;')}, { name: '${m.leagueCode || selectedCategory} PREMIER LEAGUE', venue: '${m.venue || 'JHANKRA SCHOOL GROUND'}' });">
-                              <span>💬</span> <span>Share</span>
-                            </button>
-                            <span class="text-[11px] font-black bg-emerald-50 text-emerald-800 border border-emerald-300 px-3 py-1 rounded-xl shadow-2xs">
-                              📊 Tap for Scorecard
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    `;
-                  }).join('')}
+                <!-- Matches in this Tournament -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  ${tMatches.map((m, idx) => renderSingleMatchCard(m, idx)).join('')}
                 </div>
               </div>
             `);
-          }
+          });
+        }
 
-          // 2. UPCOMING MATCH FIXTURES (ONLY IF SCHEDULED MATCHES EXIST)
-          if (scheduledMatches.length > 0) {
-            sections.push(`
+        mainContentHtml = `<div class="space-y-4 animate-fade-in">${sections.join('')}</div>`;
+      } else {
+        // --- SPECIFIC TOURNAMENT VIEW (e.g. K2026 or JSL) ---
+        mainContentHtml = `
+          <!-- MATCH STAGE & GROUP FILTER PILLS -->
+          ${isMultiGroup ? `
+            <div class="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none bg-white p-2 rounded-2xl border border-slate-200/90 shadow-2xs">
+              <button class="match-grp-filter-btn px-3 py-1.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer ${activeFixtureGroupFilter === 'ALL' ? 'bg-slate-900 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}" data-grp="ALL">
+                All Matches (${rawFixtures.length})
+              </button>
+              <button class="match-grp-filter-btn px-3 py-1.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer ${activeFixtureGroupFilter === 'A' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}" data-grp="A">
+                🟢 Group A Matches
+              </button>
+              <button class="match-grp-filter-btn px-3 py-1.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer ${activeFixtureGroupFilter === 'B' ? 'bg-sky-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}" data-grp="B">
+                🔵 Group B Matches
+              </button>
+              ${format.format === 'FOUR_GROUPS' ? `
+                <button class="match-grp-filter-btn px-3 py-1.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer ${activeFixtureGroupFilter === 'C' ? 'bg-amber-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}" data-grp="C">
+                  🟡 Group C
+                </button>
+                <button class="match-grp-filter-btn px-3 py-1.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer ${activeFixtureGroupFilter === 'D' ? 'bg-purple-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}" data-grp="D">
+                  🟣 Group D
+                </button>
+              ` : ''}
+              <button class="match-grp-filter-btn px-3 py-1.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer ${activeFixtureGroupFilter === 'KNOCKOUT' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}" data-grp="KNOCKOUT">
+                🏆 Semi-Finals & Final
+              </button>
+            </div>
+          ` : ''}
+
+          <!-- DYNAMIC MATCH SECTIONS: LIVE, SCHEDULED, COMPLETED -->
+          <div class="space-y-4 animate-fade-in">
+            ${liveMatches.length > 0 ? `
+              <div class="space-y-3">
+                <div class="bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 text-white px-4 py-2.5 rounded-2xl shadow-sm flex items-center justify-between">
+                  <h2 class="text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-white animate-ping"></span> 🔴 Live Match Scoreboard
+                  </h2>
+                  <span class="px-3 py-0.5 bg-white/20 backdrop-blur-sm text-white font-mono text-[10px] font-black rounded-full border border-white/30">
+                    ${liveMatches.length} LIVE NOW
+                  </span>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  ${liveMatches.map((m, idx) => renderSingleMatchCard(m, idx)).join('')}
+                </div>
+              </div>
+            ` : ''}
+
+            ${scheduledMatches.length > 0 ? `
               <div class="space-y-3">
                 <div class="bg-gradient-to-r from-blue-600 via-sky-600 to-indigo-700 text-white px-4 py-2.5 rounded-2xl shadow-sm flex items-center justify-between">
                   <h2 class="text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-2">
@@ -7605,192 +7689,32 @@ function renderFixturesView(container) {
                     ${scheduledMatches.length} MATCHES
                   </span>
                 </div>
-
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                  ${scheduledMatches.map((m, idx) => {
-                    const teamAObj = store.getTeamById(m.teamAId);
-                    const teamBObj = store.getTeamById(m.teamBId);
-                    const logoA = teamAObj?.logoUrl || teamAObj?.teamLogoUrl || 'assets/card_jsl_user.png';
-                    const logoB = teamBObj?.logoUrl || teamBObj?.teamLogoUrl || 'assets/card_jsl_user.png';
-
-                    return `
-                      <div class="cpl-match-card bg-white border-2 border-slate-200 hover:border-emerald-500 rounded-3xl p-4 sm:p-5 shadow-xs hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between space-y-3 relative group" data-fixture-id="${m.id}" onclick="window.openMatchCenterModal('${m.id}')">
-                        <!-- Top Line: Stage, T20/T16, Time & Status -->
-                        <div class="flex items-center justify-between gap-2 text-xs">
-                          <div class="font-medium text-slate-600 truncate flex items-center gap-1.5">
-                            <span class="font-black text-slate-900">${m.group ? `GROUP ${m.group} Match ${m.matchNo || idx + 1}` : `Match ${m.matchNo || idx + 1}`}</span>
-                            <span>•</span>
-                            <span class="font-bold text-slate-700">T${m.oversLimit || 16}</span>
-                            <span>•</span>
-                            <span class="text-slate-500">🗓️ ${m.date || 'Today'} ${m.time ? `(${m.time})` : ''}</span>
-                          </div>
-                          <div class="shrink-0">
-                            <span class="text-sky-700 font-black tracking-wider uppercase text-xs bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full">
-                              SCHEDULED
-                            </span>
-                          </div>
-                        </div>
-
-                        <!-- Teams List with Circular Logos -->
-                        <div class="space-y-2.5 py-1">
-                          <div class="flex items-center justify-between gap-3">
-                            <div class="flex items-center gap-3 min-w-0">
-                              <img src="${logoA}" class="w-9 h-9 rounded-full object-cover border border-slate-200 bg-slate-50 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
-                              <span class="font-black text-slate-900 text-sm sm:text-base tracking-wide uppercase truncate leading-tight group-hover:text-emerald-700 transition-colors">
-                                ${m.teamAName}
-                              </span>
-                            </div>
-                            <span class="text-xs font-bold text-slate-400 font-mono shrink-0">-</span>
-                          </div>
-
-                          <div class="flex items-center justify-between gap-3">
-                            <div class="flex items-center gap-3 min-w-0">
-                              <img src="${logoB}" class="w-9 h-9 rounded-full object-cover border border-slate-200 bg-slate-50 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
-                              <span class="font-black text-slate-900 text-sm sm:text-base tracking-wide uppercase truncate leading-tight group-hover:text-emerald-700 transition-colors">
-                                ${m.teamBName}
-                              </span>
-                            </div>
-                            <span class="text-xs font-bold text-slate-400 font-mono shrink-0">-</span>
-                          </div>
-                        </div>
-
-                        <!-- Footer: Tournament Name & Click Action -->
-                        <div class="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
-                          <div class="min-w-0">
-                            <div class="text-[10px] text-sky-800 font-extrabold uppercase tracking-wider truncate flex items-center gap-1.5">
-                              <span class="w-2 h-2 rounded-full bg-sky-500 shrink-0"></span>
-                              <span class="truncate">${m.tournamentName || (m.leagueCode ? `${m.leagueCode} PREMIER LEAGUE` : 'CRICKET PREMIER LEAGUE')}</span>
-                              <span>•</span>
-                              <span class="text-slate-500 font-bold truncate">${m.venue || 'JHANKRA SCHOOL GROUND'}</span>
-                            </div>
-                            <div class="text-xs font-black text-emerald-700 group-hover:text-emerald-800 transition-colors flex items-center gap-1 mt-0.5">
-                              View Match Centre <span class="text-emerald-600 font-bold transition-transform group-hover:translate-x-1">→</span>
-                            </div>
-                          </div>
-                          <div class="flex items-center gap-1.5 shrink-0">
-                            <button type="button" class="btn-share-fixture-wa px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-xl border border-emerald-300 flex items-center gap-1 shadow-2xs hover:scale-105 active:scale-95 transition-all cursor-pointer" data-fixture-id="${m.id}" onclick="event.stopPropagation(); window.shareMatchToWhatsApp(store.getFixtureById('${m.id}') || ${JSON.stringify(m).replace(/"/g, '&quot;')}, { name: '${m.leagueCode || selectedCategory} PREMIER LEAGUE', venue: '${m.venue || 'JHANKRA SCHOOL GROUND'}' });">
-                              <span>💬</span> <span>Share</span>
-                            </button>
-                            <span class="text-[11px] font-black bg-slate-100 text-slate-800 border border-slate-300 px-3 py-1 rounded-xl shadow-2xs">
-                              📊 Tap for Preview
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    `;
-                  }).join('')}
+                  ${scheduledMatches.map((m, idx) => renderSingleMatchCard(m, idx)).join('')}
                 </div>
               </div>
-            `);
-          }
+            ` : ''}
 
-          // 3. COMPLETED MATCH RESULTS (ONLY IF COMPLETED MATCHES EXIST)
-          if (completedMatches.length > 0) {
-            sections.push(`
+            ${completedMatches.length > 0 ? `
               <div class="space-y-3">
                 <div class="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white px-4 py-2.5 rounded-2xl shadow-sm flex items-center justify-between">
                   <h2 class="text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-2">
-                    <span>🏆</span> Match Results (${selectedCategory})
+                    <span>🏁</span> Completed Matches (${selectedCategory})
                   </h2>
                   <span class="px-3 py-0.5 bg-white/20 backdrop-blur-sm text-white font-mono text-[10px] font-black rounded-full border border-white/30">
-                    ${completedMatches.length} COMPLETED
+                    ${completedMatches.length} FINISHED
                   </span>
                 </div>
-
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                  ${completedMatches.map((m, idx) => {
-                    const teamAObj = store.getTeamById(m.teamAId);
-                    const teamBObj = store.getTeamById(m.teamBId);
-                    const logoA = teamAObj?.logoUrl || teamAObj?.teamLogoUrl || 'assets/card_jsl_user.png';
-                    const logoB = teamBObj?.logoUrl || teamBObj?.teamLogoUrl || 'assets/card_jsl_user.png';
-
-                    return `
-                      <div class="cpl-match-card bg-white border-2 border-slate-200 hover:border-emerald-500 rounded-3xl p-4 sm:p-5 shadow-xs hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between space-y-3 relative group" data-fixture-id="${m.id}" onclick="window.openMatchCenterModal('${m.id}')">
-                        <!-- Top Line: Stage & Duration -->
-                        <div class="flex items-center justify-between gap-2 text-xs">
-                          <div class="font-medium text-slate-600 truncate flex items-center gap-1.5">
-                            <span class="font-black text-slate-900">${m.group ? `GROUP ${m.group} Match ${m.matchNo || idx + 1}` : `Match ${m.matchNo || idx + 1}`}</span>
-                            <span>•</span>
-                            <span class="font-bold text-slate-700">T${m.oversLimit || 16}</span>
-                            <span>•</span>
-                            <span class="text-slate-500">⏱️ ${m.startedAt || '09:00 AM'} - ${m.endedAt || 'Finished'}</span>
-                          </div>
-                          <div class="shrink-0">
-                            <span class="text-emerald-700 font-black tracking-wider uppercase text-xs bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                              COMPLETED
-                            </span>
-                          </div>
-                        </div>
-
-                        <!-- Teams List with Circular Logos & Final Scores -->
-                        <div class="space-y-2.5 py-1">
-                          <div class="flex items-center justify-between gap-3">
-                            <div class="flex items-center gap-3 min-w-0">
-                              <img src="${logoA}" class="w-9 h-9 rounded-full object-cover border border-slate-200 bg-slate-50 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
-                              <span class="font-black text-slate-900 text-sm sm:text-base tracking-wide uppercase truncate leading-tight group-hover:text-emerald-700 transition-colors">
-                                ${m.teamAName}
-                              </span>
-                            </div>
-                            <div class="text-xs sm:text-sm font-black font-mono text-slate-900 shrink-0">
-                              ${m.teamAScore ? `${m.teamAScore.runs}/${m.teamAScore.wickets} (${m.teamAScore.overs}.${m.teamAScore.balls} ov)` : '-'}
-                            </div>
-                          </div>
-
-                          <div class="flex items-center justify-between gap-3">
-                            <div class="flex items-center gap-3 min-w-0">
-                              <img src="${logoB}" class="w-9 h-9 rounded-full object-cover border border-slate-200 bg-slate-50 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
-                              <span class="font-black text-slate-900 text-sm sm:text-base tracking-wide uppercase truncate leading-tight group-hover:text-emerald-700 transition-colors">
-                                ${m.teamBName}
-                              </span>
-                            </div>
-                            <div class="text-xs sm:text-sm font-black font-mono text-slate-900 shrink-0">
-                              ${m.teamBScore ? `${m.teamBScore.runs}/${m.teamBScore.wickets} (${m.teamBScore.overs}.${m.teamBScore.balls} ov)` : '-'}
-                            </div>
-                          </div>
-                        </div>
-
-                        <!-- Result Banner -->
-                        <div class="text-xs bg-emerald-50 border border-emerald-300 text-emerald-950 font-black p-2 rounded-xl text-center shadow-2xs uppercase tracking-wide flex items-center justify-center gap-1.5">
-                          <span>🏆</span> <span>${m.result || 'Match Completed'}</span>
-                        </div>
-
-                        <!-- Footer: Tournament Name & Click Action -->
-                        <div class="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
-                          <div class="min-w-0">
-                            <div class="text-[10px] text-emerald-800 font-extrabold uppercase tracking-wider truncate flex items-center gap-1.5">
-                              <span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
-                              <span class="truncate">${m.tournamentName || (m.leagueCode ? `${m.leagueCode} PREMIER LEAGUE` : 'CRICKET PREMIER LEAGUE')}</span>
-                              <span>•</span>
-                              <span class="text-slate-500 font-bold truncate">${m.venue || 'JHANKRA SCHOOL GROUND'}</span>
-                            </div>
-                            <div class="text-xs font-black text-emerald-700 group-hover:text-emerald-800 transition-colors flex items-center gap-1 mt-0.5">
-                              View Match Centre <span class="text-emerald-600 font-bold transition-transform group-hover:translate-x-1">→</span>
-                            </div>
-                          </div>
-                          <div class="flex items-center gap-1.5 shrink-0">
-                            <button type="button" class="btn-share-fixture-wa px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-xl border border-emerald-300 flex items-center gap-1 shadow-2xs hover:scale-105 active:scale-95 transition-all cursor-pointer" data-fixture-id="${m.id}" onclick="event.stopPropagation(); window.shareMatchToWhatsApp(store.getFixtureById('${m.id}') || ${JSON.stringify(m).replace(/"/g, '&quot;')}, { name: '${m.leagueCode || selectedCategory} PREMIER LEAGUE', venue: '${m.venue || 'JHANKRA SCHOOL GROUND'}' });">
-                              <span>💬</span> <span>Share</span>
-                            </button>
-                            <span class="text-[11px] font-black bg-emerald-50 text-emerald-800 border border-emerald-300 px-3 py-1 rounded-xl shadow-2xs">
-                              📊 View Summary
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    `;
-                  }).join('')}
+                  ${completedMatches.map((m, idx) => renderSingleMatchCard(m, idx)).join('')}
                 </div>
               </div>
-            `);
-          }
-
-          return `<div class="space-y-4">${sections.join('')}</div>`;
-        })()}
-      `;
+            ` : ''}
+          </div>
+        `;
+      }
     } else if (activeFixtureSubTab === 'awards') {
       // ---------------- TOURNAMENT AWARDS ----------------
-      // Aggregate every player's per-match stats across this league's fixtures.
-      // playerStats survives on each fixture's liveMatchState after the match completes.
       const agg = {};
       rawFixtures.forEach(f => {
         const ps = f.liveMatchState && f.liveMatchState.playerStats;
@@ -7806,13 +7730,12 @@ function renderFixturesView(container) {
       });
 
       const allPlayers = store.getPlayers();
-      const allTeams = store.getTeams();
+      const allTeams = store.getAllTeamsAcrossTournaments();
       const nameOf = (pid) => (allPlayers.find(p => p.id === pid)?.name) || 'Unknown Player';
       const teamOf = (pid) => { const p = allPlayers.find(x => x.id === pid); const t = p && allTeams.find(tt => tt.id === p.teamId); return t ? t.name : ''; };
 
       const rows = Object.keys(agg).map(pid => {
         const a = agg[pid];
-        // MVP weighted composite (signed off): reward all-round impact.
         const mvp = a.runs*1 + a.fours*1 + a.sixes*2 + a.wickets*20 + a.maidens*8 + a.catches*8 + a.stumpings*10 + a.runOuts*8;
         const fielding = a.catches + a.runOuts;
         return { pid, name: nameOf(pid), team: teamOf(pid), ...a, mvp, fielding };
@@ -7825,10 +7748,8 @@ function renderFixturesView(container) {
 
       const standings = computeTeamStandings(leagueTeams, rawFixtures);
       const bestTeam = (standings[0] && standings[0].played > 0) ? standings[0] : null;
-
       const hasAnyData = rows.length > 0 || bestTeam;
 
-      // Compact inline SVG icons (white on the gradient chip) for each award shape.
       const SVG = {
         bat:    '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3.5l6.5 6.5-8 8-6.5-6.5z"/><path d="M6 13.5L3.5 16l4.5 4.5L10.5 18"/></svg>',
         ball:   '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17" stroke-dasharray="1.5 2.5"/></svg>',
@@ -7852,11 +7773,8 @@ function renderFixturesView(container) {
         { title:'Tournament MVP',    key:'mvp',       accent:'fuchsia', svg:SVG.star },
       ];
 
-      // Cache the computed rows + standings so the "view full list" modal can reuse
-      // them without re-aggregating (the modal is only reachable from this rendered tab).
       window.__cplAwardsCache = { category: selectedCategory, rows, standings };
 
-      // Compact card: shape icon + award name + top player's name + "View Full List".
       const compactCard = (key, accent, svg, title, name) => `
         <button type="button" data-award-key="${key}" class="award-card text-left rounded-2xl p-3 bg-white border border-slate-200 shadow-2xs hover:shadow-md hover:border-${accent}-300 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col gap-2 overflow-hidden group">
           <div class="h-1 -mx-3 -mt-3 mb-0.5 bg-gradient-to-r from-${accent}-400 to-${accent}-600"></div>
@@ -7881,14 +7799,14 @@ function renderFixturesView(container) {
         mainContentHtml = `
           <div class="bg-white border-2 border-emerald-200 rounded-3xl p-8 text-center shadow-sm space-y-2 animate-fade-in">
             <div class="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 border border-amber-200 flex items-center justify-center mx-auto text-2xl">🏆</div>
-            <h3 class="text-sm font-black text-slate-900">${selectedCategory} Awards Coming Soon</h3>
-            <p class="text-[11px] text-slate-500 max-w-sm mx-auto">Player and team awards for ${selectedCategory} 2026 will appear here automatically as matches are scored.</p>
+            <h3 class="text-sm font-black text-slate-900">${selectedCategory === 'ALL' ? 'Tournament' : selectedCategory} Awards Coming Soon</h3>
+            <p class="text-[11px] text-slate-500 max-w-sm mx-auto">Player and team awards will appear here automatically as matches are scored.</p>
           </div>`;
       } else {
         mainContentHtml = `
           <div class="space-y-3 animate-fade-in">
             <div class="flex items-center justify-between flex-wrap gap-2">
-              <h3 class="text-sm font-black text-slate-900 flex items-center gap-2"><span>🏆</span> ${selectedCategory} Tournament Awards</h3>
+              <h3 class="text-sm font-black text-slate-900 flex items-center gap-2"><span>🏆</span> ${selectedCategory === 'ALL' ? 'Overall' : selectedCategory} Tournament Awards</h3>
               <span class="text-[10px] font-bold text-slate-500 bg-white border border-slate-200 px-2.5 py-1 rounded-lg shadow-2xs">Tap a card for the full list →</span>
             </div>
             <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
@@ -7901,8 +7819,80 @@ function renderFixturesView(container) {
           </div>`;
       }
     } else {
-      // Standings / Points Table Subtab
-      if (leagueTeams.length === 0) {
+      // ---------------- STANDINGS / POINTS TABLE SUBTAB ----------------
+      if (selectedCategory === 'ALL') {
+        // Render points tables for each tournament
+        const tourneyTables = [];
+        allTourneys.forEach(l => {
+          const code = (l.code || l.category || l.category_code || l.shortCode || l.slug || 'T').toUpperCase();
+          const tid = l.supabaseId || l.id;
+          const tTeams = allCrossTeams.filter(t => (t.leagueCode || '').toUpperCase() === code || t.tournamentId === tid);
+          const tMatches = allCrossFixtures.filter(f => (f.leagueCode || '').toUpperCase() === code || f.tournamentId === tid);
+          if (tTeams.length === 0 && tMatches.length === 0) return;
+
+          const tName = l.name || `${code} Premier League`;
+          const tLogo = l.logoUrl || l.logo_url || l.banner_url || 'assets/card_jsl_user.png';
+          const tFormat = store.getTournamentFormat(code);
+          const isTMultiGroup = tFormat.format === 'TWO_GROUPS' || tFormat.format === 'FOUR_GROUPS';
+
+          if (isTMultiGroup) {
+            const groups = (tFormat.groups && tFormat.groups.length > 0) ? tFormat.groups : ['A', 'B'];
+            const groupColors = {
+              A: { border: 'border-emerald-300', bg: 'bg-emerald-50', badge: 'bg-emerald-600 text-white', text: 'text-emerald-950', title: '🟢 GROUP A' },
+              B: { border: 'border-sky-300', bg: 'bg-sky-50', badge: 'bg-sky-600 text-white', text: 'text-sky-950', title: '🔵 GROUP B' }
+            };
+            const groupTablesHtml = groups.map(g => {
+              const styling = groupColors[g] || groupColors.A;
+              const gTeams = tTeams.filter(t => (t.group || 'A').toUpperCase() === g);
+              const gStandings = computeTeamStandings(gTeams, tMatches);
+              const gAccent = g === 'A' ? 'emerald' : 'sky';
+              return `
+                <div class="space-y-1.5">
+                  <div class="flex items-center justify-between ${styling.bg} border ${styling.border} px-3 py-1.5 rounded-xl">
+                    <span class="text-xs font-black ${styling.text}">${styling.title}</span>
+                    <span class="text-[9px] font-black ${styling.badge} px-2 py-0.5 rounded-full">Top 2 Qualify</span>
+                  </div>
+                  ${standingsTableHtml(gStandings, 2, gAccent)}
+                </div>
+              `;
+            }).join('');
+
+            tourneyTables.push(`
+              <div class="space-y-2.5 bg-slate-50 border border-slate-200 rounded-3xl p-3 sm:p-4 shadow-2xs">
+                <div class="flex items-center gap-2.5 border-b border-slate-200/80 pb-2.5">
+                  <img src="${tLogo}" class="w-8 h-8 rounded-xl object-cover border border-slate-200 bg-white" onerror="this.src='assets/card_jsl_user.png'" />
+                  <div class="min-w-0">
+                    <h3 class="text-xs sm:text-sm font-black uppercase text-slate-900 truncate">${tName}</h3>
+                    <p class="text-[10px] text-slate-500 font-medium">Tournament Standings</p>
+                  </div>
+                </div>
+                ${groupTablesHtml}
+              </div>
+            `);
+          } else {
+            const tStandings = computeTeamStandings(tTeams, tMatches);
+            tourneyTables.push(`
+              <div class="space-y-2.5 bg-slate-50 border border-slate-200 rounded-3xl p-3 sm:p-4 shadow-2xs">
+                <div class="flex items-center gap-2.5 border-b border-slate-200/80 pb-2.5">
+                  <img src="${tLogo}" class="w-8 h-8 rounded-xl object-cover border border-slate-200 bg-white" onerror="this.src='assets/card_jsl_user.png'" />
+                  <div class="min-w-0">
+                    <h3 class="text-xs sm:text-sm font-black uppercase text-slate-900 truncate">${tName}</h3>
+                    <p class="text-[10px] text-slate-500 font-medium">Standings Table</p>
+                  </div>
+                </div>
+                ${standingsTableHtml(tStandings, 4, 'emerald')}
+              </div>
+            `);
+          }
+        });
+
+        mainContentHtml = tourneyTables.length > 0
+          ? `<div class="space-y-4 animate-fade-in">${tourneyTables.join('')}</div>`
+          : `<div class="bg-white border-2 border-emerald-200 rounded-3xl p-8 text-center shadow-sm space-y-2">
+               <h3 class="text-sm font-black text-slate-900">Tournament Standings Coming Soon</h3>
+               <p class="text-[11px] text-slate-500 max-w-sm mx-auto">Standings will be updated live as matches are scored.</p>
+             </div>`;
+      } else if (leagueTeams.length === 0) {
         mainContentHtml = `
           <div class="bg-white border-2 border-emerald-200 rounded-3xl p-8 text-center shadow-sm space-y-2 animate-fade-in">
             <div class="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 border border-amber-200 flex items-center justify-center mx-auto text-2xl">
@@ -7936,7 +7926,6 @@ function renderFixturesView(container) {
             ${groups.map(g => {
               const styling = groupColors[g] || groupColors.A;
               const gStandings = groupStandingsMap[g] || [];
-
               const gAccent = { A:'emerald', B:'sky', C:'amber', D:'purple' }[g] || 'emerald';
               return `
                 <div class="space-y-2">
@@ -7956,7 +7945,7 @@ function renderFixturesView(container) {
               `;
             }).join('')}
 
-            <!-- DYNAMIC PLAYOFF / KNOCKOUT BRACKET VISUALIZER (COMPACT CRISP WHITE THEME) -->
+            <!-- DYNAMIC PLAYOFF / KNOCKOUT BRACKET VISUALIZER -->
             <div class="playoff-bracket-container p-3 sm:p-3.5 bg-white text-slate-900 rounded-2xl border-2 border-amber-400 shadow-2xs space-y-2.5">
               <div class="flex items-center justify-between gap-2 border-b border-slate-200 pb-2">
                 <div class="flex items-center gap-2 min-w-0">
@@ -7973,7 +7962,7 @@ function renderFixturesView(container) {
                 </span>
               </div>
 
-              <!-- Bracket Visual Tree Grid (Compact) -->
+              <!-- Bracket Visual Tree Grid -->
               <div class="grid grid-cols-1 md:grid-cols-3 gap-2 sm:gap-2.5">
                 <!-- SF 1 Card -->
                 <div class="playoff-card-box bg-slate-50 border border-slate-200 hover:border-emerald-400 rounded-xl p-2 sm:p-2.5 space-y-1.5 shadow-2xs transition-all flex flex-col justify-between">
@@ -8068,7 +8057,6 @@ function renderFixturesView(container) {
         const unifiedStandings = computeTeamStandings(leagueTeams, rawFixtures);
         mainContentHtml = `
           <div class="space-y-3 animate-fade-in">
-            <!-- Table Header Bar -->
             <div class="flex flex-wrap items-center justify-between gap-2 bg-emerald-50 border-2 border-emerald-300 p-3 rounded-2xl text-slate-900 shadow-2xs">
               <h2 class="text-xs sm:text-sm font-black text-emerald-950 uppercase tracking-wider flex items-center gap-1.5">
                 <span>🏆</span> ${selectedCategory} Franchise Standings Table
@@ -8078,10 +8066,8 @@ function renderFixturesView(container) {
               </span>
             </div>
 
-            <!-- Compact points table that fits one mobile screen -->
             ${standingsTableHtml(unifiedStandings, 4, 'emerald')}
 
-            <!-- Footer Legend -->
             <div class="bg-white border border-slate-200 rounded-2xl p-3 flex flex-wrap items-center justify-between text-[10px] text-slate-600 font-bold gap-2 shadow-2xs">
               <span class="flex items-center gap-1 text-emerald-700 font-black">
                 <span class="w-2 h-2 rounded-full bg-emerald-500"></span> 1-4 Rank: Semifinal Qualifier
@@ -8100,20 +8086,24 @@ function renderFixturesView(container) {
       // Update Category Button active classes
       container.querySelectorAll('.fixture-cat-btn').forEach(btn => {
         const cat = btn.getAttribute('data-cat');
-        const isActive = activeFixtureCategory === cat;
-        btn.className = `fixture-cat-btn ${isActive ? 'bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-700 hover:text-slate-900 font-bold'} px-3 py-1 text-[11px] rounded-lg transition-all cursor-pointer`;
+        const isSelected = activeFixtureCategory === cat;
+        if (cat === 'ALL') {
+          btn.className = `fixture-cat-btn ${isSelected ? 'bg-gradient-to-r from-emerald-600 to-teal-700 text-white font-black shadow-md border-2 border-emerald-400 scale-[1.02]' : 'bg-white text-slate-700 hover:bg-slate-50 font-bold border border-slate-200'} px-3.5 py-2 text-xs rounded-2xl transition-all cursor-pointer whitespace-nowrap snap-start flex items-center gap-2 shrink-0`;
+        } else {
+          btn.className = `fixture-cat-btn ${isSelected ? 'bg-gradient-to-r from-slate-900 to-slate-800 text-white font-black shadow-md border-2 border-emerald-400 scale-[1.02]' : 'bg-white text-slate-800 hover:bg-slate-50 font-bold border border-slate-200'} px-3 py-2 text-xs rounded-2xl transition-all cursor-pointer whitespace-nowrap snap-start flex items-center gap-2 shrink-0`;
+        }
       });
 
       // Update Subtab Button active classes
       const matchSubtabBtn = document.getElementById('fixture-subtab-matches');
       const tableSubtabBtn = document.getElementById('fixture-subtab-table');
+      const awardsSubtabBtn = document.getElementById('fixture-subtab-awards');
       if (matchSubtabBtn) {
         matchSubtabBtn.className = `text-xs font-black py-2 px-3 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${activeFixtureSubTab === 'matches' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`;
       }
       if (tableSubtabBtn) {
         tableSubtabBtn.className = `text-xs font-black py-2 px-3 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${activeFixtureSubTab === 'table' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`;
       }
-      const awardsSubtabBtn = document.getElementById('fixture-subtab-awards');
       if (awardsSubtabBtn) {
         awardsSubtabBtn.className = `text-xs font-black py-2 px-3 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${activeFixtureSubTab === 'awards' ? 'bg-amber-500 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`;
       }
@@ -8138,8 +8128,21 @@ function renderFixturesView(container) {
       // Re-bind View Playing 11 buttons inside content area
       contentArea.querySelectorAll('.view-match-lineups-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
+          e.stopPropagation();
           const fId = e.currentTarget.getAttribute('data-fixture-id');
           openMatchPlayingXIModal(fId);
+        });
+      });
+
+      // Re-bind Category filter buttons inside content area (e.g. from tournament header banner)
+      contentArea.querySelectorAll('.fixture-cat-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          activeFixtureCategory = e.currentTarget.getAttribute('data-cat') || 'ALL';
+          sessionStorage.setItem('cpl_active_fixture_cat', activeFixtureCategory);
+          activeFixtureGroupFilter = 'ALL';
+          sessionStorage.setItem('cpl_active_fixture_grp_filter', 'ALL');
+          drawFixtures();
         });
       });
 
@@ -8149,18 +8152,45 @@ function renderFixturesView(container) {
 
     container.innerHTML = `
       <div class="space-y-3 animate-fade-in pb-16">
-        <!-- Compact Header & Category Selector: Match Corner -->
+        <!-- Compact Header: Match Corner -->
         <div class="bg-white border-2 border-emerald-500/20 px-3.5 py-2.5 rounded-2xl shadow-sm flex items-center justify-between gap-2 flex-wrap">
           <div class="flex items-center gap-2">
             <span class="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center shadow-xs text-sm">🏏</span>
-            <h1 class="text-sm sm:text-base font-black text-slate-900 leading-none">Match Corner</h1>
+            <div>
+              <h1 class="text-sm sm:text-base font-black text-slate-900 leading-none">Match Corner</h1>
+              <p class="text-[10px] text-slate-400 font-bold mt-0.5">Live Scores, Fixtures & Points Table</p>
+            </div>
           </div>
-          <div class="flex border border-slate-200 rounded-xl overflow-x-auto bg-slate-100 p-0.5 shadow-inner gap-0.5 max-w-[65vw] sm:max-w-none scrollbar-none">
-            <button data-cat="ALL" class="fixture-cat-btn ${(activeFixtureCategory === 'ALL' || !activeFixtureCategory) ? 'bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-700 hover:text-slate-900 font-bold'} px-2.5 py-1 text-[11px] rounded-lg transition-all cursor-pointer whitespace-nowrap">🌟 ALL (${store.getAllFixturesAcrossTournaments().length})</button>
-            ${(store.getLeagues ? store.getLeagues() : []).map(l => {
+          <span class="px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-full font-mono text-[10px] font-black">
+            ${allCrossFixtures.length} Total Matches
+          </span>
+        </div>
+
+        <!-- FULL-WIDTH HORIZONTAL TOURNAMENT SELECTION CAROUSEL (Supports 10+ Tournaments) -->
+        <div class="space-y-1.5">
+          <div class="flex items-center justify-between px-1">
+            <span class="text-[10px] font-black uppercase text-slate-500 tracking-wider">Select League / Tournament</span>
+            <span class="text-[10px] font-bold text-slate-400 font-mono">${allTourneys.length} Active Leagues</span>
+          </div>
+          <div class="flex items-center gap-2 overflow-x-auto pb-1.5 scrollbar-none snap-x touch-pan-x">
+            <button data-cat="ALL" class="fixture-cat-btn ${(activeFixtureCategory === 'ALL' || !activeFixtureCategory) ? 'bg-gradient-to-r from-emerald-600 to-teal-700 text-white font-black shadow-md border-2 border-emerald-400 scale-[1.02]' : 'bg-white text-slate-700 hover:bg-slate-50 font-bold border border-slate-200'} px-3.5 py-2 text-xs rounded-2xl transition-all cursor-pointer whitespace-nowrap snap-start flex items-center gap-2 shrink-0">
+              <span class="w-6 h-6 rounded-lg bg-white/20 flex items-center justify-center text-xs">🌟</span>
+              <span>All Tournaments</span>
+              <span class="px-1.5 py-0.5 rounded-full text-[10px] font-mono ${(activeFixtureCategory === 'ALL' || !activeFixtureCategory) ? 'bg-white/30 text-white' : 'bg-slate-100 text-slate-600'}">${allCrossFixtures.length}</span>
+            </button>
+            ${allTourneys.map(l => {
               const code = (l.code || l.category || l.category_code || l.shortCode || l.slug || 'T').toUpperCase();
-              const lMatchesCount = store.getAllFixturesAcrossTournaments().filter(f => (f.leagueCode || '').toUpperCase() === code || f.tournamentId === (l.supabaseId || l.id)).length;
-              return `<button data-cat="${code}" class="fixture-cat-btn ${activeFixtureCategory === code ? 'bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-700 hover:text-slate-900 font-bold'} px-2.5 py-1 text-[11px] rounded-lg transition-all cursor-pointer whitespace-nowrap">${code}${lMatchesCount > 0 ? ` (${lMatchesCount})` : ''}</button>`;
+              const lName = l.name || `${code} Premier League`;
+              const lLogo = l.logoUrl || l.logo_url || l.banner_url || 'assets/card_jsl_user.png';
+              const lMatchesCount = allCrossFixtures.filter(f => (f.leagueCode || '').toUpperCase() === code || f.tournamentId === (l.supabaseId || l.id)).length;
+              const isSelected = activeFixtureCategory === code;
+              return `
+                <button data-cat="${code}" class="fixture-cat-btn ${isSelected ? 'bg-gradient-to-r from-slate-900 to-slate-800 text-white font-black shadow-md border-2 border-emerald-400 scale-[1.02]' : 'bg-white text-slate-800 hover:bg-slate-50 font-bold border border-slate-200'} px-3 py-2 text-xs rounded-2xl transition-all cursor-pointer whitespace-nowrap snap-start flex items-center gap-2 shrink-0">
+                  <img src="${lLogo}" class="w-6 h-6 rounded-lg object-cover border border-slate-200 bg-slate-50 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                  <span class="truncate max-w-[140px] sm:max-w-[180px]">${lName}</span>
+                  ${lMatchesCount > 0 ? `<span class="px-1.5 py-0.5 rounded-full text-[10px] font-mono ${isSelected ? 'bg-emerald-500 text-white' : 'bg-emerald-100 text-emerald-800'} font-black">${lMatchesCount}</span>` : ''}
+                </button>
+              `;
             }).join('')}
           </div>
         </div>
@@ -8188,7 +8218,7 @@ function renderFixturesView(container) {
     // Bind Category switching buttons
     container.querySelectorAll('.fixture-cat-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
-        activeFixtureCategory = e.currentTarget.getAttribute('data-cat') || 'T';
+        activeFixtureCategory = e.currentTarget.getAttribute('data-cat') || 'ALL';
         sessionStorage.setItem('cpl_active_fixture_cat', activeFixtureCategory);
         activeFixtureGroupFilter = 'ALL';
         sessionStorage.setItem('cpl_active_fixture_grp_filter', 'ALL');
@@ -8243,7 +8273,7 @@ function renderFixturesView(container) {
     // Bind View Playing 11 buttons
     container.querySelectorAll('.view-match-lineups-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
-        e.stopPropagation(); // Prevent triggering card click
+        e.stopPropagation();
         const fId = e.currentTarget.getAttribute('data-fixture-id');
         openMatchPlayingXIModal(fId);
       });

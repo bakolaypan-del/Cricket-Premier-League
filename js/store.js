@@ -59,7 +59,7 @@ import {
   updateTournamentApprovalStatus,
   fetchLiveAuctionFromCloud,
   fetchGlobalLiveAuctionStatus
-} from './supabase.js?v=13.0.50';
+} from './supabase.js?v=13.0.51';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -1568,8 +1568,52 @@ class Store {
     return teamResult;
   }
 
+  getAllTeamsAcrossTournaments() {
+    const allTourneys = this.getCustomTournaments() || [];
+    const map = new Map();
+
+    // 1. Add active tournament teams
+    this.getTeams().forEach(t => {
+      if (t && t.id) {
+        map.set(t.id, {
+          ...t,
+          tournamentId: t.tournament_id || t.tournamentId || this.activeTournamentId,
+          leagueCode: (t.leagueCode || 'T').toUpperCase()
+        });
+      }
+    });
+
+    // 2. Add other tournaments custom teams
+    allTourneys.forEach(tourney => {
+      const tid = tourney.supabaseId || tourney.id;
+      const code = (tourney.category_code || tourney.slug || 'T').toUpperCase();
+      const customTeams = Array.isArray(tourney.format_config?.custom_teams) ? tourney.format_config.custom_teams : [];
+      let localScopedTeams = [];
+      try {
+        const raw = localStorage.getItem(`cpl_teams_v8_${tid}`);
+        if (raw) localScopedTeams = JSON.parse(raw) || [];
+      } catch (e) {}
+
+      [...customTeams, ...localScopedTeams].forEach(t => {
+        if (t && t.id && !map.has(t.id)) {
+          map.set(t.id, {
+            ...t,
+            tournamentId: tid,
+            tournamentName: tourney.name,
+            leagueCode: (t.leagueCode || code).toUpperCase(),
+            group: t.group || 'A',
+            logoUrl: t.logoUrl || t.logo || 'assets/card_jsl_user.png'
+          });
+        }
+      });
+    });
+
+    return Array.from(map.values());
+  }
+
   getTeamById(id) {
-    return this.getTeams().find(t => t.id === id);
+    if (!id) return null;
+    return this.getAllTeamsAcrossTournaments().find(t => t.id === id) || this.getTeams().find(t => t.id === id);
   }
 
   syncIconPlayerAllocation(oldTeam, newTeam) {
