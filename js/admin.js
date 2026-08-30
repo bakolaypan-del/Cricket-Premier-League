@@ -3375,7 +3375,7 @@ function renderAdminFixturesList() {
         <div class="p-3 border-b border-slate-100 space-y-1.5">
           <div class="flex items-center justify-between gap-2">
             <div class="font-bold text-slate-900 text-xs flex items-center gap-1.5 min-w-0">
-              <span class="px-1 py-0.5 bg-slate-100 text-slate-700 font-mono text-[8px] font-black rounded border border-slate-200 shrink-0">${f.leagueCode || 'T'}</span>
+              <span class="px-1 py-0.5 bg-emerald-50 text-emerald-800 font-mono text-[8px] font-black rounded border border-emerald-200 shrink-0">${(f.leagueCode && f.leagueCode !== 'T') ? f.leagueCode : (store.activeTournamentId === '5cf4f50c-3930-486a-83c3-3f59414a7d6f' ? 'KPL' : 'JSL')}</span>
               <span class="truncate">${f.teamAName} vs ${f.teamBName}</span>
             </div>
             ${statusBadge}
@@ -3395,7 +3395,7 @@ function renderAdminFixturesList() {
     <tr class="hidden sm:table-row hover:bg-slate-50">
       <td class="py-3 px-3">
         <div class="font-bold text-slate-900 text-xs sm:text-sm flex items-center gap-1.5">
-          <span class="px-1.5 py-0.5 bg-slate-100 text-slate-700 font-mono text-[9px] font-black rounded border border-slate-200">${f.leagueCode || 'T'}</span>
+          <span class="px-1.5 py-0.5 bg-emerald-50 text-emerald-800 font-mono text-[9px] font-black rounded border border-emerald-200">${(f.leagueCode && f.leagueCode !== 'T') ? f.leagueCode : (store.activeTournamentId === '5cf4f50c-3930-486a-83c3-3f59414a7d6f' ? 'KPL' : 'JSL')}</span>
           <span>${f.teamAName} <span class="text-slate-400 font-semibold">vs</span> ${f.teamBName}</span>
         </div>
       </td>
@@ -3470,17 +3470,39 @@ function renderScorerMatchesList() {
   if (!selectEl) return;
 
   const accessibleLeagues = store.getAccessibleLeagues();
-  const accessibleCodes = accessibleLeagues.map(l => (l.code || l.category || 'T').toUpperCase());
-  const fixtures = store.getFixtures().filter(f => store.isMasterAdmin() || accessibleCodes.includes((f.leagueCode || 'T').toUpperCase()));
+  const accessibleCodes = accessibleLeagues.map(l => (l.code || l.category || l.shortCode || l.name || 'T').toUpperCase());
+  const activeTid = store.activeTournamentId;
+
+  const isFixtureMatchForAdmin = (f) => {
+    if (store.isMasterAdmin()) return true;
+    const fCode = (f.leagueCode || f.category_code || '').toUpperCase();
+    if (accessibleCodes.includes(fCode)) return true;
+    if (accessibleCodes.some(ac => ac && (fCode.includes(ac) || ac.includes(fCode)))) return true;
+    if (activeTid && (f.tournament_id === activeTid || f.leagueId === activeTid || toUUID(f.tournament_id) === toUUID(activeTid))) return true;
+
+    // Fallback: match by team ownership
+    const allTeams = store.getTeams ? store.getTeams() : [];
+    const teamA = allTeams.find(t => t.id === f.teamAId);
+    const teamB = allTeams.find(t => t.id === f.teamBId);
+    if (teamA && (teamA.tournament_id === activeTid || teamA.leagueId === activeTid || toUUID(teamA.tournament_id) === toUUID(activeTid))) return true;
+    if (teamB && (teamB.tournament_id === activeTid || teamB.leagueId === activeTid || toUUID(teamB.tournament_id) === toUUID(activeTid))) return true;
+
+    return false;
+  };
+
+  const fixtures = store.getFixtures().filter(isFixtureMatchForAdmin);
   const selectables = fixtures.filter(f => f.status !== 'COMPLETED');
 
   selectEl.innerHTML = `
     <option value="">-- Choose Match to Score --</option>
-    ${selectables.map(f => `
-      <option value="${f.id}" ${activeScoringMatchId === f.id ? 'selected' : ''}>
-        [${f.leagueCode || 'T'}] ${f.teamAName} vs ${f.teamBName} (${f.date} ${f.time}) • Status: ${f.status}
-      </option>
-    `).join('')}
+    ${selectables.map(f => {
+      const codeLabel = (f.leagueCode && f.leagueCode !== 'T') ? f.leagueCode : (store.activeTournamentId === '5cf4f50c-3930-486a-83c3-3f59414a7d6f' ? 'KPL' : 'JSL');
+      return `
+        <option value="${f.id}" ${activeScoringMatchId === f.id ? 'selected' : ''}>
+          [${codeLabel}] ${f.teamAName} vs ${f.teamBName} (${f.date} ${f.time}) • Status: ${f.status}
+        </option>
+      `;
+    }).join('')}
   `;
 
   const setupStepBlock = document.getElementById('scorer-lineup-step-block');
