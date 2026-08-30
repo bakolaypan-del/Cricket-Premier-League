@@ -56,7 +56,7 @@ import {
   toUUID,
   fetchGlobalUniquePlayersCount,
   updateTournamentApprovalStatus
-} from './supabase.js?v=13.0.27';
+} from './supabase.js?v=13.0.28';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',

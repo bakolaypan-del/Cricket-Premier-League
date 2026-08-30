@@ -1,8 +1,8 @@
 // Admin Master Data & Payment Verification Panel with Single Source Cloud Control (Developer: Suman Kolay)
 
-import { store } from './store.js?v=13.0.27';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.27';
-import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.27';
+import { store } from './store.js?v=13.0.28';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.28';
+import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID, compressImageToTarget } from './supabase.js?v=13.0.28';
 import { shops } from './shopsData.js?v=12.0.2';
 
 let activeAdminTab = (() => { try { return sessionStorage.getItem('cpl_admin_tab') || (store.isMasterAdmin() ? 'payments' : 'overview'); } catch(e) { return 'payments'; } })();
@@ -6666,18 +6666,28 @@ export function openEditTeamModal(team = null, onSaved = null) {
               </div>
             </div>
 
-            <!-- Team Logo (Optional, Auto-Compressed < 100KB & Instant CDN Upload) -->
+            <!-- Team Logo (Auto-Compressed < 100KB & CDN Upload with Crop & Zoom) -->
             <div>
-              <div class="flex items-center justify-between mb-1">
-                <label class="block text-[10px] font-bold text-blue-800 uppercase">Team Logo (Optional • Compressed &lt; 100KB)</label>
+              <div class="flex items-center justify-between mb-1.5">
+                <label class="block text-[10px] font-black text-blue-900 uppercase tracking-wider">Team Logo (Optional • 1:1 Square/Round)</label>
                 <div id="logo-upload-status" class="text-[10px] font-bold"></div>
               </div>
-              <div class="flex items-center gap-2.5">
-                <img id="edit-logo-preview" src="${teamLogoData || 'assets/jsl_logo.jpg'}" class="w-12 h-12 rounded-xl object-cover border-2 border-blue-300 shadow shrink-0 bg-white" onerror="this.src='assets/jsl_logo.jpg'" />
-                <input type="file" id="edit-logo-file" accept="image/*" class="w-full bg-white border border-slate-300 text-slate-700 text-[11px] rounded-xl p-2 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-blue-600 file:text-white cursor-pointer shadow-sm" />
-                <button type="button" id="remove-logo-btn" class="px-2.5 py-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl font-bold text-[10px] flex items-center gap-1 cursor-pointer shrink-0 transition-colors shadow-xs" title="Remove current logo">
-                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Remove
-                </button>
+              <div class="flex items-center gap-3">
+                <div class="relative group shrink-0">
+                  <img id="edit-logo-preview" src="${teamLogoData || 'assets/jsl_logo.jpg'}" class="w-14 h-14 rounded-2xl object-cover border-2 border-blue-400 shadow-md bg-white ring-2 ring-blue-400/20" onerror="this.src='assets/jsl_logo.jpg'" />
+                  <span class="absolute -bottom-1 -right-1 bg-blue-600 text-white rounded-full p-1 shadow-xs text-[8px] flex items-center justify-center pointer-events-none">
+                    <i data-lucide="crop" class="w-2.5 h-2.5"></i>
+                  </span>
+                </div>
+                <div class="flex-1 space-y-1.5">
+                  <input type="file" id="edit-logo-file" accept="image/*" class="w-full bg-white border border-slate-300 text-slate-700 text-[11px] rounded-xl p-2 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:bg-blue-600 file:text-white hover:file:bg-blue-500 cursor-pointer shadow-sm" />
+                  <div class="flex items-center justify-between">
+                    <span class="text-[9.5px] text-slate-500 font-medium">Auto-triggers Crop & Zoom • Compressed &lt; 100KB</span>
+                    <button type="button" id="remove-logo-btn" class="px-2 py-0.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg font-bold text-[9.5px] flex items-center gap-1 cursor-pointer shrink-0 transition-colors shadow-xs" title="Remove current logo">
+                      <i data-lucide="trash-2" class="w-3 h-3"></i> Remove
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -6698,16 +6708,26 @@ export function openEditTeamModal(team = null, onSaved = null) {
 
             <!-- Owner Photo (Auto-Compressed < 100KB & Instant CDN Upload) -->
             <div>
-              <div class="flex items-center justify-between mb-1">
-                <label class="block text-[10px] font-bold text-amber-800 uppercase">Owner HD Photo (Compressed &lt; 100KB)</label>
+              <div class="flex items-center justify-between mb-1.5">
+                <label class="block text-[10px] font-black text-amber-900 uppercase tracking-wider">Owner HD Photo (1:1 Round Avatar)</label>
                 <div id="owner-photo-upload-status" class="text-[10px] font-bold"></div>
               </div>
-              <div class="flex items-center gap-2.5">
-                <img id="edit-owner-photo-preview" src="${ownerPhotoData || 'assets/card_jsl_user.png'}" class="w-12 h-12 rounded-xl object-cover border-2 border-amber-400 shadow shrink-0 bg-white" onerror="this.src='assets/card_jsl_user.png'" />
-                <input type="file" id="edit-owner-photo-file" accept="image/*" class="w-full bg-white border border-slate-300 text-slate-700 text-[11px] rounded-xl p-2 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-amber-600 file:text-white cursor-pointer shadow-sm" />
-                <button type="button" id="remove-owner-photo-btn" class="px-2.5 py-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl font-bold text-[10px] flex items-center gap-1 cursor-pointer shrink-0 transition-colors shadow-xs" title="Remove owner photo">
-                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Remove
-                </button>
+              <div class="flex items-center gap-3">
+                <div class="relative group shrink-0">
+                  <img id="edit-owner-photo-preview" src="${ownerPhotoData || 'assets/card_jsl_user.png'}" class="w-14 h-14 rounded-full object-cover border-2 border-amber-400 shadow-md bg-white ring-2 ring-amber-400/30" onerror="this.src='assets/card_jsl_user.png'" />
+                  <span class="absolute -bottom-0.5 -right-0.5 bg-amber-600 text-white rounded-full p-1 shadow-xs text-[8px] flex items-center justify-center pointer-events-none">
+                    <i data-lucide="crop" class="w-2.5 h-2.5"></i>
+                  </span>
+                </div>
+                <div class="flex-1 space-y-1.5">
+                  <input type="file" id="edit-owner-photo-file" accept="image/*" class="w-full bg-white border border-slate-300 text-slate-700 text-[11px] rounded-xl p-2 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:bg-amber-600 file:text-white hover:file:bg-amber-500 cursor-pointer shadow-sm" />
+                  <div class="flex items-center justify-between">
+                    <span class="text-[9.5px] text-slate-500 font-medium">Auto-triggers 1:1 Round Crop & Zoom • Uploads to CDN</span>
+                    <button type="button" id="remove-owner-photo-btn" class="px-2 py-0.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg font-bold text-[9.5px] flex items-center gap-1 cursor-pointer shrink-0 transition-colors shadow-xs" title="Remove owner photo">
+                      <i data-lucide="trash-2" class="w-3 h-3"></i> Remove
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -6739,16 +6759,26 @@ export function openEditTeamModal(team = null, onSaved = null) {
 
             <!-- Icon Photo Upload -->
             <div>
-              <div class="flex items-center justify-between mb-1">
-                <label class="block text-[10px] font-bold text-emerald-800 uppercase">Icon Player Photo (Optional)</label>
+              <div class="flex items-center justify-between mb-1.5">
+                <label class="block text-[10px] font-black text-emerald-900 uppercase tracking-wider">Icon Player Photo (1:1 Round Avatar)</label>
                 <div id="icon-photo-upload-status" class="text-[10px] font-bold"></div>
               </div>
-              <div class="flex items-center gap-2.5">
-                <img id="edit-icon-photo-preview" src="${iconPhotoData || 'assets/player_jsl_hd.jpg'}" class="w-12 h-12 rounded-xl object-cover border-2 border-emerald-400 shadow shrink-0 bg-white" onerror="this.src='assets/player_jsl_hd.jpg'" />
-                <input type="file" id="edit-icon-photo-file" accept="image/*" class="w-full bg-white border border-slate-300 text-slate-700 text-[11px] rounded-xl p-2 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-emerald-600 file:text-white cursor-pointer shadow-sm" />
-                <button type="button" id="remove-icon-photo-btn" class="px-2.5 py-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl font-bold text-[10px] flex items-center gap-1 cursor-pointer shrink-0 transition-colors shadow-xs" title="Remove icon photo">
-                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Remove
-                </button>
+              <div class="flex items-center gap-3">
+                <div class="relative group shrink-0">
+                  <img id="edit-icon-photo-preview" src="${iconPhotoData || 'assets/player_jsl_hd.jpg'}" class="w-14 h-14 rounded-full object-cover border-2 border-emerald-400 shadow-md bg-white ring-2 ring-emerald-400/30" onerror="this.src='assets/player_jsl_hd.jpg'" />
+                  <span class="absolute -bottom-0.5 -right-0.5 bg-emerald-600 text-white rounded-full p-1 shadow-xs text-[8px] flex items-center justify-center pointer-events-none">
+                    <i data-lucide="crop" class="w-2.5 h-2.5"></i>
+                  </span>
+                </div>
+                <div class="flex-1 space-y-1.5">
+                  <input type="file" id="edit-icon-photo-file" accept="image/*" class="w-full bg-white border border-slate-300 text-slate-700 text-[11px] rounded-xl p-2 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:bg-emerald-600 file:text-white hover:file:bg-emerald-500 cursor-pointer shadow-sm" />
+                  <div class="flex items-center justify-between">
+                    <span class="text-[9.5px] text-slate-500 font-medium">Auto-triggers 1:1 Player Crop & Zoom • Uploads to CDN</span>
+                    <button type="button" id="remove-icon-photo-btn" class="px-2 py-0.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg font-bold text-[9.5px] flex items-center gap-1 cursor-pointer shrink-0 transition-colors shadow-xs" title="Remove icon photo">
+                      <i data-lucide="trash-2" class="w-3 h-3"></i> Remove
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -6844,45 +6874,56 @@ export function openEditTeamModal(team = null, onSaved = null) {
     }
   };
 
-  // Helper for Instant Photo Upload with < 100KB Compression
-  const handlePhotoSelectAndCDNUpload = async (fileInputEl, previewImgEl, statusEl, folder, onUploaded) => {
+  // Helper for Instant Photo Upload with Crop & Zoom + < 100KB Compression
+  const handlePhotoSelectAndCDNUpload = async (fileInputEl, previewImgEl, statusEl, folder, cropTitle, onUploaded) => {
     const file = fileInputEl.files[0];
     if (!file) return;
 
-    statusEl.innerHTML = `
-      <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200">
-        <span class="w-2.5 h-2.5 border-2 border-amber-600 border-t-transparent rounded-full animate-spin"></span>
-        <span>Compressing &lt;100KB & Uploading to CDN...</span>
-      </span>
-    `;
-    setButtonUploading(true);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const rawSrc = ev.target.result;
+      const cropModalFn = window.openSquareImageCropModal || openSquareImageCropModal;
+      if (typeof cropModalFn === 'function') {
+        cropModalFn(rawSrc, async (croppedDataUrl) => {
+          previewImgEl.src = croppedDataUrl;
+          statusEl.innerHTML = `
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-300 font-bold text-[9.5px] animate-pulse">
+              <span class="w-3 h-3 border-2 border-amber-600 border-t-transparent rounded-full animate-spin"></span>
+              <span>Uploading HD to CDN (&lt;100KB)...</span>
+            </span>
+          `;
+          setButtonUploading(true);
 
-    try {
-      // 1. Compress image to < 100KB (600x600, quality 0.70)
-      const compressedDataUrl = await compressImage(file, 600, 600, 0.70);
-      previewImgEl.src = compressedDataUrl;
+          try {
+            const compressedDataUrl = (typeof compressImageToTarget === 'function') 
+              ? await compressImageToTarget(croppedDataUrl, 100, 600, 600)
+              : await compressImage(file, 600, 600, 0.70);
+            previewImgEl.src = compressedDataUrl;
 
-      // 2. Upload directly to Cloudinary HD CDN
-      const cdnUrl = await uploadHDImage(compressedDataUrl, folder);
-      const finalUrl = cdnUrl || compressedDataUrl;
+            const cdnUrl = await uploadHDImage(compressedDataUrl, folder);
+            const finalUrl = cdnUrl || compressedDataUrl;
+            onUploaded(finalUrl);
 
-      onUploaded(finalUrl);
-
-      statusEl.innerHTML = `
-        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
-          <span>✅ CDN Uploaded (&lt; 100KB)</span>
-        </span>
-      `;
-    } catch (err) {
-      console.warn('CDN upload fallback:', err);
-      statusEl.innerHTML = `
-        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-50 text-sky-700 border border-sky-200">
-          <span>✅ Compressed & Ready</span>
-        </span>
-      `;
-    } finally {
-      setButtonUploading(false);
-    }
+            statusEl.innerHTML = `
+              <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300 font-black text-[10px]">
+                <span>✅ CDN Uploaded (&lt; 100KB)</span>
+              </span>
+            `;
+          } catch (err) {
+            console.warn('CDN upload fallback:', err);
+            onUploaded(croppedDataUrl);
+            statusEl.innerHTML = `
+              <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-sky-100 text-sky-800 border border-sky-300 font-black text-[10px]">
+                <span>✅ Cropped & Ready</span>
+              </span>
+            `;
+          } finally {
+            setButtonUploading(false);
+          }
+        }, cropTitle || "Crop Image (1:1 Square)");
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   // 1. Logo Select
@@ -6892,6 +6933,7 @@ export function openEditTeamModal(team = null, onSaved = null) {
       document.getElementById('edit-logo-preview'),
       document.getElementById('logo-upload-status'),
       'team_logos',
+      "Crop & Zoom Team Logo (1:1 Square)",
       (url) => { teamLogoData = url; }
     );
   });
@@ -6903,6 +6945,7 @@ export function openEditTeamModal(team = null, onSaved = null) {
       document.getElementById('edit-owner-photo-preview'),
       document.getElementById('owner-photo-upload-status'),
       'owner_photos',
+      "Crop & Zoom Owner Photo (1:1 Round Avatar)",
       (url) => { ownerPhotoData = url; }
     );
   });
@@ -6941,6 +6984,7 @@ export function openEditTeamModal(team = null, onSaved = null) {
       document.getElementById('edit-icon-photo-preview'),
       document.getElementById('icon-photo-upload-status'),
       'icon_player_photos',
+      "Crop & Zoom Icon Player Photo",
       (url) => { iconPhotoData = url; }
     );
   });
