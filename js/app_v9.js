@@ -7433,7 +7433,13 @@ function renderFixturesView(container) {
         });
 
     const format = store.getTournamentFormat(selectedCategory);
-    const isMultiGroup = (format.format === 'TWO_GROUPS' || format.format === 'FOUR_GROUPS') && selectedCategory !== 'ALL';
+    const detectedGroups = Array.from(new Set(leagueTeams.map(t => (t.group || 'A').toUpperCase()))).filter(Boolean).sort();
+    const isMultiGroup = (
+      format.format === 'TWO_GROUPS' ||
+      format.format === 'THREE_GROUPS' ||
+      format.format === 'FOUR_GROUPS' ||
+      detectedGroups.length > 1
+    ) && selectedCategory !== 'ALL';
 
     // Helper: render a single match card
     const renderSingleMatchCard = (m, idx) => {
@@ -7862,20 +7868,24 @@ function renderFixturesView(container) {
 
           const tName = l.name || `${code} Premier League`;
           const tLogo = l.logoUrl || l.logo_url || l.banner_url || 'assets/card_jsl_user.png';
-          const tFormat = store.getTournamentFormat(code);
-          const isTMultiGroup = tFormat.format === 'TWO_GROUPS' || tFormat.format === 'FOUR_GROUPS';
+          const detectedTGroups = Array.from(new Set(tTeams.map(t => (t.group || 'A').toUpperCase()))).filter(Boolean).sort();
+          const isTMultiGroup = tFormat.format === 'TWO_GROUPS' || tFormat.format === 'THREE_GROUPS' || tFormat.format === 'FOUR_GROUPS' || detectedTGroups.length > 1;
 
           if (isTMultiGroup) {
-            const groups = (tFormat.groups && tFormat.groups.length > 0) ? tFormat.groups : ['A', 'B'];
+            const groups = (detectedTGroups.length > 1)
+              ? detectedTGroups
+              : ((tFormat.groups && tFormat.groups.length > 0) ? tFormat.groups : (tFormat.format === 'THREE_GROUPS' ? ['A', 'B', 'C'] : (tFormat.format === 'FOUR_GROUPS' ? ['A', 'B', 'C', 'D'] : ['A', 'B'])));
             const groupColors = {
               A: { border: 'border-emerald-300', bg: 'bg-emerald-50', badge: 'bg-emerald-600 text-white', text: 'text-emerald-950', title: '🟢 GROUP A' },
-              B: { border: 'border-sky-300', bg: 'bg-sky-50', badge: 'bg-sky-600 text-white', text: 'text-sky-950', title: '🔵 GROUP B' }
+              B: { border: 'border-sky-300', bg: 'bg-sky-50', badge: 'bg-sky-600 text-white', text: 'text-sky-950', title: '🔵 GROUP B' },
+              C: { border: 'border-amber-300', bg: 'bg-amber-50', badge: 'bg-amber-600 text-white', text: 'text-amber-950', title: '🟡 GROUP C' },
+              D: { border: 'border-purple-300', bg: 'bg-purple-50', badge: 'bg-purple-600 text-white', text: 'text-purple-950', title: '🟣 GROUP D' }
             };
             const groupTablesHtml = groups.map(g => {
               const styling = groupColors[g] || groupColors.A;
               const gTeams = tTeams.filter(t => (t.group || 'A').toUpperCase() === g);
               const gStandings = computeTeamStandings(gTeams, tMatches);
-              const gAccent = g === 'A' ? 'emerald' : 'sky';
+              const gAccent = { A:'emerald', B:'sky', C:'amber', D:'purple' }[g] || 'emerald';
               return `
                 <div class="space-y-1.5">
                   <div class="flex items-center justify-between ${styling.bg} border ${styling.border} px-3 py-1.5 rounded-xl">
@@ -7933,8 +7943,9 @@ function renderFixturesView(container) {
           </div>
         `;
       } else if (isMultiGroup) {
-        // Multi-Group Standings View (Group A & Group B + Playoff Bracket)
-        const groups = (format.groups && format.groups.length > 0) ? format.groups : ['A', 'B'];
+        const groups = (detectedGroups.length > 1)
+          ? detectedGroups
+          : ((format.groups && format.groups.length > 0) ? format.groups : (format.format === 'THREE_GROUPS' ? ['A', 'B', 'C'] : (format.format === 'FOUR_GROUPS' ? ['A', 'B', 'C', 'D'] : ['A', 'B'])));
         const groupColors = {
           A: { border: 'border-emerald-300', bg: 'bg-emerald-50', badge: 'bg-emerald-600 text-white', text: 'text-emerald-950', title: '🟢 GROUP A' },
           B: { border: 'border-sky-300', bg: 'bg-sky-50', badge: 'bg-sky-600 text-white', text: 'text-sky-950', title: '🔵 GROUP B' },
