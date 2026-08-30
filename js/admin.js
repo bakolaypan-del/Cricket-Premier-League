@@ -2015,8 +2015,8 @@ export function renderAdminDashboard(containerEl) {
     const leagueCode = (document.getElementById('fixture-league-category')?.value || 'T').toUpperCase();
     const stage = document.getElementById('fixture-stage-select')?.value || 'GROUP_A';
     const allLeagueTeams = store.getTeams().filter(t => {
-      const code = (t.leagueCode || (t.leagueId === 'leg-jsl' ? 'JSL' : (t.leagueId === 'leg-jpl' ? 'JPL' : (t.leagueId === 'leg-kpl' ? 'KPL' : 'T'))));
-      return code === leagueCode;
+      const code = (t.leagueCode || t.category_code || (t.tournament_id === '033bfc04-033b-4c04-a33b-fc04033bfc04' || t.leagueId === 'leg-jsl' ? 'JSL' : (t.tournament_id === '5cf4f50c-3930-486a-83c3-3f59414a7d6f' || t.leagueId === 'leg-kpl' ? 'KPL' : (t.leagueId === 'leg-jpl' ? 'JPL' : 'T')))).toUpperCase();
+      return code === leagueCode || t.tournament_id === store.activeTournamentId || toUUID(t.tournament_id) === toUUID(store.activeTournamentId) || !t.leagueCode;
     });
 
     let filteredTeams = allLeagueTeams;
@@ -3250,8 +3250,8 @@ function renderAdminGroupArena() {
   }
 
   const allTeams = store.getTeams().filter(t => {
-    const code = (t.leagueCode || (t.leagueId === 'leg-jsl' ? 'JSL' : (t.leagueId === 'leg-jpl' ? 'JPL' : (t.leagueId === 'leg-kpl' ? 'KPL' : 'T'))));
-    return code === leagueCode;
+    const code = (t.leagueCode || t.category_code || (t.tournament_id === '033bfc04-033b-4c04-a33b-fc04033bfc04' || t.leagueId === 'leg-jsl' ? 'JSL' : (t.tournament_id === '5cf4f50c-3930-486a-83c3-3f59414a7d6f' || t.leagueId === 'leg-kpl' ? 'KPL' : (t.leagueId === 'leg-jpl' ? 'JPL' : 'T')))).toUpperCase();
+    return code === leagueCode || t.tournament_id === store.activeTournamentId || toUUID(t.tournament_id) === toUUID(store.activeTournamentId) || !t.leagueCode;
   });
 
   const activeFormat = formatSelect ? formatSelect.value : (format.format || 'TWO_GROUPS');
