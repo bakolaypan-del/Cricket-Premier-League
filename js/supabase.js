@@ -1633,35 +1633,47 @@ export async function fetchCustomTournamentsFromCloud() {
 }
 
 export async function deleteCustomTournamentFromCloud(tourneyId, slug = null) {
-  if (!supabase) return;
-  if (!tourneyId && !slug) return;
+  if (!supabase || (!tourneyId && !slug)) return false;
   try {
     const isUUID = typeof tourneyId === 'string' && UUID_FORMAT_RE.test(tourneyId);
-    let targetIds = [];
-    if (isUUID) targetIds.push(tourneyId);
-    
-    // Also resolve UUID if slug provided
-    const resolvedUUID = resolveTournamentUUID(slug || tourneyId);
-    if (resolvedUUID && UUID_FORMAT_RE.test(resolvedUUID) && !targetIds.includes(resolvedUUID)) {
-      targetIds.push(resolvedUUID);
-    }
-
     const cleanSlug = String(slug || tourneyId || '').replace(/^t_/, '').trim();
 
-    // 1. Delete associated child records and tournament row by UUIDs
-    for (const uid of targetIds) {
+    let targetRow = null;
+    if (isUUID) {
+      const { data } = await supabase.from('tournaments').select('id, slug').eq('id', tourneyId).maybeSingle();
+      if (data) targetRow = data;
+    }
+    if (!targetRow && cleanSlug) {
+      const { data } = await supabase.from('tournaments').select('id, slug').eq('slug', cleanSlug).maybeSingle();
+      if (data) targetRow = data;
+    }
+    if (!targetRow && cleanSlug) {
+      const { data } = await supabase.from('tournaments').select('id, slug').ilike('slug', cleanSlug).maybeSingle();
+      if (data) targetRow = data;
+    }
+
+    const uid = targetRow?.id || (isUUID ? tourneyId : null);
+    const rowSlug = targetRow?.slug || cleanSlug;
+
+    if (uid) {
       await supabase.from('players').delete().eq('tournament_id', uid);
       await supabase.from('teams').delete().eq('tournament_id', uid);
       await supabase.from('matches').delete().eq('tournament_id', uid);
-      await supabase.from('tournaments').delete().eq('id', uid);
+      const { error } = await supabase.from('tournaments').delete().eq('id', uid);
+      if (error) console.warn('[SUPABASE] delete by id error:', error.message);
     }
 
-    // 2. Delete by slug if exists
-    if (cleanSlug) {
-      await supabase.from('tournaments').delete().eq('slug', cleanSlug);
+    if (rowSlug) {
+      const { error } = await supabase.from('tournaments').delete().eq('slug', rowSlug);
+      if (error) console.warn('[SUPABASE] delete by slug error:', error.message);
     }
-    console.log('[SUPABASE] Deleted tournament and associated data from cloud:', tourneyId, slug);
-  } catch (e) { console.warn('[SUPABASE] deleteCustomTournament:', e.message); }
+
+    console.log('[SUPABASE] Deleted tournament and associated data from cloud:', uid, rowSlug);
+    return true;
+  } catch (e) {
+    console.warn('[SUPABASE] deleteCustomTournament error:', e.message);
+    return false;
+  }
 }
 
 export async function saveUniversalPlayerToCloud(profile) {

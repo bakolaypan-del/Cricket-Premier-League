@@ -56,7 +56,7 @@ import {
   toUUID,
   fetchGlobalUniquePlayersCount,
   updateTournamentApprovalStatus
-} from './supabase.js?v=13.0.21';
+} from './supabase.js?v=13.0.22';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -2295,6 +2295,9 @@ class Store {
     } catch(e) {}
 
     await deleteCustomTournamentFromCloud(cloudId || tourneyId, resolvedSlug);
+    try {
+      await this.syncWithCloud();
+    } catch(e) {}
     this.notify('custom_tournaments_updated');
     return true;
   }
