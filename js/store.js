@@ -56,7 +56,7 @@ import {
   toUUID,
   fetchGlobalUniquePlayersCount,
   updateTournamentApprovalStatus
-} from './supabase.js?v=13.0.23';
+} from './supabase.js?v=13.0.24';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -725,6 +725,10 @@ class Store {
 
   // --- LEAGUES ---
   getLeagues() {
+    const liveTourneys = this.getCustomTournaments();
+    if (Array.isArray(liveTourneys) && liveTourneys.length > 0) {
+      return liveTourneys.filter(t => !t.status || t.status === 'ACTIVE' || t.status === 'active' || t.status === 'APPROVED');
+    }
     return JSON.parse(localStorage.getItem(STORAGE_KEYS.LEAGUES)) || [];
   }
 
@@ -2316,30 +2320,27 @@ class Store {
     const list = [];
     const seen = new Set();
     
-    // Add default leagues
-    const leagues = this.getLeagues() || [];
-    for (const l of leagues) {
-      const id = l.supabaseId || l.id;
-      if (!seen.has(id)) {
-        seen.add(id);
-        list.push({
-          id: l.id,
-          supabaseId: l.supabaseId || l.id,
-          name: l.name || 'JSL 2026',
-          slug: l.slug || 'jsl-2026',
-          status: 'ACTIVE'
-        });
+    // Only return live, authoritative database tournaments from Supabase
+    const customs = this.getCustomTournaments() || [];
+    for (const c of customs) {
+      const canonicalId = toUUID(c.supabaseId || c.id) || c.supabaseId || c.id;
+      const slugKey = String(c.slug || c.name || '').toLowerCase().trim();
+      if (!seen.has(canonicalId) && !seen.has(slugKey) && (!c.status || c.status === 'ACTIVE' || c.status === 'active' || c.status === 'APPROVED')) {
+        seen.add(canonicalId);
+        seen.add(slugKey);
+        list.push(c);
       }
     }
 
-    // Add custom tournaments
-    const customs = this.getCustomTournaments() || [];
-    for (const c of customs) {
-      const id = c.supabaseId || c.id;
-      if (!seen.has(id) && (!c.status || c.status === 'ACTIVE' || c.status === 'active' || c.status === 'APPROVED')) {
-        seen.add(id);
-        list.push(c);
-      }
+    // Default fallback if sync is still initializing
+    if (list.length === 0) {
+      list.push({
+        id: '033bfc04-033b-4c04-a33b-fc04033bfc04',
+        supabaseId: '033bfc04-033b-4c04-a33b-fc04033bfc04',
+        slug: 'jsl-2026',
+        name: 'JHANKRA SUPER LEAGUE 2026',
+        status: 'ACTIVE'
+      });
     }
     return list;
   }
