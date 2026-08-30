@@ -3412,37 +3412,40 @@ export function renderCustomTournamentHub(container, tourney) {
                         </tr>
                       </thead>
                       <tbody class="divide-y divide-slate-100 text-xs">
-                        ${teams.map((t, idx) => {
-                          const logo = t.logoUrl || t.teamLogoUrl || generateUniqueTeamBadge(t.name, idx + gIdx * 4);
-                          const isQ = idx < 2;
-                          const rankBg = idx === 0 ? 'bg-amber-400 text-slate-950' : idx === 1 ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600';
+                        ${(() => {
+                          const groupStandings = computeTeamStandings(teams, allFixtures);
+                          return groupStandings.map((t, idx) => {
+                            const logo = t.logoUrl || t.teamLogoUrl || generateUniqueTeamBadge(t.name, idx + gIdx * 4);
+                            const isQ = idx < 2;
+                            const rankBg = idx === 0 ? 'bg-amber-400 text-slate-950' : idx === 1 ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600';
 
-                          return `
-                            <tr class="${color.hover} transition-colors">
-                              <td class="text-center py-2 pl-1">
-                                <span class="w-4 h-4 rounded-md ${rankBg} font-mono font-black text-[9px] inline-flex items-center justify-center">
-                                  ${idx + 1}
-                                </span>
-                              </td>
-                              <td class="py-2 pl-1 pr-1 min-w-0">
-                                <div class="flex items-center gap-1.5 min-w-0">
-                                  <div class="w-5 h-5 rounded-md bg-slate-100 border border-slate-200 overflow-hidden shrink-0">
-                                    <img src="${logo}" class="w-full h-full object-cover" onerror="this.parentElement.innerHTML='🏏'" />
+                            return `
+                              <tr class="${color.hover} transition-colors">
+                                <td class="text-center py-2 pl-1">
+                                  <span class="w-4 h-4 rounded-md ${rankBg} font-mono font-black text-[9px] inline-flex items-center justify-center">
+                                    ${idx + 1}
+                                  </span>
+                                </td>
+                                <td class="py-2 pl-1 pr-1 min-w-0">
+                                  <div class="flex items-center gap-1.5 min-w-0">
+                                    <div class="w-5 h-5 rounded-md bg-slate-100 border border-slate-200 overflow-hidden shrink-0">
+                                      <img src="${logo}" class="w-full h-full object-cover" onerror="this.parentElement.innerHTML='🏏'" />
+                                    </div>
+                                    <span class="text-[10.5px] sm:text-xs font-bold text-slate-900 truncate leading-tight uppercase">${t.name}</span>
+                                    ${isQ ? `<span class="px-1 py-0.2 bg-emerald-700 text-white text-[7.5px] font-black rounded-sm shrink-0 leading-none">Q</span>` : ''}
                                   </div>
-                                  <span class="text-[10.5px] sm:text-xs font-bold text-slate-900 truncate leading-tight uppercase">${t.name}</span>
-                                  ${isQ ? `<span class="px-1 py-0.2 bg-emerald-700 text-white text-[7.5px] font-black rounded-sm shrink-0 leading-none">Q</span>` : ''}
-                                </div>
-                              </td>
-                              <td class="text-center py-2 font-mono text-[10px] sm:text-xs text-slate-600">0</td>
-                              <td class="text-center py-2 font-mono text-[10px] sm:text-xs font-bold text-emerald-700">0</td>
-                              <td class="text-center py-2 font-mono text-[10px] sm:text-xs font-bold text-rose-600">0</td>
-                              <td class="text-center py-2">
-                                <span class="px-1.5 py-0.5 bg-blue-50 text-blue-700 font-mono font-black text-[10.5px] sm:text-xs rounded border border-blue-200">0</span>
-                              </td>
-                              <td class="text-right py-2 pr-2 font-mono font-bold text-[9.5px] sm:text-[10.5px] text-teal-700">0.000</td>
-                            </tr>
-                          `;
-                        }).join('')}
+                                </td>
+                                <td class="text-center py-2 font-mono text-[10px] sm:text-xs text-slate-600 font-bold">${t.played}</td>
+                                <td class="text-center py-2 font-mono text-[10px] sm:text-xs font-black text-emerald-700">${t.won}</td>
+                                <td class="text-center py-2 font-mono text-[10px] sm:text-xs font-bold text-rose-600">${t.lost}</td>
+                                <td class="text-center py-2">
+                                  <span class="px-1.5 py-0.5 bg-blue-50 text-blue-700 font-mono font-black text-[10.5px] sm:text-xs rounded border border-blue-200">${t.points}</span>
+                                </td>
+                                <td class="text-right py-2 pr-2 font-mono font-bold text-[9.5px] sm:text-[10.5px] ${parseFloat(t.nrr) >= 0 ? 'text-teal-700' : 'text-rose-600'}">${t.nrr}</td>
+                              </tr>
+                            `;
+                          }).join('');
+                        })()}
                       </tbody>
                     </table>
                   </div>
