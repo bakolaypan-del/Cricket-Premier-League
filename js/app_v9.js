@@ -1,10 +1,10 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=13.0.49';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.49';
-import { renderAdminDashboard } from './admin.js?v=13.0.49';
-import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.49';
-import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.49';
+import { store } from './store.js?v=13.0.50';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.50';
+import { renderAdminDashboard } from './admin.js?v=13.0.50';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.50';
+import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.50';
 import { shops } from './shopsData.js?v=12.0.2';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
@@ -39,6 +39,15 @@ let introScreenInitialized = false;
 let renderDebounceTimer = null;
 let auctionPollInterval = null;
 let pollActiveAuctionState = null;
+
+let activeFixtureCategory = (() => {
+  try {
+    const saved = sessionStorage.getItem('cpl_active_fixture_cat');
+    return (!saved || saved === 'T') ? 'ALL' : saved;
+  } catch(e) { return 'ALL'; }
+})();
+let activeFixtureSubTab = (() => { try { return sessionStorage.getItem('cpl_active_fixture_subtab') || 'matches'; } catch(e) { return 'matches'; } })();
+let activeFixtureGroupFilter = (() => { try { return sessionStorage.getItem('cpl_active_fixture_grp_filter') || 'ALL'; } catch(e) { return 'ALL'; } })();
 
 function bootApp() {
   initIntroLoadingScreen();
@@ -7113,13 +7122,6 @@ function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
 }
 
 // --- VISITOR VIEWS: MATCH CENTER, LIVE AUCTION & CAREER HUB ---
-
-let activeFixtureCategory = (() => {
-  const saved = sessionStorage.getItem('cpl_active_fixture_cat');
-  return (!saved || saved === 'T') ? 'ALL' : saved;
-})();
-let activeFixtureSubTab = sessionStorage.getItem('cpl_active_fixture_subtab') || 'matches'; // 'matches' or 'table'
-let activeFixtureGroupFilter = sessionStorage.getItem('cpl_active_fixture_grp_filter') || 'ALL'; // 'ALL', 'A', 'B', 'C', 'D', 'KNOCKOUT'
 
 function renderFixturesView(container) {
   const computeTeamStandings = (teamList, categoryFixtures) => {
