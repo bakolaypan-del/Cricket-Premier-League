@@ -1,10 +1,10 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=13.0.14';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.14';
-import { renderAdminDashboard } from './admin.js?v=13.0.14';
-import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.14';
-import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.14';
+import { store } from './store.js?v=13.0.15';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.15';
+import { renderAdminDashboard } from './admin.js?v=13.0.15';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.15';
+import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.15';
 import { shops } from './shopsData.js?v=12.0.2';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
@@ -13411,12 +13411,12 @@ export function openTournamentCreationWizard(isTrialMode = false) {
           phone: orgPhone,
           password: orgPass
         },
-        status: 'ACTIVE'
+        status: 'PENDING_APPROVAL'
       };
 
       await store.saveCustomTournament(tourneyRecord);
 
-      // Auto-login the organiser after tournament creation
+      // Auto-login the organiser account in pending state
       const cleanOrgPhone = orgPhone.replace(/[^0-9]/g, '');
       store.setCurrentUser({
         phone: cleanOrgPhone,
@@ -13429,37 +13429,92 @@ export function openTournamentCreationWizard(isTrialMode = false) {
       renderNavbar();
       renderMobileBottomNav();
 
-      // Show Success step
+      // Render Dedicated "Application Awaiting Approval" Success Screen
       currentStep = 4;
       document.getElementById('wizard-step-1')?.classList.add('hidden');
       document.getElementById('wizard-step-2')?.classList.add('hidden');
       document.getElementById('wizard-step-3')?.classList.add('hidden');
-      document.getElementById('wizard-step-success')?.classList.remove('hidden');
+      
+      const successContainer = document.getElementById('wizard-step-success');
+      if (successContainer) {
+        successContainer.classList.remove('hidden');
+        const hostUrl = window.location.origin + window.location.pathname;
+        const hubUrl = `${hostUrl}#t/${slug}`;
+        const regUrl = `${hostUrl}#reg-${slug}`;
 
-      document.getElementById('wiz-success-title').textContent = name;
-      const hostUrl = window.location.origin + window.location.pathname;
-      const hubUrl = `${hostUrl}#t/${slug}`;
-      const regUrl = `${hostUrl}#reg-${slug}`;
+        successContainer.innerHTML = `
+          <div class="w-14 h-14 rounded-2xl bg-amber-100 text-amber-900 mx-auto flex items-center justify-center text-2xl font-black shadow-md border border-amber-300 animate-pulse">
+            ⏳
+          </div>
+          
+          <div class="space-y-1.5 pt-1">
+            <span class="px-3 py-1 bg-amber-100 text-amber-950 text-[10px] font-black rounded-full border border-amber-300 uppercase inline-block">
+              ⏳ APPLICATION SUBMITTED FOR MASTER ADMIN APPROVAL
+            </span>
+            <h3 class="text-base sm:text-lg font-black text-slate-900">${name}</h3>
+            <p class="text-xs text-slate-600 max-w-md mx-auto leading-relaxed">
+              Your tournament application has been received and is currently under review by <strong>Platform Master Admin</strong>.
+            </p>
+          </div>
 
-      document.getElementById('wiz-success-hub-link').textContent = hubUrl;
-      document.getElementById('wiz-success-reg-link').textContent = regUrl;
+          <!-- Process Explanation Card -->
+          <div class="p-3.5 bg-gradient-to-r from-amber-50 to-orange-50 rounded-2xl border border-amber-200 text-left space-y-2 text-xs">
+            <div class="flex items-center gap-2 text-amber-950 font-black">
+              <span>🛡️</span> <span>Approval & Activation Process:</span>
+            </div>
+            <ul class="text-[11px] text-amber-900 space-y-1 list-disc list-inside font-medium">
+              <li>Master Admin will review your tournament details, poster, and UPI settings.</li>
+              <li>Once approved, <strong>Player Registration</strong> will unlock and go LIVE automatically.</li>
+              <li>Your tournament hub will become publicly visible across the platform.</li>
+            </ul>
+          </div>
 
-      if (selectedMode === 'FIXTURE_ONLY') {
-        document.getElementById('wiz-success-reg-container')?.classList.add('hidden');
+          <!-- Link Previews (Locked Status) -->
+          <div class="bg-slate-50 border border-slate-200 p-3 rounded-2xl text-left space-y-2 text-xs">
+            <div>
+              <div class="flex items-center justify-between">
+                <span class="text-[9px] font-black text-slate-500 uppercase">Tournament Hub:</span>
+                <span class="text-[9px] font-black text-amber-800 bg-amber-100 px-1.5 py-0.2 rounded">Awaiting Approval</span>
+              </div>
+              <div class="flex items-center justify-between gap-1.5 mt-0.5">
+                <span class="font-mono text-[10px] text-blue-700 font-bold truncate">${hubUrl}</span>
+                <button type="button" id="wiz-copy-hub-btn" class="px-2 py-0.5 bg-white hover:bg-slate-100 border border-slate-300 rounded text-[9px] font-black shrink-0 cursor-pointer">Copy</button>
+              </div>
+            </div>
+
+            <div id="wiz-success-reg-container">
+              <div class="flex items-center justify-between">
+                <span class="text-[9px] font-black text-slate-500 uppercase">Player Registration Link:</span>
+                <span class="text-[9px] font-black text-amber-800 bg-amber-100 px-1.5 py-0.2 rounded">Opens on Approval</span>
+              </div>
+              <div class="flex items-center justify-between gap-1.5 mt-0.5">
+                <span class="font-mono text-[10px] text-emerald-700 font-bold truncate">${regUrl}</span>
+                <button type="button" id="wiz-copy-reg-btn" class="px-2 py-0.5 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 rounded text-[9px] font-black shrink-0 cursor-pointer">Copy</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Quick WhatsApp Alert to Master Admin -->
+          <div class="pt-1">
+            <a href="https://wa.me/919732710002?text=${encodeURIComponent(`👋 Hello Master Admin,\nI have submitted a new tournament for approval:\n\n🏆 *Tournament:* ${name}\n📍 *Venue:* ${venue}\n📱 *Organizer:* ${orgName} (${orgPhone})\n🔗 *Slug:* ${slug}\n\nPlease review and approve from the Admin Panel.`)}" target="_blank" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 cursor-pointer">
+              <span>💬 Notify Master Admin on WhatsApp</span>
+            </a>
+          </div>
+        `;
+
+        document.getElementById('wiz-copy-hub-btn')?.addEventListener('click', () => {
+          navigator.clipboard.writeText(hubUrl);
+          alert("✅ Tournament Hub link copied to clipboard!");
+        });
+        document.getElementById('wiz-copy-reg-btn')?.addEventListener('click', () => {
+          navigator.clipboard.writeText(regUrl);
+          alert("✅ Registration Link copied to clipboard!");
+        });
       }
-
-      document.getElementById('wiz-copy-hub-btn')?.addEventListener('click', () => {
-        navigator.clipboard.writeText(hubUrl);
-        alert("✅ Tournament Hub link copied to clipboard!");
-      });
-      document.getElementById('wiz-copy-reg-btn')?.addEventListener('click', () => {
-        navigator.clipboard.writeText(regUrl);
-        alert("✅ Registration Link copied to clipboard!");
-      });
 
       if (nextBtn) {
         nextBtn.disabled = false;
-        nextBtn.textContent = 'Done & View Portal';
+        nextBtn.textContent = 'Close & View Status';
         nextBtn.onclick = () => {
           document.getElementById('tournament-creation-wizard-modal')?.remove();
           navigate(`t/${slug}`);
@@ -13483,6 +13538,40 @@ export function openDynamicTournamentRegistrationModal(tourneyIdOrSlug) {
     upiId: '',
     paymentQrUrl: ''
   };
+
+  const tourneyStatus = (tourney.status || 'ACTIVE').toUpperCase();
+  if (tourneyStatus === 'PENDING_APPROVAL' || tourneyStatus === 'PENDING') {
+    const underReviewHtml = `
+      <div id="dynamic-tournament-reg-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4 animate-fade-in bg-slate-950/75 backdrop-blur-sm">
+        <div class="bg-white text-slate-900 max-w-md w-full rounded-2xl border-2 border-amber-300 shadow-2xl overflow-hidden">
+          <div class="p-5 bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50 border-b-2 border-amber-200 flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <span class="w-10 h-10 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center text-xl shrink-0 shadow-md font-black">⏳</span>
+              <div>
+                <h2 class="text-base font-black text-slate-900 leading-tight">Tournament Under Review</h2>
+                <span class="text-[10px] font-bold text-amber-800">Pending Master Admin Approval</span>
+              </div>
+            </div>
+            <button id="close-reg-review-modal" class="w-8 h-8 rounded-full bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-950 border border-slate-300 flex items-center justify-center text-sm font-black transition-all shadow-xs cursor-pointer">✕</button>
+          </div>
+          <div class="p-6 text-center space-y-3">
+            <p class="text-sm font-black text-slate-900">${tourney.name}</p>
+            <p class="text-xs text-slate-600 leading-relaxed">
+              This tournament application has been submitted by the organizer and is currently awaiting verification and activation from Platform Master Admin.
+            </p>
+            <div class="p-3 bg-amber-50 rounded-xl border border-amber-200 text-amber-900 text-[11px] font-bold">
+              🚀 Player registration will open automatically as soon as it is approved.
+            </div>
+            <button id="close-reg-review-btn" class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-black rounded-xl transition-all cursor-pointer">Got It, Back to Home</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.insertAdjacentHTML('beforeend', underReviewHtml);
+    const closeModal = () => document.getElementById('dynamic-tournament-reg-modal')?.remove();
+    document.getElementById('close-reg-review-modal')?.addEventListener('click', closeModal);
+    document.getElementById('close-reg-review-btn')?.addEventListener('click', closeModal);
+    return;
+  }
 
   if (!store.isRegistrationOpen()) {
     const regSettings = store.getRegistrationSettings();

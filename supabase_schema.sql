@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS public.tournaments (
   payment_qr_url TEXT,
   auction_settings JSONB DEFAULT '{}'::jsonb,
   format_config JSONB DEFAULT '{}'::jsonb,
-  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'completed', 'suspended', 'archived')),
+  status TEXT DEFAULT 'active' CHECK (status IN ('active', 'completed', 'suspended', 'archived', 'pending_approval', 'rejected')),
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );

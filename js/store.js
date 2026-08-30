@@ -54,8 +54,9 @@ import {
   resolveTournamentUUID,
   registerTournamentUUID,
   toUUID,
-  fetchGlobalUniquePlayersCount
-} from './supabase.js?v=13.0.14';
+  fetchGlobalUniquePlayersCount,
+  updateTournamentApprovalStatus
+} from './supabase.js?v=13.0.15';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -2265,22 +2266,80 @@ class Store {
     return record;
   }
 
-  async deleteCustomTournament(tourneyId) {
+  async deleteCustomTournament(tourneyId, slug = null, supabaseId = null) {
     if (!tourneyId) return false;
     const list = this.getCustomTournaments();
-    const match = list.find(t => t.id === tourneyId || t.slug === tourneyId || t.supabaseId === tourneyId);
-    const cloudId = match?.supabaseId || match?.tournament_id || (tourneyId.length > 30 ? tourneyId : null);
-    const slug = match?.slug || tourneyId;
+    const match = list.find(t => t.id === tourneyId || t.slug === tourneyId || t.supabaseId === tourneyId || (slug && t.slug === slug) || (supabaseId && (t.supabaseId === supabaseId || t.id === supabaseId)));
+    const cloudId = supabaseId || match?.supabaseId || match?.tournament_id || (tourneyId.length > 30 ? tourneyId : null);
+    const resolvedSlug = slug || match?.slug || String(tourneyId).replace(/^t_/, '');
+    
     const filtered = list.filter(t => 
       t.id !== tourneyId && 
       t.slug !== tourneyId && 
-      (!cloudId || (t.supabaseId !== cloudId && t.id !== cloudId)) &&
-      (!slug || t.slug !== slug)
+      (!cloudId || (t.supabaseId !== cloudId && t.id !== cloudId && t.tournament_id !== cloudId)) &&
+      (!resolvedSlug || (t.slug !== resolvedSlug && t.id !== `t_${resolvedSlug}`))
     );
     safeSetLocalStorage(STORAGE_KEYS.CUSTOM_TOURNAMENTS, filtered);
-    await deleteCustomTournamentFromCloud(cloudId || tourneyId, slug);
+
+    // Clean up scoped storage keys
+    const targetRef = cloudId || tourneyId;
+    try {
+      localStorage.removeItem(`cpl_players_v8_${targetRef}`);
+      localStorage.removeItem(`cpl_teams_v8_${targetRef}`);
+      localStorage.removeItem(`cpl_fixtures_v8_${targetRef}`);
+      if (resolvedSlug) {
+        localStorage.removeItem(`cpl_players_v8_${resolvedSlug}`);
+        localStorage.removeItem(`cpl_teams_v8_${resolvedSlug}`);
+        localStorage.removeItem(`cpl_fixtures_v8_${resolvedSlug}`);
+      }
+    } catch(e) {}
+
+    await deleteCustomTournamentFromCloud(cloudId || tourneyId, resolvedSlug);
     this.notify('custom_tournaments_updated');
     return true;
+  }
+
+  getPendingTournaments() {
+    const list = this.getCustomTournaments();
+    return list.filter(t => t && (t.status === 'PENDING_APPROVAL' || t.status === 'pending_approval' || t.status === 'PENDING' || t.status === 'pending'));
+  }
+
+  getActiveTournaments() {
+    const list = this.getCustomTournaments();
+    return list.filter(t => !t.status || t.status === 'ACTIVE' || t.status === 'active' || t.status === 'APPROVED');
+  }
+
+  async approveTournament(tourneyId) {
+    if (!tourneyId) return false;
+    const list = this.getCustomTournaments();
+    const idx = list.findIndex(t => t.id === tourneyId || t.slug === tourneyId || t.supabaseId === tourneyId);
+    if (idx >= 0) {
+      list[idx].status = 'ACTIVE';
+      list[idx].updated_at = Date.now();
+      safeSetLocalStorage(STORAGE_KEYS.CUSTOM_TOURNAMENTS, list);
+      const cloudRef = list[idx].supabaseId || list[idx].id;
+      await updateTournamentApprovalStatus(cloudRef, 'ACTIVE');
+      this.notify('custom_tournaments_updated');
+      return true;
+    }
+    return false;
+  }
+
+  async rejectTournament(tourneyId, reason = '') {
+    if (!tourneyId) return false;
+    const list = this.getCustomTournaments();
+    const idx = list.findIndex(t => t.id === tourneyId || t.slug === tourneyId || t.supabaseId === tourneyId);
+    if (idx >= 0) {
+      list[idx].status = 'REJECTED';
+      list[idx].rejectionReason = reason;
+      list[idx].updated_at = Date.now();
+      safeSetLocalStorage(STORAGE_KEYS.CUSTOM_TOURNAMENTS, list);
+      const cloudRef = list[idx].supabaseId || list[idx].id;
+      await updateTournamentApprovalStatus(cloudRef, 'REJECTED', reason);
+      this.notify('custom_tournaments_updated');
+      return true;
+    }
+    return false;
   }
 
   // --- UNIVERSAL PLAYER DIRECTORY & 1-SECOND SMART AUTOFILL ---

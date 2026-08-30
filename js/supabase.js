@@ -1470,6 +1470,23 @@ export async function saveCustomTournamentToCloud(tourney) {
       dbMode = 'manual';
     }
 
+    let dbStatus = 'suspended';
+    let approvalStatus = 'pending_approval';
+    if (tourney.status) {
+      const sLower = String(tourney.status).toLowerCase();
+      if (sLower === 'active' || sLower === 'approved') {
+        dbStatus = 'active';
+        approvalStatus = 'approved';
+      } else if (sLower === 'rejected') {
+        dbStatus = 'archived';
+        approvalStatus = 'rejected';
+      } else {
+        dbStatus = 'suspended';
+        approvalStatus = 'pending_approval';
+      }
+    }
+    mergedRegSettings.approval_status = approvalStatus;
+
     const payload = {
       slug: tourney.slug || tourney.shortCode || tourney.id,
       name: tourney.name || tourney.id,
@@ -1480,7 +1497,7 @@ export async function saveCustomTournamentToCloud(tourney) {
       icon_price: Number(tourney.basePrice) || 300,
       venue_name: tourney.venue || 'TBD',
       banner_url: tourney.posterUrl || tourney.poster_url || tourney.bannerUrl || tourney.banner_url || null,
-      status: tourney.status === 'ACTIVE' ? 'active' : (tourney.status || 'active').toLowerCase(),
+      status: dbStatus,
       organiser_id: user?.id || null,
       registration_settings: mergedRegSettings,
       updated_at: new Date().toISOString()
@@ -1496,6 +1513,51 @@ export async function saveCustomTournamentToCloud(tourney) {
   }
 }
 
+export async function updateTournamentApprovalStatus(tourneyId, newStatus, reason = '') {
+  if (!supabase || !tourneyId) return false;
+  try {
+    const isUUID = typeof tourneyId === 'string' && UUID_FORMAT_RE.test(tourneyId);
+    let target = supabase.from('tournaments');
+    
+    let dbStatus = 'active';
+    let appStatus = 'approved';
+    if (newStatus === 'REJECTED' || newStatus === 'rejected') {
+      dbStatus = 'archived';
+      appStatus = 'rejected';
+    } else if (newStatus === 'PENDING_APPROVAL' || newStatus === 'pending') {
+      dbStatus = 'suspended';
+      appStatus = 'pending_approval';
+    }
+    
+    // Fetch existing registration_settings to preserve fields
+    let query = isUUID ? supabase.from('tournaments').select('id, registration_settings').eq('id', tourneyId) : supabase.from('tournaments').select('id, registration_settings').eq('slug', String(tourneyId).replace(/^t_/, ''));
+    const { data: existing } = await query.maybeSingle();
+
+    const regSettings = (existing?.registration_settings && typeof existing.registration_settings === 'object') ? existing.registration_settings : {};
+    regSettings.approval_status = appStatus;
+    if (reason) regSettings.rejection_reason = reason;
+    regSettings.approval_updated_at = new Date().toISOString();
+
+    const updatePayload = {
+      status: dbStatus,
+      registration_settings: regSettings,
+      updated_at: new Date().toISOString()
+    };
+
+    let updateQuery = isUUID 
+      ? supabase.from('tournaments').update(updatePayload).eq('id', tourneyId)
+      : supabase.from('tournaments').update(updatePayload).eq('slug', String(tourneyId).replace(/^t_/, ''));
+    
+    const { error } = await updateQuery;
+    if (error) throw error;
+    console.log("[SUPABASE] Updated tournament approval status:", tourneyId, "->", dbStatus, "(", appStatus, ")");
+    return true;
+  } catch (err) {
+    console.warn("[SUPABASE] updateTournamentApprovalStatus notice:", err);
+    return false;
+  }
+}
+
 export async function fetchCustomTournamentsFromCloud() {
   const data = await dbFetchTournaments();
   if (!data || !Array.isArray(data)) return [];
@@ -1508,6 +1570,16 @@ export async function fetchCustomTournamentsFromCloud() {
     let extra = {};
     try { extra = typeof t.registration_settings === 'string' ? JSON.parse(t.registration_settings) : (t.registration_settings || {}); } catch(e) {}
     const frontendMode = (t.mode === 'manual' || t.mode === 'FIXTURE_ONLY') ? 'FIXTURE_ONLY' : 'AUCTION_LEAGUE';
+    
+    let resolvedStatus = 'ACTIVE';
+    if (t.status === 'suspended' || extra.approval_status === 'pending_approval') {
+      resolvedStatus = 'PENDING_APPROVAL';
+    } else if (t.status === 'archived' || extra.approval_status === 'rejected') {
+      resolvedStatus = 'REJECTED';
+    } else {
+      resolvedStatus = (t.status || 'active').toUpperCase();
+    }
+
     return ({
     id: `t_${t.slug}`,
     supabaseId: t.id,
@@ -1529,7 +1601,7 @@ export async function fetchCustomTournamentsFromCloud() {
       name: extra.organiser_name || '',
       phone: extra.organiser_phone || ''
     },
-    status: (t.status || 'active').toUpperCase(),
+    status: resolvedStatus,
     created_at: new Date(t.created_at).getTime()
   });});
 }
@@ -1539,13 +1611,30 @@ export async function deleteCustomTournamentFromCloud(tourneyId, slug = null) {
   if (!tourneyId && !slug) return;
   try {
     const isUUID = typeof tourneyId === 'string' && UUID_FORMAT_RE.test(tourneyId);
-    if (isUUID) {
-      await supabase.from('tournaments').delete().eq('id', tourneyId);
+    let targetIds = [];
+    if (isUUID) targetIds.push(tourneyId);
+    
+    // Also resolve UUID if slug provided
+    const resolvedUUID = resolveTournamentUUID(slug || tourneyId);
+    if (resolvedUUID && UUID_FORMAT_RE.test(resolvedUUID) && !targetIds.includes(resolvedUUID)) {
+      targetIds.push(resolvedUUID);
     }
+
     const cleanSlug = String(slug || tourneyId || '').replace(/^t_/, '').trim();
+
+    // 1. Delete associated child records and tournament row by UUIDs
+    for (const uid of targetIds) {
+      await supabase.from('players').delete().eq('tournament_id', uid);
+      await supabase.from('teams').delete().eq('tournament_id', uid);
+      await supabase.from('matches').delete().eq('tournament_id', uid);
+      await supabase.from('tournaments').delete().eq('id', uid);
+    }
+
+    // 2. Delete by slug if exists
     if (cleanSlug) {
       await supabase.from('tournaments').delete().eq('slug', cleanSlug);
     }
+    console.log('[SUPABASE] Deleted tournament and associated data from cloud:', tourneyId, slug);
   } catch (e) { console.warn('[SUPABASE] deleteCustomTournament:', e.message); }
 }
 

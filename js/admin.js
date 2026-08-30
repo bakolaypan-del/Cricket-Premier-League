@@ -1,8 +1,8 @@
 // Admin Master Data & Payment Verification Panel with Single Source Cloud Control (Developer: Suman Kolay)
 
-import { store } from './store.js?v=13.0.14';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.14';
-import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.14';
+import { store } from './store.js?v=13.0.15';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.15';
+import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.15';
 import { shops } from './shopsData.js?v=12.0.2';
 
 let activeAdminTab = (() => { try { return sessionStorage.getItem('cpl_admin_tab') || (store.isMasterAdmin() ? 'payments' : 'overview'); } catch(e) { return 'payments'; } })();
@@ -120,7 +120,7 @@ export function renderAdminDashboard(containerEl) {
       { tab: 'reg-settings', icon: 'power', label: 'Reg. Control' },
       { tab: 'shop-ads', icon: 'megaphone', label: 'Shop Ads' },
       { tab: 'owners', icon: 'crown', label: 'Owners' },
-      { tab: 'saas-tournaments', icon: 'trophy', label: 'Tournaments' },
+      { tab: 'saas-tournaments', icon: 'trophy', label: 'Tournaments', badge: (store.getPendingTournaments ? store.getPendingTournaments().length : 0) || undefined, badgeColor: 'red' },
     ] : [])
   ];
 
@@ -2287,7 +2287,21 @@ function bindAdminTableActions(containerEl) {
     renderScorerMatchesList();
   } else if (activeAdminTab === 'shop-ads') {
     renderAdminShopAdsPanel();
+  } else if (activeAdminTab === 'saas-tournaments') {
+    renderAdminSaasTournamentsPanel();
   }
+
+  // Realtime custom tournaments update listener
+  store.on('custom_tournaments_updated', () => {
+    if (activeAdminTab === 'saas-tournaments') {
+      renderAdminSaasTournamentsPanel();
+    }
+    const selector = document.getElementById('admin-tournament-selector');
+    if (selector && store.getAllAvailableTournaments) {
+      const allTourneys = store.getAllAvailableTournaments();
+      selector.innerHTML = allTourneys.map(t => `<option value="${t.id}" ${t.id === store.activeTournamentId ? 'selected' : ''} class="bg-slate-900 text-white">${t.name}</option>`).join('');
+    }
+  });
 }
 
 // --- ADMIN & TOURNAMENT OWNER LOGIN SCREEN ---
@@ -7084,6 +7098,7 @@ export function renderAdminSaasTournamentsPanel() {
           <tr>
             <th class="py-2.5 px-3">TOURNAMENT</th>
             <th class="py-2.5 px-2.5">MODE</th>
+            <th class="py-2.5 px-2.5">STATUS</th>
             <th class="py-2.5 px-2.5">ORGANIZER</th>
             <th class="py-2.5 px-2.5">ENTRY / PURSE</th>
             <th class="py-2.5 px-3 text-right">ACTIONS</th>
@@ -7092,8 +7107,12 @@ export function renderAdminSaasTournamentsPanel() {
         <tbody class="divide-y divide-slate-100 font-semibold">
           ${tourneys.map(t => {
             const isAuction = (t.mode === 'AUCTION_LEAGUE');
+            const statusUpper = (t.status || 'ACTIVE').toUpperCase();
+            const isPending = (statusUpper === 'PENDING_APPROVAL' || statusUpper === 'PENDING');
+            const isRejected = (statusUpper === 'REJECTED');
+
             return `
-              <tr class="hover:bg-slate-50/80 transition-colors">
+              <tr class="hover:bg-slate-50/80 transition-colors ${isPending ? 'bg-amber-50/40' : ''}">
                 <td class="py-2.5 px-3">
                   <div class="flex items-center gap-2">
                     <span class="w-7 h-7 rounded-lg ${isAuction ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'} flex items-center justify-center text-xs font-black shrink-0">
@@ -7113,6 +7132,22 @@ export function renderAdminSaasTournamentsPanel() {
                 </td>
 
                 <td class="py-2.5 px-2.5">
+                  ${isPending ? `
+                    <span class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1 w-max animate-pulse">
+                      <span>⏳</span> Awaiting Approval
+                    </span>
+                  ` : isRejected ? `
+                    <span class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-rose-100 text-rose-900 border border-rose-300 flex items-center gap-1 w-max">
+                      <span>🔴</span> Rejected
+                    </span>
+                  ` : `
+                    <span class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-1 w-max">
+                      <span>🟢</span> Active
+                    </span>
+                  `}
+                </td>
+
+                <td class="py-2.5 px-2.5">
                   <div class="text-xs font-bold text-slate-900">${t.organizer?.name || 'Organizer'}</div>
                   <div class="text-[9px] text-slate-500 font-mono">📱 ${t.organizer?.phone || 'N/A'}</div>
                 </td>
@@ -7128,10 +7163,23 @@ export function renderAdminSaasTournamentsPanel() {
 
                 <td class="py-2.5 px-3 text-right">
                   <div class="flex items-center justify-end gap-1.5 flex-wrap">
+                    ${isPending ? `
+                      <button type="button" class="btn-approve-tourney px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-black cursor-pointer shadow-xs flex items-center gap-1" data-id="${t.id}" data-name="${t.name}" data-phone="${t.organizer?.phone || ''}" data-slug="${t.slug}">
+                        ✅ Approve
+                      </button>
+                      <button type="button" class="btn-reject-tourney px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-lg text-[10px] font-black cursor-pointer shadow-2xs" data-id="${t.id}" data-name="${t.name}">
+                        ❌ Reject
+                      </button>
+                    ` : isRejected ? `
+                      <button type="button" class="btn-approve-tourney px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-black cursor-pointer shadow-xs flex items-center gap-1" data-id="${t.id}" data-name="${t.name}" data-phone="${t.organizer?.phone || ''}" data-slug="${t.slug}">
+                        🔄 Re-Approve
+                      </button>
+                    ` : ''}
+
                     <button type="button" class="btn-edit-tourney px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-lg text-[10px] font-black cursor-pointer flex items-center gap-1 shadow-2xs" data-id="${t.id}">
                       ✏️ Edit
                     </button>
-                    ${isAuction ? `
+                    ${(isAuction && !isPending && !isRejected) ? `
                       <button type="button" class="btn-test-reg-modal px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-[10px] font-black cursor-pointer shadow-2xs" data-slug="${t.slug}">
                         📝 Test Reg
                       </button>
@@ -7153,6 +7201,40 @@ export function renderAdminSaasTournamentsPanel() {
   `;
 
   // Attach Table Action Listeners
+  container.querySelectorAll('.btn-approve-tourney').forEach(b => {
+    b.addEventListener('click', async (e) => {
+      const id = e.currentTarget.getAttribute('data-id');
+      const name = e.currentTarget.getAttribute('data-name');
+      const phone = e.currentTarget.getAttribute('data-phone');
+      const slug = e.currentTarget.getAttribute('data-slug');
+      if (confirm(`✅ Approve & Activate tournament "${name}"?\n\nThis will open player registration and activate the public hub immediately.`)) {
+        await store.approveTournament(id);
+        renderAdminSaasTournamentsPanel();
+
+        // 1-Tap WhatsApp notify organizer
+        if (phone && confirm(`💬 Would you like to send official approval on WhatsApp to the organizer (${phone})?`)) {
+          const cleanPhone = phone.replace(/[^0-9]/g, '');
+          const hostUrl = window.location.origin + window.location.pathname;
+          const regUrl = `${hostUrl}#reg-${slug}`;
+          const msg = `🎉 *CONGRATULATIONS! YOUR TOURNAMENT IS APPROVED & LIVE!* 🏆\n\nDear Organizer,\nYour tournament *${name}* has been officially verified and activated on Cricket Premier League.\n\n🔗 *Player Registration Link:* ${regUrl}\n\nYou can now share this registration link with teams and players.\n\nBest regards,\n*Master Admin - CPL Platform*`;
+          window.open(`https://wa.me/91${cleanPhone}?text=${encodeURIComponent(msg)}`, '_blank');
+        }
+      }
+    });
+  });
+
+  container.querySelectorAll('.btn-reject-tourney').forEach(b => {
+    b.addEventListener('click', async (e) => {
+      const id = e.currentTarget.getAttribute('data-id');
+      const name = e.currentTarget.getAttribute('data-name');
+      const reason = prompt(`❌ Enter rejection reason for tournament "${name}":`, "Application details could not be verified.");
+      if (reason !== null) {
+        await store.rejectTournament(id, reason);
+        renderAdminSaasTournamentsPanel();
+      }
+    });
+  });
+
   container.querySelectorAll('.btn-edit-tourney').forEach(b => {
     b.addEventListener('click', (e) => {
       const id = e.currentTarget.getAttribute('data-id');
@@ -7188,6 +7270,8 @@ export function renderAdminSaasTournamentsPanel() {
       const supabaseId = e.currentTarget.getAttribute('data-supabase-id');
       const name = e.currentTarget.getAttribute('data-name');
       if (confirm(`⚠️ Are you sure you want to permanently delete tournament "${name}"?\n\nThis will remove this tournament, its settings, and organizer access.`)) {
+        b.disabled = true;
+        b.textContent = '⏳ Deleting...';
         await store.deleteCustomTournament(id, slug, supabaseId);
         renderAdminSaasTournamentsPanel();
       }
