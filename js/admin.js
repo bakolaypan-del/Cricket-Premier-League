@@ -1,8 +1,8 @@
 // Admin Master Data & Payment Verification Panel with Single Source Cloud Control (Developer: Suman Kolay)
 
-import { store } from './store.js?v=13.0.35';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.35';
-import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID, compressImageToTarget } from './supabase.js?v=13.0.35';
+import { store } from './store.js?v=13.0.36';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.36';
+import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID, compressImageToTarget } from './supabase.js?v=13.0.36';
 import { shops } from './shopsData.js?v=12.0.2';
 
 let activeAdminTab = (() => { try { return sessionStorage.getItem('cpl_admin_tab') || (store.isMasterAdmin() ? 'payments' : 'overview'); } catch(e) { return 'payments'; } })();
@@ -1816,6 +1816,34 @@ export function renderAdminDashboard(containerEl) {
     alert(`✅ Tournament Auction parameters, Icon Price (₹${defaultIconPrice}), Squad Target (${maxSquadSize}/team) & ${bidIncrementSlabs.length} Dynamic Bid Slabs updated successfully!`);
     renderAdminDashboard(containerEl);
   });
+
+  // Dynamic Auction Player Select Dropdown Updater
+  const updateAuctionPlayerSelectDropdown = () => {
+    const selectEl = document.getElementById('auction-select-player');
+    if (!selectEl) return;
+    const currentPlayers = store.getPlayers();
+    const unsoldApproved = currentPlayers.filter(pl => (pl.registrationStatus === 'APPROVED' || pl.paymentStatus === 'APPROVED') && !pl.teamId && pl.auctionStatus !== 'SOLD');
+    
+    const currentVal = selectEl.value;
+    selectEl.innerHTML = `
+      <option value="">-- Choose Player to Preview & Set Price --</option>
+      ${unsoldApproved.map(pl => {
+        const sNo = pl.displayRegistrationNumber || pl.serialNo || '';
+        const sNoPrefix = sNo ? `[#${String(sNo).padStart(2, '0')}] ` : '';
+        const regId = pl.registrationId || pl.regNo || ('REG-' + String(sNo || 1).padStart(4, '0'));
+        return `<option value="${pl.id}">${sNoPrefix}${pl.name} (${regId}) - ${pl.category || 'All-Rounder'} (₹${pl.basePrice || 300})</option>`;
+      }).join('')}
+    `;
+    if (unsoldApproved.some(pl => pl.id === currentVal)) {
+      selectEl.value = currentVal;
+    } else {
+      selectEl.value = "";
+      const previewWrap = document.getElementById('auction-selected-player-preview-wrap');
+      if (previewWrap) previewWrap.classList.add('hidden');
+    }
+  };
+
+  window.addEventListener('cpl_players_updated', updateAuctionPlayerSelectDropdown);
 
   // Bind Put Player on block player select change listener
   const playerSelectEl = document.getElementById('auction-select-player');

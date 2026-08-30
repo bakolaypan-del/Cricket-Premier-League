@@ -57,7 +57,7 @@ import {
   fetchGlobalUniquePlayersCount,
   updateTournamentApprovalStatus,
   fetchLiveAuctionFromCloud
-} from './supabase.js?v=13.0.35';
+} from './supabase.js?v=13.0.36';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -1264,26 +1264,30 @@ class Store {
   }
 
   assignPlayerToTeam(playerId, teamId, soldPrice) {
+    this._invalidateCache('players');
+    this._invalidateCache('teams');
     const players = this.getPlayers();
     const teams = this.getTeams();
     
-    const player = players.find(p => p.id === playerId);
-    const team = teams.find(t => t.id === teamId);
+    const player = players.find(p => p.id === playerId || (playerId && p.id && toUUID(p.id) === toUUID(playerId)));
+    const team = teams.find(t => t.id === teamId || (teamId && t.id && toUUID(t.id) === toUUID(teamId)));
 
     if (player && team) {
       if (player.teamId) {
-        const oldTeam = teams.find(t => t.id === player.teamId);
+        const oldTeam = teams.find(t => t.id === player.teamId || (player.teamId && t.id && toUUID(t.id) === toUUID(player.teamId)));
         if (oldTeam) {
-          oldTeam.squadCount = Math.max(0, oldTeam.squadCount - 1);
-          oldTeam.purseSpent = Math.max(0, oldTeam.purseSpent - (player.soldPrice || 0));
+          oldTeam.squadCount = Math.max(0, (oldTeam.squadCount || 1) - 1);
+          oldTeam.purseSpent = Math.max(0, (oldTeam.purseSpent || 0) - (player.soldPrice || 0));
           oldTeam.remainingPurse = Math.max(0, (Number(oldTeam.purseBudget) || 8000) - oldTeam.purseSpent);
           oldTeam.updated_at = Date.now();
         }
       }
 
       const price = Number(soldPrice) || player.basePrice || 300;
-      player.teamId = teamId;
+      player.teamId = team.id;
+      player.team_id = team.id;
       player.soldPrice = price;
+      player.sold_price = price;
       player.teamName = team.name;
       player.auctionStatus = 'SOLD';
       player.isSold = true;
@@ -1295,6 +1299,8 @@ class Store {
       team.remainingPurse = Math.max(0, (Number(team.purseBudget) || 8000) - team.purseSpent);
       team.updated_at = Date.now();
 
+      this._invalidateCache('players');
+      this._invalidateCache('teams');
       safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
       safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
       syncPlayerToSupabase(player);
@@ -1308,19 +1314,25 @@ class Store {
   }
 
   markPlayerUnsold(playerId) {
+    this._invalidateCache('players');
+    this._invalidateCache('teams');
     const players = this.getPlayers();
-    const player = players.find(p => p.id === playerId);
+    const player = players.find(p => p.id === playerId || (playerId && p.id && toUUID(p.id) === toUUID(playerId)));
     if (!player) return false;
 
     const now = Date.now();
     player.teamId = null;
+    player.team_id = null;
     player.teamName = null;
     player.soldPrice = 0;
+    player.sold_price = 0;
     player.auctionStatus = 'UNSOLD';
     player.isSold = false;
     player.isUnsold = true;
     player.updated_at = now;
 
+    this._invalidateCache('players');
+    this._invalidateCache('teams');
     safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
     syncPlayerToSupabase(player);
     this.notify('players_updated');

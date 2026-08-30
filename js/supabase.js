@@ -475,6 +475,15 @@ export function initRealtimePushListener(onUpdateCallback, tournamentId) {
           if (liveEl) liveEl.textContent = liveCount;
         }
       })
+      .on('broadcast', { event: 'live_auction_update' }, (msg) => {
+        if (msg?.payload?.state && typeof window !== 'undefined' && window.store) {
+          const tId = msg.payload.tournament_id;
+          if (!tId || tId === window.store.activeTournamentId || toUUID(tId) === toUUID(window.store.activeTournamentId)) {
+            window.store.liveAuctionState = msg.payload.state;
+            window.dispatchEvent(new CustomEvent('cpl_live_auction_updated', { detail: msg.payload.state }));
+          }
+        }
+      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, (payload) => {
         if (typeof onUpdateCallback === 'function') onUpdateCallback(payload);
       })
@@ -485,6 +494,13 @@ export function initRealtimePushListener(onUpdateCallback, tournamentId) {
         if (typeof onUpdateCallback === 'function') onUpdateCallback(payload);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tournaments' }, (payload) => {
+        if (payload?.new?.format_config?.live_auction && typeof window !== 'undefined' && window.store) {
+          const tId = payload.new.id;
+          if (tId === window.store.activeTournamentId || toUUID(tId) === toUUID(window.store.activeTournamentId)) {
+            window.store.liveAuctionState = payload.new.format_config.live_auction;
+            window.dispatchEvent(new CustomEvent('cpl_live_auction_updated', { detail: payload.new.format_config.live_auction }));
+          }
+        }
         if (typeof onUpdateCallback === 'function') onUpdateCallback(payload);
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'player_verification_docs' }, (payload) => {
@@ -1225,9 +1241,33 @@ export async function saveLiveAuctionToCloud(state, tournamentId = null) {
   if (!supabase) return;
   try {
     const tId = toUUID(tournamentId) || toUUID(typeof window !== 'undefined' && window.store?.activeTournamentId) || DEFAULT_TOURNAMENT_UUID;
-    const key = `live_auction_${tId}`;
-    await supabase.from('platform_settings').upsert({ key, value: state || {}, updated_at: new Date().toISOString() }, { onConflict: 'key' });
-    await supabase.from('platform_settings').upsert({ key: 'live_auction', value: state || {}, updated_at: new Date().toISOString() }, { onConflict: 'key' });
+    
+    // Save to format_config.live_auction in tournaments table (guaranteed 200 OK without RLS restrictions)
+    let { data: currentTourney } = await supabase.from('tournaments').select('id, format_config').eq('id', tId).maybeSingle();
+    let targetId = tId;
+    if (!currentTourney && tournamentId) {
+      const cleanSlug = String(tournamentId).replace(/^t_/, '').trim();
+      const { data: bySlug } = await supabase.from('tournaments').select('id, format_config').or(`slug.ilike.${cleanSlug},category_code.ilike.${cleanSlug}`).maybeSingle();
+      if (bySlug) {
+        currentTourney = bySlug;
+        targetId = bySlug.id;
+      }
+    }
+
+    if (currentTourney) {
+      const config = currentTourney.format_config || {};
+      config.live_auction = state || {};
+      await supabase.from('tournaments').update({ format_config: config, updated_at: new Date().toISOString() }).eq('id', targetId);
+    }
+
+    // Broadcast over Realtime channel for instant sub-100ms display across all devices
+    if (activeRealtimeChannel) {
+      activeRealtimeChannel.send({
+        type: 'broadcast',
+        event: 'live_auction_update',
+        payload: { tournament_id: tId, state: state || {} }
+      }).catch(() => {});
+    }
   } catch (e) { console.warn('[SUPABASE] saveLiveAuction:', e.message); }
 }
 
@@ -1235,13 +1275,16 @@ export async function fetchLiveAuctionFromCloud(tournamentId = null) {
   if (!supabase) return null;
   try {
     const tId = toUUID(tournamentId) || toUUID(typeof window !== 'undefined' && window.store?.activeTournamentId) || DEFAULT_TOURNAMENT_UUID;
-    const key = `live_auction_${tId}`;
-    let { data } = await supabase.from('platform_settings').select('value').eq('key', key).limit(1).maybeSingle();
-    if (!data || !data.value) {
-      const fallback = await supabase.from('platform_settings').select('value').eq('key', 'live_auction').limit(1).maybeSingle();
-      data = fallback.data;
+    let { data: tourney } = await supabase.from('tournaments').select('id, format_config').eq('id', tId).maybeSingle();
+    if (!tourney && tournamentId) {
+      const cleanSlug = String(tournamentId).replace(/^t_/, '').trim();
+      const { data: bySlug } = await supabase.from('tournaments').select('id, format_config').or(`slug.ilike.${cleanSlug},category_code.ilike.${cleanSlug}`).maybeSingle();
+      if (bySlug) tourney = bySlug;
     }
-    return data ? data.value : null;
+    if (tourney?.format_config?.live_auction) {
+      return tourney.format_config.live_auction;
+    }
+    return null;
   } catch (e) { return null; }
 }
 
