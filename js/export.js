@@ -1862,16 +1862,16 @@ export function exportPlayerSocialCard(player, team, tourney) {
     ctx.lineWidth = 4;
     ctx.stroke();
 
-    // Tournament Name Header
+    // Tournament / Platform Name Header
     ctx.fillStyle = '#F59E0B';
     ctx.font = '900 38px sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(`🏆 ${tourneyName}`, 540, 110);
 
-    ctx.fillStyle = '#94A3B8';
+    ctx.fillStyle = '#34D399';
     ctx.font = '800 24px sans-serif';
     ctx.letterSpacing = '2px';
-    ctx.fillText('OFFICIAL PLAYER PROFILE CARD', 540, 150);
+    ctx.fillText(tourneyName.includes('CRICKET PREMIER') ? 'OFFICIAL LIFETIME CAREER STORY CARD' : 'OFFICIAL PLAYER PROFILE CARD', 540, 150);
 
     // 4. Player Photo Frame
     const photoX = 540;

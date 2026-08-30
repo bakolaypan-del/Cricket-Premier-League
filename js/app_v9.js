@@ -11829,16 +11829,11 @@ function renderCareerHubView(container) {
                         </span>
                       </td>
 
-                      <!-- Action Buttons -->
+                      <!-- Action Button -->
                       <td class="py-2.5 px-4 text-right">
-                        <div class="flex items-center justify-end gap-1.5 whitespace-nowrap">
-                          <button class="btn-gen-player-story-card px-2.5 py-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-[10px] rounded-lg shadow-xs transition-all hover:scale-105 active:scale-95 cursor-pointer flex items-center gap-1" data-id="${p.id}" title="Generate PNG Social Story Card">
-                            <span>🎨</span> <span>Story Card</span>
-                          </button>
-                          <button class="view-career-detail-btn px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-[10px] rounded-lg shadow-xs transition-all hover:scale-105 active:scale-95 cursor-pointer whitespace-nowrap" data-id="${p.id}">
-                            Profile
-                          </button>
-                        </div>
+                        <button class="view-career-detail-btn px-3 py-1 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-[10px] rounded-lg shadow-xs transition-all hover:scale-105 active:scale-95 cursor-pointer whitespace-nowrap" data-id="${p.id}">
+                          Profile Card
+                        </button>
                       </td>
                     </tr>
                   `;
@@ -12025,94 +12020,96 @@ function openCareerDetailModal(playerId) {
   document.getElementById('career-detail-modal')?.remove();
 
   const modalHtml = `
-    <div id="career-detail-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3 bg-slate-950/60 backdrop-blur-sm animate-fade-in">
-      <div class="bg-white border border-slate-200 max-w-sm w-full p-5 relative space-y-4 rounded-2xl shadow-2xl text-slate-800 text-center modal-content-container">
-        <button id="close-career-detail-btn" class="absolute top-3 right-3 text-slate-400 hover:text-slate-700 p-1">
-          <i data-lucide="x" class="w-4 h-4"></i>
+    <div id="career-detail-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3 bg-slate-950/85 backdrop-blur-md animate-fade-in">
+      <div class="bg-gradient-to-br from-[#020617] via-[#0B1536] to-[#064E3B] text-white border-2 border-emerald-400 max-w-sm sm:max-w-md w-full p-5 relative space-y-4 rounded-3xl shadow-2xl text-center modal-content-container overflow-hidden">
+        
+        <button id="close-career-detail-btn" class="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center text-xs font-black cursor-pointer z-10">
+          ✕
         </button>
 
-        <div class="flex flex-col items-center space-y-3 pb-4 border-b border-slate-200">
-          <div class="w-28 h-28 sm:w-32 sm:h-32 rounded-2xl overflow-hidden shadow-lg border-2 border-slate-250 bg-slate-50 flex items-center justify-center">
+        <!-- Header Badge -->
+        <div class="space-y-1 pt-1">
+          <div class="text-xs font-black uppercase text-amber-400 tracking-wider flex items-center justify-center gap-1.5">
+            <span>🏆</span> <span>CRICKET PREMIER LEAGUE</span>
+          </div>
+          <div class="text-[10px] font-extrabold text-emerald-300 uppercase tracking-widest">
+            OFFICIAL LIFETIME CAREER STORY CARD
+          </div>
+        </div>
+
+        <!-- Player Photo & Profile Details -->
+        <div class="flex flex-col items-center space-y-2.5 py-1 relative">
+          <div class="w-28 h-28 sm:w-32 sm:h-32 rounded-full overflow-hidden shadow-2xl border-4 border-emerald-400 ring-4 ring-emerald-500/30 bg-slate-900 flex items-center justify-center">
             <img src="${profile.photoUrl || 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Crect width=\'100\' height=\'100\' rx=\'20\' fill=\'%23059669\'/%3E%3Ctext x=\'50\' y=\'62\' font-size=\'45\' text-anchor=\'middle\' fill=\'white\'%3E🏏%3C/text%3E%3C/svg%3E'}" class="w-full h-full object-cover" />
           </div>
           <div>
-            <span class="px-2.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full font-black text-[9px] uppercase tracking-wider">Player Profile</span>
-            <h3 class="text-base sm:text-lg font-black text-slate-900 leading-tight mt-1.5">${profile.name}</h3>
-            <div class="text-xs text-slate-500 font-bold mt-1">📍 Village: ${profile.village || 'N/A'}</div>
+            <h3 class="text-lg sm:text-xl font-black text-white leading-tight uppercase tracking-wide drop-shadow-md">${profile.name}</h3>
+            <div class="text-xs text-emerald-300 font-extrabold mt-1 flex items-center justify-center gap-1.5">
+              <span>🏏 ${profile.category || 'All Rounder'}</span>
+              <span>•</span>
+              <span>📍 ${profile.village || 'N/A'}</span>
+            </div>
           </div>
         </div>
 
-        <div class="grid grid-cols-2 gap-2 text-[11px] bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-slate-650">
-          <div><span class="text-slate-400 font-bold">Batting:</span> <span class="text-slate-800 font-black">${profile.battingStyle || 'Right Hand'}</span></div>
-          <div><span class="text-slate-400 font-bold">Bowling:</span> <span class="text-slate-800 font-black">${profile.bowlingStyle || 'Right Arm'}</span></div>
+        <!-- Styles Pill Grid -->
+        <div class="grid grid-cols-2 gap-2 text-xs bg-slate-900/80 p-2.5 rounded-2xl border border-emerald-500/30 text-slate-300">
+          <div><span class="text-slate-400 font-bold">Batting:</span> <span class="text-white font-black">${profile.battingStyle || 'Right Hand'}</span></div>
+          <div><span class="text-slate-400 font-bold">Bowling:</span> <span class="text-white font-black">${profile.bowlingStyle || 'Right Arm'}</span></div>
         </div>
 
-        <div class="space-y-2">
-          <div class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Lifetime Stats</div>
+        <!-- Lifetime Stats Grid (Colorful Stat Boxes) -->
+        <div class="space-y-1.5">
+          <div class="text-[10px] font-black text-emerald-400 uppercase tracking-widest">LIFETIME CAREER STATISTICS</div>
           <div class="grid grid-cols-5 gap-1.5 text-center">
-            <div class="bg-slate-50 p-2 border border-slate-200 rounded-xl">
-              <span class="text-[8px] text-slate-500 uppercase font-semibold">MAT</span>
-              <div class="text-sm font-black text-slate-900 mt-0.5">${matchesCount}</div>
+            <div class="bg-slate-900/90 p-2 border border-slate-700 rounded-2xl shadow-xs">
+              <span class="text-[8px] text-slate-400 uppercase font-black">MAT</span>
+              <div class="text-sm font-black text-white mt-0.5">${matchesCount}</div>
             </div>
-            <div class="bg-slate-50 p-2 border border-slate-200 rounded-xl">
-              <span class="text-[8px] text-slate-500 uppercase font-semibold">RUNS</span>
-              <div class="text-sm font-black text-amber-700 mt-0.5">${totalRuns}</div>
+            <div class="bg-amber-950/80 p-2 border border-amber-500/50 rounded-2xl shadow-xs">
+              <span class="text-[8px] text-amber-300 uppercase font-black">RUNS</span>
+              <div class="text-sm font-black text-amber-400 mt-0.5">${totalRuns}</div>
             </div>
-            <div class="bg-slate-50 p-2 border border-slate-200 rounded-xl">
-              <span class="text-[8px] text-slate-500 uppercase font-semibold">AVG</span>
-              <div class="text-sm font-black text-slate-900 mt-0.5">${battingAvg}</div>
+            <div class="bg-emerald-950/80 p-2 border border-emerald-500/50 rounded-2xl shadow-xs">
+              <span class="text-[8px] text-emerald-300 uppercase font-black">AVG</span>
+              <div class="text-sm font-black text-emerald-300 mt-0.5">${battingAvg}</div>
             </div>
-            <div class="bg-slate-50 p-2 border border-slate-200 rounded-xl">
-              <span class="text-[8px] text-slate-500 uppercase font-semibold">WKT</span>
-              <div class="text-sm font-black text-sky-700 mt-0.5">${totalWickets}</div>
+            <div class="bg-sky-950/80 p-2 border border-sky-500/50 rounded-2xl shadow-xs">
+              <span class="text-[8px] text-sky-300 uppercase font-black">WKT</span>
+              <div class="text-sm font-black text-sky-400 mt-0.5">${totalWickets}</div>
             </div>
-            <div class="bg-slate-50 p-2 border border-slate-200 rounded-xl">
-              <span class="text-[8px] text-slate-500 uppercase font-semibold">ECON</span>
-              <div class="text-sm font-black text-slate-900 mt-0.5">${economy}</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="space-y-2">
-          <div class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Milestones</div>
-          <div class="grid grid-cols-3 gap-2 text-center text-[10px] font-bold text-slate-700">
-            <div class="bg-amber-50/50 p-2 border border-amber-250 rounded-xl">
-              <span class="text-[8px] text-amber-800 uppercase block font-bold">100s</span>
-              <span class="text-sm font-black text-slate-900">${centuries}</span>
-            </div>
-            <div class="bg-amber-50/50 p-2 border border-amber-250 rounded-xl">
-              <span class="text-[8px] text-amber-800 uppercase block font-bold">50s</span>
-              <span class="text-sm font-black text-slate-900">${halfCenturies}</span>
-            </div>
-            <div class="bg-sky-50/50 p-2 border border-sky-250 rounded-xl">
-              <span class="text-[8px] text-sky-850 uppercase block font-bold">5W Hauls</span>
-              <span class="text-sm font-black text-slate-900">${fiveWickets}</span>
+            <div class="bg-purple-950/80 p-2 border border-purple-500/50 rounded-2xl shadow-xs">
+              <span class="text-[8px] text-purple-300 uppercase font-black">ECON</span>
+              <div class="text-sm font-black text-purple-300 mt-0.5">${economy}</div>
             </div>
           </div>
         </div>
 
-        <div class="space-y-2">
-          <div class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">League Timeline</div>
-          <div class="relative pl-3 border-l border-slate-200 space-y-3 max-h-[25vh] overflow-y-auto pr-1">
-            ${seasonalTimeline.map(time => `
-              <div class="relative text-xs">
-                <span class="absolute -left-[17px] top-1.5 w-2 h-2 rounded-full bg-emerald-500 border border-white shadow"></span>
-                <div>
-                  <div class="font-black text-slate-800">${time.year} — ${time.leagueCode} (${time.teamName})</div>
-                  <div class="text-[9px] text-slate-550 mt-0.5">
-                    Matches: ${time.matches} • Runs: ${time.runs} • Wickets: ${time.wickets}
-                  </div>
-                </div>
-              </div>
-            `).join('')}
+        <!-- Milestones -->
+        <div class="space-y-1.5">
+          <div class="text-[10px] font-black text-emerald-400 uppercase tracking-widest">CAREER MILESTONES</div>
+          <div class="grid grid-cols-3 gap-2 text-center text-xs font-bold text-white">
+            <div class="bg-amber-500/10 p-2 border border-amber-500/40 rounded-2xl">
+              <span class="text-[8px] text-amber-400 uppercase block font-black">CENTURIES (100s)</span>
+              <span class="text-sm font-black text-amber-300">${centuries}</span>
+            </div>
+            <div class="bg-amber-500/10 p-2 border border-amber-500/40 rounded-2xl">
+              <span class="text-[8px] text-amber-400 uppercase block font-black">HALF 100s (50s)</span>
+              <span class="text-sm font-black text-amber-300">${halfCenturies}</span>
+            </div>
+            <div class="bg-sky-500/10 p-2 border border-sky-500/40 rounded-2xl">
+              <span class="text-[8px] text-sky-400 uppercase block font-black">5W HAULS</span>
+              <span class="text-sm font-black text-sky-300">${fiveWickets}</span>
+            </div>
           </div>
         </div>
 
-        <div class="flex gap-2 pt-1">
-          <button id="btn-career-social-story" class="flex-1 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all">
-            <span>🎨</span> Story Card (PNG)
+        <!-- Action Buttons -->
+        <div class="flex flex-col sm:flex-row gap-2 pt-2">
+          <button id="btn-career-social-story" class="flex-1 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-emerald-500/30 flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all">
+            <span>⬇️</span> <span>Download PNG Story Card</span>
           </button>
-          <button id="close-career-detail-btn-bottom" class="py-2 px-4 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow transition-colors cursor-pointer">
+          <button id="close-career-detail-btn-bottom" class="py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl border border-slate-700 shadow transition-colors cursor-pointer">
             Close
           </button>
         </div>
@@ -12128,8 +12125,8 @@ function openCareerDetailModal(playerId) {
   document.getElementById('close-career-detail-btn-bottom')?.addEventListener('click', removeModal);
 
   document.getElementById('btn-career-social-story')?.addEventListener('click', () => {
-    const team = store.getTeamById(playerReg.teamId);
-    const tourney = store.getLeagueById(playerReg.leagueId || store.activeTournamentId) || store.getCustomTournamentById(playerReg.tournamentId) || { name: 'CRICKET PREMIER LEAGUE' };
+    const team = store.getTeamById(playerReg.teamId) || { name: 'CRICKET PREMIER LEAGUE' };
+    const tourney = { name: 'CRICKET PREMIER LEAGUE' };
     exportPlayerSocialCard(playerReg, team, tourney);
   });
 }
