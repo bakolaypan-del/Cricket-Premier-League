@@ -3278,7 +3278,7 @@ export function renderCustomTournamentHub(container, tourney) {
                 const statusText = f.status || 'COMPLETED';
 
                 return `
-                  <div class="bg-white p-4 sm:p-5 rounded-3xl border border-slate-200/90 shadow-sm hover:shadow-md transition-all space-y-3.5">
+                  <div class="cpl-match-card bg-white p-4 sm:p-5 rounded-3xl border-2 ${isLive ? 'border-rose-500 shadow-md ring-2 ring-rose-500/20' : isCompleted ? 'border-slate-200 hover:border-emerald-500 shadow-2xs' : 'border-slate-200 hover:border-sky-500 shadow-2xs'} shadow-sm hover:shadow-lg transition-all space-y-3.5 cursor-pointer group" data-fixture-id="${f.id}" onclick="window.openMatchCenterModal('${f.id}')">
                     <!-- Top Line: Match # & Status -->
                     <div class="flex items-center justify-between gap-2">
                       <span class="text-[11px] font-black uppercase text-slate-500 tracking-wider">
@@ -3289,25 +3289,27 @@ export function renderCustomTournamentHub(container, tourney) {
                       </span>
                     </div>
 
-                    <!-- Middle Line: Team A vs Team B -->
-                    <div class="flex items-center justify-between gap-2 py-1">
-                      <div class="flex-1 text-left min-w-0">
-                        <h4 class="text-sm sm:text-base font-black text-slate-900 truncate">${f.teamAName || 'Team A'}</h4>
-                        ${f.liveScoreTeamA ? `<div class="text-xs font-mono font-black text-slate-700 mt-0.5">${f.liveScoreTeamA}</div>` : ''}
+                    <!-- Middle Line: Team A vs Team B with Logos -->
+                    <div class="space-y-2.5 py-1">
+                      <div class="flex items-center justify-between gap-3">
+                        <div class="flex items-center gap-3 min-w-0">
+                          <img src="${(store.getTeamById(f.teamAId)?.logoUrl || store.getTeamById(f.teamAId)?.teamLogoUrl || 'assets/card_jsl_user.png')}" class="w-8 h-8 rounded-full object-cover border border-slate-200 bg-slate-50 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                          <h4 class="text-sm sm:text-base font-black text-slate-900 truncate uppercase group-hover:text-emerald-700 transition-colors">${f.teamAName || 'Team A'}</h4>
+                        </div>
+                        ${f.liveScoreTeamA ? `<div class="text-xs font-mono font-black text-slate-700 shrink-0">${f.liveScoreTeamA}</div>` : ''}
                       </div>
 
-                      <div class="w-8 h-8 rounded-full bg-slate-100 text-slate-500 font-black text-[11px] flex items-center justify-center border border-slate-200 shrink-0 shadow-2xs">
-                        VS
-                      </div>
-
-                      <div class="flex-1 text-right min-w-0">
-                        <h4 class="text-sm sm:text-base font-black text-slate-900 truncate">${f.teamBName || 'Team B'}</h4>
-                        ${f.liveScoreTeamB ? `<div class="text-xs font-mono font-black text-slate-700 mt-0.5">${f.liveScoreTeamB}</div>` : ''}
+                      <div class="flex items-center justify-between gap-3">
+                        <div class="flex items-center gap-3 min-w-0">
+                          <img src="${(store.getTeamById(f.teamBId)?.logoUrl || store.getTeamById(f.teamBId)?.teamLogoUrl || 'assets/card_jsl_user.png')}" class="w-8 h-8 rounded-full object-cover border border-slate-200 bg-slate-50 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                          <h4 class="text-sm sm:text-base font-black text-slate-900 truncate uppercase group-hover:text-emerald-700 transition-colors">${f.teamBName || 'Team B'}</h4>
+                        </div>
+                        ${f.liveScoreTeamB ? `<div class="text-xs font-mono font-black text-slate-700 shrink-0">${f.liveScoreTeamB}</div>` : ''}
                       </div>
                     </div>
 
-                    <!-- Bottom Line: Date, Time, Venue & WhatsApp Share Button -->
-                    <div class="flex items-center justify-between gap-2 flex-wrap text-[10.5px] font-bold text-slate-500 pt-2 border-t border-slate-100">
+                    <!-- Bottom Line: Date, Time, Venue & Action Link -->
+                    <div class="flex items-center justify-between gap-2 flex-wrap text-[10.5px] font-bold text-slate-500 pt-2.5 border-t border-slate-100">
                       <div class="flex items-center gap-1.5 flex-wrap">
                         <span>🗓️ ${f.date || '2026-08-26'}</span>
                         <span>•</span>
@@ -3316,9 +3318,14 @@ export function renderCustomTournamentHub(container, tourney) {
                         <span>📍</span>
                         <span class="uppercase truncate max-w-[140px]">${f.venue || tourney.venue || 'JHANKRA SCHOOL GROUND'}</span>
                       </div>
-                      <button type="button" class="btn-share-match-wa px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-xl border border-emerald-300 flex items-center gap-1 shadow-2xs hover:scale-105 active:scale-95 transition-all cursor-pointer shrink-0" data-fixture-id="${f.id}">
-                        <span>💬</span> <span>Share</span>
-                      </button>
+                      <div class="flex items-center gap-2 shrink-0">
+                        <div class="text-xs font-black text-emerald-700 group-hover:text-emerald-800 transition-colors flex items-center gap-1">
+                          ${isLive ? 'View Live Match Centre' : isCompleted ? 'View Full Scorecard' : 'View Match Preview'} <span class="text-emerald-600 font-bold transition-transform group-hover:translate-x-1">→</span>
+                        </div>
+                        <button type="button" class="btn-share-match-wa px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-xl border border-emerald-300 flex items-center gap-1 shadow-2xs hover:scale-105 active:scale-95 transition-all cursor-pointer shrink-0" data-fixture-id="${f.id}" onclick="event.stopPropagation(); window.shareMatchToWhatsApp(store.getFixtureById('${f.id}') || ${JSON.stringify(f).replace(/"/g, '&quot;')}, { name: '${tourney.name || 'CRICKET PREMIER LEAGUE'}', venue: '${f.venue || tourney.venue || 'JHANKRA SCHOOL GROUND'}' });">
+                          <span>💬</span> <span>Share</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 `;
