@@ -3604,7 +3604,7 @@ function renderScorerMatchesList() {
       bowlerSel.innerHTML = bowlPlayers.map(p => `<option value="${p.id}" ${bowlerId === p.id ? 'selected' : ''}>⚾ ${p.name}</option>`).join('');
     }
 
-    const isMatchLive = fixture.status === 'LIVE' || (fixture.liveMatchState && (fixture.liveMatchState.runs > 0 || fixture.liveMatchState.overs > 0 || (fixture.liveMatchState.ballHistory && fixture.liveMatchState.ballHistory.length > 0)));
+    const isMatchLive = fixture.status === 'LIVE';
 
     const startBtnTxt = document.getElementById('scorer-start-match-btn-txt');
     if (startBtnTxt) {
@@ -3623,12 +3623,12 @@ function renderScorerMatchesList() {
     onMatchSelected(e.target.value);
   };
 
-  // Auto-restore the scorer view: keep the last-scored match open, or if none is
+  // Auto-restore the scorer view: keep the last-scored match open if LIVE, or if none is
   // active, auto-attach to any LIVE match so returning to this tab reopens it with
   // the latest state — no manual reselect/reopen needed. An in-progress match stays
   // open until the admin closes the innings or finishes/deletes the match.
   const fixturesNow = store.getFixtures();
-  let restoreId = (activeScoringMatchId && fixturesNow.some(f => f.id === activeScoringMatchId))
+  let restoreId = (activeScoringMatchId && fixturesNow.some(f => f.id === activeScoringMatchId && f.status === 'LIVE'))
     ? activeScoringMatchId
     : null;
   if (!restoreId) {
@@ -3641,6 +3641,7 @@ function renderScorerMatchesList() {
     selectEl.value = restoreId;
     onMatchSelected(restoreId);
   } else {
+    activeScoringMatchId = null;
     onMatchSelected('');
   }
 
