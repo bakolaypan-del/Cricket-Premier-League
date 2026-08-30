@@ -59,7 +59,7 @@ import {
   updateTournamentApprovalStatus,
   fetchLiveAuctionFromCloud,
   fetchGlobalLiveAuctionStatus
-} from './supabase.js?v=13.0.47';
+} from './supabase.js?v=13.0.48';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -1807,6 +1807,46 @@ class Store {
     safeSetLocalStorage(this._scopedKey('FIXTURES'), []);
     clearAllFixturesFromCloud(this.activeTournamentId);
     this.notify('fixtures_updated');
+  }
+
+  getAllFixturesAcrossTournaments() {
+    const allTourneys = this.getCustomTournaments() || [];
+    const activeTid = this.activeTournamentId;
+    const activeFixtures = this.getFixtures();
+    const map = new Map();
+
+    // 1. Add active tournament fixtures
+    activeFixtures.forEach(f => {
+      if (f && f.id) {
+        const tourney = allTourneys.find(t => (t.supabaseId || t.id) === (f.tournament_id || f.leagueId || activeTid)) || {};
+        map.set(f.id, {
+          ...f,
+          tournamentId: f.tournament_id || f.leagueId || activeTid,
+          tournamentName: tourney.name || (f.leagueCode ? `${f.leagueCode} Premier League` : 'Cricket Premier League'),
+          leagueCode: (f.leagueCode || tourney.category_code || tourney.slug || 'T').toUpperCase(),
+          logoUrl: tourney.logo_url || tourney.banner_url || 'assets/jsl_logo.jpg'
+        });
+      }
+    });
+
+    // 2. Add fixtures from other tournaments format_config.custom_matches
+    allTourneys.forEach(t => {
+      const tid = t.supabaseId || t.id;
+      const customMatches = Array.isArray(t.format_config?.custom_matches) ? t.format_config.custom_matches : [];
+      customMatches.forEach(cm => {
+        if (cm && cm.id && !map.has(cm.id)) {
+          map.set(cm.id, {
+            ...cm,
+            tournamentId: tid,
+            tournamentName: t.name || `${t.slug} Premier League`,
+            leagueCode: (cm.leagueCode || t.category_code || t.slug || 'T').toUpperCase(),
+            logoUrl: t.logo_url || t.banner_url || 'assets/jsl_logo.jpg'
+          });
+        }
+      });
+    });
+
+    return Array.from(map.values()).sort((a, b) => (Number(a.matchNo) || 0) - (Number(b.matchNo) || 0));
   }
 
   // --- TOURNAMENT FORMAT & GROUP STAGES ENGINE ---

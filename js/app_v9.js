@@ -1,10 +1,10 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=13.0.47';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.47';
-import { renderAdminDashboard } from './admin.js?v=13.0.47';
-import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.47';
-import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.47';
+import { store } from './store.js?v=13.0.48';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.48';
+import { renderAdminDashboard } from './admin.js?v=13.0.48';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.48';
+import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.48';
 import { shops } from './shopsData.js?v=12.0.2';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
@@ -7362,8 +7362,13 @@ function renderFixturesView(container) {
   window.openTournamentAwardModal = openTournamentAwardModal;
 
   const drawFixtures = () => {
-    const selectedCategory = activeFixtureCategory || 'T';
-    const rawFixtures = store.getFixtures().filter(f => (f.leagueCode || 'T').toUpperCase() === selectedCategory.toUpperCase());
+    const activeTournament = store.getCustomTournaments().find(t => (t.supabaseId || t.id) === store.activeTournamentId);
+    const defaultCategory = 'ALL';
+    const selectedCategory = activeFixtureCategory || defaultCategory;
+    const allCrossFixtures = store.getAllFixturesAcrossTournaments();
+    const rawFixtures = (selectedCategory === 'ALL')
+      ? allCrossFixtures
+      : allCrossFixtures.filter(f => (f.leagueCode || 'T').toUpperCase() === selectedCategory.toUpperCase() || (f.tournamentId && activeTournament && f.tournamentId === (activeTournament.supabaseId || activeTournament.id)));
     
     // Apply Match Group Filter
     let filteredFixtures = rawFixtures;
@@ -7553,8 +7558,11 @@ function renderFixturesView(container) {
                         <!-- Footer: Tournament Name & Direct Match Centre Prompt -->
                         <div class="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
                           <div class="min-w-0">
-                            <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider truncate">
-                              ${m.leagueCode || selectedCategory} PREMIER LEAGUE • ${m.venue || 'JHANKRA SCHOOL GROUND'}
+                            <div class="text-[10px] text-emerald-800 font-extrabold uppercase tracking-wider truncate flex items-center gap-1.5">
+                              <span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0 animate-pulse"></span>
+                              <span class="truncate">${m.tournamentName || (m.leagueCode ? `${m.leagueCode} PREMIER LEAGUE` : 'CRICKET PREMIER LEAGUE')}</span>
+                              <span>•</span>
+                              <span class="text-slate-500 font-bold truncate">${m.venue || 'JHANKRA SCHOOL GROUND'}</span>
                             </div>
                             <div class="text-xs font-black text-emerald-700 group-hover:text-emerald-800 transition-colors flex items-center gap-1 mt-0.5">
                               View Match Centre <span class="text-emerald-600 font-bold transition-transform group-hover:translate-x-1">→</span>
@@ -7641,8 +7649,11 @@ function renderFixturesView(container) {
                         <!-- Footer: Tournament Name & Click Action -->
                         <div class="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
                           <div class="min-w-0">
-                            <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider truncate">
-                              ${m.leagueCode || selectedCategory} PREMIER LEAGUE • ${m.venue || 'JHANKRA SCHOOL GROUND'}
+                            <div class="text-[10px] text-sky-800 font-extrabold uppercase tracking-wider truncate flex items-center gap-1.5">
+                              <span class="w-2 h-2 rounded-full bg-sky-500 shrink-0"></span>
+                              <span class="truncate">${m.tournamentName || (m.leagueCode ? `${m.leagueCode} PREMIER LEAGUE` : 'CRICKET PREMIER LEAGUE')}</span>
+                              <span>•</span>
+                              <span class="text-slate-500 font-bold truncate">${m.venue || 'JHANKRA SCHOOL GROUND'}</span>
                             </div>
                             <div class="text-xs font-black text-emerald-700 group-hover:text-emerald-800 transition-colors flex items-center gap-1 mt-0.5">
                               View Match Centre <span class="text-emerald-600 font-bold transition-transform group-hover:translate-x-1">→</span>
@@ -7738,8 +7749,11 @@ function renderFixturesView(container) {
                         <!-- Footer: Tournament Name & Click Action -->
                         <div class="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
                           <div class="min-w-0">
-                            <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider truncate">
-                              ${m.leagueCode || selectedCategory} PREMIER LEAGUE • ${m.venue || 'JHANKRA SCHOOL GROUND'}
+                            <div class="text-[10px] text-emerald-800 font-extrabold uppercase tracking-wider truncate flex items-center gap-1.5">
+                              <span class="w-2 h-2 rounded-full bg-emerald-500 shrink-0"></span>
+                              <span class="truncate">${m.tournamentName || (m.leagueCode ? `${m.leagueCode} PREMIER LEAGUE` : 'CRICKET PREMIER LEAGUE')}</span>
+                              <span>•</span>
+                              <span class="text-slate-500 font-bold truncate">${m.venue || 'JHANKRA SCHOOL GROUND'}</span>
                             </div>
                             <div class="text-xs font-black text-emerald-700 group-hover:text-emerald-800 transition-colors flex items-center gap-1 mt-0.5">
                               View Match Centre <span class="text-emerald-600 font-bold transition-transform group-hover:translate-x-1">→</span>
@@ -8128,15 +8142,17 @@ function renderFixturesView(container) {
     container.innerHTML = `
       <div class="space-y-3 animate-fade-in pb-16">
         <!-- Compact Header & Category Selector: Match Corner -->
-        <div class="bg-white border-2 border-emerald-500/20 px-3.5 py-2.5 rounded-2xl shadow-sm flex items-center justify-between gap-2">
+        <div class="bg-white border-2 border-emerald-500/20 px-3.5 py-2.5 rounded-2xl shadow-sm flex items-center justify-between gap-2 flex-wrap">
           <div class="flex items-center gap-2">
             <span class="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center shadow-xs text-sm">🏏</span>
             <h1 class="text-sm sm:text-base font-black text-slate-900 leading-none">Match Corner</h1>
           </div>
-          <div class="flex border border-slate-200 rounded-xl overflow-hidden bg-slate-100 p-0.5 shadow-inner gap-0.5">
-            ${(store.getAccessibleLeagues ? store.getAccessibleLeagues() : [{code:'T',name:'T'}]).map(l => {
-              const code = (l.code || l.category || 'T').toUpperCase();
-              return `<button data-cat="${code}" class="fixture-cat-btn ${activeFixtureCategory === code ? 'bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-700 hover:text-slate-900 font-bold'} px-3 py-1 text-[11px] rounded-lg transition-all cursor-pointer">${code}</button>`;
+          <div class="flex border border-slate-200 rounded-xl overflow-x-auto bg-slate-100 p-0.5 shadow-inner gap-0.5 max-w-[65vw] sm:max-w-none scrollbar-none">
+            <button data-cat="ALL" class="fixture-cat-btn ${(activeFixtureCategory === 'ALL' || !activeFixtureCategory) ? 'bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-700 hover:text-slate-900 font-bold'} px-2.5 py-1 text-[11px] rounded-lg transition-all cursor-pointer whitespace-nowrap">🌟 ALL (${store.getAllFixturesAcrossTournaments().length})</button>
+            ${(store.getLeagues ? store.getLeagues() : []).map(l => {
+              const code = (l.code || l.category || l.category_code || l.shortCode || l.slug || 'T').toUpperCase();
+              const lMatchesCount = store.getAllFixturesAcrossTournaments().filter(f => (f.leagueCode || '').toUpperCase() === code || f.tournamentId === (l.supabaseId || l.id)).length;
+              return `<button data-cat="${code}" class="fixture-cat-btn ${activeFixtureCategory === code ? 'bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-700 hover:text-slate-900 font-bold'} px-2.5 py-1 text-[11px] rounded-lg transition-all cursor-pointer whitespace-nowrap">${code}${lMatchesCount > 0 ? ` (${lMatchesCount})` : ''}</button>`;
             }).join('')}
           </div>
         </div>
