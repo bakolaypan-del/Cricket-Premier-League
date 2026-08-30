@@ -614,9 +614,13 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
         basePrice: Number(overrideData.basePrice || p.base_price) || 300,
         isIcon: (overrideData.isIcon !== undefined) ? overrideData.isIcon : (p.is_icon === true),
         teamId: (overrideData.teamId !== undefined) ? overrideData.teamId : (p.team_id || null),
+        teamName: overrideData.teamName || null,
+        auctionStatus: overrideData.auctionStatus || p.auction_status || (overrideData.teamId || p.team_id ? 'SOLD' : (p.status === 'unsold' ? 'UNSOLD' : 'PENDING')),
+        isSold: (overrideData.auctionStatus === 'SOLD' || overrideData.isSold === true || !!overrideData.teamId || !!p.team_id || p.auction_status === 'SOLD'),
+        isUnsold: (overrideData.auctionStatus === 'UNSOLD' || overrideData.isUnsold === true || p.auction_status === 'UNSOLD'),
         status: overrideData.status || p.status,
-        soldPrice: Number(overrideData.soldPrice !== undefined ? overrideData.soldPrice : p.sold_price) || 0,
-        boughtPrice: Number(overrideData.soldPrice !== undefined ? overrideData.soldPrice : p.sold_price) || 0,
+        soldPrice: Number(overrideData.soldPrice !== undefined ? overrideData.soldPrice : (p.sold_price || 0)) || 0,
+        boughtPrice: Number(overrideData.soldPrice !== undefined ? overrideData.soldPrice : (p.sold_price || 0)) || 0,
         verified: isApproved,
         paymentStatus: finalStatus,
         registrationStatus: finalStatus,
@@ -802,11 +806,21 @@ export async function syncPlayerToSupabase(playerData) {
       existingStatuses[playerData.id] = statusToSave;
       if (cleanPhone) existingStatuses[cleanPhone] = statusToSave;
 
+      const isSoldVal = (playerData.auctionStatus === 'SOLD' || playerData.isSold === true || !!playerData.teamId);
+      const isUnsoldVal = (playerData.auctionStatus === 'UNSOLD' || playerData.isUnsold === true);
+      const soldPriceVal = Number(playerData.soldPrice || playerData.sold_price || playerData.boughtPrice) || 0;
+
       const overrideObj = {
         name: playerData.name,
         role: playerData.role || playerData.category || playerData.playingType,
         category: playerData.category || playerData.category_name,
         basePrice: Number(playerData.basePrice || playerData.base_price) || 300,
+        teamId: playerData.teamId || playerData.team_id || null,
+        teamName: playerData.teamName || null,
+        soldPrice: soldPriceVal,
+        auctionStatus: isSoldVal ? 'SOLD' : (isUnsoldVal ? 'UNSOLD' : (playerData.auctionStatus || 'PENDING')),
+        isSold: isSoldVal,
+        isUnsold: isUnsoldVal,
         paymentStatus: statusToSave,
         registrationStatus: statusToSave,
         verified: isApproved,
@@ -819,7 +833,7 @@ export async function syncPlayerToSupabase(playerData) {
       existingConfig.player_statuses = existingStatuses;
       existingConfig.player_overrides = existingOverrides;
       await supabase.from('tournaments').update({ format_config: existingConfig }).eq('id', targetId);
-      console.log("[SUPABASE] Synced player to cloud config:", playerData.name, "Status:", statusToSave);
+      console.log("[SUPABASE] Synced player to cloud config:", playerData.name, "Status:", statusToSave, "Team:", playerData.teamName || playerData.teamId || 'None');
     } catch(errConfig) {
       console.warn("[SUPABASE] tournament format_config status save warning:", errConfig);
     }
@@ -829,6 +843,9 @@ export async function syncPlayerToSupabase(playerData) {
       await supabase.from('players').update({
         verified: isApproved,
         status: isRejected ? 'rejected' : derivePlayerStatus(playerData),
+        team_id: (playerData.teamId || playerData.team_id) ? toUUID(playerData.teamId || playerData.team_id) : null,
+        sold_price: Number(playerData.soldPrice || playerData.sold_price || playerData.boughtPrice) || 0,
+        auction_status: (playerData.auctionStatus === 'SOLD' || playerData.isSold === true || !!playerData.teamId) ? 'SOLD' : (playerData.isUnsold ? 'UNSOLD' : 'PENDING'),
         updated_at: new Date().toISOString()
       }).eq('id', playerUUID);
     } catch (pUpdateErr) {}

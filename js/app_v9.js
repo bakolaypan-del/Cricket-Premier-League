@@ -1,10 +1,10 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=13.0.34';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.34';
-import { renderAdminDashboard } from './admin.js?v=13.0.34';
-import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.34';
-import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.34';
+import { store } from './store.js?v=13.0.35';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.35';
+import { renderAdminDashboard } from './admin.js?v=13.0.35';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.35';
+import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.35';
 import { shops } from './shopsData.js?v=12.0.2';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
@@ -10983,12 +10983,22 @@ export function openTeamPurchasedSquadModal(teamId) {
   if (!team) return;
 
   const allPlayers = store.getPlayers();
-  const hasIcon = !!((team.iconPlayerName && team.iconPlayerName.trim()) || (team.iconName && team.iconName.trim()));
-  const iconName = team.iconPlayerName || team.iconName;
-  const iconDeduction = hasIcon ? 1000 : 0;
+  const hasIcon = !!((team.iconPlayerName && team.iconPlayerName.trim()) || (team.iconName && team.iconName.trim()) || (team.iconPlayerId && team.iconPlayerId.trim()));
+  const iconName = team.iconPlayerName || team.iconName || 'Icon Player';
+  const defaultIconFee = Number(store.getAuctionSettings().defaultIconPrice) || 1000;
+  const iconDeduction = hasIcon ? defaultIconFee : 0;
+  const targetSquadSize = Number(store.getAuctionSettings().maxSquadSize) || 13;
 
   // Find purchased players (excluding icon player to avoid double charging)
-  const purchasedNonIconPlayers = allPlayers.filter(p => (p.teamId === team.id || (p.teamName && p.teamName.trim().toLowerCase() === team.name.trim().toLowerCase())) && !p.isIcon && !p.isIconPlayer && (p.auctionStatus === 'SOLD' || p.isSold === true || !!p.teamId));
+  const purchasedNonIconPlayers = allPlayers.filter(p => {
+    if (!p) return false;
+    const pTeamId = p.teamId || p.team_id;
+    const isMatch = (pTeamId && (pTeamId === team.id || toUUID(pTeamId) === toUUID(team.id))) || (p.teamName && (p.teamName || '').trim().toLowerCase() === (team.name || '').trim().toLowerCase());
+    if (!isMatch) return false;
+    const isThisTeamIcon = hasIcon && ((p.name && p.name.trim().toLowerCase() === iconName.trim().toLowerCase()) || (team.iconPlayerId && (p.id === team.iconPlayerId || toUUID(p.id) === toUUID(team.iconPlayerId))));
+    const isSoldStatus = (p.auctionStatus === 'SOLD' || p.isSold === true || !!pTeamId);
+    return isSoldStatus && !isThisTeamIcon;
+  });
   const auctionSpent = purchasedNonIconPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || 0), 0);
   const totalPurse = Number(team.purseBudget || team.purse || 8000);
   const totalSpent = iconDeduction + auctionSpent;
@@ -11025,7 +11035,7 @@ export function openTeamPurchasedSquadModal(teamId) {
         <div class="grid grid-cols-3 gap-2 my-3.5">
           <div class="p-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-center shadow-2xs">
             <div class="text-[9px] font-black text-slate-500 uppercase tracking-wider">Squad Count</div>
-            <div class="text-sm sm:text-base font-black text-teal-700 font-mono mt-0.5">${squadCount} / 13</div>
+            <div class="text-sm sm:text-base font-black text-teal-700 font-mono mt-0.5">${squadCount} / ${targetSquadSize}</div>
           </div>
           <div class="p-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-center shadow-2xs">
             <div class="text-[9px] font-black text-slate-500 uppercase tracking-wider">Purse Spent</div>

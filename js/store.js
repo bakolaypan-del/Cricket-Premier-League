@@ -57,7 +57,7 @@ import {
   fetchGlobalUniquePlayersCount,
   updateTournamentApprovalStatus,
   fetchLiveAuctionFromCloud
-} from './supabase.js?v=13.0.34';
+} from './supabase.js?v=13.0.35';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -1486,11 +1486,12 @@ class Store {
       // Calculate total spent on purchased auction players (excluding icon player to avoid double deduction)
       const purchasedNonIconPlayers = allPlayers.filter(p => {
         if (!p) return false;
-        const isMatch = (p.teamId === t.id) || (p.teamName && (p.teamName || '').trim().toLowerCase() === (t.name || '').trim().toLowerCase());
+        const pTeamId = p.teamId || p.team_id;
+        const isMatch = (pTeamId && (pTeamId === t.id || toUUID(pTeamId) === toUUID(t.id))) || (p.teamName && (p.teamName || '').trim().toLowerCase() === (t.name || '').trim().toLowerCase());
         if (!isMatch) return false;
         const pName = (p.name || '').trim().toLowerCase();
-        const isThisTeamIcon = hasIcon && (pName === iconPlayerName || (t.iconPlayerId && p.id === t.iconPlayerId));
-        const isSoldStatus = (p.auctionStatus === 'SOLD' || p.isSold === true || !!p.teamId);
+        const isThisTeamIcon = hasIcon && (pName === iconPlayerName || (t.iconPlayerId && (p.id === t.iconPlayerId || toUUID(p.id) === toUUID(t.iconPlayerId))));
+        const isSoldStatus = (p.auctionStatus === 'SOLD' || p.isSold === true || !!pTeamId);
         return isSoldStatus && !isThisTeamIcon;
       });
       const auctionSpent = purchasedNonIconPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || 0), 0);
