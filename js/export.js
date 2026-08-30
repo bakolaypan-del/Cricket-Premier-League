@@ -1337,7 +1337,32 @@ export function exportMatchScorecardPDF(fixture, tourney) {
   const teamB = fixture.teamBName || 'Team B';
   const toss = fixture.tossDetails || `${teamA} won the toss & elected to bat`;
   const result = fixture.result || fixture.resultText || (fixture.winnerTeamName ? `${fixture.winnerTeamName} WON` : 'MATCH COMPLETED');
-  const potm = fixture.potmName || fixture.playerOfTheMatch || fixture.mvpName || '—';
+  let potm = fixture.potmName || fixture.playerOfTheMatch || fixture.mvpName;
+  if (!potm) {
+    const ps = (fixture.liveMatchState || {}).playerStats || {};
+    const pKeys = Object.keys(ps);
+    let bestMvp = -1;
+    let bestObj = null;
+    const allP = (typeof store !== 'undefined' && store.getPlayers) ? store.getPlayers() : [];
+    pKeys.forEach(pid => {
+      const s = ps[pid] || {};
+      const runs = s.runs || 0, fours = s.fours || 0, sixes = s.sixes || 0, wickets = s.wickets || 0, maidens = s.maidens || 0, catches = s.catches || 0, stumpings = s.stumpings || 0, runOuts = s.runOuts || 0;
+      const mvp = (runs * 1) + (fours * 1) + (sixes * 2) + (wickets * 20) + (maidens * 8) + (catches * 8) + (stumpings * 10) + (runOuts * 8);
+      if (mvp > bestMvp && mvp > 0) {
+        bestMvp = mvp;
+        const pObj = allP.find(x => String(x.id) === String(pid));
+        const pName = pObj ? pObj.name : 'Match MVP';
+        const parts = [];
+        if (runs > 0) parts.push(`${runs} runs (${s.balls || 0}b)`);
+        if (wickets > 0) parts.push(`${wickets} wkts`);
+        if (catches > 0) parts.push(`${catches} c`);
+        const desc = parts.length > 0 ? parts.join(' & ') : `${mvp} MVP Pts`;
+        bestObj = `${pName} (${desc})`;
+      }
+    });
+    if (bestObj) potm = bestObj;
+  }
+  if (!potm) potm = '—';
 
   const state = fixture.liveMatchState || {};
   const pStats = state.playerStats || {};

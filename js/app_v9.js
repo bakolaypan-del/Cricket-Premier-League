@@ -7155,6 +7155,52 @@ function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
   });
 }
 
+window.getMatchPotm = function(m) {
+  if (!m) return null;
+  if (m.potmName || m.playerOfTheMatch) {
+    return { name: m.potmName || m.playerOfTheMatch, desc: m.potmPerformance || 'Player of the Match' };
+  }
+  const ps = m.liveMatchState?.playerStats || {};
+  const pKeys = Object.keys(ps);
+  if (pKeys.length === 0) return null;
+
+  const allPlayers = store.getPlayers ? store.getPlayers() : [];
+  
+  let bestPlayer = null;
+  let bestMvp = -1;
+
+  pKeys.forEach(pid => {
+    const s = ps[pid] || {};
+    const runs = s.runs || 0;
+    const fours = s.fours || 0;
+    const sixes = s.sixes || 0;
+    const wickets = s.wickets || 0;
+    const maidens = s.maidens || 0;
+    const catches = s.catches || 0;
+    const stumpings = s.stumpings || 0;
+    const runOuts = s.runOuts || 0;
+
+    const mvp = (runs * 1) + (fours * 1) + (sixes * 2) + (wickets * 20) + (maidens * 8) + (catches * 8) + (stumpings * 10) + (runOuts * 8);
+
+    if (mvp > bestMvp && mvp > 0) {
+      bestMvp = mvp;
+      const pObj = allPlayers.find(x => String(x.id) === String(pid));
+      const name = pObj ? pObj.name : 'Match MVP';
+      const photoUrl = pObj ? (pObj.photoUrl || pObj.player_photo_url || '') : '';
+      
+      const parts = [];
+      if (runs > 0) parts.push(`${runs} runs (${s.balls || 0}b)`);
+      if (wickets > 0) parts.push(`${wickets} wkts`);
+      if (catches > 0) parts.push(`${catches} c`);
+      const desc = parts.length > 0 ? parts.join(' & ') : `${mvp} MVP Pts`;
+
+      bestPlayer = { name, desc, mvp, photoUrl };
+    }
+  });
+
+  return bestPlayer;
+};
+
 // --- VISITOR VIEWS: MATCH CENTER, LIVE AUCTION & CAREER HUB ---
 
 function renderFixturesView(container) {
@@ -7571,8 +7617,18 @@ function renderFixturesView(container) {
               🎯 Target: ${liveState.target} | Need ${liveState.target - (liveState.runs || 0)} runs off ${(m.oversLimit * 6) - (((liveState.overs || 0) * 6) + (liveState.balls || 0))} balls
             </div>
           ` : (isCompleted && m.result) ? `
-            <div class="text-xs bg-emerald-50 border border-emerald-300 text-emerald-950 font-black p-2 rounded-xl text-center shadow-2xs uppercase tracking-wide flex items-center justify-center gap-1.5">
-              <span>🏆</span> <span>${m.result}</span>
+            <div class="space-y-1.5">
+              <div class="text-xs bg-emerald-50 border border-emerald-300 text-emerald-950 font-black p-2 rounded-xl text-center shadow-2xs uppercase tracking-wide flex items-center justify-center gap-1.5">
+                <span>🏆</span> <span>${m.result}</span>
+              </div>
+              ${(() => {
+                const potm = window.getMatchPotm(m);
+                return potm ? `
+                  <div class="text-[11px] bg-amber-50 border border-amber-300 text-amber-950 font-black p-1.5 rounded-xl text-center shadow-2xs flex items-center justify-center gap-1.5 truncate">
+                    <span>🎖️</span> <span>MAN OF THE MATCH: <strong class="text-slate-900">${potm.name}</strong> (${potm.desc})</span>
+                  </div>
+                ` : '';
+              })()}
             </div>
           ` : (m.tossDetails || liveState.tossDetails) ? `
             <div class="bg-slate-50 border border-slate-200 text-slate-700 text-[10px] font-bold p-1.5 rounded-xl truncate flex items-center gap-1">
@@ -8588,6 +8644,25 @@ export function openMatchCenterModal(fixtureId) {
 
       contentArea.innerHTML = `
         <div class="space-y-3.5 animate-fade-in">
+          ${isCompleted ? (() => {
+            const potm = window.getMatchPotm(fixture);
+            if (!potm) return '';
+            return `
+              <div class="bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 border-2 border-amber-300 text-slate-950 p-3.5 sm:p-4 rounded-3xl shadow-md space-y-1.5 text-center">
+                <div class="text-[10px] font-black uppercase tracking-widest text-slate-950 flex items-center justify-center gap-1.5">
+                  <span>🎖️</span> <span>MAN OF THE MATCH (PLAYER OF THE MATCH)</span>
+                </div>
+                <div class="flex items-center justify-center gap-3 pt-0.5">
+                  ${potm.photoUrl ? `<img src="${potm.photoUrl}" class="w-11 h-11 rounded-2xl object-cover border-2 border-slate-950 shadow-md shrink-0" onerror="this.remove()" />` : `<span class="text-2xl shrink-0">🌟</span>`}
+                  <div class="text-left min-w-0">
+                    <h3 class="text-sm sm:text-base font-black text-slate-950 uppercase leading-none truncate">${potm.name}</h3>
+                    <p class="text-xs font-extrabold text-slate-900 mt-1">Match Impact: ${potm.desc}</p>
+                  </div>
+                </div>
+              </div>
+            `;
+          })() : ''}
+
           <!-- Main Big Score Hero Card -->
           <div class="bg-white border-2 border-emerald-500 rounded-3xl p-4 sm:p-5 shadow-md space-y-3">
             <div class="flex items-center justify-between border-b border-slate-100 pb-3">
