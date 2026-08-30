@@ -11829,11 +11829,16 @@ function renderCareerHubView(container) {
                         </span>
                       </td>
 
-                      <!-- Action Button -->
+                      <!-- Action Buttons -->
                       <td class="py-2.5 px-4 text-right">
-                        <button class="view-career-detail-btn px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-[10px] rounded-lg shadow-xs transition-all hover:scale-105 active:scale-95 cursor-pointer whitespace-nowrap" data-id="${p.id}">
-                          Profile
-                        </button>
+                        <div class="flex items-center justify-end gap-1.5 whitespace-nowrap">
+                          <button class="btn-gen-player-story-card px-2.5 py-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-[10px] rounded-lg shadow-xs transition-all hover:scale-105 active:scale-95 cursor-pointer flex items-center gap-1" data-id="${p.id}" title="Generate PNG Social Story Card">
+                            <span>🎨</span> <span>Story Card</span>
+                          </button>
+                          <button class="view-career-detail-btn px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-[10px] rounded-lg shadow-xs transition-all hover:scale-105 active:scale-95 cursor-pointer whitespace-nowrap" data-id="${p.id}">
+                            Profile
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   `;
@@ -11898,6 +11903,19 @@ function renderCareerHubView(container) {
       btn.addEventListener('click', (e) => {
         const playerId = e.currentTarget.getAttribute('data-id');
         openCareerDetailModal(playerId);
+      });
+    });
+
+    // Story Card Generator Event
+    container.querySelectorAll('.btn-gen-player-story-card').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const pid = e.currentTarget.getAttribute('data-id');
+        const pObj = store.getPlayerById ? store.getPlayerById(pid) : store.getPlayers().find(x => x.id === pid);
+        if (!pObj) return;
+        const team = store.getTeamById(pObj.teamId);
+        const tourney = store.getLeagueById(pObj.leagueId || store.activeTournamentId) || store.getCustomTournamentById(pObj.tournamentId) || { name: 'CRICKET PREMIER LEAGUE' };
+        exportPlayerSocialCard(pObj, team, tourney);
       });
     });
   };
@@ -12090,9 +12108,14 @@ function openCareerDetailModal(playerId) {
           </div>
         </div>
 
-        <button id="close-career-detail-btn-bottom" class="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow transition-colors">
-          Close Profile
-        </button>
+        <div class="flex gap-2 pt-1">
+          <button id="btn-career-social-story" class="flex-1 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all">
+            <span>🎨</span> Story Card (PNG)
+          </button>
+          <button id="close-career-detail-btn-bottom" class="py-2 px-4 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow transition-colors cursor-pointer">
+            Close
+          </button>
+        </div>
       </div>
     </div>
   `;
@@ -12103,6 +12126,12 @@ function openCareerDetailModal(playerId) {
   const removeModal = () => document.getElementById('career-detail-modal')?.remove();
   document.getElementById('close-career-detail-btn')?.addEventListener('click', removeModal);
   document.getElementById('close-career-detail-btn-bottom')?.addEventListener('click', removeModal);
+
+  document.getElementById('btn-career-social-story')?.addEventListener('click', () => {
+    const team = store.getTeamById(playerReg.teamId);
+    const tourney = store.getLeagueById(playerReg.leagueId || store.activeTournamentId) || store.getCustomTournamentById(playerReg.tournamentId) || { name: 'CRICKET PREMIER LEAGUE' };
+    exportPlayerSocialCard(playerReg, team, tourney);
+  });
 }
 
 function openTeamSquadModal(team) {
