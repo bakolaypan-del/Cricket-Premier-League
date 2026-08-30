@@ -2489,7 +2489,9 @@ export function renderCustomTournamentHub(container, tourney) {
                       (tourneySlug.includes('cgl') && (pTid.includes('cgl') || pSlug.includes('cgl') || pTName.includes('CGL'))) ||
                       (tourneySlug.includes('kota') && (pTid.includes('kpl') || pSlug.includes('kpl') || pTName.includes('KOTA'))) ||
                       (tourneySlug.includes('khirpai') && (pTid.includes('khirpai') || pSlug.includes('khirpai') || pTName.includes('KHIRPAI'))) ||
-                      (isJsl && (pTid.includes('jsl') || pSlug.includes('jsl') || pTName.includes('JHANKRA') || pTName.includes('JSL')));
+                      (tourneySlug.includes('kuapur') && (pTid.includes('kuapur') || pTid.includes('kpl') || pSlug.includes('kuapur') || pSlug.includes('kpl') || pTName.includes('KUAPUR') || pTName.includes('KPL'))) ||
+                      (isJsl && (pTid.includes('jsl') || pSlug.includes('jsl') || pTName.includes('JHANKRA') || pTName.includes('JSL'))) ||
+                      (p.teamId && allTeams.some(t => t.id === p.teamId || (p.teamId && t.id && toUUID(t.id) === toUUID(p.teamId))));
 
       if (isMatch) {
         const uKey = p.id || (p.phone ? p.phone.replace(/[^0-9]/g, '') : Math.random());
@@ -10547,8 +10549,8 @@ function renderLiveAuctionView(container) {
       }
     }
 
-    const teams = store.getTeams();
-    const allPlayers = store.getPlayers();
+    const teams = (store.getAllTeamsAcrossTournaments ? store.getAllTeamsAcrossTournaments() : store.getTeams());
+    const allPlayers = (store.getAllPlayersAcrossTournaments ? store.getAllPlayersAcrossTournaments() : store.getPlayers());
 
     // 1. Render / Update Active Bidding Block
     renderActiveBlock(state, teams, allPlayers);
