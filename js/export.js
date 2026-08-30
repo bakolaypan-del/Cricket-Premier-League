@@ -1454,9 +1454,9 @@ export function exportMatchScorecardPDF(fixture, tourney) {
               </tr>
             </thead>
             <tbody>
-              ${inn1Batters.map(b => `
+              ${inn1Batters.map((b, idx) => `
                 <tr>
-                  <td class="font-bold">${b.name}</td>
+                  <td class="font-bold">${idx + 1}. ${b.name}</td>
                   <td style="color:#64748B;">${b.dismissal || 'not out'}</td>
                   <td class="text-right font-bold font-mono">${b.runs || 0}</td>
                   <td class="text-right font-mono">${b.balls || 0}</td>
@@ -1518,9 +1518,9 @@ export function exportMatchScorecardPDF(fixture, tourney) {
               </tr>
             </thead>
             <tbody>
-              ${inn2Batters.map(b => `
+              ${inn2Batters.map((b, idx) => `
                 <tr>
-                  <td class="font-bold">${b.name}</td>
+                  <td class="font-bold">${idx + 1}. ${b.name}</td>
                   <td style="color:#64748B;">${b.dismissal || 'not out'}</td>
                   <td class="text-right font-bold font-mono">${b.runs || 0}</td>
                   <td class="text-right font-mono">${b.balls || 0}</td>

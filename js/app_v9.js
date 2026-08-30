@@ -8803,27 +8803,61 @@ export function openMatchCenterModal(fixtureId) {
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100 font-bold">
-                  ${battingPlayers.map(p => {
-                    const stat = pStats[p.id] || {};
-                    const hasBatted = (stat.balls > 0 || stat.runs > 0 || stat.dismissed || state.strikerId === p.id || state.nonStrikerId === p.id);
-                    const isOut = stat.dismissed;
-                    const sr = stat.balls > 0 ? (((stat.runs || 0) / stat.balls) * 100).toFixed(1) : '-';
-                    const dismissalTxt = isOut ? `out (${stat.dismissalInfo || 'Dismissed'})` : (hasBatted ? `<span class="text-emerald-700 font-bold">not out *</span>` : `<span class="text-slate-400 font-normal">did not bat</span>`);
+                  ${(() => {
+                    const ballHistory = state.ballHistory || state.ballLog || [];
+                    const firstSeenMap = {};
+                    ballHistory.forEach((b, idx) => {
+                      if (b.strikerId && firstSeenMap[b.strikerId] === undefined) firstSeenMap[b.strikerId] = idx;
+                      if (b.nonStrikerId && firstSeenMap[b.nonStrikerId] === undefined) firstSeenMap[b.nonStrikerId] = idx;
+                    });
 
-                    return `
-                      <tr class="${hasBatted ? 'hover:bg-slate-50' : 'opacity-60'}">
-                        <td class="py-2 px-2">
-                          <div class="font-black text-slate-900">${p.name} ${p.isCaptain ? '<span class="text-[9px] bg-amber-400 text-slate-950 px-1 py-0.2 rounded">C</span>' : ''}</div>
-                          <div class="text-[10px] font-medium text-slate-500">${dismissalTxt}</div>
-                        </td>
-                        <td class="py-2 px-2 text-center font-black font-mono ${hasBatted ? 'text-slate-900' : 'text-slate-400'}">${hasBatted ? (stat.runs || 0) : '-'}</td>
-                        <td class="py-2 px-2 text-center font-mono ${hasBatted ? 'text-slate-700' : 'text-slate-400'}">${hasBatted ? (stat.balls || 0) : '-'}</td>
-                        <td class="py-2 px-2 text-center font-mono ${hasBatted ? 'text-slate-700' : 'text-slate-400'}">${hasBatted ? (stat.fours || 0) : '-'}</td>
-                        <td class="py-2 px-2 text-center font-mono ${hasBatted ? 'text-slate-700' : 'text-slate-400'}">${hasBatted ? (stat.sixes || 0) : '-'}</td>
-                        <td class="py-2 px-2 text-right font-mono ${hasBatted ? 'text-slate-700' : 'text-slate-400'}">${sr}</td>
-                      </tr>
-                    `;
-                  }).join('')}
+                    const orderedBatting = [...(battingPlayers || [])].sort((a, b) => {
+                      const statA = pStats[a.id] || {};
+                      const statB = pStats[b.id] || {};
+
+                      const hasBattedA = (statA.balls > 0 || statA.runs > 0 || statA.dismissed || state.strikerId === a.id || state.nonStrikerId === a.id);
+                      const hasBattedB = (statB.balls > 0 || statB.runs > 0 || statB.dismissed || state.strikerId === b.id || state.nonStrikerId === b.id);
+
+                      if (hasBattedA && !hasBattedB) return -1;
+                      if (!hasBattedA && hasBattedB) return 1;
+
+                      if (hasBattedA && hasBattedB) {
+                        if (typeof statA.battingOrder === 'number' && typeof statB.battingOrder === 'number') {
+                          return statA.battingOrder - statB.battingOrder;
+                        }
+                        const seenA = firstSeenMap[a.id] ?? 9999;
+                        const seenB = firstSeenMap[b.id] ?? 9999;
+                        if (seenA !== seenB) return seenA - seenB;
+                      }
+
+                      return 0;
+                    });
+
+                    return orderedBatting.map((p, idx) => {
+                      const stat = pStats[p.id] || {};
+                      const hasBatted = (stat.balls > 0 || stat.runs > 0 || stat.dismissed || state.strikerId === p.id || state.nonStrikerId === p.id);
+                      const isOut = stat.dismissed;
+                      const sr = stat.balls > 0 ? (((stat.runs || 0) / stat.balls) * 100).toFixed(1) : '-';
+                      const dismissalTxt = isOut ? `out (${stat.dismissalInfo || 'Dismissed'})` : (hasBatted ? `<span class="text-emerald-700 font-bold">not out *</span>` : `<span class="text-slate-400 font-normal">did not bat</span>`);
+
+                      return `
+                        <tr class="${hasBatted ? 'hover:bg-slate-50' : 'opacity-60'}">
+                          <td class="py-2 px-2">
+                            <div class="font-black text-slate-900 flex items-center gap-1.5">
+                              <span class="text-slate-400 font-mono text-[10px] w-4 text-right shrink-0">${idx + 1}.</span>
+                              <span class="truncate">${p.name} ${p.isCaptain ? '<span class="text-[9px] bg-amber-400 text-slate-950 px-1 py-0.2 rounded">C</span>' : ''}</span>
+                            </div>
+                            <div class="text-[10px] font-medium text-slate-500 pl-5.5">${dismissalTxt}</div>
+                          </td>
+                          <td class="py-2 px-2 text-center font-black font-mono ${hasBatted ? 'text-slate-900' : 'text-slate-400'}">${hasBatted ? (stat.runs || 0) : '-'}</td>
+                          <td class="py-2 px-2 text-center font-mono ${hasBatted ? 'text-slate-700' : 'text-slate-400'}">${hasBatted ? (stat.balls || 0) : '-'}</td>
+                          <td class="py-2 px-2 text-center font-mono ${hasBatted ? 'text-slate-700' : 'text-slate-400'}">${hasBatted ? (stat.fours || 0) : '-'}</td>
+                          <td class="py-2 px-2 text-center font-mono ${hasBatted ? 'text-slate-700' : 'text-slate-400'}">${hasBatted ? (stat.sixes || 0) : '-'}</td>
+                          <td class="py-2 px-2 text-right font-mono ${hasBatted ? 'text-slate-700' : 'text-slate-400'}">${sr}</td>
+                        </tr>
+                      `;
+                    }).join('');
+                  })()}
                 </tbody>
               </table>
             </div>
