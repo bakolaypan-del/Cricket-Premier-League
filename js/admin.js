@@ -1,8 +1,8 @@
 // Admin Master Data & Payment Verification Panel with Single Source Cloud Control (Developer: Suman Kolay)
 
-import { store } from './store.js?v=13.0.32';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.32';
-import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID, compressImageToTarget } from './supabase.js?v=13.0.32';
+import { store } from './store.js?v=13.0.33';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.33';
+import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID, compressImageToTarget } from './supabase.js?v=13.0.33';
 import { shops } from './shopsData.js?v=12.0.2';
 
 let activeAdminTab = (() => { try { return sessionStorage.getItem('cpl_admin_tab') || (store.isMasterAdmin() ? 'payments' : 'overview'); } catch(e) { return 'payments'; } })();
@@ -650,36 +650,58 @@ export function renderAdminDashboard(containerEl) {
                   </div>
                 </div>
 
-                <!-- Dynamic Bid Increment Slabs -->
-                <div class="p-3 bg-amber-50/40 rounded-2xl border border-amber-200/80 space-y-2">
-                  <div class="flex items-center justify-between">
-                    <span class="text-[10.5px] font-black text-amber-900 uppercase tracking-wider flex items-center gap-1">
-                      <span>📈</span> Tiered Bid Increment Rules
-                    </span>
-                    <span class="text-[9px] font-bold text-amber-700">Tournament Slabs</span>
+                <!-- Dynamic Bid Increment Slabs Manager (Unlimited Customizable Slabs) -->
+                <div class="p-3.5 bg-gradient-to-br from-amber-50/50 to-orange-50/30 rounded-2xl border border-amber-200/80 space-y-2.5">
+                  <div class="flex items-center justify-between gap-2">
+                    <div>
+                      <span class="text-[11px] font-black text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
+                        <span>📈</span> Dynamic Bid Increment Slabs
+                      </span>
+                      <p class="text-[9.5px] text-slate-500 font-medium">Add, remove, or customize any price threshold & increment amount</p>
+                    </div>
+                    <button type="button" id="auction-add-slab-row-btn" class="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 text-[10px] font-black rounded-lg shadow-2xs cursor-pointer flex items-center gap-1 transition-all active:scale-95">
+                      <span>+</span> Add Slab
+                    </button>
                   </div>
-                  <div class="grid grid-cols-3 gap-2">
-                    <div>
-                      <label class="block text-[9px] font-bold text-slate-600 uppercase mb-0.5">Up to ₹1,000</label>
-                      <div class="flex items-center gap-1">
-                        <span class="text-[10px] font-bold text-slate-500">+₹</span>
-                        <input type="number" id="auction-slab-1" value="${store.getAuctionSettings().bidIncrementSlabs?.[0]?.increment || 50}" min="10" step="10" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-lg p-1.5" />
-                      </div>
-                    </div>
-                    <div>
-                      <label class="block text-[9px] font-bold text-slate-600 uppercase mb-0.5">₹1,000 - ₹2,000</label>
-                      <div class="flex items-center gap-1">
-                        <span class="text-[10px] font-bold text-slate-500">+₹</span>
-                        <input type="number" id="auction-slab-2" value="${store.getAuctionSettings().bidIncrementSlabs?.[1]?.increment || 100}" min="10" step="10" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-lg p-1.5" />
-                      </div>
-                    </div>
-                    <div>
-                      <label class="block text-[9px] font-bold text-slate-600 uppercase mb-0.5">Above ₹2,000</label>
-                      <div class="flex items-center gap-1">
-                        <span class="text-[10px] font-bold text-slate-500">+₹</span>
-                        <input type="number" id="auction-slab-3" value="${store.getAuctionSettings().bidIncrementSlabs?.[2]?.increment || 200}" min="10" step="10" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-lg p-1.5" />
-                      </div>
-                    </div>
+
+                  <!-- Quick Presets -->
+                  <div class="flex items-center gap-1.5 flex-wrap pt-0.5">
+                    <span class="text-[9px] font-bold text-slate-500 uppercase">Presets:</span>
+                    <button type="button" class="auction-slab-preset-btn px-2 py-0.5 bg-white hover:bg-amber-100 text-slate-700 hover:text-amber-900 border border-slate-300 text-[9.5px] font-bold rounded-md cursor-pointer transition-all" data-preset="standard">Standard (+₹50 / +₹100 / +₹200)</button>
+                    <button type="button" class="auction-slab-preset-btn px-2 py-0.5 bg-white hover:bg-amber-100 text-slate-700 hover:text-amber-900 border border-slate-300 text-[9.5px] font-bold rounded-md cursor-pointer transition-all" data-preset="ipl">High Budget (+₹100 / +₹250 / +₹500)</button>
+                    <button type="button" class="auction-slab-preset-btn px-2 py-0.5 bg-white hover:bg-amber-100 text-slate-700 hover:text-amber-900 border border-slate-300 text-[9.5px] font-bold rounded-md cursor-pointer transition-all" data-preset="flat100">Flat (+₹100)</button>
+                  </div>
+
+                  <!-- Slabs Container -->
+                  <div id="auction-slabs-container" class="space-y-1.5 pt-1">
+                    ${(() => {
+                      const currentSlabs = store.getAuctionSettings().bidIncrementSlabs || [
+                        { maxLimit: 1000, increment: 50 },
+                        { maxLimit: 2000, increment: 100 },
+                        { maxLimit: 999999, increment: 200 }
+                      ];
+                      return currentSlabs.map((slab, idx, arr) => {
+                        const isLast = idx === arr.length - 1;
+                        return `
+                          <div class="auction-slab-row flex items-center gap-2 bg-white p-2 rounded-xl border border-slate-200 shadow-2xs">
+                            <span class="text-[10px] font-black text-amber-900 font-mono w-5 shrink-0">#${idx + 1}</span>
+                            <div class="flex items-center gap-1 flex-1 min-w-0">
+                              <span class="text-[10px] text-slate-500 font-bold shrink-0">${isLast ? 'Above ₹' : 'Up to ₹'}</span>
+                              <input type="number" class="slab-limit-input w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs font-bold rounded-lg p-1 font-mono" value="${isLast ? (arr[idx - 1]?.maxLimit || 2000) : (slab.maxLimit || 1000)}" ${isLast ? 'disabled' : 'min="100" step="100"'} />
+                            </div>
+                            <div class="flex items-center gap-1 w-28 shrink-0">
+                              <span class="text-[10px] text-emerald-700 font-black shrink-0">+₹</span>
+                              <input type="number" class="slab-inc-input w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs font-bold rounded-lg p-1 font-mono" value="${slab.increment || 50}" min="10" step="10" />
+                            </div>
+                            ${arr.length > 1 ? `
+                              <button type="button" class="auction-delete-slab-btn p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer transition-colors shrink-0" title="Delete Slab">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                              </button>
+                            ` : '<div class="w-6 shrink-0"></div>'}
+                          </div>
+                        `;
+                      }).join('');
+                    })()}
                   </div>
                 </div>
 
@@ -689,13 +711,7 @@ export function renderAdminDashboard(containerEl) {
               </form>
 
               <!-- Auction Reset Danger Zone -->
-              <div class="border-t border-slate-100 pt-2.5 space-y-2">
-                <button type="button" id="admin-seed-100-players-btn" class="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-xs rounded-xl shadow-xs flex items-center justify-center gap-2 transition-all cursor-pointer">
-                  <span>⚡</span> Generate 100+ Test Players with HD Photos
-                </button>
-                <button type="button" id="admin-seed-mock-auction-btn" class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-xs flex items-center justify-center gap-2 transition-all cursor-pointer">
-                  <span>🔨</span> Run Mock Auction & Draft into Squads
-                </button>
+              <div class="border-t border-slate-100 pt-2.5">
                 <button type="button" id="admin-reset-auction-btn" class="w-full py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-xl border border-rose-300 flex items-center justify-center gap-1.5 transition-all shadow-2xs cursor-pointer">
                   <i data-lucide="rotate-ccw" class="w-3.5 h-3.5 text-rose-600"></i> Revert Sold Players & Reset Purses
                 </button>
@@ -1698,6 +1714,95 @@ export function renderAdminDashboard(containerEl) {
     }
   });
 
+  // Helper to re-render Dynamic Slab Rows
+  const renderSlabRows = (slabs) => {
+    const container = document.getElementById('auction-slabs-container');
+    if (!container) return;
+    container.innerHTML = slabs.map((slab, idx, arr) => {
+      const isLast = idx === arr.length - 1;
+      return `
+        <div class="auction-slab-row flex items-center gap-2 bg-white p-2 rounded-xl border border-slate-200 shadow-2xs">
+          <span class="text-[10px] font-black text-amber-900 font-mono w-5 shrink-0">#${idx + 1}</span>
+          <div class="flex items-center gap-1 flex-1 min-w-0">
+            <span class="text-[10px] text-slate-500 font-bold shrink-0">${isLast ? 'Above ₹' : 'Up to ₹'}</span>
+            <input type="number" class="slab-limit-input w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs font-bold rounded-lg p-1 font-mono" value="${isLast ? (arr[idx - 1]?.maxLimit || 2000) : (slab.maxLimit || 1000)}" ${isLast ? 'disabled' : 'min="100" step="100"'} />
+          </div>
+          <div class="flex items-center gap-1 w-28 shrink-0">
+            <span class="text-[10px] text-emerald-700 font-black shrink-0">+₹</span>
+            <input type="number" class="slab-inc-input w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs font-bold rounded-lg p-1 font-mono" value="${slab.increment || 50}" min="10" step="10" />
+          </div>
+          ${arr.length > 1 ? `
+            <button type="button" class="auction-delete-slab-btn p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer transition-colors shrink-0" title="Delete Slab">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+            </button>
+          ` : '<div class="w-6 shrink-0"></div>'}
+        </div>
+      `;
+    }).join('');
+    if (window.lucide) window.lucide.createIcons();
+    attachSlabListeners();
+  };
+
+  const getSlabsFromUI = () => {
+    const rows = document.querySelectorAll('.auction-slab-row');
+    const slabs = [];
+    rows.forEach((row, idx) => {
+      const isLast = idx === rows.length - 1;
+      const maxLimit = isLast ? 999999 : (Number(row.querySelector('.slab-limit-input')?.value) || 1000);
+      const increment = Number(row.querySelector('.slab-inc-input')?.value) || 50;
+      slabs.push({ maxLimit, increment });
+    });
+    return slabs;
+  };
+
+  const attachSlabListeners = () => {
+    document.querySelectorAll('.auction-delete-slab-btn').forEach((btn, btnIdx) => {
+      btn.onclick = () => {
+        const current = getSlabsFromUI();
+        if (current.length > 1) {
+          current.splice(btnIdx, 1);
+          if (current.length > 0) current[current.length - 1].maxLimit = 999999;
+          renderSlabRows(current);
+        }
+      };
+    });
+  };
+
+  attachSlabListeners();
+
+  // Add Slab button handler
+  document.getElementById('auction-add-slab-row-btn')?.addEventListener('click', () => {
+    const current = getSlabsFromUI();
+    const prevLimit = current.length > 1 ? (current[current.length - 2]?.maxLimit || 1000) : 1000;
+    const newLimit = prevLimit + 1000;
+    const newInc = (current[current.length - 1]?.increment || 100) + 50;
+
+    if (current.length > 0) {
+      current[current.length - 1].maxLimit = newLimit;
+      current.push({ maxLimit: 999999, increment: newInc });
+    } else {
+      current.push({ maxLimit: 1000, increment: 50 });
+      current.push({ maxLimit: 999999, increment: 100 });
+    }
+    renderSlabRows(current);
+  });
+
+  // Preset buttons handler
+  document.querySelectorAll('.auction-slab-preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const preset = btn.getAttribute('data-preset');
+      let presetSlabs = [];
+      if (preset === 'standard') {
+        presetSlabs = [{ maxLimit: 1000, increment: 50 }, { maxLimit: 2000, increment: 100 }, { maxLimit: 999999, increment: 200 }];
+      } else if (preset === 'ipl') {
+        presetSlabs = [{ maxLimit: 2000, increment: 100 }, { maxLimit: 5000, increment: 250 }, { maxLimit: 999999, increment: 500 }];
+      } else if (preset === 'flat100') {
+        presetSlabs = [{ maxLimit: 999999, increment: 100 }];
+      }
+      if (presetSlabs.length > 0) renderSlabRows(presetSlabs);
+    });
+  });
+
   // Bind Auction Settings Form Submit
   document.getElementById('admin-auction-settings-form')?.addEventListener('submit', (e) => {
     e.preventDefault();
@@ -1705,18 +1810,10 @@ export function renderAdminDashboard(containerEl) {
     const defaultPurseBudget = Number(document.getElementById('auction-setting-purse-budget')?.value) || 8000;
     const defaultIconPrice = Number(document.getElementById('auction-setting-icon-price')?.value) || 1000;
     const maxSquadSize = Number(document.getElementById('auction-setting-squad-size')?.value) || 13;
-    const slab1Inc = Number(document.getElementById('auction-slab-1')?.value) || 50;
-    const slab2Inc = Number(document.getElementById('auction-slab-2')?.value) || 100;
-    const slab3Inc = Number(document.getElementById('auction-slab-3')?.value) || 200;
-
-    const bidIncrementSlabs = [
-      { maxLimit: 1000, increment: slab1Inc },
-      { maxLimit: 2000, increment: slab2Inc },
-      { maxLimit: 999999, increment: slab3Inc }
-    ];
+    const bidIncrementSlabs = getSlabsFromUI();
 
     store.updateAuctionSettings({ defaultBasePrice, defaultPurseBudget, defaultIconPrice, maxSquadSize, bidIncrementSlabs });
-    alert(`✅ Tournament Auction parameters, Icon Price (₹${defaultIconPrice}), Squad Target (${maxSquadSize}/team) & Bid Slabs updated successfully!`);
+    alert(`✅ Tournament Auction parameters, Icon Price (₹${defaultIconPrice}), Squad Target (${maxSquadSize}/team) & ${bidIncrementSlabs.length} Dynamic Bid Slabs updated successfully!`);
     renderAdminDashboard(containerEl);
   });
 

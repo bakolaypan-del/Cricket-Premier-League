@@ -56,7 +56,7 @@ import {
   toUUID,
   fetchGlobalUniquePlayersCount,
   updateTournamentApprovalStatus
-} from './supabase.js?v=13.0.32';
+} from './supabase.js?v=13.0.33';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -1913,18 +1913,19 @@ class Store {
 
   calculateNextBidIncrement(currentBid) {
     const settings = this.getAuctionSettings();
-    const slabs = settings.bidIncrementSlabs || [
+    const rawSlabs = settings.bidIncrementSlabs || [
       { maxLimit: 1000, increment: 50 },
       { maxLimit: 2000, increment: 100 },
       { maxLimit: 999999, increment: 200 }
     ];
+    const slabs = [...rawSlabs].sort((a, b) => (Number(a.maxLimit) || 999999) - (Number(b.maxLimit) || 999999));
     const numBid = Number(currentBid) || 0;
     for (const slab of slabs) {
       if (numBid < Number(slab.maxLimit || Infinity)) {
         return Number(slab.increment) || 50;
       }
     }
-    return slabs[slabs.length - 1]?.increment || 200;
+    return Number(slabs[slabs.length - 1]?.increment) || 200;
   }
 
   updateAuctionSettings(settings) {
