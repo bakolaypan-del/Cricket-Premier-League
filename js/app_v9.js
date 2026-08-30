@@ -1,15 +1,15 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=13.0.12';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.0';
-import { renderAdminDashboard } from './admin.js?v=13.0.12';
-import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.12';
-import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.0';
+import { store } from './store.js?v=13.0.14';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.14';
+import { renderAdminDashboard } from './admin.js?v=13.0.14';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.14';
+import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.14';
 import { shops } from './shopsData.js?v=12.0.2';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
 const CARD_OUTLINE_COLORS = ['#10b981','#3b82f6','#f59e0b','#f43f5e','#a855f7','#14b8a6','#f97316','#6366f1','#ec4899','#06b6d4'];
-let latestVisitorStats = { liveCount: 1, totalVisits: 286 };
+let latestVisitorStats = { liveCount: 1, totalVisits: 259 };
 
 const CRICKET_THUMBNAILS = [
   { gradient: 'from-emerald-800 via-teal-700 to-green-900', emoji: '🏏', pattern: 'Cricket Stadium' },
@@ -134,13 +134,16 @@ function initApp() {
     }
   }
 
-  // Initialize Real-time Live & Total Visitor Tracking
+  // Initialize Real-time Live & Total Visitor Tracking & Global Unique Player Count
   initVisitorTracking((stats) => {
     latestVisitorStats = stats;
     const liveEl = document.getElementById('live-visitors-count');
     const totalEl = document.getElementById('total-visitors-count');
+    const regEl = document.getElementById('landing-registered-count');
     if (liveEl) liveEl.textContent = stats.liveCount;
     if (totalEl) totalEl.textContent = Number(stats.totalVisits).toLocaleString('en-IN');
+    if (regEl && store.getTotalRegisteredPlayersCount) regEl.textContent = store.getTotalRegisteredPlayersCount();
+    if (store.syncGlobalPlayersCount) store.syncGlobalPlayersCount();
   });
 
   // Initialize Web Push Notifications & Live Match Alerts
@@ -197,7 +200,7 @@ function initApp() {
     // IF ON HOME/LANDING PAGE, NEVER WIPE OR FLASH THE SCREEN: Smooth in-place updates only
     if (currentRoute === 'landing') {
       const regCountEl = document.getElementById('landing-registered-count');
-      if (regCountEl) regCountEl.textContent = store.getPlayers().length;
+      if (regCountEl) regCountEl.textContent = store.getTotalRegisteredPlayersCount ? store.getTotalRegisteredPlayersCount() : store.getPlayers().length;
       return;
     }
 

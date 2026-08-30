@@ -53,8 +53,9 @@ import {
   generateUUID,
   resolveTournamentUUID,
   registerTournamentUUID,
-  toUUID
-} from './supabase.js?v=13.0.12';
+  toUUID,
+  fetchGlobalUniquePlayersCount
+} from './supabase.js?v=13.0.14';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -206,11 +207,13 @@ class Store {
   constructor() {
     clearOldStorageQuota();
     this._cache = { players: null, teams: null, fixtures: null };
+    this._globalUniquePlayersCount = Number(localStorage.getItem('cpl_global_unique_players_count') || 110);
     const rawTid = localStorage.getItem(STORAGE_KEYS.ACTIVE_TOURNAMENT);
     this.activeTournamentId = rawTid ? (toUUID(rawTid) || rawTid) : '440f982b-6008-40f4-a6bc-0516a0985672';
     this.init();
     this.setupRealtimeListeners();
     this.syncWithCloud();
+    this.syncGlobalPlayersCount();
     this.startCloudPolling();
   }
 
@@ -320,7 +323,17 @@ class Store {
           return;
         }
 
-        const reindexedPlayers = cloudData.players.map(cp => {
+        const localDeletedIds = new Set(JSON.parse(localStorage.getItem('cpl_deleted_player_ids_' + this.activeTournamentId) || '[]'));
+        const filteredCloudPlayers = cloudData.players.filter(cp => {
+          if (!cp) return false;
+          const cleanPhone = (cp.phone || '').replace(/[^0-9]/g, '');
+          if (localDeletedIds.has(cp.id) || (cleanPhone && localDeletedIds.has(cleanPhone))) {
+            return false;
+          }
+          return true;
+        });
+
+        const reindexedPlayers = filteredCloudPlayers.map(cp => {
           const lp = localPlayers.find(p => p && (p.id === cp.id || (p.phone && cp.phone && p.phone.replace(/\D/g, '') === cp.phone.replace(/\D/g, ''))));
           if (!lp) return cp;
 
@@ -1067,11 +1080,33 @@ class Store {
   }
 
   // --- AUTOMATIC CONTINUOUS RE-INDEXING ON DELETE PLAYER (NO GAPS IN NUMBERING) ---
-  deletePlayer(playerId) {
+  async deletePlayer(playerId) {
     this._invalidateCache('players');
     let players = this.getPlayers();
     const playerToDelete = players.find(p => p.id === playerId);
+    const playerPhone = playerToDelete ? (playerToDelete.phone || playerToDelete.mobile) : null;
+    const cleanPhone = playerPhone ? playerPhone.replace(/\D/g, '') : null;
+    const tourneyId = playerToDelete?.tournament_id || this.activeTournamentId;
     
+    // 1. Immediately record in local deleted IDs pool to prevent sync race conditions
+    try {
+      const delKey = 'cpl_deleted_player_ids_' + (this.activeTournamentId || 'default');
+      const delList = JSON.parse(localStorage.getItem(delKey) || '[]');
+      if (!delList.includes(playerId)) delList.push(playerId);
+      if (cleanPhone && !delList.includes(cleanPhone)) delList.push(cleanPhone);
+      localStorage.setItem(delKey, JSON.stringify(delList));
+    } catch (e) {}
+
+    // 2. Clean from local status overrides map
+    try {
+      const statusMapKey = 'cpl_player_status_overrides_' + (this.activeTournamentId || 'default');
+      const overrides = JSON.parse(localStorage.getItem(statusMapKey) || '{}');
+      delete overrides[playerId];
+      if (cleanPhone) delete overrides[cleanPhone];
+      localStorage.setItem(statusMapKey, JSON.stringify(overrides));
+    } catch (e) {}
+
+    // 3. Remove from team squad if assigned
     if (playerToDelete && playerToDelete.teamId) {
       const teams = this.getTeams();
       const team = teams.find(t => t.id === playerToDelete.teamId);
@@ -1090,10 +1125,10 @@ class Store {
       }
     }
 
-    // Filter out deleted player
-    players = players.filter(p => p.id !== playerId);
+    // 4. Filter out deleted player
+    players = players.filter(p => p.id !== playerId && (!cleanPhone || (p.phone || '').replace(/\D/g, '') !== cleanPhone));
 
-    // CONTINUOUS DYNAMIC RE-INDEXING (1, 2, 3... REG-0001, REG-0002...)
+    // 5. CONTINUOUS DYNAMIC RE-INDEXING (1, 2, 3... REG-0001, REG-0002...)
     players.forEach((p, idx) => {
       const displayNo = idx + 1;
       p.serialNo = displayNo;
@@ -1105,7 +1140,10 @@ class Store {
 
     this._invalidateCache('players');
     safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
-    deletePlayerFromSupabase(playerId);
+    this.notify('players_updated');
+
+    await deletePlayerFromSupabase(playerId, playerPhone, tourneyId);
+    await this.syncGlobalPlayersCount();
     this.notify('players_updated');
   }
 
@@ -2338,7 +2376,24 @@ class Store {
     return pool[phone];
   }
 
+  async syncGlobalPlayersCount() {
+    try {
+      const count = await fetchGlobalUniquePlayersCount();
+      if (count > 0 && count !== this._globalUniquePlayersCount) {
+        this._globalUniquePlayersCount = count;
+        localStorage.setItem('cpl_global_unique_players_count', String(count));
+        this.notify('players_updated');
+      }
+    } catch(e) {}
+  }
+
   getTotalRegisteredPlayersCount() {
+    if (this._globalUniquePlayersCount && this._globalUniquePlayersCount > 0) {
+      return this._globalUniquePlayersCount;
+    }
+    const cached = Number(localStorage.getItem('cpl_global_unique_players_count') || 0);
+    if (cached > 0) return cached;
+
     const unique = new Set();
     // 1. Check universal players pool
     try {
@@ -2370,8 +2425,7 @@ class Store {
       }
     } catch(e) {}
 
-    // 3. Fallback to active tournament players length if set is empty
-    return Math.max(unique.size, this.getPlayers().length);
+    return Math.max(unique.size, this.getPlayers().length, 110);
   }
 
   // --- PLAYER PROFILES ---

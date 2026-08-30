@@ -1,8 +1,8 @@
 // Admin Master Data & Payment Verification Panel with Single Source Cloud Control (Developer: Suman Kolay)
 
-import { store } from './store.js?v=13.0.12';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF } from './export.js?v=13.0.0';
-import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.12';
+import { store } from './store.js?v=13.0.14';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.14';
+import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.14';
 import { shops } from './shopsData.js?v=12.0.2';
 
 let activeAdminTab = (() => { try { return sessionStorage.getItem('cpl_admin_tab') || (store.isMasterAdmin() ? 'payments' : 'overview'); } catch(e) { return 'payments'; } })();
@@ -2163,7 +2163,7 @@ ${tVenue ? `📍 *Venue:* ${tVenue}` : ''}
 
 function bindAdminTableActions(containerEl) {
   // Event Delegation so Delete, Edit, Approve, Reject, Restore & WhatsApp buttons work 100% reliably
-  containerEl.onclick = (e) => {
+  containerEl.onclick = async (e) => {
     // 0. WhatsApp Notify
     const waBtn = e.target.closest('.whatsapp-notify-btn');
     if (waBtn) {
@@ -2178,7 +2178,7 @@ function bindAdminTableActions(containerEl) {
     if (deleteBtn) {
       const pId = deleteBtn.getAttribute('data-delete-id');
       if (pId && confirm("⚠️ Are you sure you want to delete this player registration? Remaining numbers will re-index continuously.")) {
-        store.deletePlayer(pId);
+        await store.deletePlayer(pId);
         renderAdminDashboard(containerEl);
       }
       return;
@@ -2357,7 +2357,7 @@ function renderAdminLoginScreen(containerEl) {
       }
 
       // 2. Try regular user auth for player profiles
-      const userRes = store.authenticateUser(identifier, pass);
+      const userRes = await store.authenticateUser(identifier, pass);
       if (userRes.success) {
         if (userRes.user.role === 'TOURNAMENT_OWNER' || userRes.user.role === 'SUPER_ADMIN') {
           renderAdminDashboard(containerEl);

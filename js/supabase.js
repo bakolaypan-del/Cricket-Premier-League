@@ -463,8 +463,18 @@ export function initRealtimePushListener(onUpdateCallback, tournamentId) {
       activeRealtimeChannel = null;
     }
 
+    const userPresenceId = 'u_' + Math.random().toString(36).substring(2, 9);
     const channel = supabase
       .channel('cpl_universal_realtime_stream')
+      .on('presence', { event: 'sync' }, () => {
+        const state = channel.presenceState();
+        const liveCount = Math.max(1, Object.keys(state).length);
+        if (typeof window !== 'undefined') {
+          window.__cplLiveOnlineCount = liveCount;
+          const liveEl = document.getElementById('live-visitors-count');
+          if (liveEl) liveEl.textContent = liveCount;
+        }
+      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, (payload) => {
         if (typeof onUpdateCallback === 'function') onUpdateCallback(payload);
       })
@@ -480,9 +490,12 @@ export function initRealtimePushListener(onUpdateCallback, tournamentId) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'player_verification_docs' }, (payload) => {
         if (typeof onUpdateCallback === 'function') onUpdateCallback(payload);
       })
-      .subscribe((status) => {
+      .subscribe(async (status) => {
         if (status === 'SUBSCRIBED') {
           console.log("[SUPABASE REALTIME] Connected to universal realtime stream.");
+          try {
+            await channel.track({ online_at: new Date().toISOString(), id: userPresenceId });
+          } catch (e) {}
         }
       });
 
@@ -527,8 +540,17 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
     const regPrefix = (tourneyMeta.category_code || tourneyMeta.slug || 'T').toUpperCase().replace(/[^A-Z0-9]/g, '');
     const playerStatuses = tourneyMeta?.format_config?.player_statuses || {};
     const playerOverrides = tourneyMeta?.format_config?.player_overrides || {};
+    const deletedPlayerIds = new Set(tourneyMeta?.format_config?.deleted_player_ids || []);
 
-    const dbPlayers = (!playersRes.error && Array.isArray(playersRes.data)) ? playersRes.data : [];
+    const rawDbPlayers = (!playersRes.error && Array.isArray(playersRes.data)) ? playersRes.data : [];
+    const dbPlayers = rawDbPlayers.filter(p => {
+      if (!p) return false;
+      const cleanPhone = (p.phone || '').replace(/[^0-9]/g, '');
+      if (deletedPlayerIds.has(p.id) || (cleanPhone && deletedPlayerIds.has(cleanPhone))) {
+        return false;
+      }
+      return true;
+    });
     const dbTeams = (!teamsRes.error && Array.isArray(teamsRes.data)) ? teamsRes.data : [];
     const dbMatches = (!matchesRes.error && Array.isArray(matchesRes.data)) ? matchesRes.data : [];
     const dbDocs = (!docsRes.error && Array.isArray(docsRes.data)) ? docsRes.data : [];
@@ -749,6 +771,15 @@ export async function syncPlayerToSupabase(playerData) {
       console.warn("[SUPABASE] tournament format_config status save warning:", errConfig);
     }
 
+    // Also update players table directly
+    try {
+      await supabase.from('players').update({
+        verified: isApproved,
+        status: isRejected ? 'rejected' : derivePlayerStatus(playerData),
+        updated_at: new Date().toISOString()
+      }).eq('id', playerUUID);
+    } catch (pUpdateErr) {}
+
     // Save/Update Verification Documents (Aadhaar & Payment Proof)
     const idCardFront = playerData.idCardFrontUrl || playerData.id_card_front_url || playerData.aadharPhotoUrl || playerData.aadhaar_url || null;
     const idCardBack = playerData.idCardBackUrl || playerData.id_card_back_url || playerData.aadharBackUrl || null;
@@ -784,12 +815,60 @@ export async function syncPlayerToSupabase(playerData) {
   }
 }
 
-export async function deletePlayerFromSupabase(playerId) {
+export async function deletePlayerFromSupabase(playerId, phone = null, tournamentId = null) {
   if (!supabase || !playerId) return false;
   try {
-    const { error } = await supabase.from('players').delete().eq('id', toUUID(playerId));
-    if (error) throw error;
-    console.log("[SUPABASE] Deleted player:", playerId);
+    const activeTid = (typeof window !== 'undefined' && window.store?.activeTournamentId) ? window.store.activeTournamentId : null;
+    const rawTid = tournamentId || activeTid || DEFAULT_TOURNAMENT_UUID;
+    const tId = await resolveTournamentUUID(rawTid) || toUUID(rawTid) || DEFAULT_TOURNAMENT_UUID;
+    const playerUUID = toUUID(playerId) || playerId;
+    const cleanPhone = (phone || '').replace(/[^0-9]/g, '');
+
+    // 1. Attempt direct delete from players table
+    try {
+      await supabase.from('players').delete().eq('id', playerUUID);
+      if (cleanPhone) {
+        await supabase.from('players').delete().eq('phone', cleanPhone).eq('tournament_id', tId);
+      }
+    } catch (delErr) {}
+
+    // 2. Remove from player_verification_docs
+    try {
+      await supabase.from('player_verification_docs').delete().eq('player_id', playerUUID);
+    } catch (e) {}
+
+    // 3. Persist deletion in tournament format_config to prevent RLS ghost restores
+    try {
+      const { data: currentTourney } = await supabase.from('tournaments').select('id, format_config').eq('id', tId).maybeSingle();
+      if (currentTourney) {
+        const existingConfig = currentTourney.format_config || {};
+        const existingStatuses = existingConfig.player_statuses || {};
+        const existingOverrides = existingConfig.player_overrides || {};
+        const deletedIds = Array.isArray(existingConfig.deleted_player_ids) ? existingConfig.deleted_player_ids : [];
+
+        delete existingStatuses[playerUUID];
+        delete existingStatuses[playerId];
+        if (cleanPhone) delete existingStatuses[cleanPhone];
+
+        delete existingOverrides[playerUUID];
+        delete existingOverrides[playerId];
+        if (cleanPhone) delete existingOverrides[cleanPhone];
+
+        if (!deletedIds.includes(playerUUID)) deletedIds.push(playerUUID);
+        if (!deletedIds.includes(playerId)) deletedIds.push(playerId);
+        if (cleanPhone && !deletedIds.includes(cleanPhone)) deletedIds.push(cleanPhone);
+
+        existingConfig.player_statuses = existingStatuses;
+        existingConfig.player_overrides = existingOverrides;
+        existingConfig.deleted_player_ids = deletedIds;
+
+        await supabase.from('tournaments').update({ format_config: existingConfig }).eq('id', currentTourney.id);
+        console.log("[SUPABASE] Persisted permanent player deletion in tournament cloud config:", playerId);
+      }
+    } catch (errConfig) {
+      console.warn("[SUPABASE] format_config delete error:", errConfig);
+    }
+
     return true;
   } catch (err) {
     console.warn("[SUPABASE] deletePlayerFromSupabase notice:", err);
@@ -1313,18 +1392,35 @@ export async function saveUserAccountToCloud(account) {
 // --- LIVE & TOTAL VISITOR TRACKER (visitor_stats table) ---
 export async function initVisitorTracking(onStatsChange, tournamentId = null) {
   if (!supabase) {
-    if (typeof onStatsChange === 'function') onStatsChange({ totalVisits: 0, liveCount: 1 });
+    if (typeof onStatsChange === 'function') onStatsChange({ totalVisits: 259, liveCount: 1 });
     return;
   }
   try {
     const tId = toUUID(tournamentId) || toUUID(typeof window !== 'undefined' && window.store?.activeTournamentId) || DEFAULT_TOURNAMENT_UUID;
     const { data } = await supabase.from('visitor_stats').select('*').eq('tournament_id', tId).maybeSingle();
-    const stats = data || { total_visitors: 0, live_online: 1 };
-    const newTotal = (stats.total_visitors || 0) + 1;
-    await supabase.from('visitor_stats').upsert({ id: data?.id || undefined, tournament_id: tId, total_visitors: newTotal, unique_visitors: stats.unique_visitors || 0, live_online: (stats.live_online || 0) + 1, updated_at: new Date().toISOString() }, { onConflict: 'id' });
-    if (typeof onStatsChange === 'function') onStatsChange({ totalVisits: newTotal, liveCount: (stats.live_online || 0) + 1 });
+    const stats = data || { total_visitors: 259, live_online: 1 };
+    
+    let newTotal = stats.total_visitors || 259;
+    const isNewSession = typeof sessionStorage !== 'undefined' && !sessionStorage.getItem('cpl_visit_logged');
+    if (isNewSession) {
+      newTotal = newTotal + 1;
+      try { sessionStorage.setItem('cpl_visit_logged', 'true'); } catch (e) {}
+      await supabase.from('visitor_stats').upsert({
+        id: data?.id || undefined,
+        tournament_id: tId,
+        total_visitors: newTotal,
+        unique_visitors: stats.unique_visitors || 0,
+        live_online: Math.max(1, typeof window !== 'undefined' && window.__cplLiveOnlineCount ? window.__cplLiveOnlineCount : 1),
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'id' });
+    }
+
+    const currentLive = Math.max(1, typeof window !== 'undefined' && window.__cplLiveOnlineCount ? window.__cplLiveOnlineCount : (stats.live_online && stats.live_online < 50 ? stats.live_online : 1));
+    if (typeof onStatsChange === 'function') {
+      onStatsChange({ totalVisits: newTotal, liveCount: currentLive });
+    }
   } catch (e) {
-    if (typeof onStatsChange === 'function') onStatsChange({ totalVisits: 0, liveCount: 1 });
+    if (typeof onStatsChange === 'function') onStatsChange({ totalVisits: 259, liveCount: 1 });
   }
 }
 
@@ -1502,6 +1598,47 @@ export async function fetchVisitorStats(callback) {
     if (callback) callback(d);
     return d;
   }
+}
+
+export async function fetchGlobalUniquePlayersCount() {
+  if (!supabase) return 0;
+  try {
+    const [playersRes, tourneyRes] = await Promise.all([
+      supabase.from('players').select('id, phone, name, tournament_id'),
+      supabase.from('tournaments').select('id, format_config')
+    ]);
+    const data = playersRes.data || [];
+    const tourneys = tourneyRes.data || [];
+
+    const deletedByTourney = new Map();
+    tourneys.forEach(t => {
+      if (Array.isArray(t.format_config?.deleted_player_ids)) {
+        deletedByTourney.set(t.id, new Set(t.format_config.deleted_player_ids));
+      }
+    });
+
+    if (Array.isArray(data)) {
+      const unique = new Set();
+      data.forEach(p => {
+        const clean = (p.phone || '').replace(/[^0-9]/g, '');
+        const tourneyDeleted = deletedByTourney.get(p.tournament_id);
+        if (tourneyDeleted) {
+          if (tourneyDeleted.has(p.id) || (clean && tourneyDeleted.has(clean))) {
+            return;
+          }
+        }
+        if (clean && clean.length >= 10) {
+          unique.add(clean);
+        } else if (p.id) {
+          unique.add(p.id);
+        }
+      });
+      return unique.size;
+    }
+  } catch (e) {
+    console.warn("[SUPABASE] fetchGlobalUniquePlayersCount warning:", e);
+  }
+  return 0;
 }
 
 // ==============================================================================
