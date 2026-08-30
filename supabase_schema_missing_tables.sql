@@ -63,7 +63,8 @@ CREATE POLICY "Master admin full access on auction archives" ON public.auction_a
 -- 15. USER ACCOUNTS (Phone-Based Player/Owner Auth - Transition Table)
 CREATE TABLE IF NOT EXISTS public.user_accounts (
   phone TEXT PRIMARY KEY,
-  password TEXT NOT NULL,
+  password TEXT,
+  password_hash TEXT,
   name TEXT DEFAULT 'Player',
   role TEXT DEFAULT 'PLAYER' CHECK (role IN ('PLAYER', 'TOURNAMENT_OWNER', 'SUPER_ADMIN')),
   player_id TEXT,
@@ -73,6 +74,9 @@ CREATE TABLE IF NOT EXISTS public.user_accounts (
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
+
+ALTER TABLE public.user_accounts ADD COLUMN IF NOT EXISTS password_hash TEXT;
+ALTER TABLE public.user_accounts ADD COLUMN IF NOT EXISTS password TEXT;
 
 ALTER TABLE public.user_accounts ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users can read own account" ON public.user_accounts FOR SELECT USING (true);

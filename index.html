@@ -40,8 +40,13 @@
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
 
-  <!-- Custom Styles with Version Cache Buster -->
-  <link rel="stylesheet" href="css/styles_v9.css?v=13.0.0" />
+  <!-- Custom Styles with Automatic Dynamic Cache Buster -->
+  <script>
+    document.write('<link rel="stylesheet" href="css/styles_v9.css?t=' + Date.now() + '" />');
+  </script>
+  <noscript>
+    <link rel="stylesheet" href="css/styles_v9.css?v=13.0.53" />
+  </noscript>
 </head>
 <body class="bg-slate-50 text-slate-900 min-h-screen font-sans">
 

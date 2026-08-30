@@ -695,7 +695,7 @@ class Store {
     const u = this.getCurrentUser();
     if (!u) return false;
     const isMasterRole = u.role === 'SUPER_ADMIN' || u.role === 'master_admin';
-    const isMasterEmail = (u.email && (u.email.toLowerCase() === 'bakolaypan@gmail.com' || u.email.toLowerCase().includes('bakolaypan'))) || (u.name && u.name.toLowerCase().includes('bakolaypan'));
+    const isMasterEmail = Boolean(u.email && u.email.toLowerCase().trim() === 'bakolaypan@gmail.com');
     return isMasterRole || isMasterEmail;
   }
 
@@ -1082,6 +1082,7 @@ class Store {
     }
 
     this.createOrUpdatePlayerProfile(newPlayer);
+    this.ensureUserAccountForPlayer(newPlayer, playerData.securityPin || playerData.password || null);
     syncPlayerToSupabase(newPlayer);
     this.notify('players_updated');
     return newPlayer;
@@ -3112,7 +3113,7 @@ class Store {
     return true;
   }
 
-  async ensureUserAccountForPlayer(player) {
+  async ensureUserAccountForPlayer(player, customPassword = null) {
     if (!player) return null;
     const cleanPhone = (player.phone || player.mobile || '').replace(/[^0-9]/g, '');
     if (!cleanPhone || cleanPhone.length < 10) return null;
@@ -3122,12 +3123,15 @@ class Store {
     const owners = this.getTournamentOwners();
     const isOwner = Object.values(owners).some(o => o && o.phone === cleanPhone);
 
+    const rawPassword = customPassword || cleanPhone;
+    const isCustom = Boolean(customPassword);
+
     if (!acc) {
-      const hashedPw = await hashPassword(cleanPhone, cleanPhone);
+      const hashedPw = await hashPassword(rawPassword, cleanPhone);
       acc = {
         phone: cleanPhone,
         password: hashedPw,
-        isFirstLogin: true,
+        isFirstLogin: isCustom ? false : true,
         name: player.name || 'Player',
         playerId: player.id || null,
         role: isOwner ? 'TOURNAMENT_OWNER' : 'PLAYER',
@@ -3138,7 +3142,12 @@ class Store {
       safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, accounts);
       saveUserAccountToCloud(acc);
     } else {
-      if (!acc.password || acc.password === cleanPhone) {
+      if (customPassword) {
+        acc.password = await hashPassword(customPassword, cleanPhone);
+        acc.isFirstLogin = false;
+        safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, accounts);
+        saveUserAccountToCloud(acc);
+      } else if (!acc.password || acc.password === cleanPhone) {
         acc.password = await hashPassword(cleanPhone, cleanPhone);
         safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, accounts);
         saveUserAccountToCloud(acc);

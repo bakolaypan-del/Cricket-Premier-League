@@ -1757,7 +1757,7 @@ export async function fetchUserAccountsFromCloud() {
     if (!data) return [];
     return data.map(a => ({
       phone: a.phone,
-      password: a.password,
+      password: a.password_hash || a.password,
       name: a.name,
       role: a.role,
       playerId: a.player_id,
@@ -1773,8 +1773,9 @@ export async function fetchUserAccountsFromCloud() {
 export async function saveUserAccountToCloud(account) {
   if (!supabase || !account?.phone) return;
   try {
-    await supabase.from('user_accounts').upsert({
+    const payload = {
       phone: account.phone,
+      password_hash: account.password || account.phone,
       password: account.password || account.phone,
       name: account.name || 'Player',
       role: account.role || 'PLAYER',
@@ -1782,7 +1783,12 @@ export async function saveUserAccountToCloud(account) {
       is_first_login: account.isFirstLogin !== false,
       owned_tournaments: account.ownedTournaments || [],
       updated_at: new Date().toISOString()
-    }, { onConflict: 'phone' });
+    };
+    const { error } = await supabase.from('user_accounts').upsert(payload, { onConflict: 'phone' });
+    if (error && error.message && (error.message.includes('column') || error.message.includes('schema cache'))) {
+      delete payload.password_hash;
+      await supabase.from('user_accounts').upsert(payload, { onConflict: 'phone' });
+    }
   } catch (e) { console.warn('[SUPABASE] saveUserAccountToCloud:', e.message); }
 }
 

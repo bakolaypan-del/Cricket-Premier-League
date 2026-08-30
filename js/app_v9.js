@@ -6565,6 +6565,15 @@ function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
             </div>
           </div>
 
+          <!-- 3b. Account Security PIN (4-Digit Password for Login) -->
+          <div class="bg-emerald-50/70 border border-emerald-200 p-2 rounded-xl">
+            <div class="flex items-center justify-between mb-0.5">
+              <label class="block text-[9px] font-black text-emerald-900 uppercase">🔒 Account Security PIN (4-Digits) *</label>
+              <span class="text-[8px] text-emerald-700 font-bold">For Profile Login</span>
+            </div>
+            <input type="password" id="ply-security-pin" required minlength="4" maxlength="10" placeholder="Set your secret 4-digit PIN (e.g. 1234)" class="w-full bg-white border border-emerald-300 text-slate-900 font-mono text-xs rounded-lg p-1.5 focus:outline-none focus:border-emerald-600 font-bold placeholder-slate-400" />
+          </div>
+
           <!-- 4. Village, District, State -->
           <div class="grid grid-cols-3 gap-1.5">
             <div>
@@ -7060,6 +7069,7 @@ function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
       const age = parseInt(document.getElementById('ply-age').value, 10) || 22;
       const phone = document.getElementById('ply-phone').value;
       const alternateMobile = document.getElementById('ply-alt-mobile').value || '';
+      const securityPin = document.getElementById('ply-security-pin')?.value.trim() || '';
       const village = document.getElementById('ply-village').value;
       const district = document.getElementById('ply-district').value;
       const state = document.getElementById('ply-state').value || 'West Bengal';
@@ -7092,6 +7102,7 @@ function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
         age,
         phone,
         alternateMobile,
+        securityPin,
         village,
         district,
         state,

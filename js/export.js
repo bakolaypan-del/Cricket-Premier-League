@@ -1,7 +1,48 @@
-// Export & Printing Utility Module for PDF & CSV (Developer: Suman Kolay - User Guide PDF Release)
-
 import { store } from './store.js?v=13.0.53';
-import { toUUID } from './supabase.js?v=13.0.53';
+import { toUUID, getOptimizedImageUrl, compressImageToTarget } from './supabase.js?v=13.0.53';
+
+export async function preparePlayerPhotoForPDF(targetSrc, targetSizeKb = 30, maxDimension = 350) {
+  if (!targetSrc) return '';
+
+  // 1. If it's a Cloudinary URL, use Cloudinary dynamic optimization to request ~30KB (w_350,h_350,c_fill,g_face,q_90)
+  if (typeof targetSrc === 'string' && targetSrc.includes('cloudinary.com')) {
+    return getOptimizedImageUrl(targetSrc, maxDimension, maxDimension);
+  }
+
+  // 2. For HTTP URLs, fetch and compress to ~30KB target
+  if (typeof targetSrc === 'string' && targetSrc.startsWith('http')) {
+    try {
+      const res = await fetch(targetSrc, { cache: 'no-store' });
+      if (res.ok) {
+        const blob = await res.blob();
+        const compressedFile = await compressImageToTarget(blob, targetSizeKb, maxDimension);
+        return await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.readAsDataURL(compressedFile);
+        });
+      }
+    } catch (err) {
+      return targetSrc;
+    }
+  }
+
+  // 3. For Data URLs, compress canvas to ~30KB target
+  if (typeof targetSrc === 'string' && targetSrc.startsWith('data:image')) {
+    try {
+      const compressedFile = await compressImageToTarget(targetSrc, targetSizeKb, maxDimension);
+      return await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.readAsDataURL(compressedFile);
+      });
+    } catch (err) {
+      return targetSrc;
+    }
+  }
+
+  return targetSrc;
+}
 
 export function getTournamentDocName(overrideTourney = null) {
   if (overrideTourney && overrideTourney.name) return overrideTourney.name;
@@ -259,25 +300,7 @@ export async function exportPlayersToPDF(players, filterLabel = 'All Registered 
       }
 
       let targetSrc = p.hdPhotoUrl || p.photoUrl || p.player_photo_url || '';
-      let hdPhoto = targetSrc;
-
-      if (targetSrc && targetSrc.startsWith('http')) {
-        try {
-          const res = await fetch(targetSrc, { cache: 'no-store' });
-          if (res.ok) {
-            const blob = await res.blob();
-            hdPhoto = await new Promise((resolve) => {
-              const reader = new FileReader();
-              reader.onloadend = () => resolve(reader.result);
-              reader.readAsDataURL(blob);
-            });
-          }
-        } catch (err) {
-          hdPhoto = targetSrc;
-        }
-      } else if (targetSrc && targetSrc.startsWith('data:image')) {
-        hdPhoto = targetSrc;
-      }
+      let hdPhoto = await preparePlayerPhotoForPDF(targetSrc, 30, 350);
 
       playersWithHDPhotos.push({ ...p, hdPhoto });
     }
@@ -390,7 +413,7 @@ export async function exportPlayersToPDF(players, filterLabel = 'All Registered 
 }
 
 // PRINT / DOWNLOAD DIGITAL PASS FOR INDIVIDUAL PLAYER (WHITE BACKGROUND & SQUARE SHAPE)
-export function printDigitalPass(player, league, team) {
+export async function printDigitalPass(player, league, team) {
   if (!player) return;
 
   const printWindow = window.open('', '_blank');
@@ -400,7 +423,8 @@ export function printDigitalPass(player, league, team) {
   }
 
   const serialNo = player.registrationId || player.regNo || 'JSL2026-0001';
-  const photoSrc = player.photoUrl || player.player_photo_url || 'assets/jsl_logo_white.jpg';
+  const rawPhoto = player.photoUrl || player.player_photo_url || 'assets/jsl_logo_white.jpg';
+  const photoSrc = await preparePlayerPhotoForPDF(rawPhoto, 30, 350);
 
   const rawDate = player.createdTime || player.regTimestamp || player.regDate || player.created_at || player.registeredAt || player.createdAt || player.timestamp || player.date;
   let regDateTime = 'Registered';
