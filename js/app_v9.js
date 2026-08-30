@@ -1,10 +1,10 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=13.0.48';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.48';
-import { renderAdminDashboard } from './admin.js?v=13.0.48';
-import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.48';
-import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.48';
+import { store } from './store.js?v=13.0.49';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.49';
+import { renderAdminDashboard } from './admin.js?v=13.0.49';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.49';
+import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.49';
 import { shops } from './shopsData.js?v=12.0.2';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
@@ -7114,7 +7114,10 @@ function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
 
 // --- VISITOR VIEWS: MATCH CENTER, LIVE AUCTION & CAREER HUB ---
 
-let activeFixtureCategory = sessionStorage.getItem('cpl_active_fixture_cat') || 'T';
+let activeFixtureCategory = (() => {
+  const saved = sessionStorage.getItem('cpl_active_fixture_cat');
+  return (!saved || saved === 'T') ? 'ALL' : saved;
+})();
 let activeFixtureSubTab = sessionStorage.getItem('cpl_active_fixture_subtab') || 'matches'; // 'matches' or 'table'
 let activeFixtureGroupFilter = sessionStorage.getItem('cpl_active_fixture_grp_filter') || 'ALL'; // 'ALL', 'A', 'B', 'C', 'D', 'KNOCKOUT'
 
@@ -7362,13 +7365,16 @@ function renderFixturesView(container) {
   window.openTournamentAwardModal = openTournamentAwardModal;
 
   const drawFixtures = () => {
-    const activeTournament = store.getCustomTournaments().find(t => (t.supabaseId || t.id) === store.activeTournamentId);
-    const defaultCategory = 'ALL';
-    const selectedCategory = activeFixtureCategory || defaultCategory;
+    let selectedCategory = activeFixtureCategory || 'ALL';
+    if (selectedCategory === 'T') selectedCategory = 'ALL';
     const allCrossFixtures = store.getAllFixturesAcrossTournaments();
     const rawFixtures = (selectedCategory === 'ALL')
       ? allCrossFixtures
-      : allCrossFixtures.filter(f => (f.leagueCode || 'T').toUpperCase() === selectedCategory.toUpperCase() || (f.tournamentId && activeTournament && f.tournamentId === (activeTournament.supabaseId || activeTournament.id)));
+      : allCrossFixtures.filter(f => {
+          const fCode = (f.leagueCode || '').toUpperCase();
+          const cat = selectedCategory.toUpperCase();
+          return fCode === cat || (cat === 'KPL' && (fCode === 'K2026' || fCode === 'KPL')) || (cat === 'K2026' && (fCode === 'KPL' || fCode === 'K2026')) || f.tournamentId === selectedCategory || f.tournament_id === selectedCategory || f.leagueId === selectedCategory;
+        });
     
     // Apply Match Group Filter
     let filteredFixtures = rawFixtures;

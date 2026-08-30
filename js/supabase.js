@@ -1999,29 +1999,37 @@ export async function fetchCustomTournamentsFromCloud() {
     }
 
     return ({
-    id: `t_${t.slug}`,
-    supabaseId: t.id,
-    tournament_id: t.id,
-    slug: t.slug,
-    name: t.name,
-    shortCode: (t.category_code || t.slug || '').toUpperCase(),
-    mode: frontendMode,
-    venue: t.venue_name,
-    kickoffDate: extra.kickoff_date || null,
-    prizeWinner: Number(extra.prize_winner) || 35000,
-    entryFee: Number(t.registration_fee) || 300,
-    teamPurse: Number(t.total_team_budget) || 8000,
-    basePrice: Number(t.icon_price) || 300,
-    posterUrl: t.banner_url || '',
-    upiId: extra.upi_id || '',
-    paymentQrUrl: extra.payment_qr_url || '',
-    organizer: {
-      name: extra.organiser_name || '',
-      phone: extra.organiser_phone || ''
-    },
-    status: resolvedStatus,
-    created_at: new Date(t.created_at).getTime()
-  });});
+      id: `t_${t.slug}`,
+      supabaseId: t.id,
+      tournament_id: t.id,
+      slug: t.slug,
+      name: t.name,
+      category_code: (t.category_code || t.slug || '').toUpperCase(),
+      code: (t.category_code || t.slug || '').toUpperCase(),
+      category: (t.category_code || t.slug || '').toUpperCase(),
+      shortCode: (t.category_code || t.slug || '').toUpperCase(),
+      mode: frontendMode,
+      venue: t.venue_name,
+      kickoffDate: extra.kickoff_date || null,
+      prizeWinner: Number(extra.prize_winner) || 35000,
+      entryFee: Number(t.registration_fee) || 300,
+      teamPurse: Number(t.total_team_budget) || 8000,
+      basePrice: Number(t.icon_price) || 300,
+      logo_url: t.logo_url || t.banner_url || '',
+      banner_url: t.banner_url || t.logo_url || '',
+      logoUrl: t.logo_url || t.banner_url || '',
+      posterUrl: t.banner_url || t.logo_url || '',
+      upiId: extra.upi_id || '',
+      paymentQrUrl: extra.payment_qr_url || '',
+      format_config: t.format_config || {},
+      organizer: {
+        name: extra.organiser_name || '',
+        phone: extra.organiser_phone || ''
+      },
+      status: resolvedStatus,
+      created_at: new Date(t.created_at).getTime()
+    });
+  });
 }
 
 export async function deleteCustomTournamentFromCloud(tourneyId, slug = null) {

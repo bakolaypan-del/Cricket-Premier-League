@@ -59,7 +59,7 @@ import {
   updateTournamentApprovalStatus,
   fetchLiveAuctionFromCloud,
   fetchGlobalLiveAuctionStatus
-} from './supabase.js?v=13.0.48';
+} from './supabase.js?v=13.0.49';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -1829,11 +1829,17 @@ class Store {
       }
     });
 
-    // 2. Add fixtures from other tournaments format_config.custom_matches
+    // 2. Add fixtures from other tournaments format_config.custom_matches and scoped local keys
     allTourneys.forEach(t => {
       const tid = t.supabaseId || t.id;
       const customMatches = Array.isArray(t.format_config?.custom_matches) ? t.format_config.custom_matches : [];
-      customMatches.forEach(cm => {
+      let localScopedMatches = [];
+      try {
+        const localRaw = localStorage.getItem(`cpl_fixtures_v8_${tid}`);
+        if (localRaw) localScopedMatches = JSON.parse(localRaw) || [];
+      } catch (e) {}
+
+      [...customMatches, ...localScopedMatches].forEach(cm => {
         if (cm && cm.id && !map.has(cm.id)) {
           map.set(cm.id, {
             ...cm,
@@ -1845,6 +1851,25 @@ class Store {
         }
       });
     });
+
+    // 3. Fallback: check legacy unscoped fixtures key 'cpl_fixtures_v8'
+    try {
+      const legacyRaw = localStorage.getItem('cpl_fixtures_v8');
+      if (legacyRaw) {
+        const legacyMatches = JSON.parse(legacyRaw) || [];
+        legacyMatches.forEach(lm => {
+          if (lm && lm.id && !map.has(lm.id)) {
+            map.set(lm.id, {
+              ...lm,
+              tournamentId: lm.tournament_id || lm.leagueId || 'leg-jsl',
+              tournamentName: lm.tournamentName || 'Jhankra Super League',
+              leagueCode: (lm.leagueCode || 'JSL').toUpperCase(),
+              logoUrl: 'assets/jsl_logo.jpg'
+            });
+          }
+        });
+      }
+    } catch (e) {}
 
     return Array.from(map.values()).sort((a, b) => (Number(a.matchNo) || 0) - (Number(b.matchNo) || 0));
   }
