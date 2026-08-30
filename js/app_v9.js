@@ -1,10 +1,10 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=13.0.39';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.39';
-import { renderAdminDashboard } from './admin.js?v=13.0.39';
-import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.39';
-import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.39';
+import { store } from './store.js?v=13.0.40';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.40';
+import { renderAdminDashboard } from './admin.js?v=13.0.40';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.40';
+import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.40';
 import { shops } from './shopsData.js?v=12.0.2';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
@@ -10486,17 +10486,21 @@ export function openLiveAuctionProjectorView() {
     const pageTeams = teams.slice(startIdx, startIdx + 4);
 
     box.innerHTML = pageTeams.map((t, idx) => {
-      const hasIcon = !!((t.iconPlayerName && t.iconPlayerName.trim()) || (t.iconName && t.iconName.trim()));
-      const iconName = t.iconPlayerName || t.iconName;
+      const defaultIconFee = Number(store.getAuctionSettings().defaultIconPrice) || 1000;
+      const hasIcon = !!((t.iconPlayerName && t.iconPlayerName.trim()) || (t.iconName && t.iconName.trim()) || (t.iconPlayerId && t.iconPlayerId.trim()));
+      const iconName = t.iconPlayerName || t.iconName || 'Icon Player';
+      const iconDeduction = hasIcon ? defaultIconFee : 0;
       const totalPurse = Number(t.purseBudget || t.purse || 8000);
       const purchasedPlayers = allPlayers.filter(p => {
-        const isMatch = (p.teamId === t.id) || (p.teamName && (p.teamName || '').trim().toLowerCase() === (t.name || '').trim().toLowerCase());
-        const isSoldStatus = (p.auctionStatus === 'SOLD' || p.isSold === true || !!p.teamId);
+        if (!p) return false;
+        const pTeamId = p.teamId || p.team_id;
+        const isMatch = (pTeamId && (pTeamId === t.id || toUUID(pTeamId) === toUUID(t.id))) || (p.teamName && (p.teamName || '').trim().toLowerCase() === (t.name || '').trim().toLowerCase());
+        const isSoldStatus = (p.auctionStatus === 'SOLD' || p.isSold === true || !!pTeamId);
         return isMatch && isSoldStatus;
       });
-      const iconPlayer = purchasedPlayers.find(p => (p.isIcon || p.isIconPlayer) || ((p.name || '').trim().toLowerCase() === (iconName || '').trim().toLowerCase()));
+      const iconPlayer = purchasedPlayers.find(p => (p.isIcon || p.isIconPlayer) || ((p.name || '').trim().toLowerCase() === (iconName || '').trim().toLowerCase()) || (t.iconPlayerId && (p.id === t.iconPlayerId || toUUID(p.id) === toUUID(t.iconPlayerId))));
       const nonIconPlayers = purchasedPlayers.filter(p => p !== iconPlayer);
-      const spent = (hasIcon ? 1000 : 0) + nonIconPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || 0), 0);
+      const spent = iconDeduction + nonIconPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || Number(p.basePrice) || 300), 0);
       const left = Math.max(0, totalPurse - spent);
       const squadCount = (hasIcon ? 1 : 0) + nonIconPlayers.length;
 
@@ -10526,26 +10530,29 @@ export function openLiveAuctionProjectorView() {
             ${hasIcon ? `
               <div class="p-2 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 text-xs sm:text-sm font-bold flex items-center justify-between shadow-2xs">
                 <span class="truncate">⭐ Icon: <strong>${iconName}</strong></span>
-                <span class="font-mono font-black text-amber-900 shrink-0 ml-1">₹1,000</span>
+                <span class="font-mono font-black text-amber-900 shrink-0 ml-1">₹${defaultIconFee.toLocaleString('en-IN')}</span>
               </div>
             ` : ''}
 
-            ${nonIconPlayers.length > 0 ? nonIconPlayers.map((p, pIdx) => `
-              <div class="p-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-950 text-xs sm:text-sm font-bold flex items-center justify-between hover:bg-slate-100 transition-all">
-                <div class="min-w-0 flex items-center gap-1.5">
-                  <span class="text-[10px] font-mono text-slate-400">${pIdx + 1}.</span>
-                  <span class="truncate font-black">${p.name}</span>
+            ${nonIconPlayers.length > 0 ? nonIconPlayers.map((p, pIdx) => {
+              const pPrice = Number(p.soldPrice) || Number(p.basePrice) || 300;
+              return `
+                <div class="p-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-950 text-xs sm:text-sm font-bold flex items-center justify-between hover:bg-slate-100 transition-all">
+                  <div class="min-w-0 flex items-center gap-1.5">
+                    <span class="text-[10px] font-mono text-slate-400">${pIdx + 1}.</span>
+                    <span class="truncate font-black">${p.name}</span>
+                  </div>
+                  <span class="font-mono font-black text-emerald-700 shrink-0 ml-1">₹${pPrice.toLocaleString('en-IN')}</span>
                 </div>
-                <span class="font-mono font-black text-emerald-700 shrink-0 ml-1">₹${Number(p.soldPrice || 0).toLocaleString('en-IN')}</span>
-              </div>
-            `).join('') : `
+              `;
+            }).join('') : `
               <div class="text-xs text-slate-400 italic py-8 text-center">No auction players purchased yet</div>
             `}
           </div>
 
           <!-- Column Footer -->
           <div class="pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600 font-mono font-bold shrink-0">
-            <span>Slots Left: <strong class="text-slate-900">${Math.max(0, 13 - squadCount)}</strong></span>
+            <span>Slots Left: <strong class="text-slate-900">${Math.max(0, targetSquadSize - squadCount)}</strong></span>
             <span>Total Spent: <strong class="text-emerald-700">₹${spent.toLocaleString('en-IN')}</strong></span>
           </div>
         </div>
@@ -11097,7 +11104,7 @@ export function openTeamPurchasedSquadModal(teamId) {
               </div>
               <div class="text-right shrink-0">
                 <div class="text-[9px] font-black text-slate-400 uppercase tracking-wider">Icon Fee</div>
-                <div class="text-xs sm:text-sm font-black text-amber-700 font-mono">₹ 1,000</div>
+                <div class="text-xs sm:text-sm font-black text-amber-700 font-mono">₹ ${defaultIconFee.toLocaleString('en-IN')}</div>
               </div>
             </div>
           ` : ''}

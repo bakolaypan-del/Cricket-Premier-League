@@ -57,7 +57,7 @@ import {
   fetchGlobalUniquePlayersCount,
   updateTournamentApprovalStatus,
   fetchLiveAuctionFromCloud
-} from './supabase.js?v=13.0.39';
+} from './supabase.js?v=13.0.40';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
