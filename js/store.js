@@ -57,7 +57,7 @@ import {
   fetchGlobalUniquePlayersCount,
   updateTournamentApprovalStatus,
   fetchLiveAuctionFromCloud
-} from './supabase.js?v=13.0.36';
+} from './supabase.js?v=13.0.37';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -343,12 +343,27 @@ class Store {
           const effectiveRegStatus = (cp.registrationStatus && cp.registrationStatus !== 'PENDING') ? cp.registrationStatus : (lp.registrationStatus || effectivePaymentStatus);
           const effectiveVerified = (effectivePaymentStatus === 'APPROVED' || cp.verified === true || lp.verified === true);
 
+          const effectiveTeamId = cp.teamId || lp.teamId || null;
+          const effectiveTeamName = cp.teamName || lp.teamName || null;
+          const effectiveSoldPrice = Number(cp.soldPrice !== undefined ? cp.soldPrice : (lp.soldPrice || 0)) || 0;
+          const effectiveAuctionStatus = cp.auctionStatus || lp.auctionStatus || (effectiveTeamId ? 'SOLD' : 'PENDING');
+          const effectiveIsSold = (effectiveAuctionStatus === 'SOLD' || cp.isSold === true || lp.isSold === true || !!effectiveTeamId);
+          const effectiveIsUnsold = (effectiveAuctionStatus === 'UNSOLD' || cp.isUnsold === true || lp.isUnsold === true);
+
           return {
             ...lp,
             ...cp,
             verified: effectiveVerified,
             paymentStatus: effectivePaymentStatus,
             registrationStatus: effectiveRegStatus,
+            teamId: effectiveTeamId,
+            team_id: effectiveTeamId,
+            teamName: effectiveTeamName,
+            soldPrice: effectiveSoldPrice,
+            sold_price: effectiveSoldPrice,
+            auctionStatus: effectiveAuctionStatus,
+            isSold: effectiveIsSold,
+            isUnsold: effectiveIsUnsold,
             photoUrl: cp.photoUrl || lp.photoUrl || lp.player_photo_url || '',
             player_photo_url: cp.player_photo_url || cp.photoUrl || lp.player_photo_url || lp.photoUrl || '',
             aadharPhotoUrl: cp.aadharPhotoUrl || lp.aadharPhotoUrl || lp.idCardFrontUrl || lp.aadhaar_url || '',
@@ -2004,16 +2019,20 @@ class Store {
   // --- LIVE AUCTION STATE ---
   async getLiveAuctionState() {
     try {
-      const local = safeGetLocalStorage(this._scopedKey('LIVE_AUCTION_STATE'));
-      if (local && local.active_player_id) return local;
+      const cloud = await fetchLiveAuctionFromCloud(this.activeTournamentId);
+      if (cloud) {
+        const cloudTs = Number(cloud.updated_at || 0);
+        const localTs = Number(this.liveAuctionState?.updated_at || 0);
+        if (cloudTs >= localTs || !this.liveAuctionState || cloud.active_player_id) {
+          this.liveAuctionState = cloud;
+          safeSetLocalStorage(this._scopedKey('LIVE_AUCTION_STATE'), cloud);
+          return cloud;
+        }
+      }
     } catch(e) {}
     try {
-      const cloud = await fetchLiveAuctionFromCloud(this.activeTournamentId);
-      if (cloud && cloud.active_player_id) {
-        this.liveAuctionState = cloud;
-        safeSetLocalStorage(this._scopedKey('LIVE_AUCTION_STATE'), cloud);
-        return cloud;
-      }
+      const local = safeGetLocalStorage(this._scopedKey('LIVE_AUCTION_STATE'));
+      if (local) return local;
     } catch(e) {}
     try {
       const legacyLocal = localStorage.getItem('cpl_live_auction_state');

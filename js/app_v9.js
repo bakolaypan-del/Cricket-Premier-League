@@ -1,10 +1,10 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=13.0.36';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.36';
-import { renderAdminDashboard } from './admin.js?v=13.0.36';
-import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.36';
-import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.36';
+import { store } from './store.js?v=13.0.37';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.37';
+import { renderAdminDashboard } from './admin.js?v=13.0.37';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.37';
+import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.37';
 import { shops } from './shopsData.js?v=12.0.2';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
@@ -9921,7 +9921,7 @@ function renderLiveAuctionView(container) {
   });
 
   pollActiveAuctionState();
-  auctionPollInterval = setInterval(pollActiveAuctionState, 1500);
+  auctionPollInterval = setInterval(pollActiveAuctionState, 800);
 
   const onAuctionChange = () => {
     if (currentRoute === 'auction') pollActiveAuctionState();
@@ -10971,7 +10971,16 @@ export function openLiveAuctionProjectorView() {
     if (activeProjectorTab === 'teams') renderTeamsOverlay();
   };
 
-  projectorPollInterval = setInterval(pollProjector, 1200);
+  projectorPollInterval = setInterval(pollProjector, 800);
+
+  const onProjAuctionChange = () => {
+    if (document.getElementById('live-auction-projector-view-modal')) {
+      pollProjector();
+    }
+  };
+  window.addEventListener('cpl_live_auction_updated', onProjAuctionChange);
+  window.addEventListener('cpl_players_updated', onProjAuctionChange);
+  window.addEventListener('cpl_teams_updated', onProjAuctionChange);
 }
 
 // --- FRANCHISE SQUAD & PURCHASED PLAYERS MODAL ---

@@ -845,6 +845,7 @@ export async function syncPlayerToSupabase(playerData) {
       };
       existingOverrides[playerUUID] = overrideObj;
       existingOverrides[playerData.id] = overrideObj;
+      if (cleanPhone) existingOverrides[cleanPhone] = overrideObj;
 
       existingConfig.player_statuses = existingStatuses;
       existingConfig.player_overrides = existingOverrides;
@@ -854,16 +855,21 @@ export async function syncPlayerToSupabase(playerData) {
       console.warn("[SUPABASE] tournament format_config status save warning:", errConfig);
     }
 
-    // Also update players table directly
+    // Also update players table directly by UUID and Phone
     try {
-      await supabase.from('players').update({
+      const updatePayload = {
         verified: isApproved,
-        status: isRejected ? 'rejected' : derivePlayerStatus(playerData),
+        status: isRejected ? 'rejected' : (isSoldVal ? 'sold' : (isUnsoldVal ? 'unsold' : derivePlayerStatus(playerData))),
         team_id: (playerData.teamId || playerData.team_id) ? toUUID(playerData.teamId || playerData.team_id) : null,
-        sold_price: Number(playerData.soldPrice || playerData.sold_price || playerData.boughtPrice) || 0,
-        auction_status: (playerData.auctionStatus === 'SOLD' || playerData.isSold === true || !!playerData.teamId) ? 'SOLD' : (playerData.isUnsold ? 'UNSOLD' : 'PENDING'),
+        sold_price: soldPriceVal,
         updated_at: new Date().toISOString()
-      }).eq('id', playerUUID);
+      };
+      if (playerUUID) {
+        await supabase.from('players').update(updatePayload).eq('id', playerUUID);
+      }
+      if (cleanPhone) {
+        await supabase.from('players').update(updatePayload).eq('phone', cleanPhone).eq('tournament_id', tournamentUUID);
+      }
     } catch (pUpdateErr) {}
 
     // Save/Update Verification Documents (Aadhaar & Payment Proof)
