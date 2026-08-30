@@ -10382,12 +10382,13 @@ function renderLiveAuctionView(container) {
     }
   };
 
-  const renderFranchisePurses = (teams, allPlayers) => {
+  const renderFranchisePurses = (teams, allPlayers, liveState) => {
     const pursesWrapper = document.getElementById('auction-franchise-purses-list');
     if (!pursesWrapper) return;
 
+    const liveHash = liveState ? `${liveState.status}:${liveState.active_player_id}:${liveState.highest_bidder_team_id}:${liveState.sold_price}` : '';
     const currentTableHash = allPlayers.map(p => p.id + ':' + (p.auctionStatus || '') + ':' + (p.teamId || '') + ':' + (p.soldPrice || 0)).join('|');
-    const currentPursesHash = teams.map(t => t.id + ':' + (t.remainingPurse || 0) + ':' + (t.squadCount || 0) + ':' + (t.purseSpent || 0)).join('|') + '||' + currentTableHash;
+    const currentPursesHash = teams.map(t => t.id + ':' + (t.remainingPurse || 0) + ':' + (t.squadCount || 0) + ':' + (t.purseSpent || 0)).join('|') + '||' + currentTableHash + '||' + liveHash;
     
     if (currentPursesHash === lastRenderedPursesHash && pursesWrapper.children.length > 0) return;
     lastRenderedPursesHash = currentPursesHash;
@@ -10406,6 +10407,24 @@ function renderLiveAuctionView(container) {
         const isSoldStatus = (p.auctionStatus === 'SOLD' || p.isSold === true || !!pTeamId);
         return isSoldStatus && !isThisTeamIcon;
       });
+
+      // Optimistic addition for live auction SOLD state if not yet in allPlayers list
+      if (liveState && (liveState.status === 'SOLD' || liveState.is_sold) && liveState.highest_bidder_team_id) {
+        const liveTeamId = liveState.highest_bidder_team_id;
+        if (liveTeamId === t.id || toUUID(liveTeamId) === toUUID(t.id)) {
+          const livePlayerId = liveState.active_player_id || liveState.last_sold_player_id;
+          const alreadyIn = purchasedNonIconPlayers.some(p => p.id === livePlayerId || (livePlayerId && p.id && toUUID(p.id) === toUUID(livePlayerId)));
+          if (!alreadyIn) {
+            const livePlayerObj = allPlayers.find(p => p.id === livePlayerId || (livePlayerId && p.id && toUUID(p.id) === toUUID(livePlayerId))) || {
+              id: livePlayerId,
+              name: liveState.name || 'Player',
+              soldPrice: Number(liveState.sold_price || liveState.current_bid || 300)
+            };
+            purchasedNonIconPlayers.push(livePlayerObj);
+          }
+        }
+      }
+
       const auctionSpent = purchasedNonIconPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || Number(p.basePrice) || 300), 0);
       const spent = iconDeduction + auctionSpent;
       const left = Math.max(0, totalPurse - spent);
@@ -10539,15 +10558,20 @@ function renderLiveAuctionView(container) {
     }
 
     // 3. Render / Update Franchise Purses ONLY when teams or player purchases changed
-    renderFranchisePurses(teams, allPlayers);
+    renderFranchisePurses(teams, allPlayers, state);
   };
 
   // Immediate Initial Render
   pollActiveAuctionState();
   auctionPollInterval = setInterval(pollActiveAuctionState, 1000);
 
-  const onAuctionChange = () => {
-    if (currentRoute === 'auction') pollActiveAuctionState();
+  const onAuctionChange = async () => {
+    if (currentRoute === 'auction') {
+      try {
+        if (store.fetchPlayersFromCloud) await store.fetchPlayersFromCloud();
+      } catch(e) {}
+      pollActiveAuctionState();
+    }
   };
   window.addEventListener('cpl_live_auction_updated', onAuctionChange);
   window.addEventListener('cpl_players_updated', onAuctionChange);
