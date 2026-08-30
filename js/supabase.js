@@ -1517,12 +1517,6 @@ export async function updateTournamentApprovalStatus(tourneyId, newStatus, reaso
   if (!supabase || (!tourneyId && !slug)) return false;
   try {
     const isUUID = typeof tourneyId === 'string' && UUID_FORMAT_RE.test(tourneyId);
-    let targetIds = [];
-    if (isUUID) targetIds.push(tourneyId);
-    const resolvedUUID = resolveTournamentUUID(slug || tourneyId);
-    if (resolvedUUID && UUID_FORMAT_RE.test(resolvedUUID) && !targetIds.includes(resolvedUUID)) {
-      targetIds.push(resolvedUUID);
-    }
     const cleanSlug = String(slug || tourneyId || '').replace(/^t_/, '').trim();
     
     let dbStatus = 'active';
@@ -1535,23 +1529,30 @@ export async function updateTournamentApprovalStatus(tourneyId, newStatus, reaso
       appStatus = 'pending_approval';
     }
     
-    // Fetch existing registration_settings to preserve fields
-    let existingRegSettings = {};
-    for (const uid of targetIds) {
-      try {
-        const { data: existing } = await supabase.from('tournaments').select('registration_settings').eq('id', uid).maybeSingle();
-        if (existing?.registration_settings && typeof existing.registration_settings === 'object') {
-          existingRegSettings = { ...existingRegSettings, ...existing.registration_settings };
-        }
-      } catch(e) {}
+    // 1. Fetch the target row from Supabase by UUID or Slug
+    let targetRow = null;
+    if (isUUID) {
+      const { data } = await supabase.from('tournaments').select('*').eq('id', tourneyId).maybeSingle();
+      if (data) targetRow = data;
     }
-    if (cleanSlug && Object.keys(existingRegSettings).length === 0) {
+    if (!targetRow && cleanSlug) {
+      const { data } = await supabase.from('tournaments').select('*').eq('slug', cleanSlug).maybeSingle();
+      if (data) targetRow = data;
+    }
+    if (!targetRow && cleanSlug) {
+      const { data } = await supabase.from('tournaments').select('*').ilike('slug', cleanSlug).maybeSingle();
+      if (data) targetRow = data;
+    }
+
+    let existingRegSettings = {};
+    if (targetRow?.registration_settings) {
       try {
-        const { data: existing } = await supabase.from('tournaments').select('registration_settings').eq('slug', cleanSlug).maybeSingle();
-        if (existing?.registration_settings && typeof existing.registration_settings === 'object') {
-          existingRegSettings = { ...existingRegSettings, ...existing.registration_settings };
-        }
-      } catch(e) {}
+        existingRegSettings = typeof targetRow.registration_settings === 'string' 
+          ? JSON.parse(targetRow.registration_settings) 
+          : (targetRow.registration_settings || {});
+      } catch(e) {
+        existingRegSettings = targetRow.registration_settings || {};
+      }
     }
 
     existingRegSettings.approval_status = appStatus;
@@ -1564,13 +1565,15 @@ export async function updateTournamentApprovalStatus(tourneyId, newStatus, reaso
       updated_at: new Date().toISOString()
     };
 
-    for (const uid of targetIds) {
-      await supabase.from('tournaments').update(updatePayload).eq('id', uid);
+    if (targetRow?.id) {
+      const { error } = await supabase.from('tournaments').update(updatePayload).eq('id', targetRow.id);
+      if (error) throw error;
+    } else if (cleanSlug) {
+      const { error } = await supabase.from('tournaments').update(updatePayload).eq('slug', cleanSlug);
+      if (error) throw error;
     }
-    if (cleanSlug) {
-      await supabase.from('tournaments').update(updatePayload).eq('slug', cleanSlug);
-    }
-    console.log("[SUPABASE] Updated tournament approval status:", tourneyId, slug, "->", dbStatus, "(", appStatus, ")");
+
+    console.log("[SUPABASE] Updated tournament approval status:", tourneyId, cleanSlug, "->", dbStatus, "(", appStatus, ")");
     return true;
   } catch (err) {
     console.warn("[SUPABASE] updateTournamentApprovalStatus notice:", err);

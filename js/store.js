@@ -56,7 +56,7 @@ import {
   toUUID,
   fetchGlobalUniquePlayersCount,
   updateTournamentApprovalStatus
-} from './supabase.js?v=13.0.19';
+} from './supabase.js?v=13.0.20';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -2310,16 +2310,22 @@ class Store {
   }
 
   async approveTournament(tourneyId, slug = null, supabaseId = null) {
-    if (!tourneyId) return false;
+    if (!tourneyId && !slug && !supabaseId) return false;
     const list = this.getCustomTournaments();
     const idx = list.findIndex(t => t.id === tourneyId || t.slug === tourneyId || t.supabaseId === tourneyId || (slug && t.slug === slug) || (supabaseId && (t.supabaseId === supabaseId || t.id === supabaseId)));
     if (idx >= 0) {
       list[idx].status = 'ACTIVE';
+      list[idx].approvalStatus = 'approved';
+      if (!list[idx].registration_settings) list[idx].registration_settings = {};
+      list[idx].registration_settings.approval_status = 'approved';
       list[idx].updated_at = Date.now();
       safeSetLocalStorage(STORAGE_KEYS.CUSTOM_TOURNAMENTS, list);
+
       const cloudRef = supabaseId || list[idx].supabaseId || list[idx].tournament_id || list[idx].id;
       const resolvedSlug = slug || list[idx].slug || String(tourneyId).replace(/^t_/, '');
       await updateTournamentApprovalStatus(cloudRef, 'ACTIVE', '', resolvedSlug);
+
+      try { await this.syncWithCloud(); } catch(e) {}
       this.notify('custom_tournaments_updated');
       return true;
     }
@@ -2327,17 +2333,23 @@ class Store {
   }
 
   async rejectTournament(tourneyId, reason = '', slug = null, supabaseId = null) {
-    if (!tourneyId) return false;
+    if (!tourneyId && !slug && !supabaseId) return false;
     const list = this.getCustomTournaments();
     const idx = list.findIndex(t => t.id === tourneyId || t.slug === tourneyId || t.supabaseId === tourneyId || (slug && t.slug === slug) || (supabaseId && (t.supabaseId === supabaseId || t.id === supabaseId)));
     if (idx >= 0) {
       list[idx].status = 'REJECTED';
+      list[idx].approvalStatus = 'rejected';
+      if (!list[idx].registration_settings) list[idx].registration_settings = {};
+      list[idx].registration_settings.approval_status = 'rejected';
       list[idx].rejectionReason = reason;
       list[idx].updated_at = Date.now();
       safeSetLocalStorage(STORAGE_KEYS.CUSTOM_TOURNAMENTS, list);
+
       const cloudRef = supabaseId || list[idx].supabaseId || list[idx].tournament_id || list[idx].id;
       const resolvedSlug = slug || list[idx].slug || String(tourneyId).replace(/^t_/, '');
       await updateTournamentApprovalStatus(cloudRef, 'REJECTED', reason, resolvedSlug);
+
+      try { await this.syncWithCloud(); } catch(e) {}
       this.notify('custom_tournaments_updated');
       return true;
     }
