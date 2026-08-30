@@ -56,7 +56,7 @@ import {
   toUUID,
   fetchGlobalUniquePlayersCount,
   updateTournamentApprovalStatus
-} from './supabase.js?v=13.0.31';
+} from './supabase.js?v=13.0.32';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -1477,6 +1477,8 @@ class Store {
     const filteredTeams = deduped;
 
     const teamResult = filteredTeams.map((t, idx) => {
+      const iconPlayerName = (t.iconPlayerName || t.iconName || '').trim().toLowerCase();
+      const hasIcon = !!iconPlayerName || !!t.iconPlayerId;
       const defaultIconFee = Number(this.getAuctionSettings().defaultIconPrice) || 1000;
       const iconDeduction = hasIcon ? defaultIconFee : 0;
       
