@@ -11478,7 +11478,7 @@ function renderCareerHubView(container) {
     const rawList = store.getPlayersForTournament ? store.getPlayersForTournament(selectedTourneyId) : store.getPlayers();
     const players = (rawList || []).filter(p => (p.registrationStatus || p.paymentStatus) !== 'REJECTED');
     const fixtures = store.getFixtures();
-    const completedFixtures = fixtures.filter(f => f.status === 'COMPLETED');
+    const activeOrCompletedFixtures = fixtures.filter(f => f.status === 'COMPLETED' || f.status === 'LIVE');
 
     const list = players.map(p => {
       let runs = 0;
@@ -11493,7 +11493,7 @@ function renderCareerHubView(container) {
       let fiveWickets = 0;
       let highestScore = 0;
 
-      completedFixtures.forEach(f => {
+      activeOrCompletedFixtures.forEach(f => {
         if (f.liveMatchState && f.liveMatchState.playerStats && f.liveMatchState.playerStats[p.id]) {
           const ps = f.liveMatchState.playerStats[p.id];
           const r = ps.runs || 0;
@@ -11928,7 +11928,7 @@ function openCareerDetailModal(playerId) {
 
   const allRegistrations = store.getPlayers().filter(p => (p.phone || '').trim() === phone);
   const fixtures = store.getFixtures();
-  const completedFixtures = fixtures.filter(f => f.status === 'COMPLETED');
+  const activeOrCompletedFixtures = fixtures.filter(f => f.status === 'COMPLETED' || f.status === 'LIVE');
   
   let totalRuns = 0;
   let totalWickets = 0;
@@ -11940,7 +11940,7 @@ function openCareerDetailModal(playerId) {
   let halfCenturies = 0;
   let fiveWickets = 0;
 
-  completedFixtures.forEach(f => {
+  activeOrCompletedFixtures.forEach(f => {
     if (f.liveMatchState && f.liveMatchState.playerStats && f.liveMatchState.playerStats[profile.id]) {
       const ps = f.liveMatchState.playerStats[profile.id];
       const r = ps.runs || 0;
@@ -11983,7 +11983,7 @@ function openCareerDetailModal(playerId) {
     let regMatches = 0;
 
     if (teamId) {
-      const teamMatches = completedFixtures.filter(f => f.teamAId === teamId || f.teamBId === teamId);
+      const teamMatches = activeOrCompletedFixtures.filter(f => f.teamAId === teamId || f.teamBId === teamId);
       teamMatches.forEach(f => {
         if (f.liveMatchState && f.liveMatchState.playerStats && f.liveMatchState.playerStats[profile.id]) {
           const ps = f.liveMatchState.playerStats[profile.id];
