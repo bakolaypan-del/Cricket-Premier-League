@@ -8736,221 +8736,283 @@ export function openMatchCenterModal(fixtureId) {
       if (state.innings === 2 && state.target) {
         const runsReq = state.target - state.runs;
         const remBalls = (fixture.oversLimit * 6) - totalBalls;
-        reqRR = remBalls > 0 ? ((runsReq / remBalls) * 6).toFixed(2) : '0.00';
-        targetEquation = `
-          <div class="bg-amber-100 border border-amber-300 text-amber-950 p-2.5 rounded-2xl text-center text-xs font-black shadow-2xs">
-            🎯 Need ${runsReq > 0 ? runsReq : 0} Runs off ${remBalls > 0 ? remBalls : 0} Balls (Req RR: ${reqRR})
-          </div>
-        `;
-      }
-
-      // Active Batsmen & Bowler rows with full fallback resolution
-      const allRegisteredPlayers = store.getPlayers();
-      const strikerP = store.getPlayerById(state.strikerId) || allRegisteredPlayers.find(p => String(p.id) === String(state.strikerId));
-      const nonStrikerP = store.getPlayerById(state.nonStrikerId) || allRegisteredPlayers.find(p => String(p.id) === String(state.nonStrikerId));
-      const bowlerP = store.getPlayerById(state.bowlerId) || allRegisteredPlayers.find(p => String(p.id) === String(state.bowlerId));
-
-      const strikerStat = pStats[state.strikerId] || { runs: 0, balls: 0, fours: 0, sixes: 0 };
-      const nonStrikerStat = pStats[state.nonStrikerId] || { runs: 0, balls: 0, fours: 0, sixes: 0 };
-      const bowlerStat = pStats[state.bowlerId] || { ballsBowled: 0, runsConceded: 0, wickets: 0 };
-
-      const bBalls = bowlerStat.ballsBowled || 0;
-      const bOvs = `${Math.floor(bBalls / 6)}.${bBalls % 6}`;
-      const totalOversDec = bBalls / 6;
-      const bowlerEco = totalOversDec > 0 ? ((bowlerStat.runsConceded || 0) / totalOversDec).toFixed(2) : '0.00';
-
-      const strikerSR = (strikerStat.balls > 0) ? (((strikerStat.runs || 0) / strikerStat.balls) * 100).toFixed(1) : '0.0';
-      const nonStrikerSR = (nonStrikerStat.balls > 0) ? (((nonStrikerStat.runs || 0) / nonStrikerStat.balls) * 100).toFixed(1) : '0.0';
-
-      const pshipRuns = (strikerStat.runs || 0) + (nonStrikerStat.runs || 0);
-      const pshipBalls = (strikerStat.balls || 0) + (nonStrikerStat.balls || 0);
-
-      contentArea.innerHTML = `
+        reqRR = remBalls > 0       contentArea.innerHTML = `
         <div class="space-y-3.5 animate-fade-in">
           ${isCompleted ? (() => {
             const potm = window.getMatchPotm(fixture);
-            if (!potm) return '';
+            let topBatter = null, topRuns = -1;
+            let topBowler = null, topWkts = -1;
+            const allP = store.getPlayers();
+            Object.keys(pStats).forEach(pid => {
+              const s = pStats[pid] || {};
+              const r = s.runs || 0;
+              const w = s.wickets || 0;
+              const pObj = allP.find(x => String(x.id) === String(pid));
+              const pName = pObj ? pObj.name : 'Player';
+              const photo = pObj ? (pObj.photoUrl || pObj.player_photo_url || '') : '';
+
+              if (r > topRuns) {
+                topRuns = r;
+                topBatter = { name: pName, runs: r, balls: s.balls || 0, fours: s.fours || 0, sixes: s.sixes || 0, photo };
+              }
+              if (w > topWkts || (w === topWkts && (s.runsConceded || 99) < (topBowler?.runs || 99))) {
+                topWkts = w;
+                topBowler = { name: pName, wickets: w, overs: `${Math.floor((s.ballsBowled||0)/6)}.${(s.ballsBowled||0)%6}`, runs: s.runsConceded || 0, photo };
+              }
+            });
+
+            const inn1Score = fixture.teamAScore || { runs: 0, wickets: 0, overs: 0, balls: 0 };
+            const inn2Score = fixture.teamBScore || { runs: 0, wickets: 0, overs: 0, balls: 0 };
+
             return `
-              <div class="bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 border-2 border-amber-300 text-slate-950 p-3.5 sm:p-4 rounded-3xl shadow-md space-y-1.5 text-center">
-                <div class="text-[10px] font-black uppercase tracking-widest text-slate-950 flex items-center justify-center gap-1.5">
-                  <span>🎖️</span> <span>MAN OF THE MATCH (PLAYER OF THE MATCH)</span>
+              <div class="space-y-3.5 animate-fade-in">
+                <!-- 1. Official Result Banner -->
+                <div class="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white p-4 rounded-3xl shadow-md text-center space-y-1">
+                  <div class="text-[10px] font-black uppercase tracking-widest text-emerald-200">Official Match Result</div>
+                  <h2 class="text-base sm:text-lg font-black tracking-wide uppercase">🏆 ${fixture.result || (fixture.winnerTeamName ? `${fixture.winnerTeamName} WON` : 'MATCH COMPLETED')}</h2>
                 </div>
-                <div class="flex items-center justify-center gap-3 pt-0.5">
-                  ${potm.photoUrl ? `<img src="${potm.photoUrl}" class="w-11 h-11 rounded-2xl object-cover border-2 border-slate-950 shadow-md shrink-0" onerror="this.remove()" />` : `<span class="text-2xl shrink-0">🌟</span>`}
-                  <div class="text-left min-w-0">
-                    <h3 class="text-sm sm:text-base font-black text-slate-950 uppercase leading-none truncate">${potm.name}</h3>
-                    <p class="text-xs font-extrabold text-slate-900 mt-1">Match Impact: ${potm.desc}</p>
+
+                <!-- 2. Man of the Match Card -->
+                ${potm ? `
+                  <div class="bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-400 text-slate-950 p-4 rounded-3xl shadow-md border-2 border-amber-300 flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-3 min-w-0">
+                      ${potm.photoUrl ? `<img src="${potm.photoUrl}" class="w-12 h-12 rounded-2xl object-cover border-2 border-slate-950 shadow-md shrink-0" onerror="this.remove()" />` : `<div class="w-12 h-12 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center text-2xl font-black shrink-0">🎖️</div>`}
+                      <div class="min-w-0">
+                        <div class="text-[9px] font-black uppercase tracking-widest text-slate-900">Man of the Match</div>
+                        <h3 class="text-sm sm:text-base font-black uppercase text-slate-950 truncate">${potm.name}</h3>
+                        <p class="text-xs font-bold text-slate-800">${potm.desc}</p>
+                      </div>
+                    </div>
+                    <span class="px-2.5 py-1 bg-slate-950 text-amber-400 font-mono text-[10px] font-black rounded-xl uppercase shrink-0 shadow-2xs">MVP Award</span>
                   </div>
+                ` : ''}
+
+                <!-- 3. Innings 1 vs Innings 2 Match Summary Cards -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <!-- Innings 1 -->
+                  <div class="bg-white border-2 border-slate-200 rounded-3xl p-4 shadow-sm space-y-2">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                      <div class="flex items-center gap-2 min-w-0">
+                        <img src="${logoA}" class="w-7 h-7 rounded-xl object-cover border border-slate-200 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                        <span class="text-xs font-black text-slate-900 uppercase truncate">${fixture.teamAName}</span>
+                      </div>
+                      <span class="text-xs font-black font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">${inn1Score.runs || 0}/${inn1Score.wickets || 0} (${inn1Score.overs || 0}.${inn1Score.balls || 0} ov)</span>
+                    </div>
+                    <div class="text-[11px] font-semibold text-slate-500">Run Rate: <strong class="font-mono text-slate-800">${inn1Score.overs ? ((inn1Score.runs / ((inn1Score.overs * 6) + (inn1Score.balls || 0))) * 6).toFixed(2) : '0.00'}</strong></div>
+                  </div>
+
+                  <!-- Innings 2 -->
+                  <div class="bg-white border-2 border-slate-200 rounded-3xl p-4 shadow-sm space-y-2">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                      <div class="flex items-center gap-2 min-w-0">
+                        <img src="${logoB}" class="w-7 h-7 rounded-xl object-cover border border-slate-200 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                        <span class="text-xs font-black text-slate-900 uppercase truncate">${fixture.teamBName}</span>
+                      </div>
+                      <span class="text-xs font-black font-mono text-sky-700 bg-sky-50 px-2 py-0.5 rounded-lg border border-sky-200">${inn2Score.runs || 0}/${inn2Score.wickets || 0} (${inn2Score.overs || 0}.${inn2Score.balls || 0} ov)</span>
+                    </div>
+                    <div class="text-[11px] font-semibold text-slate-500">Run Rate: <strong class="font-mono text-slate-800">${inn2Score.overs ? ((inn2Score.runs / ((inn2Score.overs * 6) + (inn2Score.balls || 0))) * 6).toFixed(2) : '0.00'}</strong></div>
+                  </div>
+                </div>
+
+                <!-- 4. Top Performers Cards -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  ${topBatter ? `
+                    <div class="bg-white border-2 border-slate-200 rounded-3xl p-3.5 shadow-sm flex items-center gap-3">
+                      <div class="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center text-lg shrink-0 font-black">🏏</div>
+                      <div class="min-w-0">
+                        <div class="text-[9px] font-black text-slate-400 uppercase">Top Match Batsman</div>
+                        <div class="text-xs font-black text-slate-900 truncate uppercase">${topBatter.name}</div>
+                        <div class="text-[11px] font-mono font-bold text-emerald-700">${topBatter.runs} runs (${topBatter.balls}b) • ${topBatter.fours}x4, ${topBatter.sixes}x6</div>
+                      </div>
+                    </div>
+                  ` : ''}
+
+                  ${topBowler ? `
+                    <div class="bg-white border-2 border-slate-200 rounded-3xl p-3.5 shadow-sm flex items-center gap-3">
+                      <div class="w-10 h-10 rounded-2xl bg-sky-100 text-sky-800 flex items-center justify-center text-lg shrink-0 font-black">⚾</div>
+                      <div class="min-w-0">
+                        <div class="text-[9px] font-black text-slate-400 uppercase">Top Match Bowler</div>
+                        <div class="text-xs font-black text-slate-900 truncate uppercase">${topBowler.name}</div>
+                        <div class="text-[11px] font-mono font-bold text-sky-700">${topBowler.wickets} wkts for ${topBowler.runs} runs (${topBowler.overs} ov)</div>
+                      </div>
+                    </div>
+                  ` : ''}
+                </div>
+
+                <!-- 5. Match Meta Info Footer -->
+                <div class="bg-slate-50 border border-slate-200 p-3.5 rounded-2xl text-xs font-bold text-slate-600 flex flex-wrap items-center justify-between gap-2">
+                  <span>🪙 Toss: <strong class="text-slate-900">${fixture.tossDetails || 'Toss updated'}</strong></span>
+                  <span>📍 Venue: <strong class="text-slate-900">${fixture.venue || 'JHANKRA SCHOOL GROUND'}</strong></span>
                 </div>
               </div>
             `;
-          })() : ''}
-
-          <!-- Main Big Score Hero Card -->
-          <div class="bg-white border-2 border-emerald-500 rounded-3xl p-4 sm:p-5 shadow-md space-y-3">
-            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div class="flex items-center gap-2.5 min-w-0">
-                <img src="${batLogo}" class="w-10 h-10 rounded-2xl object-cover border border-slate-200 shadow-2xs bg-slate-50 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
-                <div class="truncate">
-                  <h3 class="font-black text-slate-900 text-sm sm:text-base leading-tight truncate">${batTeamName}</h3>
-                  <span class="text-[10px] text-emerald-700 font-bold uppercase tracking-wider">Innings ${state.innings || 1} Batting</span>
+          })() : `
+            <!-- Main Big Score Hero Card for Live Match -->
+            <div class="bg-white border-2 border-emerald-500 rounded-3xl p-4 sm:p-5 shadow-md space-y-3">
+              <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div class="flex items-center gap-2.5 min-w-0">
+                  <img src="${batLogo}" class="w-10 h-10 rounded-2xl object-cover border border-slate-200 shadow-2xs bg-slate-50 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                  <div class="truncate">
+                    <h3 class="font-black text-slate-900 text-sm sm:text-base leading-tight truncate">${batTeamName}</h3>
+                    <span class="text-[10px] text-emerald-700 font-bold uppercase tracking-wider">Innings ${state.innings || 1} Batting</span>
+                  </div>
+                </div>
+                <div class="text-right">
+                  <div class="text-3xl sm:text-4xl font-black text-slate-900 font-mono leading-none">
+                    <span class="text-emerald-700">${state.runs || 0}</span><span class="text-slate-400 text-xl">/${state.wickets || 0}</span>
+                  </div>
+                  <div class="text-xs text-slate-500 font-mono font-bold mt-1">
+                    ${state.overs || 0}.${state.balls || 0} / ${fixture.oversLimit || 16} Overs
+                  </div>
                 </div>
               </div>
-              <div class="text-right">
-                <div class="text-3xl sm:text-4xl font-black text-slate-900 font-mono leading-none">
-                  <span class="text-emerald-700">${state.runs || 0}</span><span class="text-slate-400 text-xl">/${state.wickets || 0}</span>
-                </div>
-                <div class="text-xs text-slate-500 font-mono font-bold mt-1">
-                  ${state.overs || 0}.${state.balls || 0} / ${fixture.oversLimit || 16} Overs
-                </div>
-              </div>
-            </div>
 
-            ${(fixture.tossDetails || state.tossDetails) ? `
-              <div class="bg-amber-50 border border-amber-200 text-amber-900 px-3 py-1.5 rounded-2xl text-[11px] font-bold flex items-center gap-2 shadow-2xs">
-                <span>🪙</span> <span>${fixture.tossDetails || state.tossDetails}</span>
-              </div>
-            ` : ''}
-
-            ${targetEquation}
-
-            <!-- Match Metric Badges Grid (Extras, Overs, CRR, Target, Req. RR, P'ship) -->
-            <div class="grid grid-cols-3 gap-2 bg-slate-50 border border-slate-200 p-2.5 rounded-2xl text-center font-mono">
-              <div class="p-1.5 bg-white border border-slate-200/80 rounded-xl shadow-2xs">
-                <div class="text-[9px] text-slate-400 font-bold uppercase">Extras</div>
-                <div class="text-xs font-black text-slate-800">${(state.extras || 0)}</div>
-              </div>
-              <div class="p-1.5 bg-white border border-slate-200/80 rounded-xl shadow-2xs">
-                <div class="text-[9px] text-slate-400 font-bold uppercase">Overs</div>
-                <div class="text-xs font-black text-slate-800">${state.overs || 0}.${state.balls || 0} / ${fixture.oversLimit || 16}</div>
-              </div>
-              <div class="p-1.5 bg-white border border-slate-200/80 rounded-xl shadow-2xs">
-                <div class="text-[9px] text-slate-400 font-bold uppercase">CRR</div>
-                <div class="text-xs font-black text-emerald-700">${crr}</div>
-              </div>
-              ${state.innings === 2 && state.target ? `
-                <div class="p-1.5 bg-amber-50 border border-amber-200 rounded-xl shadow-2xs">
-                  <div class="text-[9px] text-amber-800 font-bold uppercase">Target</div>
-                  <div class="text-xs font-black text-amber-950">${state.target}</div>
-                </div>
-                <div class="p-1.5 bg-amber-50 border border-amber-200 rounded-xl shadow-2xs">
-                  <div class="text-[9px] text-amber-800 font-bold uppercase">Req. RR</div>
-                  <div class="text-xs font-black text-amber-950">${reqRR}</div>
+              ${(fixture.tossDetails || state.tossDetails) ? `
+                <div class="bg-amber-50 border border-amber-200 text-amber-900 px-3 py-1.5 rounded-2xl text-[11px] font-bold flex items-center gap-2 shadow-2xs">
+                  <span>🪙</span> <span>${fixture.tossDetails || state.tossDetails}</span>
                 </div>
               ` : ''}
-              <div class="p-1.5 bg-white border border-slate-200/80 rounded-xl shadow-2xs ${state.innings === 2 && state.target ? '' : 'col-span-3'}">
-                <div class="text-[9px] text-slate-400 font-bold uppercase">Partnership</div>
-                <div class="text-xs font-black text-slate-800">${pshipRuns} (${pshipBalls} balls)</div>
+
+              ${targetEquation}
+
+              <!-- Match Metric Badges Grid (Extras, Overs, CRR, Target, Req. RR, P'ship) -->
+              <div class="grid grid-cols-3 gap-2 bg-slate-50 border border-slate-200 p-2.5 rounded-2xl text-center font-mono">
+                <div class="p-1.5 bg-white border border-slate-200/80 rounded-xl shadow-2xs">
+                  <div class="text-[9px] text-slate-400 font-bold uppercase">Extras</div>
+                  <div class="text-xs font-black text-slate-800">${(state.extras || 0)}</div>
+                </div>
+                <div class="p-1.5 bg-white border border-slate-200/80 rounded-xl shadow-2xs">
+                  <div class="text-[9px] text-slate-400 font-bold uppercase">Overs</div>
+                  <div class="text-xs font-black text-slate-800">${state.overs || 0}.${state.balls || 0} / ${fixture.oversLimit || 16}</div>
+                </div>
+                <div class="p-1.5 bg-white border border-slate-200/80 rounded-xl shadow-2xs">
+                  <div class="text-[9px] text-slate-400 font-bold uppercase">CRR</div>
+                  <div class="text-xs font-black text-emerald-700">${crr}</div>
+                </div>
+                ${state.innings === 2 && state.target ? `
+                  <div class="p-1.5 bg-amber-50 border border-amber-200 rounded-xl shadow-2xs">
+                    <div class="text-[9px] text-amber-800 font-bold uppercase">Target</div>
+                    <div class="text-xs font-black text-amber-950">${state.target}</div>
+                  </div>
+                  <div class="p-1.5 bg-amber-50 border border-amber-200 rounded-xl shadow-2xs">
+                    <div class="text-[9px] text-amber-800 font-bold uppercase">Req. RR</div>
+                    <div class="text-xs font-black text-amber-950">${reqRR}</div>
+                  </div>
+                ` : ''}
+                <div class="p-1.5 bg-white border border-slate-200/80 rounded-xl shadow-2xs ${state.innings === 2 && state.target ? '' : 'col-span-3'}">
+                  <div class="text-[9px] text-slate-400 font-bold uppercase">Partnership</div>
+                  <div class="text-xs font-black text-slate-800">${pshipRuns} (${pshipBalls} balls)</div>
+                </div>
               </div>
             </div>
-          </div>
 
-          <!-- Live Batsman Table -->
-          <div class="bg-white border-2 border-slate-200 rounded-3xl p-3.5 sm:p-4 shadow-sm space-y-2">
-            <h4 class="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center justify-between">
-              <span>🏏 Batsmen in Play</span>
-              <span class="text-[10px] text-slate-400 font-normal">Live In-Play</span>
-            </h4>
-            
-            <div class="overflow-x-auto">
-              <table class="w-full text-xs text-left">
-                <thead>
-                  <tr class="text-[10px] font-black text-slate-400 uppercase border-b border-slate-100">
-                    <th class="py-1.5 px-2">Batsman</th>
-                    <th class="py-1.5 px-2 text-center font-mono">R</th>
-                    <th class="py-1.5 px-2 text-center font-mono">B</th>
-                    <th class="py-1.5 px-2 text-center font-mono">4s</th>
-                    <th class="py-1.5 px-2 text-center font-mono">6s</th>
-                    <th class="py-1.5 px-2 text-right font-mono">SR</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100 font-bold">
-                  <tr class="bg-emerald-50/60">
-                    <td class="py-2.5 px-2">
-                      <div class="flex items-center gap-1.5">
-                        <span class="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span>
-                        <span class="text-slate-950 font-black">${strikerP ? strikerP.name : 'Striker (Not Selected)'} *</span>
-                      </div>
-                    </td>
-                    <td class="py-2.5 px-2 text-center text-emerald-800 font-black font-mono">${strikerStat.runs || 0}</td>
-                    <td class="py-2.5 px-2 text-center text-slate-700 font-mono">${strikerStat.balls || 0}</td>
-                    <td class="py-2.5 px-2 text-center text-slate-700 font-mono">${strikerStat.fours || 0}</td>
-                    <td class="py-2.5 px-2 text-center text-slate-700 font-mono">${strikerStat.sixes || 0}</td>
-                    <td class="py-2.5 px-2 text-right text-slate-700 font-mono">${strikerSR}</td>
-                  </tr>
-                  <tr>
-                    <td class="py-2.5 px-2">
-                      <div class="flex items-center gap-1.5">
-                        <span class="w-2 h-2 rounded-full bg-teal-500"></span>
-                        <span class="text-slate-900">${nonStrikerP ? nonStrikerP.name : 'Non-Striker (Not Selected)'}</span>
-                      </div>
-                    </td>
-                    <td class="py-2.5 px-2 text-center text-teal-800 font-black font-mono">${nonStrikerStat.runs || 0}</td>
-                    <td class="py-2.5 px-2 text-center text-slate-700 font-mono">${nonStrikerStat.balls || 0}</td>
-                    <td class="py-2.5 px-2 text-center text-slate-700 font-mono">${nonStrikerStat.fours || 0}</td>
-                    <td class="py-2.5 px-2 text-center text-slate-700 font-mono">${nonStrikerStat.sixes || 0}</td>
-                    <td class="py-2.5 px-2 text-right text-slate-700 font-mono">${nonStrikerSR}</td>
-                  </tr>
-                </tbody>
-              </table>
+            <!-- Live Batsman Table -->
+            <div class="bg-white border-2 border-slate-200 rounded-3xl p-3.5 sm:p-4 shadow-sm space-y-2">
+              <h4 class="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center justify-between">
+                <span>🏏 Batsmen in Play</span>
+                <span class="text-[10px] text-slate-400 font-normal">Live In-Play</span>
+              </h4>
+              
+              <div class="overflow-x-auto">
+                <table class="w-full text-xs text-left">
+                  <thead>
+                    <tr class="text-[10px] font-black text-slate-400 uppercase border-b border-slate-100">
+                      <th class="py-1.5 px-2">Batsman</th>
+                      <th class="py-1.5 px-2 text-center font-mono">R</th>
+                      <th class="py-1.5 px-2 text-center font-mono">B</th>
+                      <th class="py-1.5 px-2 text-center font-mono">4s</th>
+                      <th class="py-1.5 px-2 text-center font-mono">6s</th>
+                      <th class="py-1.5 px-2 text-right font-mono">SR</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100 font-bold">
+                    <tr class="bg-emerald-50/60">
+                      <td class="py-2.5 px-2">
+                        <div class="flex items-center gap-1.5">
+                          <span class="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span>
+                          <span class="text-slate-950 font-black">${strikerP ? strikerP.name : 'Striker (Not Selected)'} *</span>
+                        </div>
+                      </td>
+                      <td class="py-2.5 px-2 text-center text-emerald-800 font-black font-mono">${strikerStat.runs || 0}</td>
+                      <td class="py-2.5 px-2 text-center text-slate-700 font-mono">${strikerStat.balls || 0}</td>
+                      <td class="py-2.5 px-2 text-center text-slate-700 font-mono">${strikerStat.fours || 0}</td>
+                      <td class="py-2.5 px-2 text-center text-slate-700 font-mono">${strikerStat.sixes || 0}</td>
+                      <td class="py-2.5 px-2 text-right text-slate-700 font-mono">${strikerSR}</td>
+                    </tr>
+                    <tr>
+                      <td class="py-2.5 px-2">
+                        <div class="flex items-center gap-1.5">
+                          <span class="w-2 h-2 rounded-full bg-teal-500"></span>
+                          <span class="text-slate-900">${nonStrikerP ? nonStrikerP.name : 'Non-Striker (Not Selected)'}</span>
+                        </div>
+                      </td>
+                      <td class="py-2.5 px-2 text-center text-teal-800 font-black font-mono">${nonStrikerStat.runs || 0}</td>
+                      <td class="py-2.5 px-2 text-center text-slate-700 font-mono">${nonStrikerStat.balls || 0}</td>
+                      <td class="py-2.5 px-2 text-center text-slate-700 font-mono">${nonStrikerStat.fours || 0}</td>
+                      <td class="py-2.5 px-2 text-center text-slate-700 font-mono">${nonStrikerStat.sixes || 0}</td>
+                      <td class="py-2.5 px-2 text-right text-slate-700 font-mono">${nonStrikerSR}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
 
-          <!-- Live Bowler Table -->
-          <div class="bg-white border-2 border-slate-200 rounded-3xl p-3.5 sm:p-4 shadow-sm space-y-2">
-            <h4 class="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center justify-between">
-              <span>⚾ Active Bowler</span>
-              <span class="text-[10px] text-slate-400 font-normal">Current Spell</span>
-            </h4>
-            
-            <div class="overflow-x-auto">
-              <table class="w-full text-xs text-left">
-                <thead>
-                  <tr class="text-[10px] font-black text-slate-400 uppercase border-b border-slate-100">
-                    <th class="py-1.5 px-2">Bowler</th>
-                    <th class="py-1.5 px-2 text-center font-mono">O</th>
-                    <th class="py-1.5 px-2 text-center font-mono">M</th>
-                    <th class="py-1.5 px-2 text-center font-mono">R</th>
-                    <th class="py-1.5 px-2 text-center font-mono">W</th>
-                    <th class="py-1.5 px-2 text-right font-mono">Eco</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100 font-bold">
-                  <tr class="bg-indigo-50/50">
-                    <td class="py-2.5 px-2">
-                      <div class="flex items-center gap-1.5">
-                        <span class="w-2 h-2 rounded-full bg-indigo-600 animate-pulse"></span>
-                        <span class="text-slate-950 font-black">${bowlerP ? bowlerP.name : 'Bowler (Not Selected)'}</span>
-                      </div>
-                    </td>
-                    <td class="py-2.5 px-2 text-center text-slate-800 font-mono">${bOvs}</td>
-                    <td class="py-2.5 px-2 text-center text-slate-700 font-mono">${bowlerStat.maidens || 0}</td>
-                    <td class="py-2.5 px-2 text-center text-slate-800 font-mono">${bowlerStat.runsConceded || 0}</td>
-                    <td class="py-2.5 px-2 text-center text-rose-700 font-black font-mono">${bowlerStat.wickets || 0}</td>
-                    <td class="py-2.5 px-2 text-right text-slate-700 font-mono">${bowlerEco}</td>
-                  </tr>
-                </tbody>
-              </table>
+            <!-- Live Bowler Table -->
+            <div class="bg-white border-2 border-slate-200 rounded-3xl p-3.5 sm:p-4 shadow-sm space-y-2">
+              <h4 class="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center justify-between">
+                <span>⚾ Active Bowler</span>
+                <span class="text-[10px] text-slate-400 font-normal">Current Spell</span>
+              </h4>
+              
+              <div class="overflow-x-auto">
+                <table class="w-full text-xs text-left">
+                  <thead>
+                    <tr class="text-[10px] font-black text-slate-400 uppercase border-b border-slate-100">
+                      <th class="py-1.5 px-2">Bowler</th>
+                      <th class="py-1.5 px-2 text-center font-mono">O</th>
+                      <th class="py-1.5 px-2 text-center font-mono">M</th>
+                      <th class="py-1.5 px-2 text-center font-mono">R</th>
+                      <th class="py-1.5 px-2 text-center font-mono">W</th>
+                      <th class="py-1.5 px-2 text-right font-mono">Eco</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100 font-bold">
+                    <tr class="bg-indigo-50/50">
+                      <td class="py-2.5 px-2">
+                        <div class="flex items-center gap-1.5">
+                          <span class="w-2 h-2 rounded-full bg-indigo-600 animate-pulse"></span>
+                          <span class="text-slate-950 font-black">${bowlerP ? bowlerP.name : 'Bowler (Not Selected)'}</span>
+                        </div>
+                      </td>
+                      <td class="py-2.5 px-2 text-center text-slate-800 font-mono">${bOvs}</td>
+                      <td class="py-2.5 px-2 text-center text-slate-700 font-mono">${bowlerStat.maidens || 0}</td>
+                      <td class="py-2.5 px-2 text-center text-slate-800 font-mono">${bowlerStat.runsConceded || 0}</td>
+                      <td class="py-2.5 px-2 text-center text-rose-700 font-black font-mono">${bowlerStat.wickets || 0}</td>
+                      <td class="py-2.5 px-2 text-right text-slate-700 font-mono">${bowlerEco}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
 
-          <!-- Recent Overs Ticker -->
-          <div class="bg-white border-2 border-slate-200 rounded-3xl p-3.5 sm:p-4 shadow-sm space-y-2">
-            <div class="flex items-center justify-between text-xs font-black text-slate-900 uppercase">
-              <span>⚡ Recent Deliveries</span>
-              <span class="text-[10px] text-slate-400 font-normal">This Over:</span>
+            <!-- Recent Overs Ticker -->
+            <div class="bg-white border-2 border-slate-200 rounded-3xl p-3.5 sm:p-4 shadow-sm space-y-2">
+              <div class="flex items-center justify-between text-xs font-black text-slate-900 uppercase">
+                <span>⚡ Recent Deliveries</span>
+                <span class="text-[10px] text-slate-400 font-normal">This Over:</span>
+              </div>
+              <div class="flex items-center gap-1.5 flex-wrap">
+                ${(state.overBalls || []).length > 0 ? (state.overBalls || []).map(b => {
+                  let pillClass = 'bg-slate-100 text-slate-800 border-slate-300';
+                  if (b.type === 'four') pillClass = 'bg-blue-600 text-white border-blue-700 font-black';
+                  if (b.type === 'six') pillClass = 'bg-amber-400 text-slate-950 border-amber-500 font-black';
+                  if (b.type === 'wicket') pillClass = 'bg-rose-600 text-white border-rose-700 font-black';
+                  if (b.type === 'wide' || b.type === 'noball') pillClass = 'bg-amber-100 text-amber-900 border-amber-300 font-semibold';
+                  return `<span class="px-2 py-1 rounded-xl border font-mono font-black text-xs shadow-2xs ${pillClass}">${b.label}</span>`;
+                }).join('') : '<span class="text-slate-400 italic text-xs">No balls in this over yet</span>'}
+              </div>
             </div>
-            <div class="flex items-center gap-1.5 flex-wrap">
-              ${(state.overBalls || []).length > 0 ? (state.overBalls || []).map(b => {
-                let pillClass = 'bg-slate-100 text-slate-800 border-slate-300';
-                if (b.type === 'four') pillClass = 'bg-blue-600 text-white border-blue-700 font-black';
-                if (b.type === 'six') pillClass = 'bg-amber-400 text-slate-950 border-amber-500 font-black';
-                if (b.type === 'wicket') pillClass = 'bg-rose-600 text-white border-rose-700 font-black';
-                if (b.type === 'wide' || b.type === 'noball') pillClass = 'bg-amber-100 text-amber-900 border-amber-300 font-semibold';
-                return `<span class="px-2 py-1 rounded-xl border font-mono font-black text-xs shadow-2xs ${pillClass}">${b.label}</span>`;
-              }).join('') : '<span class="text-slate-400 italic text-xs">No balls in this over yet</span>'}
-            </div>
-          </div>
+          `}
         </div>
       `;
     }
