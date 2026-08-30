@@ -1304,6 +1304,64 @@ class Store {
     return count;
   }
 
+  _savePlayerAcrossAllKeys(player) {
+    if (!player || !player.id) return;
+    this._invalidateCache('players');
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith('cpl_players_v8_') || k === 'cpl_global_players')) {
+          const raw = localStorage.getItem(k);
+          if (raw) {
+            let arr = JSON.parse(raw);
+            if (Array.isArray(arr)) {
+              let updated = false;
+              arr = arr.map(p => {
+                if (p && (p.id === player.id || (player.id && p.id && toUUID(p.id) === toUUID(player.id)))) {
+                  updated = true;
+                  return { ...p, ...player };
+                }
+                return p;
+              });
+              if (updated) {
+                safeSetLocalStorage(k, arr);
+              }
+            }
+          }
+        }
+      }
+    } catch(e) {}
+  }
+
+  _saveTeamAcrossAllKeys(team) {
+    if (!team || !team.id) return;
+    this._invalidateCache('teams');
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith('cpl_teams_v8_') || k === 'cpl_global_teams')) {
+          const raw = localStorage.getItem(k);
+          if (raw) {
+            let arr = JSON.parse(raw);
+            if (Array.isArray(arr)) {
+              let updated = false;
+              arr = arr.map(t => {
+                if (t && (t.id === team.id || (team.id && t.id && toUUID(t.id) === toUUID(team.id)))) {
+                  updated = true;
+                  return { ...t, ...team };
+                }
+                return t;
+              });
+              if (updated) {
+                safeSetLocalStorage(k, arr);
+              }
+            }
+          }
+        }
+      }
+    } catch(e) {}
+  }
+
   assignPlayerToTeam(playerId, teamId, soldPrice) {
     this._invalidateCache('players');
     this._invalidateCache('teams');
@@ -1322,12 +1380,14 @@ class Store {
 
     if (player && team) {
       if (player.teamId) {
-        const oldTeam = teams.find(t => t.id === player.teamId || (player.teamId && t.id && toUUID(t.id) === toUUID(player.teamId)));
+        const oldTeam = teams.find(t => t.id === player.teamId || (player.teamId && t.id && toUUID(t.id) === toUUID(player.teamId))) || (this.getAllTeamsAcrossTournaments ? this.getAllTeamsAcrossTournaments().find(t => t.id === player.teamId || (player.teamId && t.id && toUUID(t.id) === toUUID(player.teamId))) : null);
         if (oldTeam) {
           oldTeam.squadCount = Math.max(0, (oldTeam.squadCount || 1) - 1);
           oldTeam.purseSpent = Math.max(0, (oldTeam.purseSpent || 0) - (player.soldPrice || 0));
           oldTeam.remainingPurse = Math.max(0, (Number(oldTeam.purseBudget) || 8000) - oldTeam.purseSpent);
           oldTeam.updated_at = Date.now();
+          this._saveTeamAcrossAllKeys(oldTeam);
+          syncTeamToSupabase(oldTeam);
         }
       }
 
@@ -1351,6 +1411,8 @@ class Store {
       this._invalidateCache('teams');
       safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
       safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
+      this._savePlayerAcrossAllKeys(player);
+      this._saveTeamAcrossAllKeys(team);
       syncPlayerToSupabase(player);
       syncTeamToSupabase(team);
       this.notify('players_updated');
