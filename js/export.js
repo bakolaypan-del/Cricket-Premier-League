@@ -1339,31 +1339,98 @@ export function exportMatchScorecardPDF(fixture, tourney) {
   const result = fixture.result || fixture.resultText || (fixture.winnerTeamName ? `${fixture.winnerTeamName} WON` : 'MATCH COMPLETED');
   const potm = fixture.potmName || fixture.playerOfTheMatch || fixture.mvpName || '—';
 
+  const state = fixture.liveMatchState || {};
+  const pStats = state.playerStats || {};
+  const ballHistory = state.ballHistory || state.ballLog || [];
+
+  const allPlayers = (typeof store !== 'undefined' && store.getPlayers) ? store.getPlayers() : [];
+  const teamAPlayers = allPlayers.filter(p => p.teamId === fixture.teamAId);
+  const teamBPlayers = allPlayers.filter(p => p.teamId === fixture.teamBId);
+
+  const pxiA = fixture.playingXI?.[fixture.teamAId]?.playing11Ids || teamAPlayers.map(p => p.id);
+  const pxiB = fixture.playingXI?.[fixture.teamBId]?.playing11Ids || teamBPlayers.map(p => p.id);
+
+  const squadA = teamAPlayers.length > 0 ? teamAPlayers.filter(p => pxiA.includes(p.id)) : Array.from({ length: 11 }, (_, i) => ({ id: `${fixture.teamAId}-ply-${i+1}`, name: `${teamA} Player ${i+1}` }));
+  const squadB = teamBPlayers.length > 0 ? teamBPlayers.filter(p => pxiB.includes(p.id)) : Array.from({ length: 11 }, (_, i) => ({ id: `${fixture.teamBId}-ply-${i+1}`, name: `${teamB} Player ${i+1}` }));
+
+  // Helper to extract real batters sorted by Who Batted First
+  const extractRealBatters = (playersList) => {
+    const firstSeenMap = {};
+    ballHistory.forEach((b, idx) => {
+      if (b.strikerId && firstSeenMap[b.strikerId] === undefined) firstSeenMap[b.strikerId] = idx;
+      if (b.nonStrikerId && firstSeenMap[b.nonStrikerId] === undefined) firstSeenMap[b.nonStrikerId] = idx;
+    });
+
+    const sorted = [...(playersList || [])].sort((a, b) => {
+      const sA = pStats[a.id] || {};
+      const sB = pStats[b.id] || {};
+      const bA = (sA.balls > 0 || sA.runs > 0 || sA.dismissed || state.strikerId === a.id || state.nonStrikerId === a.id);
+      const bB = (sB.balls > 0 || sB.runs > 0 || sB.dismissed || state.strikerId === b.id || state.nonStrikerId === b.id);
+      if (bA && !bB) return -1;
+      if (!bA && bB) return 1;
+      if (bA && bB) {
+        const idxA = firstSeenMap[a.id] ?? 9999;
+        const idxB = firstSeenMap[b.id] ?? 9999;
+        if (idxA !== idxB) return idxA - idxB;
+      }
+      return 0;
+    });
+
+    return sorted.map(p => {
+      const s = pStats[p.id] || {};
+      const hasBatted = (s.balls > 0 || s.runs > 0 || s.dismissed || state.strikerId === p.id || state.nonStrikerId === p.id);
+      const isOut = s.dismissed;
+      const dismissal = isOut ? (s.dismissalInfo || 'out') : (hasBatted ? 'not out' : 'did not bat');
+      const sr = s.balls > 0 ? (((s.runs || 0) / s.balls) * 100).toFixed(1) : '0.0';
+      return {
+        name: p.name,
+        dismissal,
+        runs: hasBatted ? (s.runs || 0) : 0,
+        balls: hasBatted ? (s.balls || 0) : 0,
+        fours: hasBatted ? (s.fours || 0) : 0,
+        sixes: hasBatted ? (s.sixes || 0) : 0,
+        sr,
+        hasBatted
+      };
+    });
+  };
+
+  // Helper to extract real bowlers
+  const extractRealBowlers = (playersList) => {
+    const bowlers = (playersList || []).filter(p => {
+      const s = pStats[p.id] || {};
+      return (s.ballsBowled > 0 || s.runsConceded > 0 || s.wickets > 0);
+    });
+
+    return bowlers.map(p => {
+      const s = pStats[p.id] || {};
+      const balls = s.ballsBowled || 0;
+      const overs = `${Math.floor(balls / 6)}.${balls % 6}`;
+      const maidens = s.maidens || 0;
+      const runs = s.runsConceded || 0;
+      const wickets = s.wickets || 0;
+      const econ = balls > 0 ? ((runs / (balls / 6)).toFixed(2)) : '0.00';
+      return {
+        name: p.name,
+        overs,
+        maidens,
+        runs,
+        wickets,
+        econ,
+        dots: s.dots || 0
+      };
+    });
+  };
+
   // Innings 1 data
-  const inn1Score = fixture.teamAScore || { runs: 0, wickets: 0, overs: 0, balls: 0 };
-  const inn1Batters = fixture.teamABatting || fixture.innings1Batting || [
-    { name: 'Opening Batter 1', dismissal: 'c & b Bowler', runs: 34, balls: 22, fours: 4, sixes: 1, sr: 154.5 },
-    { name: 'Opening Batter 2', dismissal: 'b Bowler', runs: 45, balls: 30, fours: 6, sixes: 2, sr: 150.0 },
-    { name: 'Top Order Batter 3', dismissal: 'not out', runs: 28, balls: 18, fours: 3, sixes: 1, sr: 155.5 },
-    { name: 'Middle Order Batter 4', dismissal: 'run out', runs: 12, balls: 8, fours: 1, sixes: 0, sr: 150.0 }
-  ];
-  const inn1Bowlers = fixture.teamBBowling || fixture.innings1Bowling || [
-    { name: 'Opening Bowler 1', overs: '4.0', maidens: 0, runs: 28, wickets: 2, econ: 7.00, dots: 10 },
-    { name: 'Opening Bowler 2', overs: '4.0', maidens: 1, runs: 22, wickets: 1, econ: 5.50, dots: 14 },
-    { name: 'Spinner 3', overs: '4.0', maidens: 0, runs: 35, wickets: 0, econ: 8.75, dots: 8 }
-  ];
+  const inn1Score = fixture.teamAScore || { runs: state.runs || 0, wickets: state.wickets || 0, overs: state.overs || 0, balls: state.balls || 0 };
+  const inn1Batters = (fixture.teamABatting && fixture.teamABatting.length > 0) ? fixture.teamABatting : extractRealBatters(squadA);
+  const inn1Bowlers = (fixture.teamBBowling && fixture.teamBBowling.length > 0) ? fixture.teamBBowling : extractRealBowlers(squadB);
 
   // Innings 2 data
   const inn2Score = fixture.teamBScore || { runs: 0, wickets: 0, overs: 0, balls: 0 };
-  const inn2Batters = fixture.teamBBatting || fixture.innings2Batting || [
-    { name: 'Chasing Batter 1', dismissal: 'b Bowler', runs: 25, balls: 18, fours: 3, sixes: 1, sr: 138.8 },
-    { name: 'Chasing Batter 2', dismissal: 'lbw b Bowler', runs: 18, balls: 14, fours: 2, sixes: 0, sr: 128.5 },
-    { name: 'Captain Batter 3', dismissal: 'c Fielder b Bowler', runs: 38, balls: 26, fours: 4, sixes: 2, sr: 146.1 }
-  ];
-  const inn2Bowlers = fixture.teamABowling || fixture.innings2Bowling || [
-    { name: 'Strike Bowler 1', overs: '4.0', maidens: 0, runs: 24, wickets: 3, econ: 6.00, dots: 12 },
-    { name: 'Seamer 2', overs: '4.0', maidens: 0, runs: 30, wickets: 2, econ: 7.50, dots: 9 }
-  ];
+  const inn2Batters = (fixture.teamBBatting && fixture.teamBBatting.length > 0) ? fixture.teamBBatting : extractRealBatters(squadB);
+  const inn2Bowlers = (fixture.teamABowling && fixture.teamABowling.length > 0) ? fixture.teamABowling : extractRealBowlers(squadA);
 
   const html = `
     <!DOCTYPE html>

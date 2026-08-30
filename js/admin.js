@@ -4152,8 +4152,23 @@ function endInningsOrFinishMatch(fixture) {
   fixture.winnerTeamId = winnerId;
   // Match is over -> release the live-scoring cloud shield so the final result syncs.
   if (window.__cplActiveScoringFixtureId === fixture.id) window.__cplActiveScoringFixtureId = null;
+  if (typeof localStorage !== 'undefined') {
+    localStorage.removeItem('cpl_active_scoring_fixture_id');
+    localStorage.removeItem(`cpl_active_scoring_${fixture.id}_v`);
+  }
+  activeScoringMatchId = null;
+
+  const selMatch = document.getElementById('scorer-select-match');
+  if (selMatch) selMatch.value = '';
+
   store.updateFixture(fixture);
-  renderScorerActivePanel();
+
+  document.getElementById('scorer-active-panel')?.classList.add('hidden');
+  const startBtnTxt = document.getElementById('scorer-start-match-btn-txt');
+  if (startBtnTxt) startBtnTxt.textContent = "🚀 MATCH IS READY TO START";
+
+  renderScorerMatchesList();
+  renderAdminFixturesList();
   if (window.renderActiveMatchCenter) window.renderActiveMatchCenter();
   if (window.refreshFixturesViewContent) window.refreshFixturesViewContent();
   showScoringAnimation('match');
@@ -7973,8 +7988,23 @@ window.finishMatchManually = function() {
     fixture.result = resultTxt;
     fixture.winnerTeamId = winnerId;
     
+    // Clear active scoring session flags completely!
+    window.__cplActiveScoringFixtureId = null;
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('cpl_active_scoring_fixture_id');
+      localStorage.removeItem(`cpl_active_scoring_${fixture.id}_v`);
+    }
+    activeScoringMatchId = null;
+
+    const selMatch = document.getElementById('scorer-select-match');
+    if (selMatch) selMatch.value = '';
+
     store.updateFixture(fixture);
+
     document.getElementById('scorer-active-panel')?.classList.add('hidden');
+    const startBtnTxt = document.getElementById('scorer-start-match-btn-txt');
+    if (startBtnTxt) startBtnTxt.textContent = "🚀 MATCH IS READY TO START";
+
     renderScorerMatchesList();
     renderAdminFixturesList();
     alert(`🎉 Match Completed!\n\nResult: ${resultTxt}`);
