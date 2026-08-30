@@ -10638,7 +10638,7 @@ export function openLiveAuctionProjectorView() {
           <div class="min-w-0">
             <div class="flex items-center gap-1.5">
               <h1 class="text-xs sm:text-sm lg:text-base font-black tracking-tight text-slate-950 uppercase truncate">
-                JHANKRA SUPER LEAGUE 2026
+                ${(store.getActiveTournamentName ? store.getActiveTournamentName() : 'JHANKRA SUPER LEAGUE 2026').toUpperCase()}
               </h1>
               <span class="inline-flex items-center gap-1 px-1.5 py-0.5 bg-red-600 text-white font-black text-[9px] rounded uppercase tracking-wider animate-pulse shrink-0 shadow-xs">
                 <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span> 🔴 LIVE
