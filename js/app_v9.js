@@ -8736,7 +8736,36 @@ export function openMatchCenterModal(fixtureId) {
       if (state.innings === 2 && state.target) {
         const runsReq = state.target - state.runs;
         const remBalls = (fixture.oversLimit * 6) - totalBalls;
-        reqRR = remBalls > 0       contentArea.innerHTML = `
+        reqRR = remBalls > 0 ? ((runsReq / remBalls) * 6).toFixed(2) : '0.00';
+        targetEquation = `
+          <div class="bg-amber-100 border border-amber-300 text-amber-950 p-2.5 rounded-2xl text-center text-xs font-black shadow-2xs">
+            🎯 Need ${runsReq > 0 ? runsReq : 0} Runs off ${remBalls > 0 ? remBalls : 0} Balls (Req RR: ${reqRR})
+          </div>
+        `;
+      }
+
+      // Active Batsmen & Bowler rows with full fallback resolution
+      const allRegisteredPlayers = store.getPlayers();
+      const strikerP = store.getPlayerById(state.strikerId) || allRegisteredPlayers.find(p => String(p.id) === String(state.strikerId));
+      const nonStrikerP = store.getPlayerById(state.nonStrikerId) || allRegisteredPlayers.find(p => String(p.id) === String(state.nonStrikerId));
+      const bowlerP = store.getPlayerById(state.bowlerId) || allRegisteredPlayers.find(p => String(p.id) === String(state.bowlerId));
+
+      const strikerStat = pStats[state.strikerId] || { runs: 0, balls: 0, fours: 0, sixes: 0 };
+      const nonStrikerStat = pStats[state.nonStrikerId] || { runs: 0, balls: 0, fours: 0, sixes: 0 };
+      const bowlerStat = pStats[state.bowlerId] || { ballsBowled: 0, runsConceded: 0, wickets: 0 };
+
+      const bBalls = bowlerStat.ballsBowled || 0;
+      const bOvs = `${Math.floor(bBalls / 6)}.${bBalls % 6}`;
+      const totalOversDec = bBalls / 6;
+      const bowlerEco = totalOversDec > 0 ? ((bowlerStat.runsConceded || 0) / totalOversDec).toFixed(2) : '0.00';
+
+      const strikerSR = (strikerStat.balls > 0) ? (((strikerStat.runs || 0) / strikerStat.balls) * 100).toFixed(1) : '0.0';
+      const nonStrikerSR = (nonStrikerStat.balls > 0) ? (((nonStrikerStat.runs || 0) / nonStrikerStat.balls) * 100).toFixed(1) : '0.0';
+
+      const pshipRuns = (strikerStat.runs || 0) + (nonStrikerStat.runs || 0);
+      const pshipBalls = (strikerStat.balls || 0) + (nonStrikerStat.balls || 0);
+
+      contentArea.innerHTML = `
         <div class="space-y-3.5 animate-fade-in">
           ${isCompleted ? (() => {
             const potm = window.getMatchPotm(fixture);
