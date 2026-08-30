@@ -2061,14 +2061,19 @@ export function renderAdminDashboard(containerEl) {
     else if (stageVal === 'GROUP_C') grpCode = 'C';
     else if (stageVal === 'GROUP_D') grpCode = 'D';
 
-    const lCode = document.getElementById('fixture-league-category')?.value || 'T';
+    let lCode = document.getElementById('fixture-league-category')?.value || 'T';
+    let targetTid = activeTid;
+    if (teamA && (teamA.tournament_id || teamA.leagueId)) {
+      targetTid = teamA.tournament_id || teamA.leagueId;
+      if (teamA.leagueCode) lCode = teamA.leagueCode;
+    }
     const matchNoInput = document.getElementById('fixture-match-no')?.value;
-    const existingLeagueFix = store.getFixtures().filter(f => (f.leagueCode || 'T').toUpperCase() === lCode.toUpperCase() || f.tournament_id === activeTid || f.leagueId === activeTid);
+    const existingLeagueFix = store.getFixtures().filter(f => (f.leagueCode || 'T').toUpperCase() === lCode.toUpperCase() || f.tournament_id === targetTid || f.leagueId === targetTid);
     const matchNo = matchNoInput ? Number(matchNoInput) : (existingLeagueFix.length + 1);
 
     store.registerFixture({
-      tournament_id: activeTid,
-      leagueId: activeTid,
+      tournament_id: targetTid,
+      leagueId: targetTid,
       leagueCode: lCode,
       matchNo: matchNo,
       stage: stageVal,

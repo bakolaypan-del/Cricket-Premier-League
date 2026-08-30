@@ -2523,20 +2523,37 @@ export function renderCustomTournamentHub(container, tourney) {
 
   const allTeamIds = new Set(allTeams.map(t => String(t.id)));
 
+  // Build a set of ALL teams belonging to OTHER tournaments for strict exclusion
+  const otherTourneyTeamIds = new Set();
+  const allRegisteredTeams = store.getAllTeamsAcrossTournaments ? store.getAllTeamsAcrossTournaments() : store.getTeams();
+  allRegisteredTeams.forEach(t => {
+    if (t && t.id && !allTeamIds.has(String(t.id))) {
+      otherTourneyTeamIds.add(String(t.id));
+    }
+  });
+
   const allFixtures = (store.getAllFixturesAcrossTournaments ? store.getAllFixturesAcrossTournaments() : (store.getFixtures ? store.getFixtures() : [])).filter(f => {
     if (!f) return false;
-    const fTid = (f.tournament_id || f.tournamentId || f.leagueId || '').toString();
-    const fCode = (f.leagueCode || f.category_code || '').toUpperCase();
     const fTeamA = f.teamAId ? String(f.teamAId) : '';
     const fTeamB = f.teamBId ? String(f.teamBId) : '';
+
+    // CRITICAL EXCLUSION: If Team A or Team B belongs to another tournament, REJECT IT IMMEDIATELY!
+    if (otherTourneyTeamIds.has(fTeamA) || otherTourneyTeamIds.has(fTeamB)) {
+      return false;
+    }
+
+    // Direct inclusion if Team A or Team B belongs to this tournament
+    if (allTeamIds.has(fTeamA) || allTeamIds.has(fTeamB)) {
+      return true;
+    }
+
+    const fTid = (f.tournament_id || f.tournamentId || f.leagueId || '').toString();
+    const fCode = (f.leagueCode || f.category_code || '').toUpperCase();
 
     // Rule 1: Match by exact tournament UUID / ID / Slug
     if (fTid && (fTid === curTourneyId || fTid === String(tourney.id) || fTid === String(tourney.supabaseId) || fTid === tourneySlug || toUUID(fTid) === toUUID(curTourneyId))) return true;
 
-    // Rule 2: Match by Team Ownership (If Team A or Team B belongs to this tournament's team list)
-    if (allTeamIds.has(fTeamA) || allTeamIds.has(fTeamB)) return true;
-
-    // Rule 3: Match by explicit League Code ONLY if team ownership doesn't belong to another tournament
+    // Rule 2: Match by explicit League Code
     if (fCode && curTourneyCode && fCode !== 'T') {
       if (fCode === curTourneyCode) return true;
       if (curTourneyCode === 'KPL' && (fCode === 'K2026' || fCode === 'KPL')) return true;
