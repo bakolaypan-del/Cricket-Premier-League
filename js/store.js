@@ -57,7 +57,7 @@ import {
   fetchGlobalUniquePlayersCount,
   updateTournamentApprovalStatus,
   fetchLiveAuctionFromCloud
-} from './supabase.js?v=13.0.40';
+} from './supabase.js?v=13.0.41';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -2437,6 +2437,21 @@ class Store {
       });
     }
     return list;
+  }
+
+  getActiveTournament() {
+    const list = this.getAllAvailableTournaments();
+    const target = toUUID(this.activeTournamentId) || this.activeTournamentId;
+    const active = list.find(t => {
+      const tid = toUUID(t.supabaseId || t.id) || t.supabaseId || t.id;
+      return tid === target || t.slug === this.activeTournamentId || t.id === this.activeTournamentId;
+    });
+    return active || list[0] || { name: 'JHANKRA SUPER LEAGUE 2026', slug: 'jsl-2026' };
+  }
+
+  getActiveTournamentName() {
+    const tourney = this.getActiveTournament();
+    return tourney?.name || this.getRegistrationSettings()?.leagueName || this.getAuctionSettings()?.tournamentName || 'JHANKRA SUPER LEAGUE 2026';
   }
 
   getPlayersForTournament(tourneyId = null) {

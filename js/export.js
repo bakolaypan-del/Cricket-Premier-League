@@ -1,11 +1,24 @@
 // Export & Printing Utility Module for PDF & CSV (Developer: Suman Kolay - User Guide PDF Release)
 
+import { store } from './store.js?v=13.0.41';
+import { toUUID } from './supabase.js?v=13.0.41';
+
+export function getTournamentDocName(overrideTourney = null) {
+  if (overrideTourney && overrideTourney.name) return overrideTourney.name;
+  if (typeof store !== 'undefined' && store && store.getActiveTournamentName) {
+    const name = store.getActiveTournamentName();
+    if (name) return name;
+  }
+  return 'Cricket Premier League';
+}
+
 export function exportPlayersToCSV(players) {
   if (!players || players.length === 0) {
     alert('No player data available to export.');
     return;
   }
 
+  const tourneyName = getTournamentDocName();
   const headers = ['Serial No', 'Player ID', 'Full Name', 'Father Name', 'DOB', 'Age', 'Phone', 'Address', 'Category', 'Payment Ref', 'Payment Status', 'Reg Date'];
   const rows = players.map(p => [
     p.displayRegistrationNumber || p.serialNo || '',
@@ -26,7 +39,7 @@ export function exportPlayersToCSV(players) {
   const encodedUri = encodeURI(csvContent);
   const link = document.createElement('a');
   link.setAttribute('href', encodedUri);
-  link.setAttribute('download', `JSL_Registered_Players_${new Date().toISOString().slice(0, 10)}.csv`);
+  link.setAttribute('download', `${tourneyName.replace(/[^a-zA-Z0-9_-]/g, '_')}_Registered_Players_${new Date().toISOString().slice(0, 10)}.csv`);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -38,6 +51,7 @@ export function exportTeamsToCSV(teams) {
     return;
   }
 
+  const tourneyName = getTournamentDocName();
   const headers = ['Team ID', 'Team Name', 'Short Code', 'Owner Name', 'Owner Phone', 'Co-Owner 1 Name', 'Co-Owner 1 Phone', 'Co-Owner 2 Name', 'Co-Owner 2 Phone', 'Reg Date'];
   const rows = teams.map(t => [
     t.id || '',
@@ -56,7 +70,7 @@ export function exportTeamsToCSV(teams) {
   const encodedUri = encodeURI(csvContent);
   const link = document.createElement('a');
   link.setAttribute('href', encodedUri);
-  link.setAttribute('download', `JSL_Registered_Teams_${new Date().toISOString().slice(0, 10)}.csv`);
+  link.setAttribute('download', `${tourneyName.replace(/[^a-zA-Z0-9_-]/g, '_')}_Registered_Teams_${new Date().toISOString().slice(0, 10)}.csv`);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -128,11 +142,12 @@ export async function exportTeamsToPDF(teams) {
     `;
   }).join('');
 
+  const tourneyName = getTournamentDocName();
   const html = `
     <!DOCTYPE html>
     <html>
     <head>
-      <title>JSL 2026 - Registered Teams Directory PDF</title>
+      <title>${tourneyName} - Registered Teams Directory PDF</title>
       <style>
         body { font-family: 'Helvetica Neue', Arial, sans-serif; padding: 20px; color: #1E293B; }
         .header-box { text-align: center; border-bottom: 3px solid #0F172A; padding-bottom: 15px; margin-bottom: 20px; }
@@ -148,7 +163,7 @@ export async function exportTeamsToPDF(teams) {
     </head>
     <body>
       <div class="header-box">
-        <h1 class="title">JHANKRA SUPER LEAGUE (JSL 2026)</h1>
+        <h1 class="title">${tourneyName.toUpperCase()}</h1>
         <div class="subtitle">Official Registered Teams Directory</div>
         <div class="meta">Generated: ${new Date().toLocaleString()} • Total Registered Teams: ${teams.length}</div>
       </div>
@@ -173,7 +188,7 @@ export async function exportTeamsToPDF(teams) {
       </table>
 
       <div class="footer">
-        Jhankra Super League (JSL 2026) • Official Registration Management System • Developer: Suman Kolay
+        ${tourneyName} • Official Registration Management System • Developer: Suman Kolay
       </div>
     </body>
     </html>
@@ -198,6 +213,7 @@ export async function exportPlayersToPDF(players, filterLabel = 'All Registered 
     return;
   }
 
+  const tourneyName = getTournamentDocName();
   const now = new Date();
   const formattedTimestamp = now.toLocaleString('en-IN', {
     weekday: 'long',
@@ -306,7 +322,7 @@ export async function exportPlayersToPDF(players, filterLabel = 'All Registered 
       <!DOCTYPE html>
       <html>
       <head>
-        <title>JSL 2026 - Registered Players Directory (${filterLabel})</title>
+        <title>${tourneyName} - Registered Players Directory (${filterLabel})</title>
         <style>
           body { font-family: 'Helvetica Neue', Arial, sans-serif; padding: 20px; color: #1E293B; }
           .header-box { text-align: center; border-bottom: 3px solid #0F172A; padding-bottom: 15px; margin-bottom: 20px; }
@@ -323,7 +339,7 @@ export async function exportPlayersToPDF(players, filterLabel = 'All Registered 
       </head>
       <body>
         <div class="header-box">
-          <h1 class="title">JHANKRA SUPER LEAGUE (JSL 2026)</h1>
+          <h1 class="title">${tourneyName.toUpperCase()}</h1>
           <div class="subtitle">Official Registered Players Directory — ${filterLabel}</div>
           <div class="meta">
             <span class="timestamp-badge">📅 Download Date & Time: ${formattedTimestamp}</span>
@@ -350,7 +366,7 @@ export async function exportPlayersToPDF(players, filterLabel = 'All Registered 
         </table>
 
         <div class="footer">
-          Jhankra Super League (JSL 2026) • Official Registration Management System • Developer: Suman Kolay
+          ${tourneyName} • Official Registration Management System • Developer: Suman Kolay
         </div>
       </body>
       </html>
@@ -407,11 +423,12 @@ export function printDigitalPass(player, league, team) {
     ? `<div class="official-seal" style="background: #ECFDF5; color: #065F46; border: 1.5px solid #10B981;">✅ VERIFIED PASS</div>`
     : `<div class="official-seal" style="background: #FFFBEB; color: #92400E; border: 1.5px solid #F59E0B;">⏳ PENDING VERIFICATION</div>`;
 
+  const tourneyName = getTournamentDocName();
   const html = `
     <!DOCTYPE html>
     <html>
     <head>
-      <title>JSL 2026 Player Pass - ${player.name} (${serialNo})</title>
+      <title>${tourneyName} Player Pass - ${player.name} (${serialNo})</title>
       <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
       <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -477,8 +494,8 @@ export function printDigitalPass(player, league, team) {
         
         <!-- HEADER -->
         <div class="card-header">
-          <div class="league-title">JHANKRA SUPER LEAGUE</div>
-          <div class="league-sub">JSL 2026 • OFFICIAL DIGITAL PLAYER PASS</div>
+          <div class="league-title">${tourneyName.toUpperCase()}</div>
+          <div class="league-sub">${tourneyName.toUpperCase()} • OFFICIAL DIGITAL PLAYER PASS</div>
         </div>
 
         <!-- MAIN BODY SECTION -->
@@ -492,7 +509,7 @@ export function printDigitalPass(player, league, team) {
             <div class="serial-badge">SERIAL NO: ${serialNo}</div>
             
             <div class="player-name">${player.name}</div>
-            <div class="player-team">🏆 ${team ? team.name : 'JSL Registered Player'}</div>
+            <div class="player-team">🏆 ${team ? team.name : `${tourneyName} Registered Player`}</div>
           </div>
         </div>
 
@@ -646,12 +663,13 @@ async function convertImageToLightweightBase64(url, maxDim = 100, quality = 0.70
 
 // HELPER: Prepare structured squad data for a team
 export function getTeamFinalSquadData(team, allPlayers) {
+  const defaultIconFee = Number(store.getAuctionSettings().defaultIconPrice) || 1000;
   const hasIcon = !!((team.iconPlayerName && team.iconPlayerName.trim()) || (team.iconName && team.iconName.trim()) || (team.iconPlayerId && team.iconPlayerId.trim()));
   const iconRawName = (team.iconPlayerName || team.iconName || '').trim();
   const iconPlayerId = team.iconPlayerId || '';
   
   // Match icon player against registered players
-  let iconPlayerObj = allPlayers.find(p => (iconPlayerId && p.id === iconPlayerId) || (iconRawName && p.name && p.name.trim().toLowerCase() === iconRawName.toLowerCase()));
+  let iconPlayerObj = allPlayers.find(p => (iconPlayerId && (p.id === iconPlayerId || toUUID(p.id) === toUUID(iconPlayerId))) || (iconRawName && p.name && p.name.trim().toLowerCase() === iconRawName.toLowerCase()));
 
   let iconItem = null;
   if (hasIcon || iconPlayerObj) {
@@ -664,25 +682,27 @@ export function getTeamFinalSquadData(team, allPlayers) {
       phone: (iconPlayerObj && (iconPlayerObj.phone || iconPlayerObj.mobile)) || team.iconPhone || team.iconPlayerPhone || 'N/A',
       village: (iconPlayerObj && (iconPlayerObj.village ? `${iconPlayerObj.village}${iconPlayerObj.district ? ', ' + iconPlayerObj.district : ''}` : iconPlayerObj.address)) || team.iconVillage || team.iconPlayerVillage || 'Paschim Medinipur',
       category: (iconPlayerObj && (iconPlayerObj.category || iconPlayerObj.playingType || iconPlayerObj.role)) || 'Icon Player',
-      price: 1000,
-      priceLabel: '₹ 1,000 (Icon Allocation)'
+      price: defaultIconFee,
+      priceLabel: `₹ ${defaultIconFee.toLocaleString('en-IN')} (Icon Allocation)`
     };
   }
 
   // Find non-icon purchased squad players
   const purchasedNonIconPlayers = allPlayers.filter(p => {
-    const isThisTeam = (p.teamId === team.id || (p.teamName && p.teamName.trim().toLowerCase() === team.name.trim().toLowerCase()));
+    if (!p) return false;
+    const pTeamId = p.teamId || p.team_id;
+    const isThisTeam = (pTeamId && (pTeamId === team.id || toUUID(pTeamId) === toUUID(team.id))) || (p.teamName && (p.teamName || '').trim().toLowerCase() === (team.name || '').trim().toLowerCase());
     if (!isThisTeam) return false;
     if (iconItem && ((iconPlayerObj && p.id === iconPlayerObj.id) || (iconRawName && p.name && p.name.trim().toLowerCase() === iconRawName.toLowerCase()))) {
       return false;
     }
     if (p.isIcon || p.isIconPlayer) return false;
-    return (p.auctionStatus === 'SOLD' || p.isSold === true || !!p.teamId);
+    return (p.auctionStatus === 'SOLD' || p.isSold === true || !!pTeamId);
   });
 
   const totalPurse = Number(team.purseBudget || team.purse || 8000);
-  const iconDeduction = iconItem ? 1000 : 0;
-  const auctionSpent = purchasedNonIconPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || 0), 0);
+  const iconDeduction = iconItem ? defaultIconFee : 0;
+  const auctionSpent = purchasedNonIconPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || Number(p.basePrice) || 300), 0);
   const totalSpent = iconDeduction + auctionSpent;
   const remainingPurse = Math.max(0, totalPurse - totalSpent);
 
@@ -717,7 +737,10 @@ function getFormattedPDFTimestamp() {
 }
 
 // HELPER: Build single-page HTML for a team squad
-function generateTeamSinglePageHtml(team, allPlayers, processedIconItem, processedPlayers, teamIdx = 0, totalTeamsCount = 8, formattedTimestamp = '') {
+function generateTeamSinglePageHtml(team, allPlayers, processedIconItem, processedPlayers, teamIdx = 0, totalTeamsCount = 8, formattedTimestamp = '', tournamentName = '') {
+  const tourneyName = tournamentName || getTournamentDocName();
+  const defaultIconFee = Number(store.getAuctionSettings().defaultIconPrice) || 1000;
+  const targetSquadSize = Number(store.getAuctionSettings().maxSquadSize) || 13;
   const squadData = getTeamFinalSquadData(team, allPlayers);
   const { totalPurse, iconDeduction, auctionSpent, totalSpent, remainingPurse } = squadData;
   const iconItem = processedIconItem;
@@ -754,7 +777,7 @@ function generateTeamSinglePageHtml(team, allPlayers, processedIconItem, process
           🏏 ${iconItem.category || 'Icon Player'}
         </td>
         <td style="text-align: right; font-weight: 900; color: #92400E; font-size: 12px; font-family: monospace; vertical-align: middle; padding: 2px 8px; white-space: nowrap;">
-          ₹ 1,000
+          ₹ ${defaultIconFee.toLocaleString('en-IN')}
         </td>
       </tr>
     `;
@@ -764,6 +787,7 @@ function generateTeamSinglePageHtml(team, allPlayers, processedIconItem, process
   // Rows 2 to 13: Auctioned Squad Players
   processedPlayers.forEach((p, idx) => {
     const isEven = idx % 2 === 0;
+    const playerSoldPrice = Number(p.soldPrice) || Number(p.basePrice) || 300;
     rowsHtml += `
       <tr style="background-color: ${isEven ? '#FFFFFF' : '#F8FAFC'}; height: 38px; border-bottom: 1px solid #E2E8F0;">
         <td style="text-align: center; vertical-align: middle; font-weight: bold; font-family: monospace; font-size: 11.5px; color: #475569; padding: 2px;">
@@ -788,15 +812,15 @@ function generateTeamSinglePageHtml(team, allPlayers, processedIconItem, process
           🏏 ${p.category || p.playingType || p.role || 'All Rounder'}
         </td>
         <td style="text-align: right; font-weight: 900; color: #059669; font-size: 12.5px; font-family: monospace; vertical-align: middle; padding: 2px 8px; white-space: nowrap;">
-          ₹ ${Number(p.soldPrice || p.basePrice || 300).toLocaleString('en-IN')}
+          ₹ ${playerSoldPrice.toLocaleString('en-IN')}
         </td>
       </tr>
     `;
     currentSl++;
   });
 
-  // Remaining slots up to 13 if squad has less than 13 players
-  while (currentSl <= 13) {
+  // Remaining slots up to targetSquadSize if squad has less players
+  while (currentSl <= targetSquadSize) {
     rowsHtml += `
       <tr style="background-color: #F8FAFC; height: 32px; border-bottom: 1px dashed #E2E8F0;">
         <td style="text-align: center; vertical-align: middle; font-weight: bold; font-family: monospace; font-size: 11px; color: #94A3B8; padding: 2px;">#${currentSl}</td>
@@ -819,7 +843,7 @@ function generateTeamSinglePageHtml(team, allPlayers, processedIconItem, process
     <div class="team-page" style="${teamIdx > 0 ? 'page-break-before: always;' : ''}">
       <!-- 1. TOP HEADER -->
       <div class="header-box">
-        <h1 class="tournament-name">Jhankra Super League 2026</h1>
+        <h1 class="tournament-name">${tourneyName}</h1>
         <div class="doc-subtitle">Official Final Auction Squad & Roster</div>
         <div class="doc-meta">📅 Generated: ${formattedTimestamp} • Team ${teamIdx + 1} of ${totalTeamsCount}</div>
       </div>
@@ -854,11 +878,11 @@ function generateTeamSinglePageHtml(team, allPlayers, processedIconItem, process
         </div>
         <div class="fin-pill">
           <span class="fin-lbl">Squad Count:</span>
-          <span class="fin-num" style="color: #0284C7;">${squadCount} / 13 Players</span>
+          <span class="fin-num" style="color: #0284C7;">${squadCount} / ${targetSquadSize} Players</span>
         </div>
       </div>
 
-      <!-- 4. 13 SQUAD MEMBERS TABLE -->
+      <!-- 4. SQUAD MEMBERS TABLE -->
       <div class="table-container">
         <table class="squad-table">
           <thead>
@@ -887,12 +911,12 @@ function generateTeamSinglePageHtml(team, allPlayers, processedIconItem, process
           </div>
           <div class="sig-col" style="text-align: right;">
             <div class="sig-line"></div>
-            <div class="sig-text">JSL Organiser Signature</div>
+            <div class="sig-text">${tourneyName} Organiser Signature</div>
           </div>
         </div>
 
         <div class="footer-credit">
-          Jhankra Super League (JSL 2026) • Official Auction Roster Record • System Architect: Suman Kolay
+          ${tourneyName} • Official Auction Roster Record • System Architect: Suman Kolay
         </div>
       </div>
     </div>
@@ -968,13 +992,14 @@ export async function exportTeamFinalSquadToPDF(team, allPlayers) {
     }
 
     const formattedTimestamp = getFormattedPDFTimestamp();
-    const pageHtml = generateTeamSinglePageHtml(team, allPlayers, iconItem, processedPlayers, tIdx, teams.length || 8, formattedTimestamp);
+    const tourneyName = getTournamentDocName();
+    const pageHtml = generateTeamSinglePageHtml(team, allPlayers, iconItem, processedPlayers, tIdx, teams.length || 8, formattedTimestamp, tourneyName);
 
     const html = `
       <!DOCTYPE html>
       <html>
       <head>
-        <title>JSL 2026 - Final Auction Squad: ${team.name}</title>
+        <title>${tourneyName} - Final Auction Squad: ${team.name}</title>
         <style>
           * { box-sizing: border-box; margin: 0; padding: 0; }
           body { 
@@ -1057,7 +1082,7 @@ export async function exportTeamFinalSquadToPDF(team, allPlayers) {
       </head>
       <body>
         <div class="toolbar">
-          <div class="toolbar-title">🏆 JSL 2026 Final Auction Squad Document — ${team.name}</div>
+          <div class="toolbar-title">🏆 ${tourneyName} Final Auction Squad Document — ${team.name}</div>
           <button class="toolbar-btn" onclick="window.print()">🖨️ Print / Save as PDF</button>
         </div>
 
@@ -1121,6 +1146,7 @@ export async function exportAllTeamsFinalSquadsToPDF(teams, allPlayers) {
   try {
     const pagesHtmlList = [];
     const formattedTimestamp = getFormattedPDFTimestamp();
+    const tourneyName = getTournamentDocName();
     const totalTeams = teams.length;
 
     for (let tIdx = 0; tIdx < totalTeams; tIdx++) {
@@ -1143,7 +1169,7 @@ export async function exportAllTeamsFinalSquadsToPDF(teams, allPlayers) {
         processedPlayers.push({ ...p, photoBase64 });
       }
 
-      const pageHtml = generateTeamSinglePageHtml(team, allPlayers, iconItem, processedPlayers, tIdx, totalTeams, formattedTimestamp);
+      const pageHtml = generateTeamSinglePageHtml(team, allPlayers, iconItem, processedPlayers, tIdx, totalTeams, formattedTimestamp, tourneyName);
       pagesHtmlList.push(pageHtml);
     }
 
@@ -1159,7 +1185,7 @@ export async function exportAllTeamsFinalSquadsToPDF(teams, allPlayers) {
       <!DOCTYPE html>
       <html>
       <head>
-        <title>JSL 2026 - All Teams Final Auction Squads PDF</title>
+        <title>${tourneyName} - All Teams Final Auction Squads PDF</title>
         <style>
           * { box-sizing: border-box; margin: 0; padding: 0; }
           body { 
@@ -1236,7 +1262,7 @@ export async function exportAllTeamsFinalSquadsToPDF(teams, allPlayers) {
       </head>
       <body>
         <div class="toolbar">
-          <div class="toolbar-title">🏆 JSL 2026 Complete Tournament Final Squads (${totalTeams} Teams)</div>
+          <div class="toolbar-title">🏆 ${tourneyName} Complete Tournament Final Squads (${totalTeams} Teams)</div>
           <button class="toolbar-btn" onclick="window.print()">🖨️ Print / Save Complete PDF</button>
         </div>
 
