@@ -1445,7 +1445,7 @@ export async function fetchGlobalLiveAuctionStatus() {
   try {
     const { data: tournaments, error } = await supabase
       .from('tournaments')
-      .select('id, name, slug, logo_url, poster_url, format_config, updated_at')
+      .select('id, name, slug, logo_url, banner_url, format_config, updated_at')
       .order('updated_at', { ascending: false });
 
     if (error || !Array.isArray(tournaments)) {
@@ -1473,7 +1473,8 @@ export async function fetchGlobalLiveAuctionStatus() {
         id: t.id,
         name: t.name,
         slug: t.slug,
-        logoUrl: t.logo_url || t.poster_url || 'assets/jsl_logo.jpg',
+        logoUrl: t.logo_url || t.banner_url || 'assets/jsl_logo.jpg',
+        bannerUrl: t.banner_url || t.logo_url || 'assets/jsl_logo.jpg',
         customTeamsCount: t.format_config?.custom_teams?.length || 0,
         auctionStatus: (t.format_config?.live_auction?.is_ended || t.format_config?.live_auction?.status === 'ENDED' || (t.format_config?.custom_teams?.length > 0 && !t.format_config?.live_auction?.active_player_id)) ? 'CONCLUDED' : 'IDLE',
         updatedAt: t.updated_at
