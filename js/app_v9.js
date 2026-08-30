@@ -1,10 +1,10 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=13.0.22';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.22';
-import { renderAdminDashboard } from './admin.js?v=13.0.22';
-import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.22';
-import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.22';
+import { store } from './store.js?v=13.0.23';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.23';
+import { renderAdminDashboard } from './admin.js?v=13.0.23';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.23';
+import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.23';
 import { shops } from './shopsData.js?v=12.0.2';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
@@ -11185,9 +11185,14 @@ function renderCareerHubView(container) {
   let searchQuery = '';
   let selectedCategory = 'ALL';
   let sortBy = 'points'; // 'points', 'runs', 'wickets', 'matches', 'avg', 'economy'
+  
+  const allTourneys = (store.getAllAvailableTournaments ? store.getAllAvailableTournaments() : []).filter(t => !t.status || t.status === 'ACTIVE' || t.status === 'active' || t.status === 'APPROVED');
+  // Default to ALL tournaments or active tournament
+  let selectedTourneyId = 'ALL';
 
   const drawCareerHub = () => {
-    const players = store.getPlayers().filter(p => (p.registrationStatus || p.paymentStatus) !== 'REJECTED');
+    const rawList = store.getPlayersForTournament ? store.getPlayersForTournament(selectedTourneyId) : store.getPlayers();
+    const players = (rawList || []).filter(p => (p.registrationStatus || p.paymentStatus) !== 'REJECTED');
     const fixtures = store.getFixtures();
     const completedFixtures = fixtures.filter(f => f.status === 'COMPLETED');
 
@@ -11394,17 +11399,27 @@ function renderCareerHubView(container) {
               </button>
             </div>
 
-            <!-- Sort Selection Dropdown -->
-            <div class="flex items-center gap-2 self-end md:self-auto">
-              <span class="text-xs font-bold text-slate-500 whitespace-nowrap">Sort by:</span>
-              <select id="career-sort-select" class="bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-xl px-3 py-1.5 font-bold focus:outline-none focus:border-blue-500 shadow-sm cursor-pointer">
-                <option value="points" ${sortBy === 'points' ? 'selected' : ''}>🌟 Points (MVP)</option>
-                <option value="runs" ${sortBy === 'runs' ? 'selected' : ''}>🏏 Most Runs</option>
-                <option value="avg" ${sortBy === 'avg' ? 'selected' : ''}>📈 Best Bat Avg</option>
-                <option value="wickets" ${sortBy === 'wickets' ? 'selected' : ''}>🎯 Most Wickets</option>
-                <option value="economy" ${sortBy === 'economy' ? 'selected' : ''}>🛡️ Best Economy</option>
-                <option value="matches" ${sortBy === 'matches' ? 'selected' : ''}>🏟️ Most Matches</option>
-              </select>
+            <!-- League & Sort Dropdowns -->
+            <div class="flex items-center gap-2 flex-wrap self-end md:self-auto">
+              <div class="flex items-center gap-1.5 bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1 shadow-2xs">
+                <span class="text-[11px] font-bold text-slate-500 whitespace-nowrap">🏆 League:</span>
+                <select id="career-tourney-filter-select" class="bg-transparent text-slate-900 text-xs font-black focus:outline-none cursor-pointer">
+                  <option value="ALL" ${selectedTourneyId === 'ALL' ? 'selected' : ''}>🌐 All Leagues (Universal)</option>
+                  ${allTourneys.map(t => `<option value="${t.supabaseId || t.id}" ${(t.supabaseId || t.id) === selectedTourneyId ? 'selected' : ''}>🏆 ${t.name}</option>`).join('')}
+                </select>
+              </div>
+
+              <div class="flex items-center gap-1.5 bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1 shadow-2xs">
+                <span class="text-[11px] font-bold text-slate-500 whitespace-nowrap">Sort:</span>
+                <select id="career-sort-select" class="bg-transparent text-slate-900 text-xs font-bold focus:outline-none cursor-pointer">
+                  <option value="points" ${sortBy === 'points' ? 'selected' : ''}>🌟 Points (MVP)</option>
+                  <option value="runs" ${sortBy === 'runs' ? 'selected' : ''}>🏏 Most Runs</option>
+                  <option value="avg" ${sortBy === 'avg' ? 'selected' : ''}>📈 Best Bat Avg</option>
+                  <option value="wickets" ${sortBy === 'wickets' ? 'selected' : ''}>🎯 Most Wickets</option>
+                  <option value="economy" ${sortBy === 'economy' ? 'selected' : ''}>🛡️ Best Economy</option>
+                  <option value="matches" ${sortBy === 'matches' ? 'selected' : ''}>🏟️ Most Matches</option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -11447,10 +11462,13 @@ function renderCareerHubView(container) {
                 ${filtered.length === 0 ? `
                   <tr>
                     <td colspan="10" class="py-12 text-center bg-white">
-                      <div class="flex flex-col items-center justify-center space-y-2">
+                      <div class="flex flex-col items-center justify-center space-y-2 max-w-sm mx-auto p-4">
                         <span class="text-3xl">🏏</span>
-                        <div class="text-slate-700 font-bold text-sm">No players found</div>
-                        <p class="text-slate-400 text-xs">Try adjusting your search query or role filter</p>
+                        <div class="text-slate-800 font-black text-sm">No players found in this league view</div>
+                        <p class="text-slate-500 text-xs">Switch to All Leagues or Jhankra Super League 2026 to view verified player profiles & career stats.</p>
+                        <button type="button" class="btn-switch-career-universal px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-xs rounded-xl shadow-xs cursor-pointer mt-2">
+                          View All 120 Players ➔
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -11551,6 +11569,23 @@ function renderCareerHubView(container) {
       });
     });
 
+    // League Tourney Select Event
+    const tourneyFilter = document.getElementById('career-tourney-filter-select');
+    if (tourneyFilter) {
+      tourneyFilter.addEventListener('change', (e) => {
+        selectedTourneyId = e.target.value;
+        drawCareerHub();
+      });
+    }
+
+    // Quick switch to Universal button
+    container.querySelectorAll('.btn-switch-career-universal').forEach(btn => {
+      btn.addEventListener('click', () => {
+        selectedTourneyId = 'ALL';
+        drawCareerHub();
+      });
+    });
+
     // Sort Select Event
     const sortSelect = document.getElementById('career-sort-select');
     if (sortSelect) {
@@ -11587,7 +11622,8 @@ function renderCareerHubView(container) {
 }
 
 function openCareerDetailModal(playerId) {
-  const playerReg = store.getPlayers().find(p => p.id === playerId);
+  const allList = store.getPlayersForTournament ? store.getPlayersForTournament('ALL') : store.getPlayers();
+  const playerReg = allList.find(p => String(p.id) === String(playerId)) || store.getPlayerById(playerId);
   if (!playerReg) return;
 
   const phone = (playerReg.phone || '').trim();

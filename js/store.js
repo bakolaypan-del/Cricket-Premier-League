@@ -56,7 +56,7 @@ import {
   toUUID,
   fetchGlobalUniquePlayersCount,
   updateTournamentApprovalStatus
-} from './supabase.js?v=13.0.22';
+} from './supabase.js?v=13.0.23';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -2310,6 +2310,67 @@ class Store {
   getActiveTournaments() {
     const list = this.getCustomTournaments();
     return list.filter(t => !t.status || t.status === 'ACTIVE' || t.status === 'active' || t.status === 'APPROVED');
+  }
+
+  getAllAvailableTournaments() {
+    const list = [];
+    const seen = new Set();
+    
+    // Add default leagues
+    const leagues = this.getLeagues() || [];
+    for (const l of leagues) {
+      const id = l.supabaseId || l.id;
+      if (!seen.has(id)) {
+        seen.add(id);
+        list.push({
+          id: l.id,
+          supabaseId: l.supabaseId || l.id,
+          name: l.name || 'JSL 2026',
+          slug: l.slug || 'jsl-2026',
+          status: 'ACTIVE'
+        });
+      }
+    }
+
+    // Add custom tournaments
+    const customs = this.getCustomTournaments() || [];
+    for (const c of customs) {
+      const id = c.supabaseId || c.id;
+      if (!seen.has(id) && (!c.status || c.status === 'ACTIVE' || c.status === 'active' || c.status === 'APPROVED')) {
+        seen.add(id);
+        list.push(c);
+      }
+    }
+    return list;
+  }
+
+  getPlayersForTournament(tourneyId = null) {
+    if (!tourneyId || tourneyId === 'ALL') {
+      const allTourneys = this.getAllAvailableTournaments();
+      const combinedMap = new Map();
+      for (const t of allTourneys) {
+        const canonicalTid = toUUID(t.supabaseId || t.id) || t.supabaseId || t.id;
+        const sk = scopedKey(STORAGE_KEYS.PLAYERS, canonicalTid);
+        try {
+          const raw = JSON.parse(localStorage.getItem(sk)) || [];
+          for (const p of raw) {
+            if (p && p.id && !combinedMap.has(p.id)) {
+              combinedMap.set(p.id, p);
+            }
+          }
+        } catch(e) {}
+      }
+      if (combinedMap.size > 0) return Array.from(combinedMap.values());
+      return this.getPlayers();
+    }
+    
+    const canonicalTid = toUUID(tourneyId) || tourneyId;
+    const sk = scopedKey(STORAGE_KEYS.PLAYERS, canonicalTid);
+    try {
+      const raw = JSON.parse(localStorage.getItem(sk)) || [];
+      if (raw.length > 0) return raw;
+    } catch(e) {}
+    return this.getPlayers();
   }
 
   async approveTournament(tourneyId, slug = null, supabaseId = null) {
