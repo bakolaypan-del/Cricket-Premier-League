@@ -1,10 +1,10 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=13.0.18';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.18';
-import { renderAdminDashboard } from './admin.js?v=13.0.18';
-import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.18';
-import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.18';
+import { store } from './store.js?v=13.0.19';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.19';
+import { renderAdminDashboard } from './admin.js?v=13.0.19';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.19';
+import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.19';
 import { shops } from './shopsData.js?v=12.0.2';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
@@ -13163,19 +13163,24 @@ export function openTournamentCreationWizard(isTrialMode = false) {
 
             <!-- Mode A Specific Fields -->
             <div id="mode-a-config-block" class="p-2.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
-              <h4 class="text-[10px] font-black text-amber-900 uppercase">Auction Settings</h4>
-              <div class="grid grid-cols-3 gap-2">
+              <h4 class="text-[10px] font-black text-amber-900 uppercase flex items-center gap-1.5">
+                <span>🔨</span> <span>Auction & Registration Settings</span>
+              </h4>
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <div>
-                  <label class="block text-[9px] font-black text-slate-600 uppercase mb-0.5">Entry Fee ₹</label>
+                  <label class="block text-[9.5px] font-black text-slate-800 uppercase mb-0.5">Player Reg Fee ₹</label>
                   <input type="number" id="wiz-entry-fee" value="300" class="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-bold font-mono" />
+                  <span class="text-[8.5px] text-slate-500 font-semibold block mt-0.5" style="font-family: 'Hind Siliguri', sans-serif;">প্লেয়ার রেজিস্ট্রেশন ফি</span>
                 </div>
                 <div>
-                  <label class="block text-[9px] font-black text-slate-600 uppercase mb-0.5">Purse ₹</label>
+                  <label class="block text-[9.5px] font-black text-slate-800 uppercase mb-0.5">Team Purse ₹</label>
                   <input type="number" id="wiz-team-purse" value="8000" class="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-bold font-mono" />
+                  <span class="text-[8.5px] text-slate-500 font-semibold block mt-0.5" style="font-family: 'Hind Siliguri', sans-serif;">প্রতিটি টিমের নিলাম বাজেট</span>
                 </div>
                 <div>
-                  <label class="block text-[9px] font-black text-slate-600 uppercase mb-0.5">Base Price ₹</label>
+                  <label class="block text-[9.5px] font-black text-slate-800 uppercase mb-0.5">Base Price ₹</label>
                   <input type="number" id="wiz-base-price" value="300" class="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-bold font-mono" />
+                  <span class="text-[8.5px] text-slate-500 font-semibold block mt-0.5" style="font-family: 'Hind Siliguri', sans-serif;">নিলামে শুরুর দর</span>
                 </div>
               </div>
 
