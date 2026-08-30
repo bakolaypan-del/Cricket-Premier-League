@@ -1,7 +1,7 @@
 // Export & Printing Utility Module for PDF & CSV (Developer: Suman Kolay - User Guide PDF Release)
 
-import { store } from './store.js?v=13.0.43';
-import { toUUID } from './supabase.js?v=13.0.43';
+import { store } from './store.js?v=13.0.44';
+import { toUUID } from './supabase.js?v=13.0.44';
 
 export function getTournamentDocName(overrideTourney = null) {
   if (overrideTourney && overrideTourney.name) return overrideTourney.name;
