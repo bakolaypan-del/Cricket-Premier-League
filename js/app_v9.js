@@ -13170,17 +13170,17 @@ export function openTournamentCreationWizard(isTrialMode = false) {
                 <div>
                   <label class="block text-[9.5px] font-black text-slate-800 uppercase mb-0.5">Player Reg Fee ₹</label>
                   <input type="number" id="wiz-entry-fee" value="300" class="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-bold font-mono" />
-                  <span class="text-[8.5px] text-slate-500 font-semibold block mt-0.5" style="font-family: 'Hind Siliguri', sans-serif;">প্লেয়ার রেজিস্ট্রেশন ফি</span>
+                  <span class="text-[8.5px] text-slate-500 font-medium block mt-0.5">Per player registration fee</span>
                 </div>
                 <div>
                   <label class="block text-[9.5px] font-black text-slate-800 uppercase mb-0.5">Team Purse ₹</label>
                   <input type="number" id="wiz-team-purse" value="8000" class="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-bold font-mono" />
-                  <span class="text-[8.5px] text-slate-500 font-semibold block mt-0.5" style="font-family: 'Hind Siliguri', sans-serif;">প্রতিটি টিমের নিলাম বাজেট</span>
+                  <span class="text-[8.5px] text-slate-500 font-medium block mt-0.5">Auction purse per team</span>
                 </div>
                 <div>
                   <label class="block text-[9.5px] font-black text-slate-800 uppercase mb-0.5">Base Price ₹</label>
                   <input type="number" id="wiz-base-price" value="300" class="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-bold font-mono" />
-                  <span class="text-[8.5px] text-slate-500 font-semibold block mt-0.5" style="font-family: 'Hind Siliguri', sans-serif;">নিলামে শুরুর দর</span>
+                  <span class="text-[8.5px] text-slate-500 font-medium block mt-0.5">Starting bid per player</span>
                 </div>
               </div>
 
