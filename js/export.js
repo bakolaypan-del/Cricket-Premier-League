@@ -1760,10 +1760,29 @@ export function exportPlayerSocialCard(player, team, tourney) {
   const teamName = (team?.name || 'Franchise Team').toUpperCase();
   const serialNo = player.displayRegistrationNumber || player.serialNo || 1;
   const photoSrc = player.photoUrl || player.player_photo_url || 'assets/card_jsl_user.png';
-  const runs = player.totalRuns || player.runs || 0;
-  const wickets = player.totalWickets || player.wickets || 0;
-  const strikeRate = player.strikeRate || player.sr || '135.4';
-  const sixes = player.totalSixes || player.sixes || 0;
+  // Calculate real-time player career stats from match fixtures
+  let totalRuns = 0;
+  let totalBalls = 0;
+  let totalWickets = 0;
+  let totalSixes = 0;
+
+  try {
+    const fixtures = (typeof store !== 'undefined' && store.getFixtures) ? store.getFixtures() : [];
+    fixtures.forEach(f => {
+      if (f.liveMatchState && f.liveMatchState.playerStats && f.liveMatchState.playerStats[player.id]) {
+        const ps = f.liveMatchState.playerStats[player.id];
+        totalRuns += ps.runs || 0;
+        totalBalls += ps.balls || 0;
+        totalWickets += ps.wickets || 0;
+        totalSixes += ps.sixes || 0;
+      }
+    });
+  } catch(e) {}
+
+  const runs = totalRuns || player.totalRuns || player.runs || 0;
+  const wickets = totalWickets || player.totalWickets || player.wickets || 0;
+  const sixes = totalSixes || player.totalSixes || player.sixes || 0;
+  const strikeRate = totalBalls > 0 ? ((totalRuns / totalBalls) * 100).toFixed(1) : (player.strikeRate || player.sr || '0.0');
   const role = player.category || player.playingType || 'All-rounder';
   const village = player.village || player.address || 'Local';
 
