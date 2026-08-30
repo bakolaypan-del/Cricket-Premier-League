@@ -1,10 +1,10 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=13.0.33';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.33';
-import { renderAdminDashboard } from './admin.js?v=13.0.33';
-import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.33';
-import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.33';
+import { store } from './store.js?v=13.0.34';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.34';
+import { renderAdminDashboard } from './admin.js?v=13.0.34';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.34';
+import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.34';
 import { shops } from './shopsData.js?v=12.0.2';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
@@ -9155,54 +9155,6 @@ function renderLiveAuctionView(container) {
     auctionPollInterval = null;
   }
 
-  const liveState = store.getLiveAuctionStateSync();
-  const hasActivePlayer = liveState && liveState.active_player_id;
-
-  if (!hasActivePlayer) {
-    container.innerHTML = `
-      <div class="space-y-6 animate-fade-in pb-16 max-w-2xl mx-auto px-2 sm:px-4 py-8 sm:py-12">
-        <div class="bg-white border-2 border-slate-200 rounded-3xl p-6 sm:p-8 text-center space-y-4 shadow-md">
-          <div class="w-16 h-16 bg-amber-100 text-amber-800 rounded-3xl mx-auto flex items-center justify-center text-3xl shadow-xs font-black">
-            🔨
-          </div>
-          
-          <div class="space-y-2">
-            <span class="inline-block px-3 py-1 bg-emerald-100 text-emerald-800 text-xs font-black rounded-full border border-emerald-300">
-              ✅ AUCTION CONCLUDED & ARCHIVED
-            </span>
-            <h2 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-              No Live Auction in Session
-            </h2>
-            <p class="text-xs sm:text-sm text-slate-600 max-w-md mx-auto leading-relaxed">
-              The player auction has completed. All franchise squads, player sold records, icon player allocations, and financial ledgers are securely archived under the <strong>Tournament Hub</strong>.
-            </p>
-          </div>
-
-          <div class="pt-2 flex flex-wrap items-center justify-center gap-3">
-            <button id="auction-go-to-tournament-hub-btn" class="px-5 py-2.5 bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-500 hover:to-yellow-500 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-xs flex items-center justify-center gap-1.5 border border-amber-300 cursor-pointer transition-all">
-              <span>📜 Visit Tournament Hub & View Auction Summary</span>
-            </button>
-          </div>
-        </div>
-      </div>
-    `;
-
-    document.getElementById('auction-go-to-tournament-hub-btn')?.addEventListener('click', () => {
-      navigate('tournament-hub');
-    });
-
-    // Check periodically if admin starts an auction
-    auctionPollInterval = setInterval(async () => {
-      const state = await store.fetchLiveAuctionState();
-      if (state && state.active_player_id) {
-        clearInterval(auctionPollInterval);
-        renderLiveAuctionView(container);
-      }
-    }, 4000);
-
-    return;
-  }
-
   let playerSearchQuery = '';
   let activeStatusTab = 'all'; // 'all', 'sold', 'unsold', 'pending'
 
@@ -9969,7 +9921,14 @@ function renderLiveAuctionView(container) {
   });
 
   pollActiveAuctionState();
-  auctionPollInterval = setInterval(pollActiveAuctionState, 5000);
+  auctionPollInterval = setInterval(pollActiveAuctionState, 1500);
+
+  const onAuctionChange = () => {
+    if (currentRoute === 'auction') pollActiveAuctionState();
+  };
+  window.addEventListener('cpl_live_auction_updated', onAuctionChange);
+  window.addEventListener('cpl_players_updated', onAuctionChange);
+  window.addEventListener('cpl_teams_updated', onAuctionChange);
 }
 
 // --- 📽️ WORLD-CLASS LIVE AUCTION PROJECTOR SCREEN (ENHANCED OFF-WHITE THEME, AUTO-NAVIGATE & 2-PAGE SQUADS) ---

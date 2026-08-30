@@ -1204,11 +1204,28 @@ export async function saveAuctionSettingsToCloud(settings, tournamentId = null) 
   } catch (e) { console.warn('[SUPABASE] saveAuctionSettings:', e.message); }
 }
 
-export async function saveLiveAuctionToCloud(state) {
+export async function saveLiveAuctionToCloud(state, tournamentId = null) {
   if (!supabase) return;
   try {
+    const tId = toUUID(tournamentId) || toUUID(typeof window !== 'undefined' && window.store?.activeTournamentId) || DEFAULT_TOURNAMENT_UUID;
+    const key = `live_auction_${tId}`;
+    await supabase.from('platform_settings').upsert({ key, value: state || {}, updated_at: new Date().toISOString() }, { onConflict: 'key' });
     await supabase.from('platform_settings').upsert({ key: 'live_auction', value: state || {}, updated_at: new Date().toISOString() }, { onConflict: 'key' });
   } catch (e) { console.warn('[SUPABASE] saveLiveAuction:', e.message); }
+}
+
+export async function fetchLiveAuctionFromCloud(tournamentId = null) {
+  if (!supabase) return null;
+  try {
+    const tId = toUUID(tournamentId) || toUUID(typeof window !== 'undefined' && window.store?.activeTournamentId) || DEFAULT_TOURNAMENT_UUID;
+    const key = `live_auction_${tId}`;
+    let { data } = await supabase.from('platform_settings').select('value').eq('key', key).limit(1).maybeSingle();
+    if (!data || !data.value) {
+      const fallback = await supabase.from('platform_settings').select('value').eq('key', 'live_auction').limit(1).maybeSingle();
+      data = fallback.data;
+    }
+    return data ? data.value : null;
+  } catch (e) { return null; }
 }
 
 export async function saveAuctionPermanentArchiveToCloud(archiveData, tournamentId = null) {

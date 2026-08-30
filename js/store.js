@@ -55,8 +55,9 @@ import {
   registerTournamentUUID,
   toUUID,
   fetchGlobalUniquePlayersCount,
-  updateTournamentApprovalStatus
-} from './supabase.js?v=13.0.33';
+  updateTournamentApprovalStatus,
+  fetchLiveAuctionFromCloud
+} from './supabase.js?v=13.0.34';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -1990,18 +1991,37 @@ class Store {
   // --- LIVE AUCTION STATE ---
   async getLiveAuctionState() {
     try {
-      const local = localStorage.getItem('cpl_live_auction_state');
-      if (local) return JSON.parse(local);
+      const local = safeGetLocalStorage(this._scopedKey('LIVE_AUCTION_STATE'));
+      if (local && local.active_player_id) return local;
     } catch(e) {}
-    return null;
+    try {
+      const cloud = await fetchLiveAuctionFromCloud(this.activeTournamentId);
+      if (cloud && cloud.active_player_id) {
+        this.liveAuctionState = cloud;
+        safeSetLocalStorage(this._scopedKey('LIVE_AUCTION_STATE'), cloud);
+        return cloud;
+      }
+    } catch(e) {}
+    try {
+      const legacyLocal = localStorage.getItem('cpl_live_auction_state');
+      if (legacyLocal) return JSON.parse(legacyLocal);
+    } catch(e) {}
+    return this.liveAuctionState || null;
   }
 
   getLiveAuctionStateSync() {
     if (this.liveAuctionState) return this.liveAuctionState;
     try {
-      const local = localStorage.getItem('cpl_live_auction_state');
+      const local = safeGetLocalStorage(this._scopedKey('LIVE_AUCTION_STATE'));
       if (local) {
-        this.liveAuctionState = JSON.parse(local);
+        this.liveAuctionState = local;
+        return this.liveAuctionState;
+      }
+    } catch(e) {}
+    try {
+      const legacy = localStorage.getItem('cpl_live_auction_state');
+      if (legacy) {
+        this.liveAuctionState = JSON.parse(legacy);
         return this.liveAuctionState;
       }
     } catch(e) {}
@@ -2014,11 +2034,13 @@ class Store {
     const updatedState = state ? { ...state, updated_at: Math.max(now, currentTs + 1) } : null;
     this.liveAuctionState = updatedState;
     if (updatedState && updatedState.active_player_id) {
+      safeSetLocalStorage(this._scopedKey('LIVE_AUCTION_STATE'), updatedState);
       safeSetLocalStorage('cpl_live_auction_state', updatedState);
     } else {
+      localStorage.removeItem(this._scopedKey('LIVE_AUCTION_STATE'));
       localStorage.removeItem('cpl_live_auction_state');
     }
-    await saveLiveAuctionToCloud(updatedState);
+    await saveLiveAuctionToCloud(updatedState, this.activeTournamentId);
     this.notify('live_auction_updated');
   }
 
