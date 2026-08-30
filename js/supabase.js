@@ -551,6 +551,25 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
       }
       return true;
     });
+
+    // Deduplicate players by reg_number / phone (preferring valid Cloudinary photo)
+    const dedupedPlayersMap = new Map();
+    dbPlayers.forEach(p => {
+      if (!p) return;
+      const key = p.reg_number ? `reg_${p.reg_number}` : (p.phone ? `ph_${p.phone.replace(/[^0-9]/g, '')}` : `id_${p.id}`);
+      const existing = dedupedPlayersMap.get(key);
+      if (!existing) {
+        dedupedPlayersMap.set(key, p);
+      } else {
+        const currentHasCdn = typeof p.photo_url === 'string' && p.photo_url.includes('cloudinary.com');
+        const existingHasCdn = typeof existing.photo_url === 'string' && existing.photo_url.includes('cloudinary.com');
+        if (currentHasCdn && !existingHasCdn) {
+          dedupedPlayersMap.set(key, p);
+        }
+      }
+    });
+    const uniqueDbPlayers = Array.from(dedupedPlayersMap.values());
+
     const dbTeams = (!teamsRes.error && Array.isArray(teamsRes.data)) ? teamsRes.data : [];
     const dbMatches = (!matchesRes.error && Array.isArray(matchesRes.data)) ? matchesRes.data : [];
     const dbDocs = (!docsRes.error && Array.isArray(docsRes.data)) ? docsRes.data : [];
@@ -562,7 +581,7 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
     const profilesByPhone = new Map();
     dbProfiles.forEach(pr => { if (pr.phone) profilesByPhone.set(pr.phone.replace(/[^0-9]/g, ''), pr); });
 
-    const players = dbPlayers.map((p, idx) => {
+    const players = uniqueDbPlayers.map((p, idx) => {
       const serial = p.reg_number || (idx + 1);
       const doc = docsByPlayerId.get(p.id) || {};
       const cleanPhone = (p.phone || '').replace(/[^0-9]/g, '');
@@ -576,6 +595,8 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
       const isApproved = (finalStatus === 'APPROVED');
       const isRejected = (finalStatus === 'REJECTED');
 
+      const photo = overrideData.photoUrl || (p.photo_url && p.photo_url.includes('cloudinary.com') ? p.photo_url : null) || (prof.photo_url && prof.photo_url.includes('cloudinary.com') ? prof.photo_url : null) || overrideData.player_photo_url || p.photo_url || 'assets/card_jsl_user.png';
+
       return {
         id: p.id,
         tournament_id: p.tournament_id,
@@ -584,9 +605,9 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
         phone: p.phone,
         mobile: p.phone,
         fatherName: overrideData.fatherName || p.father_name || prof.father_name || '',
-        photoUrl: overrideData.photoUrl || p.photo_url,
-        hdPhotoUrl: overrideData.photoUrl || p.photo_url,
-        player_photo_url: overrideData.photoUrl || p.photo_url,
+        photoUrl: photo,
+        hdPhotoUrl: photo,
+        player_photo_url: photo,
         role: overrideData.role || p.role || prof.role || 'All-Rounder',
         playingType: overrideData.role || p.role || prof.role || 'All-Rounder',
         category: overrideData.category || p.category_name || prof.role || 'All-Rounder',
