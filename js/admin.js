@@ -1,8 +1,8 @@
 // Admin Master Data & Payment Verification Panel with Single Source Cloud Control (Developer: Suman Kolay)
 
-import { store } from './store.js?v=13.0.30';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.30';
-import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID, compressImageToTarget } from './supabase.js?v=13.0.30';
+import { store } from './store.js?v=13.0.31';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.31';
+import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID, compressImageToTarget } from './supabase.js?v=13.0.31';
 import { shops } from './shopsData.js?v=12.0.2';
 
 let activeAdminTab = (() => { try { return sessionStorage.getItem('cpl_admin_tab') || (store.isMasterAdmin() ? 'payments' : 'overview'); } catch(e) { return 'payments'; } })();
@@ -631,18 +631,22 @@ export function renderAdminDashboard(containerEl) {
                 <i data-lucide="settings" class="w-5 h-5 text-amber-600"></i> Auction Parameters & Dynamic Slabs
               </h3>
               <form id="admin-auction-settings-form" class="space-y-3">
-                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
                   <div>
-                    <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">DEFAULT BASE PRICE (₹)</label>
+                    <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">DEFAULT BASE (₹)</label>
                     <input type="number" id="auction-setting-base-price" value="${store.getAuctionSettings().defaultBasePrice}" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2 font-bold" />
                   </div>
                   <div>
-                    <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">TEAM PURSE BUDGET (₹)</label>
+                    <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">PURSE BUDGET (₹)</label>
                     <input type="number" id="auction-setting-purse-budget" value="${store.getAuctionSettings().defaultPurseBudget}" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2 font-bold" />
                   </div>
                   <div>
-                    <label class="block text-[10px] font-bold text-amber-800 uppercase mb-1">⭐ ICON PLAYER PRICE (₹)</label>
+                    <label class="block text-[10px] font-bold text-amber-800 uppercase mb-1">⭐ ICON PRICE (₹)</label>
                     <input type="number" id="auction-setting-icon-price" value="${store.getAuctionSettings().defaultIconPrice || 1000}" class="w-full bg-amber-50/60 border border-amber-300 text-amber-950 text-xs rounded-xl p-2 font-bold" title="Auto-deducted from team purse upon assigning an icon player" />
+                  </div>
+                  <div>
+                    <label class="block text-[10px] font-bold text-sky-800 uppercase mb-1">👥 SQUAD SIZE</label>
+                    <input type="number" id="auction-setting-squad-size" value="${store.getAuctionSettings().maxSquadSize || 13}" min="8" max="30" class="w-full bg-sky-50/60 border border-sky-300 text-sky-950 text-xs rounded-xl p-2 font-bold" title="Total players required to buy per team" />
                   </div>
                 </div>
 
@@ -697,22 +701,59 @@ export function renderAdminDashboard(containerEl) {
                 </button>
               </div>
 
-              <!-- Put Player on Block Form -->
+              <!-- Put Player on Block Form with Live Preview & Base Price Setter -->
               <div class="border-t border-slate-100 pt-3 space-y-3">
-                <h4 class="text-xs font-black text-slate-900 uppercase tracking-wider">Start Auction for a Player</h4>
+                <h4 class="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <span>🎯</span> Start Auction for a Player
+                </h4>
                 <div>
-                  <label class="block text-xs font-bold text-slate-600 mb-1">SELECT APPROVED PLAYER</label>
-                  <select id="auction-select-player" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-medium">
-                    <option value="">-- Choose Player --</option>
+                  <label class="block text-xs font-bold text-slate-600 mb-1">SELECT APPROVED PLAYER FROM QUEUE</label>
+                  <select id="auction-select-player" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold">
+                    <option value="">-- Choose Player to Preview & Set Price --</option>
                     ${players.filter(p => (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED') && !p.teamId && p.auctionStatus !== 'SOLD').map(p => {
                       const sNo = p.displayRegistrationNumber || p.serialNo || '';
                       const sNoPrefix = sNo ? `[#${String(sNo).padStart(2, '0')}] ` : '';
-                      return `<option value="${p.id}">${sNoPrefix}${p.name} (${p.category || 'All Rounder'}) - Base: ₹${p.basePrice || 300}</option>`;
+                      return `<option value="${p.id}">${sNoPrefix}${p.name} (${p.category || 'All Rounder'})</option>`;
                     }).join('')}
                   </select>
                 </div>
-                <button id="auction-start-bid-btn" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl shadow-xs cursor-pointer">
-                  Put Player on Auction Block
+
+                <!-- Selected Player Live Photo & Base Price Preview Block -->
+                <div id="auction-selected-player-preview-wrap" class="hidden p-3.5 bg-gradient-to-br from-amber-50/60 to-orange-50/40 rounded-2xl border-2 border-amber-300 shadow-xs space-y-3 animate-fade-in">
+                  <div class="flex items-center gap-3">
+                    <img id="auction-preview-player-img" src="assets/card_jsl_user.png" class="w-14 h-14 rounded-2xl object-cover border-2 border-amber-500 shadow-sm bg-white shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                    <div class="min-w-0 flex-1">
+                      <div class="flex items-center gap-1.5">
+                        <span id="auction-preview-player-reg" class="px-1.5 py-0.5 bg-red-600 text-white font-mono font-black text-[9px] rounded">REG-0001</span>
+                        <span id="auction-preview-player-role" class="px-1.5 py-0.5 bg-amber-200 text-amber-900 font-black text-[9px] rounded">All-Rounder</span>
+                      </div>
+                      <h4 id="auction-preview-player-name" class="text-sm font-black text-slate-900 truncate mt-0.5">Player Name</h4>
+                      <p id="auction-preview-player-village" class="text-[10px] text-slate-500 font-bold truncate">📍 Paschim Medinipur</p>
+                    </div>
+                  </div>
+
+                  <!-- Editable Base Price Right Before Bidding -->
+                  <div class="bg-white p-2.5 rounded-xl border border-amber-200">
+                    <label class="block text-[10px] font-black text-amber-900 uppercase mb-1 flex items-center justify-between">
+                      <span>💰 Base Price for this Player (INR ₹)</span>
+                      <span class="text-[9px] text-slate-500 font-bold">Set / adjust starting amount</span>
+                    </label>
+                    <div class="flex items-center gap-2">
+                      <div class="relative flex-1">
+                        <span class="absolute left-3 top-2 text-slate-400 font-black text-xs">₹</span>
+                        <input type="number" id="auction-selected-player-base-price" value="${store.getAuctionSettings().defaultBasePrice}" min="50" step="50" class="w-full pl-7 pr-3 py-1.5 bg-amber-50/30 border border-amber-300 text-slate-900 text-sm font-black font-mono rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" />
+                      </div>
+                      <div class="flex items-center gap-1 shrink-0">
+                        <button type="button" onclick="const el=document.getElementById('auction-selected-player-base-price'); el.value = Math.max(50, (Number(el.value)||300) - 50);" class="px-2 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs rounded-lg border border-slate-300 cursor-pointer">-50</button>
+                        <button type="button" onclick="const el=document.getElementById('auction-selected-player-base-price'); el.value = (Number(el.value)||300) + 50;" class="px-2 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs rounded-lg border border-slate-300 cursor-pointer">+50</button>
+                        <button type="button" onclick="const el=document.getElementById('auction-selected-player-base-price'); el.value = (Number(el.value)||300) + 100;" class="px-2 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs rounded-lg border border-slate-300 cursor-pointer">+100</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <button id="auction-start-bid-btn" class="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-black text-xs rounded-xl shadow-xs cursor-pointer flex items-center justify-center gap-1.5">
+                  <i data-lucide="gavel" class="w-4 h-4"></i> Put Player on Auction Block
                 </button>
               </div>
             </div>
@@ -1663,6 +1704,7 @@ export function renderAdminDashboard(containerEl) {
     const defaultBasePrice = Number(document.getElementById('auction-setting-base-price')?.value) || 300;
     const defaultPurseBudget = Number(document.getElementById('auction-setting-purse-budget')?.value) || 8000;
     const defaultIconPrice = Number(document.getElementById('auction-setting-icon-price')?.value) || 1000;
+    const maxSquadSize = Number(document.getElementById('auction-setting-squad-size')?.value) || 13;
     const slab1Inc = Number(document.getElementById('auction-slab-1')?.value) || 50;
     const slab2Inc = Number(document.getElementById('auction-slab-2')?.value) || 100;
     const slab3Inc = Number(document.getElementById('auction-slab-3')?.value) || 200;
@@ -1673,9 +1715,39 @@ export function renderAdminDashboard(containerEl) {
       { maxLimit: 999999, increment: slab3Inc }
     ];
 
-    store.updateAuctionSettings({ defaultBasePrice, defaultPurseBudget, defaultIconPrice, bidIncrementSlabs });
-    alert("✅ Tournament Auction parameters, Icon Price & Bid Slabs updated successfully!");
+    store.updateAuctionSettings({ defaultBasePrice, defaultPurseBudget, defaultIconPrice, maxSquadSize, bidIncrementSlabs });
+    alert(`✅ Tournament Auction parameters, Icon Price (₹${defaultIconPrice}), Squad Target (${maxSquadSize}/team) & Bid Slabs updated successfully!`);
     renderAdminDashboard(containerEl);
+  });
+
+  // Bind Put Player on block player select change listener
+  const playerSelectEl = document.getElementById('auction-select-player');
+  playerSelectEl?.addEventListener('change', () => {
+    const pId = playerSelectEl.value;
+    const previewWrap = document.getElementById('auction-selected-player-preview-wrap');
+    if (!pId) {
+      if (previewWrap) previewWrap.classList.add('hidden');
+      return;
+    }
+    const p = store.getPlayerById(pId);
+    if (!p) return;
+
+    if (previewWrap) {
+      previewWrap.classList.remove('hidden');
+      const imgEl = document.getElementById('auction-preview-player-img');
+      const regEl = document.getElementById('auction-preview-player-reg');
+      const roleEl = document.getElementById('auction-preview-player-role');
+      const nameEl = document.getElementById('auction-preview-player-name');
+      const villageEl = document.getElementById('auction-preview-player-village');
+      const priceInput = document.getElementById('auction-selected-player-base-price');
+
+      if (imgEl) imgEl.src = getOptimizedImageUrl(p.photoUrl || p.player_photo_url, 120, 120);
+      if (regEl) regEl.textContent = p.registrationId || p.regNo || ('REG-' + String(p.displayRegistrationNumber || p.serialNo || 1).padStart(4, '0'));
+      if (roleEl) roleEl.textContent = p.category || p.playingType || 'All-Rounder';
+      if (nameEl) nameEl.textContent = p.name;
+      if (villageEl) villageEl.textContent = `📍 ${p.village || p.district || 'Paschim Medinipur'}`;
+      if (priceInput) priceInput.value = p.basePrice || store.getAuctionSettings().defaultBasePrice || 300;
+    }
   });
 
   // Bind Put Player on block btn
@@ -1684,7 +1756,8 @@ export function renderAdminDashboard(containerEl) {
     if (!pId) return alert("Please select an approved player from the dropdown first!");
     const p = store.getPlayerById(pId);
     if (p) {
-      startAuctionForPlayerDirectly(p);
+      const customBase = Number(document.getElementById('auction-selected-player-base-price')?.value) || p.basePrice || store.getAuctionSettings().defaultBasePrice || 300;
+      startAuctionForPlayerDirectly(p, customBase);
     }
   });
 
@@ -2663,7 +2736,7 @@ function openAdminEditPlayerModal(player, containerEl) {
               </div>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div class="grid grid-cols-1 gap-2.5">
               <div>
                 <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Bowling Style</label>
                 <select id="edit-ply-bowling" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-blue-500 focus:outline-none shadow-2xs">
@@ -2674,10 +2747,6 @@ function openAdminEditPlayerModal(player, containerEl) {
                   <option value="Left Hand Spin" ${currentBowling.includes('Spin') && currentBowling.includes('Left') ? 'selected' : ''}>Left Hand Spin</option>
                   <option value="None / Part-Time" ${currentBowling.includes('None') || currentBowling.includes('Part') ? 'selected' : ''}>None / Part-Time</option>
                 </select>
-              </div>
-              <div>
-                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Base Price (INR ₹)</label>
-                <input type="number" id="edit-ply-base-price" value="${player.basePrice || 300}" min="100" step="50" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold font-mono rounded-xl p-2.5 focus:border-blue-500 focus:outline-none shadow-2xs" />
               </div>
             </div>
           </div>
@@ -2935,7 +3004,7 @@ function openAdminEditPlayerModal(player, containerEl) {
         playingType: document.getElementById('edit-ply-category').value,
         battingStyle: document.getElementById('edit-ply-batting').value,
         bowlingStyle: document.getElementById('edit-ply-bowling').value,
-        basePrice: parseInt(document.getElementById('edit-ply-base-price').value, 10) || 300,
+        basePrice: player.basePrice || store.getAuctionSettings().defaultBasePrice || 300,
         paymentStatus: newStatus,
         registrationStatus: newStatus,
         paymentRef: document.getElementById('edit-ply-upiref').value.trim(),
@@ -5401,8 +5470,9 @@ export function openNextPlayerAuctionModal(remainingPlayers) {
             const sNo = p.displayRegistrationNumber || p.serialNo || '';
             const sNoDisplay = sNo ? `#${String(sNo).padStart(2, '0')}` : '';
             const regId = p.registrationId || p.regNo || ('REG-' + String(sNo || 1).padStart(4, '0'));
+            const pBase = p.basePrice || store.getAuctionSettings().defaultBasePrice || 300;
             return `
-            <div class="p-3 bg-slate-950 border border-slate-800 rounded-2xl flex items-center justify-between gap-3 hover:border-amber-400/60 transition-all next-player-row" data-name="${p.name.toLowerCase()}" data-cat="${(p.category || '').toLowerCase()}" data-serial="${String(sNo)}" data-reg="${regId.toLowerCase()}">
+            <div class="p-3 bg-slate-950 border border-slate-800 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-amber-400/60 transition-all next-player-row" data-name="${p.name.toLowerCase()}" data-cat="${(p.category || '').toLowerCase()}" data-serial="${String(sNo)}" data-reg="${regId.toLowerCase()}">
               <div class="flex items-center gap-3 min-w-0">
                 <div class="relative shrink-0">
                   <img src="${getOptimizedImageUrl(p.photoUrl || p.player_photo_url, 80, 80)}" class="w-11 h-11 rounded-xl object-cover border border-slate-700" onerror="this.src='assets/card_jsl_user.png'" />
@@ -5421,14 +5491,20 @@ export function openNextPlayerAuctionModal(remainingPlayers) {
                     <span>🏏 ${p.category || 'All Rounder'}</span>
                     <span>•</span>
                     <span class="text-slate-400">📍 ${p.village || 'Paschim Medinipur'}</span>
-                    <span>•</span>
-                    <span class="text-emerald-400 font-mono font-black">Base: ₹${p.basePrice || 300}</span>
                   </div>
                 </div>
               </div>
-              <button data-launch-player-id="${p.id}" class="launch-next-auction-btn px-3 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-md cursor-pointer shrink-0 transition-transform active:scale-95">
-                🔨 Start Bid
-              </button>
+
+              <!-- Base Price Input & Start Bid Button -->
+              <div class="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                <div class="flex items-center gap-1 bg-slate-900 border border-slate-700 px-2 py-1 rounded-xl">
+                  <span class="text-[10px] font-black text-amber-400">Base ₹</span>
+                  <input type="number" id="queue-base-${p.id}" value="${pBase}" min="50" step="50" class="w-16 bg-transparent text-white font-mono font-black text-xs text-center focus:outline-none" />
+                </div>
+                <button data-launch-player-id="${p.id}" class="launch-next-auction-btn px-3.5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-md cursor-pointer shrink-0 transition-transform active:scale-95 flex items-center gap-1">
+                  🔨 Start Bid
+                </button>
+              </div>
             </div>
             `;
           }).join('')}
@@ -5459,25 +5535,31 @@ export function openNextPlayerAuctionModal(remainingPlayers) {
     });
   });
 
-  // Launch auction on click
+  // Launch auction on click with custom Base Price
   document.querySelectorAll('.launch-next-auction-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       const pId = e.currentTarget.getAttribute('data-launch-player-id');
       const p = store.getPlayerById(pId);
       if (p) {
+        const customPriceInput = document.getElementById(`queue-base-${p.id}`);
+        const customBase = customPriceInput ? Number(customPriceInput.value) : p.basePrice;
         removeModal();
-        startAuctionForPlayerDirectly(p);
+        startAuctionForPlayerDirectly(p, customBase);
       }
     });
   });
 }
 
-export function startAuctionForPlayerDirectly(p) {
+export function startAuctionForPlayerDirectly(p, customStartingPrice = null) {
   if (activeAuction.timerInterval) clearInterval(activeAuction.timerInterval);
+
+  const startingPrice = Number(customStartingPrice) || Number(p.basePrice) || Number(store.getAuctionSettings().defaultBasePrice) || 300;
+  p.basePrice = startingPrice;
+  store.updatePlayer(p);
 
   activeAuction = {
     player: p,
-    currentBid: Number(p.basePrice) || 300,
+    currentBid: startingPrice,
     leadingTeam: null,
     timerSecs: 30,
     timerInterval: null,
@@ -5662,10 +5744,11 @@ export function renderActiveAuctionBlock() {
         
         <div class="grid grid-cols-2 gap-2">
           ${allTeams.map(t => {
+            const maxSquad = store.getAuctionSettings().maxSquadSize || 13;
             const rem = t.remainingPurse !== undefined ? t.remainingPurse : (t.purseBudget || 8000);
             const isLeading = activeAuction.leadingTeam && activeAuction.leadingTeam.id === t.id;
             const canAfford = rem >= nextBidAmount;
-            const isFull = (t.squadCount || 0) >= 13;
+            const isFull = (t.squadCount || 0) >= maxSquad;
             const isDisabled = (!canAfford || isFull || isLeading);
 
             return `
@@ -5682,7 +5765,7 @@ export function renderActiveAuctionBlock() {
                 <div class="flex items-center justify-between gap-1 mb-1">
                   <span class="font-black text-xs text-white truncate" title="${t.name}">🛡️ ${t.name}</span>
                   <span class="px-1.5 py-0.5 rounded text-[9px] font-bold ${isLeading ? 'bg-amber-400 text-slate-950 animate-pulse font-black' : 'bg-slate-800 text-slate-300'}">
-                    ${isLeading ? '👑 LEADING' : `${t.squadCount || 0}/13`}
+                    ${isLeading ? '👑 LEADING' : `${t.squadCount || 0}/${maxSquad}`}
                   </span>
                 </div>
                 <div class="flex items-center justify-between text-[11px] mt-0.5 pt-1 border-t border-slate-800/80">
@@ -5728,6 +5811,7 @@ export function renderActiveAuctionBlock() {
       const team = store.getTeamById(teamId);
       if (!team) return;
 
+      const maxSquad = store.getAuctionSettings().maxSquadSize || 13;
       const isOpening = !activeAuction.leadingTeam;
       const inc = store.calculateNextBidIncrement(activeAuction.currentBid);
       const newBid = isOpening ? activeAuction.currentBid : (activeAuction.currentBid + inc);
@@ -5736,8 +5820,8 @@ export function renderActiveAuctionBlock() {
         alert(`Franchise ${team.name} has only ₹${team.remainingPurse} remaining and cannot place a bid of ₹${newBid}!`);
         return;
       }
-      if ((team.squadCount || 0) >= 13) {
-        alert(`Franchise ${team.name} already has a full squad of 13 players!`);
+      if ((team.squadCount || 0) >= maxSquad) {
+        alert(`Franchise ${team.name} already has a full squad of ${maxSquad} players!`);
         return;
       }
 

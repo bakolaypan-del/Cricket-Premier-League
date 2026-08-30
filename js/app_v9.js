@@ -1,10 +1,10 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=13.0.30';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.30';
-import { renderAdminDashboard } from './admin.js?v=13.0.30';
-import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.30';
-import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.30';
+import { store } from './store.js?v=13.0.31';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.31';
+import { renderAdminDashboard } from './admin.js?v=13.0.31';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.31';
+import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.31';
 import { shops } from './shopsData.js?v=12.0.2';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
@@ -9242,7 +9242,7 @@ function renderLiveAuctionView(container) {
           <h3 class="text-xs sm:text-sm font-black text-slate-800 uppercase tracking-wider">
             FRANCHISE PURSES
           </h3>
-          <span class="text-xs font-bold text-slate-500">Target: 13 Players</span>
+          <span class="text-xs font-bold text-slate-500 font-mono">Target: ${store.getAuctionSettings().maxSquadSize || 13} Players</span>
         </div>
 
         <div class="space-y-3" id="auction-franchise-purses-list"></div>
@@ -9832,7 +9832,7 @@ function renderLiveAuctionView(container) {
       const spent = iconDeduction + auctionSpent;
       const left = Math.max(0, totalPurse - spent);
       const squadCount = (hasIcon ? 1 : 0) + purchasedNonIconPlayers.length;
-      const totalRequired = 13;
+      const totalRequired = Number(store.getAuctionSettings().maxSquadSize) || 13;
       const ratio = Math.min(100, Math.max(0, (left / totalPurse) * 100));
 
       return `
@@ -10510,6 +10510,7 @@ export function openLiveAuctionProjectorView() {
     if (!box) return;
     const allPlayers = store.getPlayers();
     const teams = store.getTeams();
+    const targetSquadSize = Number(store.getAuctionSettings().maxSquadSize) || 13;
 
     const startIdx = (teamsCurrentPage - 1) * 4;
     const pageTeams = teams.slice(startIdx, startIdx + 4);
@@ -10530,27 +10531,22 @@ export function openLiveAuctionProjectorView() {
       const squadCount = (hasIcon ? 1 : 0) + nonIconPlayers.length;
 
       return `
-        <div class="h-full bg-white border-2 border-slate-200/90 rounded-2xl sm:rounded-3xl p-3 sm:p-4 shadow-sm flex flex-col justify-between overflow-hidden">
-          <!-- Team Header with Large Logo & Huge Team Name -->
-          <div class="pb-3 border-b-2 border-slate-100 shrink-0">
-            <div class="flex items-center gap-3">
-              <img src="${t.logoUrl || t.teamLogoUrl || 'assets/card_jsl_user.png'}" class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl object-cover border-2 border-slate-200 shadow-xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
-              <div class="min-w-0 flex-1">
-                <span class="text-[10px] font-black uppercase text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 inline-block mb-0.5">
-                  Franchise #${startIdx + idx + 1}
-                </span>
-                <h3 class="font-black text-slate-950 text-base sm:text-lg lg:text-xl truncate leading-tight tracking-tight">${t.name}</h3>
-                <div class="text-xs text-slate-500 font-bold truncate">Owner: ${t.ownerName || 'Franchise Owner'}</div>
+        <div class="h-full bg-white border-2 border-slate-200/90 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between shadow-xs overflow-hidden">
+          <!-- Column Header -->
+          <div class="pb-2 border-b border-slate-100 shrink-0">
+            <div class="flex items-center gap-2">
+              <img src="${t.logoUrl || t.teamLogoUrl || 'assets/card_jsl_user.png'}" class="w-8 h-8 rounded-xl object-cover border border-slate-200 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+              <div class="min-w-0">
+                <h4 class="font-black text-slate-900 text-xs sm:text-sm truncate uppercase">${t.name}</h4>
+                <div class="text-[10px] text-slate-500 font-bold truncate">Owner: ${t.ownerName || t.owner_name || 'N/A'}</div>
               </div>
             </div>
-
-            <!-- Big Remaining Purse Banner -->
-            <div class="mt-2.5 p-2 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-300 rounded-xl flex items-center justify-between shadow-2xs">
-              <span class="text-[11px] font-black uppercase text-emerald-900">Remaining Purse:</span>
+            <div class="mt-2 flex items-center justify-between">
+              <span class="text-[10px] font-black text-slate-500 uppercase">Purse Balance</span>
               <span class="text-sm sm:text-base font-mono font-black text-emerald-800">₹ ${left.toLocaleString('en-IN')}</span>
             </div>
             <div class="mt-1 flex items-center justify-between text-[11px] text-slate-500 font-mono font-bold">
-              <span>Squad: <strong class="text-sky-700 font-black">${squadCount}/13</strong> Players</span>
+              <span>Squad: <strong class="text-sky-700 font-black">${squadCount}/${targetSquadSize}</strong> Players</span>
               <span>Budget: ₹${totalPurse.toLocaleString('en-IN')}</span>
             </div>
           </div>

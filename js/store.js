@@ -56,7 +56,7 @@ import {
   toUUID,
   fetchGlobalUniquePlayersCount,
   updateTournamentApprovalStatus
-} from './supabase.js?v=13.0.30';
+} from './supabase.js?v=13.0.31';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -1882,6 +1882,7 @@ class Store {
       defaultBasePrice: 300,
       defaultPurseBudget: 8000,
       defaultIconPrice: 1000,
+      maxSquadSize: 13,
       bidIncrementSlabs: [
         { maxLimit: 1000, increment: 50 },
         { maxLimit: 2000, increment: 100 },
@@ -1898,6 +1899,7 @@ class Store {
         defaultBasePrice: (!parsed.defaultBasePrice || Number(parsed.defaultBasePrice) === 200) ? 300 : Number(parsed.defaultBasePrice),
         defaultPurseBudget: Number(parsed.defaultPurseBudget) || 8000,
         defaultIconPrice: (parsed.defaultIconPrice !== undefined) ? Number(parsed.defaultIconPrice) : 1000,
+        maxSquadSize: Number(parsed.maxSquadSize) || 13,
         bidIncrementSlabs: Array.isArray(parsed.bidIncrementSlabs) && parsed.bidIncrementSlabs.length > 0
           ? parsed.bidIncrementSlabs
           : defaultSettings.bidIncrementSlabs
