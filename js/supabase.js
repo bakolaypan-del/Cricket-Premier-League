@@ -975,24 +975,25 @@ export async function syncTeamToSupabase(teamData) {
     const tournamentUUID = await resolveTournamentUUID(tid);
     const teamUUID = (teamData.id && UUID_FORMAT_RE.test(teamData.id)) ? teamData.id : generateUUID();
 
-    // 1. Direct PostgreSQL teams table upsert
+    // 1. Direct PostgreSQL teams table upsert (guarded for authenticated sessions)
     try {
-      const payload = {
-        id: teamUUID,
-        tournament_id: tournamentUUID,
-        name: teamData.name,
-        short_name: teamData.shortCode || null,
-        owner_name: teamData.ownerName || null,
-        owner_phone: teamData.ownerPhone || null,
-        logo_url: teamData.logoUrl || teamData.teamLogoUrl || null,
-        budget_total: Number(teamData.purseBudget || teamData.purse) || 8000,
-        budget_remaining: Number(teamData.remainingPurse || teamData.purseBudget || teamData.purse) || 8000,
-        updated_at: new Date().toISOString()
-      };
-      await supabase.from('teams').upsert(payload);
-    } catch (tblErr) {
-      console.warn("[SUPABASE] Direct teams table upsert notice:", tblErr);
-    }
+      const session = await getAuthSession();
+      if (session && session.user) {
+        const payload = {
+          id: teamUUID,
+          tournament_id: tournamentUUID,
+          name: teamData.name,
+          short_name: teamData.shortCode || null,
+          owner_name: teamData.ownerName || null,
+          owner_phone: teamData.ownerPhone || null,
+          logo_url: teamData.logoUrl || teamData.teamLogoUrl || null,
+          budget_total: Number(teamData.purseBudget || teamData.purse) || 8000,
+          budget_remaining: Number(teamData.remainingPurse || teamData.purseBudget || teamData.purse) || 8000,
+          updated_at: new Date().toISOString()
+        };
+        await supabase.from('teams').upsert(payload);
+      }
+    } catch (tblErr) {}
 
     // 2. Persist team permanently in tournament format_config.custom_teams (guarantees zero RLS loss)
     try {
