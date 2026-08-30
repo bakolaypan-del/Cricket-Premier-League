@@ -10183,10 +10183,10 @@ function renderLiveAuctionView(container) {
       const bidderTeam = teams.find(t => t.id === state.highest_bidder_team_id);
       const isUnsoldState = (state.status === 'UNSOLD' || state.is_unsold);
       const isSoldState = (state.status === 'SOLD' || state.is_sold);
-      const isNewPlayer = (lastActivePlayerId !== state.active_player_id);
+      const isNewPlayerOrStatus = (lastActivePlayerId !== state.active_player_id || lastActiveStatus !== state.status);
       const playerCardEl = document.getElementById('auction-player-card-box');
 
-      if (isNewPlayer || !playerCardEl) {
+      if (isNewPlayerOrStatus || !playerCardEl) {
         lastActivePlayerId = state.active_player_id;
         lastActiveStatus = state.status;
         const pObj = store.getPlayerById(state.active_player_id) || store.getPlayers().find(p => p.id === state.active_player_id || (state.active_player_id && p.id && toUUID(p.id) === toUUID(state.active_player_id)));
@@ -10532,10 +10532,11 @@ function renderLiveAuctionView(container) {
     const now = Date.now();
     const stateUpdatedAt = Number(state?.updated_at || state?.timestamp || 0);
 
-    if (stateUpdatedAt < lastAuctionSyncTimestamp && stateUpdatedAt > 0) {
+    const isNewActive = state && (state.active_player_id !== lastActivePlayerId || state.status !== lastActiveStatus);
+    if (!isNewActive && stateUpdatedAt < lastAuctionSyncTimestamp && stateUpdatedAt > 0) {
       return;
     }
-    lastAuctionSyncTimestamp = Math.max(lastAuctionSyncTimestamp, stateUpdatedAt);
+    lastAuctionSyncTimestamp = Math.max(lastAuctionSyncTimestamp, stateUpdatedAt || Date.now());
 
     if (now - lastAuctionCloudHeartbeat > 10000) {
       lastAuctionCloudHeartbeat = now;

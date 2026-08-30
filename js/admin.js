@@ -6431,7 +6431,8 @@ export function initAuctionStartListener() {
       registrationId: player.registrationId || player.regNo,
       village: player.village,
       battingStyle: player.battingStyle,
-      bowlingStyle: player.bowlingStyle
+      bowlingStyle: player.bowlingStyle,
+      updated_at: Date.now()
     });
 
     // Start 1-second countdown
