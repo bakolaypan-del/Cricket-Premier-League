@@ -2012,6 +2012,23 @@ class Store {
       });
     }
 
+    // Auto-correct fixtures mistakenly marked 'LIVE' without active deliveries or toss
+    const activeScoringId = typeof localStorage !== 'undefined' ? localStorage.getItem('cpl_active_scoring_fixture_id') : null;
+    all.forEach(f => {
+      if (f && f.status === 'LIVE' && f.id !== activeScoringId) {
+        const s = f.liveMatchState || {};
+        const balls = (s.overs || 0) * 6 + (s.balls || 0);
+        const runs = s.runs || 0;
+        const wickets = s.wickets || 0;
+        const hasToss = !!s.tossDetails;
+
+        if (balls === 0 && runs === 0 && wickets === 0 && !hasToss) {
+          f.status = 'SCHEDULED';
+          f.liveMatchState = null;
+        }
+      }
+    });
+
     this._cache.fixtures = all;
     return all;
   }
@@ -2193,7 +2210,25 @@ class Store {
       });
     });
 
-    return Array.from(map.values()).sort((a, b) => (Number(a.matchNo) || 0) - (Number(b.matchNo) || 0));
+    const result = Array.from(map.values());
+    const activeScoringId = typeof localStorage !== 'undefined' ? localStorage.getItem('cpl_active_scoring_fixture_id') : null;
+    result.forEach(f => {
+      if (f && f.status === 'LIVE' && f.id !== activeScoringId) {
+        const s = f.liveMatchState || f.liveState || {};
+        const balls = (s.overs || 0) * 6 + (s.balls || 0);
+        const runs = s.runs || 0;
+        const wickets = s.wickets || 0;
+        const hasToss = !!s.tossDetails;
+
+        if (balls === 0 && runs === 0 && wickets === 0 && !hasToss) {
+          f.status = 'SCHEDULED';
+          f.liveMatchState = null;
+          f.liveState = null;
+        }
+      }
+    });
+
+    return result.sort((a, b) => (Number(a.matchNo) || 0) - (Number(b.matchNo) || 0));
   }
 
   // --- TOURNAMENT FORMAT & GROUP STAGES ENGINE ---
