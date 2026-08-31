@@ -531,6 +531,28 @@ export function initRealtimePushListener(onUpdateCallback, tournamentId) {
 // --- DEFAULT TOURNAMENT UUID (LEGACY 'leg-jsl' KEY) ---
 export const DEFAULT_TOURNAMENT_UUID = toUUID('leg-jsl');
 
+// --- ON-DEMAND FETCH: Verification Docs (only when admin opens approvals) ---
+export async function fetchVerificationDocs(tournamentId) {
+  if (!supabase) return [];
+  try {
+    const tId = await resolveTournamentUUID(tournamentId) || toUUID(tournamentId) || DEFAULT_TOURNAMENT_UUID;
+    const { data, error } = await supabase.from('player_verification_docs').select('*').eq('tournament_id', tId);
+    if (error) { console.warn("[SUPABASE] fetchVerificationDocs error:", error.message); return []; }
+    return data || [];
+  } catch (e) { return []; }
+}
+
+// --- ON-DEMAND FETCH: Person Profiles (only when registration form opens) ---
+export async function fetchPersonProfiles(tournamentId) {
+  if (!supabase) return [];
+  try {
+    const tId = await resolveTournamentUUID(tournamentId) || toUUID(tournamentId) || DEFAULT_TOURNAMENT_UUID;
+    const { data, error } = await supabase.from('person_profiles').select('*').eq('tournament_id', tId).limit(500);
+    if (error) { console.warn("[SUPABASE] fetchPersonProfiles error:", error.message); return []; }
+    return data || [];
+  } catch (e) { return []; }
+}
+
 // --- INSTANT CLOUD DATA FETCH (SUPABASE POSTGRES BACKED) ---
 export async function fetchCloudData(tournamentId) {
   return fetchCloudDataFromSupabase(tournamentId || DEFAULT_TOURNAMENT_UUID);
@@ -543,14 +565,15 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
   try {
     const tId = await resolveTournamentUUID(tournamentId) || toUUID(tournamentId) || DEFAULT_TOURNAMENT_UUID;
 
-    const [playersRes, teamsRes, matchesRes, tourneyRes, docsRes, profilesRes] = await Promise.all([
-      supabase.from('players').select('*').eq('tournament_id', tId),
-      supabase.from('teams').select('*').eq('tournament_id', tId),
+    const [playersRes, teamsRes, matchesRes, tourneyRes] = await Promise.all([
+      supabase.from('players').select('id, tournament_id, name, phone, photo_url, role, category_name, base_price, is_icon, team_id, status, sold_price, verified, reg_number, updated_at').eq('tournament_id', tId),
+      supabase.from('teams').select('id, tournament_id, name, short_name, owner_name, owner_phone, logo_url, budget_total, budget_remaining, squad_count, updated_at').eq('tournament_id', tId),
       supabase.from('matches').select('*').eq('tournament_id', tId),
-      supabase.from('tournaments').select('category_code, slug, name, registration_fee, total_team_budget, icon_price, registration_settings, format_config').eq('id', tId).maybeSingle(),
-      supabase.from('player_verification_docs').select('*').eq('tournament_id', tId),
-      supabase.from('person_profiles').select('*')
+      supabase.from('tournaments').select('category_code, slug, name, registration_fee, total_team_budget, icon_price, registration_settings, format_config').eq('id', tId).maybeSingle()
     ]);
+    // Docs and profiles are fetched on-demand only (not every poll) to save mobile data
+    const docsRes = { data: [], error: null };
+    const profilesRes = { data: [], error: null };
     let tourneyMeta = tourneyRes?.data;
     if (!tourneyMeta && tournamentId) {
       const cleanSlug = String(tournamentId).replace(/^t_/, '').trim();
@@ -917,16 +940,20 @@ export async function syncPlayerToSupabase(playerData) {
         verified: isApproved,
         status: isRejected ? 'rejected' : (isSoldVal ? 'sold' : (isUnsoldVal ? 'unsold' : derivePlayerStatus(playerData))),
         team_id: (playerData.teamId || playerData.team_id) ? toUUID(playerData.teamId || playerData.team_id) : null,
-        sold_price: soldPriceVal,
+        sold_price: (soldPriceVal != null) ? soldPriceVal : 0,
         updated_at: new Date().toISOString()
       };
       if (playerUUID) {
-        await supabase.from('players').update(updatePayload).eq('id', playerUUID);
+        const { error: pErr1 } = await supabase.from('players').update(updatePayload).eq('id', playerUUID);
+        if (pErr1) console.error("[SUPABASE] players update by UUID failed:", pErr1.message, pErr1.details, "player:", playerData.name);
       }
       if (cleanPhone) {
-        await supabase.from('players').update(updatePayload).eq('phone', cleanPhone).eq('tournament_id', tournamentUUID);
+        const { error: pErr2 } = await supabase.from('players').update(updatePayload).eq('phone', cleanPhone).eq('tournament_id', tournamentUUID);
+        if (pErr2) console.error("[SUPABASE] players update by phone failed:", pErr2.message, pErr2.details, "player:", playerData.name);
       }
-    } catch (pUpdateErr) {}
+    } catch (pUpdateErr) {
+      console.error("[SUPABASE] players table update exception:", pUpdateErr, "player:", playerData.name);
+    }
 
     // Save/Update Verification Documents (Aadhaar & Payment Proof)
     const idCardFront = playerData.idCardFrontUrl || playerData.id_card_front_url || playerData.aadharPhotoUrl || playerData.aadhaar_url || null;
@@ -1031,25 +1058,30 @@ export async function syncTeamToSupabase(teamData) {
     const tournamentUUID = await resolveTournamentUUID(tid);
     const teamUUID = (teamData.id && UUID_FORMAT_RE.test(teamData.id)) ? teamData.id : generateUUID();
 
-    // 1. Direct PostgreSQL teams table upsert (guarded for authenticated sessions)
+    // 1. Direct PostgreSQL teams table upsert (always sync — no auth guard)
     try {
-      const session = await getAuthSession();
-      if (session && session.user) {
-        const payload = {
-          id: teamUUID,
-          tournament_id: tournamentUUID,
-          name: teamData.name,
-          short_name: teamData.shortCode || null,
-          owner_name: teamData.ownerName || null,
-          owner_phone: teamData.ownerPhone || null,
-          logo_url: teamData.logoUrl || teamData.teamLogoUrl || null,
-          budget_total: Number(teamData.purseBudget || teamData.purse) || 8000,
-          budget_remaining: Number(teamData.remainingPurse || teamData.purseBudget || teamData.purse) || 8000,
-          updated_at: new Date().toISOString()
-        };
-        await supabase.from('teams').upsert(payload);
+      const remainingVal = (teamData.remainingPurse != null) ? Number(teamData.remainingPurse) : null;
+      const budgetTotal = Number(teamData.purseBudget || teamData.purse) || 8000;
+      const payload = {
+        id: teamUUID,
+        tournament_id: tournamentUUID,
+        name: teamData.name,
+        short_name: teamData.shortCode || null,
+        owner_name: teamData.ownerName || null,
+        owner_phone: teamData.ownerPhone || null,
+        logo_url: teamData.logoUrl || teamData.teamLogoUrl || null,
+        budget_total: budgetTotal,
+        budget_remaining: (remainingVal != null) ? remainingVal : budgetTotal,
+        squad_count: Number(teamData.squadCount) || 0,
+        updated_at: new Date().toISOString()
+      };
+      const { error: teamUpsertErr } = await supabase.from('teams').upsert(payload);
+      if (teamUpsertErr) {
+        console.error("[SUPABASE] teams upsert failed:", teamUpsertErr.message, teamUpsertErr.details);
       }
-    } catch (tblErr) {}
+    } catch (tblErr) {
+      console.error("[SUPABASE] teams upsert exception:", tblErr);
+    }
 
     // 2. Persist team permanently in tournament format_config.custom_teams (guarantees zero RLS loss)
     try {

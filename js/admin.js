@@ -1718,7 +1718,10 @@ export function renderAdminDashboard(containerEl) {
       document.getElementById('tab-saas-tournaments-view')?.classList.add('hidden');
 
       if (activeAdminTab === 'overview') document.getElementById('tab-overview-view')?.classList.remove('hidden');
-      if (activeAdminTab === 'payments') document.getElementById('tab-payments-view').classList.remove('hidden');
+      if (activeAdminTab === 'payments') {
+        document.getElementById('tab-payments-view').classList.remove('hidden');
+        if (store.fetchDocsOnDemand) store.fetchDocsOnDemand();
+      }
       if (activeAdminTab === 'all-players') document.getElementById('tab-all-players-view').classList.remove('hidden');
       if (activeAdminTab === 'teams') document.getElementById('tab-teams-view').classList.remove('hidden');
 

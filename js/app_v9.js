@@ -9601,8 +9601,9 @@ export function openMatchCenterModal(fixtureId) {
   window.addEventListener('live_auction_updated', mcLiveHandler);
   mcPollTimer = setInterval(() => {
     if (!document.getElementById('match-center-modal')) { removeModal(); return; }
+    if (document.visibilityState === 'hidden') return;
     Promise.resolve(store.syncWithCloud()).then(() => renderMatchCenterContent()).catch(() => renderMatchCenterContent());
-  }, 4000);
+  }, 30000);
 
   renderMatchCenterContent();
 }
@@ -10736,9 +10737,13 @@ function renderLiveAuctionView(container) {
     renderFranchisePurses(teams, allPlayers, state);
   };
 
-  // Immediate Initial Render
+  // Immediate Initial Render — Realtime WebSocket handles instant updates;
+  // 10s fallback poll only as safety net, skips when tab is hidden
   pollActiveAuctionState();
-  auctionPollInterval = setInterval(pollActiveAuctionState, 1000);
+  auctionPollInterval = setInterval(() => {
+    if (document.visibilityState === 'hidden') return;
+    pollActiveAuctionState();
+  }, 10000);
 
   const onAuctionChange = async () => {
     if (currentRoute === 'auction') {
@@ -11840,7 +11845,10 @@ export function openLiveAuctionProjectorView() {
     if (activeProjectorTab === 'teams') renderTeamsOverlay();
   };
 
-  projectorPollInterval = setInterval(pollProjector, 800);
+  projectorPollInterval = setInterval(() => {
+    if (document.visibilityState === 'hidden') return;
+    pollProjector();
+  }, 5000);
 
   const onProjAuctionChange = () => {
     if (document.getElementById('live-auction-projector-view-modal')) {

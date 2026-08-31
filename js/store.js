@@ -58,8 +58,10 @@ import {
   fetchGlobalUniquePlayersCount,
   updateTournamentApprovalStatus,
   fetchLiveAuctionFromCloud,
-  fetchGlobalLiveAuctionStatus
-} from './supabase.js?v=13.0.53';
+  fetchGlobalLiveAuctionStatus,
+  fetchVerificationDocs,
+  fetchPersonProfiles
+} from './supabase.js?v=13.0.54';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -602,13 +604,35 @@ class Store {
 
   startCloudPolling() {
     if (this.cloudPollingInterval) clearInterval(this.cloudPollingInterval);
-    // 15s Background Cloud Polling Heartbeat (Supabase SSE already pushes changes instantaneously)
+    // 60s backup poll — Supabase Realtime WebSocket handles instant updates;
+    // this is only a safety net for brief disconnects. Skips when tab is hidden to save mobile data.
     this.cloudPollingInterval = setInterval(() => {
+      if (document.visibilityState === 'hidden') return;
       const isUserFillingForm = document.getElementById('player-reg-modal') || document.getElementById('team-reg-modal') || document.getElementById('edit-player-modal');
       if (!isUserFillingForm) {
         this.syncWithCloud();
       }
-    }, 15000);
+    }, 60000);
+  }
+
+  async fetchDocsOnDemand() {
+    try {
+      const docs = await fetchVerificationDocs(this.activeTournamentId);
+      if (Array.isArray(docs) && docs.length > 0) {
+        safeSetLocalStorage(this._scopedKey('VERIFICATION_DOCS'), docs);
+      }
+      return docs;
+    } catch (e) { return []; }
+  }
+
+  async fetchProfilesOnDemand() {
+    try {
+      const profiles = await fetchPersonProfiles(this.activeTournamentId);
+      if (Array.isArray(profiles) && profiles.length > 0) {
+        safeSetLocalStorage(STORAGE_KEYS.PLAYER_PROFILES, profiles);
+      }
+      return profiles;
+    } catch (e) { return []; }
   }
 
   setupRealtimeListeners() {
@@ -734,6 +758,20 @@ class Store {
       if (o && ((o.email && o.email.toLowerCase() === cleanEmail) || o.phone === cleanEmail) && match) {
         const canonicalTid = toUUID(tId) || tId;
         this.setActiveTournament(canonicalTid);
+
+        // Also sign into Supabase Auth so RLS policies work for cloud writes
+        const supaEmail = o.email || `${o.phone}@cpl.tournament.org`;
+        try {
+          const authRes = await signInUser(supaEmail, password);
+          if (authRes.error) {
+            console.warn("[AUTH] Supabase Auth session for organiser not available:", authRes.error.message);
+          } else {
+            console.log("[AUTH] Supabase Auth session established for organiser:", supaEmail);
+          }
+        } catch (authErr) {
+          console.warn("[AUTH] Supabase Auth sign-in for organiser failed:", authErr);
+        }
+
         const userObj = {
           id: `owner-${canonicalTid}`,
           name: o.name || 'Tournament Organiser',
@@ -2916,6 +2954,20 @@ class Store {
       }
       safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, accounts);
       saveUserAccountToCloud(orgAcc);
+
+      // Also register organiser in Supabase Auth so their login gets a real session (RLS requires it)
+      const orgEmail = org.email || `${cleanOrgPhone}@cpl.tournament.org`;
+      const orgPlainPw = org.password || cleanOrgPhone;
+      try {
+        const signUpRes = await signUpUser(orgEmail, orgPlainPw, org.name || 'Tournament Owner', 'organiser');
+        if (signUpRes.error) {
+          console.warn("[AUTH] Supabase Auth signup for organiser notice:", signUpRes.error.message);
+        } else {
+          console.log("[AUTH] Supabase Auth account created for organiser:", orgEmail);
+        }
+      } catch (authErr) {
+        console.warn("[AUTH] Supabase Auth signup for organiser failed:", authErr);
+      }
     }
 
     this.notify('custom_tournaments_updated');
