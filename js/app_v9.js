@@ -976,18 +976,26 @@ export function openSquareImageCropModal(imageSrc, onCropComplete, title = "Crop
   document.getElementById('cropper-cancel-btn')?.addEventListener('click', removeCropperModal);
 
   document.getElementById('cropper-apply-btn')?.addEventListener('click', () => {
-        imageSmoothingQuality: 'high'
-      });
-      if (croppedCanvas) {
-        const croppedDataUrl = croppedCanvas.toDataURL('image/jpeg', 0.86);
-        onCropComplete(croppedDataUrl);
-      } else {
-        onCropComplete(imageSrc);
-      }
-    } else {
-      onCropComplete(imageSrc);
+    if (!cropperInstance) {
+      if (typeof onCropComplete === 'function') onCropComplete(imageSrc);
+      removeCropperModal();
+      return;
     }
+    const targetW = (aspectRatio || 1) > 1 ? 1280 : 600;
+    const targetH = (aspectRatio || 1) > 1 ? Math.round(1280 / (aspectRatio || 1)) : 600;
+
+    const canvas = cropperInstance.getCroppedCanvas({
+      width: targetW,
+      height: targetH,
+      imageSmoothingEnabled: true,
+      imageSmoothingQuality: 'high',
+    });
+
+    const croppedDataUrl = canvas ? canvas.toDataURL('image/jpeg', 0.9) : imageSrc;
     removeCropperModal();
+    if (typeof onCropComplete === 'function') {
+      onCropComplete(croppedDataUrl);
+    }
   });
 }
 
