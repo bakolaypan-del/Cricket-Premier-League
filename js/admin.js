@@ -3364,10 +3364,28 @@ function renderAdminFixturesList() {
   const tbody = document.getElementById('admin-fixtures-list');
   if (!tbody) return;
 
-  const accessibleLeagues = store.getAccessibleLeagues();
-  const accessibleCodes = accessibleLeagues.map(l => (l.code || l.category || 'T').toUpperCase());
+  const curTid = store.activeTournamentId;
+  const curUUID = toUUID(curTid);
+  const tourneys = store.getCustomTournaments() || [];
+  const curTourney = tourneys.find(t => (t.supabaseId || t.id) === curTid || toUUID(t.id) === curUUID || toUUID(t.supabaseId) === curUUID);
+
+  const activeTeams = store.getTeams() || [];
+  const activeTeamIds = new Set(activeTeams.map(t => String(t.id)));
+
+  // Strict isolation: only show fixtures belonging to the active tournament being managed
   const fixtures = store.getFixtures()
-    .filter(f => store.isMasterAdmin() || accessibleCodes.includes((f.leagueCode || 'T').toUpperCase()) || f.tournament_id === store.activeTournamentId || f.leagueId === store.activeTournamentId)
+    .filter(f => {
+      if (!f) return false;
+      const fTid = f.tournament_id || f.tournamentId || f.leagueId;
+      const fTeamA = f.teamAId ? String(f.teamAId) : '';
+      const fTeamB = f.teamBId ? String(f.teamBId) : '';
+
+      if (fTid && (fTid === curTid || toUUID(fTid) === curUUID)) return true;
+      if (activeTeamIds.size > 0 && (activeTeamIds.has(fTeamA) || activeTeamIds.has(fTeamB))) return true;
+      if (curTourney && f.tournamentName && curTourney.name && f.tournamentName.toUpperCase() === curTourney.name.toUpperCase()) return true;
+
+      return false;
+    })
     .sort((a, b) => (Number(a.matchNo) || 0) - (Number(b.matchNo) || 0));
 
   if (fixtures.length === 0) {
@@ -3494,23 +3512,23 @@ function renderScorerMatchesList() {
   const selectEl = document.getElementById('scorer-select-match');
   if (!selectEl) return;
 
-  const accessibleLeagues = store.getAccessibleLeagues();
-  const accessibleCodes = accessibleLeagues.map(l => (l.code || l.category || l.shortCode || l.name || 'T').toUpperCase());
-  const activeTid = store.activeTournamentId;
+  const curTid = store.activeTournamentId;
+  const curUUID = toUUID(curTid);
+  const tourneys = store.getCustomTournaments() || [];
+  const curTourney = tourneys.find(t => (t.supabaseId || t.id) === curTid || toUUID(t.id) === curUUID || toUUID(t.supabaseId) === curUUID);
+
+  const activeTeams = store.getTeams() || [];
+  const activeTeamIds = new Set(activeTeams.map(t => String(t.id)));
 
   const isFixtureMatchForAdmin = (f) => {
-    if (store.isMasterAdmin()) return true;
-    const fCode = (f.leagueCode || f.category_code || '').toUpperCase();
-    if (accessibleCodes.includes(fCode)) return true;
-    if (accessibleCodes.some(ac => ac && (fCode.includes(ac) || ac.includes(fCode)))) return true;
-    if (activeTid && (f.tournament_id === activeTid || f.leagueId === activeTid || toUUID(f.tournament_id) === toUUID(activeTid))) return true;
+    if (!f) return false;
+    const fTid = f.tournament_id || f.tournamentId || f.leagueId;
+    const fTeamA = f.teamAId ? String(f.teamAId) : '';
+    const fTeamB = f.teamBId ? String(f.teamBId) : '';
 
-    // Fallback: match by team ownership
-    const allTeams = store.getTeams ? store.getTeams() : [];
-    const teamA = allTeams.find(t => t.id === f.teamAId);
-    const teamB = allTeams.find(t => t.id === f.teamBId);
-    if (teamA && (teamA.tournament_id === activeTid || teamA.leagueId === activeTid || toUUID(teamA.tournament_id) === toUUID(activeTid))) return true;
-    if (teamB && (teamB.tournament_id === activeTid || teamB.leagueId === activeTid || toUUID(teamB.tournament_id) === toUUID(activeTid))) return true;
+    if (fTid && (fTid === curTid || toUUID(fTid) === curUUID)) return true;
+    if (activeTeamIds.size > 0 && (activeTeamIds.has(fTeamA) || activeTeamIds.has(fTeamB))) return true;
+    if (curTourney && f.tournamentName && curTourney.name && f.tournamentName.toUpperCase() === curTourney.name.toUpperCase()) return true;
 
     return false;
   };

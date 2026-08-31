@@ -2038,6 +2038,29 @@ class Store {
     safeSetLocalStorage(this._scopedKey('FIXTURES'), fixtures);
     deleteFixtureFromCloud(fixtureId, this.activeTournamentId);
 
+    // Clean across ALL tournament keys and format configs in localStorage
+    const tourneys = this.getCustomTournaments() || [];
+    tourneys.forEach(t => {
+      const tid = t.supabaseId || t.id;
+      if (tid) {
+        try {
+          const key = `cpl_fixtures_v8_${tid}`;
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            const arr = (JSON.parse(raw) || []).filter(f => f.id !== fixtureId);
+            safeSetLocalStorage(key, arr);
+          }
+        } catch (e) {}
+      }
+      if (Array.isArray(t.format_config?.custom_matches)) {
+        const origLen = t.format_config.custom_matches.length;
+        t.format_config.custom_matches = t.format_config.custom_matches.filter(f => f.id !== fixtureId);
+        if (t.format_config.custom_matches.length !== origLen) {
+          this._saveTournamentAcrossAllKeys(t);
+        }
+      }
+    });
+
     // Clean from legacy key if present
     try {
       const legacyRaw = localStorage.getItem('cpl_fixtures_v8');
@@ -2046,14 +2069,6 @@ class Store {
         safeSetLocalStorage('cpl_fixtures_v8', legacyMatches);
       }
     } catch (e) {}
-
-    // Clean from active tournament format_config
-    const tourneys = this.getCustomTournaments();
-    const curT = tourneys.find(t => (t.supabaseId || t.id) === this.activeTournamentId);
-    if (curT && Array.isArray(curT.format_config?.custom_matches)) {
-      curT.format_config.custom_matches = curT.format_config.custom_matches.filter(f => f.id !== fixtureId);
-      this._saveTournamentAcrossAllKeys(curT);
-    }
 
     this.notify('fixtures_updated');
   }
