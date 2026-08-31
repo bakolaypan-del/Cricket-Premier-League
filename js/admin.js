@@ -66,6 +66,20 @@ export function renderAdminDashboard(containerEl) {
     else store.activeTournamentId = activeTid;
   }
 
+  const curTourneyObj = (customTournaments.find(t => (t.supabaseId || t.id) === activeTid) || leagues.find(l => (l.id || l.code) === activeTid)) || {
+    id: activeTid,
+    name: 'Tournament',
+    shortCode: 'T',
+    tagline: '',
+    entryFee: 300,
+    teamEntryFee: 15000,
+    prizeWinner: '₹ 35,000',
+    prizeRunners: '₹ 25,000',
+    venue: 'Jhankra Stadium Ground',
+    dates: '2026',
+    ruleRestriction: ''
+  };
+
   // 2. NOW query players, teams, leagues for the ACTIVE TOURNAMENT
   const leagues = store.getAccessibleLeagues();
   const players = store.getPlayers();
@@ -129,6 +143,7 @@ export function renderAdminDashboard(containerEl) {
     { tab: 'auction', icon: 'gavel', label: 'Auction', masterOnly: false },
     { tab: 'fixtures', icon: 'calendar', label: 'Scheduler', masterOnly: false },
     { tab: 'scorer', icon: 'gamepad-2', label: 'Live Scorer', masterOnly: false },
+    { tab: 'tourney-details', icon: 'settings-2', label: 'Tournament Settings' },
     ...(!isMaster ? [{ tab: 'reg-settings', icon: 'power', label: 'Reg. Control' }] : []),
     ...(isMaster ? [
       { tab: 'reg-settings', icon: 'power', label: 'Reg. Control' },
@@ -1302,6 +1317,133 @@ export function renderAdminDashboard(containerEl) {
           </div>
         </div>
 
+        <!-- 6a. Tournament Details, Banner & Settings Control Tab -->
+        <div id="tab-tourney-details-view" class="${activeAdminTab === 'tourney-details' ? '' : 'hidden'} space-y-4 animate-fade-in">
+          <div class="p-4 sm:p-5 bg-white border-2 border-slate-200 rounded-3xl shadow-sm space-y-5">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100 flex-wrap gap-3">
+              <div class="flex items-center gap-3">
+                <span class="p-2.5 bg-amber-50 text-amber-700 rounded-2xl border border-amber-200 shadow-2xs">
+                  <i data-lucide="settings-2" class="w-5 h-5"></i>
+                </span>
+                <div>
+                  <h3 class="text-base font-black text-slate-900">${activeTourneyName} Settings & Banner Control</h3>
+                  <p class="text-xs text-slate-500">Update tournament details, banner images, entry fees, venue, and rules for this tournament.</p>
+                </div>
+              </div>
+              <button id="save-tourney-details-btn" class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm rounded-xl shadow-md flex items-center gap-2 transition-all cursor-pointer">
+                <i data-lucide="save" class="w-4 h-4"></i> Save Tournament Changes
+              </button>
+            </div>
+
+            <!-- Banner & Logo Customization Card -->
+            <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3.5">
+              <div class="text-xs font-black text-slate-900 uppercase tracking-wide flex items-center gap-2">
+                <i data-lucide="image" class="w-4 h-4 text-emerald-600"></i> Tournament Banner & Logo Customization
+              </div>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <!-- Banner Image Field -->
+                <div class="space-y-2">
+                  <label class="text-[11px] font-extrabold text-slate-700 uppercase">Tournament Banner Image URL</label>
+                  <div class="flex items-center gap-2">
+                    <input type="text" id="tourney-banner-url-input" value="${curTourneyObj.bannerUrl || curTourneyObj.posterUrl || curTourneyObj.banner_url || ''}" placeholder="e.g. assets/jsl_poster.jpg or Cloudinary URL" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-mono focus:border-emerald-500 focus:outline-none" />
+                    <label class="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl cursor-pointer shrink-0 flex items-center gap-1">
+                      <i data-lucide="upload" class="w-3.5 h-3.5"></i> Upload
+                      <input type="file" id="tourney-banner-file-input" accept="image/*" class="hidden" />
+                    </label>
+                  </div>
+                  <!-- Preview Banner -->
+                  <div class="w-full h-24 rounded-xl border border-slate-300 bg-slate-100 overflow-hidden relative shadow-2xs">
+                    <img id="tourney-banner-preview" src="${curTourneyObj.bannerUrl || curTourneyObj.posterUrl || curTourneyObj.banner_url || 'assets/jsl_poster.jpg'}" class="w-full h-full object-cover" onerror="this.src='assets/jsl_poster.jpg'" />
+                  </div>
+                </div>
+
+                <!-- Logo Image Field -->
+                <div class="space-y-2">
+                  <label class="text-[11px] font-extrabold text-slate-700 uppercase">Tournament Logo URL</label>
+                  <div class="flex items-center gap-2">
+                    <input type="text" id="tourney-logo-url-input" value="${curTourneyObj.logoUrl || curTourneyObj.logo_url || ''}" placeholder="e.g. assets/jsl_logo.jpg or Cloudinary URL" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-mono focus:border-emerald-500 focus:outline-none" />
+                    <label class="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl cursor-pointer shrink-0 flex items-center gap-1">
+                      <i data-lucide="upload" class="w-3.5 h-3.5"></i> Upload
+                      <input type="file" id="tourney-logo-file-input" accept="image/*" class="hidden" />
+                    </label>
+                  </div>
+                  <!-- Preview Logo -->
+                  <div class="w-24 h-24 rounded-2xl border border-slate-300 bg-slate-100 overflow-hidden relative shadow-2xs">
+                    <img id="tourney-logo-preview" src="${curTourneyObj.logoUrl || curTourneyObj.logo_url || 'assets/jsl_logo.jpg'}" class="w-full h-full object-cover" onerror="this.src='assets/jsl_logo.jpg'" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Basic Profile & Title Info Card -->
+            <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3.5">
+              <div class="text-xs font-black text-slate-900 uppercase tracking-wide flex items-center gap-2">
+                <i data-lucide="trophy" class="w-4 h-4 text-amber-500"></i> Basic Tournament Information
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                <div>
+                  <label class="text-[11px] font-extrabold text-slate-700 uppercase">Tournament Name</label>
+                  <input type="text" id="tourney-name-input" value="${curTourneyObj.name || ''}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold focus:border-emerald-500 focus:outline-none" />
+                </div>
+                <div>
+                  <label class="text-[11px] font-extrabold text-slate-700 uppercase">Tagline / Subtitle</label>
+                  <input type="text" id="tourney-tagline-input" value="${curTourneyObj.tagline || ''}" placeholder="e.g. 8 TEAM LEAGUE CRICKET TOURNAMENT" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold focus:border-emerald-500 focus:outline-none" />
+                </div>
+                <div>
+                  <label class="text-[11px] font-extrabold text-slate-700 uppercase">Short Code / Category</label>
+                  <input type="text" id="tourney-code-input" value="${curTourneyObj.shortCode || curTourneyObj.category_code || curTourneyObj.code || ''}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold focus:border-emerald-500 focus:outline-none uppercase" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Pricing, Fees & Purses Card -->
+            <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3.5">
+              <div class="text-xs font-black text-slate-900 uppercase tracking-wide flex items-center gap-2">
+                <i data-lucide="indian-rupee" class="w-4 h-4 text-emerald-600"></i> Entry Fees, Purse & Prize Money
+              </div>
+              <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <div>
+                  <label class="text-[11px] font-extrabold text-slate-700 uppercase">Team Entry Fee (₹)</label>
+                  <input type="number" id="tourney-team-fee-input" value="${curTourneyObj.teamEntryFee || 15000}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold focus:border-emerald-500 focus:outline-none" />
+                </div>
+                <div>
+                  <label class="text-[11px] font-extrabold text-slate-700 uppercase">Player Entry Fee (₹)</label>
+                  <input type="number" id="tourney-player-fee-input" value="${curTourneyObj.entryFee || curTourneyObj.playerEntryFee || 300}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold focus:border-emerald-500 focus:outline-none" />
+                </div>
+                <div>
+                  <label class="text-[11px] font-extrabold text-slate-700 uppercase">Winner Prize Pool</label>
+                  <input type="text" id="tourney-winner-prize-input" value="${curTourneyObj.prizeWinner || curTourneyObj.prizePool || '₹ 35,000'}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold focus:border-emerald-500 focus:outline-none" />
+                </div>
+                <div>
+                  <label class="text-[11px] font-extrabold text-slate-700 uppercase">Runners-up Prize</label>
+                  <input type="text" id="tourney-runners-prize-input" value="${curTourneyObj.prizeRunners || '₹ 25,000'}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold focus:border-emerald-500 focus:outline-none" />
+                </div>
+              </div>
+            </div>
+
+            <!-- Venue, Dates & Rule Restrictions Card -->
+            <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3.5">
+              <div class="text-xs font-black text-slate-900 uppercase tracking-wide flex items-center gap-2">
+                <i data-lucide="map-pin" class="w-4 h-4 text-sky-600"></i> Venue Ground, Tournament Dates & Restrictions
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label class="text-[11px] font-extrabold text-slate-700 uppercase">Tournament Venue Ground</label>
+                  <input type="text" id="tourney-venue-input" value="${curTourneyObj.venue || ''}" placeholder="e.g. JHANKRA SCHOOL GROUND" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold focus:border-emerald-500 focus:outline-none" />
+                </div>
+                <div>
+                  <label class="text-[11px] font-extrabold text-slate-700 uppercase">Tournament Schedule Dates</label>
+                  <input type="text" id="tourney-dates-input" value="${curTourneyObj.dates || ''}" placeholder="e.g. 29, 30 & 31 AUGUST 2026" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold focus:border-emerald-500 focus:outline-none" />
+                </div>
+              </div>
+              <div>
+                <label class="text-[11px] font-extrabold text-slate-700 uppercase">Rule Restrictions / Announcement Note</label>
+                <textarea id="tourney-rules-input" rows="2" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold focus:border-emerald-500 focus:outline-none">${curTourneyObj.ruleRestriction || ''}</textarea>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <!-- 6b. Registration Link & Public Access Controller Tab -->
         <div id="tab-reg-settings-view" class="${activeAdminTab === 'reg-settings' ? '' : 'hidden'} space-y-4 animate-fade-in">
           <div class="p-4 sm:p-5 bg-white border-2 border-slate-200 rounded-3xl shadow-sm space-y-4">
@@ -1546,6 +1688,7 @@ export function renderAdminDashboard(containerEl) {
       document.getElementById('tab-auction-view')?.classList.add('hidden');
       document.getElementById('tab-fixtures-view')?.classList.add('hidden');
       document.getElementById('tab-scorer-view')?.classList.add('hidden');
+      document.getElementById('tab-tourney-details-view')?.classList.add('hidden');
       document.getElementById('tab-reg-settings-view')?.classList.add('hidden');
       document.getElementById('tab-shop-ads-view')?.classList.add('hidden');
       document.getElementById('tab-owners-view')?.classList.add('hidden');
@@ -1568,6 +1711,9 @@ export function renderAdminDashboard(containerEl) {
       if (activeAdminTab === 'scorer') {
         document.getElementById('tab-scorer-view')?.classList.remove('hidden');
         renderScorerMatchesList();
+      }
+      if (activeAdminTab === 'tourney-details') {
+        document.getElementById('tab-tourney-details-view')?.classList.remove('hidden');
       }
       if (activeAdminTab === 'reg-settings') {
         document.getElementById('tab-reg-settings-view')?.classList.remove('hidden');
@@ -1662,6 +1808,100 @@ export function renderAdminDashboard(containerEl) {
     activeAdminTab = 'owners';
     renderAdminDashboard(containerEl);
   });
+
+  // Bind Tournament Details & Banner Save Button
+  const saveTourneyBtn = containerEl.querySelector('#save-tourney-details-btn');
+  if (saveTourneyBtn) {
+    saveTourneyBtn.addEventListener('click', async () => {
+      saveTourneyBtn.disabled = true;
+      saveTourneyBtn.innerHTML = `<i data-lucide="loader-2" class="w-4 h-4 animate-spin"></i> Saving...`;
+
+      const name = containerEl.querySelector('#tourney-name-input')?.value?.trim() || curTourneyObj.name;
+      const tagline = containerEl.querySelector('#tourney-tagline-input')?.value?.trim() || '';
+      const shortCode = (containerEl.querySelector('#tourney-code-input')?.value?.trim() || curTourneyObj.shortCode || 'T').toUpperCase();
+      const bannerUrl = containerEl.querySelector('#tourney-banner-url-input')?.value?.trim() || '';
+      const logoUrl = containerEl.querySelector('#tourney-logo-url-input')?.value?.trim() || '';
+      const teamEntryFee = Number(containerEl.querySelector('#tourney-team-fee-input')?.value) || 15000;
+      const playerEntryFee = Number(containerEl.querySelector('#tourney-player-fee-input')?.value) || 300;
+      const prizeWinner = containerEl.querySelector('#tourney-winner-prize-input')?.value?.trim() || '';
+      const prizeRunners = containerEl.querySelector('#tourney-runners-prize-input')?.value?.trim() || '';
+      const venue = containerEl.querySelector('#tourney-venue-input')?.value?.trim() || '';
+      const dates = containerEl.querySelector('#tourney-dates-input')?.value?.trim() || '';
+      const ruleRestriction = containerEl.querySelector('#tourney-rules-input')?.value?.trim() || '';
+
+      const updatedData = {
+        ...curTourneyObj,
+        id: activeTid,
+        supabaseId: activeTid,
+        tournament_id: activeTid,
+        name,
+        tagline,
+        shortCode,
+        category_code: shortCode,
+        code: shortCode,
+        bannerUrl,
+        banner_url: bannerUrl,
+        posterUrl: bannerUrl,
+        logoUrl,
+        logo_url: logoUrl,
+        teamEntryFee,
+        entryFee: playerEntryFee,
+        playerEntryFee,
+        prizeWinner,
+        prizeRunners,
+        venue,
+        dates,
+        ruleRestriction
+      };
+
+      if (store.saveCustomTournament) {
+        await store.saveCustomTournament(updatedData);
+      }
+      if (store.notify) store.notify('tournament_updated');
+
+      alert(`✅ Tournament settings & banner for "${name}" saved successfully!`);
+      renderAdminDashboard(containerEl);
+    });
+  }
+
+  // Bind Banner & Logo Upload Handlers
+  const bannerFileInput = containerEl.querySelector('#tourney-banner-file-input');
+  if (bannerFileInput) {
+    bannerFileInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        const uploadedUrl = await uploadHDImage(file, 'banners');
+        if (uploadedUrl) {
+          const input = containerEl.querySelector('#tourney-banner-url-input');
+          const img = containerEl.querySelector('#tourney-banner-preview');
+          if (input) input.value = uploadedUrl;
+          if (img) img.src = uploadedUrl;
+        }
+      } catch (err) {
+        alert("Error uploading banner image: " + err.message);
+      }
+    });
+  }
+
+  const logoFileInput = containerEl.querySelector('#tourney-logo-file-input');
+  if (logoFileInput) {
+    logoFileInput.addEventListener('change', async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      try {
+        const uploadedUrl = await uploadHDImage(file, 'logos');
+        if (uploadedUrl) {
+          const input = containerEl.querySelector('#tourney-logo-url-input');
+          const img = containerEl.querySelector('#tourney-logo-preview');
+          if (input) input.value = uploadedUrl;
+          if (img) img.src = uploadedUrl;
+        }
+      } catch (err) {
+        alert("Error uploading logo image: " + err.message);
+      }
+    });
+  }
 
   // Bind Reset Auction Button
   document.getElementById('admin-reset-auction-btn')?.addEventListener('click', () => {
