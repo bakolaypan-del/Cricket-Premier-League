@@ -6845,7 +6845,15 @@ export function renderActiveAuctionBlock() {
     updateProjectorModalView();
 
     // 2. Update player and team database records atomically via store.assignPlayerToTeam
-    store.assignPlayerToTeam(p.id, team.id, price);
+    const result = store.assignPlayerToTeam(p.id, team.id, price);
+    if (result && result.error === 'SQUAD_FULL') {
+      alert(`❌ ${team.name} squad is FULL (${result.currentSquad}/${result.maxSquad} players). Cannot add more players.`);
+      return;
+    }
+    if (result && result.error === 'INSUFFICIENT_PURSE') {
+      alert(`❌ ${team.name} has insufficient purse (₹${result.remainingPurse} left, needs ₹${result.price}).`);
+      return;
+    }
 
     // 3. Keep SOLD stamp visible continuously on screen until admin selects the next player
     setTimeout(() => {
@@ -7814,7 +7822,15 @@ export function openAdminSquadManageModal(teamInput, onUpdated = null) {
       return;
     }
 
-    store.assignPlayerToTeam(selPlayerId, team.id, price);
+    const addResult = store.assignPlayerToTeam(selPlayerId, team.id, price);
+    if (addResult && addResult.error === 'SQUAD_FULL') {
+      alert(`❌ ${team.name} squad is FULL (${addResult.currentSquad}/${addResult.maxSquad} players).`);
+      return;
+    }
+    if (addResult && addResult.error === 'INSUFFICIENT_PURSE') {
+      alert(`❌ Insufficient purse (₹${addResult.remainingPurse} left, needs ₹${addResult.price}).`);
+      return;
+    }
     const addedPlayer = store.getPlayerById(selPlayerId);
     alert(`✅ Added "${addedPlayer?.name || 'Player'}" to ${team.name} squad for ₹${price}!`);
     removeModal();

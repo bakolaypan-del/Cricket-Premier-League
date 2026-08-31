@@ -1551,6 +1551,21 @@ class Store {
     }
 
     if (player && team) {
+      // Enforce squad size limit
+      const maxSquad = Number(this.getAuctionSettings().maxSquadSize) || 13;
+      const currentSquad = (Number(team.squadCount) || 0);
+      if (currentSquad >= maxSquad) {
+        console.warn(`[AUCTION] Squad full: ${team.name} has ${currentSquad}/${maxSquad} players`);
+        return { error: 'SQUAD_FULL', team, maxSquad, currentSquad };
+      }
+
+      // Enforce purse limit
+      const price = Number(soldPrice) || player.basePrice || 300;
+      if ((Number(team.remainingPurse) || 0) < price) {
+        console.warn(`[AUCTION] Insufficient purse: ${team.name} has ₹${team.remainingPurse}, needs ₹${price}`);
+        return { error: 'INSUFFICIENT_PURSE', team, remainingPurse: team.remainingPurse, price };
+      }
+
       if (player.teamId) {
         const oldTeam = teams.find(t => t.id === player.teamId || (player.teamId && t.id && toUUID(t.id) === toUUID(player.teamId))) || (this.getAllTeamsAcrossTournaments ? this.getAllTeamsAcrossTournaments().find(t => t.id === player.teamId || (player.teamId && t.id && toUUID(t.id) === toUUID(player.teamId))) : null);
         if (oldTeam) {
@@ -1562,8 +1577,6 @@ class Store {
           syncTeamToSupabase(oldTeam);
         }
       }
-
-      const price = Number(soldPrice) || player.basePrice || 300;
       player.teamId = team.id;
       player.team_id = team.id;
       player.soldPrice = price;
@@ -1906,16 +1919,18 @@ class Store {
 
     // 2. Allocate newly assigned icon player from registration list
     if (newTeam && (newIconName || newIconId)) {
+      const iconFee = Number(this.getAuctionSettings().defaultIconPrice) || 1000;
       players.forEach(p => {
         const isNew = (newIconId && p.id === newIconId) || (newIconName && (p.name || '').trim().toLowerCase() === newIconName);
         if (isNew) {
-          const iconFee = Number(this.getAuctionSettings().defaultIconPrice) || 1000;
           p.teamId = newTeam.id;
+          p.team_id = newTeam.id;
           p.teamName = newTeam.name;
           p.isIcon = true;
           p.isIconPlayer = true;
           p.auctionStatus = 'SOLD';
           p.soldPrice = iconFee;
+          p.sold_price = iconFee;
           p.isSold = true;
           p.boughtByTeamId = newTeam.id;
           p.updated_at = Date.now();
@@ -1923,6 +1938,24 @@ class Store {
           if (typeof syncPlayerToSupabase === 'function') syncPlayerToSupabase(p);
         }
       });
+
+      // Update team squad count and purse for icon player
+      const teams = this.getTeams();
+      const teamToUpdate = teams.find(t => t.id === newTeam.id);
+      if (teamToUpdate) {
+        const hasIconAlready = (Number(teamToUpdate.squadCount) || 0) > 0 && teamToUpdate.hasIconPlayer;
+        if (!hasIconAlready) {
+          teamToUpdate.squadCount = Math.max(1, (Number(teamToUpdate.squadCount) || 0) + 1);
+          teamToUpdate.purseSpent = (Number(teamToUpdate.purseSpent) || 0) + iconFee;
+          teamToUpdate.remainingPurse = Math.max(0, (Number(teamToUpdate.purseBudget) || 8000) - teamToUpdate.purseSpent);
+          teamToUpdate.hasIconPlayer = true;
+          teamToUpdate.updated_at = Date.now();
+          this._invalidateCache('teams');
+          safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
+          syncTeamToSupabase(teamToUpdate);
+          this.notify('teams_updated');
+        }
+      }
     }
 
     if (changed) {
