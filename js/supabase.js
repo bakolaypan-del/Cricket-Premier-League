@@ -1230,22 +1230,22 @@ export async function deleteFixtureFromSupabase(fixtureId, tournamentId = null) 
   try {
     const fixtureUUID = toUUID(fixtureId);
     try {
+      await supabase.from('fixtures').delete().eq('id', fixtureUUID);
       await supabase.from('matches').delete().eq('id', fixtureUUID);
+      if (fixtureId && fixtureId !== fixtureUUID) {
+        await supabase.from('fixtures').delete().eq('id', fixtureId);
+        await supabase.from('matches').delete().eq('id', fixtureId);
+      }
     } catch (e) {}
 
-    // Remove from tournament format_config.custom_matches
+    // Remove from tournament format_config.custom_matches across ALL tournaments
     try {
-      const tId = tournamentId ? (await resolveTournamentUUID(tournamentId)) : null;
-      let tourneyQuery = supabase.from('tournaments').select('id, format_config');
-      if (tId) {
-        tourneyQuery = tourneyQuery.eq('id', tId);
-      }
-      const { data: tourneys } = await tourneyQuery;
+      const { data: tourneys } = await supabase.from('tournaments').select('id, format_config');
       if (Array.isArray(tourneys)) {
         for (const t of tourneys) {
           if (Array.isArray(t.format_config?.custom_matches)) {
             const initialLen = t.format_config.custom_matches.length;
-            const updatedMatches = t.format_config.custom_matches.filter(item => item.id !== fixtureId && item.id !== fixtureUUID);
+            const updatedMatches = t.format_config.custom_matches.filter(item => item.id !== fixtureId && item.id !== fixtureUUID && toUUID(item.id) !== fixtureUUID);
             if (updatedMatches.length !== initialLen) {
               const updatedConfig = { ...t.format_config, custom_matches: updatedMatches };
               await supabase.from('tournaments').update({ format_config: updatedConfig, updated_at: new Date().toISOString() }).eq('id', t.id);
@@ -1265,9 +1265,15 @@ export async function deleteFixtureFromSupabase(fixtureId, tournamentId = null) 
 export async function clearAllFixturesFromSupabase(tournamentId = null) {
   if (!supabase) return false;
   try {
-    const tId = tournamentId ? (await resolveTournamentUUID(tournamentId)) : toUUID('leg-jsl');
+    const tId = tournamentId ? (await resolveTournamentUUID(tournamentId)) : null;
     try {
-      await supabase.from('matches').delete().eq('tournament_id', tId);
+      if (tId) {
+        await supabase.from('fixtures').delete().eq('tournament_id', tId);
+        await supabase.from('matches').delete().eq('tournament_id', tId);
+      } else {
+        await supabase.from('fixtures').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+        await supabase.from('matches').delete().neq('id', '00000000-0000-0000-0000-000000000000');
+      }
     } catch (e) {}
 
     // Clear from tournament format_config.custom_matches

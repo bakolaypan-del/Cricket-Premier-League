@@ -452,19 +452,24 @@ class Store {
           return;
         }
 
-        let nextFixtures = cloudData.fixtures.map(cf => {
-          const localF = localFixtures.find(f => f.id === cf.id);
-          if (!localF) return cf;
+        const deletedIdsRaw = localStorage.getItem('cpl_deleted_fixture_ids');
+        const deletedIds = new Set(deletedIdsRaw ? JSON.parse(deletedIdsRaw) : []);
 
-          // Version-based protection: reject cloud state with lower version
-          const storedV = Number(localStorage.getItem(`cpl_active_scoring_${cf.id}_v`)) || 0;
-          const localV = Math.max(localF.liveMatchState?._v || 0, localF.liveState?._v || 0, storedV);
-          const cloudV = cf.liveState?._v || 0;
-          if (localV >= cloudV && (localF.status === 'LIVE' || cf.status === 'LIVE')) {
-            return { ...cf, liveState: localF.liveMatchState || localF.liveState || cf.liveState };
-          }
-          return { ...cf, teamAName: cf.teamAName || localF.teamAName, teamBName: cf.teamBName || localF.teamBName };
-        });
+        let nextFixtures = cloudData.fixtures
+          .filter(cf => cf && cf.id && !deletedIds.has(cf.id) && (!toUUID(cf.id) || !deletedIds.has(toUUID(cf.id))))
+          .map(cf => {
+            const localF = localFixtures.find(f => f.id === cf.id || (toUUID(f.id) && toUUID(f.id) === toUUID(cf.id)));
+            if (!localF) return cf;
+
+            // Version-based protection: reject cloud state with lower version
+            const storedV = Number(localStorage.getItem(`cpl_active_scoring_${cf.id}_v`)) || 0;
+            const localV = Math.max(localF.liveMatchState?._v || 0, localF.liveState?._v || 0, storedV);
+            const cloudV = cf.liveState?._v || 0;
+            if (localV >= cloudV && (localF.status === 'LIVE' || cf.status === 'LIVE')) {
+              return { ...cf, liveState: localF.liveMatchState || localF.liveState || cf.liveState };
+            }
+            return { ...cf, teamAName: cf.teamAName || localF.teamAName, teamBName: cf.teamBName || localF.teamBName };
+          });
 
         // Retain uncommitted locally scheduled fixtures (e.g. freshly added matches before cloud echo)
         const cloudIds = new Set(cloudData.fixtures.map(f => f.id));
@@ -2077,6 +2082,16 @@ class Store {
     safeSetLocalStorage(this._scopedKey('FIXTURES'), fixtures);
     deleteFixtureFromCloud(fixtureId, this.activeTournamentId);
 
+    // Record deleted fixture ID locally to prevent cloud sync resurrection
+    try {
+      const deletedRaw = localStorage.getItem('cpl_deleted_fixture_ids');
+      const deletedSet = new Set(deletedRaw ? JSON.parse(deletedRaw) : []);
+      if (fixtureId) deletedSet.add(fixtureId);
+      const uuid = toUUID(fixtureId);
+      if (uuid) deletedSet.add(uuid);
+      safeSetLocalStorage('cpl_deleted_fixture_ids', Array.from(deletedSet));
+    } catch (e) {}
+
     // Clean across ALL tournament keys and format configs in localStorage
     const tourneys = this.getCustomTournaments() || [];
     tourneys.forEach(t => {
@@ -2086,14 +2101,14 @@ class Store {
           const key = `cpl_fixtures_v8_${tid}`;
           const raw = localStorage.getItem(key);
           if (raw) {
-            const arr = (JSON.parse(raw) || []).filter(f => f.id !== fixtureId);
+            const arr = (JSON.parse(raw) || []).filter(f => f.id !== fixtureId && toUUID(f.id) !== toUUID(fixtureId));
             safeSetLocalStorage(key, arr);
           }
         } catch (e) {}
       }
       if (Array.isArray(t.format_config?.custom_matches)) {
         const origLen = t.format_config.custom_matches.length;
-        t.format_config.custom_matches = t.format_config.custom_matches.filter(f => f.id !== fixtureId);
+        t.format_config.custom_matches = t.format_config.custom_matches.filter(f => f.id !== fixtureId && toUUID(f.id) !== toUUID(fixtureId));
         if (t.format_config.custom_matches.length !== origLen) {
           this._saveTournamentAcrossAllKeys(t);
         }
@@ -2104,7 +2119,7 @@ class Store {
     try {
       const legacyRaw = localStorage.getItem('cpl_fixtures_v8');
       if (legacyRaw) {
-        const legacyMatches = (JSON.parse(legacyRaw) || []).filter(f => f.id !== fixtureId);
+        const legacyMatches = (JSON.parse(legacyRaw) || []).filter(f => f.id !== fixtureId && toUUID(f.id) !== toUUID(fixtureId));
         safeSetLocalStorage('cpl_fixtures_v8', legacyMatches);
       }
     } catch (e) {}
@@ -2113,6 +2128,22 @@ class Store {
   }
 
   clearAllFixtures() {
+    // Record all existing fixture IDs as deleted to block cloud echoes
+    try {
+      const curFixtures = this.getFixtures();
+      const deletedRaw = localStorage.getItem('cpl_deleted_fixture_ids');
+      const deletedSet = new Set(deletedRaw ? JSON.parse(deletedRaw) : []);
+      curFixtures.forEach(f => {
+        if (f && f.id) {
+          deletedSet.add(f.id);
+          const u = toUUID(f.id);
+          if (u) deletedSet.add(u);
+        }
+      });
+      safeSetLocalStorage('cpl_deleted_fixture_ids', Array.from(deletedSet));
+      safeSetLocalStorage(`cpl_matches_cleared_at_${this.activeTournamentId}`, Date.now());
+    } catch (e) {}
+
     this._invalidateCache('fixtures');
     safeSetLocalStorage(this._scopedKey('FIXTURES'), []);
     clearAllFixturesFromCloud(this.activeTournamentId);
