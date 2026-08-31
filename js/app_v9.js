@@ -8501,9 +8501,9 @@ function renderFixturesView(container) {
                 return false;
               }).length;
 
-              const isSelected = activeFixtureCategory === code || activeFixtureCategory === tid || (toUUID(activeFixtureCategory) && toUUID(activeFixtureCategory) === toUUID(tid));
+              const isSelected = activeFixtureCategory === lName || activeFixtureCategory === code || activeFixtureCategory === tid || (toUUID(activeFixtureCategory) && toUUID(activeFixtureCategory) === toUUID(tid));
               return `
-                <button data-cat="${code}" class="fixture-cat-btn ${isSelected ? 'bg-gradient-to-r from-slate-900 to-slate-800 text-white font-black shadow-md border-2 border-emerald-400 scale-[1.02]' : 'bg-white text-slate-800 hover:bg-slate-50 font-bold border border-slate-200'} px-3 py-2 text-xs rounded-2xl transition-all cursor-pointer whitespace-nowrap snap-start flex items-center gap-2 shrink-0">
+                <button data-cat="${lName}" class="fixture-cat-btn ${isSelected ? 'bg-gradient-to-r from-slate-900 to-slate-800 text-white font-black shadow-md border-2 border-emerald-400 scale-[1.02]' : 'bg-white text-slate-800 hover:bg-slate-50 font-bold border border-slate-200'} px-3 py-2 text-xs rounded-2xl transition-all cursor-pointer whitespace-nowrap snap-start flex items-center gap-2 shrink-0">
                   <img src="${lLogo}" class="w-6 h-6 rounded-lg object-cover border border-slate-200 bg-slate-50 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
                   <span class="truncate max-w-[140px] sm:max-w-[180px]">${lName}</span>
                   ${lMatchesCount > 0 ? `<span class="px-1.5 py-0.5 rounded-full text-[10px] font-mono ${isSelected ? 'bg-emerald-500 text-white' : 'bg-emerald-100 text-emerald-800'} font-black">${lMatchesCount}</span>` : ''}
@@ -8678,7 +8678,7 @@ export function openMatchCenterModal(fixtureId) {
             <div class="min-w-0">
               <div class="flex items-center gap-2">
                 <span class="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-mono font-black rounded-md uppercase shrink-0">
-                  ${fixture.leagueCode || 'T'} • MATCH ${fixture.matchNo || 1}
+                  ${(fixture.tournamentName || (store.getCustomTournamentById(fixture.tournamentId || fixture.tournament_id)?.name) || 'CRICKET PREMIER LEAGUE').toUpperCase()} • MATCH ${fixture.matchNo || 1}
                 </span>
                 ${isLive ? `<span class="px-2 py-0.5 bg-red-500 text-white text-[9px] font-black rounded-md uppercase animate-pulse shrink-0">🔴 LIVE</span>` : (isCompleted ? `<span class="px-2 py-0.5 bg-emerald-500 text-slate-950 text-[9px] font-black rounded-md uppercase shrink-0">COMPLETED</span>` : `<span class="px-2 py-0.5 bg-amber-400 text-slate-950 text-[9px] font-black rounded-md uppercase shrink-0">SCHEDULED</span>`)}
               </div>
@@ -9467,7 +9467,7 @@ export function openMatchCenterModal(fixtureId) {
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
                 <span class="text-[10px] text-slate-400 uppercase font-black block">Tournament</span>
-                <span class="font-black text-slate-900">${fixture.leagueCode || 'T'} Premier League</span>
+                <span class="font-black text-slate-900">${fixture.tournamentName || (store.getCustomTournamentById(fixture.tournamentId || fixture.tournament_id)?.name) || 'Cricket Premier League'}</span>
               </div>
               <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
                 <span class="text-[10px] text-slate-400 uppercase font-black block">Match Number & Stage</span>
@@ -9675,7 +9675,7 @@ export function openMatchPlayingXIModal(fixtureId) {
           <div class="flex items-center gap-2.5">
             <span class="p-2.5 bg-emerald-50 text-emerald-700 rounded-2xl border border-emerald-200 text-base shadow-2xs">👥</span>
             <div>
-              <span class="px-2 py-0.5 bg-emerald-50 text-emerald-800 font-mono text-[9px] font-black rounded border border-emerald-200 uppercase">${fixture.leagueCode || 'T'} MATCH LINEUPS</span>
+              <span class="px-2 py-0.5 bg-emerald-50 text-emerald-800 font-mono text-[9px] font-black rounded border border-emerald-200 uppercase">${(fixture.tournamentName || (store.getCustomTournamentById(fixture.tournamentId || fixture.tournament_id)?.name) || 'CRICKET PREMIER LEAGUE').toUpperCase()} MATCH LINEUPS</span>
               <h3 class="text-base font-black text-slate-900 leading-tight mt-0.5">Playing 11 & Match Scorecard</h3>
             </div>
           </div>

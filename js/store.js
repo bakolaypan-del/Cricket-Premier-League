@@ -2114,7 +2114,7 @@ class Store {
         }) || (fTid ? allTourneys.find(t => (t.supabaseId || t.id) === fTid) : null) || {};
 
         const effectiveTid = tourney.supabaseId || tourney.id || fTid || activeTid;
-        const effectiveName = tourney.name || (fCode ? `${fCode} Premier League` : 'Cricket Premier League');
+        const effectiveName = tourney.name || f.tournamentName || (fCode === 'JSL' ? 'Jhankra Super League 2026' : ((fCode === 'KPL' || fCode === 'K2026' || fCode === 'T2') ? 'Kuapur Premier League' : 'Cricket Premier League'));
         const effectiveCode = (fCode || tourney.category_code || tourney.slug || 'T').toUpperCase();
         const effectiveLogo = tourney.logo_url || tourney.banner_url || 'assets/jsl_logo.jpg';
 
