@@ -872,13 +872,13 @@ export function cropBannerImage(file, targetWidth = 600, quality = 0.82) {
   });
 }
 
-// --- INTERACTIVE SQUARE SHAPE (1:1) IMAGE CROPPER MODAL WITH CAMERA & FILE SUPPORT ---
-export function openSquareImageCropModal(imageSrc, onCropComplete, title = "Crop Player Photo (Square Shape 1:1)") {
+// --- INTERACTIVE SHAPE (1:1 / 16:9) IMAGE CROPPER MODAL WITH CAMERA & FILE SUPPORT ---
+export function openSquareImageCropModal(imageSrc, onCropComplete, title = "Crop Image", aspectRatio = 1) {
   document.getElementById('square-cropper-modal')?.remove();
 
   const modalHtml = `
     <div id="square-cropper-modal" class="fixed inset-0 z-[70] modal-overlay flex items-center justify-center p-3 bg-slate-950/95 backdrop-blur-md">
-      <div class="bg-slate-900 border-2 border-amber-500/80 max-w-md w-full p-4 relative space-y-3 animate-fade-in rounded-2xl shadow-2xl text-white modal-content-container">
+      <div class="bg-slate-900 border-2 border-amber-500/80 max-w-lg w-full p-4 relative space-y-3 animate-fade-in rounded-2xl shadow-2xl text-white modal-content-container">
         
         <div class="flex items-center justify-between border-b border-slate-800 pb-2">
           <div class="flex items-center gap-2">
@@ -887,7 +887,7 @@ export function openSquareImageCropModal(imageSrc, onCropComplete, title = "Crop
             </span>
             <div>
               <h3 class="text-sm sm:text-base font-black text-white">${title}</h3>
-              <p class="text-[10px] text-amber-300 font-semibold">Adjust & Crop image into a perfect 1:1 Square</p>
+              <p class="text-[10px] text-amber-300 font-semibold">Adjust, scale & crop image to exact tournament aspect ratio</p>
             </div>
           </div>
           <button id="close-cropper-modal-btn" type="button" class="text-slate-400 hover:text-white p-1 rounded-xl bg-slate-800 border border-slate-700">
@@ -922,7 +922,7 @@ export function openSquareImageCropModal(imageSrc, onCropComplete, title = "Crop
               Cancel
             </button>
             <button type="button" id="cropper-apply-btn" class="px-4 py-2 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs rounded-xl shadow-lg border border-emerald-400 flex items-center gap-1.5">
-              <i data-lucide="check" class="w-4 h-4"></i> Crop Square Photo
+              <i data-lucide="check" class="w-4 h-4"></i> Crop Photo & Upload
             </button>
           </div>
         </div>
@@ -940,10 +940,10 @@ export function openSquareImageCropModal(imageSrc, onCropComplete, title = "Crop
   const initCropper = () => {
     if (window.Cropper) {
       cropperInstance = new window.Cropper(imgEl, {
-        aspectRatio: 1, // STRICT SQUARE ASPECT RATIO 1:1
+        aspectRatio: aspectRatio || 1,
         viewMode: 1,
         dragMode: 'move',
-        autoCropArea: 0.9,
+        autoCropArea: 0.95,
         restore: false,
         guides: true,
         center: true,
@@ -976,11 +976,6 @@ export function openSquareImageCropModal(imageSrc, onCropComplete, title = "Crop
   document.getElementById('cropper-cancel-btn')?.addEventListener('click', removeCropperModal);
 
   document.getElementById('cropper-apply-btn')?.addEventListener('click', () => {
-    if (cropperInstance) {
-      const croppedCanvas = cropperInstance.getCroppedCanvas({
-        width: 750,
-        height: 750,
-        imageSmoothingEnabled: true,
         imageSmoothingQuality: 'high'
       });
       if (croppedCanvas) {
