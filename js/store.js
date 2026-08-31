@@ -1989,7 +1989,29 @@ class Store {
   // --- FIXTURES ---
   getFixtures() {
     if (this._cache.fixtures) return this._cache.fixtures;
-    const all = JSON.parse(localStorage.getItem(this._scopedKey('FIXTURES'))) || [];
+    let all = JSON.parse(localStorage.getItem(this._scopedKey('FIXTURES'))) || [];
+
+    // Clean out fixtures that belong to another tournament's teams
+    const activeTid = this.activeTournamentId;
+    const activeUUID = toUUID(activeTid);
+    const activeTeams = this.getTeams() || [];
+    const activeTeamIds = new Set(activeTeams.map(t => String(t.id)));
+
+    if (activeTeamIds.size > 0) {
+      const allCrossTeams = this.getAllTeamsAcrossTournaments ? this.getAllTeamsAcrossTournaments() : activeTeams;
+      const otherTeamIds = new Set(
+        allCrossTeams.filter(t => t && t.id && !activeTeamIds.has(String(t.id))).map(t => String(t.id))
+      );
+
+      all = all.filter(f => {
+        if (!f) return false;
+        const fTeamA = f.teamAId ? String(f.teamAId) : '';
+        const fTeamB = f.teamBId ? String(f.teamBId) : '';
+        if (otherTeamIds.has(fTeamA) || otherTeamIds.has(fTeamB)) return false;
+        return true;
+      });
+    }
+
     this._cache.fixtures = all;
     return all;
   }
