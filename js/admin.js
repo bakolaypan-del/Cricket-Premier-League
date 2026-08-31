@@ -1337,39 +1337,62 @@ export function renderAdminDashboard(containerEl) {
 
             <!-- Banner & Logo Customization Card -->
             <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3.5">
-              <div class="text-xs font-black text-slate-900 uppercase tracking-wide flex items-center gap-2">
-                <i data-lucide="image" class="w-4 h-4 text-emerald-600"></i> Tournament Banner & Logo Customization
+              <div class="text-xs font-black text-slate-900 uppercase tracking-wide flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2">
+                  <i data-lucide="image" class="w-4 h-4 text-emerald-600"></i> Tournament Banner & Logo Customization
+                </div>
+                <span class="text-[10px] text-slate-500 font-bold bg-white px-2.5 py-1 rounded-lg border border-slate-200 shadow-2xs">
+                  ⚡ Auto 16:9 & 1:1 Crop • Cloudinary CDN Direct Upload
+                </span>
               </div>
               <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <!-- Banner Image Field -->
                 <div class="space-y-2">
-                  <label class="text-[11px] font-extrabold text-slate-700 uppercase">Tournament Banner Image URL</label>
+                  <div class="flex items-center justify-between">
+                    <label class="text-[11px] font-extrabold text-slate-700 uppercase">Tournament Banner Image (16:9 Widescreen)</label>
+                    <div id="tourney-banner-status"></div>
+                  </div>
                   <div class="flex items-center gap-2">
                     <input type="text" id="tourney-banner-url-input" value="${curTourneyObj.bannerUrl || curTourneyObj.posterUrl || curTourneyObj.banner_url || ''}" placeholder="e.g. assets/jsl_poster.jpg or Cloudinary URL" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-mono focus:border-emerald-500 focus:outline-none" />
-                    <label class="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl cursor-pointer shrink-0 flex items-center gap-1">
-                      <i data-lucide="upload" class="w-3.5 h-3.5"></i> Upload
+                    <label class="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl cursor-pointer shrink-0 flex items-center gap-1 transition-all">
+                      <i data-lucide="upload" class="w-3.5 h-3.5"></i> Crop & Upload
                       <input type="file" id="tourney-banner-file-input" accept="image/*" class="hidden" />
                     </label>
                   </div>
-                  <!-- Preview Banner -->
-                  <div class="w-full h-24 rounded-xl border border-slate-300 bg-slate-100 overflow-hidden relative shadow-2xs">
+                  <!-- Preview Banner & Re-crop button -->
+                  <div class="w-full h-28 rounded-xl border border-slate-300 bg-slate-900 overflow-hidden relative shadow-2xs group">
                     <img id="tourney-banner-preview" src="${curTourneyObj.bannerUrl || curTourneyObj.posterUrl || curTourneyObj.banner_url || 'assets/jsl_poster.jpg'}" class="w-full h-full object-cover" onerror="this.src='assets/jsl_poster.jpg'" />
+                    <button type="button" id="recrop-tourney-banner-btn" class="absolute bottom-2 right-2 px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[10px] rounded-lg shadow border border-amber-400 flex items-center gap-1 opacity-90 group-hover:opacity-100 transition-all cursor-pointer">
+                      <i data-lucide="crop" class="w-3 h-3"></i> Crop 16:9
+                    </button>
                   </div>
                 </div>
 
                 <!-- Logo Image Field -->
                 <div class="space-y-2">
-                  <label class="text-[11px] font-extrabold text-slate-700 uppercase">Tournament Logo URL</label>
+                  <div class="flex items-center justify-between">
+                    <label class="text-[11px] font-extrabold text-slate-700 uppercase">Tournament Logo (1:1 Square)</label>
+                    <div id="tourney-logo-status"></div>
+                  </div>
                   <div class="flex items-center gap-2">
                     <input type="text" id="tourney-logo-url-input" value="${curTourneyObj.logoUrl || curTourneyObj.logo_url || ''}" placeholder="e.g. assets/jsl_logo.jpg or Cloudinary URL" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-mono focus:border-emerald-500 focus:outline-none" />
-                    <label class="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl cursor-pointer shrink-0 flex items-center gap-1">
-                      <i data-lucide="upload" class="w-3.5 h-3.5"></i> Upload
+                    <label class="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl cursor-pointer shrink-0 flex items-center gap-1 transition-all">
+                      <i data-lucide="upload" class="w-3.5 h-3.5"></i> Crop & Upload
                       <input type="file" id="tourney-logo-file-input" accept="image/*" class="hidden" />
                     </label>
                   </div>
-                  <!-- Preview Logo -->
-                  <div class="w-24 h-24 rounded-2xl border border-slate-300 bg-slate-100 overflow-hidden relative shadow-2xs">
-                    <img id="tourney-logo-preview" src="${curTourneyObj.logoUrl || curTourneyObj.logo_url || 'assets/jsl_logo.jpg'}" class="w-full h-full object-cover" onerror="this.src='assets/jsl_logo.jpg'" />
+                  <!-- Preview Logo & Re-crop button -->
+                  <div class="flex items-center gap-3">
+                    <div class="w-24 h-24 rounded-2xl border border-slate-300 bg-slate-900 overflow-hidden relative shadow-2xs shrink-0 group">
+                      <img id="tourney-logo-preview" src="${curTourneyObj.logoUrl || curTourneyObj.logo_url || 'assets/jsl_logo.jpg'}" class="w-full h-full object-cover" onerror="this.src='assets/jsl_logo.jpg'" />
+                      <button type="button" id="recrop-tourney-logo-btn" class="absolute bottom-1 right-1 px-1.5 py-0.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[9px] rounded shadow flex items-center gap-0.5 cursor-pointer">
+                        <i data-lucide="crop" class="w-2.5 h-2.5"></i> 1:1
+                      </button>
+                    </div>
+                    <div class="text-[11px] text-slate-500 space-y-1">
+                      <p class="font-bold text-slate-700">Tournament Badge / Logo</p>
+                      <p>Used on tournament header, standby screens, and standings tables.</p>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1864,44 +1887,94 @@ export function renderAdminDashboard(containerEl) {
     });
   }
 
-  // Bind Banner & Logo Upload Handlers
+  // Bind Tournament Banner Upload with 16:9 Widescreen Cropper & Cloudinary CDN Direct Upload
   const bannerFileInput = containerEl.querySelector('#tourney-banner-file-input');
-  if (bannerFileInput) {
-    bannerFileInput.addEventListener('change', async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      try {
-        const uploadedUrl = await uploadHDImage(file, 'banners');
-        if (uploadedUrl) {
-          const input = containerEl.querySelector('#tourney-banner-url-input');
-          const img = containerEl.querySelector('#tourney-banner-preview');
-          if (input) input.value = uploadedUrl;
-          if (img) img.src = uploadedUrl;
-        }
-      } catch (err) {
-        alert("Error uploading banner image: " + err.message);
-      }
+  const bannerPreviewImg = containerEl.querySelector('#tourney-banner-preview');
+  const bannerUrlInput = containerEl.querySelector('#tourney-banner-url-input');
+  const bannerStatusEl = containerEl.querySelector('#tourney-banner-status');
+
+  if (bannerFileInput && bannerPreviewImg && bannerUrlInput) {
+    bannerFileInput.addEventListener('change', () => {
+      handlePhotoSelectAndCDNUpload(
+        bannerFileInput,
+        bannerPreviewImg,
+        bannerStatusEl,
+        'banners',
+        `Crop & Zoom ${activeTourneyName} Banner (16:9 Widescreen)`,
+        (cdnUrl) => {
+          bannerUrlInput.value = cdnUrl;
+          bannerPreviewImg.src = cdnUrl;
+        },
+        16 / 9
+      );
     });
   }
 
+  // Bind Tournament Logo Upload with 1:1 Square Cropper & Cloudinary CDN Direct Upload
   const logoFileInput = containerEl.querySelector('#tourney-logo-file-input');
-  if (logoFileInput) {
-    logoFileInput.addEventListener('change', async (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      try {
-        const uploadedUrl = await uploadHDImage(file, 'logos');
-        if (uploadedUrl) {
-          const input = containerEl.querySelector('#tourney-logo-url-input');
-          const img = containerEl.querySelector('#tourney-logo-preview');
-          if (input) input.value = uploadedUrl;
-          if (img) img.src = uploadedUrl;
-        }
-      } catch (err) {
-        alert("Error uploading logo image: " + err.message);
-      }
+  const logoPreviewImg = containerEl.querySelector('#tourney-logo-preview');
+  const logoUrlInput = containerEl.querySelector('#tourney-logo-url-input');
+  const logoStatusEl = containerEl.querySelector('#tourney-logo-status');
+
+  if (logoFileInput && logoPreviewImg && logoUrlInput) {
+    logoFileInput.addEventListener('change', () => {
+      handlePhotoSelectAndCDNUpload(
+        logoFileInput,
+        logoPreviewImg,
+        logoStatusEl,
+        'logos',
+        `Crop & Zoom ${activeTourneyName} Logo (1:1 Square)`,
+        (cdnUrl) => {
+          logoUrlInput.value = cdnUrl;
+          logoPreviewImg.src = cdnUrl;
+        },
+        1
+      );
     });
   }
+
+  // Re-crop buttons for Banner & Logo
+  containerEl.querySelector('#recrop-tourney-banner-btn')?.addEventListener('click', () => {
+    const currentSrc = bannerUrlInput?.value || bannerPreviewImg?.src;
+    if (!currentSrc) return alert('Please select or upload a banner image first!');
+    const cropModalFn = window.openSquareImageCropModal || openSquareImageCropModal;
+    if (typeof cropModalFn === 'function') {
+      cropModalFn(currentSrc, async (croppedDataUrl) => {
+        if (bannerPreviewImg) bannerPreviewImg.src = croppedDataUrl;
+        if (bannerStatusEl) {
+          bannerStatusEl.innerHTML = `<span class="px-2 py-0.5 rounded bg-amber-100 text-amber-900 text-[10px] font-bold animate-pulse">Uploading CDN...</span>`;
+        }
+        const cdnUrl = await uploadHDImage(croppedDataUrl, 'banners');
+        const finalUrl = cdnUrl || croppedDataUrl;
+        if (bannerUrlInput) bannerUrlInput.value = finalUrl;
+        if (bannerPreviewImg) bannerPreviewImg.src = finalUrl;
+        if (bannerStatusEl) {
+          bannerStatusEl.innerHTML = `<span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-900 text-[10px] font-bold">✅ CDN Saved</span>`;
+        }
+      }, `Re-Crop ${activeTourneyName} Banner (16:9 Widescreen)`, 16 / 9);
+    }
+  });
+
+  containerEl.querySelector('#recrop-tourney-logo-btn')?.addEventListener('click', () => {
+    const currentSrc = logoUrlInput?.value || logoPreviewImg?.src;
+    if (!currentSrc) return alert('Please select or upload a logo image first!');
+    const cropModalFn = window.openSquareImageCropModal || openSquareImageCropModal;
+    if (typeof cropModalFn === 'function') {
+      cropModalFn(currentSrc, async (croppedDataUrl) => {
+        if (logoPreviewImg) logoPreviewImg.src = croppedDataUrl;
+        if (logoStatusEl) {
+          logoStatusEl.innerHTML = `<span class="px-2 py-0.5 rounded bg-amber-100 text-amber-900 text-[10px] font-bold animate-pulse">Uploading CDN...</span>`;
+        }
+        const cdnUrl = await uploadHDImage(croppedDataUrl, 'logos');
+        const finalUrl = cdnUrl || croppedDataUrl;
+        if (logoUrlInput) logoUrlInput.value = finalUrl;
+        if (logoPreviewImg) logoPreviewImg.src = finalUrl;
+        if (logoStatusEl) {
+          logoStatusEl.innerHTML = `<span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-900 text-[10px] font-bold">✅ CDN Saved</span>`;
+        }
+      }, `Re-Crop ${activeTourneyName} Logo (1:1 Square)`, 1);
+    }
+  });
 
   // Bind Reset Auction Button
   document.getElementById('admin-reset-auction-btn')?.addEventListener('click', () => {
@@ -8044,8 +8117,8 @@ export function openEditTeamModal(team = null, onSaved = null) {
     }
   };
 
-  // Helper for Instant Photo Upload with Crop & Zoom + < 100KB Compression
-  const handlePhotoSelectAndCDNUpload = async (fileInputEl, previewImgEl, statusEl, folder, cropTitle, onUploaded) => {
+  // Helper for Instant Photo Upload with Crop & Zoom + Cloudinary CDN Direct Upload
+  const handlePhotoSelectAndCDNUpload = async (fileInputEl, previewImgEl, statusEl, folder, cropTitle, onUploaded, aspectRatio = 1) => {
     const file = fileInputEl.files[0];
     if (!file) return;
 
@@ -8055,42 +8128,50 @@ export function openEditTeamModal(team = null, onSaved = null) {
       const cropModalFn = window.openSquareImageCropModal || openSquareImageCropModal;
       if (typeof cropModalFn === 'function') {
         cropModalFn(rawSrc, async (croppedDataUrl) => {
-          previewImgEl.src = croppedDataUrl;
-          statusEl.innerHTML = `
-            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-300 font-bold text-[9.5px] animate-pulse">
-              <span class="w-3 h-3 border-2 border-amber-600 border-t-transparent rounded-full animate-spin"></span>
-              <span>Uploading HD to CDN (&lt;100KB)...</span>
-            </span>
-          `;
-          setButtonUploading(true);
+          if (previewImgEl) previewImgEl.src = croppedDataUrl;
+          if (statusEl) {
+            statusEl.innerHTML = `
+              <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-300 font-bold text-[9.5px] animate-pulse">
+                <span class="w-3 h-3 border-2 border-amber-600 border-t-transparent rounded-full animate-spin"></span>
+                <span>Uploading HD to Cloudinary CDN...</span>
+              </span>
+            `;
+          }
+          if (typeof setButtonUploading === 'function') setButtonUploading(true);
 
           try {
+            const targetW = aspectRatio > 1 ? 1280 : 600;
+            const targetH = aspectRatio > 1 ? Math.round(1280 / aspectRatio) : 600;
             const compressedDataUrl = (typeof compressImageToTarget === 'function') 
-              ? await compressImageToTarget(croppedDataUrl, 100, 600, 600)
-              : await compressImage(file, 600, 600, 0.70);
-            previewImgEl.src = compressedDataUrl;
+              ? await compressImageToTarget(croppedDataUrl, 200, targetW, targetH)
+              : croppedDataUrl;
+            if (previewImgEl) previewImgEl.src = compressedDataUrl;
 
             const cdnUrl = await uploadHDImage(compressedDataUrl, folder);
             const finalUrl = cdnUrl || compressedDataUrl;
             onUploaded(finalUrl);
 
-            statusEl.innerHTML = `
-              <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300 font-black text-[10px]">
-                <span>✅ CDN Uploaded (&lt; 100KB)</span>
-              </span>
-            `;
+            if (statusEl) {
+              statusEl.innerHTML = `
+                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300 font-black text-[10px]">
+                  <span>✅ Cloudinary CDN Saved</span>
+                </span>
+              `;
+            }
           } catch (err) {
             console.warn('CDN upload fallback:', err);
             onUploaded(croppedDataUrl);
-            statusEl.innerHTML = `
-              <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-sky-100 text-sky-800 border border-sky-300 font-black text-[10px]">
-                <span>✅ Cropped & Ready</span>
-              </span>
-            `;
+            if (statusEl) {
+              statusEl.innerHTML = `
+                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-sky-100 text-sky-800 border border-sky-300 font-black text-[10px]">
+                  <span>✅ Cropped & Ready</span>
+                </span>
+              `;
+            }
           } finally {
-            setButtonUploading(false);
+            if (typeof setButtonUploading === 'function') setButtonUploading(false);
           }
-        }, cropTitle || "Crop Image (1:1 Square)");
+        }, cropTitle || "Crop Image", aspectRatio);
       }
     };
     reader.readAsDataURL(file);
