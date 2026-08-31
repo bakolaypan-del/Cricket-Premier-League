@@ -1,6 +1,6 @@
 // LocalStorage & Cloud Database Reactive Store (Developer: Suman Kolay - Continuous Dynamic Numbering Release)
 
-import { INITIAL_LEAGUES, INITIAL_TEAMS, INITIAL_PLAYERS, INITIAL_FIXTURES } from './data.js?v=13.0.0';
+import { INITIAL_LEAGUES, INITIAL_TEAMS, INITIAL_PLAYERS, INITIAL_FIXTURES, INITIAL_KUAPUR_PLAYERS } from './data.js?v=13.0.0';
 import { 
   fetchCloudData, 
   saveCloudData, 
@@ -820,7 +820,12 @@ class Store {
   // --- PLAYERS ---
   getPlayers() {
     if (this._cache.players) return this._cache.players;
-    const rawPlayers = JSON.parse(localStorage.getItem(this._scopedKey('PLAYERS'))) || [];
+    let rawPlayers = JSON.parse(localStorage.getItem(this._scopedKey('PLAYERS'))) || [];
+    const isKuapur = (this.activeTournamentId === '5cf4f50c-3930-486a-83c3-3f59414a7d6f' || toUUID(this.activeTournamentId) === '5cf4f50c-3930-486a-83c3-3f59414a7d6f');
+    if (isKuapur && rawPlayers.length === 0 && Array.isArray(INITIAL_KUAPUR_PLAYERS) && INITIAL_KUAPUR_PLAYERS.length > 0) {
+      rawPlayers = INITIAL_KUAPUR_PLAYERS;
+      safeSetLocalStorage(this._scopedKey('PLAYERS'), INITIAL_KUAPUR_PLAYERS);
+    }
     const rawTeams = JSON.parse(localStorage.getItem(this._scopedKey('TEAMS'))) || [];
 
     const normalizeName = (name) => (name || '').toLowerCase().replace(/\s+/g, ' ').replace(/[()]/g, '').trim();

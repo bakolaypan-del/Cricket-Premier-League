@@ -193,5 +193,8 @@ export const INITIAL_TEAMS = [
   }
 ];
 
+import { INITIAL_KUAPUR_PLAYERS } from './kuapur_players.js';
+
 export const INITIAL_PLAYERS = [];
 export const INITIAL_FIXTURES = [];
+export { INITIAL_KUAPUR_PLAYERS };
