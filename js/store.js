@@ -2037,6 +2037,24 @@ class Store {
     this._invalidateCache('fixtures');
     safeSetLocalStorage(this._scopedKey('FIXTURES'), fixtures);
     deleteFixtureFromCloud(fixtureId, this.activeTournamentId);
+
+    // Clean from legacy key if present
+    try {
+      const legacyRaw = localStorage.getItem('cpl_fixtures_v8');
+      if (legacyRaw) {
+        const legacyMatches = (JSON.parse(legacyRaw) || []).filter(f => f.id !== fixtureId);
+        safeSetLocalStorage('cpl_fixtures_v8', legacyMatches);
+      }
+    } catch (e) {}
+
+    // Clean from active tournament format_config
+    const tourneys = this.getCustomTournaments();
+    const curT = tourneys.find(t => (t.supabaseId || t.id) === this.activeTournamentId);
+    if (curT && Array.isArray(curT.format_config?.custom_matches)) {
+      curT.format_config.custom_matches = curT.format_config.custom_matches.filter(f => f.id !== fixtureId);
+      this._saveTournamentAcrossAllKeys(curT);
+    }
+
     this.notify('fixtures_updated');
   }
 
@@ -2044,6 +2062,34 @@ class Store {
     this._invalidateCache('fixtures');
     safeSetLocalStorage(this._scopedKey('FIXTURES'), []);
     clearAllFixturesFromCloud(this.activeTournamentId);
+
+    const activeTid = this.activeTournamentId;
+    const tourneys = this.getCustomTournaments();
+    const curT = tourneys.find(t => (t.supabaseId || t.id) === activeTid);
+
+    // Clean legacy key of matches belonging to this tournament
+    try {
+      const legacyRaw = localStorage.getItem('cpl_fixtures_v8');
+      if (legacyRaw) {
+        const code = (curT?.slug || curT?.category_code || '').toUpperCase();
+        const legacyMatches = (JSON.parse(legacyRaw) || []).filter(f => {
+          const fTid = f.tournament_id || f.tournamentId || f.leagueId;
+          const fCode = (f.leagueCode || '').toUpperCase();
+          if (fTid && (fTid === activeTid || toUUID(fTid) === toUUID(activeTid))) return false;
+          if (code && fCode && (fCode === code || (code === 'K2026' && (fCode === 'KPL' || fCode === 'K2026')) || (code === 'JSL' && fCode === 'JSL'))) return false;
+          return true;
+        });
+        safeSetLocalStorage('cpl_fixtures_v8', legacyMatches);
+      }
+    } catch (e) {}
+
+    // Clean format_config.custom_matches
+    if (curT) {
+      if (!curT.format_config) curT.format_config = {};
+      curT.format_config.custom_matches = [];
+      this._saveTournamentAcrossAllKeys(curT);
+    }
+
     this.notify('fixtures_updated');
   }
 
@@ -2053,13 +2099,12 @@ class Store {
     const activeFixtures = this.getFixtures();
     const map = new Map();
 
-    // 1. Add active tournament fixtures
+    // 1. Add active tournament fixtures (if cleared, activeFixtures is [], so 0 matches for active tournament)
     activeFixtures.forEach(f => {
       if (f && f.id) {
         const fCode = (f.leagueCode || '').toUpperCase();
         const fTid = f.tournament_id || f.tournamentId || f.leagueId;
 
-        // Correctly find tournament matching either exact ID or league code
         const tourney = allTourneys.find(t => {
           const tCode = (t.category_code || t.code || t.category || t.shortCode || t.slug || '').toUpperCase();
           const tId = t.supabaseId || t.id;
@@ -2083,17 +2128,22 @@ class Store {
       }
     });
 
-    // 2. Add fixtures from other tournaments format_config.custom_matches and scoped local keys
+    // 2. Add fixtures from other tournaments ONLY if explicitly saved
     allTourneys.forEach(t => {
       const tid = t.supabaseId || t.id;
-      const customMatches = Array.isArray(t.format_config?.custom_matches) ? t.format_config.custom_matches : [];
+      if (tid === activeTid || toUUID(tid) === toUUID(activeTid)) return; // Already processed active tournament above!
+
       let localScopedMatches = [];
       try {
         const localRaw = localStorage.getItem(`cpl_fixtures_v8_${tid}`);
-        if (localRaw) localScopedMatches = JSON.parse(localRaw) || [];
+        if (localRaw !== null) {
+          localScopedMatches = JSON.parse(localRaw) || [];
+        } else {
+          localScopedMatches = Array.isArray(t.format_config?.custom_matches) ? t.format_config.custom_matches : [];
+        }
       } catch (e) {}
 
-      [...customMatches, ...localScopedMatches].forEach(cm => {
+      localScopedMatches.forEach(cm => {
         if (cm && cm.id && !map.has(cm.id)) {
           map.set(cm.id, {
             ...cm,
@@ -2105,31 +2155,6 @@ class Store {
         }
       });
     });
-
-    // 3. Fallback: check legacy unscoped fixtures key 'cpl_fixtures_v8'
-    try {
-      const legacyRaw = localStorage.getItem('cpl_fixtures_v8');
-      if (legacyRaw) {
-        const legacyMatches = JSON.parse(legacyRaw) || [];
-        legacyMatches.forEach(lm => {
-          if (lm && lm.id && !map.has(lm.id)) {
-            const lmCode = (lm.leagueCode || '').toUpperCase();
-            const lmTourney = allTourneys.find(t => {
-              const tCode = (t.category_code || t.code || t.category || t.shortCode || t.slug || '').toUpperCase();
-              return lmCode && tCode && (lmCode === tCode || (lmCode === 'K2026' && (tCode === 'KPL' || tCode === 'K2026')) || (lmCode === 'KPL' && (tCode === 'K2026' || tCode === 'KPL')));
-            }) || {};
-
-            map.set(lm.id, {
-              ...lm,
-              tournamentId: lmTourney.supabaseId || lmTourney.id || lm.tournament_id || lm.leagueId || 'leg-jsl',
-              tournamentName: lmTourney.name || lm.tournamentName || (lmCode ? `${lmCode} Premier League` : 'Jhankra Super League'),
-              leagueCode: (lmCode || lmTourney.category_code || 'JSL').toUpperCase(),
-              logoUrl: lmTourney.logo_url || lmTourney.banner_url || 'assets/jsl_logo.jpg'
-            });
-          }
-        });
-      }
-    } catch (e) {}
 
     return Array.from(map.values()).sort((a, b) => (Number(a.matchNo) || 0) - (Number(b.matchNo) || 0));
   }
