@@ -1,6 +1,6 @@
 // LocalStorage & Cloud Database Reactive Store (Developer: Suman Kolay - Continuous Dynamic Numbering Release)
 
-import { INITIAL_LEAGUES, INITIAL_TEAMS, INITIAL_PLAYERS, INITIAL_FIXTURES } from './data.js?v=11.6.4';
+import { INITIAL_LEAGUES, INITIAL_TEAMS, INITIAL_PLAYERS, INITIAL_FIXTURES } from './data.js?v=13.0.0';
 import { 
   fetchCloudData, 
   saveCloudData, 
@@ -10,38 +10,56 @@ import {
   deleteTeamFromSupabase,
   uploadHDImage,
   initRealtimePushListener,
-  clearAllPlayersFromFirebase,
-  clearAllTeamsFromFirebase,
-  savePlayerToFirebase,
-  patchPlayerInFirebase,
-  saveTeamToFirebase,
-  patchTeamInFirebase,
-  saveFixtureToFirebase,
-  deleteFixtureFromFirebase,
-  saveAuctionSettingsToFirebase,
-  saveLiveAuctionToFirebase,
-  saveLiveMatchToFirebase,
-  saveCommunityQueryToFirebase,
-  deleteCommunityQueryFromFirebase,
-  fetchCommunityQueriesFromFirebase,
-  fetchTournamentOwnersFromFirebase,
-  fetchUserAccountsFromFirebase,
-  saveRegistrationSettingsToFirebase,
-  fetchRegistrationSettingsFromFirebase,
-  saveAuctionPermanentArchiveToFirebase,
-  fetchAuctionPermanentArchiveFromFirebase,
-  savePlatformSettingsToFirebase,
-  fetchPlatformSettingsFromFirebase,
-  saveCustomTournamentToFirebase,
-  fetchCustomTournamentsFromFirebase,
-  deleteCustomTournamentFromFirebase,
-  saveUniversalPlayerToFirebase,
-  fetchUniversalPlayersFromFirebase,
-  saveTournamentFormatToFirebase,
-  fetchTournamentFormatsFromFirebase
-} from './supabase.js?v=11.6.4';
-
-const FIREBASE_DB_URL = "https://cpl-jsl-2026-default-rtdb.firebaseio.com";
+  clearAllPlayersFromCloud,
+  clearAllTeamsFromCloud,
+  saveFixtureToCloud,
+  deleteFixtureFromCloud,
+  clearAllFixturesFromCloud,
+  saveAuctionSettingsToCloud,
+  saveLiveAuctionToCloud,
+  saveLiveMatchToCloud,
+  saveCommunityQueryToCloud,
+  deleteCommunityQueryFromCloud,
+  fetchCommunityQueriesFromCloud,
+  fetchTournamentOwnersFromCloud,
+  saveTournamentOwnerToCloud,
+  fetchUserAccountsFromCloud,
+  saveRegistrationSettingsToCloud,
+  fetchRegistrationSettingsFromCloud,
+  saveAuctionPermanentArchiveToCloud,
+  fetchAuctionPermanentArchiveFromCloud,
+  savePlatformSettingsToCloud,
+  fetchPlatformSettingsFromCloud,
+  saveCustomTournamentToCloud,
+  fetchCustomTournamentsFromCloud,
+  deleteCustomTournamentFromCloud,
+  saveUniversalPlayerToCloud,
+  fetchUniversalPlayersFromCloud,
+  saveTournamentFormatToCloud,
+  fetchTournamentFormatsFromCloud,
+  signInUser,
+  signUpUser,
+  signOutUser,
+  getAuthSession,
+  getAuthUser,
+  fetchUserProfile,
+  dbLookupPlayerByPhone,
+  dbRegisterPlayer,
+  dbVerifyPlayer,
+  dbCreateTournament,
+  dbFetchTournaments,
+  compressImageToTarget,
+  saveUserAccountToCloud,
+  flushSupabaseOfflineQueue,
+  generateUUID,
+  resolveTournamentUUID,
+  registerTournamentUUID,
+  toUUID,
+  fetchGlobalUniquePlayersCount,
+  updateTournamentApprovalStatus,
+  fetchLiveAuctionFromCloud,
+  fetchGlobalLiveAuctionStatus
+} from './supabase.js?v=13.0.53';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -61,10 +79,42 @@ const STORAGE_KEYS = {
   PLATFORM_SETTINGS: 'cpl_platform_settings_v8',
   CUSTOM_TOURNAMENTS: 'cpl_custom_tournaments_v8',
   UNIVERSAL_PLAYERS: 'cpl_universal_players_v8',
-  TOURNAMENT_FORMATS: 'cpl_tournament_formats_v8'
+  TOURNAMENT_FORMATS: 'cpl_tournament_formats_v8',
+  ACTIVE_TOURNAMENT: 'cpl_active_tournament_id'
 };
 
+// Tournament-scoped localStorage key helper
+function scopedKey(baseKey, tournamentId) {
+  if (!tournamentId) return baseKey;
+  const cleanId = String(tournamentId).replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 36);
+  return `${baseKey}_${cleanId}`;
+}
+
+// Keys that are scoped per tournament in localStorage
+const SCOPED_KEYS = ['PLAYERS', 'TEAMS', 'FIXTURES', 'AUCTION_SETTINGS', 'REGISTRATION_SETTINGS'];
+
 const DEFAULT_AVATAR = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23059669'/%3E%3Ctext x='50' y='62' font-size='45' text-anchor='middle' fill='white'%3E🏏%3C/text%3E%3C/svg%3E";
+
+async function hashPassword(plaintext, salt = 'cpl_secure_salt_v2') {
+  if (!plaintext) return '';
+  const saltedText = `__CPL_SALT_v2_${salt}__:${plaintext}`;
+  const enc = new TextEncoder().encode(saltedText);
+  const buf = await crypto.subtle.digest('SHA-256', enc);
+  return 'cpl_s2_' + Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+async function verifyPasswordMatch(inputPassword, storedHash, salt = 'cpl_secure_salt_v2') {
+  if (!inputPassword || !storedHash) return false;
+  if (typeof storedHash === 'string' && storedHash.startsWith('cpl_s2_')) {
+    const computed = await hashPassword(inputPassword, salt);
+    return computed === storedHash;
+  }
+  // Legacy SHA-256 fallback during transition
+  const legacyEnc = new TextEncoder().encode(String(inputPassword));
+  const legacyBuf = await crypto.subtle.digest('SHA-256', legacyEnc);
+  const legacyHex = Array.from(new Uint8Array(legacyBuf)).map(b => b.toString(16).padStart(2, '0')).join('');
+  return (storedHash === legacyHex) || (storedHash === inputPassword);
+}
 
 // Purge legacy version keys (cpl_players_v1..v6, etc.) to free up 5MB browser storage quota
 function clearOldStorageQuota() {
@@ -73,7 +123,17 @@ function clearOldStorageQuota() {
     const keysToRemove = [];
     for (let i = 0; i < localStorage.length; i++) {
       const k = localStorage.key(i);
-      if (k && k.startsWith('cpl_') && !activeKeys.has(k) && !k.startsWith('cpl_last_')) {
+      if (!k || !k.startsWith('cpl_')) continue;
+      const isScopedKey = Array.from(activeKeys).some(base => k.startsWith(base + '_'));
+      const isPreserved = activeKeys.has(k) || isScopedKey ||
+        k.startsWith('cpl_last_') ||
+        k.startsWith('cpl_active_') ||
+        k.startsWith('cpl_player_status_overrides') ||
+        k.startsWith('cpl_popup_settings') ||
+        k.startsWith('cpl_ad_settings') ||
+        k.startsWith('cpl_user_') ||
+        k.startsWith('cpl_admin_');
+      if (!isPreserved) {
         keysToRemove.push(k);
       }
     }
@@ -86,7 +146,7 @@ function clearOldStorageQuota() {
   }
 }
 
-// Sanitize player/team records so heavy base64 images never bloat localStorage
+// Sanitize player/team records so heavy base64 documents (aadhaar/receipts) never bloat localStorage
 export function sanitizeForStorage(data) {
   if (!data) return data;
   if (Array.isArray(data)) {
@@ -94,12 +154,7 @@ export function sanitizeForStorage(data) {
   }
   if (typeof data === 'object') {
     const itemCopy = { ...data };
-    if (itemCopy.photoUrl && typeof itemCopy.photoUrl === 'string' && itemCopy.photoUrl.startsWith('data:image')) {
-      itemCopy.photoUrl = DEFAULT_AVATAR;
-    }
-    if (itemCopy.player_photo_url && typeof itemCopy.player_photo_url === 'string' && itemCopy.player_photo_url.startsWith('data:image')) {
-      itemCopy.player_photo_url = DEFAULT_AVATAR;
-    }
+    // DO NOT wipe player photos! Keep valid photoUrl so real pictures always display
     if (itemCopy.aadharPhotoUrl && typeof itemCopy.aadharPhotoUrl === 'string' && itemCopy.aadharPhotoUrl.startsWith('data:image')) {
       itemCopy.aadharPhotoUrl = 'Attached Document';
     }
@@ -155,40 +210,58 @@ function getPlayerTimestamp(p) {
 class Store {
   constructor() {
     clearOldStorageQuota();
+    this._cache = { players: null, teams: null, fixtures: null };
+    this._globalUniquePlayersCount = Number(localStorage.getItem('cpl_global_unique_players_count') || 110);
+    const rawTid = localStorage.getItem(STORAGE_KEYS.ACTIVE_TOURNAMENT);
+    this.activeTournamentId = rawTid ? (toUUID(rawTid) || rawTid) : '440f982b-6008-40f4-a6bc-0516a0985672';
     this.init();
     this.setupRealtimeListeners();
     this.syncWithCloud();
+    this.syncGlobalPlayersCount();
     this.startCloudPolling();
+  }
+
+  _invalidateCache(type) {
+    if (type) { this._cache[type] = null; }
+    else { this._cache = { players: null, teams: null, fixtures: null }; }
+  }
+
+  _scopedKey(baseKeyName) {
+    const canonicalTid = toUUID(this.activeTournamentId) || this.activeTournamentId;
+    return scopedKey(STORAGE_KEYS[baseKeyName], canonicalTid);
+  }
+
+  _evictTournamentCache(tournamentId) {
+    if (!tournamentId) return;
+    const canonicalTid = toUUID(tournamentId) || tournamentId;
+    for (const keyName of SCOPED_KEYS) {
+      const sk = scopedKey(STORAGE_KEYS[keyName], canonicalTid);
+      try { localStorage.removeItem(sk); } catch (e) {}
+    }
+  }
+
+  setActiveTournament(tournamentId) {
+    if (!tournamentId) return;
+    const resolvedId = toUUID(tournamentId) || tournamentId;
+    if (this.activeTournamentId === resolvedId) return;
+    this.activeTournamentId = resolvedId;
+    this._invalidateCache();
+    localStorage.setItem(STORAGE_KEYS.ACTIVE_TOURNAMENT, resolvedId);
+    this.syncWithCloud();
+    initRealtimePushListener((event) => {
+      this.syncWithCloud();
+    }, resolvedId);
   }
 
   init() {
     clearOldStorageQuota();
+    this._migrateGlobalToScoped();
 
     if (!localStorage.getItem(STORAGE_KEYS.LEAGUES)) {
       safeSetLocalStorage(STORAGE_KEYS.LEAGUES, INITIAL_LEAGUES);
     }
-    if (!localStorage.getItem(STORAGE_KEYS.TEAMS)) {
-      safeSetLocalStorage(STORAGE_KEYS.TEAMS, []);
-    }
-    if (!localStorage.getItem(STORAGE_KEYS.PLAYERS)) {
-      safeSetLocalStorage(STORAGE_KEYS.PLAYERS, []);
-    }
-    if (!localStorage.getItem(STORAGE_KEYS.FIXTURES)) {
-      safeSetLocalStorage(STORAGE_KEYS.FIXTURES, INITIAL_FIXTURES);
-    }
     if (!localStorage.getItem(STORAGE_KEYS.PLAYER_PROFILES)) {
       safeSetLocalStorage(STORAGE_KEYS.PLAYER_PROFILES, []);
-    }
-    if (!localStorage.getItem(STORAGE_KEYS.AUCTION_SETTINGS)) {
-      safeSetLocalStorage(STORAGE_KEYS.AUCTION_SETTINGS, { defaultBasePrice: 300, defaultPurseBudget: 8000 });
-    }
-    if (!localStorage.getItem(STORAGE_KEYS.REGISTRATION_SETTINGS)) {
-      safeSetLocalStorage(STORAGE_KEYS.REGISTRATION_SETTINGS, {
-        isJslRegistrationOpen: true,
-        isPlayerRegOpen: true,
-        isTeamRegOpen: true,
-        closedReason: "JSL 2026 Registration is currently closed by the Master Admin."
-      });
     }
     if (!localStorage.getItem(STORAGE_KEYS.USER)) {
       safeSetLocalStorage(STORAGE_KEYS.USER, {
@@ -198,23 +271,36 @@ class Store {
         phone: null
       });
     }
-    // Cloud sync will populate players authoritative list
   }
 
-  restoreAllRejectedPlayers() {
-    // No-op to prevent overwriting cloud data on startup
+  _migrateGlobalToScoped() {
+    if (!this.activeTournamentId) return;
+    const keysToMigrate = ['PLAYERS', 'TEAMS', 'FIXTURES', 'AUCTION_SETTINGS', 'REGISTRATION_SETTINGS'];
+    for (const keyName of keysToMigrate) {
+      const globalKey = STORAGE_KEYS[keyName];
+      const scoped = this._scopedKey(keyName);
+      if (scoped === globalKey) continue;
+      const globalData = localStorage.getItem(globalKey);
+      if (globalData && !localStorage.getItem(scoped)) {
+        localStorage.setItem(scoped, globalData);
+        localStorage.removeItem(globalKey);
+      }
+    }
   }
 
   // --- STABLE CLOUD SYNC WITH DYNAMIC CONTINUOUS RE-INDEXING & CROSS-DEVICE CLEAR SYNC ---
   async syncWithCloud() {
     if (this._isSyncingWithCloud) return;
+    const isUserFillingForm = document.getElementById('player-reg-modal') || document.getElementById('team-reg-modal');
+    if (isUserFillingForm) return;
     this._isSyncingWithCloud = true;
     try {
-      const cloudData = await fetchCloudData();
-      
-      // If a registration modal or form is open, DO NOT interrupt the user!
-      const isUserFillingForm = document.getElementById('player-reg-modal') || document.getElementById('team-reg-modal');
-      if (isUserFillingForm) return;
+      // First flush any pending offline mutations before pulling cloud data
+      try {
+        await flushSupabaseOfflineQueue();
+      } catch (e) {}
+
+      const cloudData = await fetchCloudData(this.activeTournamentId);
 
       const lastLocalClearedAt = Number(localStorage.getItem('cpl_last_cleared_at') || '0');
 
@@ -222,42 +308,104 @@ class Store {
       if (cloudData.clearedAt && cloudData.clearedAt > lastLocalClearedAt) {
         console.log("Admin Clear All signal received from Cloud Realtime DB. Clearing local cache on this device...");
         localStorage.setItem('cpl_last_cleared_at', String(cloudData.clearedAt));
-        safeSetLocalStorage(STORAGE_KEYS.PLAYERS, []);
+        safeSetLocalStorage(this._scopedKey('PLAYERS'), []);
         this.notify('players_updated');
         return;
       }
 
+      const playersKey = this._scopedKey('PLAYERS');
       const localPlayers = this.getPlayers();
 
       // 1. Sync Players ONLY if valid array received from cloud
       if (Array.isArray(cloudData.players)) {
-        // If admin cleared all in cloud, enforce empty local array
         if (cloudData.players.length === 0 && cloudData.clearedAt > 0) {
           if (localPlayers.length > 0) {
-            safeSetLocalStorage(STORAGE_KEYS.PLAYERS, []);
+            safeSetLocalStorage(playersKey, []);
+            this._invalidateCache('players');
             this.notify('players_updated');
           }
           return;
         }
 
-        // CLOUD-AUTHORITATIVE SYNC: Cloud database is the single source of truth.
-        // Local storage serves as an offline-first cache and is updated to match cloud data.
-        const reindexedPlayers = cloudData.players;
+        const localDeletedIds = new Set(JSON.parse(localStorage.getItem('cpl_deleted_player_ids_' + this.activeTournamentId) || '[]'));
+        const filteredCloudPlayers = cloudData.players.filter(cp => {
+          if (!cp) return false;
+          const cleanPhone = (cp.phone || '').replace(/[^0-9]/g, '');
+          if (localDeletedIds.has(cp.id) || (cleanPhone && localDeletedIds.has(cleanPhone))) {
+            return false;
+          }
+          return true;
+        });
+
+        const reindexedPlayers = filteredCloudPlayers.map(cp => {
+          const lp = localPlayers.find(p => p && (p.id === cp.id || (p.phone && cp.phone && p.phone.replace(/\D/g, '') === cp.phone.replace(/\D/g, ''))));
+          if (!lp) return cp;
+
+          const effectivePaymentStatus = (cp.paymentStatus && cp.paymentStatus !== 'PENDING') ? cp.paymentStatus : (lp.paymentStatus || cp.paymentStatus || 'PENDING');
+          const effectiveRegStatus = (cp.registrationStatus && cp.registrationStatus !== 'PENDING') ? cp.registrationStatus : (lp.registrationStatus || effectivePaymentStatus);
+          const effectiveVerified = (effectivePaymentStatus === 'APPROVED' || cp.verified === true || lp.verified === true);
+
+          const effectiveTeamId = cp.teamId || lp.teamId || null;
+          const effectiveTeamName = cp.teamName || lp.teamName || null;
+          const effectiveSoldPrice = (Number(cp.soldPrice) > 0)
+            ? Number(cp.soldPrice)
+            : ((Number(lp.soldPrice) > 0) ? Number(lp.soldPrice) : (Number(cp.boughtPrice) || Number(lp.boughtPrice) || (effectiveTeamId ? 300 : 0)));
+          const effectiveAuctionStatus = cp.auctionStatus || lp.auctionStatus || (effectiveTeamId ? 'SOLD' : 'PENDING');
+          const effectiveIsSold = (effectiveAuctionStatus === 'SOLD' || cp.isSold === true || lp.isSold === true || !!effectiveTeamId);
+          const effectiveIsUnsold = (effectiveAuctionStatus === 'UNSOLD' || cp.isUnsold === true || lp.isUnsold === true);
+
+          return {
+            ...lp,
+            ...cp,
+            verified: effectiveVerified,
+            paymentStatus: effectivePaymentStatus,
+            registrationStatus: effectiveRegStatus,
+            teamId: effectiveTeamId,
+            team_id: effectiveTeamId,
+            teamName: effectiveTeamName,
+            soldPrice: effectiveSoldPrice,
+            sold_price: effectiveSoldPrice,
+            auctionStatus: effectiveAuctionStatus,
+            isSold: effectiveIsSold,
+            isUnsold: effectiveIsUnsold,
+            photoUrl: cp.photoUrl || lp.photoUrl || lp.player_photo_url || '',
+            player_photo_url: cp.player_photo_url || cp.photoUrl || lp.player_photo_url || lp.photoUrl || '',
+            aadharPhotoUrl: cp.aadharPhotoUrl || lp.aadharPhotoUrl || lp.idCardFrontUrl || lp.aadhaar_url || '',
+            idCardFrontUrl: cp.idCardFrontUrl || lp.idCardFrontUrl || lp.aadharPhotoUrl || lp.aadhaar_url || '',
+            idCardBackUrl: cp.idCardBackUrl || lp.idCardBackUrl || lp.aadharBackUrl || '',
+            paymentReceiptUrl: cp.paymentReceiptUrl || lp.paymentReceiptUrl || lp.paymentProofUrl || '',
+            paymentProofUrl: cp.paymentProofUrl || lp.paymentProofUrl || lp.paymentReceiptUrl || '',
+            paymentRef: cp.paymentRef || lp.paymentRef || lp.remarks || '',
+            remarks: cp.remarks || lp.remarks || lp.paymentRef || '',
+            fatherName: cp.fatherName || lp.fatherName || '',
+            dob: cp.dob || lp.dob || null,
+            age: cp.age || lp.age || '',
+            village: cp.village || lp.village || '',
+            district: cp.district || lp.district || 'Paschim Medinipur',
+            state: cp.state || lp.state || 'West Bengal',
+            address: cp.address || lp.address || (lp.village ? `${lp.village}, ${lp.district || ''}` : ''),
+            battingStyle: cp.battingStyle || lp.battingStyle || 'Right Hand Bat',
+            bowlingStyle: cp.bowlingStyle || lp.bowlingStyle || 'Right Hand Medium'
+          };
+        });
 
         const localSanitized = sanitizeForStorage(this.getPlayers());
         const cleanCloudSanitized = sanitizeForStorage(reindexedPlayers);
-        
+
         if (JSON.stringify(localSanitized) !== JSON.stringify(cleanCloudSanitized)) {
-          safeSetLocalStorage(STORAGE_KEYS.PLAYERS, reindexedPlayers);
+          safeSetLocalStorage(playersKey, reindexedPlayers);
+          this._invalidateCache('players');
           this.notify('players_updated');
         }
       }
 
       // 2. Sync Teams ONLY if valid array received from cloud
+      const teamsKey = this._scopedKey('TEAMS');
       const lastLocalTeamsClearedAt = Number(localStorage.getItem('cpl_last_teams_cleared_at') || '0');
       if (cloudData.teamsClearedAt && cloudData.teamsClearedAt > lastLocalTeamsClearedAt) {
         localStorage.setItem('cpl_last_teams_cleared_at', String(cloudData.teamsClearedAt));
-        safeSetLocalStorage(STORAGE_KEYS.TEAMS, []);
+        safeSetLocalStorage(teamsKey, []);
+        this._invalidateCache('teams');
         this.notify('teams_updated');
         return;
       }
@@ -267,82 +415,110 @@ class Store {
 
         if (cloudData.teams.length === 0 && cloudData.teamsClearedAt > 0) {
           if (localTeams.length > 0) {
-            safeSetLocalStorage(STORAGE_KEYS.TEAMS, []);
+            safeSetLocalStorage(teamsKey, []);
+            this._invalidateCache('teams');
             this.notify('teams_updated');
           }
           return;
         }
 
         const reindexedTeams = cloudData.teams;
-
         const localTeamsSanitized = sanitizeForStorage(localTeams);
         const cleanCloudTeamsSanitized = sanitizeForStorage(reindexedTeams);
-        
+
         if (JSON.stringify(localTeamsSanitized) !== JSON.stringify(cleanCloudTeamsSanitized)) {
-          safeSetLocalStorage(STORAGE_KEYS.TEAMS, reindexedTeams);
+          safeSetLocalStorage(teamsKey, reindexedTeams);
+          this._invalidateCache('teams');
           this.syncAllIconPlayers();
           this.notify('teams_updated');
         }
       }
 
       // 3. Sync Fixtures
-      // CRITICAL: never let a delayed cloud echo clobber the match that is being
-      // actively scored ball-by-ball on THIS device. Uses dual-shield:
-      // (1) window.__cplActiveScoringFixtureId for active in-memory session,
-      // (2) persistent localStorage lock & monotonic version _v to survive page reloads and mobile app backgrounding.
+      // Protect live scoring from cloud echo overwrites using version counters.
+      // Each saveLiveMatchToCloud increments _v in live_state. During sync, if the
+      // local fixture has a higher _v than the cloud copy, keep the local version.
+      // This survives tab refresh (version is inside the data, not a window flag).
+      // The legacy __cplActiveScoringFixtureId guard is kept as a secondary shield.
       if (Array.isArray(cloudData.fixtures)) {
         const localFixtures = this.getFixtures();
+
+        if (cloudData.fixtures.length === 0 && cloudData.matchesClearedAt > 0) {
+          if (localFixtures.length > 0) {
+            safeSetLocalStorage(this._scopedKey('FIXTURES'), []);
+            this._invalidateCache('fixtures');
+            this.notify('fixtures_updated');
+          }
+          return;
+        }
+
+        const deletedIdsRaw = localStorage.getItem('cpl_deleted_fixture_ids');
+        const deletedIds = new Set(deletedIdsRaw ? JSON.parse(deletedIdsRaw) : []);
+
+        let nextFixtures = cloudData.fixtures
+          .filter(cf => cf && cf.id && !deletedIds.has(cf.id) && (!toUUID(cf.id) || !deletedIds.has(toUUID(cf.id))))
+          .map(cf => {
+            const localF = localFixtures.find(f => f.id === cf.id || (toUUID(f.id) && toUUID(f.id) === toUUID(cf.id)));
+            if (!localF) return cf;
+
+            // Version-based protection: reject cloud state with lower version
+            const storedV = Number(localStorage.getItem(`cpl_active_scoring_${cf.id}_v`)) || 0;
+            const localV = Math.max(localF.liveMatchState?._v || 0, localF.liveState?._v || 0, storedV);
+            const cloudV = cf.liveState?._v || 0;
+            if (localV >= cloudV && (localF.status === 'LIVE' || cf.status === 'LIVE')) {
+              return { ...cf, liveState: localF.liveMatchState || localF.liveState || cf.liveState };
+            }
+            return { ...cf, teamAName: cf.teamAName || localF.teamAName, teamBName: cf.teamBName || localF.teamBName };
+          });
+
+        // Retain uncommitted locally scheduled fixtures (e.g. freshly added matches before cloud echo)
+        const cloudIds = new Set(cloudData.fixtures.map(f => f.id));
+        const uncommittedLocals = localFixtures.filter(lf => lf && lf.id && !cloudIds.has(lf.id));
+        if (uncommittedLocals.length > 0 && !(cloudData.matchesClearedAt > 0 && cloudData.fixtures.length === 0)) {
+          nextFixtures = [...nextFixtures, ...uncommittedLocals];
+          // Proactively persist uncommitted local fixtures to cloud
+          uncommittedLocals.forEach(f => saveFixtureToCloud(f, this.activeTournamentId));
+        }
+
+        // Shield: protect actively-scored fixture by window flag or persisted localStorage key
         const activeId = (typeof window !== 'undefined' ? window.__cplActiveScoringFixtureId : null) ||
                          (typeof localStorage !== 'undefined' ? localStorage.getItem('cpl_active_scoring_fixture_id') : null);
-
-        let nextFixtures = cloudData.fixtures.map(cf => {
-          const localF = localFixtures.find(f => f.id === cf.id);
-          if (!localF) return cf;
-
-          // Version-based protection: reject older cloud state
-          const storedV = (typeof localStorage !== 'undefined') ? (Number(localStorage.getItem(`cpl_active_scoring_${cf.id}_v`)) || 0) : 0;
-          const localV = Math.max(Number(localF.liveMatchState?._v || 0), storedV);
-          const cloudV = Number(cf.liveMatchState?._v || 0);
-
-          if (localV > 0 && localV >= cloudV && (localF.status === 'LIVE' || cf.status === 'LIVE')) {
-            return { ...cf, liveMatchState: localF.liveMatchState || cf.liveMatchState };
-          }
-          return cf;
-        });
-
         if (activeId) {
           const localActive = localFixtures.find(f => f.id === activeId);
-          // Only shield it while it is genuinely LIVE; once it is COMPLETED the cloud
-          // result is allowed to sync normally again.
-          if (localActive && localActive.status === 'LIVE') {
+          if (localActive && (localActive.status === 'LIVE' || !localActive.status)) {
             nextFixtures = nextFixtures.map(f => f.id === activeId ? localActive : f);
             if (!nextFixtures.some(f => f.id === activeId)) nextFixtures = [...nextFixtures, localActive];
           }
         }
-        const localFixturesStr = localStorage.getItem(STORAGE_KEYS.FIXTURES) || '[]';
+
+        const fixturesKey = this._scopedKey('FIXTURES');
+        const localFixturesStr = localStorage.getItem(fixturesKey) || '[]';
         const cloudFixturesStr = JSON.stringify(nextFixtures);
         if (localFixturesStr !== cloudFixturesStr) {
-          safeSetLocalStorage(STORAGE_KEYS.FIXTURES, nextFixtures);
+          safeSetLocalStorage(fixturesKey, nextFixtures);
+          this._invalidateCache('fixtures');
           this.notify('fixtures_updated');
         }
       }
 
       // 4. Sync Auction Settings
       if (cloudData.auctionSettings) {
-        const localSettingsStr = localStorage.getItem(STORAGE_KEYS.AUCTION_SETTINGS) || '{}';
+        const auctionKey = this._scopedKey('AUCTION_SETTINGS');
+        const localSettingsStr = localStorage.getItem(auctionKey) || '{}';
         const cloudSettingsStr = JSON.stringify(cloudData.auctionSettings);
         if (localSettingsStr !== cloudSettingsStr) {
-          safeSetLocalStorage(STORAGE_KEYS.AUCTION_SETTINGS, cloudData.auctionSettings);
+          safeSetLocalStorage(auctionKey, cloudData.auctionSettings);
           this.notify('auction_settings_updated');
         }
       }
 
-      // 4b. Sync Registration Settings
+      // 4b. Sync Registration Settings (tournament-scoped)
       if (cloudData.registrationSettings) {
-        const localRegStr = localStorage.getItem(STORAGE_KEYS.REGISTRATION_SETTINGS) || '{}';
+        const regKey = this._scopedKey('REGISTRATION_SETTINGS');
+        const localRegStr = localStorage.getItem(regKey) || '{}';
         const cloudRegStr = JSON.stringify(cloudData.registrationSettings);
         if (localRegStr !== cloudRegStr) {
-          safeSetLocalStorage(STORAGE_KEYS.REGISTRATION_SETTINGS, cloudData.registrationSettings);
+          safeSetLocalStorage(regKey, cloudData.registrationSettings);
           this.notify('registration_settings_updated');
         }
       }
@@ -367,29 +543,52 @@ class Store {
         }
       }
 
-      // 5. Sync Tournament Owners & User Accounts from Firebase
+      // 5. Sync Tournament Owners & User Accounts from Supabase
       try {
-        const cloudOwners = await fetchTournamentOwnersFromFirebase();
+        const cloudOwners = await fetchTournamentOwnersFromCloud();
         if (cloudOwners && typeof cloudOwners === 'object' && Object.keys(cloudOwners).length > 0) {
           const currentOwners = this.getTournamentOwners();
           const mergedOwners = { ...currentOwners, ...cloudOwners };
-          safeSetLocalStorage(STORAGE_KEYS.TOURNAMENT_OWNERS, mergedOwners);
-          this.notify('tournament_owners_updated');
+          const localOwnersStr = localStorage.getItem(STORAGE_KEYS.TOURNAMENT_OWNERS) || '{}';
+          const mergedOwnersStr = JSON.stringify(mergedOwners);
+          if (localOwnersStr !== mergedOwnersStr) {
+            safeSetLocalStorage(STORAGE_KEYS.TOURNAMENT_OWNERS, mergedOwners);
+            this.notify('tournament_owners_updated');
+          }
         }
 
-        const cloudAccounts = await fetchUserAccountsFromFirebase();
+        const cloudAccounts = await fetchUserAccountsFromCloud();
         if (Array.isArray(cloudAccounts) && cloudAccounts.length > 0) {
-          safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, cloudAccounts);
-          this.notify('user_accounts_updated');
+          const localAccountsStr = localStorage.getItem(STORAGE_KEYS.USER_ACCOUNTS) || '[]';
+          const cloudAccountsStr = JSON.stringify(cloudAccounts);
+          if (localAccountsStr !== cloudAccountsStr) {
+            safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, cloudAccounts);
+            this.notify('user_accounts_updated');
+          }
         }
 
-        // 6. Sync Tournament Formats (Group stages)
-        const cloudFormats = await fetchTournamentFormatsFromFirebase();
+        // 6. Sync Custom Tournaments from Cloud (Authoritative Realtime Sync across all browsers)
+        const cloudTourneys = await fetchCustomTournamentsFromCloud();
+        if (Array.isArray(cloudTourneys)) {
+          const localTourneysStr = localStorage.getItem(STORAGE_KEYS.CUSTOM_TOURNAMENTS) || '[]';
+          const cloudTourneysStr = JSON.stringify(cloudTourneys);
+          if (localTourneysStr !== cloudTourneysStr) {
+            safeSetLocalStorage(STORAGE_KEYS.CUSTOM_TOURNAMENTS, cloudTourneys);
+            this.notify('custom_tournaments_updated');
+          }
+        }
+
+        // 7. Sync Tournament Formats (Group stages)
+        const cloudFormats = await fetchTournamentFormatsFromCloud();
         if (cloudFormats && typeof cloudFormats === 'object' && Object.keys(cloudFormats).length > 0) {
           const currentFormats = this.getTournamentFormats();
           const mergedFormats = { ...currentFormats, ...cloudFormats };
-          safeSetLocalStorage(STORAGE_KEYS.TOURNAMENT_FORMATS, mergedFormats);
-          this.notify('tournament_format_updated');
+          const localFormatsStr = localStorage.getItem(STORAGE_KEYS.TOURNAMENT_FORMATS) || '{}';
+          const mergedFormatsStr = JSON.stringify(mergedFormats);
+          if (localFormatsStr !== mergedFormatsStr) {
+            safeSetLocalStorage(STORAGE_KEYS.TOURNAMENT_FORMATS, mergedFormats);
+            this.notify('tournament_format_updated');
+          }
         }
       } catch (errOwners) {
         console.warn("Owners sync notice:", errOwners);
@@ -403,7 +602,7 @@ class Store {
 
   startCloudPolling() {
     if (this.cloudPollingInterval) clearInterval(this.cloudPollingInterval);
-    // 15s Background Cloud Polling Heartbeat (Firebase SSE already pushes changes instantaneously)
+    // 15s Background Cloud Polling Heartbeat (Supabase SSE already pushes changes instantaneously)
     this.cloudPollingInterval = setInterval(() => {
       const isUserFillingForm = document.getElementById('player-reg-modal') || document.getElementById('team-reg-modal') || document.getElementById('edit-player-modal');
       if (!isUserFillingForm) {
@@ -414,26 +613,22 @@ class Store {
 
   setupRealtimeListeners() {
     window.addEventListener('storage', (e) => {
-      if (e.key === STORAGE_KEYS.PLAYERS) this.notify('players_updated');
-      if (e.key === STORAGE_KEYS.TEAMS) this.notify('teams_updated');
-      if (e.key === STORAGE_KEYS.REGISTRATION_SETTINGS) this.notify('registration_settings_updated');
+      if (!e.key) return;
+      if (e.key === this._scopedKey('PLAYERS')) { this._invalidateCache('players'); this.notify('players_updated'); }
+      if (e.key === this._scopedKey('TEAMS')) { this._invalidateCache('teams'); this.notify('teams_updated'); }
+      if (e.key === this._scopedKey('REGISTRATION_SETTINGS')) this.notify('registration_settings_updated');
     });
 
     // Mobile Phone Wakeup & Tab Switch Instant Cloud Sync
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
         this.syncWithCloud();
-        this.notify('live_auction_updated');
-        this.notify('players_updated');
-        this.notify('teams_updated');
       }
     });
 
     window.addEventListener('online', () => {
+      this.flushOfflineQueue();
       this.syncWithCloud();
-      this.notify('live_auction_updated');
-      this.notify('players_updated');
-      this.notify('teams_updated');
     });
 
     window.addEventListener('focus', () => {
@@ -457,39 +652,22 @@ class Store {
     }
 
     try {
-      initRealtimePushListener((event) => {
-        try {
-          if (event && event.data) {
-            const parsed = JSON.parse(event.data);
-            const path = parsed.path || '';
-            const data = parsed.data;
-
-            // INSTANT LIVE AUCTION PUSH (0ms latency direct memory update)
-            if (path === '/liveAuction' || path === '/liveAuction/') {
-              const localLiveStr = localStorage.getItem('cpl_live_auction_state') || 'null';
-              const cleanCloudLiveStr = JSON.stringify(data || null);
-              if (localLiveStr !== cleanCloudLiveStr) {
-                this.liveAuctionState = data;
-                if (data && data.active_player_id) {
-                  safeSetLocalStorage('cpl_live_auction_state', data);
-                } else {
-                  localStorage.removeItem('cpl_live_auction_state');
-                }
-                this.notify('live_auction_updated');
-              }
-              return;
-            } else if (path.startsWith('/liveAuction/')) {
-              const prop = path.replace('/liveAuction/', '').split('/')[0];
-              if (!this.liveAuctionState) this.liveAuctionState = {};
-              this.liveAuctionState[prop] = data;
-              safeSetLocalStorage('cpl_live_auction_state', this.liveAuctionState);
-              this.notify('live_auction_updated');
-              return;
+      initRealtimePushListener((payload) => {
+        if (payload && payload.table === 'live_auction') {
+          const data = payload.new || payload.record || null;
+          const localLiveStr = localStorage.getItem('cpl_live_auction_state') || 'null';
+          const cleanCloudLiveStr = JSON.stringify(data || null);
+          if (localLiveStr !== cleanCloudLiveStr) {
+            this.liveAuctionState = data;
+            if (data && data.active_player_id) {
+              safeSetLocalStorage('cpl_live_auction_state', data);
+            } else {
+              localStorage.removeItem('cpl_live_auction_state');
             }
+            this.notify('live_auction_updated');
           }
-        } catch (parseErr) {}
-
-        // For other database changes (players, teams), sync full cloud data
+          return;
+        }
         this.syncWithCloud();
       });
     } catch (err) {
@@ -497,41 +675,100 @@ class Store {
     }
   }
 
+  async flushOfflineQueue() {
+    try {
+      await flushSupabaseOfflineQueue();
+    } catch (e) {
+      console.warn("[STORE] flushOfflineQueue notice:", e);
+    }
+  }
+
   // --- ADMIN & TOURNAMENT OWNER AUTHENTICATION ---
   isAdminAuthenticated() {
     const u = this.getCurrentUser();
-    if (u && (u.role === 'TOURNAMENT_OWNER' || u.role === 'SUPER_ADMIN')) return true;
-    const val = localStorage.getItem(STORAGE_KEYS.ADMIN_AUTH);
-    return val === 'true' || val === '"true"';
+    if (!u) return false;
+    return u.role === 'TOURNAMENT_OWNER' || u.role === 'SUPER_ADMIN' || u.role === 'master_admin' || this.isMasterAdmin();
   }
 
   isMasterAdmin() {
     const u = this.getCurrentUser();
-    return !!(u && (u.role === 'SUPER_ADMIN' || (u.email && u.email.toLowerCase() === 'bakolaypan@gmail.com')));
+    if (!u) return false;
+    const isMasterRole = u.role === 'SUPER_ADMIN' || u.role === 'master_admin';
+    const isMasterEmail = Boolean(u.email && u.email.toLowerCase().trim() === 'bakolaypan@gmail.com');
+    return isMasterRole || isMasterEmail;
   }
 
-  authenticateAdmin(email, password) {
-    const validEmail = 'bakolaypan@gmail.com';
-    const validPass = 'Suman@2030';
+  async authenticateAdmin(email, password) {
+    const cleanEmail = (email || '').trim().toLowerCase();
+    
+    // 1. Authenticate with Supabase Auth
+    try {
+      const res = await signInUser(cleanEmail, password);
+      if (res && res.data && res.data.user) {
+        const user = res.data.user;
+        const profile = res.data.profile;
+        const isMaster = !!(profile && profile.role === 'master_admin');
 
-    if (email.trim().toLowerCase() === validEmail && password === validPass) {
-      localStorage.setItem(STORAGE_KEYS.ADMIN_AUTH, 'true');
-      this.setUserRole('ADMIN', 'Suman Kolay (Master Admin)');
-      this.notify('admin_auth_updated');
-      return { success: true };
-    } else {
-      return { success: false, message: 'Invalid Admin Email ID or Password!' };
+        const userObj = {
+          id: user.id,
+          name: profile?.full_name || user.user_metadata?.full_name || 'Admin User',
+          email: user.email,
+          role: isMaster ? 'SUPER_ADMIN' : 'TOURNAMENT_OWNER',
+          authProvider: 'supabase'
+        };
+
+        this.setCurrentUser(userObj);
+        localStorage.setItem(STORAGE_KEYS.ADMIN_AUTH, 'true');
+        this.setUserRole('ADMIN', userObj.name);
+        this.notify('admin_auth_updated');
+        return { success: true, user: userObj, isMaster };
+      }
+    } catch (err) {
+      console.warn("[AUTH] Supabase signIn notice:", err);
     }
+
+    // 2. Tournament Owner login via registered phone (compare salted hashed password)
+    const owners = this.getTournamentOwners();
+    for (const [tId, o] of Object.entries(owners)) {
+      const match = await verifyPasswordMatch(password, o.password, o.phone);
+      if (o && ((o.email && o.email.toLowerCase() === cleanEmail) || o.phone === cleanEmail) && match) {
+        const canonicalTid = toUUID(tId) || tId;
+        this.setActiveTournament(canonicalTid);
+        const userObj = {
+          id: `owner-${canonicalTid}`,
+          name: o.name || 'Tournament Organiser',
+          email: o.email || `${o.phone}@cpl.local`,
+          phone: o.phone,
+          role: 'TOURNAMENT_OWNER',
+          ownedTournaments: [canonicalTid]
+        };
+        this.setCurrentUser(userObj);
+        localStorage.setItem(STORAGE_KEYS.ADMIN_AUTH, 'true');
+        this.setUserRole('ADMIN', userObj.name);
+        this.notify('admin_auth_updated');
+        return { success: true, user: userObj, isMaster: false };
+      }
+    }
+
+    return { success: false, message: 'Invalid Admin Email / Phone or Password!' };
   }
 
-  logoutAdmin() {
+  async logoutAdmin() {
+    try {
+      await signOutUser();
+    } catch (e) {}
     localStorage.removeItem(STORAGE_KEYS.ADMIN_AUTH);
+    localStorage.removeItem(STORAGE_KEYS.CURRENT_USER);
     this.setUserRole('GUEST', 'Guest Visitor');
     this.notify('admin_auth_updated');
   }
 
   // --- LEAGUES ---
   getLeagues() {
+    const liveTourneys = this.getCustomTournaments();
+    if (Array.isArray(liveTourneys) && liveTourneys.length > 0) {
+      return liveTourneys.filter(t => !t.status || t.status === 'ACTIVE' || t.status === 'active' || t.status === 'APPROVED');
+    }
     return JSON.parse(localStorage.getItem(STORAGE_KEYS.LEAGUES)) || [];
   }
 
@@ -539,7 +776,7 @@ class Store {
     const allLeagues = this.getLeagues();
     const currentUser = this.getCurrentUser();
 
-    // 1. Full Master Super Admin access (Suman Kolay / bakolaypan@gmail.com / SUPER_ADMIN)
+    // 1. Full Master Super Admin access (via Supabase Auth role check)
     if (this.isMasterAdmin()) {
       return allLeagues;
     }
@@ -566,15 +803,14 @@ class Store {
         const filtered = allLeagues.filter(l => {
           const lCode = (l.code || l.category || l.shortCode || '').toUpperCase();
           const lId = (l.id || '').toUpperCase();
-          return permittedTourneyIds.some(pid => pid.includes(lCode) || pid === lId || (lCode === 'JSL' && pid.includes('JSL')));
+          return permittedTourneyIds.some(pid => pid.includes(lCode) || pid === lId);
         });
         if (filtered.length > 0) return filtered;
       }
     }
 
-    // Default fallback for any non-master Tournament Admin: restricted to JSL 2026 only
-    const jslOnly = allLeagues.filter(l => (l.code || l.category || l.shortCode || l.name || '').toUpperCase().includes('JSL'));
-    return jslOnly.length > 0 ? jslOnly : allLeagues.slice(0, 1);
+    // Default fallback for non-master Tournament Admin: return first league
+    return allLeagues.slice(0, 1);
   }
 
   getLeagueById(id) {
@@ -583,8 +819,9 @@ class Store {
 
   // --- PLAYERS ---
   getPlayers() {
-    const rawPlayers = JSON.parse(localStorage.getItem(STORAGE_KEYS.PLAYERS)) || [];
-    const rawTeams = JSON.parse(localStorage.getItem(STORAGE_KEYS.TEAMS)) || [];
+    if (this._cache.players) return this._cache.players;
+    const rawPlayers = JSON.parse(localStorage.getItem(this._scopedKey('PLAYERS'))) || [];
+    const rawTeams = JSON.parse(localStorage.getItem(this._scopedKey('TEAMS'))) || [];
 
     const normalizeName = (name) => (name || '').toLowerCase().replace(/\s+/g, ' ').replace(/[()]/g, '').trim();
 
@@ -632,13 +869,14 @@ class Store {
       return getPlayerTimestamp(a) - getPlayerTimestamp(b);
     });
 
-    return uniquePlayers.map((p, idx) => {
+    const result = uniquePlayers.map((p, idx) => {
       const canonicalSl = (p.id && p.id.startsWith('ply-1787000000000-')) 
         ? parseInt(p.id.replace('ply-1787000000000-', ''), 10)
         : (idx + 1);
       
       const displayNo = (!isNaN(canonicalSl) && canonicalSl > 0) ? canonicalSl : (idx + 1);
-      const regId = `JSL2026-${String(displayNo).padStart(4, '0')}`;
+      const tourneyCode = p.tournamentSlug ? p.tournamentSlug.toUpperCase().replace(/[^A-Z0-9]/g, '') : 'REG';
+      const regId = `${tourneyCode}-${String(displayNo).padStart(4, '0')}`;
 
       let validPhoto = p.photoUrl || p.player_photo_url || '';
       if (!validPhoto || validPhoto.includes('[Image Stored In Cloud]') || validPhoto.includes('unsplash.com') || (!validPhoto.startsWith('http') && !validPhoto.startsWith('data:image'))) {
@@ -660,8 +898,52 @@ class Store {
       const effectiveAuctionStatus = matchingIconTeam ? 'SOLD' : (p.auctionStatus || (p.teamId ? 'SOLD' : 'PENDING'));
       const effectiveSoldPrice = matchingIconTeam ? (Number(p.soldPrice) || 1000) : (Number(p.soldPrice) || 0);
 
+      const prof = this.getPlayerProfileByPhone(p.phone) || {};
+      const finalDob = p.dob || prof.dob || null;
+      const finalVillage = p.village || prof.village || '';
+      const finalDistrict = p.district || prof.district || 'Paschim Medinipur';
+      const finalState = p.state || prof.state || 'West Bengal';
+      const finalFatherName = p.fatherName || p.father_name || prof.fatherName || '';
+      const finalAadhar = p.aadharPhotoUrl || p.idCardFrontUrl || p.aadhaar_url || prof.aadharPhotoUrl || prof.idCardFrontUrl || '';
+      const finalAadharBack = p.idCardBackUrl || p.aadharBackUrl || prof.idCardBackUrl || '';
+      const finalReceipt = p.paymentReceiptUrl || p.paymentProofUrl || p.payment_screenshot_url || prof.paymentReceiptUrl || '';
+      const finalPaymentRef = p.paymentRef || p.remarks || prof.paymentRef || '';
+
+      let overrideStatus = null;
+      try {
+        const statusMapKey = 'cpl_player_status_overrides_' + (this.activeTournamentId || 'default');
+        const overrides = JSON.parse(localStorage.getItem(statusMapKey) || '{}');
+        const cleanPPhone = (p.phone || '').replace(/\D/g, '');
+        overrideStatus = overrides[p.id] || (cleanPPhone && overrides[cleanPPhone]) || null;
+      } catch (e) {}
+
+      const effectiveStatus = overrideStatus || p.paymentStatus || p.registrationStatus || 'PENDING';
+      const isApproved = effectiveStatus === 'APPROVED' || p.verified === true;
+      const isRejected = effectiveStatus === 'REJECTED';
+      const finalPaymentStatus = isApproved ? 'APPROVED' : (isRejected ? 'REJECTED' : 'PENDING');
+
       return {
         ...p,
+        tournament_id: p.tournament_id || p.tournamentId || this.activeTournamentId || null,
+        tournamentId: p.tournamentId || p.tournament_id || this.activeTournamentId || null,
+        paymentStatus: finalPaymentStatus,
+        registrationStatus: finalPaymentStatus,
+        verified: isApproved,
+        fatherName: finalFatherName,
+        dob: finalDob,
+        age: p.age || prof.age || '',
+        village: finalVillage,
+        district: finalDistrict,
+        state: finalState,
+        address: p.address || (finalVillage ? `${finalVillage}, ${finalDistrict}` : ''),
+        idCardFrontUrl: finalAadhar,
+        aadharPhotoUrl: finalAadhar,
+        idCardBackUrl: finalAadharBack,
+        aadharBackUrl: finalAadharBack,
+        paymentReceiptUrl: finalReceipt,
+        paymentProofUrl: finalReceipt,
+        paymentRef: finalPaymentRef,
+        remarks: finalPaymentRef,
         teamId: effectiveTeamId,
         teamName: effectiveTeamName,
         isIcon: isIcon,
@@ -677,17 +959,147 @@ class Store {
         regNo: regId
       };
     });
+
+    // Calculate real-time cumulative match performance statistics across all fixtures
+    try {
+      const fixtures = this.getFixtures() || [];
+      const statsMap = new Map();
+
+      for (const f of fixtures) {
+        const psMap = f.liveMatchState?.playerStats || f.liveState?.playerStats;
+        if (!psMap || typeof psMap !== 'object') continue;
+
+        for (const [pId, ps] of Object.entries(psMap)) {
+          if (!ps || typeof ps !== 'object') continue;
+          let pStat = statsMap.get(pId);
+          if (!pStat) {
+            pStat = {
+              runs: 0, balls: 0, fours: 0, sixes: 0, wickets: 0,
+              runsConceded: 0, ballsBowled: 0, maidens: 0,
+              dismissals: 0, catches: 0, stumpings: 0, matchesPlayed: 0
+            };
+            statsMap.set(pId, pStat);
+          }
+          pStat.runs += Number(ps.runs) || 0;
+          pStat.balls += Number(ps.balls) || 0;
+          pStat.fours += Number(ps.fours) || 0;
+          pStat.sixes += Number(ps.sixes) || 0;
+          pStat.wickets += Number(ps.wickets) || 0;
+          pStat.runsConceded += Number(ps.runsConceded) || 0;
+          pStat.ballsBowled += Number(ps.ballsBowled) || 0;
+          pStat.maidens += Number(ps.maidens) || 0;
+          if (ps.dismissed) pStat.dismissals += 1;
+          pStat.catches += Number(ps.catches) || 0;
+          pStat.stumpings += Number(ps.stumpings) || 0;
+          pStat.matchesPlayed += 1;
+        }
+      }
+
+      if (statsMap.size > 0) {
+        result.forEach(p => {
+          const st = statsMap.get(p.id) || statsMap.get(String(p.id)) || null;
+          if (st) {
+            p.totalRuns = (Number(p.totalRuns) || Number(p.runs) || 0) + st.runs;
+            p.runs = p.totalRuns;
+            p.totalBalls = (Number(p.totalBalls) || Number(p.balls) || 0) + st.balls;
+            p.balls = p.totalBalls;
+            p.totalFours = (Number(p.totalFours) || Number(p.fours) || 0) + st.fours;
+            p.fours = p.totalFours;
+            p.totalSixes = (Number(p.totalSixes) || Number(p.sixes) || 0) + st.sixes;
+            p.sixes = p.totalSixes;
+            p.totalWickets = (Number(p.totalWickets) || Number(p.wickets) || 0) + st.wickets;
+            p.wickets = p.totalWickets;
+            p.runsConceded = (Number(p.runsConceded) || 0) + st.runsConceded;
+            p.ballsBowled = (Number(p.ballsBowled) || 0) + st.ballsBowled;
+            p.totalMaidens = (Number(p.totalMaidens) || Number(p.maidens) || 0) + st.maidens;
+            p.maidens = p.totalMaidens;
+            p.dismissals = (Number(p.dismissals) || 0) + st.dismissals;
+            p.catches = (Number(p.catches) || 0) + st.catches;
+            p.stumpings = (Number(p.stumpings) || 0) + st.stumpings;
+            p.matchesPlayed = (Number(p.matchesPlayed) || 0) + st.matchesPlayed;
+          }
+        });
+      }
+    } catch (errStats) {
+      console.warn('[STORE] Error calculating real-time player stats:', errStats);
+    }
+
+    this._cache.players = result;
+    return result;
   }
 
   getPlayerById(id) {
     if (!id) return null;
-    return this.getPlayers().find(p => String(p.id) === String(id) || p.id == id);
+    return (this.getAllPlayersAcrossTournaments() || this.getPlayers()).find(p => String(p.id) === String(id) || (id && p.id && toUUID(p.id) === toUUID(id)));
+  }
+
+  getAllPlayersAcrossTournaments() {
+    const all = new Map();
+    const currentScoped = this.getPlayers();
+    currentScoped.forEach(p => {
+      if (p && p.id) all.set(p.id, p);
+    });
+
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith('cpl_players_v8_') || k === 'cpl_global_players')) {
+          const raw = localStorage.getItem(k);
+          if (raw) {
+            const list = JSON.parse(raw);
+            if (Array.isArray(list)) {
+              list.forEach(p => {
+                if (p && p.id) {
+                  const existing = all.get(p.id);
+                  if (!existing || (!existing.teamId && p.teamId) || (p.auctionStatus === 'SOLD' && existing.auctionStatus !== 'SOLD')) {
+                    all.set(p.id, p);
+                  }
+                }
+              });
+            }
+          }
+        }
+      }
+    } catch(e) {}
+
+    return Array.from(all.values());
+  }
+
+  getAllTeamsAcrossTournaments() {
+    const all = new Map();
+    const currentScoped = this.getTeams();
+    currentScoped.forEach(t => {
+      if (t && t.id) all.set(t.id, t);
+    });
+
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith('cpl_teams_v8_') || k === 'cpl_global_teams')) {
+          const raw = localStorage.getItem(k);
+          if (raw) {
+            const list = JSON.parse(raw);
+            if (Array.isArray(list)) {
+              list.forEach(t => {
+                if (t && t.id) {
+                  if (!all.has(t.id)) {
+                    all.set(t.id, t);
+                  }
+                }
+              });
+            }
+          }
+        }
+      }
+    } catch(e) {}
+
+    return Array.from(all.values());
   }
 
   // --- REGISTER NEW PLAYER WITH ATOMIC TIMESTAMP QUEUE & ZERO DUPLICATES ---
   registerPlayer(playerData) {
     if (!this.isPlayerRegistrationOpen()) {
-      throw new Error(this.getRegistrationSettings().closedReason || "JSL 2026 Player Registration is currently closed by the Master Admin.");
+      throw new Error(this.getRegistrationSettings().closedReason || "Player Registration is currently closed by the Admin.");
     }
     let players = this.getPlayers();
     
@@ -718,8 +1130,7 @@ class Store {
         photoUrl: playerData.photoUrl || playerData.player_photo_url || players[existingIdx].photoUrl,
         player_photo_url: playerData.photoUrl || playerData.player_photo_url || players[existingIdx].player_photo_url,
       };
-      safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
-      savePlayerToFirebase(players[existingIdx]);
+      safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
       syncPlayerToSupabase(players[existingIdx]);
       this.notify('players_updated');
       return players[existingIdx];
@@ -727,7 +1138,8 @@ class Store {
 
     const nextSerial = players.length + 1;
     const uuid = `ply-1787000000000-${String(nextSerial).padStart(4, '0')}`;
-    const regId = `JSL2026-${String(nextSerial).padStart(4, '0')}`;
+    const tourneyPrefix = (playerData.tournamentSlug || 'REG').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    const regId = `${tourneyPrefix}-${String(nextSerial).padStart(4, '0')}`;
     const createdTime = Date.now();
 
     const newPlayer = {
@@ -735,14 +1147,18 @@ class Store {
       profileId: profile ? profile.id : null,
       createdTime,
       regTimestamp: createdTime,
-      leagueCategory: playerData.leagueCategory || 'JSL',
+      leagueCategory: playerData.leagueCategory || 'T',
+      tournament_id: playerData.tournament_id || this.activeTournamentId || null,
+      tournamentId: playerData.tournamentId || playerData.tournament_id || this.activeTournamentId || null,
+      tournamentSlug: playerData.tournamentSlug || null,
+      tournamentName: playerData.tournamentName || null,
       name: (playerData.name || playerData.playerName || '').trim(),
       fatherName: playerData.fatherName || 'N/A',
       dob: playerData.dob || '2000-01-01',
       age: playerData.age || 24,
       phone: playerData.phone || playerData.mobile,
       alternateMobile: playerData.alternateMobile || '',
-      village: playerData.village || playerData.address || 'Jhankra',
+      village: playerData.village || playerData.address || '',
       district: playerData.district || 'Paschim Medinipur',
       state: playerData.state || 'West Bengal',
       category: playerData.category || playerData.playingType || 'All Rounder',
@@ -752,46 +1168,84 @@ class Store {
       bowlingStyle: playerData.bowlingStyle || 'Right Hand Medium',
       isWicketKeeper: !!playerData.isWicketKeeper,
       teamPreference: playerData.teamPreference || playerData.team || 'Any Team',
-      photoUrl: playerData.photoUrl || playerData.player_photo_url,
-      aadharPhotoUrl: playerData.aadharPhotoUrl || playerData.aadhaar_photo_url || 'Attached Proof',
-      paymentReceiptUrl: playerData.paymentReceiptUrl || playerData.payment_receipt_url || 'Attached Receipt',
-      paymentStatus: 'APPROVED',
-      registrationStatus: 'APPROVED',
+      photoUrl: playerData.photoUrl || playerData.player_photo_url || '',
+      docType: playerData.docType || 'ID Card',
+      idCardFrontUrl: playerData.idCardFrontUrl || playerData.id_card_front_url || playerData.aadharPhotoUrl || playerData.aadhaar_url || '',
+      idCardBackUrl: playerData.idCardBackUrl || playerData.id_card_back_url || playerData.aadharBackUrl || '',
+      aadharPhotoUrl: playerData.idCardFrontUrl || playerData.id_card_front_url || playerData.aadharPhotoUrl || playerData.aadhaar_url || '',
+      aadharBackUrl: playerData.idCardBackUrl || playerData.id_card_back_url || playerData.aadharBackUrl || '',
+      paymentReceiptUrl: playerData.paymentReceiptUrl || playerData.paymentProofUrl || playerData.payment_screenshot_url || '',
+      paymentStatus: playerData.paymentStatus || 'APPROVED',
+      registrationStatus: playerData.registrationStatus || 'APPROVED',
       phoneVerified: playerData.phoneVerified !== false,
       remarks: playerData.remarks || playerData.paymentRef || '',
-      paymentRef: playerData.paymentRef || '',
+      paymentRef: playerData.paymentRef || playerData.remarks || '',
       teamId: null,
       soldPrice: 0,
       basePrice: Number(playerData.basePrice) || 300,
       regDate: new Date().toISOString().split('T')[0],
-      serialNo: nextSerial,
-      displayRegistrationNumber: nextSerial,
+      serialNo: playerData.serialNo || playerData.reg_number || nextSerial,
+      displayRegistrationNumber: playerData.serialNo || playerData.reg_number || nextSerial,
       registrationId: regId,
       regNo: regId
     };
 
     players.push(newPlayer);
-    safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
-    savePlayerToFirebase(newPlayer);
+    safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
+
+    // Also persist directly into the target tournament's specific scoped storage key if different from active
+    const targetTid = playerData.tournament_id || playerData.tournamentId;
+    if (targetTid && targetTid !== this.activeTournamentId) {
+      try {
+        const targetKey = STORAGE_KEYS.PLAYERS + '_' + targetTid;
+        let targetList = [];
+        const rawTarget = localStorage.getItem(targetKey);
+        if (rawTarget) targetList = JSON.parse(rawTarget) || [];
+        if (!targetList.some(p => p.id === newPlayer.id || p.phone === newPlayer.phone)) {
+          targetList.push(newPlayer);
+          safeSetLocalStorage(targetKey, targetList);
+        }
+      } catch(e) {}
+    }
+
+    this.createOrUpdatePlayerProfile(newPlayer);
+    this.ensureUserAccountForPlayer(newPlayer, playerData.securityPin || playerData.password || null);
     syncPlayerToSupabase(newPlayer);
     this.notify('players_updated');
     return newPlayer;
   }
 
   updatePlayer(updatedPlayerData) {
+    this._invalidateCache('players');
     const players = this.getPlayers();
     const idx = players.findIndex(p => p.id === updatedPlayerData.id);
     if (idx !== -1) {
       const now = Date.now();
+      const s = (updatedPlayerData.paymentStatus || updatedPlayerData.registrationStatus || players[idx].paymentStatus || 'APPROVED').toUpperCase();
+      const isApproved = (s === 'APPROVED');
       players[idx] = { 
         ...players[idx], 
         ...updatedPlayerData,
+        paymentStatus: s,
+        registrationStatus: s,
+        verified: isApproved,
+        tournament_id: players[idx].tournament_id || this.activeTournamentId || null,
+        tournamentId: players[idx].tournamentId || this.activeTournamentId || null,
         updated_at: now
       };
+
+      // Save to persistent status overrides map
+      try {
+        const statusMapKey = 'cpl_player_status_overrides_' + (this.activeTournamentId || 'default');
+        const overrides = JSON.parse(localStorage.getItem(statusMapKey) || '{}');
+        overrides[players[idx].id] = s;
+        if (players[idx].phone) overrides[players[idx].phone.replace(/\D/g, '')] = s;
+        localStorage.setItem(statusMapKey, JSON.stringify(overrides));
+      } catch (e) {}
       
-      safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
-      savePlayerToFirebase(players[idx]);
-      patchPlayerInFirebase(players[idx].id, players[idx]);
+      this.createOrUpdatePlayerProfile(players[idx]);
+      this._invalidateCache('players');
+      safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
       syncPlayerToSupabase(players[idx]);
       this.notify('players_updated');
       return players[idx];
@@ -800,10 +1254,33 @@ class Store {
   }
 
   // --- AUTOMATIC CONTINUOUS RE-INDEXING ON DELETE PLAYER (NO GAPS IN NUMBERING) ---
-  deletePlayer(playerId) {
+  async deletePlayer(playerId) {
+    this._invalidateCache('players');
     let players = this.getPlayers();
     const playerToDelete = players.find(p => p.id === playerId);
+    const playerPhone = playerToDelete ? (playerToDelete.phone || playerToDelete.mobile) : null;
+    const cleanPhone = playerPhone ? playerPhone.replace(/\D/g, '') : null;
+    const tourneyId = playerToDelete?.tournament_id || this.activeTournamentId;
     
+    // 1. Immediately record in local deleted IDs pool to prevent sync race conditions
+    try {
+      const delKey = 'cpl_deleted_player_ids_' + (this.activeTournamentId || 'default');
+      const delList = JSON.parse(localStorage.getItem(delKey) || '[]');
+      if (!delList.includes(playerId)) delList.push(playerId);
+      if (cleanPhone && !delList.includes(cleanPhone)) delList.push(cleanPhone);
+      localStorage.setItem(delKey, JSON.stringify(delList));
+    } catch (e) {}
+
+    // 2. Clean from local status overrides map
+    try {
+      const statusMapKey = 'cpl_player_status_overrides_' + (this.activeTournamentId || 'default');
+      const overrides = JSON.parse(localStorage.getItem(statusMapKey) || '{}');
+      delete overrides[playerId];
+      if (cleanPhone) delete overrides[cleanPhone];
+      localStorage.setItem(statusMapKey, JSON.stringify(overrides));
+    } catch (e) {}
+
+    // 3. Remove from team squad if assigned
     if (playerToDelete && playerToDelete.teamId) {
       const teams = this.getTeams();
       const team = teams.find(t => t.id === playerToDelete.teamId);
@@ -816,59 +1293,86 @@ class Store {
           team.playerIds = team.playerIds.filter(id => id !== playerId);
         }
         team.updated_at = Date.now();
-        safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
+        safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
         syncTeamToSupabase(team);
         this.notify('teams_updated');
       }
     }
 
-    // Filter out deleted player
-    players = players.filter(p => p.id !== playerId);
+    // 4. Filter out deleted player
+    players = players.filter(p => p.id !== playerId && (!cleanPhone || (p.phone || '').replace(/\D/g, '') !== cleanPhone));
 
-    // CONTINUOUS DYNAMIC RE-INDEXING (1, 2, 3... JSL2026-0001, JSL2026-0002...)
+    // 5. CONTINUOUS DYNAMIC RE-INDEXING (1, 2, 3... REG-0001, REG-0002...)
     players.forEach((p, idx) => {
       const displayNo = idx + 1;
       p.serialNo = displayNo;
       p.displayRegistrationNumber = displayNo;
-      p.registrationId = `JSL2026-${String(displayNo).padStart(4, '0')}`;
+      const prefix = (p.tournamentSlug || 'REG').toUpperCase().replace(/[^A-Z0-9]/g, '');
+      p.registrationId = `${prefix}-${String(displayNo).padStart(4, '0')}`;
       p.regNo = p.registrationId;
     });
 
-    safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
-    deletePlayerFromSupabase(playerId);
+    this._invalidateCache('players');
+    safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
+    this.notify('players_updated');
+
+    await deletePlayerFromSupabase(playerId, playerPhone, tourneyId);
+    await this.syncGlobalPlayersCount();
     this.notify('players_updated');
   }
 
   clearAllPlayers() {
     const timestamp = Date.now();
     localStorage.setItem('cpl_last_cleared_at', String(timestamp));
-    safeSetLocalStorage(STORAGE_KEYS.PLAYERS, []);
-    clearAllPlayersFromFirebase();
+    this._invalidateCache('players');
+    safeSetLocalStorage(this._scopedKey('PLAYERS'), []);
+    clearAllPlayersFromCloud();
     this.notify('players_updated');
   }
 
   clearAllTeams() {
     const timestamp = Date.now();
     localStorage.setItem('cpl_last_teams_cleared_at', String(timestamp));
-    safeSetLocalStorage(STORAGE_KEYS.TEAMS, []);
-    clearAllTeamsFromFirebase();
+    this._invalidateCache('teams');
+    safeSetLocalStorage(this._scopedKey('TEAMS'), []);
+    clearAllTeamsFromCloud();
     this.notify('teams_updated');
   }
 
   updatePlayerStatus(playerId, paymentStatus, registrationStatus, remarks = '') {
+    this._invalidateCache('players');
     const players = this.getPlayers();
     const player = players.find(p => p.id === playerId);
     if (player) {
       const now = Date.now();
-      player.paymentStatus = paymentStatus.toUpperCase();
-      player.registrationStatus = (registrationStatus || paymentStatus).toUpperCase();
+      const s = (paymentStatus || 'APPROVED').toUpperCase();
+      player.paymentStatus = s;
+      player.registrationStatus = (registrationStatus || s).toUpperCase();
+      player.verified = (s === 'APPROVED');
       player.updated_at = now;
       if (remarks) player.remarks = remarks;
+      if (!player.tournament_id && this.activeTournamentId) {
+        player.tournament_id = this.activeTournamentId;
+        player.tournamentId = this.activeTournamentId;
+      }
       
-      safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
+      // Save to persistent status overrides map
+      try {
+        const statusMapKey = 'cpl_player_status_overrides_' + (this.activeTournamentId || 'default');
+        const overrides = JSON.parse(localStorage.getItem(statusMapKey) || '{}');
+        overrides[player.id] = s;
+        if (player.phone) overrides[player.phone.replace(/\D/g, '')] = s;
+        localStorage.setItem(statusMapKey, JSON.stringify(overrides));
+      } catch (e) {}
+
+      this.createOrUpdatePlayerProfile(player);
+      this._invalidateCache('players');
+      safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
       syncPlayerToSupabase(player);
       this.notify('players_updated');
+      return player;
     }
+    return null;
   }
 
   purgePlayerSensitiveDocs(playerId) {
@@ -891,9 +1395,7 @@ class Store {
       player.docsPurged = true;
       player.updated_at = now;
 
-      safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
-      savePlayerToFirebase(player);
-      patchPlayerInFirebase(player.id, player);
+      safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
       syncPlayerToSupabase(player);
       this.notify('players_updated');
     }
@@ -923,33 +1425,104 @@ class Store {
       }
     });
     if (count > 0) {
-      safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
+      safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
       this.notify('players_updated');
     }
     return count;
   }
 
+  _savePlayerAcrossAllKeys(player) {
+    if (!player || !player.id) return;
+    this._invalidateCache('players');
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith('cpl_players_v8_') || k === 'cpl_global_players')) {
+          const raw = localStorage.getItem(k);
+          if (raw) {
+            let arr = JSON.parse(raw);
+            if (Array.isArray(arr)) {
+              let updated = false;
+              arr = arr.map(p => {
+                if (p && (p.id === player.id || (player.id && p.id && toUUID(p.id) === toUUID(player.id)))) {
+                  updated = true;
+                  return { ...p, ...player };
+                }
+                return p;
+              });
+              if (updated) {
+                safeSetLocalStorage(k, arr);
+              }
+            }
+          }
+        }
+      }
+    } catch(e) {}
+  }
+
+  _saveTeamAcrossAllKeys(team) {
+    if (!team || !team.id) return;
+    this._invalidateCache('teams');
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith('cpl_teams_v8_') || k === 'cpl_global_teams')) {
+          const raw = localStorage.getItem(k);
+          if (raw) {
+            let arr = JSON.parse(raw);
+            if (Array.isArray(arr)) {
+              let updated = false;
+              arr = arr.map(t => {
+                if (t && (t.id === team.id || (team.id && t.id && toUUID(t.id) === toUUID(team.id)))) {
+                  updated = true;
+                  return { ...t, ...team };
+                }
+                return t;
+              });
+              if (updated) {
+                safeSetLocalStorage(k, arr);
+              }
+            }
+          }
+        }
+      }
+    } catch(e) {}
+  }
+
   assignPlayerToTeam(playerId, teamId, soldPrice) {
-    const players = this.getPlayers();
-    const teams = this.getTeams();
+    this._invalidateCache('players');
+    this._invalidateCache('teams');
+    let players = this.getPlayers();
+    let teams = this.getTeams();
     
-    const player = players.find(p => p.id === playerId);
-    const team = teams.find(t => t.id === teamId);
+    let player = players.find(p => p.id === playerId || (playerId && p.id && toUUID(p.id) === toUUID(playerId)));
+    if (!player && this.getAllPlayersAcrossTournaments) {
+      player = this.getAllPlayersAcrossTournaments().find(p => p.id === playerId || (playerId && p.id && toUUID(p.id) === toUUID(playerId)));
+    }
+
+    let team = teams.find(t => t.id === teamId || (teamId && t.id && toUUID(t.id) === toUUID(teamId)));
+    if (!team && this.getAllTeamsAcrossTournaments) {
+      team = this.getAllTeamsAcrossTournaments().find(t => t.id === teamId || (teamId && t.id && toUUID(t.id) === toUUID(teamId)));
+    }
 
     if (player && team) {
       if (player.teamId) {
-        const oldTeam = teams.find(t => t.id === player.teamId);
+        const oldTeam = teams.find(t => t.id === player.teamId || (player.teamId && t.id && toUUID(t.id) === toUUID(player.teamId))) || (this.getAllTeamsAcrossTournaments ? this.getAllTeamsAcrossTournaments().find(t => t.id === player.teamId || (player.teamId && t.id && toUUID(t.id) === toUUID(player.teamId))) : null);
         if (oldTeam) {
-          oldTeam.squadCount = Math.max(0, oldTeam.squadCount - 1);
-          oldTeam.purseSpent = Math.max(0, oldTeam.purseSpent - (player.soldPrice || 0));
+          oldTeam.squadCount = Math.max(0, (oldTeam.squadCount || 1) - 1);
+          oldTeam.purseSpent = Math.max(0, (oldTeam.purseSpent || 0) - (player.soldPrice || 0));
           oldTeam.remainingPurse = Math.max(0, (Number(oldTeam.purseBudget) || 8000) - oldTeam.purseSpent);
           oldTeam.updated_at = Date.now();
+          this._saveTeamAcrossAllKeys(oldTeam);
+          syncTeamToSupabase(oldTeam);
         }
       }
 
       const price = Number(soldPrice) || player.basePrice || 300;
-      player.teamId = teamId;
+      player.teamId = team.id;
+      player.team_id = team.id;
       player.soldPrice = price;
+      player.sold_price = price;
       player.teamName = team.name;
       player.auctionStatus = 'SOLD';
       player.isSold = true;
@@ -961,12 +1534,12 @@ class Store {
       team.remainingPurse = Math.max(0, (Number(team.purseBudget) || 8000) - team.purseSpent);
       team.updated_at = Date.now();
 
-      safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
-      safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
-      savePlayerToFirebase(player);
-      saveTeamToFirebase(team);
-      patchPlayerInFirebase(player.id, player);
-      patchTeamInFirebase(team.id, team);
+      this._invalidateCache('players');
+      this._invalidateCache('teams');
+      safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
+      safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
+      this._savePlayerAcrossAllKeys(player);
+      this._saveTeamAcrossAllKeys(team);
       syncPlayerToSupabase(player);
       syncTeamToSupabase(team);
       this.notify('players_updated');
@@ -978,22 +1551,26 @@ class Store {
   }
 
   markPlayerUnsold(playerId) {
+    this._invalidateCache('players');
+    this._invalidateCache('teams');
     const players = this.getPlayers();
-    const player = players.find(p => p.id === playerId);
+    const player = players.find(p => p.id === playerId || (playerId && p.id && toUUID(p.id) === toUUID(playerId)));
     if (!player) return false;
 
     const now = Date.now();
     player.teamId = null;
+    player.team_id = null;
     player.teamName = null;
     player.soldPrice = 0;
+    player.sold_price = 0;
     player.auctionStatus = 'UNSOLD';
     player.isSold = false;
     player.isUnsold = true;
     player.updated_at = now;
 
-    safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
-    savePlayerToFirebase(player);
-    patchPlayerInFirebase(player.id, player);
+    this._invalidateCache('players');
+    this._invalidateCache('teams');
+    safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
     syncPlayerToSupabase(player);
     this.notify('players_updated');
     this.notify('live_auction_updated');
@@ -1019,9 +1596,7 @@ class Store {
           team.playerIds = team.playerIds.filter(id => id !== playerId);
         }
         team.updated_at = now;
-        safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
-        saveTeamToFirebase(team);
-        patchTeamInFirebase(team.id, team);
+        safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
         syncTeamToSupabase(team);
       }
     }
@@ -1048,9 +1623,7 @@ class Store {
       });
     }
 
-    safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
-    savePlayerToFirebase(player);
-    patchPlayerInFirebase(player.id, player);
+    safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
     syncPlayerToSupabase(player);
     this.notify('players_updated');
     this.notify('teams_updated');
@@ -1062,6 +1635,7 @@ class Store {
   resetAuctionData() {
     const players = this.getPlayers();
     const now = Date.now();
+    const syncPromises = [];
     players.forEach(p => {
       p.teamId = null;
       p.teamName = null;
@@ -1070,18 +1644,11 @@ class Store {
       p.isSold = false;
       p.boughtByTeamId = null;
       p.updated_at = now;
-      patchPlayerInFirebase(p.id, {
-        teamId: null,
-        teamName: null,
-        soldPrice: 0,
-        auctionStatus: 'PENDING',
-        isSold: false,
-        boughtByTeamId: null,
-        updated_at: now
-      });
+      syncPromises.push(syncPlayerToSupabase(p));
     });
+    Promise.all(syncPromises).catch(e => console.warn('Batch auction reset sync:', e));
 
-    const teams = (JSON.parse(localStorage.getItem(STORAGE_KEYS.TEAMS)) || []).map((t, idx) => {
+    const teams = (JSON.parse(localStorage.getItem(this._scopedKey('TEAMS'))) || []).map((t, idx) => {
       const hasIcon = !!(t.iconPlayerName || t.iconName);
       const iconDeduction = hasIcon ? 1000 : 0;
       const budget = Number(t.purseBudget || t.purse || 8000);
@@ -1096,7 +1663,6 @@ class Store {
         playerIds: [],
         updated_at: now
       };
-      saveTeamToFirebase(resetT);
       return resetT;
     });
 
@@ -1111,8 +1677,8 @@ class Store {
       updated_at: now
     });
 
-    safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
-    safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
+    safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
+    safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
     
     if (typeof syncTeamToSupabase === 'function') {
       teams.forEach(t => syncTeamToSupabase(t));
@@ -1126,8 +1692,9 @@ class Store {
 
   // --- TEAMS ---
   getTeams() {
-    const teams = JSON.parse(localStorage.getItem(STORAGE_KEYS.TEAMS)) || [];
-    const allPlayers = JSON.parse(localStorage.getItem(STORAGE_KEYS.PLAYERS)) || [];
+    if (this._cache.teams) return this._cache.teams;
+    const teams = JSON.parse(localStorage.getItem(this._scopedKey('TEAMS'))) || [];
+    const allPlayers = JSON.parse(localStorage.getItem(this._scopedKey('PLAYERS'))) || [];
 
     // DEDUP TEAMS: If the same team name exists under two IDs (e.g. team-aniket-xi AND team-1787144635606),
     // keep only the canonical timestamp-based ID.
@@ -1135,11 +1702,6 @@ class Store {
     const deduped = [];
     for (const t of teams) {
       if (!t || !t.id) continue;
-      if (t.name && (t.name.trim().toLowerCase() === 'arjo xi' || t.name.trim().toLowerCase() === 'arjo' || t.name.trim().toLowerCase() === 'arjo 11' || t.name.trim().toLowerCase() === 'team arjo xi')) {
-        t.name = 'SWEETY JEWELLERS';
-        t.ownerName = 'Partho Ghosh';
-        t.shortCode = 'SJ';
-      }
       const normName = (t.name || '').trim().toLowerCase();
       if (!normName) { deduped.push(t); continue; }
       
@@ -1162,19 +1724,23 @@ class Store {
       }
     }
     
-    return deduped.map((t, idx) => {
+    const filteredTeams = deduped;
+
+    const teamResult = filteredTeams.map((t, idx) => {
       const iconPlayerName = (t.iconPlayerName || t.iconName || '').trim().toLowerCase();
-      const hasIcon = !!iconPlayerName;
-      const iconDeduction = hasIcon ? 1000 : 0;
+      const hasIcon = !!iconPlayerName || !!t.iconPlayerId;
+      const defaultIconFee = Number(this.getAuctionSettings().defaultIconPrice) || 1000;
+      const iconDeduction = hasIcon ? defaultIconFee : 0;
       
       // Calculate total spent on purchased auction players (excluding icon player to avoid double deduction)
       const purchasedNonIconPlayers = allPlayers.filter(p => {
         if (!p) return false;
-        const isMatch = (p.teamId === t.id) || (p.teamName && (p.teamName || '').trim().toLowerCase() === (t.name || '').trim().toLowerCase());
+        const pTeamId = p.teamId || p.team_id;
+        const isMatch = (pTeamId && (pTeamId === t.id || toUUID(pTeamId) === toUUID(t.id))) || (p.teamName && (p.teamName || '').trim().toLowerCase() === (t.name || '').trim().toLowerCase());
         if (!isMatch) return false;
         const pName = (p.name || '').trim().toLowerCase();
-        const isThisTeamIcon = hasIcon && (pName === iconPlayerName || (t.iconPlayerId && p.id === t.iconPlayerId));
-        const isSoldStatus = (p.auctionStatus === 'SOLD' || p.isSold === true || !!p.teamId);
+        const isThisTeamIcon = hasIcon && (pName === iconPlayerName || (t.iconPlayerId && (p.id === t.iconPlayerId || toUUID(p.id) === toUUID(t.iconPlayerId))));
+        const isSoldStatus = (p.auctionStatus === 'SOLD' || p.isSold === true || !!pTeamId);
         return isSoldStatus && !isThisTeamIcon;
       });
       const auctionSpent = purchasedNonIconPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || 0), 0);
@@ -1197,10 +1763,56 @@ class Store {
         logoUrl: t.logoUrl || t.logo || 'assets/card_jsl_cartoon.png'
       };
     });
+    this._cache.teams = teamResult;
+    return teamResult;
+  }
+
+  getAllTeamsAcrossTournaments() {
+    const allTourneys = this.getCustomTournaments() || [];
+    const map = new Map();
+
+    // 1. Add active tournament teams
+    this.getTeams().forEach(t => {
+      if (t && t.id) {
+        map.set(t.id, {
+          ...t,
+          tournamentId: t.tournament_id || t.tournamentId || this.activeTournamentId,
+          leagueCode: (t.leagueCode || 'T').toUpperCase()
+        });
+      }
+    });
+
+    // 2. Add other tournaments custom teams
+    allTourneys.forEach(tourney => {
+      const tid = tourney.supabaseId || tourney.id;
+      const code = (tourney.category_code || tourney.slug || 'T').toUpperCase();
+      const customTeams = Array.isArray(tourney.format_config?.custom_teams) ? tourney.format_config.custom_teams : [];
+      let localScopedTeams = [];
+      try {
+        const raw = localStorage.getItem(`cpl_teams_v8_${tid}`);
+        if (raw) localScopedTeams = JSON.parse(raw) || [];
+      } catch (e) {}
+
+      [...customTeams, ...localScopedTeams].forEach(t => {
+        if (t && t.id && !map.has(t.id)) {
+          map.set(t.id, {
+            ...t,
+            tournamentId: tid,
+            tournamentName: tourney.name,
+            leagueCode: (t.leagueCode || code).toUpperCase(),
+            group: t.group || 'A',
+            logoUrl: t.logoUrl || t.logo || 'assets/card_jsl_user.png'
+          });
+        }
+      });
+    });
+
+    return Array.from(map.values());
   }
 
   getTeamById(id) {
-    return this.getTeams().find(t => t.id === id);
+    if (!id) return null;
+    return this.getAllTeamsAcrossTournaments().find(t => t.id === id) || this.getTeams().find(t => t.id === id);
   }
 
   syncIconPlayerAllocation(oldTeam, newTeam) {
@@ -1237,12 +1849,13 @@ class Store {
       players.forEach(p => {
         const isNew = (newIconId && p.id === newIconId) || (newIconName && (p.name || '').trim().toLowerCase() === newIconName);
         if (isNew) {
+          const iconFee = Number(this.getAuctionSettings().defaultIconPrice) || 1000;
           p.teamId = newTeam.id;
           p.teamName = newTeam.name;
           p.isIcon = true;
           p.isIconPlayer = true;
           p.auctionStatus = 'SOLD';
-          p.soldPrice = 1000;
+          p.soldPrice = iconFee;
           p.isSold = true;
           p.boughtByTeamId = newTeam.id;
           p.updated_at = Date.now();
@@ -1253,7 +1866,7 @@ class Store {
     }
 
     if (changed) {
-      safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
+      safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
       this.notify('players_updated');
     }
   }
@@ -1262,6 +1875,7 @@ class Store {
     const teams = this.getTeams();
     const players = this.getPlayers();
     let changed = false;
+    const syncPromises = [];
 
     teams.forEach(t => {
       const iconName = (t.iconPlayerName || t.iconName || '').trim().toLowerCase();
@@ -1280,27 +1894,30 @@ class Store {
             p.boughtByTeamId = t.id;
             p.updated_at = Date.now();
             changed = true;
-            if (typeof syncPlayerToSupabase === 'function') syncPlayerToSupabase(p);
+            syncPromises.push(syncPlayerToSupabase(p));
           }
         });
       }
     });
 
     if (changed) {
-      safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
+      Promise.all(syncPromises).catch(e => console.warn('Batch icon sync:', e));
+      safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
       this.notify('players_updated');
     }
   }
 
   registerTeam(teamData) {
     if (!this.isTeamRegistrationOpen()) {
-      throw new Error(this.getRegistrationSettings().closedReason || "JSL 2026 Team Registration is currently closed by the Master Admin.");
+      throw new Error(this.getRegistrationSettings().closedReason || "Team Registration is currently closed by the Admin.");
     }
     const teams = this.getTeams();
     const serialNo = teams.length + 1;
     const newTeam = {
-      id: `team-${Date.now()}`,
+      id: teamData.id || generateUUID(),
       serialNo,
+      tournament_id: teamData.tournament_id || this.activeTournamentId || null,
+      tournamentId: teamData.tournamentId || teamData.tournament_id || this.activeTournamentId || null,
       squadCount: 0,
       maxSquad: 15,
       purseBudget: 8000,
@@ -1315,8 +1932,8 @@ class Store {
       t.serialNo = idx + 1;
     });
     
-    safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
-    saveTeamToFirebase(newTeam);
+    delete this._cache.teams;
+    safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
     syncTeamToSupabase(newTeam);
     this.syncIconPlayerAllocation(null, newTeam);
     this.notify('teams_updated');
@@ -1332,9 +1949,8 @@ class Store {
       teams.forEach((t, i) => {
         t.serialNo = i + 1;
       });
-      safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
-      saveTeamToFirebase(teams[idx]);
-      patchTeamInFirebase(teams[idx].id, teams[idx]);
+      delete this._cache.teams;
+      safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
       syncTeamToSupabase(teams[idx]);
       this.syncIconPlayerAllocation(oldTeam, teams[idx]);
       this.notify('teams_updated');
@@ -1367,32 +1983,80 @@ class Store {
       }
     });
 
-    safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
-    safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
-    deleteTeamFromSupabase(teamId);
+    delete this._cache.teams;
+    safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
+    safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
+    deleteTeamFromSupabase(teamId, this.activeTournamentId);
     this.notify('teams_updated');
     this.notify('players_updated');
   }
 
   // --- FIXTURES ---
   getFixtures() {
-    return JSON.parse(localStorage.getItem(STORAGE_KEYS.FIXTURES)) || [];
+    if (this._cache.fixtures) return this._cache.fixtures;
+    let all = JSON.parse(localStorage.getItem(this._scopedKey('FIXTURES'))) || [];
+
+    // Clean out fixtures that belong to another tournament's teams
+    const activeTid = this.activeTournamentId;
+    const activeUUID = toUUID(activeTid);
+    const activeTeams = this.getTeams() || [];
+    const activeTeamIds = new Set(activeTeams.map(t => String(t.id)));
+
+    if (activeTeamIds.size > 0) {
+      const allCrossTeams = this.getAllTeamsAcrossTournaments ? this.getAllTeamsAcrossTournaments() : activeTeams;
+      const otherTeamIds = new Set(
+        allCrossTeams.filter(t => t && t.id && !activeTeamIds.has(String(t.id))).map(t => String(t.id))
+      );
+
+      all = all.filter(f => {
+        if (!f) return false;
+        const fTeamA = f.teamAId ? String(f.teamAId) : '';
+        const fTeamB = f.teamBId ? String(f.teamBId) : '';
+        if (otherTeamIds.has(fTeamA) || otherTeamIds.has(fTeamB)) return false;
+        return true;
+      });
+    }
+
+    // Auto-correct fixtures mistakenly marked 'LIVE' without active deliveries or toss
+    const activeScoringId = typeof localStorage !== 'undefined' ? localStorage.getItem('cpl_active_scoring_fixture_id') : null;
+    all.forEach(f => {
+      if (f && f.status === 'LIVE' && f.id !== activeScoringId) {
+        const s = f.liveMatchState || {};
+        const balls = (s.overs || 0) * 6 + (s.balls || 0);
+        const runs = s.runs || 0;
+        const wickets = s.wickets || 0;
+        const hasToss = !!s.tossDetails;
+
+        if (balls === 0 && runs === 0 && wickets === 0 && !hasToss) {
+          f.status = 'SCHEDULED';
+          f.liveMatchState = null;
+        }
+      }
+    });
+
+    this._cache.fixtures = all;
+    return all;
   }
 
   registerFixture(fixtureData) {
     const fixtures = this.getFixtures();
     const newFixture = {
-      id: 'fix-' + Date.now(),
+      id: fixtureData.id || generateUUID(),
+      tournament_id: fixtureData.tournament_id || fixtureData.leagueId || this.activeTournamentId,
+      leagueId: fixtureData.leagueId || fixtureData.tournament_id || this.activeTournamentId,
       status: 'SCHEDULED',
       innings: 1,
       teamAScore: { runs: 0, wickets: 0, overs: 0, balls: 0 },
       teamBScore: { runs: 0, wickets: 0, overs: 0, balls: 0 },
       liveMatchState: null,
+      created_at: new Date().toISOString(),
+      updated_at: Date.now(),
       ...fixtureData
     };
     fixtures.push(newFixture);
-    safeSetLocalStorage(STORAGE_KEYS.FIXTURES, fixtures);
-    saveFixtureToFirebase(newFixture);
+    this._invalidateCache('fixtures');
+    safeSetLocalStorage(this._scopedKey('FIXTURES'), fixtures);
+    saveFixtureToCloud(newFixture, this.activeTournamentId);
     this.notify('fixtures_updated');
     return newFixture;
   }
@@ -1401,33 +2065,10 @@ class Store {
     const fixtures = this.getFixtures();
     const idx = fixtures.findIndex(f => f.id === updatedFixture.id);
     if (idx !== -1) {
-      // If actively scoring a LIVE match, increment monotonic version counter
-      if (updatedFixture.status === 'LIVE' && updatedFixture.liveMatchState) {
-        const prevV = Number(updatedFixture.liveMatchState._v || 0);
-        const nextV = prevV + 1;
-        updatedFixture.liveMatchState._v = nextV;
-        updatedFixture.liveMatchState._updatedAt = Date.now();
-
-        if (typeof localStorage !== 'undefined') {
-          try {
-            localStorage.setItem('cpl_active_scoring_fixture_id', String(updatedFixture.id));
-            localStorage.setItem(`cpl_active_scoring_${updatedFixture.id}_v`, String(nextV));
-          } catch(e) {}
-        }
-      } else if (updatedFixture.status === 'COMPLETED') {
-        if (typeof localStorage !== 'undefined') {
-          try {
-            localStorage.removeItem('cpl_active_scoring_fixture_id');
-          } catch(e) {}
-        }
-        if (typeof window !== 'undefined' && window.__cplActiveScoringFixtureId === updatedFixture.id) {
-          window.__cplActiveScoringFixtureId = null;
-        }
-      }
-
-      fixtures[idx] = { ...fixtures[idx], ...updatedFixture };
-      safeSetLocalStorage(STORAGE_KEYS.FIXTURES, fixtures);
-      saveFixtureToFirebase(fixtures[idx]);
+      fixtures[idx] = { ...fixtures[idx], ...updatedFixture, updated_at: Date.now() };
+      this._invalidateCache('fixtures');
+      safeSetLocalStorage(this._scopedKey('FIXTURES'), fixtures);
+      saveFixtureToCloud(fixtures[idx], this.activeTournamentId);
       this.notify('fixtures_updated');
       return fixtures[idx];
     }
@@ -1437,9 +2078,191 @@ class Store {
   deleteFixture(fixtureId) {
     let fixtures = this.getFixtures();
     fixtures = fixtures.filter(f => f.id !== fixtureId);
-    safeSetLocalStorage(STORAGE_KEYS.FIXTURES, fixtures);
-    deleteFixtureFromFirebase(fixtureId);
+    this._invalidateCache('fixtures');
+    safeSetLocalStorage(this._scopedKey('FIXTURES'), fixtures);
+    deleteFixtureFromCloud(fixtureId, this.activeTournamentId);
+
+    // Record deleted fixture ID locally to prevent cloud sync resurrection
+    try {
+      const deletedRaw = localStorage.getItem('cpl_deleted_fixture_ids');
+      const deletedSet = new Set(deletedRaw ? JSON.parse(deletedRaw) : []);
+      if (fixtureId) deletedSet.add(fixtureId);
+      const uuid = toUUID(fixtureId);
+      if (uuid) deletedSet.add(uuid);
+      safeSetLocalStorage('cpl_deleted_fixture_ids', Array.from(deletedSet));
+    } catch (e) {}
+
+    // Clean across ALL tournament keys and format configs in localStorage
+    const tourneys = this.getCustomTournaments() || [];
+    tourneys.forEach(t => {
+      const tid = t.supabaseId || t.id;
+      if (tid) {
+        try {
+          const key = `cpl_fixtures_v8_${tid}`;
+          const raw = localStorage.getItem(key);
+          if (raw) {
+            const arr = (JSON.parse(raw) || []).filter(f => f.id !== fixtureId && toUUID(f.id) !== toUUID(fixtureId));
+            safeSetLocalStorage(key, arr);
+          }
+        } catch (e) {}
+      }
+      if (Array.isArray(t.format_config?.custom_matches)) {
+        const origLen = t.format_config.custom_matches.length;
+        t.format_config.custom_matches = t.format_config.custom_matches.filter(f => f.id !== fixtureId && toUUID(f.id) !== toUUID(fixtureId));
+        if (t.format_config.custom_matches.length !== origLen) {
+          this._saveTournamentAcrossAllKeys(t);
+        }
+      }
+    });
+
+    // Clean from legacy key if present
+    try {
+      const legacyRaw = localStorage.getItem('cpl_fixtures_v8');
+      if (legacyRaw) {
+        const legacyMatches = (JSON.parse(legacyRaw) || []).filter(f => f.id !== fixtureId && toUUID(f.id) !== toUUID(fixtureId));
+        safeSetLocalStorage('cpl_fixtures_v8', legacyMatches);
+      }
+    } catch (e) {}
+
     this.notify('fixtures_updated');
+  }
+
+  clearAllFixtures() {
+    // Record all existing fixture IDs as deleted to block cloud echoes
+    try {
+      const curFixtures = this.getFixtures();
+      const deletedRaw = localStorage.getItem('cpl_deleted_fixture_ids');
+      const deletedSet = new Set(deletedRaw ? JSON.parse(deletedRaw) : []);
+      curFixtures.forEach(f => {
+        if (f && f.id) {
+          deletedSet.add(f.id);
+          const u = toUUID(f.id);
+          if (u) deletedSet.add(u);
+        }
+      });
+      safeSetLocalStorage('cpl_deleted_fixture_ids', Array.from(deletedSet));
+      safeSetLocalStorage(`cpl_matches_cleared_at_${this.activeTournamentId}`, Date.now());
+    } catch (e) {}
+
+    this._invalidateCache('fixtures');
+    safeSetLocalStorage(this._scopedKey('FIXTURES'), []);
+    clearAllFixturesFromCloud(this.activeTournamentId);
+
+    const activeTid = this.activeTournamentId;
+    const tourneys = this.getCustomTournaments();
+    const curT = tourneys.find(t => (t.supabaseId || t.id) === activeTid);
+
+    // Clean legacy key of matches belonging to this tournament
+    try {
+      const legacyRaw = localStorage.getItem('cpl_fixtures_v8');
+      if (legacyRaw) {
+        const code = (curT?.slug || curT?.category_code || '').toUpperCase();
+        const legacyMatches = (JSON.parse(legacyRaw) || []).filter(f => {
+          const fTid = f.tournament_id || f.tournamentId || f.leagueId;
+          const fCode = (f.leagueCode || '').toUpperCase();
+          if (fTid && (fTid === activeTid || toUUID(fTid) === toUUID(activeTid))) return false;
+          if (code && fCode && (fCode === code || (code === 'K2026' && (fCode === 'KPL' || fCode === 'K2026')) || (code === 'JSL' && fCode === 'JSL'))) return false;
+          return true;
+        });
+        safeSetLocalStorage('cpl_fixtures_v8', legacyMatches);
+      }
+    } catch (e) {}
+
+    // Clean format_config.custom_matches
+    if (curT) {
+      if (!curT.format_config) curT.format_config = {};
+      curT.format_config.custom_matches = [];
+      this._saveTournamentAcrossAllKeys(curT);
+    }
+
+    this.notify('fixtures_updated');
+  }
+
+  getAllFixturesAcrossTournaments() {
+    const allTourneys = this.getCustomTournaments() || [];
+    const activeTid = this.activeTournamentId;
+    const activeFixtures = this.getFixtures();
+    const map = new Map();
+
+    // 1. Add active tournament fixtures (if cleared, activeFixtures is [], so 0 matches for active tournament)
+    activeFixtures.forEach(f => {
+      if (f && f.id) {
+        const fCode = (f.leagueCode || '').toUpperCase();
+        const fTid = f.tournament_id || f.tournamentId || f.leagueId;
+
+        const tourney = allTourneys.find(t => {
+          const tCode = (t.category_code || t.code || t.category || t.shortCode || t.slug || '').toUpperCase();
+          const tId = t.supabaseId || t.id;
+          if (fTid && (tId === fTid || t.id === fTid || t.supabaseId === fTid)) return true;
+          if (fCode && tCode && (fCode === tCode || (fCode === 'K2026' && (tCode === 'KPL' || tCode === 'K2026')) || (fCode === 'KPL' && (tCode === 'K2026' || tCode === 'KPL')))) return true;
+          return false;
+        }) || (fTid ? allTourneys.find(t => (t.supabaseId || t.id) === fTid) : null) || {};
+
+        const effectiveTid = tourney.supabaseId || tourney.id || fTid || activeTid;
+        const effectiveName = tourney.name || f.tournamentName || (fCode === 'JSL' ? 'Jhankra Super League 2026' : ((fCode === 'KPL' || fCode === 'K2026' || fCode === 'T2') ? 'Kuapur Premier League' : 'Cricket Premier League'));
+        const effectiveCode = (fCode || tourney.category_code || tourney.slug || 'T').toUpperCase();
+        const effectiveLogo = tourney.logo_url || tourney.banner_url || 'assets/jsl_logo.jpg';
+
+        map.set(f.id, {
+          ...f,
+          tournamentId: effectiveTid,
+          tournamentName: effectiveName,
+          leagueCode: effectiveCode,
+          logoUrl: effectiveLogo
+        });
+      }
+    });
+
+    // 2. Add fixtures from other tournaments ONLY if explicitly saved
+    allTourneys.forEach(t => {
+      const tid = t.supabaseId || t.id;
+      if (tid === activeTid || toUUID(tid) === toUUID(activeTid)) return; // Already processed active tournament above!
+
+      let localScopedMatches = [];
+      try {
+        const localRaw = localStorage.getItem(`cpl_fixtures_v8_${tid}`);
+        if (localRaw !== null) {
+          localScopedMatches = JSON.parse(localRaw) || [];
+        } else {
+          localScopedMatches = [];
+        }
+      } catch (e) {}
+
+      localScopedMatches.forEach(cm => {
+        if (cm && cm.id && !map.has(cm.id)) {
+          map.set(cm.id, {
+            ...cm,
+            tournamentId: tid,
+            tournamentName: t.name || `${t.slug} Premier League`,
+            leagueCode: (cm.leagueCode || t.category_code || t.slug || 'T').toUpperCase(),
+            logoUrl: t.logo_url || t.banner_url || 'assets/jsl_logo.jpg'
+          });
+        }
+      });
+    });
+
+    const deletedIdsRaw = typeof localStorage !== 'undefined' ? localStorage.getItem('cpl_deleted_fixture_ids') : null;
+    const deletedSet = new Set(deletedIdsRaw ? JSON.parse(deletedIdsRaw) : []);
+
+    const result = Array.from(map.values()).filter(f => f && f.id && !deletedSet.has(f.id) && (!toUUID(f.id) || !deletedSet.has(toUUID(f.id))));
+    const activeScoringId = typeof localStorage !== 'undefined' ? localStorage.getItem('cpl_active_scoring_fixture_id') : null;
+    result.forEach(f => {
+      if (f && f.status === 'LIVE' && f.id !== activeScoringId) {
+        const s = f.liveMatchState || f.liveState || {};
+        const balls = (s.overs || 0) * 6 + (s.balls || 0);
+        const runs = s.runs || 0;
+        const wickets = s.wickets || 0;
+        const hasToss = !!s.tossDetails;
+
+        if (balls === 0 && runs === 0 && wickets === 0 && !hasToss) {
+          f.status = 'SCHEDULED';
+          f.liveMatchState = null;
+          f.liveState = null;
+        }
+      }
+    });
+
+    return result.sort((a, b) => (Number(a.matchNo) || 0) - (Number(b.matchNo) || 0));
   }
 
   // --- TOURNAMENT FORMAT & GROUP STAGES ENGINE ---
@@ -1455,18 +2278,18 @@ class Store {
     };
   }
 
-  getTournamentFormat(leagueCode = 'JSL') {
+  getTournamentFormat(leagueCode = 'T') {
     const formats = this.getTournamentFormats();
-    const clean = (leagueCode || 'JSL').toUpperCase();
+    const clean = (leagueCode || 'T').toUpperCase();
     return formats[clean] || { format: 'TWO_GROUPS', groups: ['A', 'B'], qualifyPerGroup: 2, knockoutType: 'SEMIFINALS' };
   }
 
-  async saveTournamentFormat(leagueCode = 'JSL', formatConfig) {
+  async saveTournamentFormat(leagueCode = 'T', formatConfig) {
     const formats = this.getTournamentFormats();
-    const clean = (leagueCode || 'JSL').toUpperCase();
+    const clean = (leagueCode || 'T').toUpperCase();
     formats[clean] = { ...formats[clean], ...formatConfig, updated_at: Date.now() };
     safeSetLocalStorage(STORAGE_KEYS.TOURNAMENT_FORMATS, formats);
-    await saveTournamentFormatToFirebase(clean, formats[clean]);
+    await saveTournamentFormatToCloud(clean, formats[clean]);
     this.notify('tournament_format_updated');
     this.notify('teams_updated');
     this.notify('fixtures_updated');
@@ -1479,8 +2302,8 @@ class Store {
     if (team) {
       team.group = (groupCode || '').toUpperCase().trim();
       team.updated_at = Date.now();
-      safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
-      patchTeamInFirebase(team.id, team);
+      safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
+      syncTeamToSupabase(team);
       this.notify('teams_updated');
       return true;
     }
@@ -1495,21 +2318,21 @@ class Store {
       if (team) {
         team.group = (a.group || '').toUpperCase().trim();
         team.updated_at = Date.now();
-        patchTeamInFirebase(team.id, team);
+        syncTeamToSupabase(team);
         updatedAny = true;
       }
     });
     if (updatedAny) {
-      safeSetLocalStorage(STORAGE_KEYS.TEAMS, teams);
+      safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
       this.notify('teams_updated');
     }
     return true;
   }
 
-  randomizeTeamGroups(leagueCode = 'JSL', groupNames = ['A', 'B']) {
-    const cleanLeague = (leagueCode || 'JSL').toUpperCase();
+  randomizeTeamGroups(leagueCode = 'T', groupNames = ['A', 'B']) {
+    const cleanLeague = (leagueCode || 'T').toUpperCase();
     const teams = this.getTeams().filter(t => {
-      const code = (t.leagueCode || (t.leagueId === 'leg-jsl' ? 'JSL' : (t.leagueId === 'leg-jpl' ? 'JPL' : (t.leagueId === 'leg-kpl' ? 'KPL' : 'JSL'))));
+      const code = (t.leagueCode || (t.leagueId === 'leg-jsl' ? 'JSL' : (t.leagueId === 'leg-jpl' ? 'JPL' : (t.leagueId === 'leg-kpl' ? 'KPL' : 'T'))));
       return code === cleanLeague;
     });
 
@@ -1526,10 +2349,10 @@ class Store {
     return assignments;
   }
 
-  autoGenerateGroupFixtures(leagueCode = 'JSL', config = {}) {
-    const cleanLeague = (leagueCode || 'JSL').toUpperCase();
+  autoGenerateGroupFixtures(leagueCode = 'T', config = {}) {
+    const cleanLeague = (leagueCode || 'T').toUpperCase();
     const teams = this.getTeams().filter(t => {
-      const code = (t.leagueCode || (t.leagueId === 'leg-jsl' ? 'JSL' : (t.leagueId === 'leg-jpl' ? 'JPL' : (t.leagueId === 'leg-kpl' ? 'KPL' : 'JSL'))));
+      const code = (t.leagueCode || (t.leagueId === 'leg-jsl' ? 'JSL' : (t.leagueId === 'leg-jpl' ? 'JPL' : (t.leagueId === 'leg-kpl' ? 'KPL' : 'T'))));
       return code === cleanLeague;
     });
 
@@ -1579,37 +2402,72 @@ class Store {
 
   // --- AUCTION CONFIG ---
   getAuctionSettings() {
-    const defaultSettings = { defaultBasePrice: 300, defaultPurseBudget: 8000 };
+    const defaultSettings = {
+      defaultBasePrice: 300,
+      defaultPurseBudget: 8000,
+      defaultIconPrice: 1000,
+      maxSquadSize: 13,
+      bidIncrementSlabs: [
+        { maxLimit: 1000, increment: 50 },
+        { maxLimit: 2000, increment: 100 },
+        { maxLimit: 999999, increment: 200 }
+      ]
+    };
     try {
-      const s = localStorage.getItem(STORAGE_KEYS.AUCTION_SETTINGS);
+      const s = localStorage.getItem(this._scopedKey('AUCTION_SETTINGS'));
       if (!s) return defaultSettings;
       const parsed = JSON.parse(s);
       return {
         ...defaultSettings,
         ...parsed,
-        defaultBasePrice: (!parsed.defaultBasePrice || Number(parsed.defaultBasePrice) === 200) ? 300 : Number(parsed.defaultBasePrice)
+        defaultBasePrice: (!parsed.defaultBasePrice || Number(parsed.defaultBasePrice) === 200) ? 300 : Number(parsed.defaultBasePrice),
+        defaultPurseBudget: Number(parsed.defaultPurseBudget) || 8000,
+        defaultIconPrice: (parsed.defaultIconPrice !== undefined) ? Number(parsed.defaultIconPrice) : 1000,
+        maxSquadSize: Number(parsed.maxSquadSize) || 13,
+        bidIncrementSlabs: Array.isArray(parsed.bidIncrementSlabs) && parsed.bidIncrementSlabs.length > 0
+          ? parsed.bidIncrementSlabs
+          : defaultSettings.bidIncrementSlabs
       };
     } catch (e) {
       return defaultSettings;
     }
   }
 
+  calculateNextBidIncrement(currentBid) {
+    const settings = this.getAuctionSettings();
+    const rawSlabs = settings.bidIncrementSlabs || [
+      { maxLimit: 1000, increment: 50 },
+      { maxLimit: 2000, increment: 100 },
+      { maxLimit: 999999, increment: 200 }
+    ];
+    const slabs = [...rawSlabs].sort((a, b) => (Number(a.maxLimit) || 999999) - (Number(b.maxLimit) || 999999));
+    const numBid = Number(currentBid) || 0;
+    for (const slab of slabs) {
+      if (numBid < Number(slab.maxLimit || Infinity)) {
+        return Number(slab.increment) || 50;
+      }
+    }
+    return Number(slabs[slabs.length - 1]?.increment) || 200;
+  }
+
   updateAuctionSettings(settings) {
-    safeSetLocalStorage(STORAGE_KEYS.AUCTION_SETTINGS, settings);
-    saveAuctionSettingsToFirebase(settings);
+    const current = this.getAuctionSettings();
+    const merged = { ...current, ...settings };
+    safeSetLocalStorage(this._scopedKey('AUCTION_SETTINGS'), merged);
+    saveAuctionSettingsToCloud(merged);
     this.notify('auction_settings_updated');
   }
 
   // --- REGISTRATION CONTROL CONFIG & MASTER TOGGLE ---
   getRegistrationSettings() {
     const defaultSettings = {
-      isJslRegistrationOpen: true,
+      isRegistrationOpen: true,
       isPlayerRegOpen: true,
       isTeamRegOpen: true,
-      closedReason: "JSL 2026 Registration is currently closed by the Master Admin."
+      closedReason: "Registration is currently closed by the Admin."
     };
     try {
-      const s = localStorage.getItem(STORAGE_KEYS.REGISTRATION_SETTINGS);
+      const s = localStorage.getItem(this._scopedKey('REGISTRATION_SETTINGS'));
       if (!s) return defaultSettings;
       const parsed = JSON.parse(s);
       return {
@@ -1621,32 +2479,32 @@ class Store {
     }
   }
 
-  isJslRegistrationOpen() {
+  isRegistrationOpen() {
     const s = this.getRegistrationSettings();
-    return s.isJslRegistrationOpen !== false;
+    return s.isRegistrationOpen !== false;
   }
 
   isPlayerRegistrationOpen() {
     const s = this.getRegistrationSettings();
-    return s.isJslRegistrationOpen !== false && s.isPlayerRegOpen !== false;
+    return s.isRegistrationOpen !== false && s.isPlayerRegOpen !== false;
   }
 
   isTeamRegistrationOpen() {
     const s = this.getRegistrationSettings();
-    return s.isJslRegistrationOpen !== false && s.isTeamRegOpen !== false;
+    return s.isRegistrationOpen !== false && s.isTeamRegOpen !== false;
   }
 
   updateRegistrationSettings(settings) {
     const current = this.getRegistrationSettings();
     const updated = { ...current, ...settings };
-    safeSetLocalStorage(STORAGE_KEYS.REGISTRATION_SETTINGS, updated);
-    saveRegistrationSettingsToFirebase(updated);
+    safeSetLocalStorage(this._scopedKey('REGISTRATION_SETTINGS'), updated);
+    saveRegistrationSettingsToCloud(updated, this.activeTournamentId);
     this.notify('registration_settings_updated');
     return updated;
   }
 
-  toggleJslRegistration(isOpen, closedReason = null) {
-    const patch = { isJslRegistrationOpen: isOpen };
+  toggleRegistration(isOpen, closedReason = null) {
+    const patch = { isRegistrationOpen: isOpen };
     if (closedReason) patch.closedReason = closedReason;
     return this.updateRegistrationSettings(patch);
   }
@@ -1654,42 +2512,41 @@ class Store {
   // --- LIVE AUCTION STATE ---
   async getLiveAuctionState() {
     try {
-      const res = await fetch(`${FIREBASE_DB_URL}/cpl_master/liveAuction.json?_t=${Date.now()}`, {
-        cache: 'no-store',
-        headers: { 'Cache-Control': 'no-cache, no-store, must-revalidate', 'Pragma': 'no-cache' }
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data) {
-          const incomingTime = Number(data.updated_at || data.timestamp || 0);
-          const currentTime = Number(this.liveAuctionState?.updated_at || this.liveAuctionState?.timestamp || 0);
-          // Monotonic Version Guard: Only accept if incoming state is newer or equal
-          if (incomingTime >= currentTime || !this.liveAuctionState) {
-            this.liveAuctionState = data;
-            if (data.active_player_id) {
-              safeSetLocalStorage('cpl_live_auction_state', data);
-            } else {
-              localStorage.removeItem('cpl_live_auction_state');
-            }
-          }
-        } else {
-          this.liveAuctionState = null;
-          localStorage.removeItem('cpl_live_auction_state');
+      const cloud = await fetchLiveAuctionFromCloud(this.activeTournamentId);
+      if (cloud) {
+        const cloudTs = Number(cloud.updated_at || 0);
+        const localTs = Number(this.liveAuctionState?.updated_at || 0);
+        if (cloudTs >= localTs || !this.liveAuctionState || cloud.active_player_id) {
+          this.liveAuctionState = cloud;
+          safeSetLocalStorage(this._scopedKey('LIVE_AUCTION_STATE'), cloud);
+          return cloud;
         }
-        return this.liveAuctionState;
       }
-    } catch (e) {
-      console.warn("Live auction state fetch error:", e);
-    }
+    } catch(e) {}
+    try {
+      const local = safeGetLocalStorage(this._scopedKey('LIVE_AUCTION_STATE'));
+      if (local) return local;
+    } catch(e) {}
+    try {
+      const legacyLocal = localStorage.getItem('cpl_live_auction_state');
+      if (legacyLocal) return JSON.parse(legacyLocal);
+    } catch(e) {}
     return this.liveAuctionState || null;
   }
 
   getLiveAuctionStateSync() {
     if (this.liveAuctionState) return this.liveAuctionState;
     try {
-      const local = localStorage.getItem('cpl_live_auction_state');
+      const local = safeGetLocalStorage(this._scopedKey('LIVE_AUCTION_STATE'));
       if (local) {
-        this.liveAuctionState = JSON.parse(local);
+        this.liveAuctionState = local;
+        return this.liveAuctionState;
+      }
+    } catch(e) {}
+    try {
+      const legacy = localStorage.getItem('cpl_live_auction_state');
+      if (legacy) {
+        this.liveAuctionState = JSON.parse(legacy);
         return this.liveAuctionState;
       }
     } catch(e) {}
@@ -1702,15 +2559,75 @@ class Store {
     const updatedState = state ? { ...state, updated_at: Math.max(now, currentTs + 1) } : null;
     this.liveAuctionState = updatedState;
     if (updatedState && updatedState.active_player_id) {
+      safeSetLocalStorage(this._scopedKey('LIVE_AUCTION_STATE'), updatedState);
       safeSetLocalStorage('cpl_live_auction_state', updatedState);
     } else {
+      localStorage.removeItem(this._scopedKey('LIVE_AUCTION_STATE'));
       localStorage.removeItem('cpl_live_auction_state');
     }
-    await saveLiveAuctionToFirebase(updatedState);
+    await saveLiveAuctionToCloud(updatedState, this.activeTournamentId);
     this.notify('live_auction_updated');
   }
 
-  // --- PERMANENT 5-YEAR AUCTION ARCHIVE & RECORD VAULT (JSL 2026) ---
+  async getGlobalLiveAuctionInfo() {
+    try {
+      const globalInfo = await fetchGlobalLiveAuctionStatus();
+      if (globalInfo && (globalInfo.isLive || globalInfo.recentTournaments?.length)) {
+        return globalInfo;
+      }
+    } catch(e) {}
+    
+    // Fallback using locally cached tournament metadata
+    const activeTourney = this.getCustomTournaments().find(t => (t.supabaseId || t.id) === this.activeTournamentId) || {};
+    const localState = this.getLiveAuctionStateSync();
+    const isLive = localState && (localState.status === 'BIDDING' || localState.status === 'SOLD' || localState.status === 'UNSOLD') && localState.active_player_id && !localState.is_ended && localState.status !== 'ENDED';
+    return {
+      isLive: !!isLive,
+      liveTournament: isLive ? activeTourney : null,
+      liveState: isLive ? localState : null,
+      recentTournaments: this.getCustomTournaments().map(t => ({
+        id: t.supabaseId || t.id,
+        name: t.name,
+        slug: t.slug,
+        logoUrl: t.posterUrl || t.logoUrl || 'assets/jsl_logo.jpg',
+        customTeamsCount: t.teamsCount || 4,
+        auctionStatus: 'CONCLUDED'
+      }))
+    };
+  }
+
+  async concludeLiveAuction(tournamentId = null) {
+    const targetTid = tournamentId || this.activeTournamentId;
+    const concludedState = {
+      status: 'ENDED',
+      is_ended: true,
+      active_player_id: null,
+      name: null,
+      current_bid: 0,
+      highest_bidder_team_id: null,
+      timer_left: 0,
+      updated_at: Date.now()
+    };
+    
+    this.liveAuctionState = concludedState;
+    safeSetLocalStorage(this._scopedKey('LIVE_AUCTION_STATE'), concludedState);
+    localStorage.removeItem('cpl_live_auction_state');
+    
+    await saveLiveAuctionToCloud(concludedState, targetTid);
+    
+    // Lock & save the permanent snapshot automatically
+    try {
+      await this.commitAndSyncAuctionPermanentArchive(targetTid);
+    } catch(errArchive) {
+      console.warn("Permanent archive commit warning:", errArchive);
+    }
+
+    this.notify('live_auction_updated');
+    this.notify('auction_ended');
+    return true;
+  }
+
+  // --- PERMANENT 5-YEAR AUCTION ARCHIVE & RECORD VAULT ---
   generateAuctionPermanentArchiveSnapshot() {
     const teams = this.getTeams();
     const allPlayers = this.getPlayers();
@@ -1766,7 +2683,7 @@ class Store {
       return {
         teamId: team.id,
         teamName: team.name,
-        shortCode: team.shortCode || 'JSL',
+        shortCode: team.shortCode || 'T',
         ownerName: team.ownerName || 'Franchise Owner',
         ownerPhone: team.ownerPhone || 'N/A',
         coOwners: [team.coOwnerName, team.coOwner1Name, team.coOwner2Name].filter(Boolean).join(', ') || null,
@@ -1811,12 +2728,13 @@ class Store {
     const totalTournamentSpent = teamSummaries.reduce((sum, t) => sum + t.totalSpent, 0);
     const totalRemainingPurse = teamSummaries.reduce((sum, t) => sum + t.remainingPurse, 0);
 
+    const activeTourney = this.getCustomTournaments().find(t => (t.supabaseId || t.id) === this.activeTournamentId) || {};
     const snapshot = {
-      archiveId: 'JSL_2026_AUCTION_VAULT',
-      tournament: 'Jhankra Super League (JSL 2026)',
-      season: '2026',
+      archiveId: `${(activeTourney.slug || 'tournament').toUpperCase()}_AUCTION_VAULT`,
+      tournament: activeTourney.name || 'Tournament',
+      season: new Date().getFullYear().toString(),
       status: 'AUCTION COMPLETED & ARCHIVED',
-      venue: 'Jhankra High School Ground',
+      venue: activeTourney.venue || 'Tournament Ground',
       archivedTimestamp: Date.now(),
       archivedDate: new Date().toLocaleDateString('en-IN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }),
       totalTeams: teamSummaries.length,
@@ -1862,7 +2780,7 @@ class Store {
 
   async commitAndSyncAuctionPermanentArchive() {
     const snapshot = this.generateAuctionPermanentArchiveSnapshot();
-    await saveAuctionPermanentArchiveToFirebase(snapshot);
+    await saveAuctionPermanentArchiveToCloud(snapshot);
     this.notify('auction_archive_synced');
     return snapshot;
   }
@@ -1874,7 +2792,7 @@ class Store {
       if (local) return JSON.parse(local);
     } catch(e) {}
     return {
-      isHostTournamentEnabled: false, // Default to FALSE (Trial / Draft mode for Master Admin)
+      isHostTournamentEnabled: true, // Enabled for Multi-Tenant SaaS Branch
       allowPublicRegistrationModeA: true,
       allowQuickFixturesModeB: true,
       maxTeamsDefault: 16
@@ -1885,31 +2803,37 @@ class Store {
     const current = this.getPlatformSettings();
     const updated = { ...current, ...settings, updated_at: Date.now() };
     safeSetLocalStorage(STORAGE_KEYS.PLATFORM_SETTINGS, updated);
-    await savePlatformSettingsToFirebase(updated);
+    await savePlatformSettingsToCloud(updated);
     this.notify('platform_settings_updated');
     return updated;
   }
 
   isHostTournamentEnabled() {
     const settings = this.getPlatformSettings();
-    return settings.isHostTournamentEnabled === true;
+    return settings.isHostTournamentEnabled !== false;
   }
 
   getCustomTournaments() {
+    let customList = [];
     try {
       const local = localStorage.getItem(STORAGE_KEYS.CUSTOM_TOURNAMENTS);
-      if (local) return JSON.parse(local);
+      if (local) customList = JSON.parse(local);
     } catch(e) {}
-    return [];
+
+    return customList;
   }
 
   getCustomTournamentById(idOrSlug) {
     if (!idOrSlug) return null;
     const clean = idOrSlug.trim().toLowerCase();
+    const cleanNoPrefix = clean.replace(/^t_/, '');
     return this.getCustomTournaments().find(t => 
-      (t.id && t.id.toLowerCase() === clean) || 
-      (t.slug && t.slug.toLowerCase() === clean) ||
-      (t.shortCode && t.shortCode.toLowerCase() === clean)
+      (t.id && (t.id.toLowerCase() === clean || t.id.toLowerCase() === cleanNoPrefix)) || 
+      (t.supabaseId && t.supabaseId.toLowerCase() === clean) ||
+      (t.tournament_id && t.tournament_id.toLowerCase() === clean) ||
+      (t.slug && (t.slug.toLowerCase() === clean || t.slug.toLowerCase() === cleanNoPrefix)) ||
+      (t.shortCode && (t.shortCode.toLowerCase() === clean || t.shortCode.toLowerCase() === cleanNoPrefix)) ||
+      (t.name && t.name.toLowerCase() === clean)
     ) || null;
   }
 
@@ -1934,20 +2858,227 @@ class Store {
       list.unshift(record);
     }
 
+    const supabaseId = await saveCustomTournamentToCloud(record);
+    if (supabaseId) {
+      record.supabaseId = supabaseId;
+      record.tournament_id = supabaseId;
+    }
     safeSetLocalStorage(STORAGE_KEYS.CUSTOM_TOURNAMENTS, list);
-    await saveCustomTournamentToFirebase(record);
+
+    // Register tournament owner credentials so admin login works
+    if (tourneyData.organizer && tourneyData.organizer.phone) {
+      const org = tourneyData.organizer;
+      const owners = this.getTournamentOwners();
+      const ownerKey = record.supabaseId || id;
+      const cleanPhone = org.phone.replace(/[^0-9]/g, '');
+      const hashedPw = await hashPassword(org.password || org.phone, cleanPhone);
+      owners[ownerKey] = {
+        phone: cleanPhone,
+        name: org.name || 'Tournament Owner',
+        email: org.email || '',
+        password: hashedPw,
+        assignedAt: Date.now()
+      };
+      safeSetLocalStorage(STORAGE_KEYS.TOURNAMENT_OWNERS, owners);
+      if (record.supabaseId) {
+        saveTournamentOwnerToCloud(record.supabaseId, owners[ownerKey]);
+      }
+      this.notify('tournament_owners_updated');
+
+      // Create user_account for the organiser so they can log in
+      const cleanOrgPhone = org.phone.replace(/[^0-9]/g, '');
+      let accounts = this.getUserAccounts();
+      let orgAcc = accounts.find(a => a.phone === cleanOrgPhone);
+      const tourneyRef = record.supabaseId || id;
+      if (!orgAcc) {
+        orgAcc = {
+          phone: cleanOrgPhone,
+          password: org.password || cleanOrgPhone,
+          name: org.name || 'Tournament Owner',
+          role: 'TOURNAMENT_OWNER',
+          isFirstLogin: false,
+          ownedTournaments: [tourneyRef],
+          created_at: Date.now()
+        };
+        accounts.push(orgAcc);
+      } else {
+        orgAcc.role = 'TOURNAMENT_OWNER';
+        if (!orgAcc.ownedTournaments) orgAcc.ownedTournaments = [];
+        if (!orgAcc.ownedTournaments.includes(tourneyRef)) orgAcc.ownedTournaments.push(tourneyRef);
+        orgAcc.password = org.password || orgAcc.password;
+      }
+      safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, accounts);
+      saveUserAccountToCloud(orgAcc);
+    }
+
     this.notify('custom_tournaments_updated');
     return record;
   }
 
-  async deleteCustomTournament(tourneyId) {
+  async deleteCustomTournament(tourneyId, slug = null, supabaseId = null) {
     if (!tourneyId) return false;
-    let list = this.getCustomTournaments();
-    list = list.filter(t => t.id !== tourneyId && t.slug !== tourneyId);
-    safeSetLocalStorage(STORAGE_KEYS.CUSTOM_TOURNAMENTS, list);
-    await deleteCustomTournamentFromFirebase(tourneyId);
+    const list = this.getCustomTournaments();
+    const match = list.find(t => t.id === tourneyId || t.slug === tourneyId || t.supabaseId === tourneyId || (slug && t.slug === slug) || (supabaseId && (t.supabaseId === supabaseId || t.id === supabaseId)));
+    const cloudId = supabaseId || match?.supabaseId || match?.tournament_id || (tourneyId.length > 30 ? tourneyId : null);
+    const resolvedSlug = slug || match?.slug || String(tourneyId).replace(/^t_/, '');
+    
+    const filtered = list.filter(t => 
+      t.id !== tourneyId && 
+      t.slug !== tourneyId && 
+      (!cloudId || (t.supabaseId !== cloudId && t.id !== cloudId && t.tournament_id !== cloudId)) &&
+      (!resolvedSlug || (t.slug !== resolvedSlug && t.id !== `t_${resolvedSlug}`))
+    );
+    safeSetLocalStorage(STORAGE_KEYS.CUSTOM_TOURNAMENTS, filtered);
+
+    // Clean up scoped storage keys
+    const targetRef = cloudId || tourneyId;
+    try {
+      localStorage.removeItem(`cpl_players_v8_${targetRef}`);
+      localStorage.removeItem(`cpl_teams_v8_${targetRef}`);
+      localStorage.removeItem(`cpl_fixtures_v8_${targetRef}`);
+      if (resolvedSlug) {
+        localStorage.removeItem(`cpl_players_v8_${resolvedSlug}`);
+        localStorage.removeItem(`cpl_teams_v8_${resolvedSlug}`);
+        localStorage.removeItem(`cpl_fixtures_v8_${resolvedSlug}`);
+      }
+    } catch(e) {}
+
+    await deleteCustomTournamentFromCloud(cloudId || tourneyId, resolvedSlug);
+    try {
+      await this.syncWithCloud();
+    } catch(e) {}
     this.notify('custom_tournaments_updated');
     return true;
+  }
+
+  getPendingTournaments() {
+    const list = this.getCustomTournaments();
+    return list.filter(t => t && (t.status === 'PENDING_APPROVAL' || t.status === 'pending_approval' || t.status === 'PENDING' || t.status === 'pending'));
+  }
+
+  getActiveTournaments() {
+    const list = this.getCustomTournaments();
+    return list.filter(t => !t.status || t.status === 'ACTIVE' || t.status === 'active' || t.status === 'APPROVED');
+  }
+
+  getAllAvailableTournaments() {
+    const list = [];
+    const seen = new Set();
+    
+    // Only return live, authoritative database tournaments from Supabase
+    const customs = this.getCustomTournaments() || [];
+    for (const c of customs) {
+      const canonicalId = toUUID(c.supabaseId || c.id) || c.supabaseId || c.id;
+      const slugKey = String(c.slug || c.name || '').toLowerCase().trim();
+      if (!seen.has(canonicalId) && !seen.has(slugKey) && (!c.status || c.status === 'ACTIVE' || c.status === 'active' || c.status === 'APPROVED')) {
+        seen.add(canonicalId);
+        seen.add(slugKey);
+        list.push(c);
+      }
+    }
+
+    // Default fallback if sync is still initializing
+    if (list.length === 0) {
+      list.push({
+        id: '033bfc04-033b-4c04-a33b-fc04033bfc04',
+        supabaseId: '033bfc04-033b-4c04-a33b-fc04033bfc04',
+        slug: 'jsl-2026',
+        name: 'JHANKRA SUPER LEAGUE 2026',
+        status: 'ACTIVE'
+      });
+    }
+    return list;
+  }
+
+  getActiveTournament() {
+    const list = this.getAllAvailableTournaments();
+    const target = toUUID(this.activeTournamentId) || this.activeTournamentId;
+    const active = list.find(t => {
+      const tid = toUUID(t.supabaseId || t.id) || t.supabaseId || t.id;
+      return tid === target || t.slug === this.activeTournamentId || t.id === this.activeTournamentId;
+    });
+    return active || list[0] || { name: 'JHANKRA SUPER LEAGUE 2026', slug: 'jsl-2026' };
+  }
+
+  getActiveTournamentName() {
+    const tourney = this.getActiveTournament();
+    return tourney?.name || this.getRegistrationSettings()?.leagueName || this.getAuctionSettings()?.tournamentName || 'JHANKRA SUPER LEAGUE 2026';
+  }
+
+  getPlayersForTournament(tourneyId = null) {
+    if (!tourneyId || tourneyId === 'ALL') {
+      const allTourneys = this.getAllAvailableTournaments();
+      const combinedMap = new Map();
+      for (const t of allTourneys) {
+        const canonicalTid = toUUID(t.supabaseId || t.id) || t.supabaseId || t.id;
+        const sk = scopedKey(STORAGE_KEYS.PLAYERS, canonicalTid);
+        try {
+          const raw = JSON.parse(localStorage.getItem(sk)) || [];
+          for (const p of raw) {
+            if (p && p.id && !combinedMap.has(p.id)) {
+              combinedMap.set(p.id, p);
+            }
+          }
+        } catch(e) {}
+      }
+      if (combinedMap.size > 0) return Array.from(combinedMap.values());
+      return this.getPlayers();
+    }
+    
+    const canonicalTid = toUUID(tourneyId) || tourneyId;
+    const sk = scopedKey(STORAGE_KEYS.PLAYERS, canonicalTid);
+    try {
+      const raw = JSON.parse(localStorage.getItem(sk)) || [];
+      if (raw.length > 0) return raw;
+    } catch(e) {}
+    return this.getPlayers();
+  }
+
+  async approveTournament(tourneyId, slug = null, supabaseId = null) {
+    if (!tourneyId && !slug && !supabaseId) return false;
+    const list = this.getCustomTournaments();
+    const idx = list.findIndex(t => t.id === tourneyId || t.slug === tourneyId || t.supabaseId === tourneyId || (slug && t.slug === slug) || (supabaseId && (t.supabaseId === supabaseId || t.id === supabaseId)));
+    if (idx >= 0) {
+      list[idx].status = 'ACTIVE';
+      list[idx].approvalStatus = 'approved';
+      if (!list[idx].registration_settings) list[idx].registration_settings = {};
+      list[idx].registration_settings.approval_status = 'approved';
+      list[idx].updated_at = Date.now();
+      safeSetLocalStorage(STORAGE_KEYS.CUSTOM_TOURNAMENTS, list);
+
+      const cloudRef = supabaseId || list[idx].supabaseId || list[idx].tournament_id || list[idx].id;
+      const resolvedSlug = slug || list[idx].slug || String(tourneyId).replace(/^t_/, '');
+      await updateTournamentApprovalStatus(cloudRef, 'ACTIVE', '', resolvedSlug);
+
+      try { await this.syncWithCloud(); } catch(e) {}
+      this.notify('custom_tournaments_updated');
+      return true;
+    }
+    return false;
+  }
+
+  async rejectTournament(tourneyId, reason = '', slug = null, supabaseId = null) {
+    if (!tourneyId && !slug && !supabaseId) return false;
+    const list = this.getCustomTournaments();
+    const idx = list.findIndex(t => t.id === tourneyId || t.slug === tourneyId || t.supabaseId === tourneyId || (slug && t.slug === slug) || (supabaseId && (t.supabaseId === supabaseId || t.id === supabaseId)));
+    if (idx >= 0) {
+      list[idx].status = 'REJECTED';
+      list[idx].approvalStatus = 'rejected';
+      if (!list[idx].registration_settings) list[idx].registration_settings = {};
+      list[idx].registration_settings.approval_status = 'rejected';
+      list[idx].rejectionReason = reason;
+      list[idx].updated_at = Date.now();
+      safeSetLocalStorage(STORAGE_KEYS.CUSTOM_TOURNAMENTS, list);
+
+      const cloudRef = supabaseId || list[idx].supabaseId || list[idx].tournament_id || list[idx].id;
+      const resolvedSlug = slug || list[idx].slug || String(tourneyId).replace(/^t_/, '');
+      await updateTournamentApprovalStatus(cloudRef, 'REJECTED', reason, resolvedSlug);
+
+      try { await this.syncWithCloud(); } catch(e) {}
+      this.notify('custom_tournaments_updated');
+      return true;
+    }
+    return false;
   }
 
   // --- UNIVERSAL PLAYER DIRECTORY & 1-SECOND SMART AUTOFILL ---
@@ -1964,23 +3095,49 @@ class Store {
       }
     } catch(e) {}
 
-    // 2. Fallback check from existing players across all current databases
-    const allExistingPlayers = this.getPlayers();
-    const found = allExistingPlayers.find(p => {
-      const pPhone = (p.phone || p.mobile || '').replace(/[^0-9]/g, '');
-      return pPhone === cleanPhone || (pPhone.endsWith(cleanPhone) && cleanPhone.length >= 10);
-    });
+    // 2. Check current active tournament player cache
+    let found = null;
+    try {
+      const allExistingPlayers = this.getPlayers();
+      found = allExistingPlayers.find(p => {
+        const pPhone = (p.phone || p.mobile || '').replace(/[^0-9]/g, '');
+        return pPhone === cleanPhone || (pPhone.endsWith(cleanPhone) && cleanPhone.length >= 10);
+      });
+    } catch(e) {}
+
+    // 3. Check across ALL scoped tournament player lists in localStorage (e.g. JSL, JPL, CGL)
+    if (!found && typeof localStorage !== 'undefined') {
+      try {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k && k.startsWith(STORAGE_KEYS.PLAYERS)) {
+            const raw = localStorage.getItem(k);
+            if (raw) {
+              const list = JSON.parse(raw);
+              if (Array.isArray(list)) {
+                found = list.find(p => {
+                  const pPhone = (p.phone || p.mobile || '').replace(/[^0-9]/g, '');
+                  return pPhone === cleanPhone || (pPhone.endsWith(cleanPhone) && cleanPhone.length >= 10);
+                });
+                if (found) break;
+              }
+            }
+          }
+        }
+      } catch(e) {}
+    }
 
     if (found) {
       return {
         phone: cleanPhone,
-        name: found.name || '',
+        name: (found.name || '').trim(),
         photoUrl: found.hdPhotoUrl || found.photoUrl || found.player_photo_url || '',
         category: found.category || found.playingType || found.role || 'All Rounder',
         battingStyle: found.battingStyle || found.batting_style || 'Right Hand Bat',
         bowlingStyle: found.bowlingStyle || found.bowling_style || 'Right Arm Medium',
         village: found.village || found.address || '',
         district: found.district || 'Paschim Medinipur',
+        dob: found.dob || null,
         age: found.age || '',
         isVerified: true
       };
@@ -1998,7 +3155,7 @@ class Store {
       if (local) pool = JSON.parse(local);
     } catch(e) {}
 
-    const profile = {
+    pool[phone] = {
       phone,
       name: playerData.name || '',
       photoUrl: playerData.hdPhotoUrl || playerData.photoUrl || playerData.player_photo_url || '',
@@ -2007,14 +3164,64 @@ class Store {
       bowlingStyle: playerData.bowlingStyle || playerData.bowling_style || 'Right Arm Medium',
       village: playerData.village || playerData.address || '',
       district: playerData.district || 'Paschim Medinipur',
+      dob: playerData.dob || null,
       age: playerData.age || '',
+      updatedAt: Date.now(),
       updated_at: Date.now()
     };
-
-    pool[phone] = profile;
     safeSetLocalStorage(STORAGE_KEYS.UNIVERSAL_PLAYERS, pool);
-    await saveUniversalPlayerToFirebase(profile);
-    return profile;
+    await saveUniversalPlayerToCloud(pool[phone]);
+    return pool[phone];
+  }
+
+  async syncGlobalPlayersCount() {
+    try {
+      const count = await fetchGlobalUniquePlayersCount();
+      if (count > 0 && count !== this._globalUniquePlayersCount) {
+        this._globalUniquePlayersCount = count;
+        localStorage.setItem('cpl_global_unique_players_count', String(count));
+        this.notify('players_updated');
+      }
+    } catch(e) {}
+  }
+
+  getTotalRegisteredPlayersCount() {
+    if (this._globalUniquePlayersCount && this._globalUniquePlayersCount > 0) {
+      return this._globalUniquePlayersCount;
+    }
+    const cached = Number(localStorage.getItem('cpl_global_unique_players_count') || 0);
+    if (cached > 0) return cached;
+
+    const unique = new Set();
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith(STORAGE_KEYS.PLAYERS)) {
+          const raw = localStorage.getItem(k);
+          if (raw) {
+            const arr = JSON.parse(raw);
+            if (Array.isArray(arr)) {
+              arr.forEach(p => {
+                if (p) {
+                  const cleanPhone = (p.phone || p.mobile || '').replace(/[^0-9]/g, '').slice(-10);
+                  const idKey = cleanPhone && cleanPhone.length >= 10 ? cleanPhone : p.id;
+                  if (idKey) unique.add(idKey);
+                }
+              });
+            }
+          }
+        }
+      }
+    } catch(e) {}
+
+    const totalCount = unique.size;
+    if (totalCount > 0) {
+      this._globalUniquePlayersCount = totalCount;
+      try { localStorage.setItem('cpl_global_unique_players_count', String(totalCount)); } catch(e) {}
+      return totalCount;
+    }
+
+    return 168;
   }
 
   // --- PLAYER PROFILES ---
@@ -2030,39 +3237,51 @@ class Store {
 
   createOrUpdatePlayerProfile(playerData) {
     const profiles = this.getPlayerProfiles();
-    const phone = (playerData.phone || playerData.mobile || '').trim();
+    const phone = (playerData.phone || playerData.mobile || '').replace(/\D/g, '').slice(-10);
     if (!phone) return null;
 
-    let profile = profiles.find(pp => (pp.phone || '').trim() === phone);
+    let profile = profiles.find(pp => (pp.phone || '').replace(/\D/g, '').slice(-10) === phone);
     if (!profile) {
       profile = {
         id: 'prof-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7),
         phone,
         name: playerData.name || playerData.playerName,
-        village: playerData.village || playerData.address || 'Jhankra',
+        fatherName: playerData.fatherName || playerData.father_name || '',
+        dob: playerData.dob || null,
+        age: playerData.age || '',
+        village: playerData.village || playerData.address || '',
         district: playerData.district || 'Paschim Medinipur',
         state: playerData.state || 'West Bengal',
         battingStyle: playerData.battingStyle || 'Right Hand Bat',
         bowlingStyle: playerData.bowlingStyle || 'Right Hand Medium',
         photoUrl: playerData.photoUrl || playerData.player_photo_url || '',
+        aadharPhotoUrl: playerData.aadharPhotoUrl || playerData.idCardFrontUrl || '',
+        idCardFrontUrl: playerData.idCardFrontUrl || playerData.aadharPhotoUrl || '',
+        idCardBackUrl: playerData.idCardBackUrl || '',
+        paymentReceiptUrl: playerData.paymentReceiptUrl || playerData.paymentProofUrl || '',
+        paymentRef: playerData.paymentRef || playerData.remarks || '',
         created_at: new Date().toISOString()
       };
       profiles.push(profile);
     } else {
       profile.name = playerData.name || playerData.playerName || profile.name;
+      profile.fatherName = playerData.fatherName || playerData.father_name || profile.fatherName || '';
+      profile.dob = playerData.dob || profile.dob || null;
+      profile.age = playerData.age || profile.age || '';
       profile.village = playerData.village || playerData.address || profile.village;
+      profile.district = playerData.district || profile.district || 'Paschim Medinipur';
+      profile.state = playerData.state || profile.state || 'West Bengal';
       profile.battingStyle = playerData.battingStyle || profile.battingStyle;
       profile.bowlingStyle = playerData.bowlingStyle || profile.bowlingStyle;
       profile.photoUrl = playerData.photoUrl || playerData.player_photo_url || profile.photoUrl;
+      profile.aadharPhotoUrl = playerData.aadharPhotoUrl || playerData.idCardFrontUrl || profile.aadharPhotoUrl || '';
+      profile.idCardFrontUrl = playerData.idCardFrontUrl || playerData.aadharPhotoUrl || profile.idCardFrontUrl || '';
+      profile.idCardBackUrl = playerData.idCardBackUrl || profile.idCardBackUrl || '';
+      profile.paymentReceiptUrl = playerData.paymentReceiptUrl || playerData.paymentProofUrl || profile.paymentReceiptUrl || '';
+      profile.paymentRef = playerData.paymentRef || playerData.remarks || profile.paymentRef || '';
     }
 
     safeSetLocalStorage(STORAGE_KEYS.PLAYER_PROFILES, profiles);
-    fetch(`${FIREBASE_DB_URL}/cpl_master/player_profiles/${profile.id}.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(profile)
-    }).catch(err => console.warn("Player profile sync error:", err));
-
     return profile;
   }
 
@@ -2084,7 +3303,7 @@ class Store {
     });
 
     if (updatedPlayer) {
-      safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
+      safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
       this.notify('players_updated');
     }
 
@@ -2094,11 +3313,6 @@ class Store {
     if (profile) {
       profile.phoneVerified = true;
       safeSetLocalStorage(STORAGE_KEYS.PLAYER_PROFILES, profiles);
-      fetch(`${FIREBASE_DB_URL}/cpl_master/player_profiles/${profile.id}.json`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(profile)
-      }).catch(err => console.warn("Profile verify sync error:", err));
     }
 
     return true;
@@ -2123,7 +3337,7 @@ class Store {
     });
 
     if (updated) {
-      safeSetLocalStorage(STORAGE_KEYS.PLAYERS, players);
+      safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
       this.notify('players_updated');
     }
 
@@ -2134,11 +3348,6 @@ class Store {
       profile.photoUrl = newPhotoUrl;
       profile.player_photo_url = newPhotoUrl;
       safeSetLocalStorage(STORAGE_KEYS.PLAYER_PROFILES, profiles);
-      fetch(`${FIREBASE_DB_URL}/cpl_master/player_profiles/${profile.id}.json`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(profile)
-      }).catch(err => console.warn("Profile photo sync error:", err));
     }
 
     return true;
@@ -2184,15 +3393,18 @@ class Store {
       const local = localStorage.getItem(STORAGE_KEYS.TOURNAMENT_OWNERS);
       if (local) {
         const parsed = JSON.parse(local);
-        if (parsed && typeof parsed === 'object') return parsed;
+        if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) return parsed;
       }
     } catch (e) {}
     return {
-      'tournament-jsl-2026': { phone: '8972144166', name: 'Pintu Santra', assignedAt: Date.now() }
+      '033bfc04-033b-4c04-a33b-fc04033bfc04': { phone: '8972144166', name: 'Pintu Santra', assignedAt: Date.now() },
+      'tournament-jsl-2026': { phone: '8972144166', name: 'Pintu Santra', assignedAt: Date.now() },
+      '5cf4f50c-3930-486a-83c3-3f59414a7d6f': { phone: '9732710001', name: 'Kuapur Organiser', assignedAt: Date.now() },
+      'tournament-k2026': { phone: '9732710001', name: 'Kuapur Organiser', assignedAt: Date.now() }
     };
   }
 
-  setTournamentOwner(tournamentId, phone, name) {
+  async setTournamentOwner(tournamentId, phone, name) {
     const cleanPhone = (phone || '').replace(/[^0-9]/g, '');
     if (!cleanPhone) return false;
 
@@ -2204,37 +3416,24 @@ class Store {
     };
     safeSetLocalStorage(STORAGE_KEYS.TOURNAMENT_OWNERS, owners);
 
-    fetch(`${FIREBASE_DB_URL}/cpl_master/tournament_owners/${tournamentId}.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(owners[tournamentId])
-    }).catch(err => console.warn("Tournament owner sync error:", err));
-
-    // Update user account role
     const players = this.getPlayers();
     const player = players.find(p => (p.phone || p.mobile || '').replace(/[^0-9]/g, '') === cleanPhone) || { phone: cleanPhone, name };
-    let userAcc = this.ensureUserAccountForPlayer(player);
+    let userAcc = await this.ensureUserAccountForPlayer(player);
     if (userAcc) {
       userAcc.role = 'TOURNAMENT_OWNER';
-      if (!userAcc.password) userAcc.password = cleanPhone;
       if (!userAcc.ownedTournaments) userAcc.ownedTournaments = [];
       if (!userAcc.ownedTournaments.includes(tournamentId)) userAcc.ownedTournaments.push(tournamentId);
       const accounts = this.getUserAccounts();
       const idx = accounts.findIndex(a => a.phone === cleanPhone);
       if (idx !== -1) accounts[idx] = userAcc; else accounts.push(userAcc);
       safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, accounts);
-      fetch(`${FIREBASE_DB_URL}/cpl_master/user_accounts/${cleanPhone}.json`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(userAcc)
-      }).catch(err => console.warn("User account role sync error:", err));
     }
 
     this.notify('tournament_owners_updated');
     return true;
   }
 
-  ensureUserAccountForPlayer(player) {
+  async ensureUserAccountForPlayer(player, customPassword = null) {
     if (!player) return null;
     const cleanPhone = (player.phone || player.mobile || '').replace(/[^0-9]/g, '');
     if (!cleanPhone || cleanPhone.length < 10) return null;
@@ -2244,63 +3443,79 @@ class Store {
     const owners = this.getTournamentOwners();
     const isOwner = Object.values(owners).some(o => o && o.phone === cleanPhone);
 
+    const rawPassword = customPassword || cleanPhone;
+    const isCustom = Boolean(customPassword);
+
     if (!acc) {
+      const hashedPw = await hashPassword(rawPassword, cleanPhone);
       acc = {
         phone: cleanPhone,
-        password: cleanPhone, // default password is mobile number
-        isFirstLogin: true,
+        password: hashedPw,
+        isFirstLogin: isCustom ? false : true,
         name: player.name || 'Player',
         playerId: player.id || null,
         role: isOwner ? 'TOURNAMENT_OWNER' : 'PLAYER',
-        ownedTournaments: isOwner ? ['tournament-jsl-2026'] : [],
+        ownedTournaments: isOwner ? Object.entries(owners).filter(([, o]) => o && o.phone === cleanPhone).map(([k]) => k) : [],
         created_at: Date.now()
       };
       accounts.push(acc);
       safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, accounts);
-      fetch(`${FIREBASE_DB_URL}/cpl_master/user_accounts/${cleanPhone}.json`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(acc)
-      }).catch(err => console.warn("User account creation sync error:", err));
+      saveUserAccountToCloud(acc);
     } else {
-      if (!acc.password) acc.password = cleanPhone;
+      if (customPassword) {
+        acc.password = await hashPassword(customPassword, cleanPhone);
+        acc.isFirstLogin = false;
+        safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, accounts);
+        saveUserAccountToCloud(acc);
+      } else if (!acc.password || acc.password === cleanPhone) {
+        acc.password = await hashPassword(cleanPhone, cleanPhone);
+        safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, accounts);
+        saveUserAccountToCloud(acc);
+      }
       if (isOwner && acc.role !== 'TOURNAMENT_OWNER') {
         acc.role = 'TOURNAMENT_OWNER';
         safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, accounts);
+        saveUserAccountToCloud(acc);
       }
     }
     return acc;
   }
 
-  authenticateUser(identifier, password) {
+  async authenticateUser(identifier, password) {
     const rawId = (identifier || '').trim();
     if (!rawId) {
       return { success: false, message: 'Please enter your Mobile Number or Admin Email!' };
     }
 
-    // 1. MASTER SUPER ADMIN AUTO-DETECTION (Email or Master Phone)
-    if (rawId.toLowerCase() === 'bakolaypan@gmail.com' || rawId === '9876543210') {
-      if (password === 'Suman@2030') {
-        const superAdminUser = {
-          phone: '9876543210',
-          email: 'bakolaypan@gmail.com',
-          name: 'Suman Kolay (Master Admin)',
-          role: 'SUPER_ADMIN',
-          isFirstLogin: false,
-          ownedTournaments: ['tournament-jsl-2026']
-        };
-        this.setCurrentUser(superAdminUser);
-        localStorage.setItem(STORAGE_KEYS.ADMIN_AUTH, 'true');
-        return {
-          success: true,
-          user: superAdminUser,
-          role: 'SUPER_ADMIN',
-          isFirstLogin: false,
-          redirect: 'admin'
-        };
-      } else {
-        return { success: false, message: 'Incorrect Master Admin password!' };
+    // 1. EMAIL LOGIN → Route through Supabase Auth
+    if (rawId.includes('@')) {
+      try {
+        const authResult = await signInUser(rawId, password);
+        const authedUser = authResult?.data?.user || authResult?.user;
+        if (authedUser) {
+          const profile = authResult?.data?.profile || (await fetchUserProfile(authedUser.id));
+          const isMaster = !!(profile && profile.role === 'master_admin');
+          const user = {
+            id: authedUser.id,
+            email: rawId,
+            name: profile?.full_name || authedUser.user_metadata?.full_name || rawId.split('@')[0],
+            role: isMaster ? 'SUPER_ADMIN' : 'TOURNAMENT_OWNER',
+            isFirstLogin: false,
+            ownedTournaments: Object.keys(this.getTournamentOwners())
+          };
+          this.setCurrentUser(user);
+          localStorage.setItem(STORAGE_KEYS.ADMIN_AUTH, 'true');
+          this.setUserRole('ADMIN', user.name);
+          this.notify('admin_auth_updated');
+          return { success: true, user, role: user.role, isFirstLogin: false, redirect: 'admin' };
+        }
+        if (authResult?.error?.message) {
+          return { success: false, message: authResult.error.message };
+        }
+      } catch (e) {
+        console.warn("[AUTH] Error during user login:", e);
       }
+      return { success: false, message: 'Incorrect email or password!' };
     }
 
     // 2. MOBILE NUMBER LOGIN (Players & Tournament Owners)
@@ -2309,9 +3524,12 @@ class Store {
       return { success: false, message: 'Please enter a valid 10-digit mobile number or admin email!' };
     }
 
-    // Check if this mobile is assigned as a Tournament Owner
+    // Check if this mobile is assigned as a Tournament Owner (across all tournaments)
     const owners = this.getTournamentOwners();
-    const isTournamentOwner = Object.values(owners).some(o => o && (o.phone || '').replace(/[^0-9]/g, '') === cleanPhone);
+    const ownedTourneyKeys = Object.entries(owners)
+      .filter(([, o]) => o && (o.phone || '').replace(/[^0-9]/g, '') === cleanPhone)
+      .map(([key]) => key);
+    const isTournamentOwner = ownedTourneyKeys.length > 0;
 
     const players = this.getPlayers();
     const player = players.find(p => (p.phone || p.mobile || '').replace(/[^0-9]/g, '') === cleanPhone);
@@ -2320,18 +3538,22 @@ class Store {
     let acc = accounts.find(a => a.phone === cleanPhone);
 
     if (!acc && player) {
-      acc = this.ensureUserAccountForPlayer(player);
+      acc = await this.ensureUserAccountForPlayer(player);
       accounts = this.getUserAccounts();
     }
 
     if (!acc) {
+      const ownerName = isTournamentOwner
+        ? (Object.values(owners).find(o => o && (o.phone || '').replace(/[^0-9]/g, '') === cleanPhone)?.name || 'Tournament Admin')
+        : 'Player';
+      const hashedPw = await hashPassword(cleanPhone, cleanPhone);
       acc = {
         phone: cleanPhone,
-        password: cleanPhone,
-        name: player ? player.name : (isTournamentOwner ? (owners['tournament-jsl-2026']?.name || 'Tournament Admin') : 'Player'),
+        password: hashedPw,
+        name: player ? player.name : ownerName,
         role: isTournamentOwner ? 'TOURNAMENT_OWNER' : 'PLAYER',
         isFirstLogin: true,
-        ownedTournaments: isTournamentOwner ? ['tournament-jsl-2026'] : [],
+        ownedTournaments: ownedTourneyKeys,
         created_at: Date.now()
       };
       accounts.push(acc);
@@ -2342,12 +3564,15 @@ class Store {
     if (isTournamentOwner) {
       acc.role = 'TOURNAMENT_OWNER';
       if (!acc.ownedTournaments) acc.ownedTournaments = [];
-      if (!acc.ownedTournaments.includes('tournament-jsl-2026')) acc.ownedTournaments.push('tournament-jsl-2026');
+      for (const key of ownedTourneyKeys) {
+        if (!acc.ownedTournaments.includes(key)) acc.ownedTournaments.push(key);
+      }
       safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, accounts);
     }
 
-    // Verify Password
-    if (acc.password !== password) {
+    // Verify Password (salted hash verification with legacy fallback)
+    const isPwValid = await verifyPasswordMatch(password, acc.password, cleanPhone);
+    if (!isPwValid) {
       return { success: false, message: 'Incorrect password! (Default password is your 10-digit mobile number)' };
     }
 
@@ -2357,6 +3582,10 @@ class Store {
     // Auto-unlock admin controls if Tournament Owner or Super Admin
     if (acc.role === 'TOURNAMENT_OWNER' || acc.role === 'SUPER_ADMIN') {
       localStorage.setItem(STORAGE_KEYS.ADMIN_AUTH, 'true');
+      if (Array.isArray(acc.ownedTournaments) && acc.ownedTournaments.length > 0) {
+        const targetTid = toUUID(acc.ownedTournaments[0]) || acc.ownedTournaments[0];
+        this.setActiveTournament(targetTid);
+      }
     }
 
     return {
@@ -2368,7 +3597,7 @@ class Store {
     };
   }
 
-  updateUserPassword(phone, newPassword) {
+  async updateUserPassword(phone, newPassword) {
     const cleanPhone = (phone || '').replace(/[^0-9]/g, '');
     if (!cleanPhone || !newPassword || newPassword.length < 4) {
       return { success: false, message: 'Password must be at least 4 characters long!' };
@@ -2381,14 +3610,14 @@ class Store {
       const players = this.getPlayers();
       const player = players.find(p => (p.phone || p.mobile || '').replace(/[^0-9]/g, '') === cleanPhone);
       if (player) {
-        acc = this.ensureUserAccountForPlayer(player);
+        acc = await this.ensureUserAccountForPlayer(player);
         accounts = this.getUserAccounts();
       }
     }
 
     if (!acc) return { success: false, message: 'Account not found!' };
 
-    acc.password = newPassword;
+    acc.password = await hashPassword(newPassword, cleanPhone);
     acc.isFirstLogin = false;
     acc.passwordChangedAt = Date.now();
 
@@ -2400,13 +3629,8 @@ class Store {
     }
 
     safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, accounts);
+    saveUserAccountToCloud(acc);
     this.setCurrentUser(acc);
-
-    fetch(`${FIREBASE_DB_URL}/cpl_master/user_accounts/${cleanPhone}.json`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(acc)
-    }).catch(err => console.warn("Password update sync error:", err));
 
     this.notify('user_auth_updated');
     return { success: true, user: acc };
@@ -2421,8 +3645,13 @@ class Store {
       const isOwner = Object.values(owners).some(o => o && (o.phone || '').replace(/[^0-9]/g, '') === cleanPhone);
       if (isOwner && u.role !== 'TOURNAMENT_OWNER' && u.role !== 'SUPER_ADMIN') {
         u.role = 'TOURNAMENT_OWNER';
+        const ownedKeys = Object.entries(owners)
+          .filter(([, o]) => o && (o.phone || '').replace(/[^0-9]/g, '') === cleanPhone)
+          .map(([key]) => key);
         if (!u.ownedTournaments) u.ownedTournaments = [];
-        if (!u.ownedTournaments.includes('tournament-jsl-2026')) u.ownedTournaments.push('tournament-jsl-2026');
+        for (const key of ownedKeys) {
+          if (!u.ownedTournaments.includes(key)) u.ownedTournaments.push(key);
+        }
         safeSetLocalStorage(STORAGE_KEYS.CURRENT_USER, u);
       }
       return u;
@@ -2457,6 +3686,9 @@ class Store {
   }
 
   notify(eventName) {
+    if (eventName === 'players_updated') this._invalidateCache('players');
+    if (eventName === 'teams_updated') this._invalidateCache('teams');
+    if (eventName === 'fixtures_updated') { this._invalidateCache('fixtures'); this._invalidateCache('players'); }
     window.dispatchEvent(new CustomEvent(eventName));
     if (this.broadcastChannel) {
       try {
@@ -2474,6 +3706,15 @@ class Store {
     return () => window.removeEventListener(eventName, handler);
   }
 
+  on(eventName, callback) {
+    return this.subscribe(eventName, callback);
+  }
+
+  off(eventName, callback) {
+    if (typeof window === 'undefined') return;
+    window.removeEventListener(eventName, callback);
+  }
+
   // --- PUBLIC COMMUNITY QUERIES & DISCUSSION BOARD ---
   getCommunityQueries() {
     return JSON.parse(localStorage.getItem(STORAGE_KEYS.COMMUNITY_QUERIES)) || [];
@@ -2481,7 +3722,7 @@ class Store {
 
   async syncCommunityQueriesFromCloud() {
     try {
-      const cloudQueries = await fetchCommunityQueriesFromFirebase();
+      const cloudQueries = await fetchCommunityQueriesFromCloud(this.activeTournamentId);
       if (Array.isArray(cloudQueries) && cloudQueries.length > 0) {
         safeSetLocalStorage(STORAGE_KEYS.COMMUNITY_QUERIES, cloudQueries);
         this.notify('queries_updated');
@@ -2504,7 +3745,7 @@ class Store {
     };
     queries.unshift(newQuery);
     safeSetLocalStorage(STORAGE_KEYS.COMMUNITY_QUERIES, queries);
-    saveCommunityQueryToFirebase(newQuery);
+    saveCommunityQueryToCloud(newQuery, this.activeTournamentId);
     this.notify('queries_updated');
     return newQuery;
   }
@@ -2526,7 +3767,7 @@ class Store {
     query.replies.push(newReply);
 
     safeSetLocalStorage(STORAGE_KEYS.COMMUNITY_QUERIES, queries);
-    saveCommunityQueryToFirebase(query);
+    saveCommunityQueryToCloud(query, this.activeTournamentId);
     this.notify('queries_updated');
     return newReply;
   }
@@ -2536,7 +3777,7 @@ class Store {
     let queries = this.getCommunityQueries();
     queries = queries.filter(q => q && q.id !== queryId);
     safeSetLocalStorage(STORAGE_KEYS.COMMUNITY_QUERIES, queries);
-    deleteCommunityQueryFromFirebase(queryId);
+    deleteCommunityQueryFromCloud(queryId);
     this.notify('queries_updated');
     return true;
   }

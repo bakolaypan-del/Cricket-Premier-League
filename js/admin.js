@@ -1,21 +1,72 @@
 // Admin Master Data & Payment Verification Panel with Single Source Cloud Control (Developer: Suman Kolay)
 
-import { store } from './store.js?v=11.6.4';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF } from './export.js?v=11.6.4';
-import { saveAdSettingsToFirebase, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, savePopupSettingsToFirebase, uploadHDImage, getOptimizedImageUrl } from './supabase.js?v=11.6.4';
-import { shops } from './shopsData.js?v=11.6.4';
+import { store } from './store.js?v=13.0.53';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.53';
+import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID, compressImageToTarget } from './supabase.js?v=13.0.53';
+import { shops } from './shopsData.js?v=12.0.2';
 
-let activeAdminTab = 'payments'; // 'payments', 'all-players', 'teams'
-let adminAuctionSubTab = 'sold'; // 'sold', 'unsold'
+let activeAdminTab = (() => { try { return sessionStorage.getItem('cpl_admin_tab') || (store.isMasterAdmin() ? 'payments' : 'overview'); } catch(e) { return 'payments'; } })();
+let adminAuctionSubTab = 'sold';
 const todayStr = new Date().toISOString().split('T')[0];
 
 export function renderAdminDashboard(containerEl) {
-  // STRICT ADMIN AUTHENTICATION LOCK (bakolaypan@gmail.com / Suman@2030)
+  // STRICT ADMIN AUTHENTICATION LOCK (Supabase Auth)
   if (!store.isAdminAuthenticated()) {
     renderAdminLoginScreen(containerEl);
     return;
   }
 
+  const isMaster = store.isMasterAdmin();
+  const currentUser = store.getCurrentUser();
+
+  // 1. Resolve Tournament List & Active Tournament ID FIRST
+  const customTournaments = store.getCustomTournaments ? store.getCustomTournaments() : [];
+  let allTournaments = customTournaments.map(t => ({ id: t.supabaseId || t.id, name: t.name, slug: t.slug, category_code: t.category_code || t.category || '', status: t.status || 'ACTIVE' }));
+  
+  if (!isMaster && currentUser) {
+    const userPhone = (currentUser.phone || currentUser.mobile || '').replace(/[^0-9]/g, '');
+    const userName = (currentUser.name || currentUser.email || '').toLowerCase().trim();
+    const owners = store.getTournamentOwners ? store.getTournamentOwners() : {};
+    const ownedIds = [];
+    
+    for (const [tId, ownerInfo] of Object.entries(owners)) {
+      if (ownerInfo && (ownerInfo.phone || '').replace(/[^0-9]/g, '') === userPhone) {
+        ownedIds.push(tId.toLowerCase());
+      }
+    }
+    if (Array.isArray(currentUser.ownedTournaments)) {
+      currentUser.ownedTournaments.forEach(id => {
+        if (id && !ownedIds.includes(id.toLowerCase())) ownedIds.push(id.toLowerCase());
+      });
+    }
+
+    // Match by phone, owned IDs, or username/slug
+    allTournaments = allTournaments.filter(t => {
+      const tId = (t.id || '').toLowerCase();
+      const tSlug = (t.slug || '').toLowerCase();
+      const tCode = (t.category_code || '').toLowerCase();
+      const tName = (t.name || '').toLowerCase();
+
+      if (ownedIds.some(oid => oid.includes(tId) || tId.includes(oid) || oid.includes(tSlug) || tSlug.includes(oid) || oid.includes(tCode))) return true;
+      if (userName && (userName.includes(tSlug) || tSlug.includes(userName) || userName.includes(tCode) || tCode.includes(userName) || (userName.includes('kuapur') && tSlug.includes('k2026')) || (userName.includes('pintu') && tSlug.includes('jsl')))) return true;
+      return false;
+    });
+  }
+
+  if (allTournaments.length === 0) {
+    allTournaments = customTournaments.map(t => ({ id: t.supabaseId || t.id, name: t.name, slug: t.slug, category_code: t.category_code || t.category || '', status: t.status || 'ACTIVE' }));
+  }
+  if (allTournaments.length === 0) {
+    allTournaments.push({ id: store.activeTournamentId || '5cf4f50c-3930-486a-83c3-3f59414a7d6f', name: 'My Tournament', slug: 'm2026', status: 'ACTIVE' });
+  }
+
+  const activeTid = (allTournaments.some(t => t.id === store.activeTournamentId) ? store.activeTournamentId : allTournaments[0]?.id) || allTournaments[0]?.id;
+  if (activeTid && store.activeTournamentId !== activeTid) {
+    if (store.setActiveTournament) store.setActiveTournament(activeTid);
+    else store.activeTournamentId = activeTid;
+  }
+
+  // 2. NOW query players, teams, leagues for the ACTIVE TOURNAMENT
   const leagues = store.getAccessibleLeagues();
   const players = store.getPlayers();
   const teams = store.getTeams();
@@ -29,12 +80,10 @@ export function renderAdminDashboard(containerEl) {
   const unsoldPlayers = players.filter(p => p.auctionStatus === 'UNSOLD' && !p.teamId);
   const queuePlayers = players.filter(p => (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED') && !p.teamId && p.auctionStatus !== 'SOLD' && p.auctionStatus !== 'UNSOLD');
 
-  const isMaster = store.isMasterAdmin();
-  const currentUser = store.getCurrentUser();
   const regSettings = store.getRegistrationSettings();
-  const isRegOpen = store.isJslRegistrationOpen();
+  const isRegOpen = store.isRegistrationOpen();
   
-  const initialLeagueCode = (leagues[0]?.code || leagues[0]?.category || 'JSL').toUpperCase();
+  const initialLeagueCode = (leagues[0]?.code || leagues[0]?.category || 'T').toUpperCase();
   const initialFormat = store.getTournamentFormat(initialLeagueCode);
   const initialFmt = initialFormat.format || 'TWO_GROUPS';
   let initialStageOptionsHtml = '';
@@ -65,131 +114,259 @@ export function renderAdminDashboard(containerEl) {
     `;
   }
 
-  const panelTitle = isMaster ? 'Master Admin Control Panel' : 'JSL 2026 Tournament Control Console';
+  const activeTourneyName = allTournaments.find(t => t.id === activeTid)?.name || 'Tournament';
+  const panelTitle = isMaster ? 'Master Admin Control Panel' : `${activeTourneyName} Control Console`;
   const panelSubtitle = isMaster 
-    ? 'Log ID: <strong class="text-amber-400">bakolaypan@gmail.com</strong> • Single Source Supabase & Realtime Cloud Database'
+    ? `Log ID: <strong class="text-amber-400">${currentUser?.email || 'Master Admin'}</strong> • Single Source Supabase & Realtime Cloud Database`
     : `Logged in as: <strong class="text-amber-400">${currentUser?.name || 'Tournament Owner'}</strong> • Tournament Operations Only`;
 
+  // Sidebar nav items config
+  const sidebarItems = [
+    ...(!isMaster ? [{ tab: 'overview', icon: 'layout-dashboard', label: 'Overview' }] : []),
+    { tab: 'payments', icon: 'badge-indian-rupee', label: 'Approvals', badge: pendingPlayers.length, badgeColor: 'red' },
+    { tab: 'all-players', icon: 'users', label: 'Players', badge: players.length, badgeColor: 'slate' },
+    { tab: 'teams', icon: 'shield', label: 'Teams', badge: teams.length, badgeColor: 'slate' },
+    { tab: 'auction', icon: 'gavel', label: 'Auction', masterOnly: false },
+    { tab: 'fixtures', icon: 'calendar', label: 'Scheduler', masterOnly: false },
+    { tab: 'scorer', icon: 'gamepad-2', label: 'Live Scorer', masterOnly: false },
+    ...(!isMaster ? [{ tab: 'reg-settings', icon: 'power', label: 'Reg. Control' }] : []),
+    ...(isMaster ? [
+      { tab: 'reg-settings', icon: 'power', label: 'Reg. Control' },
+      { tab: 'shop-ads', icon: 'megaphone', label: 'Shop Ads' },
+      { tab: 'owners', icon: 'crown', label: 'Owners' },
+      { tab: 'saas-tournaments', icon: 'trophy', label: 'Tournaments', badge: (store.getPendingTournaments ? store.getPendingTournaments().length : 0) || undefined, badgeColor: 'red' },
+    ] : [])
+  ];
+
   containerEl.innerHTML = `
-    <div class="space-y-4 sm:space-y-6 animate-fade-in">
-      <!-- Admin Header & Actions Bar (Stylish White Background) -->
-      <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-white border-2 border-emerald-500/20 p-4 sm:p-5 rounded-3xl shadow-sm">
-        <div>
-          <div class="flex items-center gap-3">
-            <span class="p-2.5 bg-emerald-50 text-emerald-700 rounded-2xl border border-emerald-200 shadow-xs">
-              <i data-lucide="shield-check" class="w-6 h-6"></i>
-            </span>
-            <div>
-              <h1 class="text-lg sm:text-xl font-black text-slate-900">${panelTitle}</h1>
-              <p class="text-xs text-slate-500">${panelSubtitle}</p>
-            </div>
+    <div class="animate-fade-in">
+      <!-- Top Header Bar -->
+      <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 bg-slate-900 text-white p-3.5 sm:p-4 rounded-2xl mb-4 shadow-lg">
+        <div class="flex items-center gap-3 min-w-0">
+          <span class="p-2 bg-emerald-500/20 text-emerald-400 rounded-xl border border-emerald-500/30 shrink-0">
+            <i data-lucide="shield-check" class="w-5 h-5"></i>
+          </span>
+          <div class="min-w-0">
+            <h1 class="text-sm sm:text-base font-black text-white truncate">${panelTitle}</h1>
+            <p class="text-[11px] text-slate-400 truncate">${panelSubtitle}</p>
           </div>
         </div>
 
-        <div class="flex flex-wrap items-center gap-2">
-          ${isMaster ? `
-            <!-- JSL REGISTRATION MASTER QUICK-TOGGLE BADGE -->
-            <div class="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-xl border ${isRegOpen ? 'border-emerald-400 bg-emerald-50/50' : 'border-red-400 bg-red-50/50'} shadow-2xs">
-              <span class="w-2.5 h-2.5 rounded-full ${isRegOpen ? 'bg-emerald-500 animate-pulse' : 'bg-red-500'}"></span>
-              <span class="text-xs font-black ${isRegOpen ? 'text-emerald-800' : 'text-red-700'}">
-                JSL Reg: ${isRegOpen ? 'ACTIVE' : 'DEACTIVATED'}
-              </span>
-              <button id="quick-toggle-reg-btn" class="px-2.5 py-1 text-[10px] font-black rounded-lg ${isRegOpen ? 'bg-red-600 hover:bg-red-500 text-white' : 'bg-emerald-600 hover:bg-emerald-500 text-white'} transition-all shadow flex items-center gap-1 cursor-pointer" title="${isRegOpen ? 'Deactivate Public Registration Link' : 'Activate Public Registration Link'}">
-                <i data-lucide="${isRegOpen ? 'power-off' : 'power'}" class="w-3 h-3"></i>
-                ${isRegOpen ? 'Deactivate' : 'Activate'}
-              </button>
-            </div>
+        <div class="flex items-center gap-2 flex-wrap w-full sm:w-auto">
+          <!-- Tournament Selector -->
+          <div class="flex items-center gap-1.5 bg-slate-800 border border-slate-700 rounded-xl px-2.5 py-1.5 flex-1 sm:flex-none min-w-0">
+            <i data-lucide="trophy" class="w-3.5 h-3.5 text-amber-400 shrink-0"></i>
+            <select id="admin-tournament-selector" class="bg-transparent text-xs text-white font-bold border-none outline-none cursor-pointer min-w-0 flex-1 appearance-none" style="-webkit-appearance:none">
+              ${allTournaments.map(t => `<option value="${t.id}" ${t.id === activeTid ? 'selected' : ''} class="bg-slate-900 text-white">${t.name}</option>`).join('')}
+            </select>
+          </div>
 
-            <a href="cpl_project_handbook.html" target="_blank" class="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-xs font-bold rounded-xl border border-emerald-300 flex items-center gap-1.5 transition-colors shadow-2xs no-underline">
-              <i data-lucide="book-open" class="w-4 h-4 text-emerald-600"></i> Handbook
-            </a>
-            <button id="export-master-csv-btn" class="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold rounded-xl border border-slate-300 flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer">
-              <i data-lucide="download" class="w-4 h-4 text-emerald-600"></i> Export CSV
-            </button>
-            <button id="export-master-pdf-btn" class="px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold rounded-xl border border-red-300 flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer">
-              <i data-lucide="file-text" class="w-4 h-4 text-red-600"></i> Export PDF
-            </button>
-            <button id="export-team-squads-pdf-btn" class="px-3 py-1.5 bg-amber-50 hover:bg-amber-100 text-amber-900 text-xs font-black rounded-xl border border-amber-300 flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer" title="Download Final Auction Squad PDF for any or all teams">
-              <i data-lucide="trophy" class="w-4 h-4 text-amber-600"></i> Squads PDF
-            </button>
-            <button id="purge-verified-docs-btn" class="px-3 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-800 text-xs font-bold rounded-xl border border-sky-300 flex items-center gap-1.5 transition-all shadow-2xs cursor-pointer" title="Delete Aadhaar & Payment Receipts for Approved Players to save cloud memory">
-              <i data-lucide="shield-check" class="w-4 h-4 text-sky-600"></i> Purge Docs
+          ${isMaster ? `
+            <button id="admin-create-new-tourney-btn" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 text-[11px] font-black rounded-xl flex items-center gap-1 transition-all cursor-pointer shrink-0">
+              <i data-lucide="plus" class="w-3.5 h-3.5"></i> New
             </button>
           ` : ''}
-          <button id="admin-logout-btn" class="px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl border border-slate-300 flex items-center gap-1.5 transition-colors">
-            <i data-lucide="log-out" class="w-4 h-4"></i> Logout
+
+          <button id="admin-logout-btn" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 text-[11px] font-bold rounded-xl border border-slate-700 flex items-center gap-1 transition-colors cursor-pointer shrink-0">
+            <i data-lucide="log-out" class="w-3.5 h-3.5"></i> Logout
           </button>
         </div>
       </div>
 
-      <!-- DASHBOARD CARDS (Total, Pending, Approved, Rejected, Today's) -->
-      <div class="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
-        <div class="p-3 text-center border-2 border-slate-200 bg-white rounded-2xl shadow-2xs">
-          <div class="text-[9px] font-bold text-slate-500 uppercase">Total Registered</div>
-          <div class="text-xl sm:text-2xl font-black text-slate-900 mt-0.5">${players.length}</div>
+      <!-- Stats Cards Row -->
+      <div class="grid grid-cols-3 sm:grid-cols-5 gap-2 mb-4">
+        <div class="p-2.5 bg-white border border-slate-200 rounded-xl text-center shadow-2xs">
+          <div class="text-[9px] font-bold text-slate-500 uppercase tracking-wide">Total</div>
+          <div class="text-lg font-black text-slate-900 cpl-countup" data-target="${players.length}">0</div>
         </div>
-
-        <div class="p-3 text-center border-2 border-amber-300 bg-white rounded-2xl shadow-2xs">
-          <div class="text-[9px] font-bold text-amber-800 uppercase">Pending (🔴 Red)</div>
-          <div class="text-xl sm:text-2xl font-black text-amber-600 mt-0.5">${pendingPlayers.length}</div>
+        <div class="p-2.5 bg-amber-50 border border-amber-200 rounded-xl text-center shadow-2xs">
+          <div class="text-[9px] font-bold text-amber-700 uppercase tracking-wide">Pending</div>
+          <div class="text-lg font-black text-amber-600 cpl-countup" data-target="${pendingPlayers.length}">0</div>
         </div>
-
-        <div class="p-3 text-center border-2 border-emerald-300 bg-white rounded-2xl shadow-2xs">
-          <div class="text-[9px] font-bold text-emerald-800 uppercase">Approved (🟢 Green)</div>
-          <div class="text-xl sm:text-2xl font-black text-emerald-600 mt-0.5">${approvedPlayers.length}</div>
+        <div class="p-2.5 bg-emerald-50 border border-emerald-200 rounded-xl text-center shadow-2xs">
+          <div class="text-[9px] font-bold text-emerald-700 uppercase tracking-wide">Approved</div>
+          <div class="text-lg font-black text-emerald-600 cpl-countup" data-target="${approvedPlayers.length}">0</div>
         </div>
-
-        <div class="p-3 text-center border-2 border-rose-300 bg-white rounded-2xl shadow-2xs">
-          <div class="text-[9px] font-bold text-rose-800 uppercase">Rejected</div>
-          <div class="text-xl sm:text-2xl font-black text-rose-600 mt-0.5">${rejectedPlayers.length}</div>
+        <div class="p-2.5 bg-rose-50 border border-rose-200 rounded-xl text-center shadow-2xs">
+          <div class="text-[9px] font-bold text-rose-700 uppercase tracking-wide">Rejected</div>
+          <div class="text-lg font-black text-rose-600 cpl-countup" data-target="${rejectedPlayers.length}">0</div>
         </div>
-
-        <div class="p-3 text-center border-2 border-sky-300 bg-white rounded-2xl shadow-2xs col-span-2 sm:col-span-1">
-          <div class="text-[9px] font-bold text-sky-800 uppercase">Today's Registrations</div>
-          <div class="text-xl sm:text-2xl font-black text-sky-600 mt-0.5">${todayPlayers.length}</div>
+        <div class="p-2.5 bg-sky-50 border border-sky-200 rounded-xl text-center shadow-2xs">
+          <div class="text-[9px] font-bold text-sky-700 uppercase tracking-wide">Today</div>
+          <div class="text-lg font-black text-sky-600 cpl-countup" data-target="${todayPlayers.length}">0</div>
         </div>
       </div>
 
-      <!-- Admin Tabs Navigation (Clean White Buttons) -->
-      <div class="flex border-b-2 border-slate-200 space-x-1.5 overflow-x-auto pb-1" id="admin-tab-nav">
-        <button data-tab="payments" class="admin-tab-btn ${activeAdminTab === 'payments' ? 'active bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 font-bold'} px-3.5 sm:px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all">
-          <i data-lucide="badge-indian-rupee" class="w-3.5 h-3.5"></i> Pending Approvals 
-          <span class="px-1.5 py-0.2 text-[10px] ${activeAdminTab === 'payments' ? 'bg-white text-red-700' : 'bg-red-100 text-red-700 border border-red-300'} rounded-full font-black">${pendingPlayers.length}</span>
-        </button>
-        <button data-tab="all-players" class="admin-tab-btn ${activeAdminTab === 'all-players' ? 'active bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 font-bold'} px-3.5 sm:px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all">
-          <i data-lucide="users" class="w-3.5 h-3.5"></i> All Registered Players (${players.length})
-        </button>
-        <button data-tab="teams" class="admin-tab-btn ${activeAdminTab === 'teams' ? 'active bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 font-bold'} px-3.5 sm:px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all">
-          <i data-lucide="shield" class="w-3.5 h-3.5"></i> Registered Teams (${teams.length})
-        </button>
-        <button data-tab="auction" class="admin-tab-btn ${activeAdminTab === 'auction' ? 'active bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 font-bold'} px-3.5 sm:px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all">
-          <i data-lucide="gavel" class="w-3.5 h-3.5"></i> Auction Controls
-        </button>
-        <button data-tab="fixtures" class="admin-tab-btn ${activeAdminTab === 'fixtures' ? 'active bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 font-bold'} px-3.5 sm:px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all">
-          <i data-lucide="calendar" class="w-3.5 h-3.5"></i> Scheduler
-        </button>
-        <button data-tab="scorer" class="admin-tab-btn ${activeAdminTab === 'scorer' ? 'active bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 font-bold'} px-3.5 sm:px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all">
-          <i data-lucide="gamepad-2" class="w-3.5 h-3.5"></i> Match Scorer
-        </button>
-        ${isMaster ? `
-          <button data-tab="reg-settings" class="admin-tab-btn ${activeAdminTab === 'reg-settings' ? 'active bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 font-bold'} px-3.5 sm:px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all">
-            <i data-lucide="power" class="w-3.5 h-3.5"></i> ⚙️ Registration Link Control
-          </button>
-          <button data-tab="shop-ads" class="admin-tab-btn ${activeAdminTab === 'shop-ads' ? 'active bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 font-bold'} px-3.5 sm:px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all">
-            <i data-lucide="megaphone" class="w-3.5 h-3.5"></i> 📢 Shop Ads
-          </button>
-          <button data-tab="owners" class="admin-tab-btn ${activeAdminTab === 'owners' ? 'active bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 font-bold'} px-3.5 sm:px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all">
-            <i data-lucide="crown" class="w-3.5 h-3.5"></i> 👑 Tournament Owners
-          </button>
-          <button data-tab="saas-tournaments" class="admin-tab-btn ${activeAdminTab === 'saas-tournaments' ? 'active bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-600 hover:text-slate-900 bg-white hover:bg-slate-50 border border-slate-200 font-bold'} px-3.5 sm:px-4 py-2 rounded-xl text-xs flex items-center gap-1.5 transition-all">
-            <i data-lucide="trophy" class="w-3.5 h-3.5"></i> 🏆 Host League SaaS & Trial
-          </button>
+      <!-- Sidebar + Content Layout -->
+      <div class="flex gap-4">
+        <!-- Vertical Sidebar (hidden on mobile, shown md+) -->
+        <nav class="hidden md:flex flex-col w-48 shrink-0 bg-white border border-slate-200 rounded-2xl p-2 gap-0.5 shadow-sm self-start sticky top-4" id="admin-sidebar-nav">
+          ${sidebarItems.map(item => `
+            <button data-tab="${item.tab}" class="admin-tab-btn flex items-center gap-2 px-3 py-2 rounded-xl text-xs font-bold transition-all w-full text-left ${activeAdminTab === item.tab ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}">
+              <i data-lucide="${item.icon}" class="w-4 h-4 shrink-0"></i>
+              <span class="truncate flex-1">${item.label}</span>
+              ${item.badge ? `<span class="px-1.5 py-0.5 text-[9px] font-black rounded-full ${activeAdminTab === item.tab ? 'bg-white/20 text-white' : (item.badgeColor === 'red' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600')}">${item.badge}</span>` : ''}
+            </button>
+          `).join('')}
+
+          ${isMaster ? `
+            <div class="border-t border-slate-100 mt-2 pt-2 space-y-1">
+              <div class="px-3 text-[9px] font-black text-slate-400 uppercase tracking-wider">Quick Actions</div>
+              <button id="export-master-csv-btn" class="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-50 rounded-lg transition-all cursor-pointer">
+                <i data-lucide="download" class="w-3 h-3 text-emerald-600"></i> Export CSV
+              </button>
+              <button id="export-master-pdf-btn" class="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-50 rounded-lg transition-all cursor-pointer">
+                <i data-lucide="file-text" class="w-3 h-3 text-red-600"></i> Export PDF
+              </button>
+              <button id="export-team-squads-pdf-btn" class="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-50 rounded-lg transition-all cursor-pointer">
+                <i data-lucide="trophy" class="w-3 h-3 text-amber-600"></i> Squads PDF
+              </button>
+              <button id="purge-verified-docs-btn" class="w-full flex items-center gap-2 px-3 py-1.5 text-[11px] font-bold text-slate-600 hover:bg-slate-50 rounded-lg transition-all cursor-pointer">
+                <i data-lucide="shield-check" class="w-3 h-3 text-sky-600"></i> Purge Docs
+              </button>
+            </div>
+          ` : ''}
+        </nav>
+
+        <!-- Main Content Area -->
+        <div class="flex-1 min-w-0">
+          <!-- Mobile Horizontal Pills (shown below md only) -->
+          <div class="md:hidden flex overflow-x-auto gap-1.5 pb-3 scrollbar-hide" id="admin-mobile-nav">
+            ${sidebarItems.map(item => `
+              <button data-tab="${item.tab}" class="admin-tab-btn shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-bold transition-all ${activeAdminTab === item.tab ? 'bg-emerald-600 text-white shadow-sm' : 'text-slate-600 bg-white border border-slate-200 hover:bg-slate-50'}">
+                <i data-lucide="${item.icon}" class="w-3 h-3"></i>
+                ${item.label}
+                ${item.badge ? `<span class="px-1 py-0.5 text-[8px] font-black rounded-full ${activeAdminTab === item.tab ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-600'}">${item.badge}</span>` : ''}
+              </button>
+            `).join('')}
+          </div>
+
+          <div id="admin-tab-content">
+
+        <!-- 0. Organiser Overview Tab -->
+        ${!isMaster ? `
+        <div id="tab-overview-view" class="${activeAdminTab === 'overview' ? '' : 'hidden'} space-y-4 animate-fade-in">
+
+          <!-- Welcome & Tournament Info -->
+          <div class="p-4 sm:p-5 bg-gradient-to-br from-emerald-50 to-teal-50 border-2 border-emerald-200 rounded-3xl shadow-sm space-y-3">
+            <div class="flex items-center gap-3">
+              <span class="p-2.5 bg-emerald-100 text-emerald-700 rounded-2xl border border-emerald-300">
+                <i data-lucide="trophy" class="w-6 h-6"></i>
+              </span>
+              <div>
+                <h2 class="text-lg font-black text-slate-900">${activeTourneyName}</h2>
+                <p class="text-xs text-slate-600">Welcome back, <strong>${currentUser?.name || 'Organiser'}</strong></p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Stats Grid -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <div class="bg-white border-2 border-slate-200 rounded-2xl p-3 text-center shadow-xs">
+              <div class="text-2xl font-black text-emerald-700">${players.length}</div>
+              <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Total Players</div>
+            </div>
+            <div class="bg-white border-2 border-slate-200 rounded-2xl p-3 text-center shadow-xs">
+              <div class="text-2xl font-black text-sky-700">${teams.length}</div>
+              <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Teams</div>
+            </div>
+            <div class="bg-white border-2 border-slate-200 rounded-2xl p-3 text-center shadow-xs">
+              <div class="text-2xl font-black text-amber-700">${pendingPlayers.length}</div>
+              <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Pending</div>
+            </div>
+            <div class="bg-white border-2 border-slate-200 rounded-2xl p-3 text-center shadow-xs">
+              <div class="text-2xl font-black text-purple-700">${approvedPlayers.length}</div>
+              <div class="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Approved</div>
+            </div>
+          </div>
+
+          <!-- Registration Status -->
+          <div class="p-4 bg-white border-2 border-slate-200 rounded-2xl shadow-xs space-y-3">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <i data-lucide="radio" class="w-4 h-4 ${isRegOpen ? 'text-emerald-600' : 'text-red-500'}"></i>
+                <span class="text-sm font-black text-slate-900">Registration Status</span>
+              </div>
+              <span class="px-3 py-1 text-[10px] font-black rounded-full ${isRegOpen ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-red-100 text-red-800 border border-red-300'}">
+                ${isRegOpen ? 'OPEN' : 'CLOSED'}
+              </span>
+            </div>
+            <button id="overview-toggle-reg-btn" class="w-full py-2.5 ${isRegOpen ? 'bg-red-600 hover:bg-red-500' : 'bg-emerald-600 hover:bg-emerald-500'} text-white font-black text-xs rounded-xl shadow-xs transition-all cursor-pointer">
+              ${isRegOpen ? 'Close Registration' : 'Open Registration'}
+            </button>
+          </div>
+
+          <!-- Quick Actions -->
+          <div class="p-4 bg-white border-2 border-slate-200 rounded-2xl shadow-xs space-y-3">
+            <h3 class="text-sm font-black text-slate-900 flex items-center gap-2">
+              <i data-lucide="zap" class="w-4 h-4 text-amber-600"></i> Quick Actions
+            </h3>
+            <div class="grid grid-cols-2 gap-2">
+              <button id="overview-share-link-btn" class="py-2.5 bg-sky-50 hover:bg-sky-100 border border-sky-200 text-sky-800 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer">
+                <i data-lucide="share-2" class="w-3.5 h-3.5"></i> Share Registration Link
+              </button>
+              <button id="overview-view-public-btn" class="py-2.5 bg-amber-50 hover:bg-amber-100 border border-amber-200 text-amber-800 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer">
+                <i data-lucide="eye" class="w-3.5 h-3.5"></i> View Public Page
+              </button>
+              <button data-tab="payments" class="admin-tab-btn py-2.5 bg-rose-50 hover:bg-rose-100 border border-rose-200 text-rose-800 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer">
+                <i data-lucide="badge-indian-rupee" class="w-3.5 h-3.5"></i> Approve Players (${pendingPlayers.length})
+              </button>
+              <button data-tab="auction" class="admin-tab-btn py-2.5 bg-purple-50 hover:bg-purple-100 border border-purple-200 text-purple-800 font-bold text-xs rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer">
+                <i data-lucide="gavel" class="w-3.5 h-3.5"></i> Auction Control
+              </button>
+            </div>
+          </div>
+
+          <!-- Recent Registrations -->
+          <div class="p-4 bg-white border-2 border-slate-200 rounded-2xl shadow-xs space-y-3">
+            <h3 class="text-sm font-black text-slate-900 flex items-center gap-2">
+              <i data-lucide="clock" class="w-4 h-4 text-slate-600"></i> Today's Registrations (${todayPlayers.length})
+            </h3>
+            ${todayPlayers.length === 0 ? `
+              <p class="text-xs text-slate-500 text-center py-4">No registrations today yet.</p>
+            ` : `
+              <div class="space-y-2 max-h-60 overflow-y-auto">
+                ${todayPlayers.slice(0, 10).map(p => `
+                  <div class="flex items-center justify-between p-2 bg-slate-50 rounded-xl border border-slate-200">
+                    <div class="flex items-center gap-2 min-w-0">
+                      <img src="${p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png'}" class="w-8 h-8 rounded-lg object-cover border border-slate-200 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                      <div class="min-w-0">
+                        <div class="text-xs font-bold text-slate-900 truncate">${p.name}</div>
+                        <div class="text-[9px] text-slate-500">${p.phone || p.mobile || 'N/A'} • ${p.category || 'All Rounder'}</div>
+                      </div>
+                    </div>
+                    <span class="px-2 py-0.5 text-[9px] font-black rounded-full ${p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED' ? 'bg-emerald-100 text-emerald-800' : (p.registrationStatus === 'REJECTED' ? 'bg-red-100 text-red-800' : 'bg-amber-100 text-amber-800')}">
+                      ${p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED' ? 'APPROVED' : (p.registrationStatus === 'REJECTED' ? 'REJECTED' : 'PENDING')}
+                    </span>
+                  </div>
+                `).join('')}
+              </div>
+            `}
+          </div>
+
+          <!-- Revenue Summary -->
+          <div class="p-4 bg-white border-2 border-slate-200 rounded-2xl shadow-xs space-y-3">
+            <h3 class="text-sm font-black text-slate-900 flex items-center gap-2">
+              <i data-lucide="indian-rupee" class="w-4 h-4 text-emerald-600"></i> Revenue Summary
+            </h3>
+            <div class="grid grid-cols-3 gap-2">
+              <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-2.5 text-center">
+                <div class="text-lg font-black text-emerald-700">${approvedPlayers.length}</div>
+                <div class="text-[9px] font-bold text-emerald-600">Paid Players</div>
+              </div>
+              <div class="bg-amber-50 border border-amber-200 rounded-xl p-2.5 text-center">
+                <div class="text-lg font-black text-amber-700">${pendingPlayers.length}</div>
+                <div class="text-[9px] font-bold text-amber-600">Payment Pending</div>
+              </div>
+              <div class="bg-sky-50 border border-sky-200 rounded-xl p-2.5 text-center">
+                <div class="text-lg font-black text-sky-700">${teams.length}</div>
+                <div class="text-[9px] font-bold text-sky-600">Team Entries</div>
+              </div>
+            </div>
+          </div>
+        </div>
         ` : ''}
-      </div>
 
-      <!-- Tab Content Area -->
-      <div id="admin-tab-content">
-        
         <!-- 1. Pending Payment Verification Tab -->
         <div id="tab-payments-view" class="${activeAdminTab === 'payments' ? '' : 'hidden'} space-y-4">
           <div class="p-4 sm:p-5 bg-white border-2 border-slate-200 rounded-3xl shadow-sm">
@@ -207,7 +384,32 @@ export function renderAdminDashboard(containerEl) {
                 <p class="text-xs text-slate-500 mt-0.5">There are no pending player registrations requiring approval right now.</p>
               </div>
             ` : `
-              <div class="overflow-x-auto border border-slate-200 rounded-2xl">
+              <div class="space-y-2 sm:hidden">
+                ${pendingPlayers.map(p => `
+                  <div class="p-3 bg-white border border-slate-200 rounded-xl space-y-2">
+                    <div class="flex items-center gap-2.5">
+                      <img src="${p.photoUrl || p.player_photo_url}" loading="lazy" decoding="async" class="w-10 h-10 rounded-xl object-cover border border-slate-200 shadow-2xs" onerror="this.src='assets/card_jsl_user.png'"/>
+                      <div class="flex-1 min-w-0">
+                        <div class="font-bold text-slate-900 text-xs truncate">${p.name}</div>
+                        <div class="flex items-center gap-1.5 mt-0.5">
+                          <span class="px-1.5 py-0.5 bg-slate-100 text-slate-700 font-mono text-[8px] font-black rounded border border-slate-200">${p.registrationId || p.regNo || 'REG-0001'}</span>
+                          <span class="text-[9px] text-sky-700 font-bold">${p.category || p.playingType || 'All Rounder'}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div class="flex items-center justify-between text-[9px] text-slate-500">
+                      <span>📞 ${p.phone || 'N/A'}</span>
+                      <span class="font-mono font-bold text-amber-800">UPI: ${p.paymentRef || 'N/A'}</span>
+                    </div>
+                    <div class="flex items-center gap-1.5">
+                      <button data-approve-id="${p.id}" class="approve-player-btn flex-1 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-[10px] rounded-lg shadow-xs text-center">Approve</button>
+                      <button data-reject-id="${p.id}" class="reject-player-btn flex-1 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-extrabold text-[10px] rounded-lg border border-rose-300 text-center">Reject</button>
+                      ${isMaster ? `<button data-edit-id="${p.id}" class="edit-player-btn p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg border border-slate-300"><i data-lucide="edit-2" class="w-3.5 h-3.5"></i></button><button data-delete-id="${p.id}" class="delete-player-btn p-1.5 bg-red-50 hover:bg-red-100 text-red-700 rounded-lg border border-red-300"><i data-lucide="trash-2" class="w-3.5 h-3.5"></i></button>` : ''}
+                    </div>
+                  </div>
+                `).join('')}
+              </div>
+              <div class="hidden sm:block overflow-x-auto border border-slate-200 rounded-2xl">
                 <table class="w-full text-left text-xs sm:text-sm text-slate-800">
                   <thead class="bg-slate-100 text-[10px] sm:text-xs uppercase text-slate-700 font-black border-b border-slate-200">
                     <tr>
@@ -226,7 +428,7 @@ export function renderAdminDashboard(containerEl) {
                             <img src="${p.photoUrl || p.player_photo_url}" loading="lazy" decoding="async" class="w-10 h-10 rounded-xl object-cover border border-slate-200 shadow-2xs" onerror="this.src='assets/card_jsl_user.png'"/>
                             <div>
                               <div class="font-bold text-slate-900 text-xs sm:text-sm">${p.name}</div>
-                              <span class="px-1.5 py-0.5 bg-slate-100 text-slate-800 font-mono text-[9px] font-black rounded border border-slate-300">${p.registrationId || p.regNo || 'JSL2026-0001'} (#${p.displayRegistrationNumber || p.serialNo})</span>
+                              <span class="px-1.5 py-0.5 bg-slate-100 text-slate-800 font-mono text-[9px] font-black rounded border border-slate-300">${p.registrationId || p.regNo || 'REG-0001'} (#${p.displayRegistrationNumber || p.serialNo})</span>
                             </div>
                           </div>
                         </td>
@@ -284,7 +486,7 @@ export function renderAdminDashboard(containerEl) {
 
             <div class="overflow-x-auto border border-slate-200 rounded-2xl">
               <table class="w-full text-left text-xs sm:text-sm text-slate-800">
-                <thead class="bg-slate-100 text-[10px] sm:text-xs uppercase text-slate-700 font-black border-b border-slate-200">
+                <thead class="hidden sm:table-header-group bg-slate-100 text-[10px] sm:text-xs uppercase text-slate-700 font-black border-b border-slate-200">
                   <tr>
                     <th class="py-3 px-3">Serial & Reg ID</th>
                     <th class="py-3 px-3">Player Name</th>
@@ -312,6 +514,9 @@ export function renderAdminDashboard(containerEl) {
                 <p class="text-xs text-slate-500">Manage franchise teams, squad allocations & print official auction rosters.</p>
               </div>
               <div class="flex items-center gap-2 flex-wrap">
+                <button id="admin-add-new-team-btn" class="px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer transition-all">
+                  <i data-lucide="plus-circle" class="w-4 h-4"></i> + Add New Team
+                </button>
                 <button id="download-all-teams-squad-pdf-btn" class="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-xs flex items-center gap-1.5 cursor-pointer transition-all">
                   <i data-lucide="file-down" class="w-4 h-4 text-slate-950"></i> 📄 Download All Squads PDF
                 </button>
@@ -322,9 +527,17 @@ export function renderAdminDashboard(containerEl) {
             </div>
 
             ${teams.length === 0 ? `
-              <div class="text-center py-10 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50">
-                <i data-lucide="shield-off" class="w-10 h-10 text-slate-400 mx-auto mb-2"></i>
-                <p class="text-slate-800 font-bold text-xs">No teams registered yet!</p>
+              <div class="text-center py-12 border-2 border-dashed border-slate-200 rounded-3xl bg-slate-50 space-y-3">
+                <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-700 mx-auto flex items-center justify-center text-xl font-black border border-emerald-200 shadow-2xs">
+                  🛡️
+                </div>
+                <div class="space-y-1">
+                  <h4 class="text-slate-900 font-black text-sm">No teams registered yet for this tournament!</h4>
+                  <p class="text-slate-500 text-xs max-w-sm mx-auto">Create franchise teams, assign team owner details, logos, and auction purse budgets.</p>
+                </div>
+                <button type="button" id="admin-empty-add-team-btn" class="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs rounded-xl shadow-md cursor-pointer transition-all inline-flex items-center gap-1.5">
+                  <i data-lucide="plus-circle" class="w-4 h-4"></i> + Register First Team
+                </button>
               </div>
             ` : `
               <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
@@ -340,19 +553,26 @@ export function renderAdminDashboard(containerEl) {
                         <div class="font-black text-slate-900 text-sm truncate">${t.name}</div>
                         <div class="text-[11px] text-sky-700 font-bold">Owner: ${t.ownerName || 'N/A'} <span class="text-slate-500">(${t.ownerPhone || 'N/A'})</span></div>
                         ${t.iconPlayerName || t.iconName ? `<div class="text-[10px] text-amber-700 font-black truncate">⭐ Icon: ${t.iconPlayerName || t.iconName}</div>` : ''}
-                        <div class="text-[10px] text-slate-700 font-bold mt-0.5">Purse: <span class="text-emerald-700 font-extrabold">₹${remPurse}</span> / ₹${maxPurse}</div>
+                        <div class="text-[10px] text-slate-700 font-bold mt-0.5">Purse: <span class="text-emerald-700 font-extrabold">₹${remPurse}</span> / ₹${maxPurse} • Squad: <span class="text-indigo-700 font-black">${t.squadCount || 0} Players</span></div>
                       </div>
                     </div>
-                    <div class="flex items-center pt-2.5 border-t border-slate-100 gap-1.5">
-                      <button data-download-team-squad-pdf-id="${t.id}" class="download-team-squad-pdf-btn flex-1 py-1.5 px-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1 cursor-pointer" title="Download Official Final Auction Squad PDF for ${t.name}">
-                        <i data-lucide="file-down" class="w-3.5 h-3.5"></i> Squad PDF
-                      </button>
-                      <button data-edit-team-id="${t.id}" class="edit-team-btn py-1.5 px-2.5 bg-sky-600 hover:bg-sky-500 text-white font-black text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1 cursor-pointer">
-                        <i data-lucide="edit-3" class="w-3.5 h-3.5"></i> Edit
-                      </button>
-                      <button data-delete-team-id="${t.id}" class="delete-team-btn py-1.5 px-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-xl border border-rose-300 transition-all flex items-center gap-1 cursor-pointer" title="Delete Team">
-                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                      </button>
+                    <div class="space-y-1.5 pt-2.5 border-t border-slate-100">
+                      <div class="flex items-center gap-1.5">
+                        <button data-manage-squad-team-id="${t.id}" class="manage-squad-team-btn flex-1 py-1.5 px-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-xs rounded-xl shadow-2xs transition-all flex items-center justify-center gap-1.5 cursor-pointer" title="View & Edit Team Squad Roster, Add or Remove Players">
+                          <i data-lucide="users" class="w-3.5 h-3.5"></i> 👥 Squad (${t.squadCount || 0})
+                        </button>
+                        <button data-download-team-squad-pdf-id="${t.id}" class="download-team-squad-pdf-btn py-1.5 px-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-2xs transition-all flex items-center justify-center gap-1 cursor-pointer" title="Download Official Final Auction Squad PDF">
+                          <i data-lucide="file-down" class="w-3.5 h-3.5"></i> PDF
+                        </button>
+                      </div>
+                      <div class="flex items-center gap-1.5">
+                        <button data-edit-team-id="${t.id}" class="edit-team-btn flex-1 py-1 px-2.5 bg-sky-600 hover:bg-sky-500 text-white font-black text-xs rounded-xl shadow-2xs transition-all flex items-center justify-center gap-1 cursor-pointer">
+                          <i data-lucide="edit-3" class="w-3.5 h-3.5"></i> Edit Details
+                        </button>
+                        <button data-delete-team-id="${t.id}" class="delete-team-btn py-1 px-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-xl border border-rose-300 transition-all flex items-center justify-center gap-1 cursor-pointer" title="Delete Team">
+                          <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 `;}).join('')}
@@ -381,12 +601,12 @@ export function renderAdminDashboard(containerEl) {
                   👑
                 </div>
                 <div>
-                  <span class="text-[10px] font-bold text-amber-800 uppercase">JSL 2026 Appointed Owner</span>
+                  <span class="text-[10px] font-bold text-amber-800 uppercase">Appointed Tournament Owner</span>
                   <div class="font-black text-slate-900 text-sm">
-                    ${store.getTournamentOwners()['tournament-jsl-2026'] ? store.getTournamentOwners()['tournament-jsl-2026'].name : 'Not Appointed'}
+                    ${store.getTournamentOwners()[activeTid] ? store.getTournamentOwners()[activeTid].name : 'Not Appointed'}
                   </div>
                   <div class="text-xs text-slate-500 font-mono">
-                    Phone: ${store.getTournamentOwners()['tournament-jsl-2026'] ? store.getTournamentOwners()['tournament-jsl-2026'].phone : 'N/A'}
+                    Phone: ${store.getTournamentOwners()[activeTid] ? store.getTournamentOwners()[activeTid].phone : 'N/A'}
                   </div>
                 </div>
               </div>
@@ -401,7 +621,7 @@ export function renderAdminDashboard(containerEl) {
                 <div>
                   <label class="block text-xs font-bold text-slate-600 mb-1">SELECT TOURNAMENT *</label>
                   <select id="assign-owner-tournament-id" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none">
-                    <option value="tournament-jsl-2026">Jankra Super League 2026 (JSL)</option>
+                    ${allTournaments.map(t => `<option value="${t.id}" ${t.id === activeTid ? 'selected' : ''}>${t.name}</option>`).join('')}
                   </select>
                 </div>
 
@@ -410,7 +630,7 @@ export function renderAdminDashboard(containerEl) {
                   <select id="assign-owner-player-select" required class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none">
                     <option value="">-- Choose Player to Appoint as Owner --</option>
                     ${players.map(p => `
-                      <option value="${p.phone || p.mobile}" data-name="${p.name}">${p.name} (${p.phone || p.mobile} • ${p.village || 'Jhankra'}${p.displayRegistrationNumber ? ' • #' + p.displayRegistrationNumber : ''})</option>
+                      <option value="${p.phone || p.mobile}" data-name="${p.name}">${p.name} (${p.phone || p.mobile} • ${p.village || 'N/A'}${p.displayRegistrationNumber ? ' • #' + p.displayRegistrationNumber : ''})</option>
                     `).join('')}
                   </select>
                 </div>
@@ -429,45 +649,148 @@ export function renderAdminDashboard(containerEl) {
             <!-- Setup & Settings -->
             <div class="p-4 sm:p-5 bg-white border-2 border-slate-200 rounded-3xl shadow-sm space-y-3.5">
               <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
-                <i data-lucide="settings" class="w-5 h-5 text-amber-600"></i> Auction Parameters
+                <i data-lucide="settings" class="w-5 h-5 text-amber-600"></i> Auction Parameters & Dynamic Slabs
               </h3>
               <form id="admin-auction-settings-form" class="space-y-3">
-                <div>
-                  <label class="block text-xs font-bold text-slate-600 mb-1">DEFAULT PLAYER BASE PRICE (INR)</label>
-                  <input type="number" id="auction-setting-base-price" value="${store.getAuctionSettings().defaultBasePrice}" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold" />
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <div>
+                    <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">DEFAULT BASE (₹)</label>
+                    <input type="number" id="auction-setting-base-price" value="${store.getAuctionSettings().defaultBasePrice}" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2 font-bold" />
+                  </div>
+                  <div>
+                    <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">PURSE BUDGET (₹)</label>
+                    <input type="number" id="auction-setting-purse-budget" value="${store.getAuctionSettings().defaultPurseBudget}" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2 font-bold" />
+                  </div>
+                  <div>
+                    <label class="block text-[10px] font-bold text-amber-800 uppercase mb-1">⭐ ICON PRICE (₹)</label>
+                    <input type="number" id="auction-setting-icon-price" value="${store.getAuctionSettings().defaultIconPrice || 1000}" class="w-full bg-amber-50/60 border border-amber-300 text-amber-950 text-xs rounded-xl p-2 font-bold" title="Auto-deducted from team purse upon assigning an icon player" />
+                  </div>
+                  <div>
+                    <label class="block text-[10px] font-bold text-sky-800 uppercase mb-1">👥 SQUAD SIZE</label>
+                    <input type="number" id="auction-setting-squad-size" value="${store.getAuctionSettings().maxSquadSize || 13}" min="8" max="30" class="w-full bg-sky-50/60 border border-sky-300 text-sky-950 text-xs rounded-xl p-2 font-bold" title="Total players required to buy per team" />
+                  </div>
                 </div>
-                <div>
-                  <label class="block text-xs font-bold text-slate-600 mb-1">DEFAULT TEAM PURSE BUDGET</label>
-                  <input type="number" id="auction-setting-purse-budget" value="${store.getAuctionSettings().defaultPurseBudget}" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold" />
+
+                <!-- Dynamic Bid Increment Slabs Manager (Unlimited Customizable Slabs) -->
+                <div class="p-3.5 bg-gradient-to-br from-amber-50/50 to-orange-50/30 rounded-2xl border border-amber-200/80 space-y-2.5">
+                  <div class="flex items-center justify-between gap-2">
+                    <div>
+                      <span class="text-[11px] font-black text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
+                        <span>📈</span> Dynamic Bid Increment Slabs
+                      </span>
+                      <p class="text-[9.5px] text-slate-500 font-medium">Add, remove, or customize any price threshold & increment amount</p>
+                    </div>
+                    <button type="button" id="auction-add-slab-row-btn" class="px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 text-[10px] font-black rounded-lg shadow-2xs cursor-pointer flex items-center gap-1 transition-all active:scale-95">
+                      <span>+</span> Add Slab
+                    </button>
+                  </div>
+
+                  <!-- Quick Presets -->
+                  <div class="flex items-center gap-1.5 flex-wrap pt-0.5">
+                    <span class="text-[9px] font-bold text-slate-500 uppercase">Presets:</span>
+                    <button type="button" class="auction-slab-preset-btn px-2 py-0.5 bg-white hover:bg-amber-100 text-slate-700 hover:text-amber-900 border border-slate-300 text-[9.5px] font-bold rounded-md cursor-pointer transition-all" data-preset="standard">Standard (+₹50 / +₹100 / +₹200)</button>
+                    <button type="button" class="auction-slab-preset-btn px-2 py-0.5 bg-white hover:bg-amber-100 text-slate-700 hover:text-amber-900 border border-slate-300 text-[9.5px] font-bold rounded-md cursor-pointer transition-all" data-preset="ipl">High Budget (+₹100 / +₹250 / +₹500)</button>
+                    <button type="button" class="auction-slab-preset-btn px-2 py-0.5 bg-white hover:bg-amber-100 text-slate-700 hover:text-amber-900 border border-slate-300 text-[9.5px] font-bold rounded-md cursor-pointer transition-all" data-preset="flat100">Flat (+₹100)</button>
+                  </div>
+
+                  <!-- Slabs Container -->
+                  <div id="auction-slabs-container" class="space-y-1.5 pt-1">
+                    ${(() => {
+                      const currentSlabs = store.getAuctionSettings().bidIncrementSlabs || [
+                        { maxLimit: 1000, increment: 50 },
+                        { maxLimit: 2000, increment: 100 },
+                        { maxLimit: 999999, increment: 200 }
+                      ];
+                      return currentSlabs.map((slab, idx, arr) => {
+                        const isLast = idx === arr.length - 1;
+                        return `
+                          <div class="auction-slab-row flex items-center gap-2 bg-white p-2 rounded-xl border border-slate-200 shadow-2xs">
+                            <span class="text-[10px] font-black text-amber-900 font-mono w-5 shrink-0">#${idx + 1}</span>
+                            <div class="flex items-center gap-1 flex-1 min-w-0">
+                              <span class="text-[10px] text-slate-500 font-bold shrink-0">${isLast ? 'Above ₹' : 'Up to ₹'}</span>
+                              <input type="number" class="slab-limit-input w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs font-bold rounded-lg p-1 font-mono" value="${isLast ? (arr[idx - 1]?.maxLimit || 2000) : (slab.maxLimit || 1000)}" ${isLast ? 'disabled' : 'min="100" step="100"'} />
+                            </div>
+                            <div class="flex items-center gap-1 w-28 shrink-0">
+                              <span class="text-[10px] text-emerald-700 font-black shrink-0">+₹</span>
+                              <input type="number" class="slab-inc-input w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs font-bold rounded-lg p-1 font-mono" value="${slab.increment || 50}" min="10" step="10" />
+                            </div>
+                            ${arr.length > 1 ? `
+                              <button type="button" class="auction-delete-slab-btn p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer transition-colors shrink-0" title="Delete Slab">
+                                <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                              </button>
+                            ` : '<div class="w-6 shrink-0"></div>'}
+                          </div>
+                        `;
+                      }).join('');
+                    })()}
+                  </div>
                 </div>
-                <button type="submit" class="w-full py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl border border-amber-400 shadow-xs cursor-pointer">
-                  Update Settings
+
+                <button type="submit" class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl border border-amber-400 shadow-xs cursor-pointer flex items-center justify-center gap-1.5">
+                  <i data-lucide="save" class="w-3.5 h-3.5"></i> Save Tournament Auction Rules
                 </button>
               </form>
 
               <!-- Auction Reset Danger Zone -->
               <div class="border-t border-slate-100 pt-2.5">
-                <button type="button" id="admin-reset-auction-btn" class="w-full py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-black text-xs rounded-xl border border-rose-300 flex items-center justify-center gap-2 transition-all shadow-2xs cursor-pointer">
-                  <i data-lucide="rotate-ccw" class="w-4 h-4 text-rose-600"></i> 🔄 Revert Sold Players & Reset Purses
+                <button type="button" id="admin-reset-auction-btn" class="w-full py-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-xl border border-rose-300 flex items-center justify-center gap-1.5 transition-all shadow-2xs cursor-pointer">
+                  <i data-lucide="rotate-ccw" class="w-3.5 h-3.5 text-rose-600"></i> Revert Sold Players & Reset Purses
                 </button>
               </div>
 
-              <!-- Put Player on Block Form -->
+              <!-- Put Player on Block Form with Live Preview & Base Price Setter -->
               <div class="border-t border-slate-100 pt-3 space-y-3">
-                <h4 class="text-xs font-black text-slate-900 uppercase tracking-wider">Start Auction for a Player</h4>
+                <h4 class="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <span>🎯</span> Start Auction for a Player
+                </h4>
                 <div>
-                  <label class="block text-xs font-bold text-slate-600 mb-1">SELECT APPROVED PLAYER</label>
-                  <select id="auction-select-player" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-medium">
-                    <option value="">-- Choose Player --</option>
+                  <label class="block text-xs font-bold text-slate-600 mb-1">SELECT APPROVED PLAYER FROM QUEUE</label>
+                  <select id="auction-select-player" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold">
+                    <option value="">-- Choose Player to Preview & Set Price --</option>
                     ${players.filter(p => (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED') && !p.teamId && p.auctionStatus !== 'SOLD').map(p => {
                       const sNo = p.displayRegistrationNumber || p.serialNo || '';
                       const sNoPrefix = sNo ? `[#${String(sNo).padStart(2, '0')}] ` : '';
-                      return `<option value="${p.id}">${sNoPrefix}${p.name} (${p.category || 'All Rounder'}) - Base: ₹${p.basePrice || 300}</option>`;
+                      return `<option value="${p.id}">${sNoPrefix}${p.name} (${p.category || 'All Rounder'})</option>`;
                     }).join('')}
                   </select>
                 </div>
-                <button id="auction-start-bid-btn" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl shadow-xs cursor-pointer">
-                  Put Player on Auction Block
+
+                <!-- Selected Player Live Photo & Base Price Preview Block -->
+                <div id="auction-selected-player-preview-wrap" class="hidden p-3.5 bg-gradient-to-br from-amber-50/60 to-orange-50/40 rounded-2xl border-2 border-amber-300 shadow-xs space-y-3 animate-fade-in">
+                  <div class="flex items-center gap-3">
+                    <img id="auction-preview-player-img" src="assets/card_jsl_user.png" class="w-14 h-14 rounded-2xl object-cover border-2 border-amber-500 shadow-sm bg-white shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                    <div class="min-w-0 flex-1">
+                      <div class="flex items-center gap-1.5">
+                        <span id="auction-preview-player-reg" class="px-1.5 py-0.5 bg-red-600 text-white font-mono font-black text-[9px] rounded">REG-0001</span>
+                        <span id="auction-preview-player-role" class="px-1.5 py-0.5 bg-amber-200 text-amber-900 font-black text-[9px] rounded">All-Rounder</span>
+                      </div>
+                      <h4 id="auction-preview-player-name" class="text-sm font-black text-slate-900 truncate mt-0.5">Player Name</h4>
+                      <p id="auction-preview-player-village" class="text-[10px] text-slate-500 font-bold truncate">📍 Paschim Medinipur</p>
+                    </div>
+                  </div>
+
+                  <!-- Editable Base Price Right Before Bidding -->
+                  <div class="bg-white p-2.5 rounded-xl border border-amber-200">
+                    <label class="block text-[10px] font-black text-amber-900 uppercase mb-1 flex items-center justify-between">
+                      <span>💰 Base Price for this Player (INR ₹)</span>
+                      <span class="text-[9px] text-slate-500 font-bold">Set / adjust starting amount</span>
+                    </label>
+                    <div class="flex items-center gap-2">
+                      <div class="relative flex-1">
+                        <span class="absolute left-3 top-2 text-slate-400 font-black text-xs">₹</span>
+                        <input type="number" id="auction-selected-player-base-price" value="${store.getAuctionSettings().defaultBasePrice}" min="50" step="50" class="w-full pl-7 pr-3 py-1.5 bg-amber-50/30 border border-amber-300 text-slate-900 text-sm font-black font-mono rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" />
+                      </div>
+                      <div class="flex items-center gap-1 shrink-0">
+                        <button type="button" onclick="const el=document.getElementById('auction-selected-player-base-price'); el.value = Math.max(50, (Number(el.value)||300) - 50);" class="px-2 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs rounded-lg border border-slate-300 cursor-pointer">-50</button>
+                        <button type="button" onclick="const el=document.getElementById('auction-selected-player-base-price'); el.value = (Number(el.value)||300) + 50;" class="px-2 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs rounded-lg border border-slate-300 cursor-pointer">+50</button>
+                        <button type="button" onclick="const el=document.getElementById('auction-selected-player-base-price'); el.value = (Number(el.value)||300) + 100;" class="px-2 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-black text-xs rounded-lg border border-slate-300 cursor-pointer">+100</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <button id="auction-start-bid-btn" class="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-green-600 hover:from-emerald-500 hover:to-green-500 text-white font-black text-xs rounded-xl shadow-xs cursor-pointer flex items-center justify-center gap-1.5">
+                  <i data-lucide="gavel" class="w-4 h-4"></i> Put Player on Auction Block
                 </button>
               </div>
             </div>
@@ -496,6 +819,9 @@ export function renderAdminDashboard(containerEl) {
               </div>
             </div>
             <div class="flex items-center gap-2 w-full sm:w-auto flex-wrap">
+              <button type="button" id="admin-end-conclude-auction-btn" class="flex-1 sm:flex-none px-3.5 py-2 bg-rose-600 hover:bg-rose-500 text-white font-black text-xs rounded-xl shadow-md border border-rose-400 flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95" title="Conclude Live Auction & Update Public Spectator Screens">
+                <i data-lucide="power-off" class="w-4 h-4 text-white"></i> 🔴 End Live Auction
+              </button>
               <button type="button" id="admin-sync-permanent-archive-btn" class="flex-1 sm:flex-none px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-amber-300 font-bold text-xs rounded-xl shadow-xs border border-amber-400/40 flex items-center justify-center gap-1.5 cursor-pointer transition-all" title="Sync & Lock Permanent 5-Year Auction Record in Cloud">
                 <i data-lucide="shield-check" class="w-4 h-4 text-emerald-400"></i> Sync 5-Year Vault
               </button>
@@ -526,110 +852,132 @@ export function renderAdminDashboard(containerEl) {
               ` : ''}
             </div>
 
-            <!-- TAB 1: Sold Players & Squad Allocations Table -->
-            <div id="admin-auction-sold-container" class="${adminAuctionSubTab === 'sold' ? '' : 'hidden'} overflow-x-auto border border-slate-200 rounded-2xl">
-              <table class="w-full text-left text-xs text-slate-800">
-                <thead class="bg-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-700 border-b border-slate-200">
-                  <tr>
-                    <th class="py-2.5 px-3">PLAYER</th>
-                    <th class="py-2.5 px-3">ROLE</th>
-                    <th class="py-2.5 px-3">BOUGHT BY TEAM</th>
-                    <th class="py-2.5 px-3 text-center text-amber-800">SOLD PRICE</th>
-                    <th class="py-2.5 px-3 text-right">ACTION</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100 font-semibold">
-                  ${soldPlayers.length === 0 ? `
-                    <tr>
-                      <td colspan="5" class="py-8 text-center text-slate-500 italic">No players sold or allocated yet.</td>
-                    </tr>
-                  ` : soldPlayers.map(p => {
+            <!-- TAB 1: Sold Players & Squad Allocations -->
+            <div id="admin-auction-sold-container" class="${adminAuctionSubTab === 'sold' ? '' : 'hidden'}">
+              ${soldPlayers.length === 0 ? `
+                <div class="py-8 text-center text-slate-500 italic border border-slate-200 rounded-2xl">No players sold or allocated yet.</div>
+              ` : `
+              <!-- Mobile Cards -->
+              <div class="sm:hidden space-y-2">
+                ${soldPlayers.map(p => {
                     const assignedTeam = teams.find(t => t.id === p.teamId) || { name: 'Unknown Team' };
                     return `
+                    <div class="p-3 border border-slate-200 rounded-xl space-y-1.5">
+                      <div class="flex items-center gap-2.5">
+                        <img src="${p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png'}" class="w-9 h-9 rounded-lg object-cover border border-slate-200 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                        <div class="flex-1 min-w-0">
+                          <div class="font-black text-slate-900 text-xs flex items-center gap-1.5 truncate">
+                            ${p.name} ${(p.isIcon || p.isIconPlayer) ? `<span class="px-1 bg-amber-400 text-slate-950 font-black text-[7px] rounded">⭐ ICON</span>` : ''}
+                          </div>
+                          <div class="text-[9px] text-slate-500">${p.category || 'All Rounder'}</div>
+                        </div>
+                        <div class="text-right shrink-0">
+                          <div class="font-mono font-black text-emerald-700 text-xs">${(p.isIcon || p.isIconPlayer) ? '⭐ Icon' : `₹${(Number(p.soldPrice) || 0).toLocaleString('en-IN')}`}</div>
+                          <div class="text-[9px] text-sky-700 font-bold truncate">🛡️ ${assignedTeam.name}</div>
+                        </div>
+                      </div>
+                      ${!(p.isIcon || p.isIconPlayer) ? `<button class="admin-unsell-player-btn w-full py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-lg text-[9px] font-black cursor-pointer" data-player-id="${p.id}" data-player-name="${p.name}" data-team-name="${assignedTeam.name}" data-price="${p.soldPrice || 0}">❌ Remove & Refund</button>` : ''}
+                    </div>`;
+                }).join('')}
+              </div>
+              <!-- Desktop Table -->
+              <div class="hidden sm:block overflow-x-auto border border-slate-200 rounded-2xl">
+                <table class="w-full text-left text-xs text-slate-800">
+                  <thead class="bg-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-700 border-b border-slate-200">
+                    <tr>
+                      <th class="py-2.5 px-3">PLAYER</th>
+                      <th class="py-2.5 px-3">ROLE</th>
+                      <th class="py-2.5 px-3">BOUGHT BY TEAM</th>
+                      <th class="py-2.5 px-3 text-center text-amber-800">SOLD PRICE</th>
+                      <th class="py-2.5 px-3 text-right">ACTION</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100 font-semibold">
+                    ${soldPlayers.map(p => {
+                      const assignedTeam = teams.find(t => t.id === p.teamId) || { name: 'Unknown Team' };
+                      return `
+                        <tr class="hover:bg-slate-50 transition-colors">
+                          <td class="py-2.5 px-3">
+                            <div class="flex items-center gap-2.5">
+                              <img src="${p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png'}" class="w-8 h-8 rounded-lg object-cover border border-slate-200 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                              <div>
+                                <div class="font-black text-slate-900 text-xs flex items-center gap-1.5">
+                                  <span>${p.name}</span>
+                                  ${(p.isIcon || p.isIconPlayer) ? `<span class="px-1.5 py-0.2 bg-amber-400 text-slate-950 font-black text-[8px] rounded uppercase tracking-wider">⭐ ICON</span>` : ''}
+                                </div>
+                                <div class="text-[9px] text-slate-500">${p.village || 'N/A'}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[9px] font-bold border border-slate-200">${p.category || 'All Rounder'}</span></td>
+                          <td class="py-2.5 px-3 font-bold text-sky-800">🛡️ ${assignedTeam.name}</td>
+                          <td class="py-2.5 px-3 text-center font-mono font-black text-emerald-700">${(p.isIcon || p.isIconPlayer) ? '⭐ ₹ 1,000 (Icon)' : `₹ ${(Number(p.soldPrice) || Number(p.basePrice) || 0).toLocaleString('en-IN')}`}</td>
+                          <td class="py-2.5 px-3 text-right">${(p.isIcon || p.isIconPlayer) ? `<span class="text-[10px] text-amber-700 font-bold italic">Franchise Icon</span>` : `<button class="admin-unsell-player-btn px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-lg text-[10px] font-black transition-all shadow-2xs cursor-pointer" data-player-id="${p.id}" data-player-name="${p.name}" data-team-name="${assignedTeam.name}" data-price="${p.soldPrice || 0}">❌ Remove & Refund</button>`}</td>
+                        </tr>`;
+                    }).join('')}
+                  </tbody>
+                </table>
+              </div>
+              `}
+            </div>
+
+            <!-- TAB 2: Unsold Players Pool & Re-Bid Controls -->
+            <div id="admin-auction-unsold-container" class="${adminAuctionSubTab === 'unsold' ? '' : 'hidden'}">
+              ${unsoldPlayers.length === 0 ? `
+                <div class="py-8 text-center text-slate-500 italic border border-slate-200 rounded-2xl">No unsold players in this round.</div>
+              ` : `
+              <!-- Mobile Cards -->
+              <div class="sm:hidden space-y-2">
+                ${unsoldPlayers.map(p => `
+                  <div class="p-3 border border-slate-200 rounded-xl space-y-1.5">
+                    <div class="flex items-center gap-2.5">
+                      <img src="${p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png'}" class="w-9 h-9 rounded-lg object-cover border border-slate-200 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                      <div class="flex-1 min-w-0">
+                        <div class="font-black text-slate-900 text-xs truncate">${p.name}</div>
+                        <div class="text-[9px] text-slate-500">${p.category || 'All Rounder'} • ❌ UNSOLD</div>
+                      </div>
+                      <div class="font-mono font-black text-emerald-700 text-xs shrink-0">₹${(Number(p.basePrice) || 300).toLocaleString('en-IN')}</div>
+                    </div>
+                    <button class="admin-rebid-unsold-player-btn w-full py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black text-[10px] rounded-lg cursor-pointer" data-player-id="${p.id}">🔨 Re-Bid / Put on Block</button>
+                  </div>
+                `).join('')}
+              </div>
+              <!-- Desktop Table -->
+              <div class="hidden sm:block overflow-x-auto border border-slate-200 rounded-2xl">
+                <table class="w-full text-left text-xs text-slate-800">
+                  <thead class="bg-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-700 border-b border-slate-200">
+                    <tr>
+                      <th class="py-2.5 px-3">UNSOLD PLAYER</th>
+                      <th class="py-2.5 px-3">ROLE</th>
+                      <th class="py-2.5 px-3">STATUS</th>
+                      <th class="py-2.5 px-3 text-center text-amber-800">BASE PRICE</th>
+                      <th class="py-2.5 px-3 text-right">RE-AUCTION ACTION</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100 font-semibold">
+                    ${unsoldPlayers.map(p => `
                       <tr class="hover:bg-slate-50 transition-colors">
                         <td class="py-2.5 px-3">
                           <div class="flex items-center gap-2.5">
                             <img src="${p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png'}" class="w-8 h-8 rounded-lg object-cover border border-slate-200 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
                             <div>
-                              <div class="font-black text-slate-900 text-xs flex items-center gap-1.5">
-                                <span>${p.name}</span>
-                                ${(p.isIcon || p.isIconPlayer) ? `<span class="px-1.5 py-0.2 bg-amber-400 text-slate-950 font-black text-[8px] rounded uppercase tracking-wider">⭐ ICON</span>` : ''}
-                              </div>
-                              <div class="text-[9px] text-slate-500">${p.village || 'Jhankra'}</div>
+                              <div class="font-black text-slate-900 text-xs">${p.name}</div>
+                              <div class="text-[9px] text-slate-500">${p.village || 'N/A'}</div>
                             </div>
                           </div>
                         </td>
-                        <td class="py-2.5 px-3">
-                          <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[9px] font-bold border border-slate-200">${p.category || 'All Rounder'}</span>
-                        </td>
-                        <td class="py-2.5 px-3 font-bold text-sky-800">
-                          🛡️ ${assignedTeam.name}
-                        </td>
-                        <td class="py-2.5 px-3 text-center font-mono font-black text-emerald-700">
-                          ${(p.isIcon || p.isIconPlayer) ? '⭐ ₹ 1,000 (Icon)' : `₹ ${(Number(p.soldPrice) || Number(p.basePrice) || 0).toLocaleString('en-IN')}`}
-                        </td>
+                        <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[9px] font-bold border border-slate-200">${p.category || 'All Rounder'}</span></td>
+                        <td class="py-2.5 px-3 font-bold text-rose-600">❌ UNSOLD (Round 1)</td>
+                        <td class="py-2.5 px-3 text-center font-mono font-black text-emerald-700">₹ ${(Number(p.basePrice) || 300).toLocaleString('en-IN')}</td>
                         <td class="py-2.5 px-3 text-right">
-                          ${(p.isIcon || p.isIconPlayer) ? `
-                            <span class="text-[10px] text-amber-700 font-bold italic">Franchise Icon</span>
-                          ` : `
-                            <button class="admin-unsell-player-btn px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-lg text-[10px] font-black transition-all shadow-2xs cursor-pointer" data-player-id="${p.id}" data-player-name="${p.name}" data-team-name="${assignedTeam.name}" data-price="${p.soldPrice || 0}">
-                              ❌ Remove & Refund
-                            </button>
-                          `}
+                          <button class="admin-rebid-unsold-player-btn px-3 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-xs transition-all cursor-pointer inline-flex items-center gap-1.5" data-player-id="${p.id}">🔨 Re-Bid / Put on Block</button>
                         </td>
                       </tr>
-                    `;
-                  }).join('')}
-                </tbody>
-              </table>
-            </div>
-
-            <!-- TAB 2: Unsold Players Pool & Re-Bid Controls -->
-            <div id="admin-auction-unsold-container" class="${adminAuctionSubTab === 'unsold' ? '' : 'hidden'} overflow-x-auto border border-slate-200 rounded-2xl">
-              <table class="w-full text-left text-xs text-slate-800">
-                <thead class="bg-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-700 border-b border-slate-200">
-                  <tr>
-                    <th class="py-2.5 px-3">UNSOLD PLAYER</th>
-                    <th class="py-2.5 px-3">ROLE</th>
-                    <th class="py-2.5 px-3">STATUS</th>
-                    <th class="py-2.5 px-3 text-center text-amber-800">BASE PRICE</th>
-                    <th class="py-2.5 px-3 text-right">RE-AUCTION ACTION</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100 font-semibold">
-                  ${unsoldPlayers.length === 0 ? `
-                    <tr>
-                      <td colspan="5" class="py-8 text-center text-slate-500 italic">No unsold players in this round.</td>
-                    </tr>
-                  ` : unsoldPlayers.map(p => `
-                    <tr class="hover:bg-slate-50 transition-colors">
-                      <td class="py-2.5 px-3">
-                        <div class="flex items-center gap-2.5">
-                          <img src="${p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png'}" class="w-8 h-8 rounded-lg object-cover border border-slate-200 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
-                          <div>
-                            <div class="font-black text-slate-900 text-xs">${p.name}</div>
-                            <div class="text-[9px] text-slate-500">${p.village || 'Jhankra'}</div>
-                          </div>
-                        </div>
-                      </td>
-                      <td class="py-2.5 px-3">
-                        <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[9px] font-bold border border-slate-200">${p.category || 'All Rounder'}</span>
-                      </td>
-                      <td class="py-2.5 px-3 font-bold text-rose-600">
-                        ❌ UNSOLD (Round 1)
-                      </td>
-                      <td class="py-2.5 px-3 text-center font-mono font-black text-emerald-700">
-                        ₹ ${(Number(p.basePrice) || 300).toLocaleString('en-IN')}
-                      </td>
-                      <td class="py-2.5 px-3 text-right">
-                        <button class="admin-rebid-unsold-player-btn px-3 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-xs transition-all cursor-pointer inline-flex items-center gap-1.5" data-player-id="${p.id}">
-                          🔨 Re-Bid / Put on Block
-                        </button>
-                      </td>
-                    </tr>
-                  `).join('')}
-                </tbody>
-              </table>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+              `}
             </div>
           </div>
         </div>
@@ -669,16 +1017,17 @@ export function renderAdminDashboard(containerEl) {
               <div>
                 <label class="block text-[10px] font-black text-slate-600 uppercase tracking-wider mb-1">Target Tournament</label>
                 <select id="group-mgr-league-select" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2 font-bold cursor-pointer">
-                  ${leagues.map(l => `<option value="${(l.code || l.category || 'JSL').toUpperCase()}">${l.name || l.code}</option>`).join('')}
+                  ${leagues.map(l => `<option value="${(l.code || l.category || 'T').toUpperCase()}">${l.name || l.code}</option>`).join('')}
                 </select>
               </div>
 
               <div>
                 <label class="block text-[10px] font-black text-slate-600 uppercase tracking-wider mb-1">Tournament Format</label>
                 <select id="group-mgr-format-select" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2 font-bold cursor-pointer">
-                  <option value="TWO_GROUPS">2 Groups (Group A & Group B - 4+4 Teams)</option>
-                  <option value="FOUR_GROUPS">4 Groups (Groups A, B, C, D - 16 Teams)</option>
-                  <option value="SINGLE_TABLE">Single League Table (All Teams in 1 Table)</option>
+                  <option value="TWO_GROUPS">2 Groups (Group A & Group B)</option>
+                  <option value="THREE_GROUPS">3 Groups (Group A, Group B & Group C)</option>
+                  <option value="FOUR_GROUPS">4 Groups (Groups A, B, C & D)</option>
+                  <option value="SINGLE_TABLE">Single League Table (1 Group - All Teams)</option>
                 </select>
               </div>
 
@@ -706,7 +1055,7 @@ export function renderAdminDashboard(containerEl) {
                 <div>
                   <label class="block text-[10px] font-bold text-slate-600 mb-1">TOURNAMENT LEAGUE</label>
                   <select id="fixture-league-category" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold">
-                    ${leagues.map(l => `<option value="${(l.code || l.category || 'JSL').toUpperCase()}">${l.name || l.code}</option>`).join('')}
+                    ${leagues.map(l => `<option value="${(l.code || l.category || 'T').toUpperCase()}">${l.name || l.code}</option>`).join('')}
                   </select>
                 </div>
                 <div>
@@ -761,12 +1110,17 @@ export function renderAdminDashboard(containerEl) {
 
             <!-- List Scheduled Fixtures -->
             <div class="p-4 sm:p-5 bg-white border-2 border-slate-200 rounded-3xl shadow-sm space-y-3.5 md:col-span-2">
-              <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
-                <i data-lucide="calendar" class="w-5 h-5 text-sky-600"></i> Scheduled Matches
-              </h3>
+              <div class="flex items-center justify-between flex-wrap gap-2">
+                <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
+                  <i data-lucide="calendar" class="w-5 h-5 text-sky-600"></i> Scheduled Matches
+                </h3>
+                <button type="button" id="admin-clear-all-fixtures-btn" class="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-black text-xs rounded-xl border border-rose-300 shadow-2xs flex items-center gap-1 cursor-pointer transition-all">
+                  🗑️ Clear All Matches
+                </button>
+              </div>
               <div class="overflow-x-auto border border-slate-200 rounded-2xl">
                 <table class="w-full text-left text-xs sm:text-sm text-slate-800">
-                  <thead class="bg-slate-100 text-[10px] uppercase text-slate-700 font-black border-b border-slate-200">
+                  <thead class="hidden sm:table-header-group bg-slate-100 text-[10px] uppercase text-slate-700 font-black border-b border-slate-200">
                     <tr>
                       <th class="py-3 px-3">Teams</th>
                       <th class="py-3 px-3">Stage / Group</th>
@@ -948,7 +1302,7 @@ export function renderAdminDashboard(containerEl) {
           </div>
         </div>
 
-        <!-- 6b. JSL Registration Link & Public Access Controller Tab -->
+        <!-- 6b. Registration Link & Public Access Controller Tab -->
         <div id="tab-reg-settings-view" class="${activeAdminTab === 'reg-settings' ? '' : 'hidden'} space-y-4 animate-fade-in">
           <div class="p-4 sm:p-5 bg-white border-2 border-slate-200 rounded-3xl shadow-sm space-y-4">
             <div class="flex items-center justify-between pb-3 border-b border-slate-100 flex-wrap gap-3">
@@ -957,8 +1311,8 @@ export function renderAdminDashboard(containerEl) {
                   <i data-lucide="power" class="w-5 h-5"></i>
                 </span>
                 <div>
-                  <h3 class="text-base font-black text-slate-900">JSL Registration Link Controller</h3>
-                  <p class="text-xs text-slate-500">Activate or deactivate the public JSL 2026 registration link with 1-click cloud sync.</p>
+                  <h3 class="text-base font-black text-slate-900">${activeTourneyName} Registration Link Controller</h3>
+                  <p class="text-xs text-slate-500">Activate or deactivate the public registration link with 1-click cloud sync.</p>
                 </div>
               </div>
 
@@ -1024,7 +1378,7 @@ export function renderAdminDashboard(containerEl) {
                 Custom Deactivation / Closed Banner Message
               </label>
               <p class="text-[11px] text-slate-500">This message is shown to users when they click the registration button while deactivated.</p>
-              <textarea id="reg-closed-message-input" rows="2" class="w-full bg-white border border-slate-300 rounded-xl p-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500" placeholder="JSL 2026 Registration is currently closed by the Master Admin.">${regSettings.closedReason || 'JSL 2026 Registration is currently closed by the Master Admin.'}</textarea>
+              <textarea id="reg-closed-message-input" rows="2" class="w-full bg-white border border-slate-300 rounded-xl p-3 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500" placeholder="Registration is currently closed by the Admin.">${regSettings.closedReason || 'Registration is currently closed by the Admin.'}</textarea>
               <div class="flex justify-end pt-1">
                 <button id="save-reg-message-btn" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer">
                   <i data-lucide="save" class="w-3.5 h-3.5 text-amber-400"></i> Update Closure Message
@@ -1085,14 +1439,14 @@ export function renderAdminDashboard(containerEl) {
                   🏆
                 </span>
                 <div>
-                  <h3 class="text-base font-black text-slate-900">Multi-Tournament SaaS & Platform Controls</h3>
-                  <p class="text-xs text-slate-500 font-bold">Control public visibility on homepage & test tournament creator in private draft mode.</p>
+                  <h3 class="text-base font-black text-slate-900">Multi-Tournament SaaS & Host Controls</h3>
+                  <p class="text-xs text-slate-500 font-bold">Create new custom tournaments and control public visibility on the homepage.</p>
                 </div>
               </div>
 
-              <!-- Master Trial Button -->
-              <button type="button" id="admin-launch-trial-wizard-btn" class="px-4 py-2 bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-500 hover:to-yellow-500 text-slate-950 font-black text-xs rounded-xl shadow-xs border border-amber-300 flex items-center gap-1.5 cursor-pointer transition-all hover:scale-105">
-                <span>🧪 Open Creation Wizard (Trial Mode)</span>
+              <!-- Create Tournament Button -->
+              <button type="button" id="admin-launch-create-tourney-wizard-btn" class="px-4 py-2 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-500 hover:to-yellow-500 text-slate-950 font-black text-xs rounded-xl shadow-xs border border-amber-300 flex items-center gap-1.5 cursor-pointer transition-all hover:scale-105">
+                <span>+ Create New Tournament</span>
               </button>
             </div>
 
@@ -1101,11 +1455,11 @@ export function renderAdminDashboard(containerEl) {
               <div class="space-y-1 max-w-md">
                 <div class="flex items-center gap-2">
                   <span id="admin-host-tourney-status-badge" class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${store.isHostTournamentEnabled() ? 'bg-emerald-500 text-slate-950' : 'bg-amber-400 text-slate-950'}">
-                    ${store.isHostTournamentEnabled() ? '🟢 PUBLICLY ACTIVE' : '🔒 DRAFT / ADMIN TRIAL ONLY'}
+                    ${store.isHostTournamentEnabled() ? '🟢 PUBLICLY ACTIVE' : '🔒 DRAFT MODE (ADMIN ONLY)'}
                   </span>
                   <h4 class="text-sm font-black text-white">Public "Create Tournament" Banner on Homepage</h4>
                 </div>
-                <p class="text-[11px] text-slate-400">When OFF, the "Host Your Own Tournament" button is hidden from normal visitors on the homepage, allowing you to test freely.</p>
+                <p class="text-[11px] text-slate-400">Toggle whether visitors can create tournaments on the homepage, or keep it exclusive to the Admin Dashboard.</p>
               </div>
 
               <div class="flex items-center gap-3">
@@ -1133,24 +1487,59 @@ export function renderAdminDashboard(containerEl) {
           </div>
         </div>
 
+          </div>
+        </div>
       </div>
     </div>
   `;
 
   if (window.lucide) window.lucide.createIcons();
 
+  // Count-up animation for stat cards
+  containerEl.querySelectorAll('.cpl-countup').forEach(el => {
+    const target = parseInt(el.dataset.target) || 0;
+    if (target === 0) { el.textContent = '0'; return; }
+    const duration = 600;
+    const start = performance.now();
+    const step = (now) => {
+      const progress = Math.min((now - start) / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      el.textContent = Math.round(target * eased);
+      if (progress < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  });
+
+  // Tournament selector change
+  document.getElementById('admin-tournament-selector')?.addEventListener('change', (e) => {
+    const newTid = e.target.value;
+    if (store.setActiveTournament) store.setActiveTournament(newTid);
+    else store.activeTournamentId = newTid;
+    renderAdminDashboard(containerEl);
+  });
+
   // --- TAB SWITCHING LISTENERS ---
   const tabBtns = containerEl.querySelectorAll('.admin-tab-btn');
   tabBtns.forEach(btn => {
     btn.addEventListener('click', (e) => {
       activeAdminTab = e.currentTarget.getAttribute('data-tab');
-      tabBtns.forEach(b => {
-        b.classList.remove('active', 'bg-emerald-600', 'text-white', 'shadow-xs');
-        b.classList.add('text-slate-600', 'bg-white', 'hover:bg-slate-50', 'border', 'border-slate-200');
-      });
-      e.currentTarget.classList.add('active', 'bg-emerald-600', 'text-white', 'shadow-xs');
-      e.currentTarget.classList.remove('text-slate-600', 'bg-white', 'hover:bg-slate-50', 'border', 'border-slate-200');
+      try { sessionStorage.setItem('cpl_admin_tab', activeAdminTab); } catch(e) {}
 
+      tabBtns.forEach(b => {
+        b.classList.remove('bg-emerald-600', 'text-white', 'shadow-sm');
+        b.classList.add('text-slate-600');
+        if (b.closest('#admin-sidebar-nav')) {
+          b.classList.remove('shadow-sm');
+          b.classList.add('hover:bg-slate-50', 'hover:text-slate-900');
+        } else {
+          b.classList.add('bg-white', 'border', 'border-slate-200', 'hover:bg-slate-50');
+          b.classList.remove('shadow-sm');
+        }
+      });
+      e.currentTarget.classList.add('bg-emerald-600', 'text-white', 'shadow-sm');
+      e.currentTarget.classList.remove('text-slate-600', 'bg-white', 'hover:bg-slate-50', 'hover:text-slate-900', 'border', 'border-slate-200');
+
+      document.getElementById('tab-overview-view')?.classList.add('hidden');
       document.getElementById('tab-payments-view').classList.add('hidden');
       document.getElementById('tab-all-players-view').classList.add('hidden');
       document.getElementById('tab-teams-view').classList.add('hidden');
@@ -1162,10 +1551,11 @@ export function renderAdminDashboard(containerEl) {
       document.getElementById('tab-owners-view')?.classList.add('hidden');
       document.getElementById('tab-saas-tournaments-view')?.classList.add('hidden');
 
+      if (activeAdminTab === 'overview') document.getElementById('tab-overview-view')?.classList.remove('hidden');
       if (activeAdminTab === 'payments') document.getElementById('tab-payments-view').classList.remove('hidden');
       if (activeAdminTab === 'all-players') document.getElementById('tab-all-players-view').classList.remove('hidden');
       if (activeAdminTab === 'teams') document.getElementById('tab-teams-view').classList.remove('hidden');
-      
+
       if (activeAdminTab === 'auction') {
         document.getElementById('tab-auction-view')?.classList.remove('hidden');
         renderActiveAuctionBlock();
@@ -1196,20 +1586,46 @@ export function renderAdminDashboard(containerEl) {
     });
   });
 
+  // --- OVERVIEW TAB LISTENERS ---
+  document.getElementById('overview-toggle-reg-btn')?.addEventListener('click', () => {
+    const currentOpen = store.isRegistrationOpen();
+    const newStatus = !currentOpen;
+    store.toggleRegistration(newStatus);
+    alert(newStatus ? '✅ Registration is now OPEN!' : '🚫 Registration is now CLOSED!');
+    renderAdminDashboard(containerEl);
+  });
+
+  document.getElementById('overview-share-link-btn')?.addEventListener('click', () => {
+    const tourney = allTournaments.find(t => t.id === activeTid);
+    const slug = tourney?.slug || 'default';
+    const link = `${window.location.origin}${window.location.pathname}#reg-${slug}`;
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(link).then(() => alert('✅ Registration link copied to clipboard!\\n\\n' + link));
+    } else {
+      prompt('Copy this registration link:', link);
+    }
+  });
+
+  document.getElementById('overview-view-public-btn')?.addEventListener('click', () => {
+    const tourney = allTournaments.find(t => t.id === activeTid);
+    const slug = tourney?.slug || 'default';
+    window.open(`${window.location.origin}${window.location.pathname}#t/${slug}`, '_blank');
+  });
+
   // --- REGISTRATION SETTINGS LISTENERS ---
   document.getElementById('quick-toggle-reg-btn')?.addEventListener('click', () => {
-    const currentOpen = store.isJslRegistrationOpen();
+    const currentOpen = store.isRegistrationOpen();
     const newStatus = !currentOpen;
-    store.toggleJslRegistration(newStatus);
-    alert(newStatus ? '✅ JSL Registration link is now ACTIVATED (Open for all players & teams)!' : '🚫 JSL Registration link is now DEACTIVATED (Closed for all public entries)!');
+    store.toggleRegistration(newStatus);
+    alert(newStatus ? '✅ Registration link is now ACTIVATED (Open for all players & teams)!' : '🚫 Registration link is now DEACTIVATED (Closed for all public entries)!');
     renderAdminDashboard(containerEl);
   });
 
   document.getElementById('toggle-master-reg-switch-btn')?.addEventListener('click', () => {
-    const currentOpen = store.isJslRegistrationOpen();
+    const currentOpen = store.isRegistrationOpen();
     const newStatus = !currentOpen;
-    store.toggleJslRegistration(newStatus);
-    alert(newStatus ? '✅ JSL Registration link is now ACTIVATED!' : '🚫 JSL Registration link is now DEACTIVATED!');
+    store.toggleRegistration(newStatus);
+    alert(newStatus ? '✅ Registration link is now ACTIVATED!' : '🚫 Registration link is now DEACTIVATED!');
     activeAdminTab = 'reg-settings';
     renderAdminDashboard(containerEl);
   });
@@ -1231,7 +1647,7 @@ export function renderAdminDashboard(containerEl) {
   });
 
   // Bind Assign Tournament Owner Form Submit
-  document.getElementById('assign-tournament-owner-form')?.addEventListener('submit', (e) => {
+  document.getElementById('assign-tournament-owner-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const tId = document.getElementById('assign-owner-tournament-id').value;
     const sel = document.getElementById('assign-owner-player-select');
@@ -1241,8 +1657,8 @@ export function renderAdminDashboard(containerEl) {
 
     if (!phone) return alert('Please select a player from the dropdown to appoint as Tournament Owner!');
 
-    store.setTournamentOwner(tId, phone, name);
-    alert(`👑 Authority Granted!\n\n"${name}" (${phone}) is now the official Tournament Owner for JSL 2026.`);
+    await store.setTournamentOwner(tId, phone, name);
+    alert(`👑 Authority Granted!\n\n"${name}" (${phone}) is now the official Tournament Owner.`);
     activeAdminTab = 'owners';
     renderAdminDashboard(containerEl);
   });
@@ -1322,14 +1738,165 @@ export function renderAdminDashboard(containerEl) {
     }
   });
 
+  // Helper to re-render Dynamic Slab Rows
+  const renderSlabRows = (slabs) => {
+    const container = document.getElementById('auction-slabs-container');
+    if (!container) return;
+    container.innerHTML = slabs.map((slab, idx, arr) => {
+      const isLast = idx === arr.length - 1;
+      return `
+        <div class="auction-slab-row flex items-center gap-2 bg-white p-2 rounded-xl border border-slate-200 shadow-2xs">
+          <span class="text-[10px] font-black text-amber-900 font-mono w-5 shrink-0">#${idx + 1}</span>
+          <div class="flex items-center gap-1 flex-1 min-w-0">
+            <span class="text-[10px] text-slate-500 font-bold shrink-0">${isLast ? 'Above ₹' : 'Up to ₹'}</span>
+            <input type="number" class="slab-limit-input w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs font-bold rounded-lg p-1 font-mono" value="${isLast ? (arr[idx - 1]?.maxLimit || 2000) : (slab.maxLimit || 1000)}" ${isLast ? 'disabled' : 'min="100" step="100"'} />
+          </div>
+          <div class="flex items-center gap-1 w-28 shrink-0">
+            <span class="text-[10px] text-emerald-700 font-black shrink-0">+₹</span>
+            <input type="number" class="slab-inc-input w-full bg-slate-50 border border-slate-200 text-slate-900 text-xs font-bold rounded-lg p-1 font-mono" value="${slab.increment || 50}" min="10" step="10" />
+          </div>
+          ${arr.length > 1 ? `
+            <button type="button" class="auction-delete-slab-btn p-1 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg cursor-pointer transition-colors shrink-0" title="Delete Slab">
+              <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+            </button>
+          ` : '<div class="w-6 shrink-0"></div>'}
+        </div>
+      `;
+    }).join('');
+    if (window.lucide) window.lucide.createIcons();
+    attachSlabListeners();
+  };
+
+  const getSlabsFromUI = () => {
+    const rows = document.querySelectorAll('.auction-slab-row');
+    const slabs = [];
+    rows.forEach((row, idx) => {
+      const isLast = idx === rows.length - 1;
+      const maxLimit = isLast ? 999999 : (Number(row.querySelector('.slab-limit-input')?.value) || 1000);
+      const increment = Number(row.querySelector('.slab-inc-input')?.value) || 50;
+      slabs.push({ maxLimit, increment });
+    });
+    return slabs;
+  };
+
+  const attachSlabListeners = () => {
+    document.querySelectorAll('.auction-delete-slab-btn').forEach((btn, btnIdx) => {
+      btn.onclick = () => {
+        const current = getSlabsFromUI();
+        if (current.length > 1) {
+          current.splice(btnIdx, 1);
+          if (current.length > 0) current[current.length - 1].maxLimit = 999999;
+          renderSlabRows(current);
+        }
+      };
+    });
+  };
+
+  attachSlabListeners();
+
+  // Add Slab button handler
+  document.getElementById('auction-add-slab-row-btn')?.addEventListener('click', () => {
+    const current = getSlabsFromUI();
+    const prevLimit = current.length > 1 ? (current[current.length - 2]?.maxLimit || 1000) : 1000;
+    const newLimit = prevLimit + 1000;
+    const newInc = (current[current.length - 1]?.increment || 100) + 50;
+
+    if (current.length > 0) {
+      current[current.length - 1].maxLimit = newLimit;
+      current.push({ maxLimit: 999999, increment: newInc });
+    } else {
+      current.push({ maxLimit: 1000, increment: 50 });
+      current.push({ maxLimit: 999999, increment: 100 });
+    }
+    renderSlabRows(current);
+  });
+
+  // Preset buttons handler
+  document.querySelectorAll('.auction-slab-preset-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const preset = btn.getAttribute('data-preset');
+      let presetSlabs = [];
+      if (preset === 'standard') {
+        presetSlabs = [{ maxLimit: 1000, increment: 50 }, { maxLimit: 2000, increment: 100 }, { maxLimit: 999999, increment: 200 }];
+      } else if (preset === 'ipl') {
+        presetSlabs = [{ maxLimit: 2000, increment: 100 }, { maxLimit: 5000, increment: 250 }, { maxLimit: 999999, increment: 500 }];
+      } else if (preset === 'flat100') {
+        presetSlabs = [{ maxLimit: 999999, increment: 100 }];
+      }
+      if (presetSlabs.length > 0) renderSlabRows(presetSlabs);
+    });
+  });
+
   // Bind Auction Settings Form Submit
   document.getElementById('admin-auction-settings-form')?.addEventListener('submit', (e) => {
     e.preventDefault();
-    const defaultBasePrice = Number(document.getElementById('auction-setting-base-price').value) || 300;
-    const defaultPurseBudget = Number(document.getElementById('auction-setting-purse-budget').value) || 8000;
-    store.updateAuctionSettings({ defaultBasePrice, defaultPurseBudget });
-    alert("Auction parameters updated successfully!");
+    const defaultBasePrice = Number(document.getElementById('auction-setting-base-price')?.value) || 300;
+    const defaultPurseBudget = Number(document.getElementById('auction-setting-purse-budget')?.value) || 8000;
+    const defaultIconPrice = Number(document.getElementById('auction-setting-icon-price')?.value) || 1000;
+    const maxSquadSize = Number(document.getElementById('auction-setting-squad-size')?.value) || 13;
+    const bidIncrementSlabs = getSlabsFromUI();
+
+    store.updateAuctionSettings({ defaultBasePrice, defaultPurseBudget, defaultIconPrice, maxSquadSize, bidIncrementSlabs });
+    alert(`✅ Tournament Auction parameters, Icon Price (₹${defaultIconPrice}), Squad Target (${maxSquadSize}/team) & ${bidIncrementSlabs.length} Dynamic Bid Slabs updated successfully!`);
     renderAdminDashboard(containerEl);
+  });
+
+  // Dynamic Auction Player Select Dropdown Updater
+  const updateAuctionPlayerSelectDropdown = () => {
+    const selectEl = document.getElementById('auction-select-player');
+    if (!selectEl) return;
+    const currentPlayers = store.getPlayers();
+    const unsoldApproved = currentPlayers.filter(pl => (pl.registrationStatus === 'APPROVED' || pl.paymentStatus === 'APPROVED') && !pl.teamId && pl.auctionStatus !== 'SOLD');
+    
+    const currentVal = selectEl.value;
+    selectEl.innerHTML = `
+      <option value="">-- Choose Player to Preview & Set Price --</option>
+      ${unsoldApproved.map(pl => {
+        const sNo = pl.displayRegistrationNumber || pl.serialNo || '';
+        const sNoPrefix = sNo ? `[#${String(sNo).padStart(2, '0')}] ` : '';
+        const regId = pl.registrationId || pl.regNo || ('REG-' + String(sNo || 1).padStart(4, '0'));
+        return `<option value="${pl.id}">${sNoPrefix}${pl.name} (${regId}) - ${pl.category || 'All-Rounder'} (₹${pl.basePrice || 300})</option>`;
+      }).join('')}
+    `;
+    if (unsoldApproved.some(pl => pl.id === currentVal)) {
+      selectEl.value = currentVal;
+    } else {
+      selectEl.value = "";
+      const previewWrap = document.getElementById('auction-selected-player-preview-wrap');
+      if (previewWrap) previewWrap.classList.add('hidden');
+    }
+  };
+
+  window.addEventListener('cpl_players_updated', updateAuctionPlayerSelectDropdown);
+
+  // Bind Put Player on block player select change listener
+  const playerSelectEl = document.getElementById('auction-select-player');
+  playerSelectEl?.addEventListener('change', () => {
+    const pId = playerSelectEl.value;
+    const previewWrap = document.getElementById('auction-selected-player-preview-wrap');
+    if (!pId) {
+      if (previewWrap) previewWrap.classList.add('hidden');
+      return;
+    }
+    const p = store.getPlayerById(pId);
+    if (!p) return;
+
+    if (previewWrap) {
+      previewWrap.classList.remove('hidden');
+      const imgEl = document.getElementById('auction-preview-player-img');
+      const regEl = document.getElementById('auction-preview-player-reg');
+      const roleEl = document.getElementById('auction-preview-player-role');
+      const nameEl = document.getElementById('auction-preview-player-name');
+      const villageEl = document.getElementById('auction-preview-player-village');
+      const priceInput = document.getElementById('auction-selected-player-base-price');
+
+      if (imgEl) imgEl.src = getOptimizedImageUrl(p.photoUrl || p.player_photo_url, 120, 120);
+      if (regEl) regEl.textContent = p.registrationId || p.regNo || ('REG-' + String(p.displayRegistrationNumber || p.serialNo || 1).padStart(4, '0'));
+      if (roleEl) roleEl.textContent = p.category || p.playingType || 'All-Rounder';
+      if (nameEl) nameEl.textContent = p.name;
+      if (villageEl) villageEl.textContent = `📍 ${p.village || p.district || 'Paschim Medinipur'}`;
+      if (priceInput) priceInput.value = p.basePrice || store.getAuctionSettings().defaultBasePrice || 300;
+    }
   });
 
   // Bind Put Player on block btn
@@ -1338,7 +1905,8 @@ export function renderAdminDashboard(containerEl) {
     if (!pId) return alert("Please select an approved player from the dropdown first!");
     const p = store.getPlayerById(pId);
     if (p) {
-      startAuctionForPlayerDirectly(p);
+      const customBase = Number(document.getElementById('auction-selected-player-base-price')?.value) || p.basePrice || store.getAuctionSettings().defaultBasePrice || 300;
+      startAuctionForPlayerDirectly(p, customBase);
     }
   });
 
@@ -1356,7 +1924,7 @@ export function renderAdminDashboard(containerEl) {
   });
 
   groupFormatSel?.addEventListener('change', async () => {
-    const leagueCode = groupLeagueSel ? groupLeagueSel.value : 'JSL';
+    const leagueCode = groupLeagueSel ? groupLeagueSel.value : 'T';
     const fmt = groupFormatSel.value;
     let groups = ['A', 'B'];
     if (fmt === 'FOUR_GROUPS') groups = ['A', 'B', 'C', 'D'];
@@ -1368,14 +1936,14 @@ export function renderAdminDashboard(containerEl) {
   });
 
   groupKnockoutSel?.addEventListener('change', async () => {
-    const leagueCode = groupLeagueSel ? groupLeagueSel.value : 'JSL';
+    const leagueCode = groupLeagueSel ? groupLeagueSel.value : 'T';
     await store.saveTournamentFormat(leagueCode, { knockoutType: groupKnockoutSel.value });
     updateFixtureStageOptions();
   });
 
   // Randomize / Lottery Draw Button
   document.getElementById('admin-randomize-groups-btn')?.addEventListener('click', () => {
-    const leagueCode = groupLeagueSel ? groupLeagueSel.value : 'JSL';
+    const leagueCode = groupLeagueSel ? groupLeagueSel.value : 'T';
     const fmt = groupFormatSel ? groupFormatSel.value : 'TWO_GROUPS';
     let groupNames = ['A', 'B'];
     if (fmt === 'FOUR_GROUPS') groupNames = ['A', 'B', 'C', 'D'];
@@ -1390,7 +1958,7 @@ export function renderAdminDashboard(containerEl) {
 
   // Auto-generate Group Fixtures Button
   document.getElementById('admin-auto-fixtures-btn')?.addEventListener('click', () => {
-    const leagueCode = groupLeagueSel ? groupLeagueSel.value : 'JSL';
+    const leagueCode = groupLeagueSel ? groupLeagueSel.value : 'T';
     const overs = prompt(`⚡ Auto-Generate All Intra-Group Matches for ${leagueCode}?\n\nEnter Total Overs per match:`, "16");
     if (overs !== null) {
       const venue = prompt("Enter Match Venue:", "JHANKRA SCHOOL GROUND") || "JHANKRA SCHOOL GROUND";
@@ -1406,7 +1974,7 @@ export function renderAdminDashboard(containerEl) {
     const stageSelect = document.getElementById('fixture-stage-select');
     if (!stageSelect) return;
 
-    const leagueCode = (document.getElementById('fixture-league-category')?.value || 'JSL').toUpperCase();
+    const leagueCode = (document.getElementById('fixture-league-category')?.value || 'T').toUpperCase();
     const format = store.getTournamentFormat(leagueCode);
     const fmt = format.format || 'TWO_GROUPS';
     const currentVal = stageSelect.value;
@@ -1451,11 +2019,11 @@ export function renderAdminDashboard(containerEl) {
   }
 
   function updateFixtureTeamDropdowns() {
-    const leagueCode = (document.getElementById('fixture-league-category')?.value || 'JSL').toUpperCase();
+    const leagueCode = (document.getElementById('fixture-league-category')?.value || 'T').toUpperCase();
     const stage = document.getElementById('fixture-stage-select')?.value || 'GROUP_A';
     const allLeagueTeams = store.getTeams().filter(t => {
-      const code = (t.leagueCode || (t.leagueId === 'leg-jsl' ? 'JSL' : (t.leagueId === 'leg-jpl' ? 'JPL' : (t.leagueId === 'leg-kpl' ? 'KPL' : 'JSL'))));
-      return code === leagueCode;
+      const code = (t.leagueCode || t.category_code || (t.tournament_id === '033bfc04-033b-4c04-a33b-fc04033bfc04' || t.leagueId === 'leg-jsl' ? 'JSL' : (t.tournament_id === '5cf4f50c-3930-486a-83c3-3f59414a7d6f' || t.leagueId === 'leg-kpl' ? 'KPL' : (t.leagueId === 'leg-jpl' ? 'JPL' : 'T')))).toUpperCase();
+      return code === leagueCode || t.tournament_id === store.activeTournamentId || toUUID(t.tournament_id) === toUUID(store.activeTournamentId) || !t.leagueCode;
     });
 
     let filteredTeams = allLeagueTeams;
@@ -1500,12 +2068,19 @@ export function renderAdminDashboard(containerEl) {
     else if (stageVal === 'GROUP_C') grpCode = 'C';
     else if (stageVal === 'GROUP_D') grpCode = 'D';
 
-    const lCode = document.getElementById('fixture-league-category').value;
+    let lCode = document.getElementById('fixture-league-category')?.value || 'T';
+    let targetTid = activeTid;
+    if (teamA && (teamA.tournament_id || teamA.leagueId)) {
+      targetTid = teamA.tournament_id || teamA.leagueId;
+      if (teamA.leagueCode) lCode = teamA.leagueCode;
+    }
     const matchNoInput = document.getElementById('fixture-match-no')?.value;
-    const existingLeagueFix = store.getFixtures().filter(f => (f.leagueCode || 'JSL').toUpperCase() === lCode.toUpperCase());
+    const existingLeagueFix = store.getFixtures().filter(f => (f.leagueCode || 'T').toUpperCase() === lCode.toUpperCase() || f.tournament_id === targetTid || f.leagueId === targetTid);
     const matchNo = matchNoInput ? Number(matchNoInput) : (existingLeagueFix.length + 1);
 
     store.registerFixture({
+      tournament_id: targetTid,
+      leagueId: targetTid,
       leagueCode: lCode,
       matchNo: matchNo,
       stage: stageVal,
@@ -1521,9 +2096,141 @@ export function renderAdminDashboard(containerEl) {
       status: 'SCHEDULED'
     });
     alert(`Match #${matchNo} scheduled successfully!`);
+    renderAdminFixturesList();
+    renderScorerMatchesList();
+  });
+
+
+  // Generate 100+ Test Players with Random HD Photos
+  document.getElementById('admin-seed-100-players-btn')?.addEventListener('click', () => {
+    const firstNames = ['Sourav', 'Rahul', 'Rohit', 'Virat', 'Subha', 'Arijit', 'Pintu', 'Rohan', 'Dipankar', 'Supratim', 'Shaibal', 'Tushar', 'Surya', 'Aniket', 'Sayantan', 'Bikram', 'Debashis', 'Sandip', 'Tanmay', 'Arpan', 'Kaushik', 'Prasenjit', 'Suman', 'Gourav', 'Abhishek', 'Rajesh', 'Manoj', 'Kalyan', 'Sanjay', 'Biplab'];
+    const lastNames = ['Roy', 'Ghosh', 'Adikary', 'Singh', 'Dolai', 'Halder', 'Dutta', 'Dikpati', 'Santra', 'Kolay', 'Banerjee', 'Chatterjee', 'Mondal', 'Pramanik', 'Samanta', 'Kundu', 'Khan', 'Maji', 'Mallick', 'De'];
+    const villages = ['Jhanka', 'Khirpai', 'Chandrakona', 'Ramjibanpur', 'Ghatal', 'Keshpur', 'Garhbeta', 'Medinipur', 'Salboni', 'Daspur'];
+    const categories = ['Batsman', 'Bowler', 'All Rounder', 'Wicket Keeper'];
+    const battingStyles = ['Right Hand Bat', 'Left Hand Bat'];
+    const bowlingStyles = ['Right Hand Fast', 'Right Hand Medium', 'Right Arm Off Break', 'Left Arm Orthodox', 'Left Arm Fast'];
+
+    const targetTid = activeTid || 'leg-jsl';
+    const existingPlayers = store.getPlayers();
+    const startSerial = existingPlayers.length + 1;
+
+    let addedCount = 0;
+    for (let i = 0; i < 110; i++) {
+      const fn = firstNames[Math.floor(Math.random() * firstNames.length)];
+      const ln = lastNames[Math.floor(Math.random() * lastNames.length)];
+      const fullName = `${fn} ${ln}`;
+      const village = villages[Math.floor(Math.random() * villages.length)];
+      const category = categories[Math.floor(Math.random() * categories.length)];
+      const sNo = startSerial + i;
+      const regId = `REG-${String(sNo).padStart(4, '0')}`;
+      const phone = `98${Math.floor(10000000 + Math.random() * 90000000)}`;
+      const randomGender = Math.random() > 0.1 ? 'men' : 'men';
+      const randomImgId = Math.floor(1 + Math.random() * 95);
+      const photoUrl = `https://randomuser.me/api/portraits/${randomGender}/${randomImgId}.jpg`;
+
+      const pData = {
+        id: generateUUID(),
+        tournament_id: targetTid,
+        tournamentId: targetTid,
+        serialNo: sNo,
+        displayRegistrationNumber: sNo,
+        registrationId: regId,
+        regNo: regId,
+        name: fullName,
+        fatherName: `${firstNames[Math.floor(Math.random() * firstNames.length)]} ${ln}`,
+        phone: phone,
+        mobile: phone,
+        category: category,
+        role: category,
+        playingType: category,
+        battingStyle: battingStyles[Math.floor(Math.random() * battingStyles.length)],
+        bowlingStyle: bowlingStyles[Math.floor(Math.random() * bowlingStyles.length)],
+        village: village,
+        district: 'Paschim Medinipur',
+        state: 'West Bengal',
+        age: 18 + Math.floor(Math.random() * 16),
+        dob: `${1995 + Math.floor(Math.random() * 12)}-0${1 + Math.floor(Math.random() * 9)}-15`,
+        basePrice: 300,
+        registrationStatus: 'APPROVED',
+        paymentStatus: 'APPROVED',
+        paymentRef: `UPI-TEST-${Math.floor(100000 + Math.random() * 900000)}`,
+        photoUrl: photoUrl,
+        player_photo_url: photoUrl,
+        auctionStatus: 'PENDING',
+        isSold: false,
+        isUnsold: false,
+        created_at: new Date(Date.now() - Math.floor(Math.random() * 86400000 * 5)).toISOString()
+      };
+
+      existingPlayers.push(pData);
+      addedCount++;
+    }
+
+    localStorage.setItem('cpl_players_v8', JSON.stringify(existingPlayers));
+    store.notify('players_updated');
+    alert(`🎉 Success! Generated ${addedCount} registered players with photos and auto-indexed serial numbers (#${startSerial} to #${startSerial + addedCount - 1}).`);
     renderAdminDashboard(containerEl);
   });
 
+  // Run Mock Auction & Draft Players into Squads
+  document.getElementById('admin-seed-mock-auction-btn')?.addEventListener('click', () => {
+    const allTeams = store.getTeams();
+    if (allTeams.length === 0) {
+      alert("⚠️ No teams found! Please create or import teams first before running mock auction.");
+      return;
+    }
+
+    const allPlayers = store.getPlayers();
+    const availablePlayers = allPlayers.filter(p => !p.teamId);
+
+    if (availablePlayers.length === 0) {
+      alert("⚠️ All players are already allocated to teams.");
+      return;
+    }
+
+    if (!confirm(`🔨 Mock Auction Simulation:\n\nDraft available players across all ${allTeams.length} franchise teams with realistic bid prices (₹300 - ₹2,500) and update team remaining purse balances?`)) {
+      return;
+    }
+
+    let draftedCount = 0;
+    const teamBudgets = {};
+    allTeams.forEach(t => {
+      teamBudgets[t.id] = Number(t.purseBudget || t.purse || 8000);
+      t.purseSpent = 0;
+    });
+
+    availablePlayers.forEach((p, idx) => {
+      // Pick team cyclically or randomly
+      const targetTeam = allTeams[idx % allTeams.length];
+      const remaining = teamBudgets[targetTeam.id];
+
+      // Stop drafting if team purse is low or squad is full
+      if (remaining > 500 && Math.random() > 0.08) {
+        const bidPrice = Math.min(remaining - 200, 300 + Math.floor(Math.random() * 18) * 100);
+        p.teamId = targetTeam.id;
+        p.teamName = targetTeam.name;
+        p.soldPrice = bidPrice;
+        p.auctionStatus = 'SOLD';
+        p.isSold = true;
+        p.isUnsold = false;
+
+        teamBudgets[targetTeam.id] -= bidPrice;
+        targetTeam.purseSpent = (targetTeam.purseSpent || 0) + bidPrice;
+        targetTeam.remainingPurse = teamBudgets[targetTeam.id];
+        draftedCount++;
+      } else {
+        p.auctionStatus = 'UNSOLD';
+        p.isUnsold = true;
+      }
+    });
+
+    localStorage.setItem('cpl_players_v8', JSON.stringify(allPlayers));
+    localStorage.setItem('cpl_teams_v8', JSON.stringify(allTeams));
+    store.notify('players_updated');
+    store.notify('teams_updated');
+    alert(`🏆 Mock Auction Complete!\n\nDrafted ${draftedCount} players across ${allTeams.length} teams. Squad rosters and team purses updated!`);
+    renderAdminDashboard(containerEl);
+  });
 
   // Export & Action Listeners
   document.getElementById('export-master-csv-btn')?.addEventListener('click', () => exportPlayersToCSV(store.getPlayers()));
@@ -1532,12 +2239,27 @@ export function renderAdminDashboard(containerEl) {
   document.getElementById('download-all-teams-squad-pdf-btn')?.addEventListener('click', () => exportAllTeamsFinalSquadsToPDF(store.getTeams(), store.getPlayers()));
   document.getElementById('export-teams-csv-btn')?.addEventListener('click', () => exportTeamsToCSV(store.getTeams()));
   document.getElementById('auction-tab-download-all-pdf-btn')?.addEventListener('click', () => exportAllTeamsFinalSquadsToPDF(store.getTeams(), store.getPlayers()));
+  document.getElementById('admin-end-conclude-auction-btn')?.addEventListener('click', async () => {
+    const activeTourney = store.getCustomTournaments().find(t => (t.supabaseId || t.id) === store.activeTournamentId) || {};
+    const tName = activeTourney.name || 'this tournament';
+    const confirmed = confirm(`🔴 Conclude & End Live Auction for ${tName}?\n\n• Live bidding will be concluded.\n• All spectator phones will immediately show "No Auction Currently Live" with a direct link to your tournament hub.\n• All drafted squads and financial balances will be archived in the 5-Year Vault.\n\nClick OK to confirm.`);
+    if (!confirmed) return;
+
+    try {
+      await store.concludeLiveAuction();
+      alert(`🏆 Live Auction for "${tName}" has been successfully concluded and archived!\n\nPublic spectator screens have been updated.`);
+      renderAdminDashboard(containerEl);
+    } catch(e) {
+      alert("Notice: " + (e.message || e));
+    }
+  });
+
   document.getElementById('admin-sync-permanent-archive-btn')?.addEventListener('click', async () => {
     const btn = document.getElementById('admin-sync-permanent-archive-btn');
     if (btn) btn.innerHTML = '<span>⏳ Syncing...</span>';
     try {
       await store.commitAndSyncAuctionPermanentArchive();
-      alert("✅ JSL 2026 Final Auction Record Vault Synced!\n\nAll 8 team squads, player bids, icon fees, and financial balances have been permanently locked and archived in Firebase Cloud and Local Storage for 5+ years.");
+      alert("✅ Final Auction Record Vault Synced!\n\nAll team squads, player bids, icon fees, and financial balances have been permanently locked and archived in Supabase Cloud and Local Storage.");
     } catch(e) {
       alert("Archive sync notice: " + (e.message || e));
     }
@@ -1599,6 +2321,19 @@ export function renderAdminDashboard(containerEl) {
     });
   });
 
+  // --- TEAM MANAGE SQUAD LISTENERS ---
+  containerEl.querySelectorAll('.manage-squad-team-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const teamId = e.currentTarget.getAttribute('data-manage-squad-team-id');
+      const team = store.getTeamById(teamId);
+      if (team) {
+        openAdminSquadManageModal(team, () => renderAdminDashboard(containerEl));
+      } else {
+        alert("Team not found!");
+      }
+    });
+  });
+
   // --- TEAM EDIT & DELETE LISTENERS ---
   containerEl.querySelectorAll('.edit-team-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
@@ -1624,7 +2359,20 @@ export function renderAdminDashboard(containerEl) {
     });
   });
 
+  // --- ADD NEW TEAM LISTENERS ---
+  const handleAddNewTeam = () => {
+    openEditTeamModal(null, () => renderAdminDashboard(containerEl));
+  };
+  document.getElementById('admin-add-new-team-btn')?.addEventListener('click', handleAddNewTeam);
+  document.getElementById('admin-empty-add-team-btn')?.addEventListener('click', handleAddNewTeam);
+
   // Action Listeners on Tables
+  document.getElementById('admin-create-new-tourney-btn')?.addEventListener('click', () => {
+    if (window.openTournamentCreationWizard) {
+      window.openTournamentCreationWizard(false);
+    }
+  });
+
   bindAdminTableActions(containerEl);
 }
 
@@ -1637,12 +2385,41 @@ function renderAdminPlayersRows(playersList) {
   return playersList.map(p => {
     const isApproved = (p.registrationStatus || p.paymentStatus) === 'APPROVED';
     const isRejected = (p.registrationStatus || p.paymentStatus) === 'REJECTED';
+    const statusBadge = `<span class="px-2 py-0.5 text-[9px] font-black rounded-full border ${isApproved ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : isRejected ? 'bg-rose-100 text-rose-800 border-rose-300' : 'bg-amber-100 text-amber-800 border-amber-300'}">${isApproved ? '🟢 APPROVED' : isRejected ? '⚪ REJECTED' : '🔴 PENDING'}</span>`;
+
+    const actionBtns = `${isApproved ? `<button data-whatsapp-notify-id="${p.id}" title="Send Official Approval on WhatsApp" class="whatsapp-notify-btn px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[9px] rounded-lg shadow-2xs flex items-center gap-1 cursor-pointer"><span>💬 WhatsApp</span></button>` : ''}${p.aadharPhotoUrl || p.paymentReceiptUrl ? `<button data-purge-docs-id="${p.id}" title="Purge Docs" class="purge-player-docs-btn px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-[9px] rounded-lg border border-amber-300 shadow-2xs">🧹 Purge</button>` : p.docsPurged ? `<span class="text-[9px] text-emerald-700 font-bold">✅ Purged</span>` : ''}${isRejected ? `<button data-approve-id="${p.id}" class="approve-player-btn px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[9px] rounded-lg shadow-2xs">Approve</button><button data-restore-id="${p.id}" class="restore-player-btn px-2 py-1 bg-sky-600 hover:bg-sky-500 text-white font-black text-[9px] rounded-lg shadow-2xs">Reset</button>` : !isApproved ? `<button data-approve-id="${p.id}" class="approve-player-btn px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[9px] rounded-lg shadow-2xs">Approve</button><button data-reject-id="${p.id}" class="reject-player-btn px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-black text-[9px] rounded-lg border border-rose-300 shadow-2xs">Reject</button>` : `<button data-restore-id="${p.id}" class="restore-player-btn px-1.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 font-extrabold text-[9px] rounded-lg border border-amber-300 shadow-2xs">Reset</button>`}${isMaster ? `<button data-edit-id="${p.id}" class="edit-player-btn p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg border border-slate-300"><i data-lucide="edit-2" class="w-3.5 h-3.5 pointer-events-none"></i></button><button data-delete-id="${p.id}" class="delete-player-btn p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg border border-rose-300"><i data-lucide="trash-2" class="w-3.5 h-3.5 pointer-events-none"></i></button>` : ''}`;
 
     return `
-      <tr class="hover:bg-slate-50 transition-colors">
+      <!-- MOBILE CARD (visible below sm) -->
+      <tr class="sm:hidden">
+        <td colspan="7" class="p-0">
+          <div class="p-3 border-b border-slate-100 space-y-2">
+            <div class="flex items-center gap-2.5">
+              <img src="${getOptimizedImageUrl(p.photoUrl || p.player_photo_url, 80, 80)}" loading="lazy" decoding="async" class="w-10 h-10 rounded-xl object-cover border border-slate-200 shadow-2xs" onerror="this.src='assets/card_jsl_user.png'"/>
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center justify-between gap-1">
+                  <span class="font-bold text-slate-900 text-xs truncate">${p.name}</span>
+                  ${statusBadge}
+                </div>
+                <div class="flex items-center gap-2 mt-0.5">
+                  <span class="px-1.5 py-0.5 bg-slate-100 text-slate-700 font-mono text-[8px] font-black rounded border border-slate-200">${p.registrationId || p.regNo || 'REG-0001'} (#${p.displayRegistrationNumber || p.serialNo})</span>
+                  <span class="text-[9px] text-indigo-700 font-bold">${p.category || p.playingType || 'All Rounder'}</span>
+                </div>
+              </div>
+            </div>
+            <div class="flex items-center justify-between text-[9px] text-slate-500">
+              <span>📞 ${p.phone || 'N/A'} • Age: ${p.age || 24}</span>
+              <span>📍 ${p.village || ''}, ${p.district || ''}</span>
+            </div>
+            <div class="flex items-center gap-1 flex-wrap">${actionBtns}</div>
+          </div>
+        </td>
+      </tr>
+      <!-- DESKTOP ROW (visible sm+) -->
+      <tr class="hidden sm:table-row hover:bg-slate-50 transition-colors">
         <td class="py-3 px-3">
           <span class="px-1.5 py-0.5 bg-slate-100 text-slate-800 font-mono text-[9px] font-black rounded border border-slate-300">
-            ${p.registrationId || p.regNo || 'JSL2026-0001'} (#${p.displayRegistrationNumber || p.serialNo})
+            ${p.registrationId || p.regNo || 'REG-0001'} (#${p.displayRegistrationNumber || p.serialNo})
           </span>
         </td>
         <td class="py-3 px-3 font-bold text-slate-900 text-xs">
@@ -1662,54 +2439,10 @@ function renderAdminPlayersRows(playersList) {
           <div class="font-bold text-indigo-700 text-[10px]">${p.category || p.playingType || 'All Rounder'}</div>
           <div class="text-[9px] text-slate-500">${p.battingStyle || 'Right Hand Bat'}</div>
         </td>
-        <td class="py-3 px-3 font-mono text-xs text-slate-700 font-bold">
-          📞 ${p.phone || 'N/A'}
-        </td>
-        <td class="py-3 px-3 font-mono font-bold text-xs">
-          <span class="px-2 py-0.5 text-[9px] font-black rounded-full border ${isApproved ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : isRejected ? 'bg-rose-100 text-rose-800 border-rose-300' : 'bg-amber-100 text-amber-800 border-amber-300'}">
-            ${isApproved ? '🟢 APPROVED' : isRejected ? '⚪ REJECTED' : '🔴 PENDING'}
-          </span>
-        </td>
+        <td class="py-3 px-3 font-mono text-xs text-slate-700 font-bold">📞 ${p.phone || 'N/A'}</td>
+        <td class="py-3 px-3 font-mono font-bold text-xs">${statusBadge}</td>
         <td class="py-3 px-3 text-right">
-          <div class="flex items-center justify-end gap-1">
-            ${isApproved ? `
-              <button data-whatsapp-notify-id="${p.id}" title="Send Official Approval on WhatsApp" class="whatsapp-notify-btn px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[9px] rounded-lg shadow-2xs flex items-center gap-1 cursor-pointer">
-                <span>💬 WhatsApp</span>
-              </button>
-            ` : ''}
-            ${p.aadharPhotoUrl || p.paymentReceiptUrl ? `
-              <button data-purge-docs-id="${p.id}" title="Purge Aadhaar & Receipt images to save storage memory" class="purge-player-docs-btn px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 font-bold text-[9px] rounded-lg border border-amber-300 shadow-2xs">
-                🧹 Purge Docs
-              </button>
-            ` : p.docsPurged ? `
-              <span class="text-[9px] text-emerald-700 font-bold">✅ Docs Purged</span>
-            ` : ''}
-            ${isRejected ? `
-              <button data-approve-id="${p.id}" title="Approve Player" class="approve-player-btn px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[9px] rounded-lg shadow-2xs">
-                Approve
-              </button>
-              <button data-restore-id="${p.id}" title="Reset to Pending" class="restore-player-btn px-2 py-1 bg-sky-600 hover:bg-sky-500 text-white font-black text-[9px] rounded-lg shadow-2xs">
-                Reset
-              </button>
-            ` : !isApproved ? `
-              <button data-approve-id="${p.id}" title="Approve Player" class="approve-player-btn px-2 py-1 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-[9px] rounded-lg shadow-2xs">
-                Approve
-              </button>
-              <button data-reject-id="${p.id}" title="Reject Player" class="reject-player-btn px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 font-black text-[9px] rounded-lg border border-rose-300 shadow-2xs">
-                Reject
-              </button>
-            ` : `
-              <button data-restore-id="${p.id}" title="Reset to Pending" class="restore-player-btn px-1.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-800 font-extrabold text-[9px] rounded-lg border border-amber-300 shadow-2xs">
-                Reset
-              </button>
-            `}
-            <button data-edit-id="${p.id}" class="edit-player-btn p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg border border-slate-300" style="${isMaster ? '' : 'display:none'}">
-              <i data-lucide="edit-2" class="w-3.5 h-3.5 pointer-events-none"></i>
-            </button>
-            <button data-delete-id="${p.id}" class="delete-player-btn p-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 rounded-lg border border-rose-300" style="${isMaster ? '' : 'display:none'}">
-              <i data-lucide="trash-2" class="w-3.5 h-3.5 pointer-events-none"></i>
-            </button>
-          </div>
+          <div class="flex items-center justify-end gap-1">${actionBtns}</div>
         </td>
       </tr>
     `;
@@ -1728,24 +2461,27 @@ export function sendWhatsAppPlayerApproval(player) {
     return;
   }
 
-  const messageText = 
-`🎉 *JHANKRA SUPER LEAGUE (JSL) 2026* 🎉
+  const activeTourney = store.getCustomTournaments().find(t => (t.supabaseId || t.id) === store.activeTournamentId) || {};
+  const tName = activeTourney.name || 'Tournament';
+  const tVenue = activeTourney.venue || '';
+  const tDate = activeTourney.kickoffDate || '';
+  const messageText =
+`🎉 *${tName.toUpperCase()}* 🎉
 
 নমস্কার *${player.name}*,
-আপনার JSL 2026 টুর্নামেন্টের প্লেয়ার রেজিস্ট্রেশন সফলভাবে *APPROVED* (অনুমোদিত) হয়েছে! ✅
+আপনার টুর্নামেন্টের প্লেয়ার রেজিস্ট্রেশন সফলভাবে *APPROVED* (অনুমোদিত) হয়েছে! ✅
 
-🆔 *Registration ID:* ${player.registrationId || 'JSL2026-0001'}
+🆔 *Registration ID:* ${player.registrationId || player.regNo || 'REG-0001'}
 🏏 *Category:* ${player.category || 'All Rounder'}
-📍 *Location:* ${player.village || ''}, ${player.district || 'Paschim Medinipur'}
+📍 *Location:* ${player.village || ''}, ${player.district || ''}
 💰 *Base Price:* ₹${player.basePrice || 300}
+${tDate ? `\n🏆 *Tournament Starts:* ${tDate}` : ''}
+${tVenue ? `📍 *Venue:* ${tVenue}` : ''}
 
-🏆 *Grand Tournament Starts:* 31 August 2026, 9:00 AM IST
-📍 *Venue:* Jhankra School Stadium Ground
-
-🌐 *Live Portal:* https://cricket-league.vercel.app
+🌐 *Live Portal:* ${window.location.origin}${window.location.pathname}#t/${activeTourney.slug || ''}
 
 ধন্যবাদ ও শুভকামনা,
-*JSL 2026 Management Committee*`;
+*${tName} Management Committee*`;
 
   const encodedMsg = encodeURIComponent(messageText);
   const waUrl = `https://wa.me/91${cleanPhone}?text=${encodedMsg}`;
@@ -1754,7 +2490,7 @@ export function sendWhatsAppPlayerApproval(player) {
 
 function bindAdminTableActions(containerEl) {
   // Event Delegation so Delete, Edit, Approve, Reject, Restore & WhatsApp buttons work 100% reliably
-  containerEl.onclick = (e) => {
+  containerEl.onclick = async (e) => {
     // 0. WhatsApp Notify
     const waBtn = e.target.closest('.whatsapp-notify-btn');
     if (waBtn) {
@@ -1769,7 +2505,7 @@ function bindAdminTableActions(containerEl) {
     if (deleteBtn) {
       const pId = deleteBtn.getAttribute('data-delete-id');
       if (pId && confirm("⚠️ Are you sure you want to delete this player registration? Remaining numbers will re-index continuously.")) {
-        store.deletePlayer(pId);
+        await store.deletePlayer(pId);
         renderAdminDashboard(containerEl);
       }
       return;
@@ -1782,10 +2518,6 @@ function bindAdminTableActions(containerEl) {
       if (pId) {
         store.updatePlayerStatus(pId, 'APPROVED', 'APPROVED');
         renderAdminDashboard(containerEl);
-        const p = store.getPlayerById(pId);
-        if (p && confirm(`✅ Player "${p.name}" APPROVED!\n\nDo you want to send the official Approval Confirmation to ${p.name} on WhatsApp now?`)) {
-          sendWhatsAppPlayerApproval(p);
-        }
       }
       return;
     }
@@ -1882,6 +2614,23 @@ function bindAdminTableActions(containerEl) {
     renderScorerMatchesList();
   } else if (activeAdminTab === 'shop-ads') {
     renderAdminShopAdsPanel();
+  } else if (activeAdminTab === 'saas-tournaments') {
+    renderAdminSaasTournamentsPanel();
+  }
+
+  // Realtime custom tournaments update listener
+  const listenTourneyUpdates = store.on ? store.on.bind(store) : (store.subscribe ? store.subscribe.bind(store) : null);
+  if (listenTourneyUpdates) {
+    listenTourneyUpdates('custom_tournaments_updated', () => {
+      if (activeAdminTab === 'saas-tournaments') {
+        renderAdminSaasTournamentsPanel();
+      }
+      const selector = document.getElementById('admin-tournament-selector');
+      if (selector && store.getAllAvailableTournaments) {
+        const allTourneys = store.getAllAvailableTournaments();
+        selector.innerHTML = allTourneys.map(t => `<option value="${t.id}" ${t.id === store.activeTournamentId ? 'selected' : ''} class="bg-slate-900 text-white">${t.name}</option>`).join('');
+      }
+    });
   }
 }
 
@@ -1907,7 +2656,7 @@ function renderAdminLoginScreen(containerEl) {
       <form id="admin-login-form" class="space-y-3 text-left">
         <div>
           <label class="block text-[10px] font-black text-slate-700 uppercase mb-1">Email ID OR 10-Digit Mobile Number *</label>
-          <input type="text" id="admin-identifier" required placeholder="e.g. bakolaypan@gmail.com OR 9876543210" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-emerald-500 font-mono" />
+          <input type="text" id="admin-identifier" required placeholder="e.g. admin@example.com OR 9876543210" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-3 focus:outline-none focus:border-emerald-500 font-mono" />
         </div>
 
         <div>
@@ -1933,44 +2682,43 @@ function renderAdminLoginScreen(containerEl) {
     window.dispatchEvent(new CustomEvent('popstate'));
   });
 
-  document.getElementById('admin-login-form')?.addEventListener('submit', (e) => {
+  document.getElementById('admin-login-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const identifier = document.getElementById('admin-identifier').value.trim();
     const pass = document.getElementById('admin-password').value.trim();
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    if (submitBtn) {
+      submitBtn.disabled = true;
+      submitBtn.innerText = 'Verifying Credentials...';
+    }
 
-    // 1. Try Super Admin email
-    if (identifier.includes('@')) {
-      const res = store.authenticateAdmin(identifier, pass);
+    try {
+      // 1. Try unified authentication (Supabase Auth + fallback)
+      const res = await store.authenticateAdmin(identifier, pass);
       if (res.success) {
-        store.setCurrentUser({
-          phone: '9876543210',
-          name: 'Suman Kolay (Master Super Admin)',
-          role: 'SUPER_ADMIN',
-          isFirstLogin: false,
-          ownedTournaments: ['tournament-jsl-2026']
-        });
         renderAdminDashboard(containerEl);
         return;
-      } else {
-        alert(res.message || "Invalid Admin Email Credentials");
+      }
+
+      // 2. Try regular user auth for player profiles
+      const userRes = await store.authenticateUser(identifier, pass);
+      if (userRes.success) {
+        if (userRes.user.role === 'TOURNAMENT_OWNER' || userRes.user.role === 'SUPER_ADMIN') {
+          renderAdminDashboard(containerEl);
+        } else {
+          alert(`Logged in as player "${userRes.user.name}". Navigating to your Player Profile.`);
+          window.location.hash = 'profile';
+          window.dispatchEvent(new CustomEvent('popstate'));
+        }
         return;
       }
-    }
 
-    // 2. Try Mobile Number (Tournament Owner or Player)
-    const res = store.authenticateUser(identifier, pass);
-    if (!res.success) {
-      alert(res.message || "Invalid Mobile Number or Password");
-      return;
-    }
-
-    if (res.user.role === 'TOURNAMENT_OWNER' || res.user.role === 'SUPER_ADMIN') {
-      localStorage.setItem('cpl_admin_auth_v7', 'true');
-      renderAdminDashboard(containerEl);
-    } else {
-      alert(`Logged in as player "${res.user.name}". You do not have Tournament Owner permissions. Navigating to your Player Profile.`);
-      window.location.hash = 'profile';
-      window.dispatchEvent(new CustomEvent('popstate'));
+      alert(res.message || "Invalid Credentials. Please check your Email / Phone and Password.");
+    } finally {
+      if (submitBtn) {
+        submitBtn.disabled = false;
+        submitBtn.innerText = 'Unlock Tournament Control Dashboard';
+      }
     }
   });
 }
@@ -2018,31 +2766,52 @@ function openAdminEditPlayerModal(player, containerEl) {
             </span>
             <span class="text-[9px] text-slate-500 font-bold">Click any photo to Zoom HD</span>
           </div>
-          <div class="grid grid-cols-3 gap-2 text-center">
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center">
             
             <!-- 1. PLAYER PHOTO -->
             <div class="space-y-1">
               <span class="text-[9px] font-bold text-slate-600 block uppercase">Player Photo</span>
-              <img src="${player.photoUrl || player.player_photo_url}" class="doc-zoomable-img w-full h-20 rounded-xl object-cover border-2 border-emerald-300 hover:border-emerald-500 shadow-2xs cursor-pointer transition-all bg-white" title="Click to view full HD player photo" data-zoom-title="${player.name} - Player Photo" onerror="this.onerror=null; this.src='assets/card_jsl_user.png';" />
+              <img src="${player.photoUrl || player.player_photo_url || 'assets/card_jsl_user.png'}" class="doc-zoomable-img w-full h-20 rounded-xl object-cover border-2 border-emerald-300 hover:border-emerald-500 shadow-2xs cursor-pointer transition-all bg-white" title="Click to view full HD player photo" data-zoom-title="${player.name} - Player Photo" onerror="this.onerror=null; this.src='assets/card_jsl_user.png';" />
               <span class="text-[9px] text-emerald-700 block font-bold cursor-pointer hover:underline">🔍 Zoom Photo</span>
             </div>
 
-            <!-- 2. AADHAAR CARD -->
+            <!-- 2. ID CARD FRONT -->
             <div class="space-y-1">
-              <span class="text-[9px] font-bold text-slate-600 block uppercase">Aadhaar Proof</span>
-              ${player.aadharPhotoUrl || player.aadharBackUrl ? `
-                <img src="${player.aadharPhotoUrl || player.aadharBackUrl}" class="doc-zoomable-img w-full h-20 rounded-xl object-cover border-2 border-sky-300 hover:border-sky-500 shadow-2xs cursor-pointer transition-all bg-white" title="Click to view full HD Aadhaar document" data-zoom-title="${player.name} - Aadhaar Document" onerror="this.src='assets/jsl_logo.jpg'" />
-                <span class="text-[9px] text-sky-700 block font-bold cursor-pointer hover:underline">🔍 Zoom Aadhaar</span>
-              ` : `<div class="h-20 rounded-xl bg-slate-200 border border-slate-300 flex items-center justify-center text-[10px] text-slate-500 font-bold">No Aadhaar</div>`}
+              <span class="text-[9px] font-bold text-slate-600 block uppercase truncate">${player.docType || 'ID'} Front</span>
+              <div id="admin-preview-id-front-wrap" class="relative">
+                <img id="admin-preview-id-front-img" src="${player.idCardFrontUrl || player.id_card_front_url || player.aadharPhotoUrl || player.aadhaar_url || 'assets/jsl_logo.jpg'}" class="doc-zoomable-img w-full h-20 rounded-xl object-cover border-2 border-sky-300 hover:border-sky-500 shadow-2xs cursor-pointer transition-all bg-white ${!(player.idCardFrontUrl || player.id_card_front_url || player.aadharPhotoUrl || player.aadhaar_url) ? 'hidden' : ''}" title="Click to view ID Card Front" data-zoom-title="${player.name} - ID Card Front (${player.docType || 'Identity Card'})" onerror="this.src='assets/jsl_logo.jpg'" />
+                <div id="admin-no-id-front-placeholder" class="h-20 rounded-xl bg-slate-200 border border-slate-300 flex items-center justify-center text-[10px] text-slate-500 font-bold ${(player.idCardFrontUrl || player.id_card_front_url || player.aadharPhotoUrl || player.aadhaar_url) ? 'hidden' : ''}">No ID Front</div>
+              </div>
+              <label class="text-[9px] text-sky-700 block font-bold cursor-pointer hover:underline">
+                <span>📁 Upload Front</span>
+                <input type="file" id="admin-edit-id-front-input" accept="image/*" class="hidden" />
+              </label>
             </div>
 
-            <!-- 3. PAYMENT RECEIPT -->
+            <!-- 3. ID CARD BACK -->
+            <div class="space-y-1">
+              <span class="text-[9px] font-bold text-slate-600 block uppercase truncate">${player.docType || 'ID'} Back</span>
+              <div id="admin-preview-id-back-wrap" class="relative">
+                <img id="admin-preview-id-back-img" src="${player.idCardBackUrl || player.id_card_back_url || player.aadharBackUrl || 'assets/jsl_logo.jpg'}" class="doc-zoomable-img w-full h-20 rounded-xl object-cover border-2 border-sky-300 hover:border-sky-500 shadow-2xs cursor-pointer transition-all bg-white ${!(player.idCardBackUrl || player.id_card_back_url || player.aadharBackUrl) ? 'hidden' : ''}" title="Click to view ID Card Back" data-zoom-title="${player.name} - ID Card Back (${player.docType || 'Identity Card'})" onerror="this.src='assets/jsl_logo.jpg'" />
+                <div id="admin-no-id-back-placeholder" class="h-20 rounded-xl bg-slate-200 border border-slate-300 flex items-center justify-center text-[10px] text-slate-500 font-bold ${(player.idCardBackUrl || player.id_card_back_url || player.aadharBackUrl) ? 'hidden' : ''}">No ID Back</div>
+              </div>
+              <label class="text-[9px] text-sky-700 block font-bold cursor-pointer hover:underline">
+                <span>📁 Upload Back</span>
+                <input type="file" id="admin-edit-id-back-input" accept="image/*" class="hidden" />
+              </label>
+            </div>
+
+            <!-- 4. PAYMENT RECEIPT -->
             <div class="space-y-1">
               <span class="text-[9px] font-bold text-slate-600 block uppercase">Payment Receipt</span>
-              ${player.paymentReceiptUrl || player.paymentProofUrl ? `
-                <img src="${player.paymentReceiptUrl || player.paymentProofUrl}" class="doc-zoomable-img w-full h-20 rounded-xl object-cover border-2 border-amber-300 hover:border-amber-500 shadow-2xs cursor-pointer transition-all bg-white" title="Click to view full HD payment receipt" data-zoom-title="${player.name} - Payment Receipt" onerror="this.src='assets/jsl_logo.jpg'" />
-                <span class="text-[9px] text-amber-700 block font-bold cursor-pointer hover:underline">🔍 Zoom Receipt</span>
-              ` : `<div class="h-20 rounded-xl bg-slate-200 border border-slate-300 flex items-center justify-center text-[10px] text-slate-500 font-bold">No Receipt</div>`}
+              <div id="admin-preview-receipt-wrap" class="relative">
+                <img id="admin-preview-receipt-img" src="${player.paymentReceiptUrl || player.paymentProofUrl || player.payment_screenshot_url || 'assets/jsl_logo.jpg'}" class="doc-zoomable-img w-full h-20 rounded-xl object-cover border-2 border-amber-300 hover:border-amber-500 shadow-2xs cursor-pointer transition-all bg-white ${!(player.paymentReceiptUrl || player.paymentProofUrl || player.payment_screenshot_url) ? 'hidden' : ''}" title="Click to view full HD payment receipt" data-zoom-title="${player.name} - Payment Receipt" onerror="this.src='assets/jsl_logo.jpg'" />
+                <div id="admin-no-receipt-placeholder" class="h-20 rounded-xl bg-slate-200 border border-slate-300 flex items-center justify-center text-[10px] text-slate-500 font-bold ${(player.paymentReceiptUrl || player.paymentProofUrl || player.payment_screenshot_url) ? 'hidden' : ''}">No Receipt</div>
+              </div>
+              <label class="text-[9px] text-amber-700 block font-bold cursor-pointer hover:underline">
+                <span>📁 Upload Receipt</span>
+                <input type="file" id="admin-edit-receipt-input" accept="image/*" class="hidden" />
+              </label>
             </div>
 
           </div>
@@ -2056,7 +2825,7 @@ function openAdminEditPlayerModal(player, containerEl) {
           </div>
 
           <div class="flex items-center gap-3">
-            <img id="admin-edit-photo-preview" src="${player.photoUrl || player.player_photo_url}" class="w-14 h-14 rounded-2xl object-cover border-2 border-emerald-500 shadow-xs bg-white shrink-0" onerror="this.onerror=null; this.src='assets/card_jsl_user.png';" />
+            <img id="admin-edit-photo-preview" src="${player.photoUrl || player.player_photo_url || 'assets/card_jsl_user.png'}" class="w-14 h-14 rounded-2xl object-cover border-2 border-emerald-500 shadow-xs bg-white shrink-0" onerror="this.onerror=null; this.src='assets/card_jsl_user.png';" />
             
             <div class="flex items-center gap-1.5 flex-1 flex-wrap">
               <label class="px-3 py-1.5 bg-white hover:bg-slate-50 text-slate-800 font-bold text-[10px] rounded-xl border border-slate-300 cursor-pointer flex items-center gap-1 shadow-2xs transition-all">
@@ -2074,7 +2843,7 @@ function openAdminEditPlayerModal(player, containerEl) {
           </div>
         </div>
 
-        <!-- 3. COMPREHENSIVE FORM (ALL PLAYER FIELDS) -->
+        <!-- 3. COMPREHENSIVE FORM (EXACT REGISTRATION FIELDS) -->
         <form id="admin-edit-player-form" class="space-y-3.5 text-xs">
 
           <!-- Section A: Personal & Contact Information -->
@@ -2089,34 +2858,40 @@ function openAdminEditPlayerModal(player, containerEl) {
                 <input type="text" id="edit-ply-name" value="${player.name || ''}" required class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-2xs" />
               </div>
               <div>
-                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Father's Name</label>
-                <input type="text" id="edit-ply-father-name" value="${player.fatherName || ''}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-2xs" />
+                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Phone Number *</label>
+                <input type="tel" id="edit-ply-phone" value="${player.phone || player.mobile || ''}" required class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-mono font-bold rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-2xs" />
               </div>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div>
-                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Phone Number *</label>
-                <input type="tel" id="edit-ply-phone" value="${player.phone || player.mobile || ''}" required class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-mono font-bold rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-2xs" />
+                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Father's Name</label>
+                <input type="text" id="edit-ply-father-name" value="${player.fatherName || player.father_name || ''}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-2xs" placeholder="Father / Guardian Name" />
               </div>
-              <div>
-                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Age (Years)</label>
-                <input type="number" id="edit-ply-age" value="${player.age || 24}" min="10" max="60" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-2xs" />
+              <div class="grid grid-cols-2 gap-2">
+                <div>
+                  <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">DOB</label>
+                  <input type="date" id="edit-ply-dob" value="${player.dob || ''}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-2xs" />
+                </div>
+                <div>
+                  <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Age</label>
+                  <input type="text" id="edit-ply-age" value="${player.age || ''}" class="w-full bg-slate-100 border border-slate-300 text-slate-900 text-xs font-mono font-bold rounded-xl p-2.5 focus:outline-none shadow-2xs" placeholder="Age" />
+                </div>
               </div>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
               <div>
-                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Village / Town</label>
-                <input type="text" id="edit-ply-village" value="${player.village || ''}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-2xs" />
+                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Village / Town *</label>
+                <input type="text" id="edit-ply-village" value="${player.village || player.address || ''}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-2xs" placeholder="Village / Area" />
               </div>
               <div>
                 <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">District</label>
                 <input type="text" id="edit-ply-district" value="${player.district || 'Paschim Medinipur'}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-2xs" />
               </div>
               <div>
-                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Pincode</label>
-                <input type="text" id="edit-ply-pincode" value="${player.pincode || player.pin || '721201'}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-mono font-bold rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-2xs" />
+                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">State</label>
+                <input type="text" id="edit-ply-state" value="${player.state || 'West Bengal'}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-2xs" />
               </div>
             </div>
           </div>
@@ -2129,7 +2904,7 @@ function openAdminEditPlayerModal(player, containerEl) {
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div>
-                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Playing Category *</label>
+                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Playing Category / Role *</label>
                 <select id="edit-ply-category" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-blue-500 focus:outline-none shadow-2xs">
                   <option value="All-Rounder" ${currentCategory.toLowerCase().includes('all') ? 'selected' : ''}>All-Rounder</option>
                   <option value="Batsman" ${currentCategory.toLowerCase() === 'batsman' ? 'selected' : ''}>Batsman</option>
@@ -2146,34 +2921,30 @@ function openAdminEditPlayerModal(player, containerEl) {
               </div>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+            <div class="grid grid-cols-1 gap-2.5">
               <div>
                 <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Bowling Style</label>
                 <select id="edit-ply-bowling" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-blue-500 focus:outline-none shadow-2xs">
-                  <option value="Right Hand Fast" ${currentBowling.includes('Fast') && currentBowling.includes('Right') ? 'selected' : ''}>Right Hand Fast</option>
                   <option value="Right Hand Medium" ${currentBowling.includes('Medium') ? 'selected' : ''}>Right Hand Medium</option>
+                  <option value="Right Hand Fast" ${currentBowling.includes('Fast') && currentBowling.includes('Right') ? 'selected' : ''}>Right Hand Fast</option>
                   <option value="Right Hand Spin" ${currentBowling.includes('Spin') && currentBowling.includes('Right') ? 'selected' : ''}>Right Hand Spin</option>
                   <option value="Left Hand Fast" ${currentBowling.includes('Fast') && currentBowling.includes('Left') ? 'selected' : ''}>Left Hand Fast</option>
                   <option value="Left Hand Spin" ${currentBowling.includes('Spin') && currentBowling.includes('Left') ? 'selected' : ''}>Left Hand Spin</option>
                   <option value="None / Part-Time" ${currentBowling.includes('None') || currentBowling.includes('Part') ? 'selected' : ''}>None / Part-Time</option>
                 </select>
               </div>
-              <div>
-                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Base Price (INR ₹)</label>
-                <input type="number" id="edit-ply-base-price" value="${player.basePrice || 300}" min="100" step="50" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold font-mono rounded-xl p-2.5 focus:border-blue-500 focus:outline-none shadow-2xs" />
-              </div>
             </div>
           </div>
 
-          <!-- Section C: Registration, Approval & Franchise Squad -->
+          <!-- Section C: Payment Verification & Registration Status -->
           <div class="p-3.5 bg-amber-50/50 rounded-2xl border border-amber-200 space-y-2.5">
             <span class="text-[10px] font-black text-amber-900 uppercase tracking-wider block flex items-center gap-1">
-              <span>🏆</span> Registration & Team Allocation
+              <span>💳</span> Payment Verification & Registration Status
             </span>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div>
-                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Registration Status</label>
+                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Registration & Payment Status</label>
                 <select id="edit-ply-status" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-amber-500 focus:outline-none shadow-2xs">
                   <option value="APPROVED" ${currentStatus === 'APPROVED' ? 'selected' : ''}>APPROVED (🟢 Green)</option>
                   <option value="PENDING" ${currentStatus === 'PENDING' ? 'selected' : ''}>PENDING (🔴 Red)</option>
@@ -2181,34 +2952,35 @@ function openAdminEditPlayerModal(player, containerEl) {
                 </select>
               </div>
               <div>
-                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">UPI Reference / Txn ID</label>
-                <input type="text" id="edit-ply-upiref" value="${player.paymentRef || player.remarks || ''}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-mono font-bold rounded-xl p-2.5 focus:border-amber-500 focus:outline-none shadow-2xs" placeholder="e.g. 211492297161" />
+                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">UPI Reference / UTR / Txn ID</label>
+                <input type="text" id="edit-ply-upiref" value="${player.paymentRef || player.remarks || player.payment_ref || ''}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-mono font-bold rounded-xl p-2.5 focus:border-amber-500 focus:outline-none shadow-2xs" placeholder="e.g. UPI_211492297161" />
               </div>
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div>
                 <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Serial Number (#)</label>
                 <input type="number" id="edit-ply-serial" value="${player.displayRegistrationNumber || player.serialNo || 1}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-mono font-bold rounded-xl p-2.5 focus:border-amber-500 focus:outline-none shadow-2xs" />
               </div>
               <div>
                 <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Registration ID</label>
-                <input type="text" id="edit-ply-reg-id" value="${player.registrationId || player.regNo || 'JSL2026-0001'}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-mono font-bold rounded-xl p-2.5 focus:border-amber-500 focus:outline-none shadow-2xs" />
-              </div>
-              <div>
-                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Franchise Squad</label>
-                <select id="edit-ply-team" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-amber-500 focus:outline-none shadow-2xs">
-                  <option value="">-- Free Agent (No Team) --</option>
-                  ${teams.map(t => `<option value="${t.id}" ${player.teamId === t.id ? 'selected' : ''}>${t.name}</option>`).join('')}
-                </select>
+                <input type="text" id="edit-ply-reg-id" value="${player.registrationId || player.regNo || 'REG-0001'}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-mono font-bold rounded-xl p-2.5 focus:border-amber-500 focus:outline-none shadow-2xs" />
               </div>
             </div>
           </div>
 
-          <!-- Save Button -->
-          <button type="submit" class="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-sm rounded-2xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-2">
-            <i data-lucide="check-circle-2" class="w-4 h-4"></i> Save Player Changes
-          </button>
+          <!-- Action Buttons Bar -->
+          <div class="flex flex-col sm:flex-row gap-2 pt-1">
+            <button type="button" id="modal-quick-approve-btn" class="flex-1 py-3 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm rounded-2xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95">
+              <i data-lucide="check-circle" class="w-4 h-4"></i> Approve & Verify
+            </button>
+            <button type="button" id="modal-quick-reject-btn" class="flex-1 py-3 bg-rose-600 hover:bg-rose-500 text-white font-black text-xs sm:text-sm rounded-2xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95">
+              <i data-lucide="x-circle" class="w-4 h-4"></i> Reject
+            </button>
+            <button type="submit" id="modal-save-changes-btn" class="flex-1 py-3 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs sm:text-sm rounded-2xl shadow-md transition-all cursor-pointer flex items-center justify-center gap-1.5 active:scale-95">
+              <i data-lucide="save" class="w-4 h-4"></i> Save Changes
+            </button>
+          </div>
         </form>
       </div>
     </div>
@@ -2230,6 +3002,80 @@ function openAdminEditPlayerModal(player, containerEl) {
   document.getElementById('close-edit-player-modal')?.addEventListener('click', removeModal);
 
   let updatedPhotoUrl = player.photoUrl || player.player_photo_url || '';
+  let updatedIdFrontUrl = player.idCardFrontUrl || player.id_card_front_url || player.aadharPhotoUrl || player.aadhaar_url || '';
+  let updatedIdBackUrl = player.idCardBackUrl || player.id_card_back_url || player.aadharBackUrl || '';
+  let updatedReceiptUrl = player.paymentReceiptUrl || player.paymentProofUrl || player.payment_screenshot_url || '';
+
+  // Helper for quick image compression
+  const compressImage = (file, maxWidth = 900, maxHeight = 900, quality = 0.8) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new Image();
+        img.src = event.target.result;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+          if (width > height) {
+            if (width > maxWidth) {
+              height = Math.round((height * maxWidth) / width);
+              width = maxWidth;
+            }
+          } else {
+            if (height > maxHeight) {
+              width = Math.round((width * maxHeight) / height);
+              height = maxHeight;
+            }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          resolve(canvas.toDataURL('image/jpeg', quality));
+        };
+        img.onerror = (e) => resolve(event.target.result);
+      };
+      reader.onerror = (e) => reject(e);
+    });
+  };
+
+  // ID Front Upload Listener
+  document.getElementById('admin-edit-id-front-input')?.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const dataUrl = await compressImage(file, 900, 900, 0.8);
+    updatedIdFrontUrl = dataUrl;
+    const img = document.getElementById('admin-preview-id-front-img');
+    const ph = document.getElementById('admin-no-id-front-placeholder');
+    if (img) { img.src = dataUrl; img.classList.remove('hidden'); }
+    if (ph) ph.classList.add('hidden');
+  });
+
+  // ID Back Upload Listener
+  document.getElementById('admin-edit-id-back-input')?.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const dataUrl = await compressImage(file, 900, 900, 0.8);
+    updatedIdBackUrl = dataUrl;
+    const img = document.getElementById('admin-preview-id-back-img');
+    const ph = document.getElementById('admin-no-id-back-placeholder');
+    if (img) { img.src = dataUrl; img.classList.remove('hidden'); }
+    if (ph) ph.classList.add('hidden');
+  });
+
+  // Receipt Upload Listener
+  document.getElementById('admin-edit-receipt-input')?.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const dataUrl = await compressImage(file, 900, 900, 0.8);
+    updatedReceiptUrl = dataUrl;
+    const img = document.getElementById('admin-preview-receipt-img');
+    const ph = document.getElementById('admin-no-receipt-placeholder');
+    if (img) { img.src = dataUrl; img.classList.remove('hidden'); }
+    if (ph) ph.classList.add('hidden');
+  });
 
   const processAdminPhotoSelection = (file) => {
     if (!file) return;
@@ -2255,16 +3101,52 @@ function openAdminEditPlayerModal(player, containerEl) {
     }
   });
 
+  // Real-time auto-age calculation from DOB
+  document.getElementById('edit-ply-dob')?.addEventListener('change', (e) => {
+    const dobVal = e.target.value;
+    if (dobVal) {
+      const birthDate = new Date(dobVal);
+      const today = new Date();
+      let calculatedAge = today.getFullYear() - birthDate.getFullYear();
+      const m = today.getMonth() - birthDate.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+        calculatedAge--;
+      }
+      const ageInput = document.getElementById('edit-ply-age');
+      if (ageInput) ageInput.value = `${calculatedAge} Years`;
+    }
+  });
+
+  // Quick Approve Button Handler inside Modal
+  document.getElementById('modal-quick-approve-btn')?.addEventListener('click', () => {
+    const statusSelect = document.getElementById('edit-ply-status');
+    if (statusSelect) statusSelect.value = 'APPROVED';
+    store.updatePlayerStatus(player.id, 'APPROVED', 'APPROVED', document.getElementById('edit-ply-upiref')?.value || '');
+    removeModal();
+    renderAdminDashboard(containerEl);
+  });
+
+  // Quick Reject Button Handler inside Modal
+  document.getElementById('modal-quick-reject-btn')?.addEventListener('click', () => {
+    if (confirm(`⚠️ Reject registration for "${player.name}"?`)) {
+      const statusSelect = document.getElementById('edit-ply-status');
+      if (statusSelect) statusSelect.value = 'REJECTED';
+      store.updatePlayerStatus(player.id, 'REJECTED', 'REJECTED', document.getElementById('edit-ply-upiref')?.value || '');
+      removeModal();
+      renderAdminDashboard(containerEl);
+    }
+  });
+
   document.getElementById('admin-edit-player-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
-    const saveBtn = e.target.querySelector('button[type="submit"]');
-    const originalText = saveBtn ? saveBtn.innerHTML : "Save Player Changes";
+    const saveBtn = document.getElementById('modal-save-changes-btn');
+    const originalText = saveBtn ? saveBtn.innerHTML : "Save Changes";
     if (saveBtn) {
       saveBtn.disabled = true;
       saveBtn.innerHTML = `
         <div class="flex items-center justify-center gap-2">
           <div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-          <span>Saving & Uploading to Cloud...</span>
+          <span>Saving...</span>
         </div>
       `;
     }
@@ -2282,46 +3164,49 @@ function openAdminEditPlayerModal(player, containerEl) {
         if (uploadedUrl && (uploadedUrl.startsWith('http://') || uploadedUrl.startsWith('https://'))) {
           finalPhotoUrl = uploadedUrl;
         } else {
-          if (saveBtn) {
-            saveBtn.disabled = false;
-            saveBtn.innerHTML = originalText;
-          }
-          alert("⚠️ Photo Upload Failed!\n\nUnable to upload photo to Cloudinary CDN. Please check your internet connection and try again.");
-          return;
+          finalPhotoUrl = updatedPhotoUrl;
         }
       }
 
       const newStatus = document.getElementById('edit-ply-status').value;
       const serialNum = parseInt(document.getElementById('edit-ply-serial').value, 10) || player.serialNo || 1;
-      const regIdVal = document.getElementById('edit-ply-reg-id').value.trim() || player.registrationId || `JSL2026-${String(serialNum).padStart(4, '0')}`;
-      const selectedTeamId = document.getElementById('edit-ply-team').value || null;
+      const regIdVal = document.getElementById('edit-ply-reg-id').value.trim() || player.registrationId || `REG-${String(serialNum).padStart(4, '0')}`;
 
       store.updatePlayer({
         id: player.id,
         name: document.getElementById('edit-ply-name').value.trim(),
-        fatherName: document.getElementById('edit-ply-father-name').value.trim(),
         phone: document.getElementById('edit-ply-phone').value.trim(),
         mobile: document.getElementById('edit-ply-phone').value.trim(),
-        age: parseInt(document.getElementById('edit-ply-age').value, 10) || 24,
+        fatherName: document.getElementById('edit-ply-father-name')?.value.trim() || player.fatherName || '',
+        dob: document.getElementById('edit-ply-dob')?.value || player.dob || null,
+        age: document.getElementById('edit-ply-age')?.value || player.age || '',
         village: document.getElementById('edit-ply-village').value.trim(),
         district: document.getElementById('edit-ply-district').value.trim(),
-        pincode: document.getElementById('edit-ply-pincode').value.trim(),
+        state: document.getElementById('edit-ply-state')?.value.trim() || 'West Bengal',
+        address: `${document.getElementById('edit-ply-village').value.trim()}, ${document.getElementById('edit-ply-district').value.trim()}`,
         category: document.getElementById('edit-ply-category').value,
         role: document.getElementById('edit-ply-category').value,
         playingType: document.getElementById('edit-ply-category').value,
         battingStyle: document.getElementById('edit-ply-batting').value,
         bowlingStyle: document.getElementById('edit-ply-bowling').value,
-        basePrice: parseInt(document.getElementById('edit-ply-base-price').value, 10) || 300,
+        basePrice: player.basePrice || store.getAuctionSettings().defaultBasePrice || 300,
         paymentStatus: newStatus,
         registrationStatus: newStatus,
         paymentRef: document.getElementById('edit-ply-upiref').value.trim(),
+        remarks: document.getElementById('edit-ply-upiref').value.trim(),
         serialNo: serialNum,
         displayRegistrationNumber: serialNum,
         registrationId: regIdVal,
         regNo: regIdVal,
-        teamId: selectedTeamId,
+        teamId: player.teamId || null,
         photoUrl: finalPhotoUrl,
-        player_photo_url: finalPhotoUrl
+        player_photo_url: finalPhotoUrl,
+        idCardFrontUrl: updatedIdFrontUrl,
+        aadharPhotoUrl: updatedIdFrontUrl,
+        idCardBackUrl: updatedIdBackUrl,
+        aadharBackUrl: updatedIdBackUrl,
+        paymentReceiptUrl: updatedReceiptUrl,
+        paymentProofUrl: updatedReceiptUrl
       });
 
       removeModal();
@@ -2366,7 +3251,6 @@ function openFullDocumentViewer(imgSrc, title = 'Document Proof Viewer') {
 }
 
 // --- MASTER ADMIN CONFIGURATIONS, SCORING & AUCTION ENGINE ---
-const FIREBASE_DB_URL = "https://cpl-jsl-2026-default-rtdb.firebaseio.com";
 let activeScoringMatchId = null;
 let currentScoringState = null;
 
@@ -2377,7 +3261,7 @@ function renderAdminGroupArena() {
   if (!container) return;
 
   const leagueSelect = document.getElementById('group-mgr-league-select');
-  const leagueCode = (leagueSelect ? leagueSelect.value : 'JSL').toUpperCase();
+  const leagueCode = (leagueSelect ? leagueSelect.value : 'T').toUpperCase();
 
   const format = store.getTournamentFormat(leagueCode);
   const formatSelect = document.getElementById('group-mgr-format-select');
@@ -2391,12 +3275,13 @@ function renderAdminGroupArena() {
   }
 
   const allTeams = store.getTeams().filter(t => {
-    const code = (t.leagueCode || (t.leagueId === 'leg-jsl' ? 'JSL' : (t.leagueId === 'leg-jpl' ? 'JPL' : (t.leagueId === 'leg-kpl' ? 'KPL' : 'JSL'))));
-    return code === leagueCode;
+    const code = (t.leagueCode || t.category_code || (t.tournament_id === '033bfc04-033b-4c04-a33b-fc04033bfc04' || t.leagueId === 'leg-jsl' ? 'JSL' : (t.tournament_id === '5cf4f50c-3930-486a-83c3-3f59414a7d6f' || t.leagueId === 'leg-kpl' ? 'KPL' : (t.leagueId === 'leg-jpl' ? 'JPL' : 'T')))).toUpperCase();
+    return code === leagueCode || t.tournament_id === store.activeTournamentId || toUUID(t.tournament_id) === toUUID(store.activeTournamentId) || !t.leagueCode;
   });
 
   const activeFormat = formatSelect ? formatSelect.value : (format.format || 'TWO_GROUPS');
   let groups = ['A', 'B'];
+  if (activeFormat === 'THREE_GROUPS') groups = ['A', 'B', 'C'];
   if (activeFormat === 'FOUR_GROUPS') groups = ['A', 'B', 'C', 'D'];
   if (activeFormat === 'SINGLE_TABLE') groups = ['ALL'];
 
@@ -2479,11 +3364,43 @@ function renderAdminFixturesList() {
   const tbody = document.getElementById('admin-fixtures-list');
   if (!tbody) return;
 
-  const accessibleLeagues = store.getAccessibleLeagues();
-  const accessibleCodes = accessibleLeagues.map(l => (l.code || l.category || 'JSL').toUpperCase());
-  const fixtures = store.getFixtures().filter(f => store.isMasterAdmin() || accessibleCodes.includes((f.leagueCode || 'JSL').toUpperCase()));
+  const curTid = store.activeTournamentId;
+  const curUUID = toUUID(curTid);
+  const tourneys = store.getCustomTournaments() || [];
+  const curTourney = tourneys.find(t => (t.supabaseId || t.id) === curTid || toUUID(t.id) === curUUID || toUUID(t.supabaseId) === curUUID);
+
+  const activeTeams = store.getTeams() || [];
+  const activeTeamIds = new Set(activeTeams.map(t => String(t.id)));
+
+  // Teams belonging to OTHER tournaments for strict exclusion
+  const allRegisteredTeams = store.getAllTeamsAcrossTournaments ? store.getAllTeamsAcrossTournaments() : activeTeams;
+  const otherTourneyTeamIds = new Set(
+    allRegisteredTeams.filter(t => t && t.id && !activeTeamIds.has(String(t.id))).map(t => String(t.id))
+  );
+
+  // Strict isolation: only show fixtures belonging to the active tournament being managed
+  const fixtures = store.getFixtures()
+    .filter(f => {
+      if (!f) return false;
+      const fTid = f.tournament_id || f.tournamentId || f.leagueId;
+      const fTeamA = f.teamAId ? String(f.teamAId) : '';
+      const fTeamB = f.teamBId ? String(f.teamBId) : '';
+
+      // CRITICAL EXCLUSION: If Team A or Team B belongs to another tournament, REJECT IT IMMEDIATELY!
+      if (otherTourneyTeamIds.has(fTeamA) || otherTourneyTeamIds.has(fTeamB)) {
+        return false;
+      }
+
+      if (activeTeamIds.size > 0 && (activeTeamIds.has(fTeamA) || activeTeamIds.has(fTeamB))) return true;
+      if (fTid && (fTid === curTid || toUUID(fTid) === curUUID)) return true;
+      if (curTourney && f.tournamentName && curTourney.name && f.tournamentName.toUpperCase() === curTourney.name.toUpperCase()) return true;
+
+      return false;
+    })
+    .sort((a, b) => (Number(a.matchNo) || 0) - (Number(b.matchNo) || 0));
+
   if (fixtures.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-xs text-slate-500">No matches scheduled yet.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="6" class="py-8 text-center text-xs text-slate-500 font-bold">No matches scheduled yet.</td></tr>`;
     return;
   }
 
@@ -2503,39 +3420,50 @@ function renderAdminFixturesList() {
       stageBadge = '<span class="px-1.5 py-0.5 bg-gradient-to-r from-amber-400 to-amber-500 text-slate-950 font-mono text-[9px] font-black rounded border border-amber-300 shadow-xs">👑 Final</span>';
     }
 
+    const statusBadge = f.status === 'LIVE' ? `<span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full font-black text-[9px] border border-emerald-300 animate-pulse uppercase">LIVE</span>` : f.status === 'COMPLETED' ? `<span class="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-full font-black text-[9px] border border-slate-300 uppercase">COMPLETED</span>` : `<span class="px-2 py-0.5 bg-sky-100 text-sky-800 rounded-full font-black text-[9px] border border-sky-300 uppercase">SCHEDULED</span>`;
+
     return `
-    <tr class="hover:bg-slate-50">
+    <!-- Mobile Card -->
+    <tr class="sm:hidden">
+      <td colspan="6" class="p-0">
+        <div class="p-3 border-b border-slate-100 space-y-1.5">
+          <div class="flex items-center justify-between gap-2">
+            <div class="font-bold text-slate-900 text-xs flex items-center gap-1.5 min-w-0">
+              <span class="px-1 py-0.5 bg-emerald-50 text-emerald-800 font-mono text-[8px] font-black rounded border border-emerald-200 shrink-0">${(f.leagueCode && f.leagueCode !== 'T') ? f.leagueCode : (store.activeTournamentId === '5cf4f50c-3930-486a-83c3-3f59414a7d6f' ? 'KPL' : 'JSL')}</span>
+              <span class="truncate">${f.teamAName} vs ${f.teamBName}</span>
+            </div>
+            ${statusBadge}
+          </div>
+          <div class="flex items-center justify-between text-[9px] text-slate-500">
+            <span>${f.date} ${f.time} • ${f.oversLimit || 16} Overs</span>
+            ${stageBadge}
+          </div>
+          <div class="flex items-center gap-1.5">
+            <button data-edit-fixture-id="${f.id}" class="admin-edit-fixture-btn flex-1 py-1.5 bg-sky-50 text-sky-700 font-black text-[10px] rounded-lg border border-sky-300 text-center cursor-pointer">✏️ Edit</button>
+            <button data-delete-fixture-id="${f.id}" class="admin-delete-fixture-btn flex-1 py-1.5 bg-rose-50 text-rose-700 font-black text-[10px] rounded-lg border border-rose-300 text-center cursor-pointer">🗑️ Delete</button>
+          </div>
+        </div>
+      </td>
+    </tr>
+    <!-- Desktop Row -->
+    <tr class="hidden sm:table-row hover:bg-slate-50">
       <td class="py-3 px-3">
         <div class="font-bold text-slate-900 text-xs sm:text-sm flex items-center gap-1.5">
-          <span class="px-1.5 py-0.5 bg-slate-100 text-slate-700 font-mono text-[9px] font-black rounded border border-slate-200">${f.leagueCode || 'JSL'}</span>
+          <span class="px-1.5 py-0.5 bg-emerald-50 text-emerald-800 font-mono text-[9px] font-black rounded border border-emerald-200">${(f.leagueCode && f.leagueCode !== 'T') ? f.leagueCode : (store.activeTournamentId === '5cf4f50c-3930-486a-83c3-3f59414a7d6f' ? 'KPL' : 'JSL')}</span>
           <span>${f.teamAName} <span class="text-slate-400 font-semibold">vs</span> ${f.teamBName}</span>
         </div>
       </td>
-      <td class="py-3 px-3 text-xs">
-        ${stageBadge}
-      </td>
+      <td class="py-3 px-3 text-xs">${stageBadge}</td>
       <td class="py-3 px-3 text-xs">
         <div class="text-slate-800 font-bold">${f.date} at ${f.time}</div>
         <div class="text-slate-500 text-[10px]">📍 ${f.venue}</div>
       </td>
       <td class="py-3 px-3 text-xs text-slate-700 font-bold">${f.oversLimit || 16} Overs</td>
-      <td class="py-3 px-3 text-xs">
-        ${f.status === 'LIVE' ? `
-          <span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded-full font-black text-[9px] border border-emerald-300 animate-pulse uppercase">LIVE</span>
-        ` : f.status === 'COMPLETED' ? `
-          <span class="px-2 py-0.5 bg-slate-100 text-slate-700 rounded-full font-black text-[9px] border border-slate-300 uppercase">COMPLETED</span>
-        ` : `
-          <span class="px-2 py-0.5 bg-sky-100 text-sky-800 rounded-full font-black text-[9px] border border-sky-300 uppercase">SCHEDULED</span>
-        `}
-      </td>
+      <td class="py-3 px-3 text-xs">${statusBadge}</td>
       <td class="py-3 px-3 text-right">
         <div class="flex items-center justify-end gap-1.5">
-          <button data-edit-fixture-id="${f.id}" class="admin-edit-fixture-btn px-2.5 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 hover:text-sky-900 font-black text-xs rounded-xl border border-sky-300 shadow-2xs flex items-center gap-1 cursor-pointer transition-all" title="Edit match, overs, date, venue or lineups">
-            ✏️ Edit
-          </button>
-          <button data-delete-fixture-id="${f.id}" class="admin-delete-fixture-btn px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 hover:text-rose-900 font-black text-xs rounded-xl border border-rose-300 shadow-2xs flex items-center gap-1 cursor-pointer transition-all" title="Delete match">
-            🗑️ Delete
-          </button>
+          <button data-edit-fixture-id="${f.id}" class="admin-edit-fixture-btn px-2.5 py-1.5 bg-sky-50 hover:bg-sky-100 text-sky-700 font-black text-xs rounded-xl border border-sky-300 shadow-2xs flex items-center gap-1 cursor-pointer transition-all">✏️ Edit</button>
+          <button data-delete-fixture-id="${f.id}" class="admin-delete-fixture-btn px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 font-black text-xs rounded-xl border border-rose-300 shadow-2xs flex items-center gap-1 cursor-pointer transition-all">🗑️ Delete</button>
         </div>
       </td>
     </tr>
@@ -2563,7 +3491,7 @@ function renderAdminFixturesList() {
       const fId = e.currentTarget.getAttribute('data-delete-fixture-id');
       const allFixtures = store.getFixtures();
       const f = allFixtures.find(x => x.id === fId);
-      const matchLabel = f ? `[${f.leagueCode || 'JSL'}] ${f.teamAName} vs ${f.teamBName}` : 'this match';
+      const matchLabel = f ? `[${f.leagueCode || 'T'}] ${f.teamAName} vs ${f.teamBName}` : 'this match';
       
       if (confirm(`🗑️ Delete Match Confirmation:\n\nAre you sure you want to permanently delete "${matchLabel}"?\n\nThis will completely remove the match from scheduled fixtures, scoring console, and cloud storage.`)) {
         store.deleteFixture(fId);
@@ -2573,24 +3501,71 @@ function renderAdminFixturesList() {
       }
     });
   });
+
+  // Clear all matches button listener
+  document.getElementById('admin-clear-all-fixtures-btn')?.addEventListener('click', () => {
+    const fixtures = store.getFixtures();
+    if (fixtures.length === 0) {
+      alert("ℹ️ There are no scheduled matches to delete.");
+      return;
+    }
+
+    if (confirm(`⚠️ DANGER: Delete ALL Matches Confirmation\n\nAre you sure you want to permanently delete ALL ${fixtures.length} scheduled and completed matches?\n\nThis will clear the entire match schedule from the system.`)) {
+      store.clearAllFixtures();
+      renderAdminFixturesList();
+      renderScorerMatchesList();
+      alert(`✅ All ${fixtures.length} matches have been cleared successfully!`);
+    }
+  });
 }
 
 function renderScorerMatchesList() {
   const selectEl = document.getElementById('scorer-select-match');
   if (!selectEl) return;
 
-  const accessibleLeagues = store.getAccessibleLeagues();
-  const accessibleCodes = accessibleLeagues.map(l => (l.code || l.category || 'JSL').toUpperCase());
-  const fixtures = store.getFixtures().filter(f => store.isMasterAdmin() || accessibleCodes.includes((f.leagueCode || 'JSL').toUpperCase()));
+  const curTid = store.activeTournamentId;
+  const curUUID = toUUID(curTid);
+  const tourneys = store.getCustomTournaments() || [];
+  const curTourney = tourneys.find(t => (t.supabaseId || t.id) === curTid || toUUID(t.id) === curUUID || toUUID(t.supabaseId) === curUUID);
+
+  const activeTeams = store.getTeams() || [];
+  const activeTeamIds = new Set(activeTeams.map(t => String(t.id)));
+
+  const allRegisteredTeams = store.getAllTeamsAcrossTournaments ? store.getAllTeamsAcrossTournaments() : activeTeams;
+  const otherTourneyTeamIds = new Set(
+    allRegisteredTeams.filter(t => t && t.id && !activeTeamIds.has(String(t.id))).map(t => String(t.id))
+  );
+
+  const isFixtureMatchForAdmin = (f) => {
+    if (!f) return false;
+    const fTid = f.tournament_id || f.tournamentId || f.leagueId;
+    const fTeamA = f.teamAId ? String(f.teamAId) : '';
+    const fTeamB = f.teamBId ? String(f.teamBId) : '';
+
+    if (otherTourneyTeamIds.has(fTeamA) || otherTourneyTeamIds.has(fTeamB)) {
+      return false;
+    }
+
+    if (activeTeamIds.size > 0 && (activeTeamIds.has(fTeamA) || activeTeamIds.has(fTeamB))) return true;
+    if (fTid && (fTid === curTid || toUUID(fTid) === curUUID)) return true;
+    if (curTourney && f.tournamentName && curTourney.name && f.tournamentName.toUpperCase() === curTourney.name.toUpperCase()) return true;
+
+    return false;
+  };
+
+  const fixtures = store.getFixtures().filter(isFixtureMatchForAdmin);
   const selectables = fixtures.filter(f => f.status !== 'COMPLETED');
 
   selectEl.innerHTML = `
     <option value="">-- Choose Match to Score --</option>
-    ${selectables.map(f => `
-      <option value="${f.id}" ${activeScoringMatchId === f.id ? 'selected' : ''}>
-        [${f.leagueCode || 'JSL'}] ${f.teamAName} vs ${f.teamBName} (${f.date} ${f.time}) • Status: ${f.status}
-      </option>
-    `).join('')}
+    ${selectables.map(f => {
+      const codeLabel = (f.leagueCode && f.leagueCode !== 'T') ? f.leagueCode : (store.activeTournamentId === '5cf4f50c-3930-486a-83c3-3f59414a7d6f' ? 'KPL' : 'JSL');
+      return `
+        <option value="${f.id}" ${activeScoringMatchId === f.id ? 'selected' : ''}>
+          [${codeLabel}] ${f.teamAName} vs ${f.teamBName} (${f.date} ${f.time}) • Status: ${f.status}
+        </option>
+      `;
+    }).join('')}
   `;
 
   const setupStepBlock = document.getElementById('scorer-lineup-step-block');
@@ -2714,7 +3689,7 @@ function renderScorerMatchesList() {
       bowlerSel.innerHTML = bowlPlayers.map(p => `<option value="${p.id}" ${bowlerId === p.id ? 'selected' : ''}>⚾ ${p.name}</option>`).join('');
     }
 
-    const isMatchLive = fixture.status === 'LIVE' || (fixture.liveMatchState && (fixture.liveMatchState.runs > 0 || fixture.liveMatchState.overs > 0 || (fixture.liveMatchState.ballHistory && fixture.liveMatchState.ballHistory.length > 0)));
+    const isMatchLive = fixture.status === 'LIVE';
 
     const startBtnTxt = document.getElementById('scorer-start-match-btn-txt');
     if (startBtnTxt) {
@@ -2733,17 +3708,17 @@ function renderScorerMatchesList() {
     onMatchSelected(e.target.value);
   };
 
-  // Auto-restore the scorer view: keep the last-scored match open, or if none is
+  // Auto-restore the scorer view: keep the last-scored match open if LIVE, or if none is
   // active, auto-attach to any LIVE match so returning to this tab reopens it with
   // the latest state — no manual reselect/reopen needed. An in-progress match stays
   // open until the admin closes the innings or finishes/deletes the match.
   const fixturesNow = store.getFixtures();
-  let restoreId = (activeScoringMatchId && fixturesNow.some(f => f.id === activeScoringMatchId))
+  let restoreId = (activeScoringMatchId && fixturesNow.some(f => f.id === activeScoringMatchId && f.status === 'LIVE'))
     ? activeScoringMatchId
     : null;
   if (!restoreId) {
     const liveMatch = fixturesNow.find(f => f.status === 'LIVE' &&
-      (store.isMasterAdmin() || accessibleCodes.includes((f.leagueCode || 'JSL').toUpperCase())));
+      (store.isMasterAdmin() || accessibleCodes.includes((f.leagueCode || 'T').toUpperCase())));
     if (liveMatch) restoreId = liveMatch.id;
   }
   if (restoreId) {
@@ -2751,6 +3726,7 @@ function renderScorerMatchesList() {
     selectEl.value = restoreId;
     onMatchSelected(restoreId);
   } else {
+    activeScoringMatchId = null;
     onMatchSelected('');
   }
 
@@ -2836,7 +3812,6 @@ function renderScorerActivePanel() {
 
   // Shield this match's live state from cloud-echo overwrites while it's on-screen.
   window.__cplActiveScoringFixtureId = fixture.id;
-  try { localStorage.setItem('cpl_active_scoring_fixture_id', String(fixture.id)); } catch(e) {}
 
   const state = fixture.liveMatchState || {};
   
@@ -2984,15 +3959,16 @@ function renderScorerActivePanel() {
       <div class="bg-white p-4 sm:p-5 rounded-3xl border-2 border-emerald-500 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md text-slate-900">
         <div>
           <div class="flex flex-wrap items-center gap-2">
+            ${state.isSuperOver ? `<span class="text-[10px] bg-amber-400 text-slate-950 px-2.5 py-0.5 rounded-full font-black animate-pulse border border-amber-500 shadow-2xs">⚡ SUPER OVER #${state.superOverNum || 1} (Innings ${state.superOverInnings || 1})</span>` : ''}
             <span class="text-[10px] font-black text-slate-500 uppercase tracking-wider">
-              Innings ${state.innings} Batting: <strong class="text-emerald-700 font-black">${battingTeamName}</strong>
+              ${state.isSuperOver ? `SO Innings ${state.superOverInnings || 1}` : `Innings ${state.innings}`} Batting: <strong class="text-emerald-700 font-black">${battingTeamName}</strong>
             </span>
-            ${state.tossDetails ? `<span class="text-[9px] bg-amber-50 text-amber-900 border border-amber-300 px-2.5 py-0.5 rounded-full font-bold">🪙 ${state.tossDetails}</span>` : ''}
+            ${state.tossDetails && !state.isSuperOver ? `<span class="text-[9px] bg-amber-50 text-amber-900 border border-amber-300 px-2.5 py-0.5 rounded-full font-bold">🪙 ${state.tossDetails}</span>` : ''}
             ${state.freeHit ? `<span class="text-[9px] bg-rose-600 text-white px-2.5 py-0.5 rounded-full font-black animate-pulse">🎯 FREE HIT</span>` : ''}
           </div>
           <div class="text-3xl font-black text-slate-900 font-mono mt-1">
             <span class="text-emerald-700">${state.runs}</span><span class="text-slate-400 text-xl font-bold">/${state.wickets}</span>
-            <span class="text-xs text-slate-500 font-sans font-bold">(${state.overs}.${state.balls} / ${fixture.oversLimit} Overs)</span>
+            <span class="text-xs text-slate-500 font-sans font-bold">(${state.overs}.${state.balls} / ${state.isSuperOver ? '1 Over [Max 2 Wkts]' : `${fixture.oversLimit} Overs`})</span>
           </div>
           ${targetTxt}
         </div>
@@ -3123,7 +4099,20 @@ function renderScorerActivePanel() {
           return alert("Innings 2 is already in progress or completed!");
         }
         if (confirm(`Confirm Close Innings 1?\n\n${battingTeamName} scored ${state.runs}/${state.wickets} in ${state.overs}.${state.balls} overs.\nTarget for ${bowlingTeamName} will be ${state.runs + 1} runs.`)) {
-          endInningsOrFinishMatch(fixture);
+          fixture.liveMatchState.innings = 2;
+          fixture.liveMatchState.target = fixture.liveMatchState.runs + 1;
+          fixture.liveMatchState.strikerId = '';
+          fixture.liveMatchState.nonStrikerId = '';
+          fixture.liveMatchState.bowlerId = '';
+          fixture.liveMatchState.runs = 0;
+          fixture.liveMatchState.wickets = 0;
+          fixture.liveMatchState.overs = 0;
+          fixture.liveMatchState.balls = 0;
+          fixture.liveMatchState.overBalls = [];
+          fixture.liveMatchState.currentOverBowlerRuns = 0;
+          store.updateFixture(fixture);
+          renderScorerActivePanel();
+          alert(`✅ Innings 1 Closed! Target set to ${fixture.liveMatchState.target}. Now select new opening batsmen and bowler for Innings 2.`);
         }
       }
     };
@@ -3133,10 +4122,323 @@ function renderScorerActivePanel() {
   if (finishMatchBtn) {
     finishMatchBtn.onclick = () => {
       if (confirm("🏆 Are you sure you want to finalize this match and record the official result?")) {
-        endInningsOrFinishMatch(fixture);
+        let winnerId = null;
+        let resultTxt = 'Match Tied';
+
+        const teamAScore = fixture.teamAScore || { runs: 0, wickets: 0 };
+        const teamBScore = fixture.teamBScore || { runs: 0, wickets: 0 };
+
+        if (teamAScore.runs === teamBScore.runs && !fixture.liveMatchState?.isSuperOver) {
+          openTieResolutionModal(fixture, false, 1);
+          return;
+        }
+
+        if (teamAScore.runs > teamBScore.runs) {
+          winnerId = fixture.teamAId;
+          resultTxt = `${fixture.teamAName} won by ${teamAScore.runs - teamBScore.runs} runs`;
+        } else if (teamBScore.runs > teamAScore.runs) {
+          winnerId = fixture.teamBId;
+          resultTxt = `${fixture.teamBName} won by ${10 - teamBScore.wickets} wickets`;
+        }
+
+        fixture.status = 'COMPLETED';
+        fixture.endedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        fixture.result = resultTxt;
+        fixture.winnerTeamId = winnerId;
+        
+        store.updateFixture(fixture);
+        document.getElementById('scorer-active-panel')?.classList.add('hidden');
+        renderScorerMatchesList();
+        renderAdminFixturesList();
+        alert(`🎉 Match Completed!\n\nResult: ${resultTxt}`);
       }
     };
   }
+}
+
+// ==============================================================================
+// TIE RESOLUTION & SUPER OVER ENGINE
+// ==============================================================================
+
+function openTieResolutionModal(fixture, isSuperOverTie = false, superOverNum = 1) {
+  document.getElementById('scorer-tie-resolution-modal')?.remove();
+  
+  const teamAScore = fixture.teamAScore || { runs: 0, wickets: 0 };
+  const teamAName = fixture.teamAName || 'Team A';
+  const teamBName = fixture.teamBName || 'Team B';
+  const runs = teamAScore.runs || 0;
+  
+  const titleText = isSuperOverTie 
+    ? `⚡ SUPER OVER #${superOverNum} TIED!` 
+    : `🤝 MATCH TIED! (${runs} - ${runs})`;
+
+  const modalHtml = `
+    <div id="scorer-tie-resolution-modal" class="fixed inset-0 z-[100] modal-overlay flex items-center justify-center p-3 bg-slate-950/85 backdrop-blur-md animate-fade-in">
+      <div class="bg-white border-2 border-amber-400 max-w-lg w-full p-5 sm:p-6 relative space-y-4 animate-fade-in rounded-3xl shadow-2xl text-slate-900 text-left">
+        <!-- Header -->
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div class="flex items-center gap-3">
+            <span class="p-2.5 bg-amber-100 text-amber-700 rounded-2xl border border-amber-300 text-xl font-black shadow-2xs">⚖️</span>
+            <div>
+              <span class="px-2 py-0.5 bg-amber-100 text-amber-900 font-mono text-[9.5px] font-black rounded border border-amber-300 uppercase">OFFICIAL TIE RESOLUTION</span>
+              <h3 class="text-base sm:text-lg font-black text-slate-950 leading-tight mt-0.5">${titleText}</h3>
+            </div>
+          </div>
+        </div>
+
+        <p class="text-xs text-slate-600 font-semibold leading-relaxed">
+          ${isSuperOverTie 
+            ? `Super Over #${superOverNum} between <strong>${teamAName}</strong> and <strong>${teamBName}</strong> ended in an equal score! Select how the tournament organizer wishes to finalize this tiebreaker:`
+            : `Both <strong>${teamAName}</strong> and <strong>${teamBName}</strong> scored <strong>${runs} runs</strong>. Select how to resolve this match according to tournament rules:`}
+        </p>
+
+        <!-- Choices -->
+        <div class="space-y-2.5 pt-1">
+          <!-- Button 1: Share Points -->
+          <button type="button" id="tie-opt-share-points" class="w-full bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white p-3.5 rounded-2xl font-black text-xs sm:text-sm text-left shadow-md flex items-center justify-between transition-all cursor-pointer group">
+            <div>
+              <div class="flex items-center gap-2 text-white font-extrabold text-sm sm:text-base">🤝 Distribute Points (1 Pt Each)</div>
+              <p class="text-[11px] font-normal text-emerald-100 mt-0.5">Finalizes match as Tied. Both teams receive 1 point in standings.</p>
+            </div>
+            <span class="text-xl group-hover:translate-x-1 transition-transform">➔</span>
+          </button>
+
+          <!-- Button 2: Start Super Over / Play Super Over #X -->
+          <button type="button" id="tie-opt-super-over" class="w-full bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-600 hover:to-orange-600 text-white p-3.5 rounded-2xl font-black text-xs sm:text-sm text-left shadow-md flex items-center justify-between transition-all cursor-pointer group">
+            <div>
+              <div class="flex items-center gap-2 text-white font-extrabold text-sm sm:text-base">⚡ ${isSuperOverTie ? `Play Super Over #${superOverNum + 1}` : 'Start Super Over'}</div>
+              <p class="text-[11px] font-normal text-amber-100 mt-0.5">${isSuperOverTie ? 'Play another 1-over tiebreaker (6 balls, 2 wickets max).' : 'Launch 1-over elimination mode (6 balls, 2 wickets limit per side).'}</p>
+            </div>
+            <span class="text-xl group-hover:translate-x-1 transition-transform">➔</span>
+          </button>
+
+          ${isSuperOverTie ? `
+            <!-- Button 3: Boundary Count Rule -->
+            <button type="button" id="tie-opt-boundary-count" class="w-full bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white p-3.5 rounded-2xl font-black text-xs sm:text-sm text-left shadow-md flex items-center justify-between transition-all cursor-pointer group">
+              <div>
+                <div class="flex items-center gap-2 text-white font-extrabold text-sm sm:text-base">🎯 Boundary Count Rule (Most 4s & 6s)</div>
+                <p class="text-[11px] font-normal text-blue-100 mt-0.5">Calculates total 4s and 6s across match + Super Over to declare winner.</p>
+              </div>
+              <span class="text-xl group-hover:translate-x-1 transition-transform">➔</span>
+            </button>
+          ` : ''}
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+  document.getElementById('tie-opt-share-points')?.addEventListener('click', () => {
+    document.getElementById('scorer-tie-resolution-modal')?.remove();
+    finalizeMatchAsTie(fixture, isSuperOverTie ? `Match & Super Over #${superOverNum} Tied - Points Shared (1 pt each)` : `Match Tied - Points Shared (1 pt each)`);
+  });
+
+  document.getElementById('tie-opt-super-over')?.addEventListener('click', () => {
+    document.getElementById('scorer-tie-resolution-modal')?.remove();
+    const nextSONum = isSuperOverTie ? (superOverNum + 1) : 1;
+    startSuperOverSession(fixture, nextSONum);
+  });
+
+  if (isSuperOverTie) {
+    document.getElementById('tie-opt-boundary-count')?.addEventListener('click', () => {
+      document.getElementById('scorer-tie-resolution-modal')?.remove();
+      resolveMatchByBoundaryCount(fixture, superOverNum);
+    });
+  }
+}
+
+function finalizeMatchAsTie(fixture, resultTxt) {
+  fixture.status = 'COMPLETED';
+  fixture.endedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  fixture.result = resultTxt;
+  fixture.winnerTeamId = null;
+  if (window.__cplActiveScoringFixtureId === fixture.id) window.__cplActiveScoringFixtureId = null;
+  if (typeof localStorage !== 'undefined') {
+    localStorage.removeItem('cpl_active_scoring_fixture_id');
+    localStorage.removeItem(`cpl_active_scoring_${fixture.id}_v`);
+  }
+  activeScoringMatchId = null;
+
+  const selMatch = document.getElementById('scorer-select-match');
+  if (selMatch) selMatch.value = '';
+
+  document.getElementById('scorer-active-panel')?.classList.add('hidden');
+  store.updateFixture(fixture);
+  renderScorerMatchesList();
+  renderAdminFixturesList();
+  if (window.renderActiveMatchCenter) window.renderActiveMatchCenter();
+  if (window.refreshFixturesViewContent) window.refreshFixturesViewContent();
+  showScoringAnimation('match');
+  alert(`🤝 Match Finalized!\n\nResult: ${resultTxt}`);
+}
+
+function startSuperOverSession(fixture, superOverNum = 1) {
+  const teamAName = fixture.teamAName || 'Team A';
+  const teamBName = fixture.teamBName || 'Team B';
+  
+  const choice = confirm(`⚡ SUPER OVER #${superOverNum}\n\nClick OK for ${teamBName} to BAT FIRST in Super Over.\nClick CANCEL for ${teamAName} to BAT FIRST.`);
+  const teamBBatsFirst = choice;
+
+  const firstBatTeamId = teamBBatsFirst ? fixture.teamBId : fixture.teamAId;
+  const firstBowlTeamId = teamBBatsFirst ? fixture.teamAId : fixture.teamBId;
+
+  const state = fixture.liveMatchState || {};
+  state.isSuperOver = true;
+  state.superOverNum = superOverNum;
+  state.superOverInnings = 1;
+  state.firstBatTeamId = firstBatTeamId;
+  state.firstBowlTeamId = firstBowlTeamId;
+  state.soTeamAScore = { runs: 0, wickets: 0, balls: 0 };
+  state.soTeamBScore = { runs: 0, wickets: 0, balls: 0 };
+
+  state.innings = 1;
+  state.target = null;
+  state.runs = 0;
+  state.wickets = 0;
+  state.overs = 0;
+  state.balls = 0;
+  state.extras = 0;
+  state.strikerId = '';
+  state.nonStrikerId = '';
+  state.bowlerId = '';
+  state.overBalls = [];
+  state.currentOverBowlerRuns = 0;
+  
+  fixture.liveMatchState = state;
+  fixture.status = 'LIVE';
+  store.updateFixture(fixture);
+  renderScorerActivePanel();
+  showScoringAnimation('match');
+  alert(`⚡ Super Over #${superOverNum} Initiated!\n\nLimit: 1 Over (6 balls), Max 2 Wickets.\nNow select opening batters & bowler for Innings 1.`);
+}
+
+function handleSuperOverInningsEnd(fixture) {
+  const s = fixture.liveMatchState;
+  if (!s || !s.isSuperOver) return;
+
+  const teamAName = fixture.teamAName || 'Team A';
+  const teamBName = fixture.teamBName || 'Team B';
+  const firstBatId = s.firstBatTeamId || fixture.teamAId;
+  const isTeamABattingFirst = firstBatId === fixture.teamAId;
+
+  if (s.superOverInnings === 1) {
+    if (isTeamABattingFirst) {
+      s.soTeamAScore = { runs: s.runs, wickets: s.wickets, balls: (s.overs * 6) + s.balls };
+    } else {
+      s.soTeamBScore = { runs: s.runs, wickets: s.wickets, balls: (s.overs * 6) + s.balls };
+    }
+
+    const target = s.runs + 1;
+    s.superOverInnings = 2;
+    s.target = target;
+    s.runs = 0;
+    s.wickets = 0;
+    s.overs = 0;
+    s.balls = 0;
+    s.extras = 0;
+    s.strikerId = '';
+    s.nonStrikerId = '';
+    s.bowlerId = '';
+    s.overBalls = [];
+    s.currentOverBowlerRuns = 0;
+
+    fixture.liveMatchState = s;
+    store.updateFixture(fixture);
+    renderScorerActivePanel();
+    if (window.renderActiveMatchCenter) window.renderActiveMatchCenter();
+    if (window.refreshFixturesViewContent) window.refreshFixturesViewContent();
+    showScoringAnimation('innings');
+    const chasingTeam = isTeamABattingFirst ? teamBName : teamAName;
+    setTimeout(() => alert(`🏁 Super Over Innings 1 complete!\n\nTarget for ${chasingTeam}: ${target} runs (6 balls).\nSelect opening batters & bowler for Innings 2.`), 2300);
+    return;
+  }
+
+  if (isTeamABattingFirst) {
+    s.soTeamBScore = { runs: s.runs, wickets: s.wickets, balls: (s.overs * 6) + s.balls };
+  } else {
+    s.soTeamAScore = { runs: s.runs, wickets: s.wickets, balls: (s.overs * 6) + s.balls };
+  }
+
+  const teamARuns = s.soTeamAScore?.runs || 0;
+  const teamBRuns = s.soTeamBScore?.runs || 0;
+  const superOverNum = s.superOverNum || 1;
+
+  let winnerId = null;
+  let resultTxt = '';
+
+  if (teamARuns > teamBRuns) {
+    winnerId = fixture.teamAId;
+    const margin = teamARuns - teamBRuns;
+    resultTxt = `${teamAName} won Super Over #${superOverNum} by ${margin} ${margin === 1 ? 'run' : 'runs'}`;
+  } else if (teamBRuns > teamARuns) {
+    winnerId = fixture.teamBId;
+    const margin = teamBRuns - teamARuns;
+    resultTxt = `${teamBName} won Super Over #${superOverNum} by ${margin} ${margin === 1 ? 'run' : 'runs'}`;
+  } else {
+    openTieResolutionModal(fixture, true, superOverNum);
+    return;
+  }
+
+  fixture.status = 'COMPLETED';
+  fixture.endedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  fixture.result = resultTxt;
+  fixture.winnerTeamId = winnerId;
+  if (window.__cplActiveScoringFixtureId === fixture.id) window.__cplActiveScoringFixtureId = null;
+  if (typeof localStorage !== 'undefined') {
+    localStorage.removeItem('cpl_active_scoring_fixture_id');
+    localStorage.removeItem(`cpl_active_scoring_${fixture.id}_v`);
+  }
+  activeScoringMatchId = null;
+
+  const selMatch = document.getElementById('scorer-select-match');
+  if (selMatch) selMatch.value = '';
+  document.getElementById('scorer-active-panel')?.classList.add('hidden');
+  store.updateFixture(fixture);
+  renderScorerMatchesList();
+  renderAdminFixturesList();
+  if (window.renderActiveMatchCenter) window.renderActiveMatchCenter();
+  if (window.refreshFixturesViewContent) window.refreshFixturesViewContent();
+  showScoringAnimation('match');
+  alert(`🏆 Super Over Completed!\n\nOfficial Result: ${resultTxt}`);
+}
+
+function resolveMatchByBoundaryCount(fixture, superOverNum) {
+  const pStats = fixture.liveMatchState?.playerStats || {};
+  const teamAId = fixture.teamAId;
+  const teamBId = fixture.teamBId;
+  const allP = store.getPlayers();
+
+  let teamABoundaries = 0;
+  let teamBBoundaries = 0;
+
+  Object.keys(pStats).forEach(pid => {
+    const s = pStats[pid] || {};
+    const pObj = allP.find(x => String(x.id) === String(pid));
+    const pTeamId = pObj?.teamId;
+    const fours = Number(s.fours) || 0;
+    const sixes = Number(s.sixes) || 0;
+    const boundaries = fours + sixes;
+
+    if (pTeamId === teamAId) teamABoundaries += boundaries;
+    else if (pTeamId === teamBId) teamBBoundaries += boundaries;
+  });
+
+  let winnerId = null;
+  let resultTxt = '';
+
+  if (teamABoundaries > teamBBoundaries) {
+    winnerId = fixture.teamAId;
+    resultTxt = `${fixture.teamAName} won on Boundary Count (${teamABoundaries} vs ${teamBBoundaries} boundaries)`;
+  } else if (teamBBoundaries > teamABoundaries) {
+    winnerId = fixture.teamBId;
+    resultTxt = `${fixture.teamBName} won on Boundary Count (${teamBBoundaries} vs ${teamABoundaries} boundaries)`;
+  } else {
+    winnerId = null;
+    resultTxt = `Match & Super Over #${superOverNum} Tied - Points Shared (Equal Boundaries: ${teamABoundaries})`;
+  }
+
+  finalizeMatchAsTie(fixture, resultTxt);
 }
 
 // Full-screen celebratory flash for key scoring events (four / six / wicket / wide / no-ball).
@@ -3182,6 +4484,11 @@ function endInningsOrFinishMatch(fixture) {
   const s = fixture.liveMatchState;
   if (!s) return;
 
+  if (s.isSuperOver) {
+    handleSuperOverInningsEnd(fixture);
+    return;
+  }
+
   if (s.innings === 1) {
     const target = (s.runs || 0) + 1;
     // Innings-1 final total is already stored in teamAScore by the caller.
@@ -3211,11 +4518,14 @@ function endInningsOrFinishMatch(fixture) {
   }
 
   // Innings 2 over -> decide the result
-  if (state.innings === 2) {
-    fixture.teamBScore = { runs: state.runs, wickets: state.wickets, overs: state.overs, balls: state.balls, extras: state.extras || 0 };
-  }
   const teamAScore = fixture.teamAScore || { runs: 0, wickets: 0 };
   const teamBScore = fixture.teamBScore || { runs: 0, wickets: 0 };
+
+  if (teamAScore.runs === teamBScore.runs) {
+    openTieResolutionModal(fixture, false, 1);
+    return;
+  }
+
   let winnerId = null, resultTxt = 'Match Tied';
   if (teamAScore.runs > teamBScore.runs) {
     winnerId = fixture.teamAId;
@@ -3230,9 +4540,23 @@ function endInningsOrFinishMatch(fixture) {
   fixture.winnerTeamId = winnerId;
   // Match is over -> release the live-scoring cloud shield so the final result syncs.
   if (window.__cplActiveScoringFixtureId === fixture.id) window.__cplActiveScoringFixtureId = null;
-  try { localStorage.removeItem('cpl_active_scoring_fixture_id'); } catch(e) {}
+  if (typeof localStorage !== 'undefined') {
+    localStorage.removeItem('cpl_active_scoring_fixture_id');
+    localStorage.removeItem(`cpl_active_scoring_${fixture.id}_v`);
+  }
+  activeScoringMatchId = null;
+
+  const selMatch = document.getElementById('scorer-select-match');
+  if (selMatch) selMatch.value = '';
+
   store.updateFixture(fixture);
-  renderScorerActivePanel();
+
+  document.getElementById('scorer-active-panel')?.classList.add('hidden');
+  const startBtnTxt = document.getElementById('scorer-start-match-btn-txt');
+  if (startBtnTxt) startBtnTxt.textContent = "🚀 MATCH IS READY TO START";
+
+  renderScorerMatchesList();
+  renderAdminFixturesList();
   if (window.renderActiveMatchCenter) window.renderActiveMatchCenter();
   if (window.refreshFixturesViewContent) window.refreshFixturesViewContent();
   showScoringAnimation('match');
@@ -3280,11 +4604,10 @@ function processScorerBall(runsScored) {
   // Tell the store which fixture is being actively scored so cloud echoes can't
   // clobber the local ball-by-ball state mid-over (see syncWithCloud fixture guard).
   window.__cplActiveScoringFixtureId = fixture.id;
-  try { localStorage.setItem('cpl_active_scoring_fixture_id', String(fixture.id)); } catch(e) {}
 
   const state = fixture.liveMatchState;
 
-  // Firebase Realtime DB strips empty arrays/objects, so a resumed/synced match
+  // Cloud DB may strip empty arrays/objects, so a resumed/synced match
   // can come back missing these. Re-initialize defensively before any .push()/writes.
   if (!Array.isArray(state.overBalls)) state.overBalls = [];
   if (!Array.isArray(state.ballHistory)) state.ballHistory = [];
@@ -3515,15 +4838,16 @@ function processScorerBall(runsScored) {
   else if (isNoBall) animKind = 'noball';
   if (animKind) showScoringAnimation(animKind);
 
-  // Auto-close the innings the moment the overs limit is reached
-  const oversLimit = Number(fixture.oversLimit) || 16;
+  // Auto-close the innings the moment the overs limit is reached (1 over for Super Over)
+  const oversLimit = state.isSuperOver ? 1 : (Number(fixture.oversLimit) || 16);
   if (state.overs >= oversLimit) {
     endInningsOrFinishMatch(fixture);
     return;
   }
 
   // 2nd innings target chased -> finish the match immediately
-  if (state.innings === 2 && state.target && state.runs >= state.target) {
+  const isChasing = state.isSuperOver ? (state.superOverInnings === 2) : (state.innings === 2);
+  if (isChasing && state.target && state.runs >= state.target) {
     endInningsOrFinishMatch(fixture);
     return;
   }
@@ -3538,11 +4862,8 @@ function openScorerWicketModal() {
   const fixture = store.getFixtures().find(f => f.id === activeScoringMatchId);
   if (!fixture) return;
 
-  window.__cplActiveScoringFixtureId = fixture.id;
-  try { localStorage.setItem('cpl_active_scoring_fixture_id', String(fixture.id)); } catch(e) {}
-
   const state = fixture.liveMatchState;
-  // Firebase strips empty arrays/objects; re-init defensively before wicket writes.
+  // Cloud DB may strip empty arrays/objects; re-init defensively before wicket writes.
   if (!Array.isArray(state.overBalls)) state.overBalls = [];
   if (!Array.isArray(state.ballHistory)) state.ballHistory = [];
   if (!state.playerStats || typeof state.playerStats !== 'object') state.playerStats = {};
@@ -3803,14 +5124,9 @@ function openScorerWicketModal() {
     showScoringAnimation('wicket');
 
     // All out, or overs limit reached on this ball -> auto-close the innings/match.
-    const oversLimit = Number(fixture.oversLimit) || 16;
-    if (state.wickets >= 10 || state.overs >= oversLimit) {
-      endInningsOrFinishMatch(fixture);
-      return;
-    }
-
-    // 2nd innings target chased on this delivery -> finish the match immediately
-    if (state.innings === 2 && state.target && state.runs >= state.target) {
+    const maxWickets = state.isSuperOver ? 2 : 10;
+    const oversLimit = state.isSuperOver ? 1 : (Number(fixture.oversLimit) || 16);
+    if (state.wickets >= maxWickets || state.overs >= oversLimit) {
       endInningsOrFinishMatch(fixture);
       return;
     }
@@ -3829,9 +5145,7 @@ function openSelectNextBatterModal(fixture, vacantRole, onDone) {
   if (!state.playerStats || typeof state.playerStats !== 'object') state.playerStats = {};
 
   const battingTeamId = state.innings === 2 ? fixture.teamBId : fixture.teamAId;
-  const allBatPlayers = store.getPlayers().filter(p => p.teamId === battingTeamId);
-  const batPXI = fixture.playingXI?.[battingTeamId]?.playing11Ids;
-  const batPlayers = (batPXI && batPXI.length > 0) ? allBatPlayers.filter(p => batPXI.includes(p.id)) : allBatPlayers;
+  const batPlayers = store.getPlayers().filter(p => p.teamId === battingTeamId);
 
   // The batter still at the crease occupies the other slot
   const stillInId = vacantRole === 'striker' ? state.nonStrikerId : state.strikerId;
@@ -3893,9 +5207,7 @@ function openSelectNextBowlerModal(fixture, onDone) {
   if (!state.playerStats || typeof state.playerStats !== 'object') state.playerStats = {};
 
   const bowlingTeamId = state.innings === 2 ? fixture.teamAId : fixture.teamBId;
-  const allBowlPlayers = store.getPlayers().filter(p => p.teamId === bowlingTeamId);
-  const bowlPXI = fixture.playingXI?.[bowlingTeamId]?.playing11Ids;
-  const bowlPlayers = (bowlPXI && bowlPXI.length > 0) ? allBowlPlayers.filter(p => bowlPXI.includes(p.id)) : allBowlPlayers;
+  const bowlPlayers = store.getPlayers().filter(p => p.teamId === bowlingTeamId);
 
   const lastBowlerId = state.bowlerId;
   // A bowler cannot bowl two overs back to back; exclude the previous bowler
@@ -3965,7 +5277,7 @@ function openTossSelectionModal(fixture, onComplete) {
               <h3 class="text-base font-black text-slate-900 leading-tight mt-0.5">Official Toss Decision</h3>
             </div>
           </div>
-          <span class="text-xs font-mono text-slate-600 font-bold bg-slate-100 px-2.5 py-1 rounded-xl border border-slate-200">${fixture.leagueCode || 'JSL'}</span>
+          <span class="text-xs font-mono text-slate-600 font-bold bg-slate-100 px-2.5 py-1 rounded-xl border border-slate-200">${fixture.leagueCode || 'T'}</span>
         </div>
 
         <!-- Match Teams Banner -->
@@ -4278,7 +5590,7 @@ export function openPlayingXIModal(fixture, onComplete) {
                 ${isTwelfth ? `<span class="px-1.5 py-0.5 bg-amber-400 text-slate-950 font-mono text-[9px] font-black rounded-md uppercase">12th Man</span>` : ''}
               </div>
               <div class="text-[10px] text-slate-500 font-bold">
-                ${p.category || 'All Rounder'} • ${p.village || 'Jhankra'}
+                ${p.category || 'All Rounder'} • ${p.village || 'N/A'}
               </div>
             </div>
           </div>
@@ -4725,9 +6037,10 @@ export function openNextPlayerAuctionModal(remainingPlayers) {
           ${validPlayers.map(p => {
             const sNo = p.displayRegistrationNumber || p.serialNo || '';
             const sNoDisplay = sNo ? `#${String(sNo).padStart(2, '0')}` : '';
-            const regId = p.registrationId || p.regNo || ('JSL2026-' + String(sNo || 1).padStart(4, '0'));
+            const regId = p.registrationId || p.regNo || ('REG-' + String(sNo || 1).padStart(4, '0'));
+            const pBase = p.basePrice || store.getAuctionSettings().defaultBasePrice || 300;
             return `
-            <div class="p-3 bg-slate-950 border border-slate-800 rounded-2xl flex items-center justify-between gap-3 hover:border-amber-400/60 transition-all next-player-row" data-name="${p.name.toLowerCase()}" data-cat="${(p.category || '').toLowerCase()}" data-serial="${String(sNo)}" data-reg="${regId.toLowerCase()}">
+            <div class="p-3 bg-slate-950 border border-slate-800 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-amber-400/60 transition-all next-player-row" data-name="${p.name.toLowerCase()}" data-cat="${(p.category || '').toLowerCase()}" data-serial="${String(sNo)}" data-reg="${regId.toLowerCase()}">
               <div class="flex items-center gap-3 min-w-0">
                 <div class="relative shrink-0">
                   <img src="${getOptimizedImageUrl(p.photoUrl || p.player_photo_url, 80, 80)}" class="w-11 h-11 rounded-xl object-cover border border-slate-700" onerror="this.src='assets/card_jsl_user.png'" />
@@ -4746,14 +6059,20 @@ export function openNextPlayerAuctionModal(remainingPlayers) {
                     <span>🏏 ${p.category || 'All Rounder'}</span>
                     <span>•</span>
                     <span class="text-slate-400">📍 ${p.village || 'Paschim Medinipur'}</span>
-                    <span>•</span>
-                    <span class="text-emerald-400 font-mono font-black">Base: ₹${p.basePrice || 300}</span>
                   </div>
                 </div>
               </div>
-              <button data-launch-player-id="${p.id}" class="launch-next-auction-btn px-3 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-md cursor-pointer shrink-0 transition-transform active:scale-95">
-                🔨 Start Bid
-              </button>
+
+              <!-- Base Price Input & Start Bid Button -->
+              <div class="flex items-center gap-2 shrink-0 self-end sm:self-auto">
+                <div class="flex items-center gap-1 bg-slate-900 border border-slate-700 px-2 py-1 rounded-xl">
+                  <span class="text-[10px] font-black text-amber-400">Base ₹</span>
+                  <input type="number" id="queue-base-${p.id}" value="${pBase}" min="50" step="50" class="w-16 bg-transparent text-white font-mono font-black text-xs text-center focus:outline-none" />
+                </div>
+                <button data-launch-player-id="${p.id}" class="launch-next-auction-btn px-3.5 py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-md cursor-pointer shrink-0 transition-transform active:scale-95 flex items-center gap-1">
+                  🔨 Start Bid
+                </button>
+              </div>
             </div>
             `;
           }).join('')}
@@ -4784,25 +6103,31 @@ export function openNextPlayerAuctionModal(remainingPlayers) {
     });
   });
 
-  // Launch auction on click
+  // Launch auction on click with custom Base Price
   document.querySelectorAll('.launch-next-auction-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       const pId = e.currentTarget.getAttribute('data-launch-player-id');
       const p = store.getPlayerById(pId);
       if (p) {
+        const customPriceInput = document.getElementById(`queue-base-${p.id}`);
+        const customBase = customPriceInput ? Number(customPriceInput.value) : p.basePrice;
         removeModal();
-        startAuctionForPlayerDirectly(p);
+        startAuctionForPlayerDirectly(p, customBase);
       }
     });
   });
 }
 
-export function startAuctionForPlayerDirectly(p) {
+export function startAuctionForPlayerDirectly(p, customStartingPrice = null) {
   if (activeAuction.timerInterval) clearInterval(activeAuction.timerInterval);
+
+  const startingPrice = Number(customStartingPrice) || Number(p.basePrice) || Number(store.getAuctionSettings().defaultBasePrice) || 300;
+  p.basePrice = startingPrice;
+  store.updatePlayer(p);
 
   activeAuction = {
     player: p,
-    currentBid: Number(p.basePrice) || 300,
+    currentBid: startingPrice,
     leadingTeam: null,
     timerSecs: 30,
     timerInterval: null,
@@ -4916,23 +6241,23 @@ export function renderActiveAuctionBlock() {
   const p = activeAuction.player;
   const timerClass = activeAuction.timerSecs <= 5 ? 'text-rose-400 animate-pulse border-rose-500 bg-rose-950/50' : activeAuction.timerSecs <= 10 ? 'text-amber-400 border-amber-500 bg-amber-950/50' : 'text-emerald-400 border-emerald-500 bg-emerald-950/50';
 
-  // Calculate Next Increment (If no team has bid yet, next bid is the Base Price; otherwise +50 under 1000, +100 at/above 1000)
+  // Calculate Dynamic Next Increment using Tournament Tiered Slabs
   const isOpeningBid = !activeAuction.leadingTeam;
-  const inc = activeAuction.currentBid < 1000 ? 50 : 100;
+  const inc = store.calculateNextBidIncrement(activeAuction.currentBid);
   const nextInc = isOpeningBid ? 0 : inc;
   const nextBidAmount = isOpeningBid ? activeAuction.currentBid : (activeAuction.currentBid + inc);
 
   container.innerHTML = `
     <div class="p-4 bg-slate-950 rounded-2xl border border-slate-800 space-y-4">
       
-      <!-- Top Badges Row: Clear Bid Button & Red JSL Serial Box -->
+      <!-- Top Badges Row: Clear Bid Button & Serial Box -->
       <div class="flex items-center justify-between gap-2 pb-2 border-b border-slate-800">
         <button type="button" id="auction-quick-cancel-btn" class="px-3 py-1.5 bg-rose-950/90 hover:bg-rose-900 text-rose-300 border border-rose-600 rounded-xl text-xs font-black flex items-center gap-1.5 cursor-pointer shadow transition-all active:scale-95">
           <i data-lucide="ban" class="w-3.5 h-3.5"></i> 🚫 Clear Bid
         </button>
 
         <span class="px-3.5 py-1.5 bg-red-600 text-white font-black font-mono text-xs sm:text-sm rounded-xl border-2 border-red-400 shadow-md">
-          ${p.registrationId || p.regNo || ('JSL2026-' + String(p.displayRegistrationNumber || p.serialNo || 1).padStart(4, '0'))}
+          ${p.registrationId || p.regNo || ('REG-' + String(p.displayRegistrationNumber || p.serialNo || 1).padStart(4, '0'))}
         </span>
       </div>
 
@@ -4987,10 +6312,11 @@ export function renderActiveAuctionBlock() {
         
         <div class="grid grid-cols-2 gap-2">
           ${allTeams.map(t => {
+            const maxSquad = store.getAuctionSettings().maxSquadSize || 13;
             const rem = t.remainingPurse !== undefined ? t.remainingPurse : (t.purseBudget || 8000);
             const isLeading = activeAuction.leadingTeam && activeAuction.leadingTeam.id === t.id;
             const canAfford = rem >= nextBidAmount;
-            const isFull = (t.squadCount || 0) >= 13;
+            const isFull = (t.squadCount || 0) >= maxSquad;
             const isDisabled = (!canAfford || isFull || isLeading);
 
             return `
@@ -5007,7 +6333,7 @@ export function renderActiveAuctionBlock() {
                 <div class="flex items-center justify-between gap-1 mb-1">
                   <span class="font-black text-xs text-white truncate" title="${t.name}">🛡️ ${t.name}</span>
                   <span class="px-1.5 py-0.5 rounded text-[9px] font-bold ${isLeading ? 'bg-amber-400 text-slate-950 animate-pulse font-black' : 'bg-slate-800 text-slate-300'}">
-                    ${isLeading ? '👑 LEADING' : `${t.squadCount || 0}/13`}
+                    ${isLeading ? '👑 LEADING' : `${t.squadCount || 0}/${maxSquad}`}
                   </span>
                 </div>
                 <div class="flex items-center justify-between text-[11px] mt-0.5 pt-1 border-t border-slate-800/80">
@@ -5053,16 +6379,17 @@ export function renderActiveAuctionBlock() {
       const team = store.getTeamById(teamId);
       if (!team) return;
 
+      const maxSquad = store.getAuctionSettings().maxSquadSize || 13;
       const isOpening = !activeAuction.leadingTeam;
-      const inc = activeAuction.currentBid < 1000 ? 50 : 100;
+      const inc = store.calculateNextBidIncrement(activeAuction.currentBid);
       const newBid = isOpening ? activeAuction.currentBid : (activeAuction.currentBid + inc);
 
       if (team.remainingPurse < newBid) {
         alert(`Franchise ${team.name} has only ₹${team.remainingPurse} remaining and cannot place a bid of ₹${newBid}!`);
         return;
       }
-      if ((team.squadCount || 0) >= 13) {
-        alert(`Franchise ${team.name} already has a full squad of 13 players!`);
+      if ((team.squadCount || 0) >= maxSquad) {
+        alert(`Franchise ${team.name} already has a full squad of ${maxSquad} players!`);
         return;
       }
 
@@ -5267,7 +6594,10 @@ export function openAuctionProjectorModal() {
   const p = activeAuction.player;
   const pName = p ? p.name : 'Waiting for Player...';
   const pPhoto = p ? getOptimizedImageUrl(p.photoUrl || p.player_photo_url, 400, 400) : 'assets/card_jsl_user.png';
-  const pCat = p ? (p.category || 'All Rounder') : 'JSL 2026';
+  const activeTourney = store.getCustomTournaments().find(t => (t.supabaseId || t.id) === store.activeTournamentId) || {};
+  const projTourneyName = activeTourney.name || 'Tournament';
+  const projTourneyLogo = activeTourney.posterUrl || 'assets/jsl_logo.jpg';
+  const pCat = p ? (p.category || 'All Rounder') : projTourneyName;
   const pVillage = p ? (p.village || 'Paschim Medinipur') : 'Cricket Ground';
   const pBase = p ? (p.basePrice || 300) : 300;
 
@@ -5277,9 +6607,9 @@ export function openAuctionProjectorModal() {
       <!-- Top Broadcast Header -->
       <div class="flex items-center justify-between border-b border-slate-800/80 pb-4">
         <div class="flex items-center gap-3">
-          <img src="assets/jsl_logo.jpg" class="w-12 h-12 rounded-2xl object-cover border-2 border-amber-400 shadow" />
+          <img src="${projTourneyLogo}" class="w-12 h-12 rounded-2xl object-cover border-2 border-amber-400 shadow" onerror="this.src='assets/jsl_logo.jpg'" />
           <div>
-            <span class="text-[10px] sm:text-xs font-black tracking-widest text-amber-400 uppercase">JHANKRA SUPER LEAGUE (JSL) 2026</span>
+            <span class="text-[10px] sm:text-xs font-black tracking-widest text-amber-400 uppercase">${projTourneyName.toUpperCase()}</span>
             <h2 class="text-base sm:text-2xl font-black text-white uppercase tracking-wide">GRAND PLAYER AUCTION ARENA</h2>
           </div>
         </div>
@@ -5304,7 +6634,7 @@ export function openAuctionProjectorModal() {
         <div class="md:col-span-5 flex flex-col items-center justify-center text-center p-6 bg-gradient-to-b from-slate-900 via-slate-900/90 to-slate-950 rounded-3xl border-2 border-emerald-500/50 shadow-2xl relative overflow-hidden">
           <div class="w-full flex items-center justify-end mb-2">
             <span class="px-3.5 py-1.5 bg-red-600 text-white font-black font-mono text-xs sm:text-sm rounded-xl border-2 border-red-400 shadow-lg">
-              ${p ? (p.registrationId || p.regNo || ('JSL2026-' + String(p.displayRegistrationNumber || p.serialNo || 1).padStart(4, '0'))) : 'READY'}
+              ${p ? (p.registrationId || p.regNo || ('REG-' + String(p.displayRegistrationNumber || p.serialNo || 1).padStart(4, '0'))) : 'READY'}
             </span>
           </div>
           <img id="proj-player-img" src="${pPhoto}" class="w-48 h-48 sm:w-64 sm:h-64 object-cover rounded-3xl border-4 border-white shadow-2xl my-3" onerror="this.src='assets/card_jsl_user.png'" />
@@ -5354,7 +6684,7 @@ export function openAuctionProjectorModal() {
 
       <!-- Footer Info -->
       <div class="text-center text-xs text-slate-500 border-t border-slate-900 pt-3">
-        Official Tournament Ground: Jhankra School Stadium Ground • Live Stream Powered by JSL 2026
+        Official Tournament Ground: ${activeTourney.venue || 'TBD'} • Live Stream Powered by ${projTourneyName}
       </div>
 
     </div>
@@ -5447,10 +6777,13 @@ export function initAuctionStartListener() {
       isSold: false,
       isUnsold: false
     };
+    const resolvedPhoto = player.photoUrl || player.photo_url || player.player_photo_url || player.photo || player.image || '';
+
     store.updateLiveAuctionState({
       active_player_id: player.id,
       name: player.name,
-      photoUrl: player.photoUrl || player.player_photo_url,
+      photoUrl: resolvedPhoto,
+      player_photo_url: resolvedPhoto,
       category: player.category || player.playingType || 'All Rounder',
       basePrice: Number(player.basePrice) || 300,
       current_bid: Number(player.basePrice) || 300,
@@ -5460,7 +6793,8 @@ export function initAuctionStartListener() {
       registrationId: player.registrationId || player.regNo,
       village: player.village,
       battingStyle: player.battingStyle,
-      bowlingStyle: player.bowlingStyle
+      bowlingStyle: player.bowlingStyle,
+      updated_at: Date.now()
     });
 
     // Start 1-second countdown
@@ -5501,7 +6835,7 @@ export async function renderAdminShopAdsPanel() {
   `;
   if (window.lucide) window.lucide.createIcons();
 
-  const settings = await fetchPopupSettingsFromFirebase();
+  const settings = await fetchPopupSettingsFromCloud();
 
   // 2. Render control options
   const isSnoozed = settings.adExpiryTime && Date.now() < settings.adExpiryTime;
@@ -5521,11 +6855,11 @@ export async function renderAdminShopAdsPanel() {
     <div class="space-y-6">
       
       <!-- Current Status Card -->
-      <div class="flex items-center justify-between p-4 bg-slate-950/80 rounded-2xl border border-slate-800">
+      <div class="flex items-center justify-between p-4 bg-white rounded-2xl border-2 border-slate-200 shadow-sm">
         <div>
-          <p class="text-xs text-slate-400 uppercase tracking-wider font-bold">Ad Status</p>
+          <p class="text-xs text-slate-500 uppercase tracking-wider font-bold">Ad Status</p>
           <div class="flex items-center gap-2 mt-1">
-            <h4 class="text-base font-bold text-white">Homepage Shop Ad Popup</h4>
+            <h4 class="text-base font-bold text-slate-900">Homepage Shop Ad Popup</h4>
             ${statusBadge}
           </div>
           ${snoozeStatusInfo}
@@ -5535,98 +6869,98 @@ export async function renderAdminShopAdsPanel() {
       <div class="space-y-6">
         
         <!-- SECTION 1: GLOBAL POPUP SWITCHES -->
-        <div class="bg-slate-950/50 p-5 rounded-2xl border border-slate-800/60 space-y-4">
-          <h4 class="text-xs font-black text-slate-400 uppercase tracking-widest border-b border-slate-850 pb-2">🌐 Site-Wide Popup Toggles</h4>
+        <div class="bg-white p-5 rounded-3xl border-2 border-slate-200 shadow-sm space-y-4">
+          <h4 class="text-xs font-black text-slate-500 uppercase tracking-widest border-b border-slate-100 pb-2">🌐 Site-Wide Popup Toggles</h4>
           
           <!-- Welcome Popup Toggle -->
-          <div class="flex items-center justify-between p-3.5 bg-slate-900/80 rounded-xl border border-slate-800/80">
+          <div class="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-200">
             <div>
-              <p class="text-xs font-bold text-white">🏠 First-Visit Welcome & App Install Modal</p>
-              <p class="text-[10px] text-slate-400 mt-0.5">Show a registration welcome & app install instruction prompt to first-time visitors.</p>
+              <p class="text-xs font-bold text-slate-900">🏠 First-Visit Welcome & App Install Modal</p>
+              <p class="text-[10px] text-slate-500 mt-0.5">Show a registration welcome & app install instruction prompt to first-time visitors.</p>
             </div>
             <label class="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" id="admin-welcome-popup-toggle" class="sr-only peer" ${settings.isWelcomePopupEnabled ? 'checked' : ''}>
-              <div class="w-10 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+              <input type="checkbox" id="admin-welcome-popup-toggle" class="sr-only peer" ${settings.isWelcomePopupEnabled === true ? 'checked' : ''}>
+              <div class="w-10 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
             </label>
           </div>
 
           <!-- WhatsApp Popup Toggle -->
-          <div class="flex items-center justify-between p-3.5 bg-slate-900/80 rounded-xl border border-slate-800/80">
+          <div class="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-200">
             <div>
-              <p class="text-xs font-bold text-white">💬 JSL WhatsApp Group Join Invitation</p>
-              <p class="text-[10px] text-slate-400 mt-0.5">Prompt users to join the official WhatsApp group when they open the JSL Hub page.</p>
+              <p class="text-xs font-bold text-slate-900">💬 WhatsApp Group Join Invitation</p>
+              <p class="text-[10px] text-slate-500 mt-0.5">Prompt users to join the official WhatsApp group when they open the Tournament Hub page.</p>
             </div>
             <label class="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" id="admin-whatsapp-popup-toggle" class="sr-only peer" ${settings.isWhatsAppPopupEnabled ? 'checked' : ''}>
-              <div class="w-10 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+              <input type="checkbox" id="admin-whatsapp-popup-toggle" class="sr-only peer" ${settings.isWhatsAppPopupEnabled === true ? 'checked' : ''}>
+              <div class="w-10 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
             </label>
           </div>
 
           <!-- Real-time Registered Player Toast Toggle -->
-          <div class="flex items-center justify-between p-3.5 bg-slate-900/80 rounded-xl border border-emerald-900/40">
+          <div class="flex items-center justify-between p-3.5 bg-emerald-50/50 rounded-xl border border-emerald-200">
             <div>
-              <p class="text-xs font-bold text-white flex items-center gap-1.5">⚡ Real-Time Registered Player Toast Pop-Up <span class="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 font-mono text-[9px] rounded-full">NEW</span></p>
-              <p class="text-[10px] text-slate-400 mt-0.5">SHOW or HOLD/PAUSE the live floating popup displaying the last 5 registered players on the website.</p>
+              <p class="text-xs font-bold text-slate-900 flex items-center gap-1.5">⚡ Real-Time Registered Player Toast Pop-Up <span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 font-mono text-[9px] rounded-full border border-emerald-300">NEW</span></p>
+              <p class="text-[10px] text-slate-500 mt-0.5">SHOW or HOLD/PAUSE the live floating popup displaying the last 5 registered players on the website.</p>
             </div>
             <label class="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" id="admin-realtime-toast-toggle" class="sr-only peer" ${settings.isRealtimePlayerToastEnabled !== false ? 'checked' : ''}>
-              <div class="w-10 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-500"></div>
+              <input type="checkbox" id="admin-realtime-toast-toggle" class="sr-only peer" ${settings.isRealtimePlayerToastEnabled === true ? 'checked' : ''}>
+              <div class="w-10 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-emerald-600"></div>
             </label>
           </div>
 
           <!-- Live Tournament Countdown Banner Toggle -->
-          <div class="flex items-center justify-between p-3.5 bg-slate-900/80 rounded-xl border border-amber-500/40">
+          <div class="flex items-center justify-between p-3.5 bg-amber-50/50 rounded-xl border border-amber-200">
             <div>
-              <p class="text-xs font-bold text-white flex items-center gap-1.5">
+              <p class="text-xs font-bold text-slate-900 flex items-center gap-1.5">
                 <span class="p-1 rounded bg-amber-500 text-slate-950"><i data-lucide="clock" class="w-3.5 h-3.5"></i></span>
                 <span>Live Tournament Countdown Banner (Homepage Top)</span>
-                <span class="px-2 py-0.5 bg-amber-500/20 text-amber-400 font-mono text-[9px] rounded-full">TOP BANNER</span>
+                <span class="px-2 py-0.5 bg-amber-100 text-amber-900 font-mono text-[9px] rounded-full border border-amber-300">TOP BANNER</span>
               </p>
-              <p class="text-[10px] text-slate-400 mt-0.5">SHOW or HIDE the 31 August 2026 Tournament Countdown Clock at the top of the homepage.</p>
+              <p class="text-[10px] text-slate-500 mt-0.5">SHOW or HIDE the 31 August 2026 Tournament Countdown Clock at the top of the homepage.</p>
             </div>
             <label class="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" id="admin-countdown-banner-toggle" class="sr-only peer" ${settings.isCountdownEnabled !== false ? 'checked' : ''}>
-              <div class="w-10 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+              <input type="checkbox" id="admin-countdown-banner-toggle" class="sr-only peer" ${settings.isCountdownEnabled === true ? 'checked' : ''}>
+              <div class="w-10 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
             </label>
           </div>
 
           <!-- YouTube Digital Class Channel Promo Popup Controller -->
-          <div class="flex items-center justify-between p-3.5 bg-slate-900/80 rounded-xl border border-red-900/40">
+          <div class="flex items-center justify-between p-3.5 bg-red-50/50 rounded-xl border border-red-200">
             <div>
-              <p class="text-xs font-bold text-white flex items-center gap-1.5">
+              <p class="text-xs font-bold text-slate-900 flex items-center gap-1.5">
                 <span class="p-1 rounded bg-red-600 text-white"><i data-lucide="youtube" class="w-3.5 h-3.5"></i></span>
                 <span>YouTube Digital Class Channel Promotional Pop-Up</span>
-                <span class="px-2 py-0.5 bg-red-500/20 text-red-400 font-mono text-[9px] rounded-full">POPUP BANNER</span>
+                <span class="px-2 py-0.5 bg-red-100 text-red-800 font-mono text-[9px] rounded-full border border-red-300">POPUP BANNER</span>
               </p>
-              <p class="text-[10px] text-slate-400 mt-0.5">Toggle auto-popup for competitive exams coaching channel on visitor page load.</p>
+              <p class="text-[10px] text-slate-500 mt-0.5">Toggle auto-popup for competitive exams coaching channel on visitor page load.</p>
               <div class="mt-2.5">
-                <button type="button" id="admin-preview-youtube-promo-btn" class="px-3 py-1.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-black text-xs rounded-xl shadow-md transition-all flex items-center gap-1.5 cursor-pointer">
+                <button type="button" id="admin-preview-youtube-promo-btn" class="px-3 py-1.5 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 text-white font-black text-xs rounded-xl shadow-sm transition-all flex items-center gap-1.5 cursor-pointer">
                   <i data-lucide="eye" class="w-3.5 h-3.5"></i> Preview / Test YouTube Popup Now
                 </button>
               </div>
             </div>
             <label class="relative inline-flex items-center cursor-pointer">
-              <input type="checkbox" id="admin-youtube-popup-toggle" class="sr-only peer" ${settings.isYouTubePromoEnabled !== false ? 'checked' : ''}>
-              <div class="w-10 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-red-600"></div>
+              <input type="checkbox" id="admin-youtube-popup-toggle" class="sr-only peer" ${settings.isYouTubePromoEnabled === true ? 'checked' : ''}>
+              <div class="w-10 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-red-600"></div>
             </label>
           </div>
         </div>
 
         <!-- SECTION 2: ADVERTISEMENT POPUP CONFIGURATION -->
-        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-slate-950/50 p-5 rounded-2xl border border-slate-800/60">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 bg-white p-5 rounded-3xl border-2 border-slate-200 shadow-sm">
           
           <div class="space-y-4">
-            <h4 class="text-xs font-black text-slate-400 uppercase tracking-widest border-b border-slate-850 pb-2">📢 Shop Ad Configuration</h4>
+            <h4 class="text-xs font-black text-slate-500 uppercase tracking-widest border-b border-slate-100 pb-2">📢 Shop Ad Configuration</h4>
             
             <div>
-              <label class="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">Select Partner Shops to Promote (Select multiple to show in carousel)</label>
-              <div class="space-y-2 bg-slate-900/60 p-3.5 rounded-xl border border-slate-800 max-h-48 overflow-y-auto">
+              <label class="block text-xs font-bold text-slate-500 mb-2 uppercase tracking-wider">Select Partner Shops to Promote (Select multiple to show in carousel)</label>
+              <div class="space-y-2 bg-slate-50 p-3.5 rounded-xl border border-slate-200 max-h-48 overflow-y-auto">
                 ${shops.map(shop => {
                   const isChecked = (settings.promotedShopIds && settings.promotedShopIds.includes(shop.id)) 
                     || (!settings.promotedShopIds && settings.promotedShopId === shop.id);
                   return `
-                    <label class="flex items-center space-x-3 text-white text-xs font-bold cursor-pointer hover:text-amber-400 transition-colors py-1">
-                      <input type="checkbox" name="promoted-shop-checkbox" value="${shop.id}" ${isChecked ? 'checked' : ''} class="w-4 h-4 rounded text-amber-500 focus:ring-amber-500 focus:ring-offset-slate-900 border-slate-800 bg-slate-950">
+                    <label class="flex items-center space-x-3 text-slate-900 text-xs font-bold cursor-pointer hover:text-emerald-700 transition-colors py-1">
+                      <input type="checkbox" name="promoted-shop-checkbox" value="${shop.id}" ${isChecked ? 'checked' : ''} class="w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 focus:ring-offset-white border-slate-300 bg-white">
                       <span>${shop.name} (${shop.type === 'restaurant' ? 'Food/Kitchen' : shop.type === 'rice' ? 'Rice Bhandar' : 'Hardware & Sanitation'})</span>
                     </label>
                   `;
@@ -5634,28 +6968,28 @@ export async function renderAdminShopAdsPanel() {
               </div>
             </div>
 
-            <div class="flex items-center justify-between p-3.5 bg-slate-900/80 rounded-xl border border-slate-800/80">
+            <div class="flex items-center justify-between p-3.5 bg-slate-50 rounded-xl border border-slate-200">
               <div>
-                <p class="text-xs font-bold text-white">Enable Ad Auto-Popup on Load</p>
-                <p class="text-[10px] text-slate-400 mt-0.5">Toggle whether users landing on your site see this ad popup.</p>
+                <p class="text-xs font-bold text-slate-900">Enable Ad Auto-Popup on Load</p>
+                <p class="text-[10px] text-slate-500 mt-0.5">Toggle whether users landing on your site see this ad popup.</p>
               </div>
               <label class="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" id="admin-ad-toggle" class="sr-only peer" ${settings.isAdPopupEnabled && !isSnoozed ? 'checked' : ''}>
-                <div class="w-10 h-5 bg-slate-700 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
+                <input type="checkbox" id="admin-ad-toggle" class="sr-only peer" ${settings.isAdPopupEnabled === true && !isSnoozed ? 'checked' : ''}>
+                <div class="w-10 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
               </label>
             </div>
           </div>
 
           <div class="space-y-3 justify-center flex flex-col">
-            <h4 class="text-xs font-black text-slate-400 uppercase tracking-widest border-b border-slate-850 pb-2 mb-2">Quick Ad Actions</h4>
+            <h4 class="text-xs font-black text-slate-500 uppercase tracking-widest border-b border-slate-100 pb-2 mb-2">Quick Ad Actions</h4>
             <div class="grid grid-cols-1 gap-2">
-              <button id="admin-ad-turn-on-btn" class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-slate-950 font-black text-xs rounded-xl transition-all shadow-lg flex items-center justify-center gap-1.5 border border-amber-400">
-                <i data-lucide="play-circle" class="w-4 h-4 text-slate-950"></i> Save & Turn Ad On Now
+              <button id="admin-ad-turn-on-btn" class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white font-black text-xs rounded-xl transition-all shadow-sm flex items-center justify-center gap-1.5 border border-amber-400 cursor-pointer">
+                <i data-lucide="play-circle" class="w-4 h-4 text-white"></i> Save & Turn Ad On Now
               </button>
-              <button id="admin-ad-turn-off-btn" class="w-full py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs rounded-xl border border-slate-700 transition-all flex items-center justify-center gap-1.5">
+              <button id="admin-ad-turn-off-btn" class="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl border border-slate-300 transition-all flex items-center justify-center gap-1.5 cursor-pointer">
                 <i data-lucide="stop-circle" class="w-4 h-4"></i> Turn Ad Off Completely
               </button>
-              <button id="admin-ad-pause-month-btn" class="w-full py-2.5 bg-red-950/40 hover:bg-red-950 text-red-400 font-bold text-xs rounded-xl border border-red-900/35 transition-all flex items-center justify-center gap-1.5">
+              <button id="admin-ad-pause-month-btn" class="w-full py-2.5 bg-red-50 hover:bg-red-100 text-red-800 font-bold text-xs rounded-xl border border-red-200 transition-all flex items-center justify-center gap-1.5 cursor-pointer">
                 <i data-lucide="clock" class="w-4 h-4"></i> Pause Ad for 1 Month
               </button>
             </div>
@@ -5675,201 +7009,93 @@ export async function renderAdminShopAdsPanel() {
     return Array.from(checked).map(cb => cb.value);
   };
 
+  const updatePopupSettingField = async (field, value) => {
+    const current = await fetchPopupSettingsFromCloud();
+    const shopIds = getCheckedShopIds();
+    const payload = {
+      ...current,
+      [field]: value,
+      promotedShopIds: shopIds.length > 0 ? shopIds : current.promotedShopIds,
+      updated_at: Date.now()
+    };
+    await savePopupSettingsToCloud(payload);
+    
+    // Smooth status badge refresh without full panel rebuild
+    const isSnoozed = payload.adExpiryTime && Date.now() < payload.adExpiryTime;
+    const badgeContainer = container.querySelector('h4.text-base.font-bold + *');
+    if (badgeContainer) {
+      badgeContainer.outerHTML = payload.isAdPopupEnabled 
+        ? (isSnoozed 
+            ? `<span class="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase bg-amber-500/10 text-amber-400 border border-amber-500/20">Paused (Snoozed)</span>` 
+            : `<span class="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">🟢 Active (Showing)</span>`)
+        : `<span class="px-2.5 py-0.5 rounded-full text-xs font-bold uppercase bg-slate-800 text-slate-400 border border-slate-700/50">🔴 Inactive (Off)</span>`;
+    }
+  };
+
   // BIND BUTTON LISTENERS
-  document.getElementById('admin-ad-turn-on-btn').addEventListener('click', async () => {
+  document.getElementById('admin-ad-turn-on-btn')?.addEventListener('click', async () => {
     const shopIds = getCheckedShopIds();
     if (shopIds.length === 0) {
-      alert("Please select at least one shop to promote.");
+      alert("⚠️ Please select at least one shop to promote.");
       return;
     }
-    const ok = await savePopupSettingsToFirebase({
-      isWelcomePopupEnabled: document.getElementById('admin-welcome-popup-toggle').checked,
-      isWhatsAppPopupEnabled: document.getElementById('admin-whatsapp-popup-toggle').checked,
-      isAdPopupEnabled: true,
-      promotedShopIds: shopIds,
-      promotedShopId: shopIds[0] || 'maa-laxmi-kitchen',
-      adExpiryTime: 0
-    });
-    if (ok) {
-      alert("Settings saved successfully! Selected advertisements are now active.");
-      renderAdminShopAdsPanel();
-    } else {
-      alert("Failed to save settings. Please try again.");
-    }
+    const toggleEl = document.getElementById('admin-ad-toggle');
+    if (toggleEl) toggleEl.checked = true;
+    await updatePopupSettingField('isAdPopupEnabled', true);
+    alert("✅ Advertisement popup turned ON!");
   });
 
-  document.getElementById('admin-ad-turn-off-btn').addEventListener('click', async () => {
-    const shopIds = getCheckedShopIds();
-    const ok = await savePopupSettingsToFirebase({
-      isWelcomePopupEnabled: document.getElementById('admin-welcome-popup-toggle').checked,
-      isWhatsAppPopupEnabled: document.getElementById('admin-whatsapp-popup-toggle').checked,
-      isAdPopupEnabled: false,
-      promotedShopIds: shopIds,
-      promotedShopId: shopIds[0] || 'maa-laxmi-kitchen',
-      adExpiryTime: 0
-    });
-    if (ok) {
-      alert("Advertisements are now completely turned off.");
-      renderAdminShopAdsPanel();
-    } else {
-      alert("Failed to turn off advertisement settings.");
-    }
+  document.getElementById('admin-ad-turn-off-btn')?.addEventListener('click', async () => {
+    const toggleEl = document.getElementById('admin-ad-toggle');
+    if (toggleEl) toggleEl.checked = false;
+    await updatePopupSettingField('isAdPopupEnabled', false);
+    alert("✅ Advertisement popup turned OFF completely!");
   });
 
-  document.getElementById('admin-ad-pause-month-btn').addEventListener('click', async () => {
-    const shopIds = getCheckedShopIds();
+  document.getElementById('admin-ad-pause-month-btn')?.addEventListener('click', async () => {
     const ONE_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
-    const ok = await savePopupSettingsToFirebase({
-      isWelcomePopupEnabled: document.getElementById('admin-welcome-popup-toggle').checked,
-      isWhatsAppPopupEnabled: document.getElementById('admin-whatsapp-popup-toggle').checked,
+    const current = await fetchPopupSettingsFromCloud();
+    await savePopupSettingsToCloud({
+      ...current,
       isAdPopupEnabled: true,
-      promotedShopIds: shopIds,
-      promotedShopId: shopIds[0] || 'maa-laxmi-kitchen',
-      adExpiryTime: Date.now() + ONE_MONTH_MS
+      adExpiryTime: Date.now() + ONE_MONTH_MS,
+      updated_at: Date.now()
     });
-    if (ok) {
-      alert("Advertisements paused successfully! They will not show up for the next 30 days.");
-      renderAdminShopAdsPanel();
-    } else {
-      alert("Failed to snooze advertisement settings.");
-    }
+    alert("✅ Advertisements paused for 30 days!");
+    renderAdminShopAdsPanel();
   });
 
-  // Bind checkbox change
-  document.getElementById('admin-ad-toggle').addEventListener('change', async (e) => {
-    const isChecked = e.target.checked;
-    const shopIds = getCheckedShopIds();
-    const ok = await savePopupSettingsToFirebase({
-      isWelcomePopupEnabled: document.getElementById('admin-welcome-popup-toggle').checked,
-      isWhatsAppPopupEnabled: document.getElementById('admin-whatsapp-popup-toggle').checked,
-      isAdPopupEnabled: isChecked,
-      promotedShopIds: shopIds,
-      promotedShopId: shopIds[0] || 'maa-laxmi-kitchen',
-      adExpiryTime: 0
-    });
-    if (ok) {
-      alert(`Popup advertisement has been turned ${isChecked ? 'ON' : 'OFF'}.`);
-      renderAdminShopAdsPanel();
-    } else {
-      alert("Failed to update status.");
-      e.target.checked = !isChecked; // revert
-    }
+  // BIND ALL 5 TOGGLE SWITCHES (Smooth in-place state)
+  document.getElementById('admin-ad-toggle')?.addEventListener('change', (e) => {
+    updatePopupSettingField('isAdPopupEnabled', e.target.checked);
   });
 
-  // Bind welcome popup change
-  document.getElementById('admin-welcome-popup-toggle').addEventListener('change', async (e) => {
-    const isChecked = e.target.checked;
-    const shopIds = getCheckedShopIds();
-    const ok = await savePopupSettingsToFirebase({
-      isWelcomePopupEnabled: isChecked,
-      isWhatsAppPopupEnabled: document.getElementById('admin-whatsapp-popup-toggle').checked,
-      isAdPopupEnabled: document.getElementById('admin-ad-toggle').checked,
-      promotedShopIds: shopIds,
-      promotedShopId: shopIds[0] || 'maa-laxmi-kitchen',
-      adExpiryTime: settings.adExpiryTime || 0
-    });
-    if (ok) {
-      alert(`Welcome & Install popup has been turned ${isChecked ? 'ON' : 'OFF'}.`);
-      renderAdminShopAdsPanel();
-    } else {
-      alert("Failed to update welcome popup settings.");
-      e.target.checked = !isChecked; // revert
-    }
+  document.getElementById('admin-welcome-popup-toggle')?.addEventListener('change', (e) => {
+    updatePopupSettingField('isWelcomePopupEnabled', e.target.checked);
   });
 
-  // Bind whatsapp popup change
-  document.getElementById('admin-whatsapp-popup-toggle').addEventListener('change', async (e) => {
-    const isChecked = e.target.checked;
-    const shopIds = getCheckedShopIds();
-    const ok = await savePopupSettingsToFirebase({
-      isWelcomePopupEnabled: document.getElementById('admin-welcome-popup-toggle').checked,
-      isWhatsAppPopupEnabled: isChecked,
-      isAdPopupEnabled: document.getElementById('admin-ad-toggle').checked,
-      promotedShopIds: shopIds,
-      promotedShopId: shopIds[0] || 'maa-laxmi-kitchen',
-      adExpiryTime: settings.adExpiryTime || 0
-    });
-    if (ok) {
-      alert(`WhatsApp Group Join popup has been turned ${isChecked ? 'ON' : 'OFF'}.`);
-      renderAdminShopAdsPanel();
-    } else {
-      alert("Failed to update WhatsApp popup settings.");
-      e.target.checked = !isChecked; // revert
-    }
+  document.getElementById('admin-whatsapp-popup-toggle')?.addEventListener('change', (e) => {
+    updatePopupSettingField('isWhatsAppPopupEnabled', e.target.checked);
   });
 
-  // Bind real-time player toast toggle
-  document.getElementById('admin-realtime-toast-toggle').addEventListener('change', async (e) => {
-    const isChecked = e.target.checked;
-    const shopIds = getCheckedShopIds();
-    const ok = await savePopupSettingsToFirebase({
-      isWelcomePopupEnabled: document.getElementById('admin-welcome-popup-toggle').checked,
-      isWhatsAppPopupEnabled: document.getElementById('admin-whatsapp-popup-toggle').checked,
-      isRealtimePlayerToastEnabled: isChecked,
-      isAdPopupEnabled: document.getElementById('admin-ad-toggle').checked,
-      promotedShopIds: shopIds,
-      promotedShopId: shopIds[0] || 'maa-laxmi-kitchen',
-      adExpiryTime: settings.adExpiryTime || 0
-    });
-    if (ok) {
-      alert(`Real-Time Registered Player Toast has been ${isChecked ? 'ACTIVATED (Showing Live)' : 'PAUSED / HELD (Hidden)'}.`);
-      renderAdminShopAdsPanel();
-    } else {
-      alert("Failed to update real-time player toast settings.");
-      e.target.checked = !isChecked; // revert
-    }
+  document.getElementById('admin-realtime-toast-toggle')?.addEventListener('change', (e) => {
+    updatePopupSettingField('isRealtimePlayerToastEnabled', e.target.checked);
   });
 
-  // Bind Countdown Banner toggle
-  document.getElementById('admin-countdown-banner-toggle')?.addEventListener('change', async (e) => {
-    const isChecked = e.target.checked;
-    const shopIds = getCheckedShopIds();
-    const ok = await savePopupSettingsToFirebase({
-      isWelcomePopupEnabled: document.getElementById('admin-welcome-popup-toggle')?.checked ?? true,
-      isWhatsAppPopupEnabled: document.getElementById('admin-whatsapp-popup-toggle')?.checked ?? true,
-      isRealtimePlayerToastEnabled: document.getElementById('admin-realtime-toast-toggle')?.checked ?? true,
-      isCountdownEnabled: isChecked,
-      isYouTubePromoEnabled: document.getElementById('admin-youtube-popup-toggle')?.checked ?? true,
-      isAdPopupEnabled: document.getElementById('admin-ad-toggle')?.checked ?? true,
-      promotedShopIds: shopIds,
-      promotedShopId: shopIds[0] || 'maa-laxmi-kitchen',
-      adExpiryTime: settings.adExpiryTime || 0
-    });
-    if (ok) {
-      alert(`Live Tournament Countdown Banner has been ${isChecked ? 'SHOWN (Visible at Top)' : 'HIDDEN (Turned Off)'}.`);
-      renderAdminShopAdsPanel();
-    } else {
-      alert("Failed to update countdown banner settings.");
-      e.target.checked = !isChecked;
-    }
+  document.getElementById('admin-countdown-banner-toggle')?.addEventListener('change', (e) => {
+    updatePopupSettingField('isCountdownEnabled', e.target.checked);
   });
 
-  // Bind YouTube promo preview button
+  document.getElementById('admin-youtube-popup-toggle')?.addEventListener('change', (e) => {
+    updatePopupSettingField('isYouTubePromoEnabled', e.target.checked);
+  });
+
+  // BIND YOUTUBE PREVIEW BUTTON
   document.getElementById('admin-preview-youtube-promo-btn')?.addEventListener('click', () => {
-    (window.openYouTubePromoModal || openYouTubePromoModal)(true);
-  });
-
-  // Bind YouTube promo toggle
-  document.getElementById('admin-youtube-popup-toggle')?.addEventListener('change', async (e) => {
-    const isChecked = e.target.checked;
-    const shopIds = getCheckedShopIds();
-    const ok = await savePopupSettingsToFirebase({
-      isWelcomePopupEnabled: document.getElementById('admin-welcome-popup-toggle')?.checked ?? true,
-      isWhatsAppPopupEnabled: document.getElementById('admin-whatsapp-popup-toggle')?.checked ?? true,
-      isRealtimePlayerToastEnabled: document.getElementById('admin-realtime-toast-toggle')?.checked ?? true,
-      isCountdownEnabled: document.getElementById('admin-countdown-banner-toggle')?.checked ?? true,
-      isYouTubePromoEnabled: isChecked,
-      isAdPopupEnabled: document.getElementById('admin-ad-toggle')?.checked ?? true,
-      promotedShopIds: shopIds,
-      promotedShopId: shopIds[0] || 'maa-laxmi-kitchen',
-      adExpiryTime: settings.adExpiryTime || 0
-    });
-    if (ok) {
-      alert(`YouTube Promotional Popup has been turned ${isChecked ? 'ON (Active for all visitors)' : 'OFF (Disabled)'}.`);
-      renderAdminShopAdsPanel();
+    if (typeof window !== 'undefined' && typeof window.openYouTubePromoModal === 'function') {
+      window.openYouTubePromoModal(true);
     } else {
-      alert("Failed to update YouTube popup settings.");
-      e.target.checked = !isChecked;
+      alert("YouTube preview banner is active! Open the home page to see it.");
     }
   });
 }
@@ -6086,19 +7312,250 @@ export function openTeamFinalSquadPDFModal() {
   });
 }
 
-// --- EDIT TEAM MODAL WITH WHITE BACKGROUND & INSTANT CDN UPLOAD ---
-export function openEditTeamModal(team, onSaved) {
-  document.getElementById('edit-team-modal')?.remove();
+// --- ADMIN SQUAD MANAGEMENT MODAL (View Roster, Edit Player Bought Price, Add or Remove Players) ---
+export function openAdminSquadManageModal(teamInput, onUpdated = null) {
+  document.getElementById('admin-manage-squad-modal')?.remove();
+
+  if (!teamInput || !teamInput.id) return;
+  const teamId = teamInput.id;
+
+  const refreshModal = () => {
+    const freshTeam = store.getTeamById(teamId) || teamInput;
+    openAdminSquadManageModal(freshTeam, onUpdated);
+    if (typeof onUpdated === 'function') onUpdated();
+  };
+
+  const team = store.getTeamById(teamId) || teamInput;
+  const teamTourneyId = team.tournament_id || team.tournamentId || store.activeTournamentId;
+  const tourneyUUID = toUUID(teamTourneyId);
+  const activeScopedPlayers = store.getPlayers() || [];
+  const globalPlayers = store.getAllPlayersAcrossTournaments ? store.getAllPlayersAcrossTournaments() : activeScopedPlayers;
+
+  // Filter ONLY players registered for this specific tournament (e.g. JSL)
+  const tourneyPlayers = globalPlayers.filter(p => {
+    if (!p) return false;
+    const pTid = p.tournament_id || p.tournamentId || p.leagueId;
+    if (!pTid) return true; // default fallback if unmapped
+    return pTid === teamTourneyId || toUUID(pTid) === tourneyUUID;
+  });
+
+  // Filter players currently assigned to THIS team
+  const squadPlayers = tourneyPlayers.filter(p => {
+    if (!p) return false;
+    const pTeamId = p.teamId || p.team_id;
+    const matchesTeamId = pTeamId && (pTeamId === team.id || toUUID(pTeamId) === toUUID(team.id));
+    const matchesTeamName = p.teamName && (p.teamName || '').trim().toLowerCase() === (team.name || '').trim().toLowerCase();
+    const isSold = (p.auctionStatus === 'SOLD' || p.isSold === true || !!pTeamId);
+    return isSold && (matchesTeamId || matchesTeamName);
+  });
+
+  // Filter available/unsold players belonging ONLY to this tournament (excludes players already in any squad)
+  const availablePlayers = tourneyPlayers.filter(p => {
+    if (!p) return false;
+    const pTeamId = p.teamId || p.team_id;
+    const isSold = (p.auctionStatus === 'SOLD' || p.isSold === true || !!pTeamId);
+    return !isSold;
+  });
 
   const maxPurse = Number(team.purse || team.purseBudget || 8000);
-  const spent = Number(team.purseSpent || 0);
-  const remPurse = (team.remainingPurse !== undefined) ? Number(team.remainingPurse) : (maxPurse - spent);
+  const spent = squadPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || 0), 0);
+  const remPurse = Math.max(0, maxPurse - spent);
 
-  let ownerPhotoData = team.ownerPhotoUrl || team.ownerPhoto || '';
-  let iconPhotoData = team.iconPlayerPhotoUrl || team.iconPhotoUrl || team.iconPhoto || '';
-  let teamLogoData = team.logoUrl || team.teamLogoUrl || '';
-  let coOwnerPhotoData = team.coOwnerPhotoUrl || team.coOwner1PhotoUrl || '';
-  let mentorPhotoData = team.mentorPhotoUrl || '';
+  const modalHtml = `
+    <div id="admin-manage-squad-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
+      <div class="relative w-full max-w-3xl bg-white text-slate-900 rounded-3xl shadow-2xl border border-slate-200 p-4 sm:p-6 max-h-[92vh] overflow-y-auto modal-content-container space-y-4 text-left">
+        
+        <!-- Header -->
+        <div class="flex items-center justify-between pb-3 border-b border-slate-200">
+          <div class="flex items-center gap-3">
+            <img src="${team.logoUrl || team.teamLogoUrl || 'assets/jsl_logo.jpg'}" class="w-12 h-12 rounded-2xl object-cover border-2 border-amber-500/80 shadow-xs shrink-0" onerror="this.src='assets/jsl_logo.jpg'" />
+            <div>
+              <div class="flex items-center gap-2">
+                <h3 class="text-base sm:text-lg font-black text-slate-900">${team.name} Squad Roster</h3>
+                <span class="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 font-mono text-[10px] font-black rounded-full border border-emerald-300">${squadPlayers.length} Players</span>
+              </div>
+              <p class="text-xs text-slate-500 font-medium">Owner: <strong>${team.ownerName || 'N/A'}</strong> (${team.ownerPhone || 'N/A'})</p>
+            </div>
+          </div>
+          <button id="close-admin-squad-modal-btn" class="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+
+        <!-- Purse Summary Bar -->
+        <div class="grid grid-cols-3 gap-2.5 p-3.5 bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white rounded-2xl shadow-sm border border-slate-700 text-center">
+          <div>
+            <span class="text-[9.5px] uppercase tracking-wider text-slate-400 font-bold block">Total Budget</span>
+            <span class="text-sm sm:text-base font-black font-mono text-white">₹${maxPurse.toLocaleString('en-IN')}</span>
+          </div>
+          <div>
+            <span class="text-[9.5px] uppercase tracking-wider text-amber-400 font-bold block">Purse Spent</span>
+            <span class="text-sm sm:text-base font-black font-mono text-amber-400">₹${spent.toLocaleString('en-IN')}</span>
+          </div>
+          <div>
+            <span class="text-[9.5px] uppercase tracking-wider text-emerald-400 font-bold block">Remaining Purse</span>
+            <span class="text-sm sm:text-base font-black font-mono text-emerald-400">₹${remPurse.toLocaleString('en-IN')}</span>
+          </div>
+        </div>
+
+        <!-- Section 1: Add Player to Squad -->
+        <div class="p-3.5 sm:p-4 bg-emerald-50/60 border-2 border-emerald-300/80 rounded-2xl space-y-3">
+          <div class="flex items-center gap-2">
+            <span class="p-1.5 bg-emerald-600 text-white rounded-xl text-xs font-black">➕</span>
+            <h4 class="text-xs sm:text-sm font-black text-slate-900">Add Registered Player to ${team.name} Squad</h4>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-12 gap-2">
+            <div class="sm:col-span-7">
+              <label class="block text-[10px] font-black text-slate-700 uppercase tracking-wider mb-1">Select Available Player (${availablePlayers.length} Available)</label>
+              <select id="squad-add-player-select" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold shadow-2xs focus:outline-none focus:border-emerald-500">
+                <option value="">-- Choose Player to Add --</option>
+                ${availablePlayers.map(p => `
+                  <option value="${p.id}">
+                    [REG-${String(p.serialNo || p.displayRegistrationNumber || 1).padStart(4, '0')}] ${p.name} (${p.role || p.playingType || 'All-Rounder'} - Base ₹${p.basePrice || 300})
+                  </option>
+                `).join('')}
+              </select>
+            </div>
+            <div class="sm:col-span-3">
+              <label class="block text-[10px] font-black text-slate-700 uppercase tracking-wider mb-1">Bought / Sold Price ₹</label>
+              <input type="number" id="squad-add-player-price" placeholder="Amount ₹" min="0" value="300" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-black font-mono shadow-2xs focus:outline-none focus:border-emerald-500" />
+            </div>
+            <div class="sm:col-span-2 flex items-end">
+              <button type="button" id="confirm-add-player-to-squad-btn" class="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1 cursor-pointer">
+                + Add
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 2: Current Team Squad List -->
+        <div class="space-y-2">
+          <div class="flex items-center justify-between">
+            <h4 class="text-xs sm:text-sm font-black text-slate-900 flex items-center gap-2">
+              <span>📋 Official Purchased Roster</span>
+              <span class="px-2 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-bold rounded-lg border border-slate-200">${squadPlayers.length} Players</span>
+            </h4>
+          </div>
+
+          ${squadPlayers.length === 0 ? `
+            <div class="text-center py-8 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50 space-y-2">
+              <div class="text-2xl">🏏</div>
+              <p class="text-xs font-bold text-slate-600">No players assigned to ${team.name} squad yet.</p>
+              <p class="text-[11px] text-slate-400">Use the form above to add registered players or conduct the auction.</p>
+            </div>
+          ` : `
+            <div class="space-y-2 max-h-[340px] overflow-y-auto pr-1">
+              ${squadPlayers.map((p, idx) => `
+                <div class="p-3 bg-white border border-slate-200 rounded-2xl hover:border-amber-400 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+                  <div class="flex items-center gap-3 min-w-0">
+                    <span class="text-xs font-mono font-black text-slate-400 w-5">${idx + 1}.</span>
+                    <img src="${p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png'}" class="w-10 h-10 rounded-xl object-cover border border-slate-200 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                    <div class="min-w-0">
+                      <div class="flex items-center gap-1.5">
+                        <span class="font-black text-xs sm:text-sm text-slate-900 truncate">${p.name}</span>
+                        ${p.isIcon || p.isIconPlayer ? `<span class="px-1.5 py-0.5 bg-amber-400 text-slate-950 font-black text-[9px] rounded uppercase shrink-0">⭐ ICON</span>` : ''}
+                      </div>
+                      <div class="text-[10px] font-bold text-slate-500 truncate">
+                        ${p.role || p.playingType || 'All-Rounder'} • <span class="text-sky-700">REG-${String(p.serialNo || p.displayRegistrationNumber || (idx + 1)).padStart(4, '0')}</span> • Base: ₹${p.basePrice || 300}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                    <div class="flex items-center gap-1 bg-slate-50 border border-slate-300 rounded-xl px-2 py-1">
+                      <span class="text-[10px] font-black text-slate-500">Bought: ₹</span>
+                      <input type="number" id="squad-edit-price-${p.id}" value="${p.soldPrice || 300}" min="0" class="w-20 bg-white font-mono font-black text-xs text-slate-900 border border-slate-300 rounded px-1.5 py-0.5 focus:outline-none focus:border-amber-500" />
+                      <button type="button" data-save-price-player-id="${p.id}" class="save-squad-player-price-btn px-2 py-1 bg-sky-600 hover:bg-sky-500 text-white font-black text-[10px] rounded shadow-2xs cursor-pointer">
+                        💾 Save
+                      </button>
+                    </div>
+                    <button type="button" data-remove-player-id="${p.id}" data-player-name="${p.name}" class="remove-squad-player-btn px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 font-black text-[11px] rounded-xl shadow-2xs transition-all flex items-center gap-1 cursor-pointer" title="Remove player from squad & refund sold price">
+                      <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Remove
+                    </button>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          `}
+        </div>
+
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  if (window.lucide) window.lucide.createIcons();
+
+  const removeModal = () => document.getElementById('admin-manage-squad-modal')?.remove();
+  document.getElementById('close-admin-squad-modal-btn')?.addEventListener('click', removeModal);
+
+  // Add Player Handler
+  document.getElementById('confirm-add-player-to-squad-btn')?.addEventListener('click', () => {
+    const selPlayerId = document.getElementById('squad-add-player-select').value;
+    const price = Number(document.getElementById('squad-add-player-price').value) || 300;
+    if (!selPlayerId) {
+      alert("Please select a player to add to the squad!");
+      return;
+    }
+
+    store.assignPlayerToTeam(selPlayerId, team.id, price);
+    const addedPlayer = store.getPlayerById(selPlayerId);
+    alert(`✅ Added "${addedPlayer?.name || 'Player'}" to ${team.name} squad for ₹${price}!`);
+    removeModal();
+    refreshModal();
+  });
+
+  // Save Player Price Handlers
+  document.querySelectorAll('.save-squad-player-price-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const pid = e.currentTarget.getAttribute('data-save-price-player-id');
+      const inputEl = document.getElementById(`squad-edit-price-${pid}`);
+      const newPrice = Number(inputEl?.value) || 300;
+
+      store.assignPlayerToTeam(pid, team.id, newPrice);
+      const playerObj = store.getPlayerById(pid);
+      alert(`✅ Updated bought price for "${playerObj?.name || 'Player'}" to ₹${newPrice}!`);
+      removeModal();
+      refreshModal();
+    });
+  });
+
+  // Remove Player Handlers
+  document.querySelectorAll('.remove-squad-player-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const pid = e.currentTarget.getAttribute('data-remove-player-id');
+      const pname = e.currentTarget.getAttribute('data-player-name');
+      if (confirm(`Are you sure you want to remove "${pname}" from ${team.name} squad?\n\nThis will return the player to the Available/Unsold pool and refund their price back to the team purse.`)) {
+        store.unassignPlayerFromTeam(pid);
+        alert(`🗑️ Removed "${pname}" from ${team.name} squad!`);
+        removeModal();
+        refreshModal();
+      }
+    });
+  });
+}
+
+// --- EDIT OR ADD TEAM MODAL WITH WHITE BACKGROUND & INSTANT CDN UPLOAD ---
+export function openEditTeamModal(team = null, onSaved = null) {
+  document.getElementById('edit-team-modal')?.remove();
+
+  const isNew = !team || !team.id;
+  const currentTourneys = store.getAllAvailableTournaments ? store.getAllAvailableTournaments() : (store.getCustomTournaments() || []);
+  const currentTourney = currentTourneys.find(t => (t.supabaseId || t.id) === store.activeTournamentId || t.slug === store.activeTournamentId) || {};
+  
+  const maxPurse = isNew 
+    ? Number(currentTourney.teamPurse || 8000) 
+    : Number(team.purse || team.purseBudget || 8000);
+  const spent = isNew ? 0 : Number(team.purseSpent || 0);
+  const remPurse = isNew 
+    ? maxPurse 
+    : ((team.remainingPurse !== undefined) ? Number(team.remainingPurse) : (maxPurse - spent));
+
+  let ownerPhotoData = isNew ? '' : (team.ownerPhotoUrl || team.ownerPhoto || '');
+  let iconPhotoData = isNew ? '' : (team.iconPlayerPhotoUrl || team.iconPhotoUrl || team.iconPhoto || '');
+  let teamLogoData = isNew ? '' : (team.logoUrl || team.teamLogoUrl || '');
+  let coOwnerPhotoData = isNew ? '' : (team.coOwnerPhotoUrl || team.coOwner1PhotoUrl || '');
+  let mentorPhotoData = isNew ? '' : (team.mentorPhotoUrl || '');
 
   let isUploadingImage = false;
 
@@ -6109,12 +7566,12 @@ export function openEditTeamModal(team, onSaved) {
         <!-- Header -->
         <div class="flex justify-between items-center pb-3 border-b border-slate-200 mb-4">
           <div class="flex items-center gap-3">
-            <span class="p-2.5 bg-blue-50 text-blue-600 rounded-2xl border border-blue-200">
-              <i data-lucide="shield-check" class="w-5 h-5"></i>
+            <span class="p-2.5 ${isNew ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' : 'bg-blue-50 text-blue-600 border border-blue-200'} rounded-2xl">
+              <i data-lucide="${isNew ? 'plus-circle' : 'shield-check'}" class="w-5 h-5"></i>
             </span>
             <div>
-              <h3 class="text-base sm:text-lg font-black text-slate-900">Edit Team: ${team.name}</h3>
-              <p class="text-xs text-slate-500 font-medium">Update franchise details, icon player, logos & purse budget</p>
+              <h3 class="text-base sm:text-lg font-black text-slate-900">${isNew ? '+ Register / Add Franchise Team' : `Edit Team: ${team.name}`}</h3>
+              <p class="text-xs text-slate-500 font-medium">${isNew ? `Create team roster & purse for ${currentTourney.name || 'this tournament'}` : 'Update franchise details, icon player, logos & purse budget'}</p>
             </div>
           </div>
           <button id="close-edit-team-modal-btn" class="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors">
@@ -6131,26 +7588,36 @@ export function openEditTeamModal(team, onSaved) {
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Team Name *</label>
-                <input type="text" id="edit-team-name" required value="${team.name || ''}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-blue-500 focus:outline-none shadow-sm" />
+                <input type="text" id="edit-team-name" required placeholder="e.g. Kuapur Kings" value="${isNew ? '' : (team.name || '')}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-blue-500 focus:outline-none shadow-sm font-bold" />
               </div>
               <div>
-                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Short Code (e.g. KH)</label>
-                <input type="text" id="edit-team-code" value="${team.shortCode || team.name.substring(0, 3).toUpperCase()}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-blue-500 focus:outline-none shadow-sm" />
+                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Short Code (e.g. KK)</label>
+                <input type="text" id="edit-team-code" placeholder="e.g. KK" value="${isNew ? '' : (team.shortCode || (team.name ? team.name.substring(0, 3).toUpperCase() : ''))}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-blue-500 focus:outline-none shadow-sm uppercase font-mono font-bold" />
               </div>
             </div>
 
-            <!-- Team Logo (Optional, Auto-Compressed < 100KB & Instant CDN Upload) -->
+            <!-- Team Logo (Auto-Compressed < 100KB & CDN Upload with Crop & Zoom) -->
             <div>
-              <div class="flex items-center justify-between mb-1">
-                <label class="block text-[10px] font-bold text-blue-800 uppercase">Team Logo (Optional • Compressed &lt; 100KB)</label>
+              <div class="flex items-center justify-between mb-1.5">
+                <label class="block text-[10px] font-black text-blue-900 uppercase tracking-wider">Team Logo (Optional • 1:1 Square/Round)</label>
                 <div id="logo-upload-status" class="text-[10px] font-bold"></div>
               </div>
-              <div class="flex items-center gap-2.5">
-                <img id="edit-logo-preview" src="${teamLogoData || 'assets/jsl_logo.jpg'}" class="w-12 h-12 rounded-xl object-cover border-2 border-blue-300 shadow shrink-0 bg-white" onerror="this.src='assets/jsl_logo.jpg'" />
-                <input type="file" id="edit-logo-file" accept="image/*" class="w-full bg-white border border-slate-300 text-slate-700 text-[11px] rounded-xl p-2 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-blue-600 file:text-white cursor-pointer shadow-sm" />
-                <button type="button" id="remove-logo-btn" class="px-2.5 py-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl font-bold text-[10px] flex items-center gap-1 cursor-pointer shrink-0 transition-colors shadow-xs" title="Remove current logo">
-                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Remove
-                </button>
+              <div class="flex items-center gap-3">
+                <div class="relative group shrink-0">
+                  <img id="edit-logo-preview" src="${teamLogoData || 'assets/jsl_logo.jpg'}" class="w-14 h-14 rounded-2xl object-cover border-2 border-blue-400 shadow-md bg-white ring-2 ring-blue-400/20" onerror="this.src='assets/jsl_logo.jpg'" />
+                  <span class="absolute -bottom-1 -right-1 bg-blue-600 text-white rounded-full p-1 shadow-xs text-[8px] flex items-center justify-center pointer-events-none">
+                    <i data-lucide="crop" class="w-2.5 h-2.5"></i>
+                  </span>
+                </div>
+                <div class="flex-1 space-y-1.5">
+                  <input type="file" id="edit-logo-file" accept="image/*" class="w-full bg-white border border-slate-300 text-slate-700 text-[11px] rounded-xl p-2 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:bg-blue-600 file:text-white hover:file:bg-blue-500 cursor-pointer shadow-sm" />
+                  <div class="flex items-center justify-between">
+                    <span class="text-[9.5px] text-slate-500 font-medium">Auto-triggers Crop & Zoom • Compressed &lt; 100KB</span>
+                    <button type="button" id="remove-logo-btn" class="px-2 py-0.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg font-bold text-[9.5px] flex items-center gap-1 cursor-pointer shrink-0 transition-colors shadow-xs" title="Remove current logo">
+                      <i data-lucide="trash-2" class="w-3 h-3"></i> Remove
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -6161,26 +7628,36 @@ export function openEditTeamModal(team, onSaved) {
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Owner Name *</label>
-                <input type="text" id="edit-owner-name" required value="${team.ownerName || ''}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-amber-500 focus:outline-none shadow-sm" />
+                <input type="text" id="edit-owner-name" required placeholder="e.g. Rajesh Ghosh" value="${isNew ? '' : (team.ownerName || '')}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-amber-500 focus:outline-none shadow-sm font-bold" />
               </div>
               <div>
                 <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Owner Phone *</label>
-                <input type="tel" id="edit-owner-phone" required value="${team.ownerPhone || ''}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-amber-500 focus:outline-none shadow-sm" />
+                <input type="tel" id="edit-owner-phone" required placeholder="10-digit Mobile No." value="${isNew ? '' : (team.ownerPhone || '')}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-amber-500 focus:outline-none shadow-sm font-mono font-bold" />
               </div>
             </div>
 
             <!-- Owner Photo (Auto-Compressed < 100KB & Instant CDN Upload) -->
             <div>
-              <div class="flex items-center justify-between mb-1">
-                <label class="block text-[10px] font-bold text-amber-800 uppercase">Owner HD Photo (Compressed &lt; 100KB)</label>
+              <div class="flex items-center justify-between mb-1.5">
+                <label class="block text-[10px] font-black text-amber-900 uppercase tracking-wider">Owner HD Photo (1:1 Round Avatar)</label>
                 <div id="owner-photo-upload-status" class="text-[10px] font-bold"></div>
               </div>
-              <div class="flex items-center gap-2.5">
-                <img id="edit-owner-photo-preview" src="${ownerPhotoData || 'assets/card_jsl_user.png'}" class="w-12 h-12 rounded-xl object-cover border-2 border-amber-400 shadow shrink-0 bg-white" onerror="this.src='assets/card_jsl_user.png'" />
-                <input type="file" id="edit-owner-photo-file" accept="image/*" class="w-full bg-white border border-slate-300 text-slate-700 text-[11px] rounded-xl p-2 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-amber-600 file:text-white cursor-pointer shadow-sm" />
-                <button type="button" id="remove-owner-photo-btn" class="px-2.5 py-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl font-bold text-[10px] flex items-center gap-1 cursor-pointer shrink-0 transition-colors shadow-xs" title="Remove owner photo">
-                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Remove
-                </button>
+              <div class="flex items-center gap-3">
+                <div class="relative group shrink-0">
+                  <img id="edit-owner-photo-preview" src="${ownerPhotoData || 'assets/card_jsl_user.png'}" class="w-14 h-14 rounded-full object-cover border-2 border-amber-400 shadow-md bg-white ring-2 ring-amber-400/30" onerror="this.src='assets/card_jsl_user.png'" />
+                  <span class="absolute -bottom-0.5 -right-0.5 bg-amber-600 text-white rounded-full p-1 shadow-xs text-[8px] flex items-center justify-center pointer-events-none">
+                    <i data-lucide="crop" class="w-2.5 h-2.5"></i>
+                  </span>
+                </div>
+                <div class="flex-1 space-y-1.5">
+                  <input type="file" id="edit-owner-photo-file" accept="image/*" class="w-full bg-white border border-slate-300 text-slate-700 text-[11px] rounded-xl p-2 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:bg-amber-600 file:text-white hover:file:bg-amber-500 cursor-pointer shadow-sm" />
+                  <div class="flex items-center justify-between">
+                    <span class="text-[9.5px] text-slate-500 font-medium">Auto-triggers 1:1 Round Crop & Zoom • Uploads to CDN</span>
+                    <button type="button" id="remove-owner-photo-btn" class="px-2 py-0.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg font-bold text-[9.5px] flex items-center gap-1 cursor-pointer shrink-0 transition-colors shadow-xs" title="Remove owner photo">
+                      <i data-lucide="trash-2" class="w-3 h-3"></i> Remove
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -6188,39 +7665,50 @@ export function openEditTeamModal(team, onSaved) {
           <!-- 3. Icon Player Details (Dropdown from Approved Players) -->
           <div class="p-3.5 bg-emerald-50/50 rounded-2xl border border-emerald-200/80 space-y-3">
             <div class="flex items-center justify-between">
-              <span class="text-[11px] font-black text-emerald-800 uppercase tracking-wider block">🌟 Icon Player (₹1,000 Fee)</span>
-              <span class="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">Auto-deducts ₹1,000 & Roster 1/13</span>
+              <span class="text-[11px] font-black text-emerald-800 uppercase tracking-wider block">🌟 Icon Player (Optional)</span>
+              <span class="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">Pre-assigned captain/marquee player</span>
             </div>
 
             <div>
-              <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Select Icon Player from Approved Registry *</label>
+              <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Select Icon Player from Approved Registry</label>
               <select id="edit-icon-select" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-sm">
                 <option value="">-- No Icon Player Assigned --</option>
-                <option value="__CUSTOM__" ${team.iconPlayerName && !store.getPlayers().some(p => p.name === team.iconPlayerName) ? 'selected' : ''}>✍️ Custom Name / Outside Registry</option>
-                ${store.getPlayers().filter(p => (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED')).map(p => {
-                  const isSelected = (team.iconPlayerName === p.name || team.iconName === p.name || team.iconPlayerId === p.id);
-                  return `<option value="${p.id}" data-name="${p.name}" data-photo="${p.photoUrl || p.player_photo_url || ''}" ${isSelected ? 'selected' : ''}>${p.name} (${p.category || 'All Rounder'} • ${p.village || 'Jhankra'}${p.displayRegistrationNumber ? ' • #' + p.displayRegistrationNumber : ''})</option>`;
-                }).join('')}
+                <option value="__CUSTOM__" ${!isNew && team.iconPlayerName && !store.getPlayers().some(p => p.name === team.iconPlayerName) ? 'selected' : ''}>✍️ Custom Name / Outside Registry</option>
+                ${store.getPlayers().map(p => `
+                  <option value="${p.id}" data-name="${p.name}" data-photo="${p.photoUrl || p.player_photo_url || ''}" ${!isNew && (team.iconPlayerId === p.id || team.iconPlayerName === p.name) ? 'selected' : ''}>
+                    ${p.name} (${p.category || 'All-Rounder'}) - ${p.village || 'Local'}
+                  </option>
+                `).join('')}
               </select>
             </div>
 
-            <div id="custom-icon-name-wrapper" class="${team.iconPlayerName && !store.getPlayers().some(p => p.name === team.iconPlayerName) ? '' : 'hidden'}">
-              <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Custom Icon Player Name</label>
-              <input type="text" id="edit-icon-name" value="${team.iconPlayerName || team.iconName || ''}" placeholder="e.g. Bijay Haldar" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-sm" />
+            <div id="custom-icon-name-wrapper" class="${(!isNew && team.iconPlayerName && !store.getPlayers().some(p => p.name === team.iconPlayerName)) ? '' : 'hidden'} space-y-2">
+              <label class="block text-[10px] font-bold text-slate-700 uppercase">Custom Icon Player Name</label>
+              <input type="text" id="edit-icon-name" placeholder="Enter full name of icon player" value="${isNew ? '' : (team.iconPlayerName || '')}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-sm" />
             </div>
 
-            <!-- Icon Photo (Auto-Compressed < 100KB & Instant CDN Upload) -->
+            <!-- Icon Photo Upload -->
             <div>
-              <div class="flex items-center justify-between mb-1">
-                <label class="block text-[10px] font-bold text-emerald-800 uppercase">Icon Player Photo (Auto-populated or Upload)</label>
+              <div class="flex items-center justify-between mb-1.5">
+                <label class="block text-[10px] font-black text-emerald-900 uppercase tracking-wider">Icon Player Photo (1:1 Round Avatar)</label>
                 <div id="icon-photo-upload-status" class="text-[10px] font-bold"></div>
               </div>
-              <div class="flex items-center gap-2.5">
-                <img id="edit-icon-photo-preview" src="${iconPhotoData || 'assets/player_jsl_hd.jpg'}" class="w-12 h-12 rounded-xl object-cover border-2 border-emerald-400 shadow shrink-0 bg-white" onerror="this.src='assets/player_jsl_hd.jpg'" />
-                <input type="file" id="edit-icon-photo-file" accept="image/*" class="w-full bg-white border border-slate-300 text-slate-700 text-[11px] rounded-xl p-2 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-bold file:bg-emerald-600 file:text-white cursor-pointer shadow-sm" />
-                <button type="button" id="remove-icon-photo-btn" class="px-2.5 py-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl font-bold text-[10px] flex items-center gap-1 cursor-pointer shrink-0 transition-colors shadow-xs" title="Remove icon photo">
-                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Remove
-                </button>
+              <div class="flex items-center gap-3">
+                <div class="relative group shrink-0">
+                  <img id="edit-icon-photo-preview" src="${iconPhotoData || 'assets/player_jsl_hd.jpg'}" class="w-14 h-14 rounded-full object-cover border-2 border-emerald-400 shadow-md bg-white ring-2 ring-emerald-400/30" onerror="this.src='assets/player_jsl_hd.jpg'" />
+                  <span class="absolute -bottom-0.5 -right-0.5 bg-emerald-600 text-white rounded-full p-1 shadow-xs text-[8px] flex items-center justify-center pointer-events-none">
+                    <i data-lucide="crop" class="w-2.5 h-2.5"></i>
+                  </span>
+                </div>
+                <div class="flex-1 space-y-1.5">
+                  <input type="file" id="edit-icon-photo-file" accept="image/*" class="w-full bg-white border border-slate-300 text-slate-700 text-[11px] rounded-xl p-2 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:bg-emerald-600 file:text-white hover:file:bg-emerald-500 cursor-pointer shadow-sm" />
+                  <div class="flex items-center justify-between">
+                    <span class="text-[9.5px] text-slate-500 font-medium">Auto-triggers 1:1 Player Crop & Zoom • Uploads to CDN</span>
+                    <button type="button" id="remove-icon-photo-btn" class="px-2 py-0.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-lg font-bold text-[9.5px] flex items-center gap-1 cursor-pointer shrink-0 transition-colors shadow-xs" title="Remove icon photo">
+                      <i data-lucide="trash-2" class="w-3 h-3"></i> Remove
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -6231,11 +7719,11 @@ export function openEditTeamModal(team, onSaved) {
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Co-Owner Name</label>
-                <input type="text" id="edit-coowner-name" value="${team.coOwnerName || team.coOwner1Name || ''}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2 focus:border-purple-500 focus:outline-none shadow-sm" />
+                <input type="text" id="edit-coowner-name" placeholder="Optional" value="${isNew ? '' : (team.coOwnerName || team.coOwner1Name || '')}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2 focus:border-purple-500 focus:outline-none shadow-sm" />
               </div>
               <div>
                 <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Mentor Name</label>
-                <input type="text" id="edit-mentor-name" value="${team.mentorName || ''}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2 focus:border-purple-500 focus:outline-none shadow-sm" />
+                <input type="text" id="edit-mentor-name" placeholder="Optional" value="${isNew ? '' : (team.mentorName || '')}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2 focus:border-purple-500 focus:outline-none shadow-sm" />
               </div>
             </div>
           </div>
@@ -6246,28 +7734,28 @@ export function openEditTeamModal(team, onSaved) {
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Total Purse Budget (₹)</label>
-                <input type="number" id="edit-team-purse" required value="${maxPurse}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-rose-500 focus:outline-none shadow-sm" />
+                <input type="number" id="edit-team-purse" required value="${maxPurse}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-rose-500 focus:outline-none shadow-sm font-mono font-bold" />
               </div>
               <div>
                 <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Remaining Purse (₹)</label>
-                <input type="number" id="edit-team-rem-purse" required value="${remPurse}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-rose-500 focus:outline-none shadow-sm" />
+                <input type="number" id="edit-team-rem-purse" required value="${remPurse}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-rose-500 focus:outline-none shadow-sm font-mono font-bold" />
               </div>
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <div>
                 <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Registration Status</label>
-                <select id="edit-team-status" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:outline-none shadow-sm">
-                  <option value="APPROVED" ${team.registrationStatus === 'APPROVED' ? 'selected' : ''}>APPROVED</option>
-                  <option value="PENDING" ${team.registrationStatus === 'PENDING' ? 'selected' : ''}>PENDING</option>
-                  <option value="REJECTED" ${team.registrationStatus === 'REJECTED' ? 'selected' : ''}>REJECTED</option>
+                <select id="edit-team-status" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:outline-none shadow-sm font-bold">
+                  <option value="APPROVED" ${!isNew && team.registrationStatus === 'APPROVED' ? 'selected' : ''}>APPROVED</option>
+                  <option value="PENDING" ${!isNew && team.registrationStatus === 'PENDING' ? 'selected' : ''}>PENDING</option>
+                  <option value="REJECTED" ${!isNew && team.registrationStatus === 'REJECTED' ? 'selected' : ''}>REJECTED</option>
                 </select>
               </div>
               <div>
                 <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Payment Status</label>
-                <select id="edit-team-payment-status" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:outline-none shadow-sm">
-                  <option value="APPROVED" ${team.paymentStatus === 'APPROVED' ? 'selected' : ''}>APPROVED</option>
-                  <option value="PENDING" ${team.paymentStatus === 'PENDING' ? 'selected' : ''}>PENDING</option>
+                <select id="edit-team-payment-status" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:outline-none shadow-sm font-bold">
+                  <option value="APPROVED" ${!isNew && team.paymentStatus === 'APPROVED' ? 'selected' : ''}>APPROVED</option>
+                  <option value="PENDING" ${!isNew && team.paymentStatus === 'PENDING' ? 'selected' : ''}>PENDING</option>
                 </select>
               </div>
             </div>
@@ -6278,8 +7766,8 @@ export function openEditTeamModal(team, onSaved) {
             <button type="button" id="cancel-edit-team-btn" class="w-1/3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl transition-colors cursor-pointer border border-slate-300">
               Cancel
             </button>
-            <button type="submit" id="save-edit-team-btn" class="w-2/3 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-black rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer">
-              <i data-lucide="save" class="w-4 h-4"></i> Save Team Changes
+            <button type="submit" id="save-edit-team-btn" class="w-2/3 py-2.5 ${isNew ? 'bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700' : 'bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700'} text-white font-black rounded-xl shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer">
+              <i data-lucide="${isNew ? 'plus-circle' : 'save'}" class="w-4 h-4"></i> ${isNew ? 'Register Team Now' : 'Save Team Changes'}
             </button>
           </div>
 
@@ -6310,51 +7798,62 @@ export function openEditTeamModal(team, onSaved) {
         `;
       } else {
         saveBtn.classList.remove('opacity-50', 'cursor-not-allowed');
-        saveBtn.innerHTML = `<i data-lucide="save" class="w-4 h-4"></i> Save Team Changes`;
+        saveBtn.innerHTML = `<i data-lucide="${isNew ? 'plus-circle' : 'save'}" class="w-4 h-4"></i> ${isNew ? 'Register Team Now' : 'Save Team Changes'}`;
         if (window.lucide) window.lucide.createIcons();
       }
     }
   };
 
-  // Helper for Instant Photo Upload with < 100KB Compression
-  const handlePhotoSelectAndCDNUpload = async (fileInputEl, previewImgEl, statusEl, folder, onUploaded) => {
+  // Helper for Instant Photo Upload with Crop & Zoom + < 100KB Compression
+  const handlePhotoSelectAndCDNUpload = async (fileInputEl, previewImgEl, statusEl, folder, cropTitle, onUploaded) => {
     const file = fileInputEl.files[0];
     if (!file) return;
 
-    statusEl.innerHTML = `
-      <span class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md bg-amber-50 text-amber-700 border border-amber-200">
-        <span class="w-2.5 h-2.5 border-2 border-amber-600 border-t-transparent rounded-full animate-spin"></span>
-        <span>Compressing &lt;100KB & Uploading to CDN...</span>
-      </span>
-    `;
-    setButtonUploading(true);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const rawSrc = ev.target.result;
+      const cropModalFn = window.openSquareImageCropModal || openSquareImageCropModal;
+      if (typeof cropModalFn === 'function') {
+        cropModalFn(rawSrc, async (croppedDataUrl) => {
+          previewImgEl.src = croppedDataUrl;
+          statusEl.innerHTML = `
+            <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-300 font-bold text-[9.5px] animate-pulse">
+              <span class="w-3 h-3 border-2 border-amber-600 border-t-transparent rounded-full animate-spin"></span>
+              <span>Uploading HD to CDN (&lt;100KB)...</span>
+            </span>
+          `;
+          setButtonUploading(true);
 
-    try {
-      // 1. Compress image to < 100KB (600x600, quality 0.70)
-      const compressedDataUrl = await compressImage(file, 600, 600, 0.70);
-      previewImgEl.src = compressedDataUrl;
+          try {
+            const compressedDataUrl = (typeof compressImageToTarget === 'function') 
+              ? await compressImageToTarget(croppedDataUrl, 100, 600, 600)
+              : await compressImage(file, 600, 600, 0.70);
+            previewImgEl.src = compressedDataUrl;
 
-      // 2. Upload directly to Cloudinary/ImgBB HD CDN
-      const cdnUrl = await uploadHDImage(compressedDataUrl, folder);
-      const finalUrl = cdnUrl || compressedDataUrl;
+            const cdnUrl = await uploadHDImage(compressedDataUrl, folder);
+            const finalUrl = cdnUrl || compressedDataUrl;
+            onUploaded(finalUrl);
 
-      onUploaded(finalUrl);
-
-      statusEl.innerHTML = `
-        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
-          <span>✅ CDN Uploaded (< 100KB)</span>
-        </span>
-      `;
-    } catch (err) {
-      console.warn('CDN upload fallback:', err);
-      statusEl.innerHTML = `
-        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-50 text-sky-700 border border-sky-200">
-          <span>✅ Compressed & Ready</span>
-        </span>
-      `;
-    } finally {
-      setButtonUploading(false);
-    }
+            statusEl.innerHTML = `
+              <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300 font-black text-[10px]">
+                <span>✅ CDN Uploaded (&lt; 100KB)</span>
+              </span>
+            `;
+          } catch (err) {
+            console.warn('CDN upload fallback:', err);
+            onUploaded(croppedDataUrl);
+            statusEl.innerHTML = `
+              <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-sky-100 text-sky-800 border border-sky-300 font-black text-[10px]">
+                <span>✅ Cropped & Ready</span>
+              </span>
+            `;
+          } finally {
+            setButtonUploading(false);
+          }
+        }, cropTitle || "Crop Image (1:1 Square)");
+      }
+    };
+    reader.readAsDataURL(file);
   };
 
   // 1. Logo Select
@@ -6364,6 +7863,7 @@ export function openEditTeamModal(team, onSaved) {
       document.getElementById('edit-logo-preview'),
       document.getElementById('logo-upload-status'),
       'team_logos',
+      "Crop & Zoom Team Logo (1:1 Square)",
       (url) => { teamLogoData = url; }
     );
   });
@@ -6375,6 +7875,7 @@ export function openEditTeamModal(team, onSaved) {
       document.getElementById('edit-owner-photo-preview'),
       document.getElementById('owner-photo-upload-status'),
       'owner_photos',
+      "Crop & Zoom Owner Photo (1:1 Round Avatar)",
       (url) => { ownerPhotoData = url; }
     );
   });
@@ -6413,6 +7914,7 @@ export function openEditTeamModal(team, onSaved) {
       document.getElementById('edit-icon-photo-preview'),
       document.getElementById('icon-photo-upload-status'),
       'icon_player_photos',
+      "Crop & Zoom Icon Player Photo",
       (url) => { iconPhotoData = url; }
     );
   });
@@ -6462,12 +7964,74 @@ export function openEditTeamModal(team, onSaved) {
       saveBtn.innerHTML = `
         <div class="flex items-center justify-center gap-2">
           <div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-          <span>Saving Team Changes...</span>
+          <span>${isNew ? 'Registering Team...' : 'Saving Team Changes...'}</span>
         </div>
       `;
     }
 
     try {
+      const iconSelect = document.getElementById('edit-icon-select');
+      const iconPlayerIdVal = (iconSelect?.value !== '__CUSTOM__' && iconSelect?.value) || (!isNew ? team.iconPlayerId : '') || '';
+      const iconNameVal = (() => {
+        if (!iconSelect) return '';
+        if (iconSelect.value === '__CUSTOM__') return (document.getElementById('edit-icon-name')?.value || '').trim();
+        if (iconSelect.value === '') return '';
+        const opt = iconSelect.options[iconSelect.selectedIndex];
+        return (opt?.getAttribute('data-name') || '').trim();
+      })();
+
+      if (isNew) {
+        // --- NEW TEAM REGISTRATION ---
+        const teamName = document.getElementById('edit-team-name').value.trim();
+        const shortCode = document.getElementById('edit-team-code').value.trim().toUpperCase() || teamName.substring(0, 3).toUpperCase();
+        
+        const newTeamData = {
+          id: generateUUID(),
+          tournament_id: store.activeTournamentId,
+          tournamentId: store.activeTournamentId,
+          name: teamName,
+          shortCode: shortCode,
+          ownerName: document.getElementById('edit-owner-name').value.trim(),
+          ownerPhone: document.getElementById('edit-owner-phone').value.trim(),
+          ownerPhotoUrl: ownerPhotoData,
+          ownerPhoto: ownerPhotoData,
+          captainName: document.getElementById('edit-owner-name').value.trim(),
+          iconPlayerId: iconPlayerIdVal,
+          iconPlayerName: iconNameVal,
+          iconName: iconNameVal,
+          iconPlayerPhotoUrl: iconPhotoData,
+          iconPhotoUrl: iconPhotoData,
+          iconPhoto: iconPhotoData,
+          logoUrl: teamLogoData || 'assets/jsl_logo.jpg',
+          teamLogoUrl: teamLogoData || 'assets/jsl_logo.jpg',
+          coOwnerName: document.getElementById('edit-coowner-name')?.value.trim() || '',
+          coOwner1Name: document.getElementById('edit-coowner-name')?.value.trim() || '',
+          mentorName: document.getElementById('edit-mentor-name')?.value.trim() || '',
+          purse: Number(document.getElementById('edit-team-purse').value) || maxPurse,
+          purseBudget: Number(document.getElementById('edit-team-purse').value) || maxPurse,
+          remainingPurse: Number(document.getElementById('edit-team-rem-purse').value) || maxPurse,
+          registrationStatus: document.getElementById('edit-team-status').value,
+          paymentStatus: document.getElementById('edit-team-payment-status').value,
+          status: 'VERIFIED',
+          squadCount: 0,
+          maxSquad: 15,
+          created_at: new Date().toISOString()
+        };
+
+        store.registerTeam(newTeamData);
+        try {
+          await syncTeamToSupabase(newTeamData);
+        } catch (cloudErr) {
+          console.warn('Supabase team sync notice:', cloudErr);
+        }
+
+        removeModal();
+        if (onSaved) onSaved();
+        alert(`✅ Team "${newTeamData.name}" registered successfully!`);
+        return;
+      }
+
+      // --- EDIT EXISTING TEAM ---
       const updatedTeam = {
         ...team,
         name: document.getElementById('edit-team-name').value.trim(),
@@ -6477,23 +8041,9 @@ export function openEditTeamModal(team, onSaved) {
         ownerPhotoUrl: ownerPhotoData,
         ownerPhoto: ownerPhotoData,
         captainName: document.getElementById('edit-owner-name').value.trim(),
-        iconPlayerId: (document.getElementById('edit-icon-select')?.value !== '__CUSTOM__' && document.getElementById('edit-icon-select')?.value) || team.iconPlayerId || '',
-        iconPlayerName: (() => {
-          const sel = document.getElementById('edit-icon-select');
-          if (!sel) return '';
-          if (sel.value === '__CUSTOM__') return (document.getElementById('edit-icon-name')?.value || '').trim();
-          if (sel.value === '') return '';
-          const opt = sel.options[sel.selectedIndex];
-          return (opt?.getAttribute('data-name') || '').trim();
-        })(),
-        iconName: (() => {
-          const sel = document.getElementById('edit-icon-select');
-          if (!sel) return '';
-          if (sel.value === '__CUSTOM__') return (document.getElementById('edit-icon-name')?.value || '').trim();
-          if (sel.value === '') return '';
-          const opt = sel.options[sel.selectedIndex];
-          return (opt?.getAttribute('data-name') || '').trim();
-        })(),
+        iconPlayerId: iconPlayerIdVal,
+        iconPlayerName: iconNameVal,
+        iconName: iconNameVal,
         iconPlayerPhotoUrl: iconPhotoData,
         iconPhotoUrl: iconPhotoData,
         iconPhoto: iconPhotoData,
@@ -6513,15 +8063,11 @@ export function openEditTeamModal(team, onSaved) {
       // 1. Update in local store
       store.updateTeam(updatedTeam);
 
-      // 2. Direct Sync to Firebase Realtime DB
+      // 2. Sync to Supabase
       try {
-        await fetch(`https://cpl-jsl-2026-default-rtdb.firebaseio.com/cpl_master/teams/${team.id}.json`, {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(updatedTeam)
-        });
+        await syncTeamToSupabase(updatedTeam);
       } catch (cloudErr) {
-        console.warn('Direct cloud team sync fallback:', cloudErr);
+        console.warn('Supabase team sync notice:', cloudErr);
       }
 
       removeModal();
@@ -6546,7 +8092,7 @@ export function renderAdminSaasTournamentsPanel() {
   const countBadge = document.getElementById('admin-custom-tourneys-count-badge');
   const statusBadge = document.getElementById('admin-host-tourney-status-badge');
   const toggleInput = document.getElementById('admin-host-tourney-feature-toggle');
-  const trialBtn = document.getElementById('admin-launch-trial-wizard-btn');
+  const createBtn = document.getElementById('admin-launch-create-tourney-wizard-btn');
 
   // 1. Wire up Master Feature Flag Switch
   if (toggleInput) {
@@ -6555,7 +8101,7 @@ export function renderAdminSaasTournamentsPanel() {
       await store.updatePlatformSettings({ isHostTournamentEnabled: isEnabled });
       if (statusBadge) {
         statusBadge.className = `px-2 py-0.5 rounded-full text-[9px] font-black uppercase ${isEnabled ? 'bg-emerald-500 text-slate-950' : 'bg-amber-400 text-slate-950'}`;
-        statusBadge.textContent = isEnabled ? '🟢 PUBLICLY ACTIVE' : '🔒 DRAFT / ADMIN TRIAL ONLY';
+        statusBadge.textContent = isEnabled ? '🟢 PUBLICLY ACTIVE' : '🔒 DRAFT MODE (ADMIN ONLY)';
       }
       alert(isEnabled 
         ? "✅ Public Tournament Creation is now ACTIVE on the homepage! Visitors can create their own leagues."
@@ -6564,11 +8110,11 @@ export function renderAdminSaasTournamentsPanel() {
     };
   }
 
-  // 2. Wire up Master Trial Launch Button
-  if (trialBtn) {
-    trialBtn.onclick = () => {
+  // 2. Wire up Master Create Tournament Button
+  if (createBtn) {
+    createBtn.onclick = () => {
       if (window.openTournamentCreationWizard) {
-        window.openTournamentCreationWizard(true);
+        window.openTournamentCreationWizard(false);
       }
     };
   }
@@ -6587,10 +8133,10 @@ export function renderAdminSaasTournamentsPanel() {
         </div>
         <div class="space-y-1">
           <h4 class="text-xs sm:text-sm font-black text-slate-900">No Custom Tournaments Created Yet</h4>
-          <p class="text-[11px] text-slate-500 max-w-sm mx-auto">Click below to test the Tournament Creation Wizard in Trial Mode (Safe & Private).</p>
+          <p class="text-[11px] text-slate-500 max-w-sm mx-auto">Click below to create and launch your first custom tournament.</p>
         </div>
-        <button type="button" onclick="window.openTournamentCreationWizard ? window.openTournamentCreationWizard(true) : null" class="px-4 py-2 bg-gradient-to-r from-amber-400 to-yellow-500 text-slate-950 font-black text-xs rounded-xl shadow-xs border border-amber-300 cursor-pointer">
-          + Create First Trial Tournament
+        <button type="button" onclick="window.openTournamentCreationWizard ? window.openTournamentCreationWizard(false) : null" class="px-4 py-2 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow-xs border border-amber-300 cursor-pointer">
+          + Create First Tournament
         </button>
       </div>
     `;
@@ -6604,6 +8150,7 @@ export function renderAdminSaasTournamentsPanel() {
           <tr>
             <th class="py-2.5 px-3">TOURNAMENT</th>
             <th class="py-2.5 px-2.5">MODE</th>
+            <th class="py-2.5 px-2.5">STATUS</th>
             <th class="py-2.5 px-2.5">ORGANIZER</th>
             <th class="py-2.5 px-2.5">ENTRY / PURSE</th>
             <th class="py-2.5 px-3 text-right">ACTIONS</th>
@@ -6612,8 +8159,12 @@ export function renderAdminSaasTournamentsPanel() {
         <tbody class="divide-y divide-slate-100 font-semibold">
           ${tourneys.map(t => {
             const isAuction = (t.mode === 'AUCTION_LEAGUE');
+            const statusUpper = (t.status || 'ACTIVE').toUpperCase();
+            const isPending = (statusUpper === 'PENDING_APPROVAL' || statusUpper === 'PENDING');
+            const isRejected = (statusUpper === 'REJECTED');
+
             return `
-              <tr class="hover:bg-slate-50/80 transition-colors">
+              <tr class="hover:bg-slate-50/80 transition-colors ${isPending ? 'bg-amber-50/40' : ''}">
                 <td class="py-2.5 px-3">
                   <div class="flex items-center gap-2">
                     <span class="w-7 h-7 rounded-lg ${isAuction ? 'bg-amber-100 text-amber-800' : 'bg-emerald-100 text-emerald-800'} flex items-center justify-center text-xs font-black shrink-0">
@@ -6633,6 +8184,22 @@ export function renderAdminSaasTournamentsPanel() {
                 </td>
 
                 <td class="py-2.5 px-2.5">
+                  ${isPending ? `
+                    <span class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-amber-100 text-amber-900 border border-amber-300 flex items-center gap-1 w-max animate-pulse">
+                      <span>⏳</span> Awaiting Approval
+                    </span>
+                  ` : isRejected ? `
+                    <span class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-rose-100 text-rose-900 border border-rose-300 flex items-center gap-1 w-max">
+                      <span>🔴</span> Rejected
+                    </span>
+                  ` : `
+                    <span class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center gap-1 w-max">
+                      <span>🟢</span> Active
+                    </span>
+                  `}
+                </td>
+
+                <td class="py-2.5 px-2.5">
                   <div class="text-xs font-bold text-slate-900">${t.organizer?.name || 'Organizer'}</div>
                   <div class="text-[9px] text-slate-500 font-mono">📱 ${t.organizer?.phone || 'N/A'}</div>
                 </td>
@@ -6648,16 +8215,32 @@ export function renderAdminSaasTournamentsPanel() {
 
                 <td class="py-2.5 px-3 text-right">
                   <div class="flex items-center justify-end gap-1.5 flex-wrap">
-                    ${isAuction ? `
-                      <button type="button" class="btn-test-reg-modal px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-[10px] font-black cursor-pointer" data-slug="${t.slug}">
+                    ${isPending ? `
+                      <button type="button" class="btn-approve-tourney px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-black cursor-pointer shadow-xs flex items-center gap-1" data-id="${t.id}" data-name="${t.name}" data-phone="${t.organizer?.phone || ''}" data-slug="${t.slug}" data-supabase-id="${t.supabaseId || t.tournament_id || t.id || ''}">
+                        ✅ Approve
+                      </button>
+                      <button type="button" class="btn-reject-tourney px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-lg text-[10px] font-black cursor-pointer shadow-2xs" data-id="${t.id}" data-name="${t.name}" data-slug="${t.slug}" data-supabase-id="${t.supabaseId || t.tournament_id || t.id || ''}">
+                        ❌ Reject
+                      </button>
+                    ` : isRejected ? `
+                      <button type="button" class="btn-approve-tourney px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-black cursor-pointer shadow-xs flex items-center gap-1" data-id="${t.id}" data-name="${t.name}" data-phone="${t.organizer?.phone || ''}" data-slug="${t.slug}" data-supabase-id="${t.supabaseId || t.tournament_id || t.id || ''}">
+                        🔄 Re-Approve
+                      </button>
+                    ` : ''}
+
+                    <button type="button" class="btn-edit-tourney px-2 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-lg text-[10px] font-black cursor-pointer flex items-center gap-1 shadow-2xs" data-id="${t.id}">
+                      ✏️ Edit
+                    </button>
+                    ${(isAuction && !isPending && !isRejected) ? `
+                      <button type="button" class="btn-test-reg-modal px-2 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-lg text-[10px] font-black cursor-pointer shadow-2xs" data-slug="${t.slug}">
                         📝 Test Reg
                       </button>
                     ` : ''}
-                    <button type="button" class="btn-open-hub-link px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-300 rounded-lg text-[10px] font-black cursor-pointer" data-slug="${t.slug}">
+                    <button type="button" class="btn-open-hub-link px-2 py-1 bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-300 rounded-lg text-[10px] font-black cursor-pointer shadow-2xs" data-slug="${t.slug}">
                       🌐 Hub
                     </button>
-                    <button type="button" class="btn-delete-tourney px-1.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-[10px] font-black cursor-pointer" data-id="${t.id}" data-name="${t.name}">
-                      ✕
+                    <button type="button" class="btn-delete-tourney px-2 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-[10px] font-black cursor-pointer shadow-2xs" data-id="${t.id}" data-slug="${t.slug}" data-supabase-id="${t.supabaseId || t.tournament_id || t.id || ''}" data-name="${t.name}">
+                      🗑️ Delete
                     </button>
                   </div>
                 </td>
@@ -6670,6 +8253,57 @@ export function renderAdminSaasTournamentsPanel() {
   `;
 
   // Attach Table Action Listeners
+  container.querySelectorAll('.btn-approve-tourney').forEach(b => {
+    b.addEventListener('click', async (e) => {
+      const id = e.currentTarget.getAttribute('data-id');
+      const name = e.currentTarget.getAttribute('data-name');
+      const phone = e.currentTarget.getAttribute('data-phone');
+      const slug = e.currentTarget.getAttribute('data-slug');
+      const supabaseId = e.currentTarget.getAttribute('data-supabase-id');
+      if (confirm(`✅ Approve & Activate tournament "${name}"?\n\nThis will open player registration and activate the public hub immediately.`)) {
+        b.disabled = true;
+        b.textContent = '⏳ Approving...';
+        await store.approveTournament(id, slug, supabaseId);
+        renderAdminSaasTournamentsPanel();
+
+        // 1-Tap WhatsApp notify organizer
+        if (phone && confirm(`💬 Would you like to send official approval on WhatsApp to the organizer (${phone})?`)) {
+          const cleanPhone = phone.replace(/[^0-9]/g, '');
+          const hostUrl = window.location.origin + window.location.pathname;
+          const regUrl = `${hostUrl}#reg-${slug}`;
+          const msg = `🎉 *CONGRATULATIONS! YOUR TOURNAMENT IS APPROVED & LIVE!* 🏆\n\nDear Organizer,\nYour tournament *${name}* has been officially verified and activated on Cricket Premier League.\n\n🔗 *Player Registration Link:* ${regUrl}\n\nYou can now share this registration link with teams and players.\n\nBest regards,\n*Master Admin - CPL Platform*`;
+          window.open(`https://wa.me/91${cleanPhone}?text=${encodeURIComponent(msg)}`, '_blank');
+        }
+      }
+    });
+  });
+
+  container.querySelectorAll('.btn-reject-tourney').forEach(b => {
+    b.addEventListener('click', async (e) => {
+      const id = e.currentTarget.getAttribute('data-id');
+      const name = e.currentTarget.getAttribute('data-name');
+      const slug = e.currentTarget.getAttribute('data-slug');
+      const supabaseId = e.currentTarget.getAttribute('data-supabase-id');
+      const reason = prompt(`❌ Enter rejection reason for tournament "${name}":`, "Application details could not be verified.");
+      if (reason !== null) {
+        b.disabled = true;
+        b.textContent = '⏳ Rejecting...';
+        await store.rejectTournament(id, reason, slug, supabaseId);
+        renderAdminSaasTournamentsPanel();
+      }
+    });
+  });
+
+  container.querySelectorAll('.btn-edit-tourney').forEach(b => {
+    b.addEventListener('click', (e) => {
+      const id = e.currentTarget.getAttribute('data-id');
+      const t = tourneys.find(item => item.id === id);
+      if (t) {
+        openEditTournamentModal(t, () => renderAdminSaasTournamentsPanel());
+      }
+    });
+  });
+
   container.querySelectorAll('.btn-test-reg-modal').forEach(b => {
     b.addEventListener('click', (e) => {
       const slug = e.currentTarget.getAttribute('data-slug');
@@ -6691,11 +8325,217 @@ export function renderAdminSaasTournamentsPanel() {
   container.querySelectorAll('.btn-delete-tourney').forEach(b => {
     b.addEventListener('click', async (e) => {
       const id = e.currentTarget.getAttribute('data-id');
+      const slug = e.currentTarget.getAttribute('data-slug');
+      const supabaseId = e.currentTarget.getAttribute('data-supabase-id');
       const name = e.currentTarget.getAttribute('data-name');
-      if (confirm(`⚠️ Are you sure you want to delete tournament "${name}"?`)) {
-        await store.deleteCustomTournament(id);
+      if (confirm(`⚠️ Are you sure you want to permanently delete tournament "${name}"?\n\nThis will remove this tournament, its settings, and organizer access.`)) {
+        b.disabled = true;
+        b.textContent = '⏳ Deleting...';
+        await store.deleteCustomTournament(id, slug, supabaseId);
+        renderAdminSaasTournamentsPanel();
       }
     });
+  });
+}
+
+/**
+ * Super Admin Modal: Full Tournament Editor & Admin Password Updater
+ */
+function openEditTournamentModal(tourney, onSaveCallback) {
+  document.getElementById('edit-tournament-modal')?.remove();
+
+  const isAuction = (tourney.mode === 'AUCTION_LEAGUE');
+  const orgName = tourney.organizer?.name || '';
+  const orgPhone = tourney.organizer?.phone || '';
+
+  const modalEl = document.createElement('div');
+  modalEl.id = 'edit-tournament-modal';
+  modalEl.className = 'fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-950/70 backdrop-blur-xs overflow-y-auto animate-fade-in';
+
+  modalEl.innerHTML = `
+    <div class="bg-white rounded-3xl border-2 border-amber-400 shadow-2xl max-w-2xl w-full max-h-[92vh] flex flex-col overflow-hidden text-slate-900 my-auto">
+      <!-- Header -->
+      <div class="px-5 py-4 bg-gradient-to-r from-amber-500 via-amber-600 to-amber-700 text-slate-950 flex items-center justify-between shadow-xs">
+        <div class="flex items-center gap-2.5">
+          <span class="p-2 bg-slate-950 text-amber-400 rounded-xl text-lg font-black shadow-xs">✏️</span>
+          <div>
+            <h3 class="text-base font-black tracking-wide text-slate-950">Edit Tournament & Admin Access</h3>
+            <p class="text-[11px] text-slate-900 font-bold opacity-90">Modify details, dates, fees or reset organizer login password</p>
+          </div>
+        </div>
+        <button id="close-edit-tourney-modal-btn" class="w-8 h-8 rounded-xl bg-slate-950/20 hover:bg-slate-950/40 text-slate-950 font-black flex items-center justify-center text-sm cursor-pointer transition-colors">
+          ✕
+        </button>
+      </div>
+
+      <!-- Form Body -->
+      <form id="edit-tourney-form" class="p-5 overflow-y-auto space-y-4 text-xs font-semibold">
+        <!-- Section 1: Tournament Identity -->
+        <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+          <div class="flex items-center gap-2 text-amber-800 font-black text-xs uppercase tracking-wider">
+            <span>🏆</span> Tournament Information
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[11px] font-black text-slate-700 mb-1">Tournament Name *</label>
+              <input type="text" id="edit-tourney-name" required value="${tourney.name || ''}" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-bold focus:border-amber-500 focus:outline-none" />
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-black text-slate-700 mb-1">Short Slug / Code *</label>
+              <input type="text" id="edit-tourney-slug" required value="${tourney.slug || ''}" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-mono font-bold focus:border-amber-500 focus:outline-none" />
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-black text-slate-700 mb-1">Ground / Venue</label>
+              <input type="text" id="edit-tourney-venue" value="${tourney.venue || ''}" placeholder="e.g. Eden Gardens, Kolkata" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-bold focus:border-amber-500 focus:outline-none" />
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-black text-slate-700 mb-1">Dates / Season</label>
+              <input type="text" id="edit-tourney-dates" value="${tourney.dates || ''}" placeholder="e.g. 15-20 October 2026" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-bold focus:border-amber-500 focus:outline-none" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 2: Mode & Financials -->
+        <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+          <div class="flex items-center gap-2 text-emerald-800 font-black text-xs uppercase tracking-wider">
+            <span>⚙️</span> Mode & Financial Rules
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-[11px] font-black text-slate-700 mb-1">Operating Mode</label>
+              <select id="edit-tourney-mode" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-bold focus:border-emerald-500 focus:outline-none">
+                <option value="AUCTION_LEAGUE" ${tourney.mode === 'AUCTION_LEAGUE' ? 'selected' : ''}>Mode A: Player Reg + Auction</option>
+                <option value="FIXTURES_ONLY" ${tourney.mode === 'FIXTURES_ONLY' ? 'selected' : ''}>Mode B: Teams & Live Scoring</option>
+              </select>
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-black text-slate-700 mb-1">Player Entry Fee (₹)</label>
+              <input type="number" id="edit-tourney-entry-fee" value="${tourney.entryFee || 300}" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-mono font-bold focus:border-emerald-500 focus:outline-none" />
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-black text-slate-700 mb-1">Team Auction Purse (₹)</label>
+              <input type="number" id="edit-tourney-purse" value="${tourney.teamPurse || 8000}" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-mono font-bold focus:border-emerald-500 focus:outline-none" />
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-black text-slate-700 mb-1">Rule / Player Eligibility Restriction</label>
+            <input type="text" id="edit-tourney-rules" value="${tourney.ruleRestriction || ''}" placeholder="e.g. Open to all local district players" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-bold focus:border-emerald-500 focus:outline-none" />
+          </div>
+        </div>
+
+        <!-- Section 3: Organizer Admin Credentials -->
+        <div class="p-3.5 bg-amber-50/70 border border-amber-300 rounded-2xl space-y-3">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-2 text-amber-950 font-black text-xs uppercase tracking-wider">
+              <span>👑</span> Organizer / Admin Access
+            </div>
+            <span class="px-2 py-0.5 bg-amber-200 text-amber-950 rounded-full text-[9px] font-black">Login ID & Password</span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-[11px] font-black text-slate-700 mb-1">Admin / Organizer Name</label>
+              <input type="text" id="edit-tourney-org-name" value="${orgName}" placeholder="e.g. Gourav Roy" class="w-full px-3 py-2 bg-white border border-amber-300 rounded-xl text-slate-900 text-xs font-bold focus:border-amber-600 focus:outline-none" />
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-black text-slate-700 mb-1">Admin Phone (Login ID) *</label>
+              <input type="text" id="edit-tourney-org-phone" required maxlength="10" value="${orgPhone}" placeholder="10-digit mobile" class="w-full px-3 py-2 bg-white border border-amber-300 rounded-xl text-slate-900 text-xs font-mono font-bold focus:border-amber-600 focus:outline-none" />
+            </div>
+
+            <div>
+              <label class="block text-[11px] font-black text-slate-700 mb-1">Change Admin Password</label>
+              <input type="text" id="edit-tourney-org-password" placeholder="Leave blank to keep unchanged" class="w-full px-3 py-2 bg-white border border-amber-300 rounded-xl text-slate-900 text-xs font-mono font-bold focus:border-amber-600 focus:outline-none" />
+            </div>
+          </div>
+        </div>
+
+        <!-- Action Buttons Footer -->
+        <div class="pt-2 flex items-center justify-end gap-2.5">
+          <button type="button" id="cancel-edit-tourney-btn" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer transition-colors">
+            Cancel
+          </button>
+          <button type="submit" class="px-5 py-2.5 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-600 text-white font-black rounded-xl text-xs shadow-md flex items-center gap-1.5 cursor-pointer transition-all border border-emerald-500">
+            💾 Save & Update Tournament
+          </button>
+        </div>
+      </form>
+    </div>
+  `;
+
+  document.body.appendChild(modalEl);
+
+  const closeModal = () => modalEl.remove();
+  document.getElementById('close-edit-tourney-modal-btn')?.addEventListener('click', closeModal);
+  document.getElementById('cancel-edit-tourney-btn')?.addEventListener('click', closeModal);
+
+  document.getElementById('edit-tourney-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+
+    const name = document.getElementById('edit-tourney-name').value.trim();
+    const slug = document.getElementById('edit-tourney-slug').value.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '-');
+    const venue = document.getElementById('edit-tourney-venue').value.trim();
+    const dates = document.getElementById('edit-tourney-dates').value.trim();
+    const mode = document.getElementById('edit-tourney-mode').value;
+    const entryFee = Number(document.getElementById('edit-tourney-entry-fee').value) || 300;
+    const teamPurse = Number(document.getElementById('edit-tourney-purse').value) || 8000;
+    const ruleRestriction = document.getElementById('edit-tourney-rules').value.trim();
+    const orgNameInput = document.getElementById('edit-tourney-org-name').value.trim();
+    const orgPhoneInput = document.getElementById('edit-tourney-org-phone').value.trim().replace(/[^0-9]/g, '');
+    const newPassword = document.getElementById('edit-tourney-org-password').value.trim();
+
+    if (!name || !slug) {
+      alert("Please provide both Tournament Name and Slug!");
+      return;
+    }
+
+    if (!orgPhoneInput || orgPhoneInput.length < 10) {
+      alert("Please enter a valid 10-digit Admin Mobile Number!");
+      return;
+    }
+
+    const updatedData = {
+      ...tourney,
+      name,
+      slug,
+      venue,
+      dates,
+      mode,
+      entryFee,
+      teamPurse,
+      ruleRestriction,
+      organizer: {
+        ...(tourney.organizer || {}),
+        name: orgNameInput || 'Tournament Organizer',
+        phone: orgPhoneInput,
+        ...(newPassword ? { password: newPassword } : {})
+      }
+    };
+
+    // Save update via store
+    await store.saveCustomTournament(updatedData);
+
+    // If new password provided, also update in user account and tournament owners registry
+    if (newPassword) {
+      const accounts = store.getUserAccounts ? store.getUserAccounts() : [];
+      const acc = accounts.find(a => a.phone === orgPhoneInput);
+      if (acc) {
+        acc.password = newPassword;
+        safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, accounts);
+      }
+    }
+
+    alert(`✅ Tournament "${name}" updated successfully!`);
+    closeModal();
+    if (typeof onSaveCallback === 'function') onSaveCallback();
   });
 }
 
@@ -6765,8 +8605,23 @@ window.finishMatchManually = function() {
     fixture.result = resultTxt;
     fixture.winnerTeamId = winnerId;
     
+    // Clear active scoring session flags completely!
+    window.__cplActiveScoringFixtureId = null;
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('cpl_active_scoring_fixture_id');
+      localStorage.removeItem(`cpl_active_scoring_${fixture.id}_v`);
+    }
+    activeScoringMatchId = null;
+
+    const selMatch = document.getElementById('scorer-select-match');
+    if (selMatch) selMatch.value = '';
+
     store.updateFixture(fixture);
+
     document.getElementById('scorer-active-panel')?.classList.add('hidden');
+    const startBtnTxt = document.getElementById('scorer-start-match-btn-txt');
+    if (startBtnTxt) startBtnTxt.textContent = "🚀 MATCH IS READY TO START";
+
     renderScorerMatchesList();
     renderAdminFixturesList();
     alert(`🎉 Match Completed!\n\nResult: ${resultTxt}`);

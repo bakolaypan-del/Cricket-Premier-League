@@ -1,13 +1,109 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=11.6.4';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, printDigitalPass, openUserGuidePDF } from './export.js?v=11.6.4';
-import { renderAdminDashboard } from './admin.js?v=11.6.4';
-import { uploadHDImage, fetchAdSettingsFromFirebase, fetchPopupSettingsFromFirebase, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats } from './supabase.js?v=11.6.4';
-import { shops } from './shopsData.js?v=11.6.4';
+import { store } from './store.js?v=13.0.53';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.53';
+import { renderAdminDashboard } from './admin.js?v=13.0.53';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.53';
+import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.53';
+import { shops } from './shopsData.js?v=12.0.2';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
-let latestVisitorStats = { liveCount: 1, totalVisits: 286 };
+const CARD_OUTLINE_COLORS = ['#10b981','#3b82f6','#f59e0b','#f43f5e','#a855f7','#14b8a6','#f97316','#6366f1','#ec4899','#06b6d4'];
+let latestVisitorStats = { liveCount: 1, totalVisits: 259 };
+
+const CRICKET_THUMBNAILS = [
+  { gradient: 'from-emerald-800 via-teal-700 to-green-900', emoji: '🏏', pattern: 'Cricket Stadium' },
+  { gradient: 'from-amber-800 via-orange-700 to-yellow-900', emoji: '🏆', pattern: 'Trophy Cup' },
+  { gradient: 'from-blue-800 via-indigo-700 to-sky-900', emoji: '⚡', pattern: 'Thunder League' },
+  { gradient: 'from-red-800 via-rose-700 to-pink-900', emoji: '🔥', pattern: 'Fire Cricket' },
+  { gradient: 'from-purple-800 via-violet-700 to-fuchsia-900', emoji: '👑', pattern: 'Royal Premier' },
+  { gradient: 'from-cyan-800 via-teal-600 to-emerald-800', emoji: '🌟', pattern: 'Star League' },
+  { gradient: 'from-slate-800 via-zinc-700 to-neutral-900', emoji: '🎯', pattern: 'Precision Cup' },
+  { gradient: 'from-lime-800 via-green-700 to-emerald-900', emoji: '🏟️', pattern: 'Ground Arena' },
+  { gradient: 'from-orange-800 via-amber-600 to-red-900', emoji: '🏅', pattern: 'Gold Medal' },
+  { gradient: 'from-indigo-800 via-blue-600 to-violet-900', emoji: '💫', pattern: 'Galaxy Cup' },
+];
+
+function computeTeamStandings(teamList, categoryFixtures) {
+  if (!Array.isArray(teamList)) return [];
+  const fixtures = Array.isArray(categoryFixtures) ? categoryFixtures : [];
+
+  const standings = teamList.map(t => {
+    const teamId = t.id;
+    const teamFixtures = fixtures.filter(f => f && f.status === 'COMPLETED' && (f.teamAId === teamId || f.teamBId === teamId));
+    
+    let played = teamFixtures.length;
+    let won = 0;
+    let lost = 0;
+    let nr = 0;
+    let points = 0;
+    let totalRunsScored = 0;
+    let totalOversFaced = 0;
+    let totalRunsConceded = 0;
+    let totalOversBowled = 0;
+
+    teamFixtures.forEach(f => {
+      const isTeamA = f.teamAId === teamId;
+      const myScore = isTeamA ? f.teamAScore : f.teamBScore;
+      const oppScore = isTeamA ? f.teamBScore : f.teamAScore;
+
+      if (f.winnerTeamId === teamId) {
+        won += 1;
+        points += 2;
+      } else if (!f.winnerTeamId) {
+        nr += 1;
+        points += 1;
+      } else {
+        lost += 1;
+      }
+
+      if (myScore && oppScore) {
+        totalRunsScored += myScore.runs || 0;
+        const myOversLimit = f.oversLimit || 16;
+        if (myScore.wickets === 10) {
+          totalOversFaced += myOversLimit;
+        } else {
+          const balls = (myScore.overs || 0) * 6 + (myScore.balls || 0);
+          totalOversFaced += balls / 6;
+        }
+
+        totalRunsConceded += oppScore.runs || 0;
+        if (oppScore.wickets === 10) {
+          totalOversBowled += myOversLimit;
+        } else {
+          const oppBalls = (oppScore.overs || 0) * 6 + (oppScore.balls || 0);
+          totalOversBowled += oppBalls / 6;
+        }
+      }
+    });
+
+    const myRR = totalOversFaced > 0 ? (totalRunsScored / totalOversFaced) : 0;
+    const oppRR = totalOversBowled > 0 ? (totalRunsConceded / totalOversBowled) : 0;
+    const nrrVal = myRR - oppRR;
+
+    return {
+      ...t,
+      id: t.id,
+      name: t.name,
+      group: (t.group || 'A').toUpperCase(),
+      played,
+      won,
+      lost,
+      nr,
+      points,
+      nrr: nrrVal.toFixed(3)
+    };
+  });
+
+  standings.sort((a, b) => {
+    if (b.points !== a.points) return b.points - a.points;
+    if (parseFloat(b.nrr) !== parseFloat(a.nrr)) return parseFloat(b.nrr) - parseFloat(a.nrr);
+    return b.won - a.won;
+  });
+
+  return standings;
+}
+window.computeTeamStandings = computeTeamStandings;
 
 // PWA Deferred Prompt Capture
 let deferredPrompt = null;
@@ -18,10 +114,21 @@ window.addEventListener('beforeinstallprompt', (e) => {
 });
 
 // ALWAYS default to landing page (No category opens automatically!)
-let currentRoute = 'landing'; // landing, jsl-hub, admin, fixtures, auction, career, profile, shop-detail
+let currentRoute = 'landing'; // landing, tournament-hub, admin, fixtures, auction, career, profile, shop-detail
 let selectedShopId = '';
 let introScreenInitialized = false;
 let renderDebounceTimer = null;
+let auctionPollInterval = null;
+let pollActiveAuctionState = null;
+
+let activeFixtureCategory = (() => {
+  try {
+    const saved = sessionStorage.getItem('cpl_active_fixture_cat');
+    return (!saved || saved === 'T') ? 'ALL' : saved;
+  } catch(e) { return 'ALL'; }
+})();
+let activeFixtureSubTab = (() => { try { return sessionStorage.getItem('cpl_active_fixture_subtab') || 'matches'; } catch(e) { return 'matches'; } })();
+let activeFixtureGroupFilter = (() => { try { return sessionStorage.getItem('cpl_active_fixture_grp_filter') || 'ALL'; } catch(e) { return 'ALL'; } })();
 
 function bootApp() {
   initIntroLoadingScreen();
@@ -102,13 +209,58 @@ function initIntroLoadingScreen() {
 }
 
 function initApp() {
-  // Initialize Real-time Live & Total Visitor Tracking
+  // Deep-link & Refresh Persistence: read hash route or last session route on initial page load
+  let initialHash = location.hash.replace(/^#/, '');
+  if (!initialHash) {
+    try {
+      const saved = sessionStorage.getItem('cpl_last_route');
+      if (saved && saved !== 'landing') {
+        initialHash = saved;
+      }
+    } catch(e) {}
+  }
+  if (initialHash) {
+    currentRoute = initialHash;
+    if (!location.hash && history.replaceState) {
+      history.replaceState({ route: initialHash }, '', `#${initialHash}`);
+    }
+  }
+
+  // Initialize Real-time Live & Total Visitor Tracking & Global Unique Player Count
   initVisitorTracking((stats) => {
     latestVisitorStats = stats;
     const liveEl = document.getElementById('live-visitors-count');
     const totalEl = document.getElementById('total-visitors-count');
+    const regEl = document.getElementById('landing-registered-count');
     if (liveEl) liveEl.textContent = stats.liveCount;
     if (totalEl) totalEl.textContent = Number(stats.totalVisits).toLocaleString('en-IN');
+    if (regEl && store.getTotalRegisteredPlayersCount) regEl.textContent = store.getTotalRegisteredPlayersCount();
+    if (store.syncGlobalPlayersCount) store.syncGlobalPlayersCount();
+  });
+
+  // Initialize Web Push Notifications & Live Match Alerts
+  initPushNotifications();
+
+  // Real-time Live Match Status Notification Watcher
+  let previousFixtureStatuses = {};
+  window.addEventListener('fixtures_updated', () => {
+    try {
+      const fixtures = store.getFixtures() || [];
+      fixtures.forEach(f => {
+        const prevStatus = previousFixtureStatuses[f.id];
+        if (prevStatus && prevStatus !== f.status) {
+          const tourney = store.getCustomTournamentById(f.tournamentId) || { name: `${f.leagueCode || 'T'} PREMIER LEAGUE`, slug: f.tournamentSlug };
+          if (f.status === 'LIVE') {
+            notifyMatchLive(f, tourney);
+          } else if (f.status === 'COMPLETED') {
+            notifyMatchResult(f, tourney);
+          }
+        }
+        previousFixtureStatuses[f.id] = f.status;
+      });
+    } catch (e) {
+      console.warn('Live notification watcher error:', e);
+    }
   });
 
   renderNavbar();
@@ -140,7 +292,7 @@ function initApp() {
     // IF ON HOME/LANDING PAGE, NEVER WIPE OR FLASH THE SCREEN: Smooth in-place updates only
     if (currentRoute === 'landing') {
       const regCountEl = document.getElementById('landing-registered-count');
-      if (regCountEl) regCountEl.textContent = store.getPlayers().length;
+      if (regCountEl) regCountEl.textContent = store.getTotalRegisteredPlayersCount ? store.getTotalRegisteredPlayersCount() : store.getPlayers().length;
       return;
     }
 
@@ -153,17 +305,39 @@ function initApp() {
       }
     }
 
-    // IF ON JSL-HUB TAB, NEVER WIPE CAROUSEL OR POSTER: Smooth in-place counter updates
-    if (currentRoute === 'jsl-hub') {
-      const pCountEl = document.getElementById('jsl-hub-players-count');
-      const tCountEl = document.getElementById('jsl-hub-teams-count');
+    // IF ON TOURNAMENT-HUB TAB: Smooth in-place counter updates & real-time modal update
+    if (currentRoute === 'tournament-hub') {
+      const pCountEl = document.getElementById('tournament-hub-players-count');
+      const tCountEl = document.getElementById('tournament-hub-teams-count');
       if (pCountEl) pCountEl.textContent = store.getPlayers().length;
       if (tCountEl) tCountEl.textContent = store.getTeams().length;
+
+      // If registered player list modal is currently open, dynamically update it in real-time!
+      const playerListContainer = document.getElementById('players-list-container');
+      if (playerListContainer && typeof renderPlayerCardsWithSerial === 'function') {
+        const allPlayers = store.getPlayers();
+        const countDisplay = document.getElementById('player-count-display');
+        if (countDisplay) countDisplay.textContent = `(${allPlayers.length})`;
+        playerListContainer.innerHTML = `
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
+            ${renderPlayerCardsWithSerial(allPlayers)}
+          </div>
+        `;
+        if (window.lucide) window.lucide.createIcons();
+      }
       return;
     }
 
-    // IF ON ADMIN TAB, NEVER WIPE THE ENTIRE DASHBOARD ON REALTIME EVENTS (PREVENTS FLICKER):
+    // IF ON ADMIN TAB: Smooth in-place real-time table refresh
     if (currentRoute === 'admin') {
+      const isModalOpen = document.getElementById('admin-edit-player-modal');
+      const isUserEditing = document.querySelector('input:focus, select:focus, textarea:focus');
+      if (!isModalOpen && !isUserEditing) {
+        const adminAppContainer = document.getElementById('app-admin');
+        if (adminAppContainer) {
+          renderAdminDashboard(adminAppContainer);
+        }
+      }
       return;
     }
 
@@ -177,6 +351,9 @@ function initApp() {
 
     if (renderDebounceTimer) clearTimeout(renderDebounceTimer);
     renderDebounceTimer = setTimeout(() => {
+      const scrollY = window.scrollY;
+      document.body.classList.add('no-anim');
+
       renderCurrentView();
 
       // REAL-TIME AUTO SQUAD SYNC: If Franchise Squad Modal is open on screen, re-render it in real-time!
@@ -184,13 +361,35 @@ function initApp() {
       if (openSquadModal && window.currentViewingTeamId) {
         openTeamPurchasedSquadModal(window.currentViewingTeamId);
       }
+
+      window.scrollTo(0, scrollY);
+      setTimeout(() => document.body.classList.remove('no-anim'), 100);
     }, 250);
   };
 
   window.addEventListener('leagues_updated', safeRenderCurrentView);
   window.addEventListener('players_updated', safeRenderCurrentView);
   window.addEventListener('teams_updated', safeRenderCurrentView);
-  window.addEventListener('registration_settings_updated', safeRenderCurrentView);
+  window.addEventListener('fixtures_updated', safeRenderCurrentView);
+  window.addEventListener('registration_settings_updated', () => {
+    if (renderDebounceTimer) clearTimeout(renderDebounceTimer);
+    renderDebounceTimer = setTimeout(() => renderCurrentView(), 250);
+  });
+  window.addEventListener('custom_tournaments_updated', () => {
+    if (currentRoute === 'admin') return;
+    if (renderDebounceTimer) clearTimeout(renderDebounceTimer);
+    renderDebounceTimer = setTimeout(() => {
+      const isUserBusy = document.querySelector('input:focus, select:focus, textarea:focus') ||
+                         document.getElementById('player-reg-modal') ||
+                         document.getElementById('team-reg-modal') ||
+                         document.getElementById('edit-player-modal') ||
+                         document.getElementById('edit-tournament-modal');
+      if (isUserBusy) return;
+      if (currentRoute === 'landing' || currentRoute === 'tournaments') {
+        renderCurrentView();
+      }
+    }, 200);
+  });
   
   // LIVE AUCTION SYNC: Only update auction page when on auction route to prevent unnecessary full-page refreshes
   window.addEventListener('live_auction_updated', () => {
@@ -212,15 +411,13 @@ function initApp() {
   });
 }
 
-let auctionPollInterval = null;
-let pollActiveAuctionState = null;
-
 function navigate(route, pushState = true) {
   if (auctionPollInterval) {
     clearInterval(auctionPollInterval);
     auctionPollInterval = null;
   }
   currentRoute = route;
+  try { sessionStorage.setItem('cpl_last_route', route); } catch(e) {}
   if (pushState && history.pushState) {
     history.pushState({ route }, '', `#${route}`);
   }
@@ -242,6 +439,13 @@ window.addEventListener('popstate', (e) => {
     navigate(e.state.route, false);
   } else {
     navigate('landing', false);
+  }
+});
+
+window.addEventListener('hashchange', () => {
+  const hash = location.hash.replace(/^#/, '');
+  if (hash && hash !== currentRoute) {
+    navigate(hash, false);
   }
 });
 
@@ -279,7 +483,7 @@ function openAppInstallInstructionModal() {
             OFFICIAL MOBILE APP INSTALLATION
           </span>
           <h2 class="text-lg sm:text-xl font-black text-slate-900">Install CPL 2026 Mobile App</h2>
-          <p class="text-xs text-slate-600">Get 1-click home screen access to Jhankra Super League on your mobile phone!</p>
+          <p class="text-xs text-slate-600">Get 1-click home screen access to Cricket Premier League on your mobile phone!</p>
         </div>
 
         <div class="bg-slate-50 p-3 rounded-xl border border-slate-200 text-left space-y-2 text-xs">
@@ -321,7 +525,7 @@ function openAppInstallInstructionModal() {
 
 async function checkAndPromptFirstVisitPopup() {
   try {
-    const settings = await fetchPopupSettingsFromFirebase();
+    const settings = await fetchPopupSettingsFromCloud();
     if (!settings || !settings.isWelcomePopupEnabled) {
       console.log("Welcome popup is disabled by admin.");
       return;
@@ -355,7 +559,7 @@ function openFirstVisitWelcomeModal() {
           <span class="px-3 py-0.5 bg-amber-100 text-amber-900 font-extrabold text-[10px] rounded-full uppercase border border-amber-300 tracking-wider">
             ✨ OFFICIAL TOURNAMENT PORTAL ✨
           </span>
-          <h2 class="text-lg sm:text-xl font-black text-slate-900">Welcome to Jhankra Super League (JSL 2026)!</h2>
+          <h2 class="text-lg sm:text-xl font-black text-slate-900">Welcome to Cricket Premier League!</h2>
           <p class="text-xs text-slate-600 leading-relaxed">
             Step onto the pitch & claim your victory! Register your Franchise Team or Player entry online or install our Mobile App.
           </p>
@@ -397,6 +601,11 @@ function openFirstVisitWelcomeModal() {
 // --- YOUTUBE CHANNEL PROMOTIONAL POPUP BANNER (BENGALI) ---
 async function checkAndPromptYouTubePromoPopup() {
   try {
+    const settings = await fetchPopupSettingsFromCloud();
+    if (!settings || !settings.isYouTubePromoEnabled) {
+      console.log("YouTube promo popup is disabled by admin.");
+      return;
+    }
     if (!sessionStorage.getItem('cpl_yt_promo_shown_v1')) {
       sessionStorage.setItem('cpl_yt_promo_shown_v1', 'true');
       openYouTubePromoModal();
@@ -536,6 +745,38 @@ export function openYouTubePromoModal(forceOpen = false) {
   document.getElementById('yt-subscribe-btn')?.addEventListener('click', removeModal);
 }
 
+if (typeof window !== 'undefined') {
+  window.openYouTubePromoModal = openYouTubePromoModal;
+  window.addEventListener('popup_settings_updated', (e) => {
+    const settings = e.detail;
+    if (!settings) return;
+    
+    // 1. Live Countdown Banner sync
+    const countdownCard = document.getElementById('tournament-countdown-card');
+    if (countdownCard) {
+      if (settings.isCountdownEnabled === false) {
+        countdownCard.classList.add('hidden');
+      } else {
+        countdownCard.classList.remove('hidden');
+      }
+    }
+
+    // 2. YouTube Promo Popup live sync
+    if (settings.isYouTubePromoEnabled === false) {
+      document.getElementById('youtube-promo-modal')?.remove();
+    }
+
+    // 3. Real-Time Player Toast sync
+    if (settings.isRealtimePlayerToastEnabled === false) {
+      const toast = document.getElementById('realtime-player-toast-widget');
+      if (toast) {
+        toast.classList.remove('translate-y-0', 'opacity-100', 'pointer-events-auto');
+        toast.classList.add('translate-y-10', 'opacity-0', 'pointer-events-none');
+      }
+    }
+  });
+}
+
 // --- CLIENT-SIDE HD IMAGE COMPRESSION (GUARANTEED STRICTLY UNDER 100 KB PER IMAGE) ---
 export function compressImage(file, maxWidth = 800, maxHeight = 800, quality = 0.75) {
   return new Promise((resolve) => {
@@ -581,6 +822,46 @@ export function compressImage(file, maxWidth = 800, maxHeight = 800, quality = 0
           estSize = Math.round((dataUrl.length - 22) * 0.75);
         }
 
+        resolve(dataUrl);
+      };
+      img.onerror = () => resolve(e.target.result);
+      img.src = e.target.result;
+    };
+    reader.onerror = () => resolve('');
+    reader.readAsDataURL(file);
+  });
+}
+
+// Center-crop image to 4:3 aspect ratio for tournament banner cards
+export function cropBannerImage(file, targetWidth = 600, quality = 0.82) {
+  return new Promise((resolve) => {
+    if (!file) { resolve(''); return; }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const img = new Image();
+      img.onload = () => {
+        const targetHeight = Math.round(targetWidth * 3 / 4);
+        const srcAspect = img.width / img.height;
+        const targetAspect = 4 / 3;
+        let sx = 0, sy = 0, sw = img.width, sh = img.height;
+        if (srcAspect > targetAspect) {
+          sw = Math.round(img.height * targetAspect);
+          sx = Math.round((img.width - sw) / 2);
+        } else {
+          sh = Math.round(img.width / targetAspect);
+          sy = Math.round((img.height - sh) / 2);
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+        canvas.getContext('2d').drawImage(img, sx, sy, sw, sh, 0, 0, targetWidth, targetHeight);
+        let dataUrl = canvas.toDataURL('image/jpeg', quality);
+        const maxBytes = 120 * 1024;
+        let q = quality;
+        while (Math.round((dataUrl.length - 22) * 0.75) > maxBytes && q > 0.3) {
+          q -= 0.08;
+          dataUrl = canvas.toDataURL('image/jpeg', q);
+        }
         resolve(dataUrl);
       };
       img.onerror = () => resolve(e.target.result);
@@ -715,6 +996,428 @@ export function openSquareImageCropModal(imageSrc, onCropComplete, title = "Crop
   });
 }
 
+// --- INTERACTIVE TOURNAMENT BANNER CROPPER MODAL (21:9 WIDE CARD RATIO) ---
+export function openTournamentBannerCropModal(imageSrc, onCropComplete, title = "Crop Tournament Banner (Wide 21:9)") {
+  document.getElementById('banner-cropper-modal')?.remove();
+
+  const modalHtml = `
+    <div id="banner-cropper-modal" class="fixed inset-0 z-[70] modal-overlay flex items-center justify-center p-3 bg-slate-950/80 backdrop-blur-xs animate-fade-in">
+      <div class="bg-white border-2 border-amber-400 max-w-lg w-full p-4 relative space-y-3 rounded-2xl sm:rounded-3xl shadow-2xl text-slate-900 modal-content-container">
+        
+        <div class="flex items-center justify-between border-b border-slate-200 pb-2.5">
+          <div class="flex items-center gap-2">
+            <span class="w-8 h-8 rounded-xl bg-amber-100 text-amber-900 border border-amber-300 flex items-center justify-center text-base font-black shadow-xs">
+              🖼️
+            </span>
+            <div>
+              <h3 class="text-sm sm:text-base font-black text-slate-900">${title}</h3>
+              <p class="text-[10px] text-slate-500 font-bold">Crop & position your banner perfectly for cards</p>
+            </div>
+          </div>
+          <button id="close-banner-cropper-modal-btn" type="button" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-950 border border-slate-200 flex items-center justify-center text-sm font-black cursor-pointer transition-all">
+            ✕
+          </button>
+        </div>
+
+        <!-- CROP CONTAINER -->
+        <div class="relative w-full max-h-[50vh] h-60 sm:h-72 bg-slate-900 rounded-xl overflow-hidden flex items-center justify-center border border-slate-200 p-1">
+          <img id="banner-cropper-target-img" src="${imageSrc}" crossorigin="anonymous" class="max-w-full max-h-full object-contain block mx-auto" />
+        </div>
+
+        <!-- CROP CONTROLS TOOLBAR -->
+        <div class="flex flex-wrap items-center justify-between gap-2 pt-1">
+          <div class="flex items-center gap-1.5">
+            <button type="button" id="banner-cropper-zoom-in" title="Zoom In" class="p-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl border border-slate-300 text-xs font-bold flex items-center gap-1 cursor-pointer">
+              <i data-lucide="zoom-in" class="w-3.5 h-3.5"></i>
+            </button>
+            <button type="button" id="banner-cropper-zoom-out" title="Zoom Out" class="p-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl border border-slate-300 text-xs font-bold flex items-center gap-1 cursor-pointer">
+              <i data-lucide="zoom-out" class="w-3.5 h-3.5"></i>
+            </button>
+            <button type="button" id="banner-cropper-rotate-left" title="Rotate" class="p-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl border border-slate-300 text-xs font-bold flex items-center gap-1 cursor-pointer">
+              <i data-lucide="rotate-ccw" class="w-3.5 h-3.5"></i>
+            </button>
+            <button type="button" id="banner-cropper-reset" title="Reset Crop Box" class="p-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl border border-slate-300 text-xs font-bold flex items-center gap-1 cursor-pointer">
+              <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
+            </button>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button type="button" id="banner-cropper-cancel-btn" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl border border-slate-300 cursor-pointer">
+              Cancel
+            </button>
+            <button type="button" id="banner-cropper-apply-btn" class="px-4 py-2 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-500 hover:to-yellow-500 text-slate-950 font-black text-xs rounded-xl shadow-md border border-amber-300 flex items-center gap-1.5 cursor-pointer">
+              <i data-lucide="check" class="w-4 h-4"></i> Crop & Apply
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  if (window.lucide) window.lucide.createIcons();
+
+  const imgEl = document.getElementById('banner-cropper-target-img');
+  let cropperInstance = null;
+
+  const initCropper = () => {
+    if (window.Cropper) {
+      cropperInstance = new window.Cropper(imgEl, {
+        aspectRatio: 21 / 9, // WIDE RATIO MATCHING TOURNAMENT CARD SHAPE
+        viewMode: 1,
+        dragMode: 'move',
+        autoCropArea: 1.0,
+        restore: false,
+        guides: true,
+        center: true,
+        highlight: false,
+        cropBoxMovable: true,
+        cropBoxResizable: true,
+        toggleDragModeOnDblclick: false,
+      });
+    }
+  };
+
+  if (imgEl.complete) {
+    setTimeout(initCropper, 100);
+  } else {
+    imgEl.onload = () => setTimeout(initCropper, 100);
+  }
+
+  // EVENT BUTTON CONTROLS
+  document.getElementById('banner-cropper-zoom-in')?.addEventListener('click', () => cropperInstance?.zoom(0.1));
+  document.getElementById('banner-cropper-zoom-out')?.addEventListener('click', () => cropperInstance?.zoom(-0.1));
+  document.getElementById('banner-cropper-rotate-left')?.addEventListener('click', () => cropperInstance?.rotate(-90));
+  document.getElementById('banner-cropper-reset')?.addEventListener('click', () => cropperInstance?.reset());
+
+  const removeCropperModal = () => {
+    cropperInstance?.destroy();
+    document.getElementById('banner-cropper-modal')?.remove();
+  };
+
+  document.getElementById('close-banner-cropper-modal-btn')?.addEventListener('click', removeCropperModal);
+  document.getElementById('banner-cropper-cancel-btn')?.addEventListener('click', removeCropperModal);
+
+  document.getElementById('banner-cropper-apply-btn')?.addEventListener('click', () => {
+    if (cropperInstance) {
+      const croppedCanvas = cropperInstance.getCroppedCanvas({
+        width: 1260,
+        height: 540,
+        imageSmoothingEnabled: true,
+        imageSmoothingQuality: 'high'
+      });
+      if (croppedCanvas) {
+        const croppedDataUrl = croppedCanvas.toDataURL('image/jpeg', 0.88);
+        onCropComplete(croppedDataUrl);
+      } else {
+        onCropComplete(imageSrc);
+      }
+    } else {
+      onCropComplete(imageSrc);
+    }
+    removeCropperModal();
+  });
+}
+
+// --- INTERACTIVE PLAYER PROFILE PHOTO CROPPER MODAL (1:1 SQUARE PASSPORT RATIO WITH ZOOM SLIDER) ---
+export function openPlayerPhotoCropModal(imageSrc, onCropComplete, title = "Crop & Center Player Photo") {
+  document.getElementById('player-photo-cropper-modal')?.remove();
+
+  const modalHtml = `
+    <div id="player-photo-cropper-modal" class="fixed inset-0 z-[80] modal-overlay flex items-center justify-center p-3 bg-slate-950/85 backdrop-blur-xs animate-fade-in">
+      <div class="bg-white border-2 border-emerald-500 max-w-md w-full p-4 relative space-y-3 rounded-2xl sm:rounded-3xl shadow-2xl text-slate-900 modal-content-container">
+        
+        <div class="flex items-center justify-between border-b border-slate-200 pb-2.5">
+          <div class="flex items-center gap-2">
+            <span class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-900 border border-emerald-300 flex items-center justify-center text-base font-black shadow-xs">
+              ✂️
+            </span>
+            <div>
+              <h3 class="text-sm sm:text-base font-black text-slate-900">${title}</h3>
+              <p class="text-[10px] text-slate-500 font-bold">Zoom, slide & center your passport face photo</p>
+            </div>
+          </div>
+          <button id="close-player-cropper-modal-btn" type="button" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-950 border border-slate-200 flex items-center justify-center text-sm font-black cursor-pointer transition-all">
+            ✕
+          </button>
+        </div>
+
+        <!-- CROP CONTAINER (SQUARE) -->
+        <div class="relative w-full h-64 sm:h-72 bg-slate-900 rounded-2xl overflow-hidden flex items-center justify-center border border-slate-300 p-1">
+          <img id="player-cropper-target-img" src="${imageSrc}" crossorigin="anonymous" class="max-w-full max-h-full object-contain block mx-auto" />
+        </div>
+
+        <!-- ZOOM SLIDER (Slide right to zoom in, left to zoom out) -->
+        <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-1.5">
+          <div class="flex items-center justify-between text-[10.5px] font-black text-slate-700 uppercase">
+            <span class="flex items-center gap-1">🔍 <span>Zoom & Scale</span></span>
+            <span id="player-cropper-zoom-val" class="font-mono text-emerald-700">1.0x</span>
+          </div>
+          <div class="flex items-center gap-2">
+            <span class="text-xs text-slate-500">➖</span>
+            <input type="range" id="player-cropper-zoom-slider" min="0.5" max="3" step="0.05" value="1" class="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-emerald-600" />
+            <span class="text-xs text-slate-500">➕</span>
+          </div>
+        </div>
+
+        <!-- CROP CONTROLS & ROTATION -->
+        <div class="flex items-center justify-between gap-2 pt-0.5">
+          <div class="flex items-center gap-1.5">
+            <button type="button" id="player-cropper-rotate-left" title="Rotate 90°" class="p-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl border border-slate-300 text-xs font-bold flex items-center gap-1 cursor-pointer">
+              ↺ Rotate
+            </button>
+            <button type="button" id="player-cropper-reset" title="Reset" class="p-2 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-xl border border-slate-300 text-xs font-bold flex items-center gap-1 cursor-pointer">
+              Reset
+            </button>
+          </div>
+
+          <div class="flex items-center gap-2">
+            <button type="button" id="player-cropper-cancel-btn" class="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl border border-slate-300 cursor-pointer">
+              Cancel
+            </button>
+            <button type="button" id="player-cropper-apply-btn" class="px-4 py-2 bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-600 hover:to-teal-700 text-white font-black text-xs rounded-xl shadow-md border border-emerald-400 flex items-center gap-1.5 cursor-pointer">
+              ✓ Apply & Upload
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+  const imgEl = document.getElementById('player-cropper-target-img');
+  let cropperInstance = null;
+  let initialRatio = 1;
+
+  const initCropper = () => {
+    if (window.Cropper) {
+      cropperInstance = new window.Cropper(imgEl, {
+        aspectRatio: 1 / 1, // 1:1 SQUARE PASSPORT
+        viewMode: 1,
+        dragMode: 'move',
+        autoCropArea: 0.9,
+        restore: false,
+        guides: true,
+        center: true,
+        highlight: false,
+        cropBoxMovable: true,
+        cropBoxResizable: true,
+        toggleDragModeOnDblclick: false,
+        ready: function () {
+          const imgData = cropperInstance.getImageData();
+          initialRatio = imgData.width / imgData.naturalWidth;
+        }
+      });
+    }
+  };
+
+  if (imgEl.complete) {
+    setTimeout(initCropper, 100);
+  } else {
+    imgEl.onload = () => setTimeout(initCropper, 100);
+  }
+
+  // ZOOM SLIDER EVENT LISTENER
+  const zoomSlider = document.getElementById('player-cropper-zoom-slider');
+  const zoomVal = document.getElementById('player-cropper-zoom-val');
+  zoomSlider?.addEventListener('input', (e) => {
+    const scale = parseFloat(e.target.value);
+    if (zoomVal) zoomVal.textContent = scale.toFixed(2) + 'x';
+    if (cropperInstance) {
+      cropperInstance.zoomTo(scale * initialRatio);
+    }
+  });
+
+  document.getElementById('player-cropper-rotate-left')?.addEventListener('click', () => cropperInstance?.rotate(-90));
+  document.getElementById('player-cropper-reset')?.addEventListener('click', () => {
+    cropperInstance?.reset();
+    if (zoomSlider) zoomSlider.value = "1";
+    if (zoomVal) zoomVal.textContent = "1.0x";
+  });
+
+  const removeCropperModal = () => {
+    cropperInstance?.destroy();
+    document.getElementById('player-photo-cropper-modal')?.remove();
+  };
+
+  document.getElementById('close-player-cropper-modal-btn')?.addEventListener('click', removeCropperModal);
+  document.getElementById('player-cropper-cancel-btn')?.addEventListener('click', removeCropperModal);
+
+  document.getElementById('player-cropper-apply-btn')?.addEventListener('click', () => {
+    if (cropperInstance) {
+      const croppedCanvas = cropperInstance.getCroppedCanvas({
+        width: 600,
+        height: 600,
+        imageSmoothingEnabled: true,
+        imageSmoothingQuality: 'high'
+      });
+      if (croppedCanvas) {
+        const croppedDataUrl = croppedCanvas.toDataURL('image/jpeg', 0.88);
+        onCropComplete(croppedDataUrl);
+      } else {
+        onCropComplete(imageSrc);
+      }
+    } else {
+      onCropComplete(imageSrc);
+    }
+    removeCropperModal();
+  });
+}
+
+// --- INTERACTIVE TOURNAMENT COMMENTS & QUERIES MODAL (CLEAN WHITE STYLISH THEME) ---
+export function openTournamentCommentsModal(tourney, onCommentAdded) {
+  document.getElementById('tournament-comments-modal')?.remove();
+
+  const slug = tourney.slug || 'jsl-2026';
+  const storageKey = 'cpl_comments_' + slug;
+  let comments = [];
+  try {
+    const raw = localStorage.getItem(storageKey);
+    comments = raw ? JSON.parse(raw) : [];
+  } catch(e) { comments = []; }
+
+  // Default seed questions/queries if empty
+  if (!comments || comments.length === 0) {
+    comments = [
+      {
+        id: 'c_1',
+        author: 'Rahul Sen',
+        text: 'What is the last date for player registration?',
+        timestamp: '2 hours ago',
+        isOrganizer: false
+      },
+      {
+        id: 'c_2',
+        author: tourney.organizer?.name || 'Tournament Committee',
+        text: 'Registration closes on August 25. Please register early to secure your spot in the auction pool!',
+        timestamp: '1 hour ago',
+        isOrganizer: true
+      }
+    ];
+    try { localStorage.setItem(storageKey, JSON.stringify(comments)); } catch(e) {}
+  }
+
+  const renderCommentList = () => {
+    if (comments.length === 0) {
+      return `
+        <div class="text-center py-8 text-slate-400 space-y-1">
+          <div class="text-2xl">💬</div>
+          <p class="text-xs font-bold text-slate-600">No queries posted yet</p>
+          <p class="text-[10px] text-slate-400">Be the first to ask a question or cheer for teams!</p>
+        </div>
+      `;
+    }
+    return comments.map(c => `
+      <div class="p-2.5 ${c.isOrganizer ? 'bg-amber-50/90 border-amber-200' : 'bg-slate-50 border-slate-200/90'} rounded-2xl border space-y-1 text-xs">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-1.5 min-w-0">
+            <span class="w-6 h-6 rounded-full ${c.isOrganizer ? 'bg-amber-400 text-slate-950' : 'bg-slate-200 text-slate-700'} flex items-center justify-center text-[10px] font-black shrink-0">
+              ${c.isOrganizer ? '👑' : (c.author || 'U')[0].toUpperCase()}
+            </span>
+            <span class="font-black text-slate-900 text-[11px] truncate">${c.author}</span>
+            ${c.isOrganizer ? '<span class="px-1.5 py-0.2 bg-amber-200 text-amber-900 font-black text-[8px] rounded-full uppercase">Organizer</span>' : ''}
+          </div>
+          <span class="text-[9px] text-slate-400 font-semibold shrink-0">${c.timestamp || 'Just now'}</span>
+        </div>
+        <p class="text-[11px] text-slate-700 font-medium leading-relaxed pl-7.5">${c.text}</p>
+      </div>
+    `).join('');
+  };
+
+  const modalHtml = `
+    <div id="tournament-comments-modal" class="fixed inset-0 z-[70] modal-overlay flex items-center justify-center p-3 bg-slate-950/70 backdrop-blur-xs animate-fade-in">
+      <div class="bg-white border-2 border-sky-400 max-w-md w-full p-4 sm:p-5 relative space-y-3 rounded-3xl shadow-2xl text-slate-900 modal-content-container">
+        
+        <!-- Header -->
+        <div class="flex items-center justify-between border-b border-slate-100 pb-2.5">
+          <div class="flex items-center gap-2">
+            <span class="w-9 h-9 rounded-2xl bg-sky-100 text-sky-800 border border-sky-300 flex items-center justify-center text-lg font-black shadow-xs">
+              💬
+            </span>
+            <div>
+              <h3 class="text-sm sm:text-base font-black text-slate-900">Tournament Queries & Q&A</h3>
+              <p class="text-[10px] text-slate-500 font-bold">${tourney.name}</p>
+            </div>
+          </div>
+          <button id="close-comments-modal-btn" type="button" class="w-8 h-8 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-950 border border-slate-200 flex items-center justify-center text-sm font-black cursor-pointer transition-all">
+            ✕
+          </button>
+        </div>
+
+        <!-- Comments List -->
+        <div id="comments-scroll-container" class="max-h-72 overflow-y-auto space-y-2 p-1 pr-1.5 scrollbar-thin">
+          ${renderCommentList()}
+        </div>
+
+        <!-- Input Form -->
+        <div class="pt-2 border-t border-slate-100 space-y-2">
+          <div class="grid grid-cols-3 gap-2">
+            <input type="text" id="comment-author-input" placeholder="Your Name" class="col-span-1 bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-2 text-[11px] font-bold text-slate-900 focus:outline-none focus:border-sky-500" />
+            <input type="text" id="comment-text-input" placeholder="Ask a question or query..." class="col-span-2 bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-[11px] font-bold text-slate-900 focus:outline-none focus:border-sky-500" />
+          </div>
+          <button type="button" id="comment-submit-btn" class="w-full py-2 bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-500 hover:to-blue-600 text-white font-black text-xs rounded-xl shadow-xs border border-sky-400 flex items-center justify-center gap-1.5 cursor-pointer transition-all">
+            <span>Post Query / Message ➔</span>
+          </button>
+        </div>
+
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+  const container = document.getElementById('comments-scroll-container');
+  const authorInput = document.getElementById('comment-author-input');
+  const textInput = document.getElementById('comment-text-input');
+  const submitBtn = document.getElementById('comment-submit-btn');
+
+  // Pre-fill name if logged in
+  const currentUser = store.getCurrentUser ? store.getCurrentUser() : null;
+  if (currentUser?.name && authorInput) authorInput.value = currentUser.name;
+
+  const handlePost = () => {
+    const text = textInput?.value?.trim();
+    if (!text) {
+      alert('Please enter your question or comment.');
+      return;
+    }
+    const author = authorInput?.value?.trim() || 'Visitor';
+    const isOrg = Boolean(currentUser?.phone && (currentUser.phone === tourney.organizer?.phone || store.isMasterAdmin?.()));
+
+    const newComment = {
+      id: 'c_' + Date.now(),
+      author,
+      text,
+      timestamp: 'Just now',
+      isOrganizer: isOrg
+    };
+
+    comments.unshift(newComment);
+    try { localStorage.setItem(storageKey, JSON.stringify(comments)); } catch(e) {}
+
+    if (container) {
+      container.innerHTML = renderCommentList();
+      container.scrollTop = 0;
+    }
+    if (textInput) textInput.value = '';
+
+    if (typeof onCommentAdded === 'function') {
+      onCommentAdded(comments.length);
+    }
+  };
+
+  submitBtn?.addEventListener('click', handlePost);
+  textInput?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') handlePost();
+  });
+
+  const closeModal = () => document.getElementById('tournament-comments-modal')?.remove();
+  document.getElementById('close-comments-modal-btn')?.addEventListener('click', closeModal);
+}
+
 // --- BEAUTIFUL REGISTRATION SUCCESS POPUP MODAL ---
 function openRegistrationSuccessModal(details) {
   const modalHtml = `
@@ -726,7 +1429,7 @@ function openRegistrationSuccessModal(details) {
         </div>
 
         <div>
-          <span class="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-full border border-emerald-300 uppercase">JSL 2026 CONFIRMED</span>
+          <span class="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-full border border-emerald-300 uppercase">REGISTRATION CONFIRMED</span>
           <h2 class="text-xl font-black text-slate-900 mt-1">Registration Successful!</h2>
           <p class="text-xs text-slate-600 mt-0.5">Your registration has been submitted successfully.</p>
         </div>
@@ -734,7 +1437,7 @@ function openRegistrationSuccessModal(details) {
         <div class="bg-slate-50 border border-slate-200 rounded-xl p-3 text-left space-y-2 text-xs font-semibold text-slate-800">
           <div class="flex justify-between border-b border-slate-200 pb-1">
             <span class="text-slate-500">Registration ID:</span>
-            <span class="font-mono font-black text-emerald-700">${details.registrationId || details.regNo || 'JSL2026-0001'}</span>
+            <span class="font-mono font-black text-emerald-700">${details.registrationId || details.regNo || 'REG-0001'}</span>
           </div>
           <div class="flex justify-between border-b border-slate-200 pb-1">
             <span class="text-slate-500">${details.isTeam ? 'Team Name:' : 'Player Name:'}</span>
@@ -768,7 +1471,7 @@ function openRegistrationSuccessModal(details) {
   
   const removeModal = () => {
     document.getElementById('registration-success-modal')?.remove();
-    navigate('jsl-hub');
+    navigate('tournament-hub');
     if (details.isTeam) {
       openRegisteredTeamsModal(store.getTeams());
     } else {
@@ -842,17 +1545,25 @@ function renderNavbar() {
       </div>
 
       <!-- Desktop Navigation links -->
-      <div class="hidden lg:flex items-center gap-4 xl:gap-6 text-xs font-bold tracking-widest text-emerald-100">
+      <div class="hidden lg:flex items-center gap-3 xl:gap-5 text-xs font-bold tracking-widest text-emerald-100">
         <button id="nav-home-btn" class="hover:text-white transition-colors py-1 ${currentRoute === 'landing' ? 'text-white border-b-2 border-emerald-300 font-black' : ''}">HOME</button>
         <button id="nav-tournaments-btn" class="hover:text-white transition-colors py-1">TOURNAMENTS</button>
         <button id="nav-schedule-btn" class="hover:text-white transition-colors py-1 ${currentRoute === 'fixtures' ? 'text-white border-b-2 border-emerald-300 font-black' : ''}">MATCH CORNER</button>
         <button id="nav-auction-btn" class="hover:text-amber-300 transition-colors py-1 flex items-center gap-1 ${currentRoute === 'auction' ? 'text-amber-300 border-b-2 border-amber-300 font-black' : ''}">🔨 AUCTION</button>
         <button id="nav-career-btn" class="hover:text-emerald-300 transition-colors py-1 flex items-center gap-1 ${currentRoute === 'career' ? 'text-emerald-300 border-b-2 border-emerald-300 font-black' : ''}">📊 PLAYER STATS</button>
-        <button id="nav-teams-btn" class="hover:text-white transition-colors py-1">TEAMS</button>
+        <button id="nav-host-saas-btn" class="px-2.5 py-1 bg-amber-400 text-slate-950 hover:bg-amber-300 rounded-lg font-black text-[11px] uppercase tracking-normal shadow-xs flex items-center gap-1 transition-all cursor-pointer">
+          <span>🏆 Host Tournament</span>
+        </button>
       </div>
 
-      <!-- Right Side: Download Button & Single Desktop-Only Account Pill -->
-      <div class="flex items-center gap-2 flex-shrink-0">
+      <!-- Right Side: Live Notifications Bell, Download Button & Single Desktop-Only Account Pill -->
+      <div class="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
+        <!-- Live Match Alerts Push Notification Toggle Button -->
+        <button id="nav-notifs-toggle-btn" title="Live Match Push Notifications" class="p-2 sm:p-2.5 bg-white/10 hover:bg-white/20 text-amber-300 hover:text-amber-200 transition-all rounded-full border border-white/20 flex items-center justify-center cursor-pointer relative active:scale-95">
+          <span class="text-sm sm:text-base">🔔</span>
+          <span id="nav-notif-dot" class="w-2.5 h-2.5 rounded-full bg-emerald-400 absolute top-0.5 right-0.5 border-2 border-slate-900 ${isNotificationsEnabled() ? '' : 'hidden'}"></span>
+        </button>
+
         <!-- Apps Download Option -->
         <button id="nav-install-app-btn" title="Download Web App (PWA)" class="p-2 sm:p-2.5 bg-gradient-to-r from-amber-400 via-emerald-500 to-teal-500 hover:scale-105 transition-all rounded-full shadow-xl border border-white/60 flex items-center justify-center cursor-pointer">
           <svg class="w-5 h-5 text-slate-950 flex-shrink-0" viewBox="0 0 24 24" fill="none">
@@ -870,7 +1581,18 @@ function renderNavbar() {
 
   document.getElementById('brand-header-logo')?.addEventListener('click', () => navigate('landing'));
   document.getElementById('brand-header-title')?.addEventListener('click', () => navigate('landing'));
+  document.getElementById('nav-notifs-toggle-btn')?.addEventListener('click', async () => {
+    const enabled = await toggleNotificationSetting();
+    const dot = document.getElementById('nav-notif-dot');
+    if (dot) dot.classList.toggle('hidden', !enabled);
+    if (enabled) {
+      alert('🔔 Live Match Notifications are now ACTIVE! You will receive instant alerts for Live Matches, Wickets & Results.');
+    } else {
+      alert('🔕 Live Match Notifications have been paused.');
+    }
+  });
   document.getElementById('nav-install-app-btn')?.addEventListener('click', handleInstallAppClick);
+  document.getElementById('nav-host-saas-btn')?.addEventListener('click', () => openTournamentCreationRoadmapModal(false));
   document.getElementById('nav-admin-btn')?.addEventListener('click', () => {
     if (!store.getCurrentUser()) {
       openPlayerLoginModal(() => navigate('profile'));
@@ -909,6 +1631,77 @@ function renderNavbar() {
   });
   if (window.lucide) window.lucide.createIcons();
 }
+
+// --- HOST TOURNAMENT INTRO SHOWCASE MODAL (SUNSET & EMERALD 2 MODES) ---
+export function openHostTournamentIntroModal() {
+  document.getElementById('host-tourney-intro-modal')?.remove();
+
+  const modalHtml = `
+    <div id="host-tourney-intro-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3 animate-fade-in bg-slate-950/80 backdrop-blur-sm">
+      <div class="bg-gradient-to-br from-[#120B24] via-[#1A1438] to-[#0A0618] text-white max-w-md w-full p-4 sm:p-5 rounded-3xl border-2 border-purple-400/60 shadow-2xl space-y-3.5 relative overflow-hidden modal-content-container">
+        
+        <!-- Close Button -->
+        <button id="close-host-intro-modal-btn" class="absolute top-3 right-3 w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center text-xs font-black transition-all cursor-pointer">
+          ✕
+        </button>
+
+        <!-- Top Tag & Bengali Header -->
+        <div class="text-center space-y-1 pt-1">
+          <div class="inline-flex items-center gap-1 px-2.5 py-0.5 bg-emerald-400/20 border border-emerald-400/30 rounded-full text-[10px] font-black text-emerald-300">
+            <span>🚀</span> <span>Launch in 2 Minutes</span>
+          </div>
+          <h3 class="text-lg sm:text-xl font-black text-white tracking-tight flex items-center justify-center gap-1.5 pt-0.5 font-['Anek_Bangla','Hind_Siliguri',sans-serif] leading-tight">
+            <span>🏆</span> <span>আপনার নিজের টুর্নামেন্ট তৈরি করুন</span>
+          </h3>
+          <p class="text-[11px] text-slate-300 font-medium">Create custom leagues with automated tools</p>
+        </div>
+
+        <!-- 2 Modes Side-by-Side in SAME ROW -->
+        <div class="grid grid-cols-2 gap-2 sm:gap-2.5">
+          <!-- Mode A (Sunset Orange-Red Glow) -->
+          <div class="p-2.5 bg-gradient-to-b from-rose-500/30 via-orange-500/20 to-slate-900/80 rounded-2xl border border-rose-400/80 shadow-md shadow-rose-500/10 space-y-1 text-center flex flex-col items-center justify-between">
+            <div class="w-7 h-7 rounded-full bg-gradient-to-tr from-rose-500 to-orange-400 text-white flex items-center justify-center text-xs font-black shadow-xs shrink-0">
+              🔨
+            </div>
+            <h4 class="text-[10.5px] font-black text-orange-300 uppercase tracking-tight leading-tight">AUCTION MODE</h4>
+            <p class="text-[9px] text-orange-100/90 font-semibold leading-tight">
+              Player Reg • Live Bidding • Squad • Fixture • Live Score
+            </p>
+          </div>
+
+          <!-- Mode B (Emerald Green Glow) -->
+          <div class="p-2.5 bg-gradient-to-b from-emerald-500/30 via-teal-500/20 to-slate-900/80 rounded-2xl border border-emerald-400/80 shadow-md shadow-emerald-500/10 space-y-1 text-center flex flex-col items-center justify-between">
+            <div class="w-7 h-7 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 text-white flex items-center justify-center text-xs font-black shadow-xs shrink-0">
+              ⚡
+            </div>
+            <h4 class="text-[10.5px] font-black text-emerald-300 uppercase tracking-tight leading-tight">FIXTURE MODE</h4>
+            <p class="text-[9px] text-emerald-100/90 font-semibold leading-tight">
+              Direct Entry • Fixture • Live Score
+            </p>
+          </div>
+        </div>
+
+        <!-- Glowing Emerald CTA Button -->
+        <button id="btn-intro-create-tourney" class="w-full py-3 bg-gradient-to-r from-emerald-400 via-teal-400 to-emerald-500 hover:from-emerald-500 hover:to-teal-500 text-slate-950 font-black text-xs sm:text-sm rounded-2xl shadow-xl shadow-emerald-500/25 hover:scale-[1.01] active:scale-98 transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+          <span>+ Create Tournament</span>
+          <span class="text-sm">➔</span>
+        </button>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+  document.getElementById('close-host-intro-modal-btn')?.addEventListener('click', () => {
+    document.getElementById('host-tourney-intro-modal')?.remove();
+  });
+
+  document.getElementById('btn-intro-create-tourney')?.addEventListener('click', () => {
+    document.getElementById('host-tourney-intro-modal')?.remove();
+    openTournamentCreationRoadmapModal(false);
+  });
+}
+window.openHostTournamentIntroModal = openHostTournamentIntroModal;
 
 // --- SLEEK FLOATING BOTTOM NAVIGATION BAR FOR MOBILE SCREENS ---
 function renderMobileNav() {
@@ -1046,8 +1839,8 @@ function renderCurrentView() {
 
   if (currentRoute === 'landing') {
     renderFirstPageLanding(container);
-  } else if (currentRoute === 'jsl-hub') {
-    renderJSLHub(container);
+  } else if (currentRoute === 'tournament-hub') {
+    renderTournamentHub(container);
     checkAndPromptWhatsAppGroup();
   } else if (currentRoute === 'admin') {
     renderAdminDashboard(container);
@@ -1068,16 +1861,60 @@ function renderCurrentView() {
     renderFirstPageLanding(container);
     setTimeout(() => openTournamentCreationWizard(true), 100);
   } else if (currentRoute.startsWith('reg-')) {
-    const slug = currentRoute.replace(/^reg-/, '');
-    renderFirstPageLanding(container);
-    setTimeout(() => openDynamicTournamentRegistrationModal(slug), 100);
-  } else if (currentRoute.startsWith('t/')) {
-    const slug = currentRoute.replace(/^t\//, '');
-    const tourney = store.getCustomTournamentById(slug);
-    if (tourney) {
-      renderCustomTournamentHub(container, tourney);
+    const rawSlug = currentRoute.replace(/^reg-/, '');
+    const slug = rawSlug.split('?')[0];
+    const regTourney = store.getCustomTournamentById(slug);
+    if (regTourney) {
+      const regTid = regTourney.supabaseId || regTourney.tournament_id || regTourney.id;
+      if (regTid) store.setActiveTournament(regTid);
+      renderFirstPageLanding(container);
+      store.syncWithCloud().then(() => openDynamicTournamentRegistrationModal(slug));
     } else {
       renderFirstPageLanding(container);
+      store.syncWithCloud().then(() => {
+        const retryTourney = store.getCustomTournamentById(slug);
+        if (retryTourney && currentRoute.startsWith(`reg-${slug}`)) {
+          const tid = retryTourney.supabaseId || retryTourney.tournament_id || retryTourney.id;
+          if (tid) store.setActiveTournament(tid);
+          openDynamicTournamentRegistrationModal(slug);
+        }
+      });
+    }
+  } else if (currentRoute.startsWith('t/')) {
+    const rawSlug = currentRoute.replace(/^t\//, '');
+    const slug = rawSlug.split('?')[0];
+    const tourney = store.getCustomTournamentById(slug);
+    if (tourney) {
+      const tid = tourney.supabaseId || tourney.tournament_id || tourney.id;
+      if (tid) store.setActiveTournament(tid);
+      renderCustomTournamentHub(container, tourney);
+    } else {
+      // Tournament not in local cache yet — show loading, wait for cloud sync, then retry
+      container.innerHTML = `
+        <div class="flex flex-col items-center justify-center py-20 text-center space-y-3 animate-fade-in">
+          <div class="w-14 h-14 rounded-2xl bg-amber-100 text-amber-800 flex items-center justify-center text-2xl font-black shadow-xs">🏏</div>
+          <p class="text-sm font-bold text-slate-700">Loading tournament...</p>
+          <p class="text-xs text-slate-400">Fetching <span class="font-mono font-bold">${slug}</span> from cloud</p>
+        </div>
+      `;
+      store.syncWithCloud().then(() => {
+        const retryTourney = store.getCustomTournamentById(slug);
+        if (retryTourney && currentRoute.startsWith(`t/${slug}`)) {
+          const tid = retryTourney.supabaseId || retryTourney.tournament_id || retryTourney.id;
+          if (tid) store.setActiveTournament(tid);
+          renderCustomTournamentHub(container, retryTourney);
+          if (window.lucide) window.lucide.createIcons();
+        } else if (currentRoute.startsWith(`t/${slug}`)) {
+          container.innerHTML = `
+            <div class="flex flex-col items-center justify-center py-20 text-center space-y-3 animate-fade-in">
+              <div class="w-14 h-14 rounded-2xl bg-rose-100 text-rose-700 flex items-center justify-center text-2xl font-black shadow-xs">❌</div>
+              <p class="text-sm font-bold text-slate-900">Tournament Not Found</p>
+              <p class="text-xs text-slate-500">No tournament with slug "<span class="font-mono font-bold">${slug}</span>" exists.</p>
+              <button onclick="window.navigateBackToHome()" class="mt-2 px-4 py-2 bg-slate-900 text-white text-xs font-black rounded-xl shadow-sm cursor-pointer">← Back to Home</button>
+            </div>
+          `;
+        }
+      });
     }
   } else {
     renderFirstPageLanding(container);
@@ -1089,13 +1926,13 @@ function renderCurrentView() {
 // --- WHATSAPP GROUP POPUP PROMPT ---
 async function checkAndPromptWhatsAppGroup() {
   try {
-    const settings = await fetchPopupSettingsFromFirebase();
+    const settings = await fetchPopupSettingsFromCloud();
     if (!settings || !settings.isWhatsAppPopupEnabled) {
       console.log("WhatsApp group popup is disabled by admin.");
       return;
     }
-    if (!sessionStorage.getItem('jsl_wa_group_prompted')) {
-      sessionStorage.setItem('jsl_wa_group_prompted', 'true');
+    if (!sessionStorage.getItem('wa_group_prompted')) {
+      sessionStorage.setItem('wa_group_prompted', 'true');
       setTimeout(() => {
         openWhatsAppGroupModal();
       }, 400);
@@ -1119,9 +1956,9 @@ function openWhatsAppGroupModal() {
 
         <div class="space-y-1">
           <span class="px-3 py-0.5 bg-emerald-100 text-emerald-800 font-extrabold text-[10px] rounded-full uppercase border border-emerald-300 tracking-wider">
-            ✨ Official JSL WhatsApp Group ✨
+            ✨ Official WhatsApp Group ✨
           </span>
-          <h3 class="text-base sm:text-lg font-black text-slate-900 leading-snug">Join Jhankra Super League Group!</h3>
+          <h3 class="text-base sm:text-lg font-black text-slate-900 leading-snug">Join the Official Tournament Group!</h3>
           <p class="text-[11px] text-slate-600 leading-snug">
             Get real-time match schedules, auction alerts, player updates & official announcements directly on WhatsApp!
           </p>
@@ -1148,9 +1985,132 @@ function openWhatsAppGroupModal() {
   document.getElementById('join-wa-group-confirm-btn')?.addEventListener('click', removeModal);
 }
 
+function getTournamentThumbnail(name) {
+  let hash = 0;
+  for (let i = 0; i < (name || '').length; i++) hash = ((hash << 5) - hash) + name.charCodeAt(i);
+  return CRICKET_THUMBNAILS[Math.abs(hash) % CRICKET_THUMBNAILS.length];
+}
+
+function renderTournamentFallbackPoster(ct) {
+  const thumb = getTournamentThumbnail(ct.name || ct.slug || '');
+  const venue = ct.venue ? `
+    <span class="inline-flex items-center gap-1 px-2.5 py-0.5 sm:px-3 sm:py-1 bg-black/40 backdrop-blur-xs rounded-full text-[9px] sm:text-xs text-white font-bold border border-white/20 shadow-xs max-w-full truncate">
+      <svg class="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-300 shrink-0" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+        <circle cx="12" cy="9" r="2.5" fill="currentColor"/>
+      </svg>
+      <span class="truncate">${ct.venue}</span>
+    </span>` : '';
+
+  const prize = ct.prizeWinner ? `
+    <span class="inline-flex items-center gap-1 px-2.5 py-0.5 sm:px-3 sm:py-1 bg-amber-400 text-slate-950 rounded-full text-[9px] sm:text-xs font-black shadow-xs border border-amber-300 shrink-0">
+      <svg class="w-3 h-3 sm:w-3.5 sm:h-3.5 text-slate-950 shrink-0" fill="currentColor" viewBox="0 0 24 24">
+        <path d="M19 4h-2V2H7v2H5c-1.1 0-2 .9-2 2v3c0 3.86 2.89 7.02 6.64 7.42C10.3 17.5 11.08 18 12 18s1.7-.5 2.36-1.58C18.11 16.02 21 12.86 21 9V6c0-1.1-.9-2-2-2zM5 9V6h2v5.09C5.67 10.45 5 9.77 5 9zm14 0c0 .77-.67 1.45-2 2.09V6h2v3z"/>
+      </svg>
+      <span>₹${Number(ct.prizeWinner).toLocaleString('en-IN')}</span>
+    </span>` : '';
+
+  return `
+    <div class="absolute inset-0 bg-gradient-to-br ${thumb.gradient} flex flex-col items-center justify-center text-white p-2.5 sm:p-4 text-center space-y-1 sm:space-y-2">
+      <!-- Centered Emoji Icon -->
+      <div class="text-xl sm:text-2xl md:text-3xl drop-shadow-lg leading-none">${thumb.emoji}</div>
+      
+      <!-- Tournament Name: Middle Alignment -->
+      <h3 class="text-xs sm:text-base md:text-lg font-black uppercase tracking-wider text-white drop-shadow-md line-clamp-2 max-w-lg px-1.5 leading-tight">
+        ${ct.name || 'Tournament'}
+      </h3>
+      
+      <!-- Just Lower: Venue Place with SVG & Prize Badge -->
+      <div class="flex items-center justify-center gap-1.5 flex-wrap pt-0.5">
+        ${venue}
+        ${prize}
+      </div>
+
+      <!-- Subtle background grid pattern -->
+      <div class="absolute inset-0 opacity-10 pointer-events-none" style="background-image: radial-gradient(circle at 20% 80%, white 1px, transparent 1px), radial-gradient(circle at 80% 20%, white 1px, transparent 1px); background-size: 32px 32px, 48px 48px;"></div>
+    </div>
+  `;
+}
+
+function buildTournamentCarouselHTML(allTournaments) {
+  const activeTourneys = allTournaments.filter(ct => ct.status === 'ACTIVE' || !ct.status);
+  // Cap top carousel to featured/active 8 to keep mobile carousel responsive with 200+ tournaments
+  const featuredTourneys = activeTourneys.slice(0, 8);
+
+  const carouselCards = featuredTourneys.map((ct, idx) => {
+    const outlineColor = CARD_OUTLINE_COLORS[idx % CARD_OUTLINE_COLORS.length];
+    const bannerSrc = ct.posterUrl || ct.bannerUrl || ct.poster_url || ct.banner_url || null;
+    const poster = bannerSrc
+      ? '<img src="' + bannerSrc + '" loading="lazy" class="w-full h-full object-cover object-center" onerror="this.style.display=\'none\'" />'
+      : renderTournamentFallbackPoster(ct);
+    const venueHtml = ct.venue ? `
+      <div class="flex items-center justify-center gap-1 text-[10px] sm:text-[11px] font-bold text-slate-600 truncate max-w-full">
+        <svg class="w-3.5 h-3.5 text-red-600 shrink-0 inline-block" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+          <circle cx="12" cy="9" r="2.5" fill="currentColor"/>
+        </svg>
+        <span class="truncate">${ct.venue}</span>
+      </div>` : '';
+
+    return '<div data-nav-route="t/' + ct.slug + '" data-tourney-name="' + (ct.name || '').toLowerCase() + '" data-tourney-venue="' + (ct.venue || '').toLowerCase() + '" class="tourney-card shrink-0 bg-white rounded-2xl shadow-sm hover:shadow-md overflow-hidden cursor-pointer transition-all group border border-slate-200/80" style="width:100%;min-width:100%;max-width:100%;box-sizing:border-box;">'
+      + '<div class="relative w-full aspect-[16/9] sm:aspect-[21/9] md:aspect-[24/9] min-h-[160px] sm:min-h-[190px] max-h-[240px] overflow-hidden">'
+      + poster
+      + '<div class="absolute top-2 left-2 z-10"><span class="px-2 py-0.5 bg-emerald-500 text-white text-[8px] sm:text-[9px] font-black rounded-full uppercase shadow-md flex items-center gap-1"><span class="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span> LIVE</span></div>'
+      + '</div>'
+      + '<div class="px-2.5 py-1.5 sm:py-2 bg-white text-center flex flex-col items-center justify-center space-y-0.5 border-t border-slate-100">'
+      + '<h4 class="text-xs sm:text-sm font-black text-slate-900 truncate max-w-full group-hover:text-emerald-700 transition-colors uppercase tracking-wide">' + ct.name + '</h4>'
+      + venueHtml
+      + '</div>'
+      + '</div>';
+  }).join('');
+
+  const dots = featuredTourneys.map((ct, idx) => {
+    const dotColor = idx === 0 ? '#10b981' : '#cbd5e1';
+    return '<span class="carousel-dot w-2 h-2 rounded-full transition-all cursor-pointer" data-dot-idx="' + idx + '" style="background:' + dotColor + ';"></span>';
+  }).join('');
+
+  const searchCards = allTournaments.map((ct, idx) => {
+    const outlineColor = CARD_OUTLINE_COLORS[idx % CARD_OUTLINE_COLORS.length];
+    const bannerSrc = ct.posterUrl || ct.bannerUrl || ct.poster_url || ct.banner_url || null;
+    const poster = bannerSrc
+      ? '<img src="' + bannerSrc + '" loading="lazy" class="w-full h-full object-cover object-center" onerror="this.style.display=\'none\'" />'
+      : renderTournamentFallbackPoster(ct);
+    const statusBadge = (ct.status === 'ACTIVE' || !ct.status)
+      ? '<span class="px-1 py-0.5 bg-emerald-500 text-white text-[7px] font-black rounded-full uppercase">LIVE</span>'
+      : '<span class="px-1 py-0.5 bg-slate-500 text-white text-[7px] font-black rounded-full uppercase">' + (ct.status || 'DRAFT') + '</span>';
+    
+    const searchVenueHtml = ct.venue ? `
+      <div class="flex items-center justify-center gap-0.5 text-[9px] sm:text-[10px] font-bold text-slate-600 truncate max-w-full">
+        <svg class="w-3 h-3 text-red-600 shrink-0 inline-block" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+          <circle cx="12" cy="9" r="2.5" fill="currentColor"/>
+        </svg>
+        <span class="truncate">${ct.venue}</span>
+      </div>` : '';
+
+    return '<div data-nav-route="t/' + ct.slug + '" data-tourney-name="' + (ct.name || '').toLowerCase() + '" data-tourney-venue="' + (ct.venue || '').toLowerCase() + '" class="tourney-card-search bg-white rounded-xl shadow-sm hover:shadow-md overflow-hidden cursor-pointer transition-all group border border-slate-200">'
+      + '<div class="relative w-full aspect-[4/3] overflow-hidden bg-slate-100">'
+      + poster
+      + '<div class="absolute top-1 left-1">' + statusBadge + '</div>'
+      + '</div>'
+      + '<div class="px-2 py-1.5 bg-white text-center flex flex-col items-center justify-center space-y-0.5">'
+      + '<h4 class="text-[11px] font-black text-slate-900 truncate max-w-full leading-tight uppercase">' + ct.name + '</h4>'
+      + searchVenueHtml
+      + '</div>'
+      + '</div>';
+  }).join('');
+
+  return '<div id="tourney-carousel-wrapper" class="relative overflow-hidden rounded-2xl p-0.5">'
+    + '<div id="tourney-carousel" class="flex gap-0" style="will-change:transform;">' + carouselCards + '</div>'
+    + '<div id="tourney-carousel-dots" class="flex items-center justify-center gap-1.5 py-1.5 bg-white/80">' + dots + '</div>'
+    + '</div>'
+    + '<div id="landing-tournaments-grid" class="hidden grid grid-cols-2 sm:grid-cols-3 gap-2.5">' + searchCards + '</div>';
+}
+
 function renderFirstPageLanding(containerEl) {
   const teams = store.getTeams();
   const players = store.getPlayers();
+  const allTournaments = store.getCustomTournaments ? store.getCustomTournaments() : [];
 
   containerEl.innerHTML = `
     <div class="w-full max-w-5xl mx-auto space-y-4 sm:space-y-6 animate-fade-in py-2 sm:py-4 text-slate-900">
@@ -1187,7 +2147,7 @@ function renderFirstPageLanding(containerEl) {
           <span class="p-1 sm:p-1.5 bg-blue-100 text-blue-800 rounded-xl text-[10px] sm:text-xs border border-blue-300 shrink-0 leading-none">🏏</span>
           <div class="flex flex-col">
             <span class="text-[8px] sm:text-[10px] font-black text-blue-800 uppercase tracking-wider whitespace-nowrap leading-none">Registered</span>
-            <span id="landing-registered-count" class="text-xs sm:text-base font-black text-slate-900 font-mono leading-tight mt-0.5">${players.length}</span>
+            <span id="landing-registered-count" class="text-xs sm:text-base font-black text-slate-900 font-mono leading-tight mt-0.5">${store.getTotalRegisteredPlayersCount ? store.getTotalRegisteredPlayersCount() : players.length}</span>
           </div>
         </div>
       </div>
@@ -1203,11 +2163,11 @@ function renderFirstPageLanding(containerEl) {
               <span class="w-1.5 h-1.5 rounded-full bg-red-600 animate-ping"></span>
               <span>🏆 MEGA TOURNAMENT KICKOFF</span>
             </div>
-            <h3 class="text-xs sm:text-base font-black text-slate-900 tracking-tight leading-tight">31 AUGUST 2026 • 9:00 AM IST</h3>
+            <h3 class="text-xs sm:text-base font-black text-slate-900 tracking-tight leading-tight">${allTournaments[0]?.kickoffDate ? new Date(allTournaments[0].kickoffDate + 'T09:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase() + ' • 9:00 AM IST' : 'COMING SOON'}</h3>
             <p class="text-[10px] sm:text-[11px] text-emerald-700 font-bold flex items-center justify-center sm:justify-start gap-1">
-              <span>📍 Jhankra School Stadium Ground</span>
+              <span>📍 ${allTournaments[0]?.venue || 'Tournament Venue'}</span>
               <span>•</span>
-              <span>JSL 2026</span>
+              <span>${allTournaments[0]?.name || 'Cricket Premier League'}</span>
             </p>
           </div>
 
@@ -1237,173 +2197,2608 @@ function renderFirstPageLanding(containerEl) {
         </div>
       </div>
 
-      <!-- SELECT PREMIER LEAGUE BADGE -->
-      <div class="text-center">
-        <span class="px-5 py-2 rounded-full bg-white text-emerald-800 border-2 border-emerald-300 text-xs sm:text-base font-black uppercase tracking-widest shadow-md">
-          Select Premier League
-        </span>
+      <!-- BROWSE TOURNAMENTS -->
+      <div class="w-full max-w-3xl mx-auto px-2 space-y-2">
+        <div class="flex items-center justify-between gap-2">
+          <h3 class="text-xs sm:text-sm font-black text-slate-900 flex items-center gap-1.5">
+            <i data-lucide="trophy" class="w-3.5 h-3.5 text-amber-600"></i>
+            Tournaments
+            <span class="px-1.5 py-0.5 bg-emerald-100 text-emerald-800 text-[9px] font-black rounded-full border border-emerald-200">${allTournaments.length}</span>
+          </h3>
+          <div class="relative">
+            <input type="text" id="landing-tournament-search" placeholder="Search..." class="bg-white border border-slate-200 text-slate-900 text-[11px] rounded-lg py-1.5 pl-7 pr-2 focus:outline-none focus:border-emerald-400 w-32 sm:w-44 shadow-xs" />
+            <i data-lucide="search" class="w-3 h-3 text-slate-400 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+          </div>
+        </div>
+
+        ${allTournaments.length === 0 ? '<div class="text-center py-8 bg-white border-2 border-dashed border-slate-200 rounded-xl"><div class="text-3xl mb-1">🏏</div><h4 class="text-xs font-black text-slate-900">No Tournaments Yet</h4><p class="text-[10px] text-slate-500 mt-0.5">Be the first to host a tournament!</p></div>' : buildTournamentCarouselHTML(allTournaments)}
       </div>
 
-      <!-- 3 CATEGORY CARDS - TWO CATEGORIES IN A SINGLE ROW (SAME EQUAL SIZE) -->
-      <div class="grid grid-cols-2 gap-3 sm:gap-6 w-full max-w-4xl mx-auto px-2">
-        
-        <!-- CARD 1: JSL (GOLD THEME - LIVE) -->
-        <div id="btn-click-jsl" class="group relative rounded-2xl sm:rounded-3xl overflow-hidden shadow-md hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer border-2 border-loop-jsl bg-white flex flex-col justify-between p-3 sm:p-5 space-y-2 text-center">
-          <img src="assets/card_jsl_cartoon.png" alt="JSL" class="w-full h-auto object-contain rounded-xl sm:rounded-2xl group-hover:scale-[1.02] transition-transform duration-300 shadow-sm max-h-48 sm:max-h-64 mx-auto" />
+      <!-- HOST YOUR OWN TOURNAMENT BANNER (SUNSET & EMERALD COMPACT BOX) -->
+      <div class="w-full max-w-2xl mx-auto px-1 pt-1">
+        <div class="bg-gradient-to-br from-[#120B24] via-[#1A1438] to-[#0A0618] rounded-2xl sm:rounded-3xl p-3 sm:p-5 text-white shadow-xl border border-purple-400/40 space-y-2.5 sm:space-y-3.5 relative overflow-hidden">
           
-          <div class="w-full text-center">
-            <div class="flex items-center justify-center gap-1 text-[9px] sm:text-xs font-black text-amber-800 uppercase tracking-wider bg-amber-500/10 py-1 px-3 rounded-full border border-amber-300 w-fit mx-auto">
-              <span class="relative flex h-2 w-2 animate-pulse">
-                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span class="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
-              </span>
-              <span>LIVE</span>
+          <!-- Top Tag & Bengali Header -->
+          <div class="text-center space-y-0.5 sm:space-y-1">
+            <div class="inline-flex items-center gap-1 px-2.5 py-0.2 bg-emerald-400/20 border border-emerald-400/30 rounded-full text-[9.5px] sm:text-[10.5px] font-black text-emerald-300">
+              <span>🚀</span> <span>Launch in 2 Minutes</span>
             </div>
+            <h3 class="text-base sm:text-xl font-black text-white tracking-tight flex items-center justify-center gap-1.5 pt-0.5 font-['Anek_Bangla','Hind_Siliguri',sans-serif] leading-tight">
+              <span>🏆</span> <span>আপনার নিজের টুর্নামেন্ট তৈরি করুন</span>
+            </h3>
+            <p class="text-[10.5px] sm:text-xs text-slate-300 font-medium">Create custom leagues with automated tools</p>
           </div>
 
-          <button class="w-full py-2 sm:py-2.5 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-500 hover:to-yellow-500 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-md border border-amber-300 flex items-center justify-center gap-1 btn-blink-always uppercase tracking-wider shimmer-btn-1">
-            View Details
-          </button>
-        </div>
-
-        <!-- CARD 2: JPL (GREEN THEME - COMING SOON) -->
-        <div id="btn-click-jpl" class="group relative rounded-2xl sm:rounded-3xl overflow-hidden shadow-md hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer border-2 border-loop-jpl bg-white flex flex-col justify-between p-3 sm:p-5 space-y-2 text-center">
-          <img src="assets/card_jpl_cartoon.png" alt="JPL" class="w-full h-auto object-contain rounded-xl sm:rounded-2xl group-hover:scale-[1.02] transition-transform duration-300 shadow-sm max-h-48 sm:max-h-64 mx-auto" />
-          
-          <div class="w-full text-center">
-            <div class="flex items-center justify-center gap-1 text-[9px] sm:text-xs font-black text-red-600 uppercase tracking-wider bg-red-500/10 py-1 px-3 rounded-full border border-red-300 w-fit mx-auto">
-              <i data-lucide="clock" class="w-3 h-3 text-red-500"></i>
-              <span class="animate-pulse">COMING SOON</span>
-            </div>
-          </div>
-
-          <button class="w-full py-2 sm:py-2.5 bg-gradient-to-r from-emerald-600 via-emerald-500 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-xs sm:text-sm rounded-xl shadow-md border border-emerald-400 flex items-center justify-center gap-1 uppercase tracking-wider shimmer-btn-2">
-            View Details
-          </button>
-        </div>
-
-        <!-- CARD 3: KPL (BLUE THEME - COMING SOON) -->
-        <div id="btn-click-kpl" class="group relative rounded-2xl sm:rounded-3xl overflow-hidden shadow-md hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer border-2 border-loop-kpl bg-white flex flex-col justify-between p-3 sm:p-5 space-y-2 text-center">
-          <img src="assets/card_kpl_cartoon.png" alt="KPL" class="w-full h-auto object-contain rounded-xl sm:rounded-2xl group-hover:scale-[1.02] transition-transform duration-300 shadow-sm max-h-48 sm:max-h-64 mx-auto" />
-          
-          <div class="w-full text-center">
-            <div class="flex items-center justify-center gap-1 text-[9px] sm:text-xs font-black text-red-600 uppercase tracking-wider bg-red-500/10 py-1 px-3 rounded-full border border-red-300 w-fit mx-auto">
-              <i data-lucide="clock" class="w-3 h-3 text-red-500"></i>
-              <span class="animate-pulse">COMING SOON</span>
-            </div>
-          </div>
-
-          <button class="w-full py-2 sm:py-2.5 bg-gradient-to-r from-blue-600 via-blue-500 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-white font-black text-xs sm:text-sm rounded-xl shadow-md border border-blue-400 flex items-center justify-center gap-1 uppercase tracking-wider shimmer-btn-3">
-            View Details
-          </button>
-        </div>
-
-      </div>
-
-      <!-- CONDITIONAL HOST YOUR OWN TOURNAMENT SAAS BANNER -->
-      ${store.isHostTournamentEnabled() ? `
-        <div class="w-full max-w-4xl mx-auto px-2 pt-2">
-          <div class="bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 rounded-2xl sm:rounded-3xl p-4 sm:p-5 text-slate-950 shadow-xl border-2 border-amber-300 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
-            <div class="space-y-1 text-center sm:text-left">
-              <div class="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-slate-950 text-amber-400 rounded-full text-[9px] sm:text-[10px] font-black uppercase tracking-wider">
-                <span>🏆 CRICKET SAAS ENGINE</span>
+          <!-- 2 Modes Side-by-Side in SAME ROW (grid-cols-2) -->
+          <div class="grid grid-cols-2 gap-2 sm:gap-3">
+            <!-- Mode A (Sunset Orange-Red Glow) -->
+            <div class="p-2 sm:p-3 bg-gradient-to-b from-rose-500/30 via-orange-500/20 to-slate-900/80 rounded-xl sm:rounded-2xl border border-rose-400/80 shadow-md shadow-rose-500/10 space-y-1 text-center flex flex-col items-center justify-between">
+              <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-tr from-rose-500 to-orange-400 text-white flex items-center justify-center text-xs sm:text-sm font-black shadow-xs shrink-0">
+                🔨
               </div>
-              <h3 class="text-base sm:text-lg font-black text-slate-950 tracking-tight leading-tight">
-                Want to Host Your Own Cricket Tournament?
-              </h3>
-              <p class="text-[11px] sm:text-xs text-slate-900 font-bold max-w-md">
-                Create player registration forms, run live player auctions with projector screens, and manage ball-by-ball scoring instantly.
+              <h4 class="text-[10px] sm:text-xs font-black text-orange-300 uppercase tracking-tight leading-tight">AUCTION MODE</h4>
+              <p class="text-[8.5px] sm:text-[9.5px] text-orange-100/90 font-semibold leading-tight line-clamp-3">
+                Player Reg • Live Bidding • Squad • Fixture • Live Score
               </p>
             </div>
-            <button id="btn-home-create-tourney" class="w-full sm:w-auto px-5 py-2.5 bg-slate-950 hover:bg-slate-900 text-amber-400 font-black text-xs sm:text-sm rounded-xl shadow-lg border border-amber-400 flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-105 shrink-0 uppercase tracking-wider">
-              <span>+ Create Your Tournament ➔</span>
+
+            <!-- Mode B (Emerald Green Glow) -->
+            <div class="p-2 sm:p-3 bg-gradient-to-b from-emerald-500/30 via-teal-500/20 to-slate-900/80 rounded-xl sm:rounded-2xl border border-emerald-400/80 shadow-md shadow-emerald-500/10 space-y-1 text-center flex flex-col items-center justify-between">
+              <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 text-white flex items-center justify-center text-xs sm:text-sm font-black shadow-xs shrink-0">
+                ⚡
+              </div>
+              <h4 class="text-[10px] sm:text-xs font-black text-emerald-300 uppercase tracking-tight leading-tight">FIXTURE MODE</h4>
+              <p class="text-[8.5px] sm:text-[9.5px] text-emerald-100/90 font-semibold leading-tight line-clamp-3">
+                Direct Entry • Fixture • Live Score
+              </p>
+            </div>
+          </div>
+
+          <!-- Glowing Emerald CTA Button (Compact) -->
+          <button id="btn-home-create-tourney" class="w-full py-2.5 sm:py-3 bg-gradient-to-r from-emerald-400 via-teal-400 to-emerald-500 hover:from-emerald-500 hover:to-teal-500 text-slate-950 font-black text-xs sm:text-sm rounded-xl sm:rounded-2xl shadow-lg shadow-emerald-500/20 hover:scale-[1.01] active:scale-98 transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+            <span>+ Create Tournament</span>
+            <span class="text-sm sm:text-base">➔</span>
+          </button>
+        </div>
+      </div>
+
+    </div>
+  `;
+
+  // Wire up tournament card clicks
+  document.querySelectorAll('[data-nav-route]').forEach(el => {
+    el.addEventListener('click', () => navigate(el.dataset.navRoute));
+  });
+
+  // START COUNTDOWN TIMER
+  initTournamentCountdown();
+
+  // Search filter: show grid on search, carousel when empty
+  const searchInput = document.getElementById('landing-tournament-search');
+  const carouselWrapper = document.getElementById('tourney-carousel-wrapper');
+  const searchGrid = document.getElementById('landing-tournaments-grid');
+  searchInput?.addEventListener('input', (e) => {
+    const query = (e.target.value || '').toLowerCase().trim();
+    if (query) {
+      if (carouselWrapper) carouselWrapper.classList.add('hidden');
+      if (searchGrid) searchGrid.classList.remove('hidden');
+      document.querySelectorAll('.tourney-card-search').forEach(card => {
+        const name = card.getAttribute('data-tourney-name') || '';
+        const venue = card.getAttribute('data-tourney-venue') || '';
+        card.style.display = (name.includes(query) || venue.includes(query)) ? '' : 'none';
+      });
+    } else {
+      if (carouselWrapper) carouselWrapper.classList.remove('hidden');
+      if (searchGrid) searchGrid.classList.add('hidden');
+    }
+  });
+
+  // Wire up search grid card clicks
+  document.querySelectorAll('.tourney-card-search[data-nav-route]').forEach(el => {
+    el.addEventListener('click', () => navigate(el.dataset.navRoute));
+  });
+
+  // Full-width carousel: slide one card at a time every 3.5 seconds
+  const carousel = document.getElementById('tourney-carousel');
+  const dotsContainer = document.getElementById('tourney-carousel-dots');
+  if (carousel && carousel.children.length > 1) {
+    const totalSlides = carousel.children.length;
+    let currentSlide = 0;
+    let autoTimer = null;
+
+    const goToSlide = (idx) => {
+      currentSlide = idx % totalSlides;
+      carousel.style.transition = 'transform 0.5s ease-in-out';
+      carousel.style.transform = 'translateX(-' + (currentSlide * 100) + '%)';
+      if (dotsContainer) {
+        dotsContainer.querySelectorAll('.carousel-dot').forEach((dot, i) => {
+          dot.style.background = i === currentSlide ? CARD_OUTLINE_COLORS[i % CARD_OUTLINE_COLORS.length] : '#cbd5e1';
+          dot.style.width = i === currentSlide ? '16px' : '8px';
+          dot.style.borderRadius = '999px';
+        });
+      }
+    };
+
+    const startAuto = () => {
+      if (autoTimer) clearInterval(autoTimer);
+      autoTimer = setInterval(() => goToSlide(currentSlide + 1), 3500);
+    };
+    startAuto();
+
+    // Dot click navigation
+    dotsContainer?.querySelectorAll('.carousel-dot').forEach(dot => {
+      dot.addEventListener('click', () => {
+        goToSlide(Number(dot.dataset.dotIdx));
+        startAuto();
+      });
+    });
+
+    // Touch swipe support
+    let touchStartX = 0;
+    carousel.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; clearInterval(autoTimer); }, { passive: true });
+    carousel.addEventListener('touchend', (e) => {
+      const diff = touchStartX - e.changedTouches[0].clientX;
+      if (Math.abs(diff) > 40) {
+        goToSlide(diff > 0 ? currentSlide + 1 : currentSlide - 1 + totalSlides);
+      }
+      startAuto();
+    }, { passive: true });
+
+    // Pause on hover
+    carousel.addEventListener('mouseenter', () => clearInterval(autoTimer));
+    carousel.addEventListener('mouseleave', startAuto);
+
+    goToSlide(0);
+  }
+
+  document.getElementById('btn-home-create-tourney')?.addEventListener('click', () => openTournamentCreationRoadmapModal(false));
+}
+
+// --- WHATSAPP 1-CLICK SHARING UTILITIES ---
+export function shareMatchToWhatsApp(fixture, tourney) {
+  if (!fixture) return;
+  const tourneyName = tourney?.name || 'Cricket Premier League';
+  const matchNo = fixture.matchNo || 1;
+  const stage = (fixture.stage || fixture.groupCode || 'League Match').replace(/_/g, ' ');
+  const teamA = fixture.teamAName || 'Team A';
+  const teamB = fixture.teamBName || 'Team B';
+  const scoreA = fixture.liveScoreTeamA || (fixture.teamAScore ? `${fixture.teamAScore.runs}/${fixture.teamAScore.wickets} (${fixture.teamAScore.overs}.${fixture.teamAScore.balls || 0} ov)` : '');
+  const scoreB = fixture.liveScoreTeamB || (fixture.teamBScore ? `${fixture.teamBScore.runs}/${fixture.teamBScore.wickets} (${fixture.teamBScore.overs}.${fixture.teamBScore.balls || 0} ov)` : '');
+  const status = (fixture.status || 'SCHEDULED').toUpperCase();
+  const venue = fixture.venue || tourney?.venue || 'Ground';
+  const date = fixture.date || '';
+  const time = fixture.time || '';
+  const matchUrl = `${window.location.origin}${window.location.pathname}#t/${tourney?.slug || 'jsl-2026'}?tab=matches`;
+
+  let statusHeader = '🗓️ *MATCH SCHEDULE*';
+  let resultLine = '';
+  if (status === 'LIVE') {
+    statusHeader = '🔴 *LIVE MATCH UPDATE*';
+  } else if (status === 'COMPLETED') {
+    statusHeader = '✅ *MATCH RESULT*';
+    if (fixture.resultText || fixture.winnerTeamName) {
+      resultLine = `🎯 *Result*: ${fixture.resultText || `${fixture.winnerTeamName} Won! 🎉`}\n`;
+    }
+  }
+
+  let text = `🏏 *${tourneyName.toUpperCase()}*\n`;
+  text += `━━━━━━━━━━━━━━━━━━━━━\n`;
+  text += `${statusHeader}\n`;
+  text += `👉 *Match #${matchNo}* (${stage})\n\n`;
+  text += `⚔️ *${teamA}* ${scoreA ? `➜ ${scoreA}` : ''}\n`;
+  text += `      🆚\n`;
+  text += `🛡️ *${teamB}* ${scoreB ? `➜ ${scoreB}` : ''}\n\n`;
+  if (resultLine) text += resultLine;
+  text += `📍 *Venue*: ${venue}\n`;
+  if (date || time) text += `⏰ *Date & Time*: ${date} ${time}\n`;
+  text += `━━━━━━━━━━━━━━━━━━━━━\n`;
+  text += `📊 *Live Scorecard & Ball-by-Ball:*\n${matchUrl}`;
+
+  const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+  window.open(waUrl, '_blank');
+}
+window.shareMatchToWhatsApp = shareMatchToWhatsApp;
+
+export function sharePointsTableToWhatsApp(groupName, teams, tourney) {
+  if (!teams || teams.length === 0) return;
+  const tourneyName = tourney?.name || 'Cricket Premier League';
+  const matchUrl = `${window.location.origin}${window.location.pathname}#t/${tourney?.slug || 'jsl-2026'}?tab=matches`;
+
+  let text = `🏆 *${tourneyName.toUpperCase()}*\n`;
+  text += `📊 *POINTS TABLE • ${(groupName || 'ALL TEAMS').toUpperCase()}*\n`;
+  text += `━━━━━━━━━━━━━━━━━━━━━\n`;
+  text += `*# | Team | P | W | L | Pts | NRR*\n`;
+  text += `─────────────────────\n`;
+
+  teams.forEach((t, idx) => {
+    const p = t.matchesPlayed || t.played || 0;
+    const w = t.won || 0;
+    const l = t.lost || 0;
+    const pts = t.points || (w * 2);
+    const nrr = (t.nrr !== undefined && t.nrr !== null) ? Number(t.nrr).toFixed(3) : '+0.000';
+    text += `${idx + 1}. *${t.name}*\n   ➔ ${p}P | ${w}W | ${l}L | *${pts} PTS* | NRR: ${nrr > 0 ? '+' + nrr : nrr}\n`;
+  });
+
+  text += `━━━━━━━━━━━━━━━━━━━━━\n`;
+  text += `🔗 *View Live Table & Full Standings:*\n${matchUrl}`;
+
+  const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
+  window.open(waUrl, '_blank');
+}
+window.sharePointsTableToWhatsApp = sharePointsTableToWhatsApp;
+
+// --- DEDICATED CUSTOM TOURNAMENT HUB VIEW WITH DYNAMIC MULTI-TENANT ARCHITECTURE ---
+export function renderCustomTournamentHub(container, tourney) {
+  if (!container || !tourney) return;
+
+  const isJsl = (tourney.slug === 'jsl-2026' || tourney.slug === 'jsl' || (tourney.code || '').toUpperCase() === 'JSL' || (tourney.shortCode || '').toUpperCase() === 'JSL' || (tourney.name || '').toUpperCase().includes('JHANKRA'));
+  // Support AUCTION_LEAGUE, registration_auction, or default mode
+  const isAuction = isJsl || (tourney.mode === 'AUCTION_LEAGUE') || (tourney.mode === 'registration_auction') || (!tourney.mode);
+
+  const tid = tourney.supabaseId || tourney.tournament_id || tourney.id;
+  const tourneySlug = (tourney.slug || '').toLowerCase();
+  const tourneyCode = (tourney.shortCode || tourney.code || '').toUpperCase();
+  const tourneyName = (tourney.name || '').toUpperCase();
+
+  const allPlayers = (() => {
+    // 1. Start with store.getPlayers()
+    const list = store.getPlayers();
+
+    // 2. Also search all localStorage keys for players registered for this tournament
+    const extraMatches = [];
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('cpl_players_v8_')) {
+          const raw = localStorage.getItem(k);
+          if (raw) {
+            const arr = JSON.parse(raw);
+            if (Array.isArray(arr)) {
+              arr.forEach(p => {
+                if (p && (p.id || p.phone)) {
+                  const pTid = (p.tournament_id || p.tournamentId || '').toLowerCase();
+                  const pSlug = (p.tournamentSlug || p.tournament_slug || '').toLowerCase();
+                  const pCode = (p.tournamentCode || p.category_code || '').toUpperCase();
+                  const pTName = (p.tournamentName || '').toUpperCase();
+
+                  const matches = (pTid && (pTid === (tid || '').toLowerCase() || pTid === (tourney.id || '').toLowerCase() || pTid === (tourney.supabaseId || '').toLowerCase())) ||
+                                  (pSlug && (pSlug === tourneySlug || tourneySlug.includes(pSlug) || pSlug.includes(tourneySlug))) ||
+                                  (pCode && pCode === tourneyCode) ||
+                                  (tourneySlug.includes('cgl') && (pTid.includes('cgl') || pSlug.includes('cgl') || pTName.includes('CGL'))) ||
+                                  (tourneySlug.includes('kota') && (pTid.includes('kpl') || pSlug.includes('kpl') || pTName.includes('KOTA'))) ||
+                                  (tourneySlug.includes('khirpai') && (pTid.includes('khirpai') || pSlug.includes('khirpai') || pTName.includes('KHIRPAI'))) ||
+                                  (isJsl && (pTid.includes('jsl') || pSlug.includes('jsl') || pTName.includes('JHANKRA') || pTName.includes('JSL')));
+                  if (matches) {
+                    extraMatches.push(p);
+                  }
+                }
+              });
+            }
+          }
+        }
+      }
+    } catch(e) {}
+
+    // Deduplicate combined list by id or normalized phone
+    const combined = [...list, ...extraMatches];
+    const unique = new Map();
+    combined.forEach(p => {
+      if (!p) return;
+      const pTid = (p.tournament_id || p.tournamentId || '').toLowerCase();
+      const pSlug = (p.tournamentSlug || p.tournament_slug || '').toLowerCase();
+      const pCode = (p.tournamentCode || p.category_code || '').toUpperCase();
+      const pTName = (p.tournamentName || '').toUpperCase();
+
+      const isMatch = (isJsl && (!p.tournamentId && !p.tournament_id && !p.tournamentSlug)) ||
+                      (pTid && (pTid === (tid || '').toLowerCase() || pTid === (tourney.id || '').toLowerCase() || pTid === (tourney.supabaseId || '').toLowerCase())) ||
+                      (pSlug && (pSlug === tourneySlug || tourneySlug.includes(pSlug) || pSlug.includes(tourneySlug))) ||
+                      (pCode && pCode === tourneyCode) ||
+                      (tourneySlug.includes('cgl') && (pTid.includes('cgl') || pSlug.includes('cgl') || pTName.includes('CGL'))) ||
+                      (tourneySlug.includes('kota') && (pTid.includes('kpl') || pSlug.includes('kpl') || pTName.includes('KOTA'))) ||
+                      (tourneySlug.includes('khirpai') && (pTid.includes('khirpai') || pSlug.includes('khirpai') || pTName.includes('KHIRPAI'))) ||
+                      (tourneySlug.includes('kuapur') && (pTid.includes('kuapur') || pTid.includes('kpl') || pSlug.includes('kuapur') || pSlug.includes('kpl') || pTName.includes('KUAPUR') || pTName.includes('KPL'))) ||
+                      (isJsl && (pTid.includes('jsl') || pSlug.includes('jsl') || pTName.includes('JHANKRA') || pTName.includes('JSL'))) ||
+                      (p.teamId && allTeams.some(t => t.id === p.teamId || (p.teamId && t.id && toUUID(t.id) === toUUID(p.teamId))));
+
+      if (isMatch) {
+        const uKey = p.id || (p.phone ? p.phone.replace(/[^0-9]/g, '') : Math.random());
+        if (!unique.has(uKey)) {
+          unique.set(uKey, p);
+        }
+      }
+    });
+
+    return Array.from(unique.values());
+  })();
+
+  const displayPlayers = allPlayers;
+
+  const curTourneyCode = (tourney.category_code || tourney.code || tourney.category || tourney.shortCode || tourney.slug || (isJsl ? 'JSL' : '')).toUpperCase();
+  const curTourneyId = tid || tourney.id || tourney.supabaseId || (isJsl ? 'leg-jsl' : '');
+
+  const allTeams = (store.getAllTeamsAcrossTournaments ? store.getAllTeamsAcrossTournaments() : store.getTeams()).filter(t => {
+    if (!t) return false;
+    const tTid = (t.tournament_id || t.tournamentId || t.leagueId || '').toString();
+    const tCode = (t.leagueCode || t.category_code || '').toUpperCase();
+
+    if (tTid && (tTid === curTourneyId || tTid === String(tourney.id) || tTid === String(tourney.supabaseId) || toUUID(tTid) === toUUID(curTourneyId))) return true;
+    if (tCode && curTourneyCode && tCode !== 'T') {
+      if (tCode === curTourneyCode) return true;
+      if (curTourneyCode === 'KPL' && (tCode === 'K2026' || tCode === 'KPL')) return true;
+      if (curTourneyCode === 'JSL' && (tCode === 'J2026' || tCode === 'JSL')) return true;
+    }
+    return false;
+  });
+
+  const allTeamIds = new Set(allTeams.map(t => String(t.id)));
+
+  // Build a set of ALL teams belonging to OTHER tournaments for strict exclusion
+  const otherTourneyTeamIds = new Set();
+  const allRegisteredTeams = store.getAllTeamsAcrossTournaments ? store.getAllTeamsAcrossTournaments() : store.getTeams();
+  allRegisteredTeams.forEach(t => {
+    if (t && t.id && !allTeamIds.has(String(t.id))) {
+      otherTourneyTeamIds.add(String(t.id));
+    }
+  });
+
+  const allFixtures = (store.getAllFixturesAcrossTournaments ? store.getAllFixturesAcrossTournaments() : (store.getFixtures ? store.getFixtures() : [])).filter(f => {
+    if (!f) return false;
+    const fTeamA = f.teamAId ? String(f.teamAId) : '';
+    const fTeamB = f.teamBId ? String(f.teamBId) : '';
+
+    // CRITICAL EXCLUSION: If Team A or Team B belongs to another tournament, REJECT IT IMMEDIATELY!
+    if (otherTourneyTeamIds.has(fTeamA) || otherTourneyTeamIds.has(fTeamB)) {
+      return false;
+    }
+
+    // Direct inclusion if Team A or Team B belongs to this tournament
+    if (allTeamIds.has(fTeamA) || allTeamIds.has(fTeamB)) {
+      return true;
+    }
+
+    const fTid = (f.tournament_id || f.tournamentId || f.leagueId || '').toString();
+    const fCode = (f.leagueCode || f.category_code || '').toUpperCase();
+
+    // Rule 1: Match by exact tournament UUID / ID / Slug
+    if (fTid && (fTid === curTourneyId || fTid === String(tourney.id) || fTid === String(tourney.supabaseId) || fTid === tourneySlug || toUUID(fTid) === toUUID(curTourneyId))) return true;
+
+    // Rule 2: Match by explicit League Code
+    if (fCode && curTourneyCode && fCode !== 'T') {
+      if (fCode === curTourneyCode) return true;
+      if (curTourneyCode === 'KPL' && (fCode === 'K2026' || fCode === 'KPL')) return true;
+      if (curTourneyCode === 'JSL' && (fCode === 'J2026' || fCode === 'JSL')) return true;
+    }
+
+    return false;
+  });
+
+  const pendingPlayers = allPlayers.filter(p => (p.registrationStatus || p.paymentStatus || '').toUpperCase().includes('PENDING'));
+  const approvedPlayers = allPlayers.filter(p => {
+    const s = (p.registrationStatus || p.paymentStatus || '').toUpperCase();
+    return s.includes('APPROVED') || s.includes('VERIFIED') || s === 'SOLD';
+  });
+  const soldPlayers = allPlayers.filter(p => p.teamId || p.auctionStatus === 'SOLD');
+
+  // Top Award Candidates & Tournament Leaders (Calculated Strictly from Real Match Scorecards)
+  const playerStatsMap = new Map();
+
+  allFixtures.forEach(f => {
+    if (!f) return;
+    const state = f.liveMatchState || f.liveState || {};
+    const pStats = state.playerStats || f.playerStats || {};
+
+    Object.keys(pStats).forEach(pid => {
+      const ps = pStats[pid];
+      if (!ps) return;
+
+      let entry = playerStatsMap.get(pid);
+      if (!entry) {
+        const playerObj = allPlayers.find(p => p.id === pid || (p.id && pid && toUUID(p.id) === toUUID(pid))) || {};
+        entry = {
+          id: pid,
+          name: ps.name || playerObj.name || 'Unknown Player',
+          photoUrl: playerObj.photoUrl || playerObj.player_photo_url || 'assets/card_jsl_user.png',
+          runs: 0,
+          balls: 0,
+          fours: 0,
+          sixes: 0,
+          wickets: 0,
+          overs: 0,
+          ballsBowled: 0,
+          runsConceded: 0,
+          maidens: 0,
+          catches: 0,
+          stumpings: 0,
+          runOuts: 0,
+          age: playerObj.age
+        };
+        playerStatsMap.set(pid, entry);
+      }
+
+      entry.runs += Number(ps.runs || ps.runsScored || 0);
+      entry.balls += Number(ps.balls || ps.ballsFaced || 0);
+      entry.fours += Number(ps.fours || ps['4s'] || 0);
+      entry.sixes += Number(ps.sixes || ps['6s'] || 0);
+      entry.wickets += Number(ps.wickets || ps.wicketsTaken || 0);
+      entry.ballsBowled += Number(ps.ballsBowled || ((ps.overs || 0) * 6 + (ps.oversBalls || 0)));
+      entry.runsConceded += Number(ps.runsConceded || ps.runsAgainst || 0);
+      entry.maidens += Number(ps.maidens || 0);
+      entry.catches += Number(ps.catches || 0);
+      entry.stumpings += Number(ps.stumpings || 0);
+      entry.runOuts += Number(ps.runOuts || 0);
+    });
+  });
+
+  const tournamentPlayerStats = Array.from(playerStatsMap.values()).map(p => {
+    const mvp = (p.runs * 1) + (p.fours * 1) + (p.sixes * 2) + (p.wickets * 20) + (p.maidens * 8) + (p.catches * 8) + (p.stumpings * 10) + (p.runOuts * 8);
+    const fielding = p.catches + p.runOuts;
+    return {
+      ...p,
+      mvp,
+      fielding,
+      totalRuns: p.runs,
+      totalWickets: p.wickets,
+      totalSixes: p.sixes,
+      totalFours: p.fours,
+      totalMaidens: p.maidens,
+      totalDotBalls: p.dotBalls || 0,
+      totalTwos: p.twos || 0
+    };
+  });
+
+  const topBatsman = tournamentPlayerStats.filter(p => p.totalRuns > 0).sort((a, b) => b.totalRuns - a.totalRuns)[0] || null;
+  const topBowler = tournamentPlayerStats.filter(p => p.totalWickets > 0).sort((a, b) => b.totalWickets - a.totalWickets)[0] || null;
+  const topSixes = tournamentPlayerStats.filter(p => p.totalSixes > 0).sort((a, b) => b.totalSixes - a.totalSixes)[0] || null;
+  const topFours = tournamentPlayerStats.filter(p => p.totalFours > 0).sort((a, b) => b.totalFours - a.totalFours)[0] || null;
+  const topMaidens = tournamentPlayerStats.filter(p => p.totalMaidens > 0).sort((a, b) => b.totalMaidens - a.totalMaidens)[0] || null;
+  const topDotBalls = tournamentPlayerStats.filter(p => p.totalDotBalls > 0).sort((a, b) => b.totalDotBalls - a.totalDotBalls)[0] || null;
+  const topTwos = tournamentPlayerStats.filter(p => p.totalTwos > 0).sort((a, b) => b.totalTwos - a.totalTwos)[0] || null;
+  const topKeeper = tournamentPlayerStats.filter(p => p.stumpings > 0).sort((a, b) => b.stumpings - a.stumpings)[0] || null;
+  const topFielder = tournamentPlayerStats.filter(p => p.fielding > 0).sort((a, b) => b.fielding - a.fielding)[0] || null;
+  const emergingPlayer = tournamentPlayerStats.filter(p => p.age && Number(p.age) <= 19 && (p.totalRuns > 0 || p.totalWickets > 0)).sort((a, b) => (b.totalRuns + b.totalWickets * 20) - (a.totalRuns + a.totalWickets * 20))[0] || null;
+  const topMVP = tournamentPlayerStats.filter(p => p.mvp > 0).sort((a, b) => b.mvp - a.mvp)[0] || null;
+  const topTeam = allTeams[0] || null;
+
+  // DYNAMIC TABS CONFIGURATION:
+  // Mode A (Auction): Home -> Teams -> Registered Players -> Auction -> Match Corner -> Statistics
+  // Mode B (Fixtures): Home -> Teams -> Match Corner -> Statistics
+  const hubTabs = isAuction ? [
+    { id: 'home', label: '🏠 HOME' },
+    { id: 'teams', label: '🛡️ TEAMS' },
+    { id: 'players', label: '👥 REGISTERED PLAYERS' },
+    { id: 'auction', label: '🔨 AUCTION' },
+    { id: 'matches', label: '🏏 MATCH CORNER' },
+    { id: 'stats', label: '📊 STATISTICS' },
+  ] : [
+    { id: 'home', label: '🏠 HOME' },
+    { id: 'teams', label: '🛡️ TEAMS' },
+    { id: 'matches', label: '🏏 MATCH CORNER' },
+    { id: 'stats', label: '📊 STATISTICS' },
+  ];
+
+  let hubTab = 'home';
+  // 1. Read tab parameter from URL hash (e.g. #t/jsl-2026?tab=auction)
+  try {
+    const rawHash = location.hash.replace(/^#/, '');
+    if (rawHash.includes('?')) {
+      const q = new URLSearchParams(rawHash.split('?')[1]);
+      const tabParam = q.get('tab');
+      if (tabParam && hubTabs.some(t => t.id === tabParam)) {
+        hubTab = tabParam;
+      }
+    }
+  } catch(e) {}
+
+  // 2. If not in URL, read from session storage
+  if (hubTab === 'home') {
+    try {
+      const saved = sessionStorage.getItem('cpl_hub_tab_' + tourney.slug);
+      if (saved && hubTabs.some(t => t.id === saved)) hubTab = saved;
+    } catch(e) {}
+  }
+
+  const currentUser = store.getCurrentUser ? store.getCurrentUser() : null;
+  const userPhone = (currentUser?.phone || currentUser?.mobile || '').replace(/[^0-9]/g, '');
+  const orgPhone = (tourney.organizer?.phone || '').replace(/[^0-9]/g, '');
+  const isMaster = store.isMasterAdmin ? store.isMasterAdmin() : false;
+  const isTourneyAdmin = isMaster || (userPhone && userPhone === orgPhone) || (Array.isArray(currentUser?.ownedTournaments) && currentUser.ownedTournaments.some(id => id && id.toLowerCase().includes(tourney.slug?.toLowerCase() || '')));
+
+  const slugKey = tourney.slug || 'jsl-2026';
+  let isUserLiked = false;
+  try { isUserLiked = localStorage.getItem('cpl_liked_' + slugKey) === 'true'; } catch(e) {}
+  const rawLikes = Number(tourney.format_config?.likes_count || tourney.likesCount || 148);
+  const likesCount = isUserLiked ? rawLikes + 1 : rawLikes;
+
+  let existingComments = [];
+  try {
+    const rawC = localStorage.getItem('cpl_comments_' + slugKey);
+    existingComments = rawC ? JSON.parse(rawC) : [];
+  } catch(e) { existingComments = []; }
+  const commentsCount = (existingComments && existingComments.length > 0) ? existingComments.length : 2;
+
+  container.innerHTML = `
+    <div class="w-full max-w-3xl mx-auto animate-fade-in text-slate-900 px-2 py-2 sm:py-4 pb-16 space-y-3">
+
+      <!-- DYNAMIC TAB NAVIGATION (STYLISH WHITE CONTAINER WITH HORIZONTAL MOBILE SCROLL) -->
+      <div class="bg-white border border-slate-200/90 rounded-2xl p-1.5 shadow-xs flex items-center gap-1 sm:gap-1.5 overflow-x-auto scrollbar-hide">
+        ${hubTabs.map(t => `
+          <button data-hub-tab="${t.id}" class="hub-tab-btn px-3 sm:px-4 py-2 rounded-xl text-[11px] sm:text-xs font-black tracking-wide transition-all whitespace-nowrap cursor-pointer flex items-center gap-1 shrink-0 ${hubTab === t.id ? 'bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-xs font-black' : 'bg-slate-50 hover:bg-slate-100 text-slate-600'}">
+            ${t.label}
+          </button>
+        `).join('')}
+      </div>
+
+      <!-- ========================================== -->
+      <!-- TAB 1: 🏠 HOME OVERVIEW                    -->
+      <!-- ========================================== -->
+      <div id="hub-tab-home" class="${hubTab === 'home' ? '' : 'hidden'} space-y-3 animate-fade-in">
+        
+        <!-- 1. HERO BANNER + 3-ACTION SOCIAL STRIP (JOINED TOGETHER IN ONE STYLISH WHITE CARD) -->
+        <div class="bg-white rounded-3xl p-2 sm:p-2.5 shadow-xs border border-slate-200/90 space-y-2">
+          <div class="relative w-full aspect-[16/9] sm:aspect-[21/9] md:aspect-[24/9] max-h-[220px] sm:max-h-[260px] overflow-hidden bg-slate-900 rounded-2xl shadow-inner border border-slate-100">
+            ${tourney.posterUrl ? `
+              <img src="${tourney.posterUrl}" class="w-full h-full object-cover object-center" onerror="this.style.display='none'" />
+            ` : renderTournamentFallbackPoster(tourney)}
+          </div>
+
+          <!-- 3-OPTION SOCIAL & INTERACTION ACTION BAR (DIRECTLY JOINED UNDER BANNER SHAPE) -->
+          <div class="grid grid-cols-3 gap-1.5 text-center pt-0.5">
+            <!-- Left: Love / Like Reaction with Real Reactive Count -->
+            <button type="button" id="btn-hub-like-tourney" class="py-2 px-2 rounded-xl bg-rose-50/80 hover:bg-rose-100 text-rose-700 font-black text-xs border border-rose-200/80 flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95 group">
+              <span id="hub-like-icon" class="text-base transition-transform group-hover:scale-125">${isUserLiked ? '❤️' : '🤍'}</span>
+              <span id="hub-like-count" class="font-mono text-xs font-black">${likesCount}</span>
+              <span class="hidden sm:inline text-[10px] text-rose-900 uppercase">Likes</span>
+            </button>
+
+            <!-- Middle: Comments & Queries -->
+            <button type="button" id="btn-hub-open-comments" class="py-2 px-2 rounded-xl bg-sky-50/80 hover:bg-sky-100 text-sky-800 font-black text-xs border border-sky-200/80 flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95 group">
+              <svg class="w-4 h-4 text-sky-600 shrink-0 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
+              </svg>
+              <span id="hub-comment-count" class="font-mono text-xs font-black">${commentsCount}</span>
+              <span class="text-[10px] text-sky-900 uppercase">Queries</span>
+            </button>
+
+            <!-- Right: Share Link -->
+            <button type="button" id="btn-hub-share-link" class="py-2 px-2 rounded-xl bg-emerald-50/80 hover:bg-emerald-100 text-emerald-800 font-black text-xs border border-emerald-200/80 flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95 group">
+              <svg class="w-4 h-4 text-emerald-600 shrink-0 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
+              </svg>
+              <span class="text-[10px] sm:text-xs font-black text-emerald-900 uppercase">Share</span>
             </button>
           </div>
+        </div>
+
+        <!-- 2. REGISTRATION BAR WITH INTEGRATED REGISTRATION SHARE SVG (IF REGISTRATION IS OPEN) -->
+        ${isAuction && store.isRegistrationOpen() ? `
+          <div class="py-2.5 px-3 sm:px-4 bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 text-white rounded-2xl shadow-md border-2 border-rose-400 flex items-center justify-between gap-2 transition-all">
+            <!-- Left & Maximum Portion: Register Here Clickable Area -->
+            <div id="btn-home-hero-reg-link" class="flex-1 min-w-0 flex items-center gap-2 cursor-pointer group">
+              <span class="w-2.5 h-2.5 rounded-full bg-white animate-ping shrink-0"></span>
+              <span class="text-xs sm:text-sm font-black truncate tracking-wide group-hover:underline">
+                🏏 Register Here for ${tourney.name}
+              </span>
+              <span class="px-2.5 py-0.5 bg-white text-rose-700 font-black text-[9.5px] sm:text-[10px] rounded-full uppercase tracking-wider shrink-0 shadow-xs hidden xs:inline-block">
+                Open ➔
+              </span>
+            </div>
+
+            <!-- Right: Small SVG Icon Button for Direct Share -->
+            <button type="button" id="btn-share-direct-reg-wa" title="Share Registration Link" class="p-1.5 sm:p-2 bg-white/20 hover:bg-white/35 active:scale-95 text-white rounded-xl border border-white/30 flex items-center justify-center shrink-0 cursor-pointer transition-all">
+              <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="2.3" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
+              </svg>
+            </button>
+          </div>
+        ` : ''}
+
+        <!-- 4. CORE 5-METRIC COLORFUL GRID ON CLEAN WHITE CARD -->
+        <div class="bg-white rounded-2xl p-3 shadow-xs border border-slate-200/90 space-y-2">
+          <div class="grid grid-cols-2 sm:grid-cols-3 gap-2">
+            <!-- Location -->
+            <div class="p-2.5 bg-rose-50/80 rounded-xl border border-rose-200/80 flex items-center gap-2">
+              <span class="p-1.5 bg-rose-100 text-rose-700 rounded-lg shrink-0">
+                <svg class="w-4 h-4 text-red-600 shrink-0" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+                  <circle cx="12" cy="9" r="2.5" fill="currentColor"/>
+                </svg>
+              </span>
+              <div class="min-w-0">
+                <span class="text-[8.5px] font-black uppercase text-rose-900 block">Ground / Location</span>
+                <span class="text-xs font-black text-slate-900 truncate block">${tourney.venue || 'Local Stadium / Ground'}</span>
+              </div>
+            </div>
+
+            <!-- Winner Prize -->
+            <div class="p-2.5 bg-amber-50/80 rounded-xl border border-amber-200/80 flex items-center gap-2">
+              <span class="p-1.5 bg-amber-100 text-amber-800 rounded-lg text-sm shrink-0">🏆</span>
+              <div class="min-w-0">
+                <span class="text-[8.5px] font-black uppercase text-amber-900 block">Winner Prize</span>
+                <span class="text-xs font-black text-slate-900 font-mono truncate block">${tourney.prizeWinner ? '₹' + Number(tourney.prizeWinner).toLocaleString('en-IN') : '₹ 35,000'}</span>
+              </div>
+            </div>
+
+            <!-- Runner-Up Prize -->
+            <div class="p-2.5 bg-blue-50/80 rounded-xl border border-blue-200/80 flex items-center gap-2">
+              <span class="p-1.5 bg-blue-100 text-blue-800 rounded-lg text-sm shrink-0">🥈</span>
+              <div class="min-w-0">
+                <span class="text-[8.5px] font-black uppercase text-blue-900 block">Runner-Up Prize</span>
+                <span class="text-xs font-black text-slate-900 truncate block">${tourney.prizeRunner ? '₹' + Number(tourney.prizeRunner).toLocaleString('en-IN') : (tourney.prizeRunners || 'Trophy + Medals')}</span>
+              </div>
+            </div>
+
+            <!-- Total Teams -->
+            <div class="p-2.5 bg-purple-50/80 rounded-xl border border-purple-200/80 flex items-center gap-2">
+              <span class="p-1.5 bg-purple-100 text-purple-800 rounded-lg text-sm shrink-0">🛡️</span>
+              <div class="min-w-0">
+                <span class="text-[8.5px] font-black uppercase text-purple-900 block">Total Teams</span>
+                <span class="text-xs font-black text-slate-900 font-mono truncate block">${tourney.totalTeams || allTeams.length || 8} Teams</span>
+              </div>
+            </div>
+
+            <!-- Start & End Dates -->
+            <div class="p-2.5 bg-emerald-50/80 rounded-xl border border-emerald-200/80 flex items-center gap-2 col-span-2 sm:col-span-2">
+              <span class="p-1.5 bg-emerald-100 text-emerald-800 rounded-lg text-sm shrink-0">📅</span>
+              <div class="min-w-0">
+                <span class="text-[8.5px] font-black uppercase text-emerald-900 block">Tournament Schedule Dates</span>
+                <span class="text-xs font-black text-slate-900 truncate block">${tourney.dates || (tourney.kickoffDate ? new Date(tourney.kickoffDate).toLocaleDateString('en-IN') : '29, 30 & 31 AUGUST 2026')}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 5. POINT-BY-POINT TOURNAMENT SPECIFICATIONS & RULE BOOK (PREMIUM EXECUTIVE SPORTS DESIGN) -->
+        <div class="bg-white rounded-3xl p-3.5 sm:p-5 shadow-xs border border-slate-200/90 space-y-3.5">
+          
+          <!-- Header -->
+          <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div class="flex items-center gap-2.5">
+              <span class="w-9 h-9 rounded-2xl bg-amber-50 text-amber-900 border border-amber-200/80 flex items-center justify-center text-base font-black shadow-2xs">
+                📋
+              </span>
+              <div>
+                <h3 class="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-wide">
+                  Tournament Guide & Specifications
+                </h3>
+                <p class="text-[10px] text-slate-400 font-bold">Official Rules, Financials & Eligibility Criteria</p>
+              </div>
+            </div>
+            <span class="px-2.5 py-1 bg-emerald-50 text-emerald-800 text-[9.5px] font-black rounded-full border border-emerald-300 uppercase tracking-wider shrink-0 flex items-center gap-1">
+              <span class="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span> Official ✓
+            </span>
+          </div>
+
+          <!-- Professional 4-Card Spec Grid -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
+            
+            <!-- 1. Player Registration -->
+            <div class="p-3.5 bg-gradient-to-br from-slate-50 to-white rounded-2xl border border-slate-200/90 shadow-2xs hover:border-emerald-400 transition-all space-y-1.5">
+              <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2">
+                  <span class="w-7 h-7 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center text-xs font-black shrink-0">
+                    🎫
+                  </span>
+                  <span class="font-black text-slate-900 text-xs">Player Registration</span>
+                </div>
+                <span class="px-2 py-0.5 bg-emerald-100 text-emerald-900 font-mono font-black text-[10px] rounded-lg shrink-0">
+                  ₹${tourney.playerEntryFee || tourney.entryFee || 300} / Entry
+                </span>
+              </div>
+              <p class="text-[11px] text-slate-600 font-medium leading-relaxed">
+                Includes verified player profile, digital player pass card, and eligibility for the grand live team auction pool.
+              </p>
+            </div>
+
+            <!-- 2. Team Package & Auction Purse -->
+            <div class="p-3.5 bg-gradient-to-br from-slate-50 to-white rounded-2xl border border-slate-200/90 shadow-2xs hover:border-amber-400 transition-all space-y-1.5">
+              <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2">
+                  <span class="w-7 h-7 rounded-xl bg-amber-100 text-amber-900 flex items-center justify-center text-xs font-black shrink-0">
+                    💼
+                  </span>
+                  <span class="font-black text-slate-900 text-xs">Team Package & Purse</span>
+                </div>
+                <span class="px-2 py-0.5 bg-amber-100 text-amber-950 font-mono font-black text-[10px] rounded-lg shrink-0">
+                  Total ₹${Number((tourney.entryFeePortion || 7000) + (tourney.auctionPurse || 8000)).toLocaleString('en-IN')}
+                </span>
+              </div>
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="px-2 py-0.5 bg-amber-50 text-amber-900 font-black text-[9.5px] rounded-md border border-amber-200">
+                  Entry: ₹${Number(tourney.entryFeePortion || 7000).toLocaleString('en-IN')}
+                </span>
+                <span class="text-slate-300">•</span>
+                <span class="px-2 py-0.5 bg-emerald-50 text-emerald-900 font-black text-[9.5px] rounded-md border border-emerald-200">
+                  Auction Purse: ₹${Number(tourney.auctionPurse || 8000).toLocaleString('en-IN')}
+                </span>
+              </div>
+            </div>
+
+            <!-- 3. Squad & Base Price -->
+            <div class="p-3.5 bg-gradient-to-br from-slate-50 to-white rounded-2xl border border-slate-200/90 shadow-2xs hover:border-blue-400 transition-all space-y-1.5">
+              <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2">
+                  <span class="w-7 h-7 rounded-xl bg-blue-100 text-blue-800 flex items-center justify-center text-xs font-black shrink-0">
+                    🏏
+                  </span>
+                  <span class="font-black text-slate-900 text-xs">Squad & Bidding Rules</span>
+                </div>
+                <span class="px-2 py-0.5 bg-blue-100 text-blue-900 font-black text-[10px] rounded-lg shrink-0">
+                  12–16 Players
+                </span>
+              </div>
+              <div class="flex items-center gap-1.5 flex-wrap">
+                <span class="px-2 py-0.5 bg-slate-100 text-slate-800 font-black text-[9.5px] rounded-md border border-slate-200">
+                  Base: ₹${tourney.playerEntryFee || 300}
+                </span>
+                <span class="text-slate-300">•</span>
+                <span class="px-2 py-0.5 bg-purple-50 text-purple-900 font-black text-[9.5px] rounded-md border border-purple-200">
+                  Icon Player: ₹${tourney.iconPrice || 2000}
+                </span>
+              </div>
+            </div>
+
+            <!-- 4. Eligibility & Geographic Restriction -->
+            <div class="p-3.5 bg-gradient-to-br from-slate-50 to-white rounded-2xl border border-slate-200/90 shadow-2xs hover:border-rose-400 transition-all space-y-1.5">
+              <div class="flex items-center justify-between gap-2">
+                <div class="flex items-center gap-2">
+                  <span class="w-7 h-7 rounded-xl bg-rose-100 text-rose-800 flex items-center justify-center text-xs font-black shrink-0">
+                    📍
+                  </span>
+                  <span class="font-black text-slate-900 text-xs">Player Eligibility</span>
+                </div>
+                <span class="px-2 py-0.5 bg-rose-100 text-rose-900 font-black text-[9.5px] rounded-lg shrink-0">
+                  ID Verified
+                </span>
+              </div>
+              <p class="text-[11px] text-slate-700 font-semibold leading-relaxed">
+                ${tourney.ruleRestriction || 'Open to all registered and verified local players. Mandatory Aadhaar ID card verification at venue.'}
+              </p>
+            </div>
+
+          </div>
+
+          <!-- Custom Additional Notes (if organizer provided custom rules text) -->
+          ${tourney.rulesText || tourney.rules_text || tourney.additionalInfo ? `
+            <div class="p-3 bg-amber-50/70 rounded-2xl border border-amber-200 text-xs space-y-1">
+              <span class="text-[9px] font-black text-amber-950 uppercase block">Organizer's Special Instructions:</span>
+              <p class="text-[11px] text-slate-800 font-semibold leading-relaxed">
+                ${tourney.rulesText || tourney.rules_text || tourney.additionalInfo}
+              </p>
+            </div>
+          ` : ''}
+        </div>
+
+      </div>
+
+      <!-- ========================================== -->
+      <!-- TAB 2: 🛡️ TEAMS                             -->
+      <!-- ========================================== -->
+      <div id="hub-tab-teams" class="${hubTab === 'teams' ? '' : 'hidden'} space-y-3 animate-fade-in">
+        
+        <!-- Clean Header -->
+        <div class="flex items-center justify-between px-1">
+          <div class="flex items-center gap-2">
+            <span class="w-8 h-8 rounded-xl bg-emerald-100 text-emerald-800 flex items-center justify-center text-sm font-black shadow-xs">
+              🛡️
+            </span>
+            <div>
+              <h3 class="text-sm sm:text-base font-black text-slate-900 leading-tight">
+                Franchise Teams (${allTeams.length})
+              </h3>
+              <p class="text-[10px] text-slate-400 font-bold">Participating Teams & Squad Roster</p>
+            </div>
+          </div>
+          <span class="px-2.5 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-black rounded-full border border-slate-200 uppercase">
+            ${allTeams.length} Active
+          </span>
+        </div>
+
+        ${allTeams.length > 0 ? `
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            ${allTeams.map((t, idx) => {
+              const teamSquad = allPlayers.filter(p => p.teamId === t.id);
+              const logo = t.logoUrl || t.teamLogoUrl || generateUniqueTeamBadge(t.name, idx);
+
+              return `
+                <div class="bg-white rounded-3xl p-3.5 sm:p-4 border border-slate-200/90 shadow-sm hover:shadow-md hover:border-emerald-400 transition-all space-y-3 flex flex-col justify-between">
+                  
+                  <!-- Header: Logo, Name, Badge, Edit -->
+                  <div class="flex items-center justify-between gap-2.5">
+                    <div class="flex items-center gap-2.5 min-w-0">
+                      <div class="w-12 h-12 rounded-2xl bg-slate-50 border border-slate-200/80 overflow-hidden flex items-center justify-center shrink-0 p-0.5 shadow-2xs">
+                        <img src="${logo}" class="w-full h-full object-cover rounded-xl" onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\\'http://www.w3.org/2000/svg\\' viewBox=\\'0 0 100 100\\'%3E%3Crect width=\\'100\\' height=\\'100\\' fill=\\'%230F2C59\\'/%3E%3Ctext x=\\'50\\' y=\\'60\\' font-size=\\'40\\' text-anchor=\\'middle\\' fill=\\'white\\'%3E🏏%3C/text%3E%3C/svg%3E'" />
+                      </div>
+                      <div class="min-w-0">
+                        <h4 class="text-xs sm:text-sm font-black text-slate-900 truncate leading-tight uppercase">${t.name}</h4>
+                        <div class="flex items-center gap-1.5 mt-1">
+                          <span class="px-2.5 py-0.5 bg-emerald-50 text-emerald-800 font-black text-[9.5px] rounded-full border border-emerald-200/90">
+                            ${teamSquad.length} Players Drafted
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    ${isTourneyAdmin ? `
+                      <button type="button" class="btn-hub-edit-team px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-900 border border-amber-300 rounded-xl text-[10px] font-black cursor-pointer shrink-0 shadow-2xs transition-all" data-team-id="${t.id}">
+                        ✏️ Edit
+                      </button>
+                    ` : ''}
+                  </div>
+
+                  <!-- Colorful Fine Background Personnel Strip -->
+                  <div class="grid grid-cols-2 ${t.mentorName || t.coOwnerName ? 'sm:grid-cols-3' : 'grid-cols-2'} gap-2 text-xs">
+                    <!-- Owner -->
+                    <div class="p-2 bg-gradient-to-r from-amber-50/90 to-amber-100/50 border border-amber-200/90 rounded-2xl flex items-center gap-2 min-w-0 shadow-2xs">
+                      <div class="w-7 h-7 rounded-xl overflow-hidden bg-amber-200/80 border border-amber-300/80 flex items-center justify-center shrink-0 text-xs shadow-2xs">
+                        ${t.ownerPhotoUrl || t.ownerPhoto ? `<img src="${t.ownerPhotoUrl || t.ownerPhoto}" class="w-full h-full object-cover" />` : `<span>👑</span>`}
+                      </div>
+                      <div class="min-w-0">
+                        <span class="text-[8px] font-black uppercase text-amber-900 block leading-none">Owner</span>
+                        <span class="text-[11px] font-bold text-slate-900 truncate block mt-0.5">${t.ownerName || 'TBD'}</span>
+                      </div>
+                    </div>
+
+                    <!-- Icon Player -->
+                    <div class="p-2 bg-gradient-to-r from-emerald-50/90 to-teal-50/90 border border-emerald-200/90 rounded-2xl flex items-center gap-2 min-w-0 shadow-2xs">
+                      <div class="w-7 h-7 rounded-xl overflow-hidden bg-emerald-200/80 border border-emerald-300/80 flex items-center justify-center shrink-0 text-xs shadow-2xs">
+                        ${t.iconPlayerPhotoUrl || t.iconPhoto ? `<img src="${t.iconPlayerPhotoUrl || t.iconPhoto}" class="w-full h-full object-cover" />` : `<span>⭐</span>`}
+                      </div>
+                      <div class="min-w-0">
+                        <span class="text-[8px] font-black uppercase text-emerald-900 block leading-none">Icon</span>
+                        <span class="text-[11px] font-bold text-slate-900 truncate block mt-0.5">${t.iconPlayerName || t.iconName || 'None'}</span>
+                      </div>
+                    </div>
+
+                    <!-- Mentor (if present) -->
+                    ${t.mentorName || t.coOwnerName ? `
+                      <div class="p-2 bg-gradient-to-r from-purple-50/90 to-indigo-50/90 border border-purple-200/90 rounded-2xl flex items-center gap-2 min-w-0 col-span-2 sm:col-span-1 shadow-2xs">
+                        <div class="w-7 h-7 rounded-xl overflow-hidden bg-purple-200/80 border border-purple-300/80 flex items-center justify-center shrink-0 text-xs shadow-2xs">
+                          ${t.mentorPhotoUrl || t.coOwnerPhotoUrl ? `<img src="${t.mentorPhotoUrl || t.coOwnerPhotoUrl}" class="w-full h-full object-cover" />` : `<span>🧠</span>`}
+                        </div>
+                        <div class="min-w-0">
+                          <span class="text-[8px] font-black uppercase text-purple-900 block leading-none">${t.mentorName ? 'Mentor' : 'Co-Owner'}</span>
+                          <span class="text-[11px] font-bold text-slate-900 truncate block mt-0.5">${t.mentorName || t.coOwnerName}</span>
+                        </div>
+                      </div>
+                    ` : ''}
+                  </div>
+
+                  <!-- View Squad Button -->
+                  <button type="button" class="hub-view-squad-btn w-full py-2.5 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 hover:from-emerald-700 hover:to-teal-800 text-white font-black text-xs rounded-2xl shadow-xs flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95" data-team-id="${t.id}">
+                    <span>View Full Squad (${teamSquad.length} Players) ➔</span>
+                  </button>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        ` : `
+          <div class="text-center py-12 bg-white rounded-3xl border border-slate-200/90 shadow-sm space-y-2">
+            <div class="text-3xl">🛡️</div>
+            <p class="text-sm font-bold text-slate-700">No teams created yet</p>
+            <p class="text-xs text-slate-400">Teams will be listed here once assigned by the tournament organizer.</p>
+          </div>
+        `}
+      </div>
+
+      <!-- ============================================================= -->
+      <!-- TAB 3: 👥 REGISTERED PLAYERS (Classic Emerald Frame Design)    -->
+      <!-- ============================================================= -->
+      ${isAuction ? `
+        <div id="hub-tab-players" class="${hubTab === 'players' ? '' : 'hidden'} space-y-3 animate-fade-in">
+          
+          <!-- Header Strip -->
+          <div class="flex items-center justify-between gap-2 px-1">
+            <h3 class="text-base sm:text-lg font-black text-slate-900">
+              Registered Player List (<span id="hub-player-count-display">${displayPlayers.length}</span>)
+            </h3>
+            <span class="text-[10px] font-black text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-300 shrink-0">
+              ${displayPlayers.filter(p => (p.registrationStatus || p.paymentStatus || '').toUpperCase().includes('APPROVED') || (p.registrationStatus || p.paymentStatus || '').toUpperCase().includes('VERIFIED') || p.verified === true).length} Verified
+            </span>
+          </div>
+
+          <!-- Real-Time Search Bar -->
+          <div class="relative w-full">
+            <input type="text" id="hub-player-search-input" placeholder="🔍 Search player by name, Reg ID (JSL2026-0001), phone, village..." class="w-full pl-9 pr-8 py-2.5 bg-white border border-slate-200 rounded-2xl text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:border-emerald-500 shadow-2xs transition-all" />
+            <span class="absolute left-3 top-2.5 text-slate-400 text-xs">🔍</span>
+            <button type="button" id="hub-player-search-clear" class="absolute right-3 top-2 text-slate-300 hover:text-slate-600 text-xs font-black hidden cursor-pointer">✕</button>
+          </div>
+
+          <!-- Category Filter Pills (Scrollable) -->
+          <div class="flex items-center gap-1.5 overflow-x-auto scrollbar-hide py-0.5">
+            <button type="button" data-cat-filter="all" class="hub-cat-filter-btn px-3.5 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1 shrink-0 bg-emerald-700 text-white shadow-xs">
+              <span>🏏</span> <span>All (${displayPlayers.length})</span>
+            </button>
+            <button type="button" data-cat-filter="batsman" class="hub-cat-filter-btn px-3.5 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1 shrink-0 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200">
+              <span>🏏</span> <span>Batsman</span>
+            </button>
+            <button type="button" data-cat-filter="bowler" class="hub-cat-filter-btn px-3.5 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1 shrink-0 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200">
+              <span>⚾</span> <span>Bowler</span>
+            </button>
+            <button type="button" data-cat-filter="allrounder" class="hub-cat-filter-btn px-3.5 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1 shrink-0 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200">
+              <span>⭐</span> <span>All Rounder</span>
+            </button>
+            <button type="button" data-cat-filter="wicketkeeper" class="hub-cat-filter-btn px-3.5 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1 shrink-0 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200">
+              <span>🧤</span> <span>Wicket Keeper</span>
+            </button>
+          </div>
+
+          <!-- No Search Results Found Alert -->
+          <div id="hub-player-no-results" class="hidden text-center py-10 bg-white rounded-3xl border border-slate-200 shadow-xs space-y-2">
+            <div class="text-2xl">🔍</div>
+            <p class="text-xs font-black text-slate-800">No matching players found</p>
+            <p class="text-[11px] text-slate-400">Try searching with a different name, serial number, or role category.</p>
+          </div>
+
+          ${displayPlayers.length > 0 ? `
+            <div id="hub-players-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+              ${displayPlayers.map((p, idx) => {
+                const serial = String(p.displayRegistrationNumber || p.serialNo || (idx + 1)).padStart(2, '0');
+                const isApproved = (p.registrationStatus || p.paymentStatus || '').toUpperCase().includes('APPROVED') || (p.registrationStatus || p.paymentStatus || '').toUpperCase().includes('VERIFIED') || p.verified === true;
+                const photo = p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png';
+                const regCode = `${(tourney.shortCode || 'JSL').toUpperCase()}-2026-${String(serial).padStart(4, '0')}`;
+                const searchTokens = `${p.name || ''} ${p.mobile || p.phone || ''} ${serial} ${regCode} ${p.village || ''} ${p.address || ''} ${p.category || ''} ${p.role || ''}`.toLowerCase();
+                const rawCat = (p.category || p.role || 'allrounder').toLowerCase().replace(/[^a-z]/g, '');
+
+                return `
+                  <div class="hub-player-card bg-white p-2.5 sm:p-3 rounded-3xl border border-slate-200/90 shadow-sm hover:shadow-md transition-all flex flex-col justify-between text-center group" data-search="${searchTokens}" data-category="${rawCat}">
+                    <!-- Square 1:1 Player Picture with Signature Emerald Green Frame -->
+                    <div class="w-full aspect-square rounded-2xl border-2 sm:border-[2.5px] border-emerald-500 overflow-hidden relative mb-2.5 shadow-2xs bg-slate-50">
+                      <img src="${photo}" class="w-full h-full object-cover group-hover:scale-105 transition-transform" onerror="this.src='assets/card_jsl_user.png'" />
+                      <span class="absolute top-2 left-2 px-2 py-0.5 bg-black/90 text-amber-300 font-mono font-black text-[11px] rounded-lg border border-amber-400/80 shadow">
+                        #${serial}
+                      </span>
+                      <!-- Status Indicator Dot: RED until Admin Approval, GREEN once Verified -->
+                      <span class="absolute top-2 right-2 flex items-center justify-center" title="${isApproved ? 'Verified & Approved Player' : 'Pending Verification by Admin'}">
+                        ${isApproved 
+                          ? `<span class="w-3.5 h-3.5 rounded-full bg-emerald-500 ring-2 ring-white shadow flex items-center justify-center text-[8px] text-white font-black">✓</span>`
+                          : `<span class="relative flex h-3.5 w-3.5">
+                               <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-rose-400 opacity-75"></span>
+                               <span class="relative inline-flex rounded-full h-3.5 w-3.5 bg-rose-600 ring-2 ring-white shadow"></span>
+                             </span>`
+                        }
+                      </span>
+                    </div>
+
+                    <!-- Centered Player Name -->
+                    <div class="mb-2 min-w-0">
+                      <h4 class="text-xs sm:text-sm font-bold text-slate-900 truncate leading-tight py-0.5">${p.name}</h4>
+                    </div>
+
+                    <!-- Actions: View Profile & Story Card -->
+                    <div class="flex gap-1.5 w-full">
+                      <button type="button" class="hub-view-profile-btn flex-1 py-2 bg-[#0F172A] hover:bg-[#1E293B] text-white font-bold text-xs rounded-xl shadow-xs flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95" data-player-id="${p.id}">
+                        <span>👤 Profile</span>
+                      </button>
+                      <button type="button" class="hub-open-story-card-btn px-2.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs rounded-xl shadow-xs flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95" data-player-id="${p.id}" title="Generate Instagram & WhatsApp Story Card">
+                        <span>🎨</span>
+                      </button>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          ` : `
+            <div class="text-center py-12 bg-white rounded-3xl border border-slate-200/90 shadow-sm space-y-2">
+              <div class="text-3xl">📝</div>
+              <p class="text-sm font-bold text-slate-700">No players registered yet</p>
+              <button id="btn-tab-open-reg-empty" class="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow cursor-pointer">
+                📝 Register First Player
+              </button>
+            </div>
+          `}
         </div>
       ` : ''}
 
-    </div>
-
-    </div>
-  `;
-
-  // START COUNTDOWN TIMER (31 AUGUST 2026)
-  initTournamentCountdown();
-
-  // ATTACH CARD CLICK LISTENERS
-  document.getElementById('btn-click-jpl')?.addEventListener('click', () => openComingSoonModal('JPL', 'Jhankra Premier League', 'assets/jpl_logo_white.jpg'));
-  document.getElementById('btn-click-kpl')?.addEventListener('click', () => openComingSoonModal('KPL', 'Kota Premier League', 'assets/kpl_logo_white.jpg'));
-  document.getElementById('btn-click-jsl')?.addEventListener('click', () => navigate('jsl-hub'));
-  document.getElementById('btn-home-create-tourney')?.addEventListener('click', () => openTournamentCreationWizard(false));
-}
-
-// --- DEDICATED CUSTOM TOURNAMENT HUB VIEW ---
-export function renderCustomTournamentHub(container, tourney) {
-  if (!container || !tourney) return;
-  const isAuction = (tourney.mode === 'AUCTION_LEAGUE');
-
-  container.innerHTML = `
-    <div class="w-full max-w-4xl mx-auto space-y-5 sm:space-y-6 animate-fade-in py-4 px-2 sm:px-4 text-slate-900">
-      
-      <!-- HERO CARD -->
-      <div class="bg-white border-2 border-slate-200 rounded-3xl p-5 sm:p-6 shadow-md relative overflow-hidden space-y-4">
-        <div class="flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div class="flex items-center gap-3.5">
-            <span class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl ${isAuction ? 'bg-amber-100 text-amber-900 border-amber-300' : 'bg-emerald-100 text-emerald-900 border-emerald-300'} border flex items-center justify-center text-2xl sm:text-3xl font-black shrink-0 shadow-xs">
-              ${isAuction ? '🔨' : '🏏'}
-            </span>
-            <div>
-              <div class="flex items-center gap-2">
-                <span class="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-full border border-emerald-300 uppercase">
-                  ${tourney.shortCode || 'LEAGUE'} • ${isAuction ? 'AUCTION LEAGUE' : 'FIXTURES'}
+      <!-- ============================================================= -->
+      <!-- TAB 4: 🔨 AUCTION ARCHIVE & SUMMARY PORTAL (FULL SQUAD & ROSTER) -->
+      <!-- ============================================================= -->
+      ${isAuction ? `
+        <div id="hub-tab-auction" class="${hubTab === 'auction' ? '' : 'hidden'} space-y-3 animate-fade-in">
+          
+          <!-- AUCTION MASTER PORTAL HEADER BANNER -->
+          <div class="bg-white p-3.5 sm:p-4.5 rounded-3xl border border-slate-200/90 shadow-xs space-y-3">
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <span class="w-10 h-10 rounded-2xl bg-amber-50 text-amber-900 border border-amber-200 text-xl flex items-center justify-center shadow-2xs shrink-0">
+                  🏆
                 </span>
-                <span class="text-xs text-slate-400 font-bold">📍 ${tourney.venue || 'Cricket Ground'}</span>
+                <div class="min-w-0">
+                  <div class="flex items-center gap-1.5 flex-wrap">
+                    <span class="px-2 py-0.5 bg-amber-100 text-amber-950 font-black text-[9px] rounded-md uppercase tracking-wider">
+                      PERMANENT 5-YEAR RECORD
+                    </span>
+                    <span class="px-2 py-0.5 bg-emerald-50 text-emerald-800 text-[8.5px] font-black rounded-md border border-emerald-300">
+                      🔒 LOCKED & PRESERVED
+                    </span>
+                  </div>
+                  <h3 class="text-sm sm:text-base font-black text-slate-950 leading-tight mt-0.5">
+                    ${tourney.name} Official Final Auction Summary
+                  </h3>
+                </div>
               </div>
-              <h1 class="text-lg sm:text-2xl font-black text-slate-900 tracking-tight mt-0.5">
-                ${tourney.name}
-              </h1>
-              <p class="text-xs text-slate-500 font-bold">Organizer: ${tourney.organizer?.name || 'Tournament Committee'} (📱 ${tourney.organizer?.phone || 'N/A'})</p>
+
+              <span class="px-2.5 py-1 bg-emerald-50 text-emerald-800 text-[10px] font-black rounded-full border border-emerald-300 flex items-center gap-1 shrink-0">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Completed
+              </span>
+            </div>
+
+            <!-- AUCTION SUB-TABS (Overview, Team Squads, All Players) -->
+            <div class="flex items-center gap-1.5 overflow-x-auto scrollbar-hide py-1 border-t border-slate-100 pt-2.5">
+              <button type="button" id="auction-portal-subtab-overview" class="auction-portal-tab-btn px-3.5 py-2 rounded-xl text-xs font-black transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 bg-amber-500 text-slate-950 shadow-xs">
+                <span>📊</span> Overview & Top Buys
+              </button>
+              <button type="button" id="auction-portal-subtab-squads" class="auction-portal-tab-btn px-3.5 py-2 rounded-xl text-xs font-black transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200">
+                <span>🛡️</span> Team Squads (${allTeams.length})
+              </button>
+              <button type="button" id="auction-portal-subtab-players" class="auction-portal-tab-btn px-3.5 py-2 rounded-xl text-xs font-black transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200">
+                <span>📋</span> All Players (${allPlayers.length})
+              </button>
+              
+              <div class="ml-auto flex items-center gap-1.5 shrink-0 pl-2">
+                <button type="button" id="btn-download-all-squads-pdf" class="px-3 py-2 bg-emerald-700 hover:bg-emerald-600 text-white font-black text-xs rounded-xl shadow-xs flex items-center gap-1 cursor-pointer transition-all active:scale-95">
+                  <span>📑</span> All Squads PDF
+                </button>
+                <button type="button" id="btn-download-json-backup" class="px-3 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-xs flex items-center gap-1 cursor-pointer transition-all active:scale-95">
+                  <span>📥</span> JSON Archive
+                </button>
+              </div>
             </div>
           </div>
 
-          <div class="flex items-center gap-2 w-full sm:w-auto">
-            <button id="btn-custom-hub-back" class="w-full sm:w-auto px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl border border-slate-300 cursor-pointer">
-              ← Back Home
-            </button>
-            ${isAuction ? `
-              <button id="btn-custom-open-reg" class="w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-xs rounded-xl shadow-xs border border-emerald-400 cursor-pointer">
-                📝 Register Player
-              </button>
-            ` : ''}
+          <!-- SUB-VIEW 1: OVERVIEW & TOP BUYS -->
+          <div id="auction-subview-overview" class="space-y-3 animate-fade-in">
+            ${(() => {
+              const defaultIconFee = Number(store.getAuctionSettings().defaultIconPrice) || 1000;
+              const totalPurse = allTeams.reduce((sum, t) => sum + Number(t.purseBudget || t.purse || tourney.teamPurse || 8000), 0) || (allTeams.length * 8000);
+              const totalSpent = allTeams.reduce((sum, t) => {
+                const hasIcon = !!((t.iconPlayerName && t.iconPlayerName.trim()) || (t.iconName && t.iconName.trim()) || (t.iconPlayerId && t.iconPlayerId.trim()));
+                const iconDeduction = hasIcon ? defaultIconFee : 0;
+                const teamPlayers = allPlayers.filter(p => {
+                  if (!p) return false;
+                  const pTeamId = p.teamId || p.team_id;
+                  const isMatch = (pTeamId && (pTeamId === t.id || toUUID(pTeamId) === toUUID(t.id))) || (p.teamName && (p.teamName || '').trim().toLowerCase() === (t.name || '').trim().toLowerCase());
+                  const isSold = (p.auctionStatus === 'SOLD' || p.isSold === true || !!pTeamId);
+                  const iconName = (t.iconPlayerName || t.iconName || '').trim().toLowerCase();
+                  const isIcon = hasIcon && (((p.name || '').trim().toLowerCase() === iconName) || (t.iconPlayerId && (p.id === t.iconPlayerId || toUUID(p.id) === toUUID(t.iconPlayerId))));
+                  return isMatch && isSold && !isIcon;
+                });
+                const squadSpent = teamPlayers.reduce((pSum, p) => pSum + (Number(p.soldPrice) || Number(p.boughtPrice) || Number(p.basePrice) || 300), 0);
+                return sum + iconDeduction + squadSpent;
+              }, 0);
+              const remainingPurse = Math.max(0, totalPurse - totalSpent);
+              const soldPlayersCount = allPlayers.filter(p => p.teamId || p.auctionStatus === 'SOLD' || p.isSold === true || Number(p.soldPrice || p.boughtPrice || 0) > 0).length;
+
+              const sortedSold = allPlayers.filter(p => p.teamId || p.auctionStatus === 'SOLD' || p.isSold === true || Number(p.soldPrice || p.boughtPrice || 0) > 0).map(p => {
+                const team = allTeams.find(t => {
+                  const pTeamId = p.teamId || p.team_id;
+                  return (pTeamId && (t.id === pTeamId || toUUID(t.id) === toUUID(pTeamId))) || (p.teamName && (t.name || '').trim().toLowerCase() === (p.teamName || '').trim().toLowerCase());
+                });
+                const isIcon = p.isIcon || p.isIconPlayer || (team && (
+                  (team.iconPlayerId && (p.id === team.iconPlayerId || toUUID(p.id) === toUUID(team.iconPlayerId))) ||
+                  (team.iconPlayerName && p.name && p.name.trim().toLowerCase() === team.iconPlayerName.trim().toLowerCase()) ||
+                  (team.iconName && p.name && p.name.trim().toLowerCase() === team.iconName.trim().toLowerCase())
+                ));
+                const finalPrice = isIcon ? defaultIconFee : (Number(p.soldPrice) || Number(p.boughtPrice) || Number(p.basePrice) || 300);
+                return { ...p, team, isIcon, finalPrice };
+              }).sort((a, b) => b.finalPrice - a.finalPrice).slice(0, 8);
+
+              return `
+                <!-- 4 Core Financial Metrics -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                  <div class="p-3 bg-amber-50/80 border border-amber-200/90 rounded-2xl text-center space-y-0.5 shadow-2xs">
+                    <span class="text-[8.5px] font-black uppercase text-amber-900 tracking-wider">TOTAL PURSE</span>
+                    <div class="text-sm sm:text-lg font-black text-slate-900 font-mono">₹ ${totalPurse.toLocaleString('en-IN')}</div>
+                  </div>
+                  <div class="p-3 bg-rose-50/80 border border-rose-200/90 rounded-2xl text-center space-y-0.5 shadow-2xs">
+                    <span class="text-[8.5px] font-black uppercase text-rose-900 tracking-wider">AUCTION SPENT</span>
+                    <div class="text-sm sm:text-lg font-black text-rose-700 font-mono">₹ ${totalSpent.toLocaleString('en-IN')}</div>
+                  </div>
+                  <div class="p-3 bg-emerald-50/80 border border-emerald-200/90 rounded-2xl text-center space-y-0.5 shadow-2xs">
+                    <span class="text-[8.5px] font-black uppercase text-emerald-900 tracking-wider">REMAINING PURSE</span>
+                    <div class="text-sm sm:text-lg font-black text-emerald-700 font-mono">₹ ${remainingPurse.toLocaleString('en-IN')}</div>
+                  </div>
+                  <div class="p-3 bg-sky-50/80 border border-sky-200/90 rounded-2xl text-center space-y-0.5 shadow-2xs">
+                    <span class="text-[8.5px] font-black uppercase text-sky-900 tracking-wider">PLAYERS SOLD</span>
+                    <div class="text-sm sm:text-lg font-black text-sky-800 font-mono">${soldPlayersCount} / ${allPlayers.length}</div>
+                  </div>
+                </div>
+
+                <!-- Top 8 Highest Buys Cards -->
+                <div class="bg-white p-3.5 sm:p-4.5 rounded-3xl border border-slate-200/90 shadow-xs space-y-2.5">
+                  <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                    <h4 class="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                      <span>🔥</span> Top Highest Buys of ${tourney.name} Auction
+                    </h4>
+                    <span class="text-[9.5px] font-black text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">Top 8 Bids</span>
+                  </div>
+
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    ${sortedSold.length === 0 ? `
+                      <div class="col-span-2 text-center py-6 text-xs text-slate-400 font-bold">No sold players recorded in auction yet.</div>
+                    ` : sortedSold.map((p, idx) => {
+                      const photo = p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png';
+                      return `
+                        <div class="p-2.5 bg-slate-50/80 border border-slate-200/80 rounded-2xl flex items-center justify-between gap-2.5 hover:border-amber-400 hover:bg-amber-50/20 transition-all">
+                          <div class="flex items-center gap-2.5 min-w-0">
+                            <span class="w-6 h-6 rounded-lg bg-amber-100 text-amber-900 border border-amber-300 font-mono font-black text-[10px] flex items-center justify-center shrink-0">
+                              #${idx + 1}
+                            </span>
+                            <div class="w-10 h-10 rounded-xl bg-white border border-slate-200 overflow-hidden shrink-0 shadow-2xs">
+                              <img src="${photo}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
+                            </div>
+                            <div class="min-w-0">
+                              <h5 class="text-xs font-black text-slate-900 truncate leading-tight">
+                                ${p.name} ${p.isIcon ? '<span class="text-amber-600 font-bold text-[8.5px]">(ICON)</span>' : ''}
+                              </h5>
+                              <div class="text-[10px] font-bold text-slate-500 truncate flex items-center gap-1 mt-0.5">
+                                <span>🛡️</span> <span class="truncate">${p.team?.name || p.teamName || 'Franchise Team'}</span>
+                              </div>
+                            </div>
+                          </div>
+                          <div class="text-right shrink-0">
+                            <div class="text-xs sm:text-sm font-mono font-black text-emerald-700">₹ ${p.finalPrice.toLocaleString('en-IN')}</div>
+                            <span class="text-[7.5px] font-black uppercase text-slate-400 block tracking-wider leading-none">${p.isIcon ? 'ICON FEE' : 'FINAL BID'}</span>
+                          </div>
+                        </div>
+                      `;
+                    }).join('')}
+                  </div>
+                </div>
+              `;
+            })()}
           </div>
+
+          <!-- SUB-VIEW 2: TEAM SQUADS ROSTER (WITH TEAM SWITCHER PILLS) -->
+          <div id="auction-subview-squads" class="hidden space-y-3 animate-fade-in">
+            <!-- Team Switcher Pills -->
+            <div class="flex items-center gap-1.5 overflow-x-auto scrollbar-hide py-1">
+              ${allTeams.map((t, idx) => `
+                <button type="button" data-auction-team-id="${t.id}" class="auction-team-filter-pill px-3.5 py-1.5 rounded-full text-xs font-black transition-all whitespace-nowrap cursor-pointer shrink-0 ${idx === 0 ? 'bg-amber-500 text-slate-950 shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'}">
+                  ${t.name}
+                </button>
+              `).join('')}
+            </div>
+
+            <!-- Team Squads Container (renders selected team roster) -->
+            <div id="auction-selected-team-roster-container">
+              <!-- Rendered via JS based on selected team -->
+            </div>
+          </div>
+
+          <!-- SUB-VIEW 3: ALL PLAYERS BUYING DETAILS & SEARCH -->
+          <div id="auction-subview-players" class="hidden space-y-3 animate-fade-in">
+            <!-- Search Bar -->
+            <div class="relative w-full">
+              <input type="text" id="auction-allplayers-search-input" placeholder="🔍 Search by player name, team, or village..." class="w-full pl-9 pr-4 py-2.5 bg-white border border-slate-200 rounded-2xl text-xs font-semibold text-slate-800 placeholder-slate-400 focus:outline-none focus:border-amber-500 shadow-2xs transition-all" />
+              <span class="absolute left-3 top-2.5 text-slate-400 text-xs">🔍</span>
+            </div>
+
+            <!-- All Players Table / Card List -->
+            <div class="bg-white rounded-3xl border border-slate-200/90 shadow-xs overflow-hidden">
+              <div class="overflow-x-auto">
+                <table class="w-full text-left text-xs">
+                  <thead class="bg-slate-900 text-white text-[10px] font-black uppercase tracking-wider">
+                    <tr>
+                      <th class="p-3">Player</th>
+                      <th class="p-3">Role</th>
+                      <th class="p-3">Assigned Team</th>
+                      <th class="p-3">Village / Location</th>
+                      <th class="p-3 text-right">Final Bid</th>
+                    </tr>
+                  </thead>
+                  <tbody id="auction-allplayers-tbody" class="divide-y divide-slate-100 font-semibold text-slate-800">
+                    ${(() => {
+                      const defaultIconFee = Number(store.getAuctionSettings().defaultIconPrice) || 1000;
+                      return allPlayers.map((p, idx) => {
+                        const team = allTeams.find(t => {
+                          const pTeamId = p.teamId || p.team_id;
+                          return (pTeamId && (t.id === pTeamId || toUUID(t.id) === toUUID(pTeamId))) || (p.teamName && (t.name || '').trim().toLowerCase() === (p.teamName || '').trim().toLowerCase());
+                        });
+                        const isSold = !!(p.teamId || p.auctionStatus === 'SOLD' || p.isSold === true || team);
+                        const isIcon = p.isIcon || p.isIconPlayer || (team && (
+                          (team.iconPlayerId && (p.id === team.iconPlayerId || toUUID(p.id) === toUUID(team.iconPlayerId))) ||
+                          (team.iconPlayerName && p.name && p.name.trim().toLowerCase() === team.iconPlayerName.trim().toLowerCase()) ||
+                          (team.iconName && p.name && p.name.trim().toLowerCase() === team.iconName.trim().toLowerCase())
+                        ));
+                        const soldAmt = isSold ? (isIcon ? defaultIconFee : (Number(p.soldPrice) || Number(p.boughtPrice) || Number(p.basePrice) || 300)) : 0;
+                        const photo = p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png';
+                        const searchTokens = `${p.name || ''} ${team?.name || ''} ${p.village || ''} ${p.category || ''}`.toLowerCase();
+
+                        return `
+                          <tr class="auction-player-row hover:bg-amber-50/30 transition-colors" data-search="${searchTokens}">
+                            <td class="p-2.5">
+                              <div class="flex items-center gap-2">
+                                <div class="w-9 h-9 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden shrink-0 shadow-2xs">
+                                  <img src="${photo}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
+                                </div>
+                                <div class="min-w-0">
+                                  <span class="font-black text-slate-900 block leading-tight truncate">
+                                    ${p.name} ${isIcon ? '<span class="text-amber-600 font-bold text-[9px]">(ICON)</span>' : ''}
+                                  </span>
+                                  <span class="text-[9px] text-slate-400 font-mono">#${p.displayRegistrationNumber || p.serialNo || (idx + 1)}</span>
+                                </div>
+                              </div>
+                            </td>
+                            <td class="p-2.5 text-slate-600 font-medium">${p.category || p.role || 'All-rounder'}</td>
+                            <td class="p-2.5">
+                              ${team ? `
+                                <span class="px-2 py-0.5 bg-amber-50 text-amber-950 font-black text-[9.5px] rounded-md border border-amber-200/90 whitespace-nowrap">
+                                  🛡️ ${team.name}
+                                </span>
+                              ` : `
+                                <span class="px-2 py-0.5 bg-slate-100 text-slate-500 font-bold text-[9.5px] rounded-md">Unassigned</span>
+                              `}
+                            </td>
+                            <td class="p-2.5 text-slate-500 truncate max-w-[130px]">${p.village || p.address || 'Local'}</td>
+                            <td class="p-2.5 text-right font-mono font-black text-xs ${soldAmt > 0 ? 'text-emerald-700' : 'text-slate-400'}">
+                              ${soldAmt > 0 ? `₹ ${soldAmt.toLocaleString('en-IN')}` : '-'}
+                            </td>
+                          </tr>
+                        `;
+                      }).join('');
+                    })()}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      ` : ''}
+
+      <!-- ============================================================= -->
+      <!-- TAB 5: 🏏 MATCH CORNER (Fixtures & Group A/B Points Table)     -->
+      <!-- ============================================================= -->
+      <div id="hub-tab-matches" class="${hubTab === 'matches' ? '' : 'hidden'} space-y-4 animate-fade-in">
+        <!-- Subtabs: Fixtures vs Points Table Switcher -->
+        <div class="flex items-center gap-2 p-1.5 bg-slate-100/90 rounded-2xl max-w-xs border border-slate-200/80 shadow-2xs">
+          <button id="hub-match-subtab-fixtures" class="flex-1 py-2 rounded-xl text-xs font-black bg-white text-slate-900 shadow-xs transition-all cursor-pointer flex items-center justify-center gap-1.5">
+            <span>🗓️</span> <span>Matches (${allFixtures.length})</span>
+          </button>
+          <button id="hub-match-subtab-points" class="flex-1 py-2 rounded-xl text-xs font-black text-slate-600 hover:text-slate-900 transition-all cursor-pointer flex items-center justify-center gap-1.5">
+            <span>🏆</span> <span>Points Table</span>
+          </button>
         </div>
 
-        <!-- KEY STATS ROW -->
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5 pt-2 border-t border-slate-100 text-center">
-          <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-            <span class="text-[9px] font-black text-slate-500 uppercase block">Winner Prize</span>
-            <span class="text-sm sm:text-base font-black text-slate-900 font-mono">₹ ${Number(tourney.prizeWinner || 35000).toLocaleString('en-IN')}</span>
+        <!-- Section 1: Fixtures List -->
+        <div id="hub-matches-fixtures-container" class="space-y-3 animate-fade-in">
+          ${allFixtures.length > 0 ? `
+            <div class="space-y-3">
+              ${allFixtures.map(f => {
+                const isLive = f.status === 'LIVE';
+                const isCompleted = f.status === 'COMPLETED';
+                const statusText = f.status || 'COMPLETED';
+
+                return `
+                  <div class="cpl-match-card bg-white p-4 sm:p-5 rounded-3xl border-2 ${isLive ? 'border-rose-500 shadow-md ring-2 ring-rose-500/20' : isCompleted ? 'border-slate-200 hover:border-emerald-500 shadow-2xs' : 'border-slate-200 hover:border-sky-500 shadow-2xs'} shadow-sm hover:shadow-lg transition-all space-y-3.5 cursor-pointer group" data-fixture-id="${f.id}" onclick="window.openMatchCenterModal('${f.id}')">
+                    <!-- Top Line: Match # & Status -->
+                    <div class="flex items-center justify-between gap-2">
+                      <span class="text-[11px] font-black uppercase text-slate-500 tracking-wider">
+                        MATCH #${f.matchNo || 1} • ${f.stage || f.groupCode || 'GROUP_A'}
+                      </span>
+                      <span class="px-2.5 py-0.5 rounded-full text-[9.5px] font-black border ${isLive ? 'bg-red-500 text-white animate-pulse border-red-600' : isCompleted ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-slate-100 text-slate-700 border-slate-200'}">
+                        ${statusText}
+                      </span>
+                    </div>
+
+                    <!-- Middle Line: Team A vs Team B with Logos -->
+                    <div class="space-y-2.5 py-1">
+                      <div class="flex items-center justify-between gap-3">
+                        <div class="flex items-center gap-3 min-w-0">
+                          <img src="${(store.getTeamById(f.teamAId)?.logoUrl || store.getTeamById(f.teamAId)?.teamLogoUrl || 'assets/card_jsl_user.png')}" class="w-8 h-8 rounded-full object-cover border border-slate-200 bg-slate-50 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                          <h4 class="text-sm sm:text-base font-black text-slate-900 truncate uppercase group-hover:text-emerald-700 transition-colors">${f.teamAName || 'Team A'}</h4>
+                        </div>
+                        ${f.liveScoreTeamA ? `<div class="text-xs font-mono font-black text-slate-700 shrink-0">${f.liveScoreTeamA}</div>` : ''}
+                      </div>
+
+                      <div class="flex items-center justify-between gap-3">
+                        <div class="flex items-center gap-3 min-w-0">
+                          <img src="${(store.getTeamById(f.teamBId)?.logoUrl || store.getTeamById(f.teamBId)?.teamLogoUrl || 'assets/card_jsl_user.png')}" class="w-8 h-8 rounded-full object-cover border border-slate-200 bg-slate-50 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                          <h4 class="text-sm sm:text-base font-black text-slate-900 truncate uppercase group-hover:text-emerald-700 transition-colors">${f.teamBName || 'Team B'}</h4>
+                        </div>
+                        ${f.liveScoreTeamB ? `<div class="text-xs font-mono font-black text-slate-700 shrink-0">${f.liveScoreTeamB}</div>` : ''}
+                      </div>
+                    </div>
+
+                    <!-- Bottom Line: Date, Time, Venue & Action Link -->
+                    <div class="flex items-center justify-between gap-2 flex-wrap text-[10.5px] font-bold text-slate-500 pt-2.5 border-t border-slate-100">
+                      <div class="flex items-center gap-1.5 flex-wrap">
+                        <span>🗓️ ${f.date || '2026-08-26'}</span>
+                        <span>•</span>
+                        <span>⏰ ${f.time || '09:00'}</span>
+                        <span>•</span>
+                        <span>📍</span>
+                        <span class="uppercase truncate max-w-[140px]">${f.venue || tourney.venue || 'JHANKRA SCHOOL GROUND'}</span>
+                      </div>
+                      <div class="flex items-center gap-2 shrink-0">
+                        <div class="text-xs font-black text-emerald-700 group-hover:text-emerald-800 transition-colors flex items-center gap-1">
+                          ${isLive ? 'View Live Match Centre' : isCompleted ? 'View Full Scorecard' : 'View Match Preview'} <span class="text-emerald-600 font-bold transition-transform group-hover:translate-x-1">→</span>
+                        </div>
+                        <button type="button" class="btn-share-match-wa px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-xl border border-emerald-300 flex items-center gap-1 shadow-2xs hover:scale-105 active:scale-95 transition-all cursor-pointer shrink-0" data-fixture-id="${f.id}" onclick="event.stopPropagation(); window.shareMatchToWhatsApp(store.getFixtureById('${f.id}') || ${JSON.stringify(f).replace(/"/g, '&quot;')}, { name: '${tourney.name || 'CRICKET PREMIER LEAGUE'}', venue: '${f.venue || tourney.venue || 'JHANKRA SCHOOL GROUND'}' });">
+                          <span>💬</span> <span>Share</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          ` : `
+            <div class="text-center py-12 bg-white rounded-3xl border border-slate-200/90 shadow-sm space-y-2">
+              <div class="text-3xl">📅</div>
+              <p class="text-sm font-bold text-slate-700">No matches scheduled yet</p>
+              <p class="text-xs text-slate-400">Fixtures will be published once announced by tournament committee.</p>
+            </div>
+          `}
+        </div>
+
+        <!-- Section 2: Points Table (Dynamic Groups Stacked One Below One) -->
+        <div id="hub-matches-points-container" class="hidden space-y-4 animate-fade-in">
+          ${(() => {
+            // Group teams dynamically according to Admin/Organizer settings
+            const groupMap = {};
+            const formatObj = store.getTournamentFormat ? store.getTournamentFormat(tourney.slug || tourney.id) : {};
+            const adminFormat = tourney.groupFormat || formatObj.format || (allTeams.some(t => t.group) ? 'CUSTOM' : (allTeams.length > 8 ? 'TWO_GROUPS' : 'SINGLE_TABLE'));
+
+            if (adminFormat === 'SINGLE_TABLE') {
+              groupMap['POINTS TABLE'] = allTeams;
+            } else {
+              const numGroups = adminFormat === 'FOUR_GROUPS' ? 4 : adminFormat === 'THREE_GROUPS' ? 3 : 2;
+              const teamsPerGroup = Math.ceil(allTeams.length / numGroups);
+
+              allTeams.forEach((t, i) => {
+                const explicitGroup = t.group || t.groupName || t.pool;
+                const gName = explicitGroup 
+                  ? (explicitGroup.toUpperCase().startsWith('GROUP') ? explicitGroup.toUpperCase() : `GROUP ${explicitGroup.toUpperCase()}`)
+                  : `GROUP ${String.fromCharCode(65 + Math.floor(i / teamsPerGroup))}`;
+                
+                if (!groupMap[gName]) groupMap[gName] = [];
+                groupMap[gName].push(t);
+              });
+            }
+
+            const groupColors = [
+              { dot: 'bg-emerald-500', text: 'text-emerald-800', hover: 'hover:bg-emerald-50/40' },
+              { dot: 'bg-blue-500', text: 'text-blue-800', hover: 'hover:bg-blue-50/40' },
+              { dot: 'bg-purple-500', text: 'text-purple-800', hover: 'hover:bg-purple-50/40' },
+              { dot: 'bg-amber-500', text: 'text-amber-800', hover: 'hover:bg-amber-50/40' },
+              { dot: 'bg-rose-500', text: 'text-rose-800', hover: 'hover:bg-rose-50/40' }
+            ];
+
+            return Object.entries(groupMap).map(([groupName, teams], gIdx) => {
+              const color = groupColors[gIdx % groupColors.length];
+
+              return `
+                <div class="space-y-2">
+                  <!-- Group Name Header with WhatsApp Share -->
+                  <div class="flex items-center justify-between px-1.5 pt-1 gap-2">
+                    <div class="flex items-center gap-2 min-w-0">
+                      <span class="w-2.5 h-2.5 rounded-full ${color.dot} shrink-0"></span>
+                      <h4 class="text-xs sm:text-sm font-black uppercase text-slate-900 tracking-wider truncate">
+                        ${groupName}
+                      </h4>
+                      <span class="text-[11px] font-bold text-slate-400 shrink-0">(${teams.length})</span>
+                    </div>
+                    <div class="flex items-center gap-1.5 shrink-0">
+                      <button type="button" class="btn-share-group-table-wa px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-xl border border-emerald-300 flex items-center gap-1 shadow-2xs hover:scale-105 active:scale-95 transition-all cursor-pointer" data-group-name="${groupName}">
+                        <span>💬</span> <span>Share Table</span>
+                      </button>
+                      <span class="px-2 py-0.5 rounded-full text-[9px] font-black bg-emerald-50 text-emerald-700 border border-emerald-200">
+                        Top 2 Qualify
+                      </span>
+                    </div>
+                  </div>
+
+                  <!-- Table Fitted in Single Mobile Screen -->
+                  <div class="bg-white rounded-3xl border border-slate-200/90 shadow-sm overflow-hidden">
+                    <table class="w-full table-fixed text-left">
+                      <thead class="bg-[#0F172A] text-white text-[9px] sm:text-[10px] font-black uppercase tracking-wider">
+                        <tr>
+                          <th class="w-6 text-center py-2.5">#</th>
+                          <th class="py-2.5 pl-1">Franchise Team</th>
+                          <th class="w-5 text-center py-2.5">P</th>
+                          <th class="w-5 text-center py-2.5">W</th>
+                          <th class="w-5 text-center py-2.5">L</th>
+                          <th class="w-8 text-center py-2.5">PTS</th>
+                          <th class="w-12 text-right pr-2 py-2.5">NRR</th>
+                        </tr>
+                      </thead>
+                      <tbody class="divide-y divide-slate-100 text-xs">
+                        ${(() => {
+                          const groupStandings = computeTeamStandings(teams, allFixtures);
+                          return groupStandings.map((t, idx) => {
+                            const logo = t.logoUrl || t.teamLogoUrl || generateUniqueTeamBadge(t.name, idx + gIdx * 4);
+                            const isQ = idx < 2;
+                            const rankBg = idx === 0 ? 'bg-amber-400 text-slate-950' : idx === 1 ? 'bg-emerald-600 text-white' : 'bg-slate-100 text-slate-600';
+
+                            return `
+                              <tr class="${color.hover} transition-colors">
+                                <td class="text-center py-2 pl-1">
+                                  <span class="w-4 h-4 rounded-md ${rankBg} font-mono font-black text-[9px] inline-flex items-center justify-center">
+                                    ${idx + 1}
+                                  </span>
+                                </td>
+                                <td class="py-2 pl-1 pr-1 min-w-0">
+                                  <div class="flex items-center gap-1.5 min-w-0">
+                                    <div class="w-5 h-5 rounded-md bg-slate-100 border border-slate-200 overflow-hidden shrink-0">
+                                      <img src="${logo}" class="w-full h-full object-cover" onerror="this.parentElement.innerHTML='🏏'" />
+                                    </div>
+                                    <span class="text-[10.5px] sm:text-xs font-bold text-slate-900 truncate leading-tight uppercase">${t.name}</span>
+                                    ${isQ ? `<span class="px-1 py-0.2 bg-emerald-700 text-white text-[7.5px] font-black rounded-sm shrink-0 leading-none">Q</span>` : ''}
+                                  </div>
+                                </td>
+                                <td class="text-center py-2 font-mono text-[10px] sm:text-xs text-slate-600 font-bold">${t.played}</td>
+                                <td class="text-center py-2 font-mono text-[10px] sm:text-xs font-black text-emerald-700">${t.won}</td>
+                                <td class="text-center py-2 font-mono text-[10px] sm:text-xs font-bold text-rose-600">${t.lost}</td>
+                                <td class="text-center py-2">
+                                  <span class="px-1.5 py-0.5 bg-blue-50 text-blue-700 font-mono font-black text-[10.5px] sm:text-xs rounded border border-blue-200">${t.points}</span>
+                                </td>
+                                <td class="text-right py-2 pr-2 font-mono font-bold text-[9.5px] sm:text-[10.5px] ${parseFloat(t.nrr) >= 0 ? 'text-teal-700' : 'text-rose-600'}">${t.nrr}</td>
+                              </tr>
+                            `;
+                          }).join('');
+                        })()}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              `;
+            }).join('');
+          })()}
+        </div>
+      </div>
+
+      <!-- ============================================================= -->
+      <!-- TAB 6: 📊 STATISTICS & AWARDS LEADERBOARD                     -->
+      <!-- ============================================================= -->
+      <div id="hub-tab-stats" class="${hubTab === 'stats' ? '' : 'hidden'} space-y-4 animate-fade-in">
+        
+        <!-- 1. BEST MVP PLAYER PODIUM BOX -->
+        ${topMVP ? `
+          <div class="p-4 sm:p-5 bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 rounded-3xl text-slate-950 shadow-xl border-2 border-amber-300 flex items-center justify-between gap-4">
+            <div class="space-y-1">
+              <div class="flex items-center gap-2">
+                <span class="px-2.5 py-0.5 bg-slate-950 text-amber-300 text-[9px] font-black rounded-full uppercase tracking-wider">
+                  🏆 TOURNAMENT MVP
+                </span>
+                <span class="px-2 py-0.2 bg-amber-400 text-slate-950 text-[9px] font-bold rounded-md">Live Leader</span>
+              </div>
+              <h3 class="text-base sm:text-xl font-black text-slate-950 leading-tight">${topMVP.name}</h3>
+              <p class="text-xs text-slate-900 font-semibold">
+                Runs: <strong>${topMVP.totalRuns || 0}</strong> • Wickets: <strong>${topMVP.totalWickets || 0}</strong> • 6s: <strong>${topMVP.totalSixes || 0}</strong>
+              </p>
+            </div>
+            <div class="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white border-2 border-slate-950 overflow-hidden shadow-lg shrink-0">
+              <img src="${topMVP.photoUrl || topMVP.player_photo_url || 'assets/card_jsl_user.png'}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
+            </div>
           </div>
-          <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-            <span class="text-[9px] font-black text-slate-500 uppercase block">Entry Fee</span>
-            <span class="text-sm sm:text-base font-black text-emerald-700 font-mono">₹ ${tourney.entryFee || 300}</span>
+        ` : `
+          <div class="p-4 sm:p-5 bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 rounded-3xl text-slate-950 shadow-xl border-2 border-amber-300 flex items-center justify-between gap-4">
+            <div class="space-y-1">
+              <div class="flex items-center gap-2">
+                <span class="px-2.5 py-0.5 bg-slate-950 text-amber-300 text-[9px] font-black rounded-full uppercase tracking-wider">
+                  🏆 TOURNAMENT MVP
+                </span>
+                <span class="px-2 py-0.2 bg-amber-400 text-slate-950 text-[8.5px] font-bold rounded-md">Official Leaderboard</span>
+              </div>
+              <h3 class="text-base sm:text-xl font-black text-slate-950 leading-tight">Tournament MVP Leaderboard</h3>
+              <p class="text-xs text-slate-900 font-semibold">Leaderboard activates dynamically as matches are played and scorecards recorded.</p>
+            </div>
+            <div class="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white/90 border border-slate-950/20 flex items-center justify-center text-3xl shadow-sm shrink-0">
+              🏆
+            </div>
           </div>
-          <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-            <span class="text-[9px] font-black text-slate-500 uppercase block">Team Purse</span>
-            <span class="text-sm sm:text-base font-black text-amber-800 font-mono">₹ ${tourney.teamPurse || 8000}</span>
-          </div>
-          <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
-            <span class="text-[9px] font-black text-slate-500 uppercase block">Status</span>
-            <span class="text-xs sm:text-sm font-black text-emerald-800 font-mono">🟢 ACTIVE</span>
-          </div>
+        `}
+
+        <!-- 2. AWARDS LEADERBOARD GRID (EXACT USER SHAPE DESIGN) -->
+        <div class="grid grid-cols-2 gap-3">
+          
+          ${(() => {
+            const categories = [
+              {
+                id: 'runs',
+                title: 'BEST BATSMAN',
+                icon: '🏏',
+                iconBg: 'bg-emerald-600',
+                borderTop: 'border-t-emerald-500',
+                linkColor: 'text-emerald-700',
+                player: topBatsman,
+                val: topBatsman?.totalRuns || topBatsman?.runs || 0,
+                unit: 'Runs'
+              },
+              {
+                id: 'wickets',
+                title: 'BEST BOWLER',
+                icon: '⚡',
+                iconBg: 'bg-rose-500',
+                borderTop: 'border-t-rose-500',
+                linkColor: 'text-rose-700',
+                player: topBowler,
+                val: topBowler?.totalWickets || topBowler?.wickets || 0,
+                unit: 'Wickets'
+              },
+              {
+                id: 'sixes',
+                title: 'SIX HITTER',
+                icon: '6',
+                iconBg: 'bg-amber-500',
+                borderTop: 'border-t-amber-500',
+                linkColor: 'text-amber-700',
+                player: topSixes,
+                val: topSixes?.totalSixes || topSixes?.sixes || 0,
+                unit: 'Sixes'
+              },
+              {
+                id: 'fours',
+                title: 'FOUR HITTER',
+                icon: '4',
+                iconBg: 'bg-cyan-500',
+                borderTop: 'border-t-cyan-500',
+                linkColor: 'text-cyan-700',
+                player: topFours,
+                val: topFours?.totalFours || topFours?.fours || 0,
+                unit: 'Fours'
+              },
+              {
+                id: 'keeper',
+                title: 'BEST WICKETKEEPER',
+                icon: '🧤',
+                iconBg: 'bg-purple-600',
+                borderTop: 'border-t-purple-500',
+                linkColor: 'text-purple-700',
+                player: topKeeper,
+                val: topKeeper?.dismissals || topKeeper?.catches || 0,
+                unit: 'Dismissals'
+              },
+              {
+                id: 'fielder',
+                title: 'BEST FIELDER',
+                icon: '👤',
+                iconBg: 'bg-sky-500',
+                borderTop: 'border-t-sky-500',
+                linkColor: 'text-sky-700',
+                player: topFielder,
+                val: topFielder?.catches || 0,
+                unit: 'Catches'
+              },
+              {
+                id: 'maidens',
+                title: 'BEST MAIDEN OVERS',
+                icon: '🛡️',
+                iconBg: 'bg-slate-700',
+                borderTop: 'border-t-slate-700',
+                linkColor: 'text-slate-700',
+                player: topMaidens,
+                val: topMaidens?.totalMaidens || topMaidens?.maidens || 0,
+                unit: 'Maidens'
+              },
+              {
+                id: 'mvp',
+                title: 'TOURNAMENT MVP',
+                icon: '⭐',
+                iconBg: 'bg-fuchsia-600',
+                borderTop: 'border-t-fuchsia-500',
+                linkColor: 'text-fuchsia-700',
+                player: topMVP,
+                val: (topMVP?.totalRuns || 0) + (topMVP?.totalWickets || 0) * 25,
+                unit: 'Pts'
+              },
+              {
+                id: 'dotballs',
+                title: 'MAXIMUM DOT BALLS',
+                icon: '🎯',
+                iconBg: 'bg-teal-600',
+                borderTop: 'border-t-teal-500',
+                linkColor: 'text-teal-700',
+                player: topDotBalls,
+                val: topDotBalls?.totalDotBalls || topDotBalls?.dotBalls || 0,
+                unit: 'Dots'
+              },
+              {
+                id: 'twos',
+                title: 'MAXIMUM 2s (RUNS)',
+                icon: '🏃',
+                iconBg: 'bg-blue-600',
+                borderTop: 'border-t-blue-500',
+                linkColor: 'text-blue-700',
+                player: topTwos,
+                val: topTwos?.totalTwos || topTwos?.twos || 0,
+                unit: '2s'
+              },
+              {
+                id: 'team',
+                title: 'BEST TEAM',
+                icon: '🏆',
+                iconBg: 'bg-amber-500',
+                borderTop: 'border-t-amber-500',
+                linkColor: 'text-amber-700',
+                player: topTeam ? { name: topTeam.name } : null,
+                val: 0,
+                unit: 'Leader'
+              }
+            ];
+
+            return categories.map(cat => {
+              const hasActiveLeader = cat.player && (Number(cat.val) > 0 || cat.id === 'team' && allTeams.length > 0);
+
+              return `
+                <div class="bg-white rounded-2xl border border-slate-200/90 shadow-sm hover:shadow-md transition-all p-3 sm:p-3.5 space-y-2.5 flex flex-col justify-between border-t-[3.5px] ${cat.borderTop}">
+                  
+                  <!-- Top Icon + Category Title Header -->
+                  <div class="flex items-center gap-2 min-w-0">
+                    <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-xl ${cat.iconBg} text-white flex items-center justify-center font-black text-xs sm:text-sm shrink-0 shadow-2xs">
+                      ${cat.icon}
+                    </div>
+                    <span class="text-[9.5px] sm:text-[10.5px] font-black uppercase text-slate-700 tracking-wider truncate">
+                      ${cat.title}
+                    </span>
+                  </div>
+
+                  <!-- Leader Name or Awaiting Matches -->
+                  <div class="min-w-0 py-0.5">
+                    ${hasActiveLeader ? `
+                      <h4 class="text-xs sm:text-sm font-black text-slate-900 truncate leading-tight">${cat.player.name}</h4>
+                      ${Number(cat.val) > 0 ? `<span class="text-[10px] font-mono font-bold ${cat.linkColor}">${cat.val} ${cat.unit}</span>` : ''}
+                    ` : `
+                      <h4 class="text-xs sm:text-sm font-bold text-slate-400">Awaiting matches</h4>
+                    `}
+                  </div>
+
+                  <!-- View Full List Link -->
+                  <div class="${cat.linkColor} text-[10.5px] sm:text-xs font-bold flex items-center gap-1 cursor-pointer hover:underline">
+                    <span>View Full List →</span>
+                  </div>
+                </div>
+              `;
+            }).join('');
+          })()}
+
         </div>
       </div>
 
     </div>
   `;
 
+  if (window.lucide) window.lucide.createIcons();
+
+  // Tab switching handler
+  container.querySelectorAll('.hub-tab-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const tab = e.currentTarget.dataset.hubTab;
+      try { sessionStorage.setItem('cpl_hub_tab_' + tourney.slug, tab); } catch(ex) {}
+      
+      const targetHash = tab === 'home' ? `t/${tourney.slug}` : `t/${tourney.slug}?tab=${tab}`;
+      currentRoute = targetHash;
+      try { sessionStorage.setItem('cpl_last_route', targetHash); } catch(ex) {}
+      if (history.replaceState) {
+        history.replaceState({ route: targetHash }, '', `#${targetHash}`);
+      }
+
+      container.querySelectorAll('.hub-tab-btn').forEach(b => {
+        b.classList.remove('text-emerald-700', 'border-b-[3px]', 'border-emerald-600', 'bg-white', 'font-black');
+        b.classList.add('text-slate-500');
+      });
+      e.currentTarget.classList.add('text-emerald-700', 'border-b-[3px]', 'border-emerald-600', 'bg-white', 'font-black');
+      e.currentTarget.classList.remove('text-slate-500');
+
+      hubTabs.forEach(t => {
+        document.getElementById('hub-tab-' + t.id)?.classList.add('hidden');
+      });
+      document.getElementById('hub-tab-' + tab)?.classList.remove('hidden');
+    });
+  });
+
+  // Match corner subtabs switching
+  document.getElementById('hub-match-subtab-fixtures')?.addEventListener('click', () => {
+    document.getElementById('hub-matches-fixtures-container')?.classList.remove('hidden');
+    document.getElementById('hub-matches-points-container')?.classList.add('hidden');
+    document.getElementById('hub-match-subtab-fixtures')?.classList.add('bg-white', 'text-slate-900', 'shadow-xs');
+    document.getElementById('hub-match-subtab-fixtures')?.classList.remove('text-slate-600');
+    document.getElementById('hub-match-subtab-points')?.classList.remove('bg-white', 'text-slate-900', 'shadow-xs');
+    document.getElementById('hub-match-subtab-points')?.classList.add('text-slate-600');
+  });
+
+  document.getElementById('hub-match-subtab-points')?.addEventListener('click', () => {
+    document.getElementById('hub-matches-points-container')?.classList.remove('hidden');
+    document.getElementById('hub-matches-fixtures-container')?.classList.add('hidden');
+    document.getElementById('hub-match-subtab-points')?.classList.add('bg-white', 'text-slate-900', 'shadow-xs');
+    document.getElementById('hub-match-subtab-points')?.classList.remove('text-slate-600');
+    document.getElementById('hub-match-subtab-fixtures')?.classList.remove('bg-white', 'text-slate-900', 'shadow-xs');
+    document.getElementById('hub-match-subtab-fixtures')?.classList.add('text-slate-600');
+  });
+
+  // Action button listeners
+  document.getElementById('btn-home-hero-reg-link')?.addEventListener('click', () => openDynamicTournamentRegistrationModal(tourney.slug));
+  document.getElementById('btn-tab-open-reg-empty')?.addEventListener('click', () => openDynamicTournamentRegistrationModal(tourney.slug));
   document.getElementById('btn-custom-hub-back')?.addEventListener('click', () => navigate('landing'));
-  document.getElementById('btn-custom-open-reg')?.addEventListener('click', () => openDynamicTournamentRegistrationModal(tourney.slug));
+  document.getElementById('btn-custom-hub-admin')?.addEventListener('click', () => navigate('admin'));
+
+  // 1. Interactive Like / Love Reaction Handler
+  const likeBtn = document.getElementById('btn-hub-like-tourney');
+  if (likeBtn) {
+    likeBtn.addEventListener('click', () => {
+      let liked = false;
+      try { liked = localStorage.getItem('cpl_liked_' + slugKey) === 'true'; } catch(e) {}
+      liked = !liked;
+      try { localStorage.setItem('cpl_liked_' + slugKey, String(liked)); } catch(e) {}
+      
+      const iconEl = document.getElementById('hub-like-icon');
+      const countEl = document.getElementById('hub-like-count');
+      const currentCount = Number(countEl?.textContent || rawLikes);
+      const newCount = liked ? currentCount + 1 : Math.max(0, currentCount - 1);
+      
+      if (iconEl) iconEl.textContent = liked ? '❤️' : '🤍';
+      if (countEl) countEl.textContent = String(newCount);
+
+      // Heart bounce animation
+      likeBtn.classList.add('scale-110');
+      setTimeout(() => likeBtn.classList.remove('scale-110'), 200);
+    });
+  }
+
+  // 2. Interactive Comments & Queries Modal Handler
+  document.getElementById('btn-hub-open-comments')?.addEventListener('click', () => {
+    openTournamentCommentsModal(tourney, (newCount) => {
+      const countEl = document.getElementById('hub-comment-count');
+      if (countEl) countEl.textContent = String(newCount);
+    });
+  });
+
+  // 3. Interactive Share Link Handler
+  const handleShare = () => {
+    const url = window.location.href;
+    if (navigator.share) {
+      navigator.share({
+        title: tourney.name,
+        text: `🏏 Check out ${tourney.name} live fixtures, teams, and player registration!`,
+        url
+      }).catch(() => {});
+    } else {
+      navigator.clipboard?.writeText(url);
+      alert(`✅ ${tourney.name} Hub Link copied to clipboard!\n\n${url}`);
+    }
+  };
+  // 4. Interactive Direct Registration Link Handlers
+  document.getElementById('btn-share-direct-reg-wa')?.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const directRegUrl = `${window.location.origin}${window.location.pathname}#register/${tourney.slug || 'jsl-2026'}`;
+    if (navigator.share) {
+      navigator.share({
+        title: `Register for ${tourney.name}`,
+        text: `🏏 Player Registration is NOW OPEN for ${tourney.name}! Register your profile & enter the auction here:`,
+        url: directRegUrl
+      }).catch(() => {});
+    } else {
+      navigator.clipboard?.writeText(directRegUrl);
+      alert(`✅ ${tourney.name} Registration link copied to clipboard!\n\n${directRegUrl}`);
+    }
+  });
+
+  document.getElementById('btn-hub-share-link')?.addEventListener('click', handleShare);
+  document.getElementById('btn-hub-share')?.addEventListener('click', handleShare);
+
+  document.querySelectorAll('.hub-view-squad-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const teamId = btn.getAttribute('data-team-id');
+      const team = allTeams.find(t => t.id === teamId);
+      if (team) openTeamSquadModal(team);
+    });
+  });
+
+  document.querySelectorAll('.hub-view-profile-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const playerId = btn.getAttribute('data-player-id');
+      const player = store.getPlayerById(playerId);
+      if (player) openFullPlayerProfileModal(player);
+    });
+  });
+
+  document.querySelectorAll('.hub-open-story-card-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const playerId = btn.getAttribute('data-player-id');
+      const player = store.getPlayerById(playerId);
+      if (player) {
+        const team = store.getTeamById(player.teamId);
+        exportPlayerSocialCard(player, team, tourney);
+      }
+    });
+  });
+
+  // 5. Real-Time Registered Players Search & Category Filter
+  const playerSearchInput = document.getElementById('hub-player-search-input');
+  const playerSearchClear = document.getElementById('hub-player-search-clear');
+  const playerGrid = document.getElementById('hub-players-grid');
+  const noResultsEl = document.getElementById('hub-player-no-results');
+  const countDisplay = document.getElementById('hub-player-count-display');
+  let selectedCategoryFilter = 'all';
+
+  const filterPlayers = () => {
+    const q = playerSearchInput ? playerSearchInput.value.trim().toLowerCase() : '';
+    if (playerSearchClear) {
+      playerSearchClear.classList.toggle('hidden', q.length === 0);
+    }
+    
+    const cards = document.querySelectorAll('.hub-player-card');
+    let visibleCount = 0;
+
+    cards.forEach(card => {
+      const searchData = (card.getAttribute('data-search') || '').toLowerCase();
+      const cardCat = (card.getAttribute('data-category') || '').toLowerCase();
+      
+      const matchesSearch = !q || searchData.includes(q);
+      let matchesCat = true;
+      if (selectedCategoryFilter !== 'all') {
+        if (selectedCategoryFilter === 'batsman') matchesCat = cardCat.includes('bat');
+        else if (selectedCategoryFilter === 'bowler') matchesCat = cardCat.includes('bowl');
+        else if (selectedCategoryFilter === 'allrounder') matchesCat = cardCat.includes('all') || cardCat.includes('round');
+        else if (selectedCategoryFilter === 'wicketkeeper') matchesCat = cardCat.includes('keep') || cardCat.includes('wk');
+        else matchesCat = cardCat.includes(selectedCategoryFilter);
+      }
+
+      const isVisible = matchesSearch && matchesCat;
+      card.classList.toggle('hidden', !isVisible);
+      if (isVisible) visibleCount++;
+    });
+
+    if (countDisplay) {
+      countDisplay.textContent = String(visibleCount);
+    }
+
+    if (noResultsEl) {
+      noResultsEl.classList.toggle('hidden', visibleCount > 0);
+    }
+    if (playerGrid) {
+      playerGrid.classList.toggle('hidden', visibleCount === 0);
+    }
+  };
+
+  playerSearchInput?.addEventListener('input', filterPlayers);
+  playerSearchClear?.addEventListener('click', () => {
+    if (playerSearchInput) playerSearchInput.value = '';
+    filterPlayers();
+    playerSearchInput?.focus();
+  });
+
+  // Category filter pill buttons
+  document.querySelectorAll('.hub-cat-filter-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      selectedCategoryFilter = btn.getAttribute('data-cat-filter') || 'all';
+      
+      // Update UI active styles
+      document.querySelectorAll('.hub-cat-filter-btn').forEach(b => {
+        const isSelected = (b.getAttribute('data-cat-filter') || 'all') === selectedCategoryFilter;
+        b.className = `hub-cat-filter-btn px-3.5 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1 shrink-0 ${isSelected ? 'bg-emerald-700 text-white shadow-xs' : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200'}`;
+      });
+
+      filterPlayers();
+    });
+  });
+
+  // 6. Auction Portal Interactive Sub-Tabs & Team Roster Switcher
+  const subviewOverview = document.getElementById('auction-subview-overview');
+  const subviewSquads = document.getElementById('auction-subview-squads');
+  const subviewPlayers = document.getElementById('auction-subview-players');
+  const btnSubOverview = document.getElementById('auction-portal-subtab-overview');
+  const btnSubSquads = document.getElementById('auction-portal-subtab-squads');
+  const btnSubPlayers = document.getElementById('auction-portal-subtab-players');
+
+  const renderAuctionTeamRoster = (teamId) => {
+    const t = allTeams.find(x => x.id === teamId) || allTeams[0];
+    const container = document.getElementById('auction-selected-team-roster-container');
+    if (!container || !t) return;
+
+    // Update active team pill
+    document.querySelectorAll('.auction-team-filter-pill').forEach(b => {
+      const isSel = b.getAttribute('data-auction-team-id') === t.id;
+      b.className = `auction-team-filter-pill px-3.5 py-1.5 rounded-full text-xs font-black transition-all whitespace-nowrap cursor-pointer shrink-0 ${isSel ? 'bg-amber-500 text-slate-950 shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'}`;
+    });
+
+    const defaultIconFee = Number(store.getAuctionSettings().defaultIconPrice) || 1000;
+    const hasIcon = !!((t.iconPlayerName && t.iconPlayerName.trim()) || (t.iconName && t.iconName.trim()) || (t.iconPlayerId && t.iconPlayerId.trim()));
+    const iconDeduction = hasIcon ? defaultIconFee : 0;
+    const teamSquad = allPlayers.filter(p => {
+      if (!p) return false;
+      const pTeamId = p.teamId || p.team_id;
+      const isMatch = (pTeamId && (pTeamId === t.id || toUUID(pTeamId) === toUUID(t.id))) || (p.teamName && (p.teamName || '').trim().toLowerCase() === (t.name || '').trim().toLowerCase());
+      const isSold = (p.auctionStatus === 'SOLD' || p.isSold === true || !!pTeamId);
+      const iconName = (t.iconPlayerName || t.iconName || '').trim().toLowerCase();
+      const isIcon = hasIcon && (((p.name || '').trim().toLowerCase() === iconName) || (t.iconPlayerId && (p.id === t.iconPlayerId || toUUID(p.id) === toUUID(t.iconPlayerId))));
+      return isMatch && isSold && !isIcon;
+    });
+    const squadSpent = teamSquad.reduce((sum, p) => sum + (Number(p.soldPrice) || Number(p.boughtPrice) || Number(p.basePrice) || 300), 0);
+    const spent = iconDeduction + squadSpent;
+    const purse = Number(t.purseBudget || t.purse || tourney.teamPurse || 8000);
+    const remaining = Math.max(0, purse - spent);
+    const iconPlayer = allPlayers.find(p => (t.iconPlayerId && (p.id === t.iconPlayerId || toUUID(p.id) === toUUID(t.iconPlayerId))) || (t.iconPlayerName && p.name && p.name.trim().toLowerCase() === t.iconPlayerName.trim().toLowerCase())) || (hasIcon ? { name: t.iconPlayerName || t.iconName, phone: t.iconPlayerPhone, village: t.iconPlayerVillage, photoUrl: t.iconPlayerPhotoUrl, price: defaultIconFee } : null);
+
+    container.innerHTML = `
+      <div class="space-y-3">
+        <!-- FRANCHISE ROSTER HEADER CARD (Dark Navy) -->
+        <div class="bg-[#0F172A] text-white p-4 sm:p-5 rounded-3xl shadow-md space-y-3">
+          <div class="flex items-center justify-between gap-2 flex-wrap">
+            <div>
+              <span class="text-[9px] font-black uppercase text-amber-400 tracking-wider block">FRANCHISE ROSTER</span>
+              <h3 class="text-base sm:text-lg font-black text-white uppercase tracking-tight">${t.name}</h3>
+              <div class="text-xs text-amber-200 font-bold flex items-center gap-1.5 mt-0.5">
+                <span>👑 Owner:</span> <span class="text-white">${t.ownerName || 'TBD'}</span>
+                ${t.ownerPhone ? `<span class="text-slate-300 font-mono">(📞 ${t.ownerPhone})</span>` : ''}
+              </div>
+            </div>
+
+            <div class="flex items-center gap-2">
+              <div class="px-3 py-1.5 bg-slate-900/90 rounded-2xl border border-slate-700/80 text-right">
+                <div class="text-xs sm:text-sm font-mono font-black text-emerald-400">₹ ${remaining.toLocaleString('en-IN')} Left</div>
+                <div class="text-[8px] text-slate-400 font-bold uppercase">Spent: ₹ ${spent.toLocaleString('en-IN')}</div>
+              </div>
+              <button type="button" class="btn-download-single-team-pdf px-3 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-xs flex items-center gap-1 cursor-pointer transition-all active:scale-95" data-team-id="${t.id}">
+                <span>📑</span> <span>PDF</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- SQUAD PLAYER CARDS LIST -->
+        <div class="space-y-2">
+          <!-- Icon Player Card (if present) -->
+          ${hasIcon ? `
+            <div class="p-3 bg-amber-50/70 border-2 border-amber-400/90 rounded-2xl flex items-center justify-between gap-3 shadow-2xs">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <div class="w-12 h-12 rounded-xl bg-amber-100 border border-amber-300 overflow-hidden shrink-0 shadow-2xs">
+                  <img src="${iconPlayer?.photoUrl || t.iconPlayerPhotoUrl || 'assets/card_jsl_user.png'}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
+                </div>
+                <div class="min-w-0">
+                  <div class="flex items-center gap-1.5 flex-wrap">
+                    <h5 class="text-xs sm:text-sm font-black text-slate-900 truncate">⭐ ${iconPlayer?.name || t.iconPlayerName || 'Official Icon'}</h5>
+                    <span class="px-1.5 py-0.2 bg-amber-500 text-slate-950 font-black text-[8px] rounded uppercase">ICON</span>
+                  </div>
+                  <div class="text-[10px] text-slate-600 font-semibold truncate mt-0.5">
+                    ${iconPlayer?.phone || t.iconPlayerPhone ? `📞 ${iconPlayer?.phone || t.iconPlayerPhone}` : ''}
+                    ${iconPlayer?.village || t.iconPlayerVillage ? ` • 📍 ${iconPlayer?.village || t.iconPlayerVillage}` : ''}
+                  </div>
+                  <div class="text-[9.5px] text-amber-900 font-bold">🏏 ${iconPlayer?.category || 'Icon All-Rounder'}</div>
+                </div>
+              </div>
+
+              <div class="text-right shrink-0">
+                <div class="text-xs sm:text-sm font-mono font-black text-amber-900">₹ ${defaultIconFee.toLocaleString('en-IN')}</div>
+                <span class="text-[7.5px] font-black uppercase text-slate-400 block tracking-wider leading-none">ICON FEE</span>
+              </div>
+            </div>
+          ` : ''}
+
+          <!-- Drafted Players -->
+          ${teamSquad.map((p, pIdx) => {
+            const soldAmt = Number(p.soldPrice) || Number(p.boughtPrice) || Number(p.basePrice) || 300;
+            const photo = p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png';
+            const serial = String(p.displayRegistrationNumber || p.serialNo || (pIdx + 1)).padStart(2, '0');
+
+            return `
+              <div class="p-3 bg-white border border-slate-200/90 rounded-2xl flex items-center justify-between gap-3 shadow-xs hover:border-emerald-400 transition-all">
+                <div class="flex items-center gap-2.5 min-w-0">
+                  <div class="w-12 h-12 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden shrink-0 shadow-2xs">
+                    <img src="${photo}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
+                  </div>
+                  <div class="min-w-0">
+                    <h5 class="text-xs sm:text-sm font-black text-slate-900 truncate leading-tight">#${serial} ${p.name}</h5>
+                    <div class="text-[10px] font-bold text-sky-700 mt-0.5">🏏 ${p.category || 'All-rounder'}</div>
+                    <div class="text-[9.5px] text-slate-500 font-medium truncate">
+                      ${p.mobile || p.phone ? `📞 ${p.mobile || p.phone}` : ''}
+                      ${p.village || p.address ? ` • 📍 ${p.village || p.address}` : ''}
+                    </div>
+                  </div>
+                </div>
+
+                <div class="text-right shrink-0">
+                  <div class="text-xs sm:text-sm font-mono font-black text-emerald-700">₹ ${soldAmt.toLocaleString('en-IN')}</div>
+                  <span class="text-[7.5px] font-black uppercase text-slate-400 block tracking-wider leading-none">AUCTION SOLD</span>
+                </div>
+              </div>
+            `;
+          }).join('')}
+
+          ${teamSquad.length === 0 && !hasIcon ? `
+            <div class="text-center py-8 bg-white rounded-2xl border border-slate-200 text-xs text-slate-400 font-bold">
+              No players drafted for this team yet.
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    `;
+
+    // Hook single team PDF export
+    container.querySelector('.btn-download-single-team-pdf')?.addEventListener('click', () => {
+      exportSquadPDF(t.id);
+    });
+  };
+
+  const setAuctionPortalSubTab = (tab) => {
+    if (subviewOverview) subviewOverview.classList.toggle('hidden', tab !== 'overview');
+    if (subviewSquads) subviewSquads.classList.toggle('hidden', tab !== 'squads');
+    if (subviewPlayers) subviewPlayers.classList.toggle('hidden', tab !== 'players');
+
+    [
+      { el: btnSubOverview, id: 'overview' },
+      { el: btnSubSquads, id: 'squads' },
+      { el: btnSubPlayers, id: 'players' }
+    ].forEach(({ el, id }) => {
+      if (!el) return;
+      const isActive = id === tab;
+      el.className = `auction-portal-tab-btn px-3.5 py-2 rounded-xl text-xs font-black transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 ${isActive ? 'bg-amber-500 text-slate-950 shadow-xs' : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200'}`;
+    });
+
+    if (tab === 'squads' && allTeams.length > 0) {
+      renderAuctionTeamRoster(allTeams[0].id);
+    }
+  };
+
+  btnSubOverview?.addEventListener('click', () => setAuctionPortalSubTab('overview'));
+  btnSubSquads?.addEventListener('click', () => setAuctionPortalSubTab('squads'));
+  btnSubPlayers?.addEventListener('click', () => setAuctionPortalSubTab('players'));
+
+  // Team Switcher Pills Click Listener
+  document.querySelectorAll('.auction-team-filter-pill').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const teamId = btn.getAttribute('data-auction-team-id');
+      renderAuctionTeamRoster(teamId);
+    });
+  });
+
+  // All Players Tab Instant Search Filter
+  const auctionPlayersSearch = document.getElementById('auction-allplayers-search-input');
+  auctionPlayersSearch?.addEventListener('input', () => {
+    const q = auctionPlayersSearch.value.trim().toLowerCase();
+    document.querySelectorAll('.auction-player-row').forEach(row => {
+      const searchData = (row.getAttribute('data-search') || '').toLowerCase();
+      row.classList.toggle('hidden', Boolean(q && !searchData.includes(q)));
+    });
+  });
+
+  // Admin Team Editor Click Listener
+  document.querySelectorAll('.btn-hub-edit-team').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const teamId = e.currentTarget.getAttribute('data-team-id');
+      const team = allTeams.find(t => t.id === teamId);
+      if (team) {
+        openEditTeamModalForAdmin(team, tourney, () => renderCustomTournamentHub(container, tourney));
+      }
+    });
+  });
+
+  // WhatsApp Fixture Share Click Listeners
+  container.querySelectorAll('.btn-share-match-wa').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const fid = btn.getAttribute('data-fixture-id');
+      const fixture = allFixtures.find(f => f.id === fid) || allFixtures[0];
+      shareMatchToWhatsApp(fixture, tourney);
+    });
+  });
+
+  // WhatsApp Points Table Share Click Listeners
+  container.querySelectorAll('.btn-share-group-table-wa').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const gName = btn.getAttribute('data-group-name');
+      const formatObj = store.getTournamentFormat ? store.getTournamentFormat(tourney.slug || tourney.id) : {};
+      const adminFormat = tourney.groupFormat || formatObj.format || (allTeams.some(t => t.group) ? 'CUSTOM' : (allTeams.length > 8 ? 'TWO_GROUPS' : 'SINGLE_TABLE'));
+      let targetTeams = allTeams;
+      if (adminFormat !== 'SINGLE_TABLE') {
+        const numGroups = adminFormat === 'FOUR_GROUPS' ? 4 : adminFormat === 'THREE_GROUPS' ? 3 : 2;
+        const teamsPerGroup = Math.ceil(allTeams.length / numGroups);
+        targetTeams = allTeams.filter((t, i) => {
+          const explicitGroup = t.group || t.groupName || t.pool;
+          const assignedGName = explicitGroup 
+            ? (explicitGroup.toUpperCase().startsWith('GROUP') ? explicitGroup.toUpperCase() : `GROUP ${explicitGroup.toUpperCase()}`)
+            : `GROUP ${String.fromCharCode(65 + Math.floor(i / teamsPerGroup))}`;
+          return assignedGName === gName;
+        });
+      }
+      sharePointsTableToWhatsApp(gName, targetTeams.length ? targetTeams : allTeams, tourney);
+    });
+  });
+
+  // Full Auction PDF Summary Export Listener
+  container.querySelector('#btn-download-all-squads-pdf')?.addEventListener('click', () => {
+    exportAuctionSummaryPDF(tourney, allTeams, allPlayers);
+  });
+
+  // JSON Archive Backup Listener
+  container.querySelector('#btn-download-json-backup')?.addEventListener('click', () => {
+    const archiveData = {
+      tournament: tourney,
+      teams: allTeams,
+      players: allPlayers,
+      fixtures: allFixtures,
+      exportedAt: new Date().toISOString()
+    };
+    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(archiveData, null, 2));
+    const dlAnchor = document.createElement('a');
+    dlAnchor.setAttribute("href", dataStr);
+    dlAnchor.setAttribute("download", `${tourney.slug || 'tournament'}_full_backup_${new Date().toISOString().slice(0,10)}.json`);
+    document.body.appendChild(dlAnchor);
+    dlAnchor.click();
+    dlAnchor.remove();
+  });
+}
+
+/**
+ * Generate a distinct deterministic Cricket Team Badge SVG based on team name & index
+ */
+function generateUniqueTeamBadge(name = 'Team', idx = 0) {
+  const colors = [
+    { bg: '#0F2C59', text: '#F59E0B' },
+    { bg: '#059669', text: '#FFFFFF' },
+    { bg: '#DC2626', text: '#FEF08A' },
+    { bg: '#7C3AED', text: '#FFFFFF' },
+    { bg: '#EA580C', text: '#FFFFFF' },
+    { bg: '#0284C7', text: '#FFFFFF' },
+    { bg: '#4338CA', text: '#FDE047' },
+    { bg: '#047857', text: '#FDE047' }
+  ];
+  const pair = colors[idx % colors.length];
+  const initials = name.split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() || 'TM';
+  
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
+    <rect width="100" height="100" rx="20" fill="${pair.bg}"/>
+    <circle cx="50" cy="50" r="38" fill="none" stroke="${pair.text}" stroke-width="3" stroke-dasharray="4 2"/>
+    <text x="50" y="58" font-family="sans-serif" font-size="28" font-weight="900" text-anchor="middle" fill="${pair.text}">${initials}</text>
+  </svg>`;
+  return 'data:image/svg+xml;utf8,' + encodeURIComponent(svg);
+}
+
+/**
+ * Admin / Master Admin Modal to Edit Full Team Details (Name, Owner, Icon, Co-Owner, Mentor, Logo)
+ */
+function openEditTeamModalForAdmin(team, tourney, onSaveCallback) {
+  document.getElementById('admin-edit-team-modal')?.remove();
+
+  const modalEl = document.createElement('div');
+  modalEl.id = 'admin-edit-team-modal';
+  modalEl.className = 'fixed inset-0 z-50 flex items-center justify-center p-3 bg-slate-950/70 backdrop-blur-xs overflow-y-auto animate-fade-in';
+
+  modalEl.innerHTML = `
+    <div class="bg-white rounded-3xl border-2 border-indigo-500 shadow-2xl max-w-xl w-full max-h-[92vh] flex flex-col overflow-hidden text-slate-900 my-auto">
+      <div class="px-5 py-4 bg-gradient-to-r from-indigo-700 via-indigo-800 to-slate-900 text-white flex items-center justify-between">
+        <div class="flex items-center gap-2.5">
+          <span class="p-2 bg-indigo-500/30 rounded-xl text-lg">✏️</span>
+          <div>
+            <h3 class="text-base font-black">Edit Team & Personnel Details</h3>
+            <p class="text-[11px] text-slate-300">Modify Team Name, Owner, Icon, Co-Owner, Mentor & Logo</p>
+          </div>
+        </div>
+        <button id="close-edit-team-modal-btn" class="w-8 h-8 rounded-xl bg-white/10 hover:bg-white/20 text-white font-black flex items-center justify-center text-sm cursor-pointer">
+          ✕
+        </button>
+      </div>
+
+      <form id="admin-edit-team-form" class="p-5 overflow-y-auto space-y-3.5 text-xs font-semibold">
+        <div>
+          <label class="block text-[11px] font-black text-slate-700 mb-1">Team Name *</label>
+          <input type="text" id="team-edit-name" required value="${team.name || ''}" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-bold focus:border-indigo-500 focus:outline-none" />
+        </div>
+
+        <!-- Owner Details -->
+        <div class="p-3 bg-amber-50/80 border border-amber-300 rounded-2xl space-y-2">
+          <span class="text-[9px] font-black uppercase text-amber-950 block">👑 Owner Details</span>
+          <div class="grid grid-cols-2 gap-2">
+            <input type="text" id="team-edit-owner-name" value="${team.ownerName || ''}" placeholder="Owner Name" class="px-3 py-1.5 bg-white border border-amber-300 rounded-xl text-xs" />
+            <input type="text" id="team-edit-owner-photo" value="${team.ownerPhotoUrl || team.ownerPhoto || ''}" placeholder="Owner Photo URL" class="px-3 py-1.5 bg-white border border-amber-300 rounded-xl text-xs" />
+          </div>
+        </div>
+
+        <!-- Icon Player Details -->
+        <div class="p-3 bg-emerald-50/80 border border-emerald-300 rounded-2xl space-y-2">
+          <span class="text-[9px] font-black uppercase text-emerald-950 block">⭐ Icon Player Details</span>
+          <div class="grid grid-cols-2 gap-2">
+            <input type="text" id="team-edit-icon-name" value="${team.iconPlayerName || team.iconName || ''}" placeholder="Icon Player Name" class="px-3 py-1.5 bg-white border border-emerald-300 rounded-xl text-xs" />
+            <input type="text" id="team-edit-icon-photo" value="${team.iconPlayerPhotoUrl || team.iconPhoto || ''}" placeholder="Icon Photo URL" class="px-3 py-1.5 bg-white border border-emerald-300 rounded-xl text-xs" />
+          </div>
+        </div>
+
+        <!-- Co-Owner Details -->
+        <div class="p-3 bg-sky-50/80 border border-sky-300 rounded-2xl space-y-2">
+          <span class="text-[9px] font-black uppercase text-sky-950 block">🤝 Co-Owner Details</span>
+          <div class="grid grid-cols-2 gap-2">
+            <input type="text" id="team-edit-co-owner-name" value="${team.coOwnerName || ''}" placeholder="Co-Owner Name" class="px-3 py-1.5 bg-white border border-sky-300 rounded-xl text-xs" />
+            <input type="text" id="team-edit-co-owner-photo" value="${team.coOwnerPhotoUrl || ''}" placeholder="Co-Owner Photo URL" class="px-3 py-1.5 bg-white border border-sky-300 rounded-xl text-xs" />
+          </div>
+        </div>
+
+        <!-- Mentor Details -->
+        <div class="p-3 bg-purple-50/80 border border-purple-300 rounded-2xl space-y-2">
+          <span class="text-[9px] font-black uppercase text-purple-950 block">🧠 Mentor Details</span>
+          <div class="grid grid-cols-2 gap-2">
+            <input type="text" id="team-edit-mentor-name" value="${team.mentorName || ''}" placeholder="Mentor Name" class="px-3 py-1.5 bg-white border border-purple-300 rounded-xl text-xs" />
+            <input type="text" id="team-edit-mentor-photo" value="${team.mentorPhotoUrl || ''}" placeholder="Mentor Photo URL" class="px-3 py-1.5 bg-white border border-purple-300 rounded-xl text-xs" />
+          </div>
+        </div>
+
+        <!-- Team Logo URL -->
+        <div>
+          <label class="block text-[11px] font-black text-slate-700 mb-1">Custom Team Logo URL (Leave blank to use unique auto-badge)</label>
+          <input type="text" id="team-edit-logo-url" value="${team.logoUrl || team.teamLogoUrl || ''}" placeholder="https://..." class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs focus:border-indigo-500 focus:outline-none" />
+        </div>
+
+        <div class="pt-2 flex items-center justify-end gap-2">
+          <button type="button" id="cancel-edit-team-btn" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer">
+            Cancel
+          </button>
+          <button type="submit" class="px-5 py-2 bg-indigo-700 hover:bg-indigo-800 text-white font-black rounded-xl text-xs shadow-md cursor-pointer">
+            💾 Save Team Details
+          </button>
+        </div>
+      </form>
+    </div>
+  `;
+
+  document.body.appendChild(modalEl);
+
+  const closeModal = () => modalEl.remove();
+  document.getElementById('close-edit-team-modal-btn')?.addEventListener('click', closeModal);
+  document.getElementById('cancel-edit-team-btn')?.addEventListener('click', closeModal);
+
+  document.getElementById('admin-edit-team-form')?.addEventListener('submit', (e) => {
+    e.preventDefault();
+
+    const name = document.getElementById('team-edit-name').value.trim();
+    const ownerName = document.getElementById('team-edit-owner-name').value.trim();
+    const ownerPhoto = document.getElementById('team-edit-owner-photo').value.trim();
+    const iconName = document.getElementById('team-edit-icon-name').value.trim();
+    const iconPhoto = document.getElementById('team-edit-icon-photo').value.trim();
+    const coOwnerName = document.getElementById('team-edit-co-owner-name').value.trim();
+    const coOwnerPhoto = document.getElementById('team-edit-co-owner-photo').value.trim();
+    const mentorName = document.getElementById('team-edit-mentor-name').value.trim();
+    const mentorPhoto = document.getElementById('team-edit-mentor-photo').value.trim();
+    const logoUrl = document.getElementById('team-edit-logo-url').value.trim();
+
+    const updatedTeam = {
+      ...team,
+      name,
+      ownerName,
+      ownerPhotoUrl: ownerPhoto,
+      ownerPhoto: ownerPhoto,
+      iconPlayerName: iconName,
+      iconName: iconName,
+      iconPlayerPhotoUrl: iconPhoto,
+      iconPhoto: iconPhoto,
+      coOwnerName,
+      coOwnerPhotoUrl: coOwnerPhoto,
+      mentorName,
+      mentorPhotoUrl: mentorPhoto,
+      logoUrl,
+      teamLogoUrl: logoUrl
+    };
+
+    store.updateTeam(updatedTeam);
+    alert(`✅ Team "${name}" details saved successfully!`);
+    closeModal();
+    if (typeof onSaveCallback === 'function') onSaveCallback();
+  });
+}
+
+/**
+ * Open Final Auction Summary & Roster Archives Modal (Permanent 5-Year Record)
+ */
+function openFinalAuctionSummaryModal(tourney, allTeams, allPlayers) {
+  document.getElementById('final-auction-summary-modal')?.remove();
+
+  const defaultIconFee = Number(store.getAuctionSettings().defaultIconPrice) || 1000;
+  const totalPurse = allTeams.reduce((sum, t) => sum + (Number(t.purseBudget || t.purse || tourney.teamPurse || 8000)), 0) || (allTeams.length * 8000);
+  
+  const totalSpent = allTeams.reduce((sum, t) => {
+    const hasIcon = !!((t.iconPlayerName && t.iconPlayerName.trim()) || (t.iconName && t.iconName.trim()) || (t.iconPlayerId && t.iconPlayerId.trim()));
+    const iconDeduction = hasIcon ? defaultIconFee : 0;
+    const teamPlayers = allPlayers.filter(p => {
+      if (!p) return false;
+      const pTeamId = p.teamId || p.team_id;
+      const isMatch = (pTeamId && (pTeamId === t.id || toUUID(pTeamId) === toUUID(t.id))) || (p.teamName && (p.teamName || '').trim().toLowerCase() === (t.name || '').trim().toLowerCase());
+      const isSold = (p.auctionStatus === 'SOLD' || p.isSold === true || !!pTeamId);
+      const iconName = (t.iconPlayerName || t.iconName || '').trim().toLowerCase();
+      const isIcon = hasIcon && (((p.name || '').trim().toLowerCase() === iconName) || (t.iconPlayerId && (p.id === t.iconPlayerId || toUUID(p.id) === toUUID(t.iconPlayerId))));
+      return isMatch && isSold && !isIcon;
+    });
+    const squadSpent = teamPlayers.reduce((pSum, p) => pSum + (Number(p.soldPrice) || Number(p.boughtPrice) || Number(p.basePrice) || 300), 0);
+    return sum + iconDeduction + squadSpent;
+  }, 0);
+
+  const remainingPurse = Math.max(0, totalPurse - totalSpent);
+  const soldPlayers = allPlayers.filter(p => p.teamId || p.auctionStatus === 'SOLD' || p.isSold === true || Number(p.soldPrice || p.boughtPrice || 0) > 0);
+
+  const sortedTopBuys = soldPlayers.map(p => {
+    const team = allTeams.find(t => {
+      const pTeamId = p.teamId || p.team_id;
+      return (pTeamId && (t.id === pTeamId || toUUID(t.id) === toUUID(pTeamId))) || (p.teamName && (t.name || '').trim().toLowerCase() === (p.teamName || '').trim().toLowerCase());
+    });
+    const isIcon = p.isIcon || p.isIconPlayer || (team && (
+      (team.iconPlayerId && (p.id === team.iconPlayerId || toUUID(p.id) === toUUID(team.iconPlayerId))) ||
+      (team.iconPlayerName && p.name && p.name.trim().toLowerCase() === team.iconPlayerName.trim().toLowerCase()) ||
+      (team.iconName && p.name && p.name.trim().toLowerCase() === team.iconName.trim().toLowerCase())
+    ));
+    const finalPrice = isIcon ? defaultIconFee : (Number(p.soldPrice) || Number(p.boughtPrice) || Number(p.basePrice) || 300);
+    return { ...p, team, isIcon, finalPrice };
+  }).sort((a, b) => b.finalPrice - a.finalPrice).slice(0, 8);
+
+  let activeSubTab = 'overview';
+
+  const modalEl = document.createElement('div');
+  modalEl.id = 'final-auction-summary-modal';
+  modalEl.className = 'fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 bg-slate-950/75 backdrop-blur-xs overflow-y-auto animate-fade-in text-slate-900';
+
+  const renderContent = () => {
+    modalEl.innerHTML = `
+      <div class="bg-white rounded-3xl border-2 border-amber-400 shadow-2xl max-w-4xl w-full max-h-[94vh] flex flex-col overflow-hidden my-auto text-slate-900">
+        
+        <!-- MODAL HEADER -->
+        <div class="px-5 py-4 bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 text-slate-950 flex items-center justify-between border-b border-amber-300">
+          <div class="flex items-center gap-3">
+            <div class="w-10 h-10 rounded-2xl bg-amber-400 border border-amber-300 text-2xl flex items-center justify-center shadow-xs">
+              🏆
+            </div>
+            <div>
+              <div class="flex items-center gap-2">
+                <span class="px-2 py-0.5 bg-slate-950 text-amber-300 font-mono font-black text-[9px] rounded-full uppercase tracking-wider">
+                  PERMANENT 5-YEAR RECORD
+                </span>
+                <span class="px-2 py-0.5 bg-emerald-100 text-emerald-900 font-bold text-[9px] rounded-full border border-emerald-300">
+                  🔒 LOCKED & PRESERVED
+                </span>
+              </div>
+              <h3 class="text-sm sm:text-lg font-black text-slate-950 leading-tight mt-0.5">
+                ${tourney.name} Official Final Auction Summary
+              </h3>
+            </div>
+          </div>
+
+          <button id="close-final-summary-modal-btn" class="w-8 h-8 rounded-full bg-slate-950/20 hover:bg-slate-950/30 text-slate-950 font-black flex items-center justify-center text-sm cursor-pointer transition-colors">
+            ✕
+          </button>
+        </div>
+
+        <!-- SUB-NAV TABS & ACTION BUTTONS BAR -->
+        <div class="p-3 bg-slate-50 border-b border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div class="flex items-center gap-1.5 overflow-x-auto w-full sm:w-auto">
+            <button id="modal-subtab-overview" class="px-3.5 py-1.5 rounded-xl font-black text-xs transition-all cursor-pointer flex items-center gap-1.5 ${activeSubTab === 'overview' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'}">
+              <span>📊</span> Overview & Top Buys
+            </button>
+            <button id="modal-subtab-squads" class="px-3.5 py-1.5 rounded-xl font-black text-xs transition-all cursor-pointer flex items-center gap-1.5 ${activeSubTab === 'squads' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'}">
+              <span>🛡️</span> Team Squads (${allTeams.length})
+            </button>
+            <button id="modal-subtab-players" class="px-3.5 py-1.5 rounded-xl font-black text-xs transition-all cursor-pointer flex items-center gap-1.5 ${activeSubTab === 'players' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200'}">
+              <span>📋</span> All Players (${allPlayers.length})
+            </button>
+          </div>
+
+          <div class="flex items-center gap-2 shrink-0">
+            <button id="modal-btn-pdf" class="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white font-black text-xs rounded-xl shadow-xs flex items-center gap-1 cursor-pointer">
+              <span>📑</span> All Squads PDF
+            </button>
+            <button id="modal-btn-json" class="px-3 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-xs flex items-center gap-1 cursor-pointer">
+              <span>📥</span> JSON Archive
+            </button>
+          </div>
+        </div>
+
+        <!-- MODAL BODY -->
+        <div class="p-4 sm:p-6 overflow-y-auto space-y-5">
+          
+          ${activeSubTab === 'overview' ? `
+            <!-- 4 METRIC CARDS -->
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              <!-- Total Purse -->
+              <div class="p-3.5 bg-amber-50/70 border-2 border-amber-300 rounded-2xl text-center space-y-0.5 shadow-2xs">
+                <span class="text-[9px] font-black uppercase text-amber-900 tracking-wider">TOTAL PURSE</span>
+                <div class="text-base sm:text-xl font-black text-slate-900 font-mono">₹ ${totalPurse.toLocaleString('en-IN')}</div>
+              </div>
+
+              <!-- Total Auction Spent -->
+              <div class="p-3.5 bg-rose-50/70 border-2 border-rose-300 rounded-2xl text-center space-y-0.5 shadow-2xs">
+                <span class="text-[9px] font-black uppercase text-rose-900 tracking-wider">TOTAL AUCTION SPENT</span>
+                <div class="text-base sm:text-xl font-black text-rose-700 font-mono">₹ ${totalSpent.toLocaleString('en-IN')}</div>
+              </div>
+
+              <!-- Total Remaining Purse -->
+              <div class="p-3.5 bg-emerald-50/70 border-2 border-emerald-300 rounded-2xl text-center space-y-0.5 shadow-2xs">
+                <span class="text-[9px] font-black uppercase text-emerald-900 tracking-wider">TOTAL REMAINING PURSE</span>
+                <div class="text-base sm:text-xl font-black text-emerald-700 font-mono">₹ ${remainingPurse.toLocaleString('en-IN')}</div>
+              </div>
+
+              <!-- Squad Players Sold -->
+              <div class="p-3.5 bg-sky-50/70 border-2 border-sky-300 rounded-2xl text-center space-y-0.5 shadow-2xs">
+                <span class="text-[9px] font-black uppercase text-sky-900 tracking-wider">SQUAD PLAYERS SOLD</span>
+                <div class="text-base sm:text-xl font-black text-sky-800 font-mono">${soldPlayers.length} / ${allPlayers.length}</div>
+              </div>
+            </div>
+
+            <!-- TOP 8 HIGHEST BUYS GRID -->
+            <div class="bg-white p-4 rounded-3xl border-2 border-slate-200 shadow-sm space-y-3">
+              <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                <h4 class="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                  <span>🔥</span> TOP HIGHEST BUYS OF ${tourney.name} AUCTION
+                </h4>
+                <span class="text-[10px] font-bold text-slate-400">Top 8 Bids</span>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                ${sortedTopBuys.map((p, idx) => {
+                  const photo = p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png';
+
+                  return `
+                    <div class="p-3 bg-slate-50/80 border border-slate-200 rounded-2xl flex items-center justify-between gap-3 hover:border-amber-400 transition-all">
+                      <div class="flex items-center gap-3 min-w-0">
+                        <span class="w-7 h-7 rounded-xl bg-amber-100 text-amber-900 border border-amber-300 font-mono font-black text-xs flex items-center justify-center shrink-0">
+                          #${idx + 1}
+                        </span>
+                        <div class="w-12 h-12 rounded-xl bg-white border border-slate-200 overflow-hidden shrink-0 shadow-2xs">
+                          <img src="${photo}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
+                        </div>
+                        <div class="min-w-0">
+                          <h5 class="text-xs sm:text-sm font-black text-slate-900 truncate leading-tight">
+                            ${p.name} ${p.isIcon ? '<span class="text-amber-600 font-bold text-[8.5px]">(ICON)</span>' : ''}
+                          </h5>
+                          <div class="text-[10px] font-bold text-slate-600 truncate flex items-center gap-1">
+                            <span>🛡️</span> ${p.team?.name || p.teamName || 'Franchise Team'}
+                          </div>
+                          <span class="text-[9px] text-slate-400 font-medium">🏏 ${p.category || 'All-rounder'}</span>
+                        </div>
+                      </div>
+
+                      <div class="text-right shrink-0">
+                        <div class="text-xs sm:text-base font-mono font-black text-emerald-700">₹ ${p.finalPrice.toLocaleString('en-IN')}</div>
+                        <span class="text-[8px] font-black uppercase text-slate-400 block tracking-wider">${p.isIcon ? 'ICON FEE' : 'FINAL BID'}</span>
+                      </div>
+                    </div>
+                  `;
+                }).join('')}
+              </div>
+            </div>
+          ` : ''}
+
+          ${activeSubTab === 'squads' ? `
+            <!-- ALL TEAM SQUADS BREAKDOWN -->
+            <div class="space-y-4">
+              ${allTeams.map(t => {
+                const hasIcon = !!((t.iconPlayerName && t.iconPlayerName.trim()) || (t.iconName && t.iconName.trim()) || (t.iconPlayerId && t.iconPlayerId.trim()));
+                const iconDeduction = hasIcon ? defaultIconFee : 0;
+                const teamSquad = allPlayers.filter(p => {
+                  if (!p) return false;
+                  const pTeamId = p.teamId || p.team_id;
+                  const isMatch = (pTeamId && (pTeamId === t.id || toUUID(pTeamId) === toUUID(t.id))) || (p.teamName && (p.teamName || '').trim().toLowerCase() === (t.name || '').trim().toLowerCase());
+                  const isSold = (p.auctionStatus === 'SOLD' || p.isSold === true || !!pTeamId);
+                  const iconName = (t.iconPlayerName || t.iconName || '').trim().toLowerCase();
+                  const isIcon = hasIcon && (((p.name || '').trim().toLowerCase() === iconName) || (t.iconPlayerId && (p.id === t.iconPlayerId || toUUID(p.id) === toUUID(t.iconPlayerId))));
+                  return isMatch && isSold && !isIcon;
+                });
+                const squadSpent = teamSquad.reduce((sum, p) => sum + (Number(p.soldPrice) || Number(p.boughtPrice) || Number(p.basePrice) || 300), 0);
+                const spent = iconDeduction + squadSpent;
+                const purse = Number(t.purseBudget || t.purse || tourney.teamPurse || 8000);
+                const remaining = Math.max(0, purse - spent);
+
+                return `
+                  <div class="p-4 bg-white border-2 border-slate-200 rounded-3xl shadow-sm space-y-3">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                      <div class="flex items-center gap-2.5">
+                        <div class="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center">
+                          <img src="${t.logoUrl || t.teamLogoUrl || generateUniqueTeamBadge(t.name)}" class="w-full h-full object-cover" onerror="this.parentElement.innerHTML='🏏'" />
+                        </div>
+                        <div>
+                          <h4 class="text-xs sm:text-sm font-black text-slate-900">${t.name}</h4>
+                          <span class="text-[10px] text-slate-500 font-bold">Owner: ${t.ownerName || 'TBD'}</span>
+                        </div>
+                      </div>
+                      <div class="text-right font-mono">
+                        <div class="text-xs font-black text-slate-900">${(hasIcon ? 1 : 0) + teamSquad.length} Players</div>
+                        <div class="text-[10px] text-emerald-700 font-bold">Left: ₹${remaining.toLocaleString('en-IN')}</div>
+                      </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                      ${hasIcon ? `
+                        <div class="p-2 bg-amber-50 border border-amber-200 rounded-xl text-center">
+                          <div class="text-xs font-black text-slate-900 truncate">⭐ ${t.iconPlayerName || t.iconName || 'Official Icon'}</div>
+                          <div class="text-[9px] text-amber-800 font-bold">ICON ALLOCATION</div>
+                          <div class="text-[10px] font-mono font-black text-amber-900 mt-0.5">₹${defaultIconFee.toLocaleString('en-IN')}</div>
+                        </div>
+                      ` : ''}
+                      ${teamSquad.map(p => `
+                        <div class="p-2 bg-slate-50 border border-slate-200 rounded-xl text-center">
+                          <div class="text-xs font-black text-slate-900 truncate">${p.name}</div>
+                          <div class="text-[9px] text-slate-500">${p.category || 'Player'}</div>
+                          <div class="text-[10px] font-mono font-black text-emerald-700 mt-0.5">₹${Number(p.soldPrice || p.boughtPrice || p.basePrice || 300).toLocaleString('en-IN')}</div>
+                        </div>
+                      `).join('')}
+                    </div>
+                  </div>
+                `;
+              }).join('')}
+            </div>
+          ` : ''}
+
+          ${activeSubTab === 'players' ? `
+            <!-- ALL 123 REGISTERED PLAYERS TABLE -->
+            <div class="bg-white p-4 rounded-3xl border-2 border-slate-200 shadow-sm overflow-x-auto">
+              <table class="w-full text-left text-xs">
+                <thead class="bg-slate-50 text-[10px] font-black uppercase text-slate-500 border-b border-slate-200">
+                  <tr>
+                    <th class="p-2">#</th>
+                    <th class="p-2">Player</th>
+                    <th class="p-2">Role</th>
+                    <th class="p-2">Status</th>
+                    <th class="p-2">Team</th>
+                    <th class="p-2 text-right">Sold Price</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 font-semibold">
+                  ${allPlayers.map((p, idx) => {
+                    const team = allTeams.find(t => t.id === p.teamId);
+                    const isSold = Number(p.soldPrice || 0) > 0 || p.teamId;
+
+                    return `
+                      <tr class="hover:bg-slate-50">
+                        <td class="p-2 text-slate-400 font-mono">${idx + 1}</td>
+                        <td class="p-2 font-bold text-slate-900">${p.name}</td>
+                        <td class="p-2 text-slate-500">${p.category || 'All-rounder'}</td>
+                        <td class="p-2">
+                          <span class="px-2 py-0.5 text-[9px] font-black rounded-full ${isSold ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}">
+                            ${isSold ? 'SOLD' : 'UNSOLD'}
+                          </span>
+                        </td>
+                        <td class="p-2 font-bold text-slate-700">${team?.name || p.teamName || '-'}</td>
+                        <td class="p-2 text-right font-mono font-black ${isSold ? 'text-emerald-700' : 'text-slate-400'}">
+                          ${isSold ? `₹ ${Number(p.soldPrice || p.basePrice || 300).toLocaleString('en-IN')}` : '-'}
+                        </td>
+                      </tr>
+                    `;
+                  }).join('')}
+                </tbody>
+              </table>
+            </div>
+          ` : ''}
+
+        </div>
+
+        <!-- MODAL FOOTER -->
+        <div class="px-5 py-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-[10px] text-slate-400 font-semibold">
+          <div class="flex items-center gap-1.5">
+            <span>🏛️</span> ${tourney.name} Archive Record Vault
+          </div>
+          <div>
+            Permanent Multi-Tenant Auction Architecture
+          </div>
+        </div>
+
+      </div>
+    `;
+
+    document.getElementById('close-final-summary-modal-btn')?.addEventListener('click', () => modalEl.remove());
+
+    document.getElementById('modal-subtab-overview')?.addEventListener('click', () => {
+      activeSubTab = 'overview';
+      renderContent();
+    });
+
+    document.getElementById('modal-subtab-squads')?.addEventListener('click', () => {
+      activeSubTab = 'squads';
+      renderContent();
+    });
+
+    document.getElementById('modal-subtab-players')?.addEventListener('click', () => {
+      activeSubTab = 'players';
+      renderContent();
+    });
+
+    document.getElementById('modal-btn-pdf')?.addEventListener('click', () => {
+      if (typeof window.print === 'function') window.print();
+    });
+
+    document.getElementById('modal-btn-json')?.addEventListener('click', () => {
+      document.getElementById('btn-download-json-backup')?.click();
+    });
+  };
+
+  document.body.appendChild(modalEl);
+  renderContent();
 }
 
 // --- LIVE TOURNAMENT COUNTDOWN CLOCK (31 AUGUST 2026, 9:00 AM IST) ---
@@ -1411,9 +4806,9 @@ export async function initTournamentCountdown() {
   const card = document.getElementById('tournament-countdown-card');
   if (!card) return;
 
-  // Check admin settings from Firebase
+  // Check admin settings from cloud
   try {
-    const settings = await fetchPopupSettingsFromFirebase();
+    const settings = await fetchPopupSettingsFromCloud();
     if (settings && settings.isCountdownEnabled === false) {
       card.classList.add('hidden');
       return;
@@ -1424,7 +4819,10 @@ export async function initTournamentCountdown() {
     console.warn('Countdown settings fetch fallback:', err);
   }
 
-  const targetDate = new Date("2026-08-31T09:00:00+05:30").getTime();
+  const allTourneys = store.getCustomTournaments ? store.getCustomTournaments() : [];
+  const featured = allTourneys.find(t => t.kickoffDate) || {};
+  const targetDateStr = featured.kickoffDate ? `${featured.kickoffDate}T09:00:00+05:30` : "2026-08-31T09:00:00+05:30";
+  const targetDate = new Date(targetDateStr).getTime();
 
   const update = () => {
     const now = Date.now();
@@ -1556,8 +4954,8 @@ function openComingSoonModal(code, title, logoPath) {
   document.getElementById('ok-cs-btn')?.addEventListener('click', removeModal);
 }
 
-// --- JSL HUB ---
-function renderJSLHub(containerEl) {
+// --- TOURNAMENT HUB ---
+function renderTournamentHub(containerEl) {
   const teams = store.getTeams();
   const players = store.getPlayers();
   const isRegOpen = store.isJslRegistrationOpen();
@@ -1567,11 +4965,11 @@ function renderJSLHub(containerEl) {
     <div class="space-y-3 sm:space-y-4 animate-fade-in max-w-4xl mx-auto py-1 sm:py-2">
       
       <!-- GRAND STADIUM POSTER STRIP (PURE WHITE BACKGROUND - POSTER PICTURE & CONTACT INFO) -->
-      <div class="jsl-header-strip p-2 sm:p-3 bg-white border-2 border-slate-200 rounded-2xl shadow-md space-y-2">
-        
-        <!-- POSTER PICTURE ON WHITE BACKGROUND (JHANKRA SUPER LEAGUE, 8 TEAMS, PRIZE MONEY, ENTRY & RULES) -->
+      <div class="tournament-header-strip p-2 sm:p-3 bg-white border-2 border-slate-200 rounded-2xl shadow-md space-y-2">
+
+        <!-- POSTER PICTURE ON WHITE BACKGROUND (TOURNAMENT POSTER & RULES) -->
         <div class="overflow-hidden rounded-xl bg-white border border-slate-200 shadow-sm max-w-4xl mx-auto">
-          <img src="assets/jsl_poster_top_rules.jpg" alt="JSL Official Tournament Poster" class="w-full h-auto object-contain mx-auto rounded-xl" />
+          <img src="assets/jsl_poster_top_rules.jpg" alt="Official Tournament Poster" class="w-full h-auto object-contain mx-auto rounded-xl" />
         </div>
 
         <!-- CLICKABLE CALL CONTACT BUTTON BELOW PICTURE -->
@@ -1597,7 +4995,7 @@ function renderJSLHub(containerEl) {
         <!-- CARD 1: REGISTERED TEAMS -->
         <div class="relative glass-card p-3 sm:p-5 text-center border-2 border-sky-300 bg-white flex flex-col justify-between items-center hover:border-sky-500 shadow-md rounded-2xl overflow-hidden">
           <!-- TOP-RIGHT CORNER COUNTER BADGE -->
-          <div id="jsl-hub-teams-count" class="absolute top-1.5 right-1.5 w-6 h-6 sm:w-8 sm:h-8 bg-sky-600 text-white text-xs sm:text-sm font-black rounded-full flex items-center justify-center border-2 border-white shadow-md z-10" title="Total Teams">
+          <div id="tournament-hub-teams-count" class="absolute top-1.5 right-1.5 w-6 h-6 sm:w-8 sm:h-8 bg-sky-600 text-white text-xs sm:text-sm font-black rounded-full flex items-center justify-center border-2 border-white shadow-md z-10" title="Total Teams">
             ${teams.length}
           </div>
 
@@ -1619,7 +5017,7 @@ function renderJSLHub(containerEl) {
         <!-- CARD 2: REGISTERED PLAYERS -->
         <div class="relative glass-card p-3 sm:p-5 text-center border-2 border-emerald-300 bg-white flex flex-col justify-between items-center hover:border-emerald-500 shadow-md rounded-2xl overflow-hidden">
           <!-- TOP-RIGHT CORNER COUNTER BADGE -->
-          <div id="jsl-hub-players-count" class="absolute top-1.5 right-1.5 w-6 h-6 sm:w-8 sm:h-8 bg-emerald-600 text-white text-xs sm:text-sm font-black rounded-full flex items-center justify-center border-2 border-white shadow-md z-10" title="Total Players">
+          <div id="tournament-hub-players-count" class="absolute top-1.5 right-1.5 w-6 h-6 sm:w-8 sm:h-8 bg-emerald-600 text-white text-xs sm:text-sm font-black rounded-full flex items-center justify-center border-2 border-white shadow-md z-10" title="Total Players">
             ${players.length}
           </div>
 
@@ -1640,7 +5038,7 @@ function renderJSLHub(containerEl) {
 
       </div>
 
-      <!-- 📜 PREVIOUS AUCTION SUMMARY & JSL AUCTION SUMMARY (CLEAN WHITE BACKGROUND) -->
+      <!-- 📜 PREVIOUS AUCTION SUMMARY (CLEAN WHITE BACKGROUND) -->
       <div class="w-full bg-white border-2 border-slate-200 hover:border-amber-400 p-3.5 sm:p-4 rounded-2xl sm:rounded-3xl shadow-md text-slate-900 space-y-2.5 relative overflow-hidden animate-fade-in transition-all">
         <div class="flex items-center justify-between flex-wrap gap-2">
           <div class="flex items-center gap-2.5">
@@ -1653,7 +5051,7 @@ function renderJSLHub(containerEl) {
                 <span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[8.5px] font-mono rounded-full border border-emerald-300 font-bold">🔒 5-YEAR ARCHIVE</span>
               </div>
               <h3 class="text-xs sm:text-base font-black text-slate-900 leading-tight mt-0.5">
-                JSL 2026 Final Auction Summary & Roster Archives
+                Final Auction Summary & Roster Archives
               </h3>
             </div>
           </div>
@@ -1665,17 +5063,17 @@ function renderJSLHub(containerEl) {
         </div>
 
         <p class="text-[11px] sm:text-xs text-slate-600 font-medium">
-          All 8 franchise squads, player sold values, icon player ⭐ allocations, and purse balances are permanently preserved in the JSL Master Archive.
+          All franchise squads, player sold values, icon player ⭐ allocations, and purse balances are permanently preserved in the Master Archive.
         </p>
 
         <div class="flex flex-wrap items-center gap-2 pt-0.5">
-          <button id="jsl-open-auction-summary-modal-btn" class="flex-1 sm:flex-initial px-4 py-2 bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-500 hover:to-yellow-500 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-amber-300">
+          <button id="open-auction-summary-modal-btn" class="flex-1 sm:flex-initial px-4 py-2 bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-500 hover:to-yellow-500 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-amber-300">
             <span>🏆 View Final Auction Summary</span>
           </button>
-          <button id="jsl-download-all-squads-pdf-hub-btn" class="flex-1 sm:flex-initial px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm rounded-xl border border-emerald-500 shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer">
+          <button id="download-all-squads-pdf-hub-btn" class="flex-1 sm:flex-initial px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs sm:text-sm rounded-xl border border-emerald-500 shadow-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer">
             <span>📄 All Squads PDF</span>
           </button>
-          <button id="jsl-download-json-archive-hub-btn" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs sm:text-sm rounded-xl border border-slate-300 shadow-2xs flex items-center justify-center gap-1.5 transition-all cursor-pointer" title="Download Master JSON Archive">
+          <button id="download-json-archive-hub-btn" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs sm:text-sm rounded-xl border border-slate-300 shadow-2xs flex items-center justify-center gap-1.5 transition-all cursor-pointer" title="Download Master JSON Archive">
             <span>📥 JSON Backup</span>
           </button>
         </div>
@@ -1686,9 +5084,9 @@ function renderJSLHub(containerEl) {
 
   document.getElementById('open-teams-modal-btn')?.addEventListener('click', () => openRegisteredTeamsModal(teams));
   document.getElementById('open-players-modal-btn')?.addEventListener('click', () => openRegisteredPlayersModal(players));
-  document.getElementById('jsl-open-auction-summary-modal-btn')?.addEventListener('click', openJslAuctionSummaryModal);
-  document.getElementById('jsl-download-all-squads-pdf-hub-btn')?.addEventListener('click', () => exportAllTeamsFinalSquadsToPDF(teams, players));
-  document.getElementById('jsl-download-json-archive-hub-btn')?.addEventListener('click', downloadAuctionArchiveJSON);
+  document.getElementById('open-auction-summary-modal-btn')?.addEventListener('click', openAuctionSummaryModal);
+  document.getElementById('download-all-squads-pdf-hub-btn')?.addEventListener('click', () => exportAllTeamsFinalSquadsToPDF(teams, players));
+  document.getElementById('download-json-archive-hub-btn')?.addEventListener('click', downloadAuctionArchiveJSON);
 }
 
 // --- HELPER: DOWNLOAD OFFICIAL JSON ARCHIVE RECORD (FOR 5+ YEARS PRESERVATION) ---
@@ -1697,14 +5095,14 @@ function downloadAuctionArchiveJSON() {
   const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(archive, null, 2));
   const downloadAnchor = document.createElement('a');
   downloadAnchor.setAttribute("href", dataStr);
-  downloadAnchor.setAttribute("download", `JSL_2026_Official_Auction_Archive.json`);
+  downloadAnchor.setAttribute("download", `Official_Auction_Archive.json`);
   document.body.appendChild(downloadAnchor);
   downloadAnchor.click();
   downloadAnchor.remove();
 }
 
 // --- OFFICIAL FINAL AUCTION SUMMARY & 5-YEAR RECORD VAULT MODAL (VIBRANT COLORFUL WHITE THEME) ---
-function openJslAuctionSummaryModal() {
+function openAuctionSummaryModal() {
   const archive = store.getAuctionPermanentArchive();
   const allPlayers = store.getPlayers();
   const teams = store.getTeams();
@@ -1712,7 +5110,7 @@ function openJslAuctionSummaryModal() {
   let selectedTeamId = teams[0]?.id || '';
 
   const modalHtml = `
-    <div id="jsl-auction-summary-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-2 sm:p-4 animate-fade-in bg-slate-950/70 backdrop-blur-sm">
+    <div id="auction-summary-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-2 sm:p-4 animate-fade-in bg-slate-950/70 backdrop-blur-sm">
       <div class="bg-white text-slate-900 max-w-4xl w-full max-h-[92vh] flex flex-col rounded-2xl sm:rounded-3xl border-2 border-amber-400 shadow-2xl overflow-hidden">
         
         <!-- MODAL HEADER (COLORFUL LIGHT AMBER GRADIENT) -->
@@ -1729,12 +5127,12 @@ function openJslAuctionSummaryModal() {
                 <span class="text-[9px] font-mono text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300 font-bold">🔒 LOCKED & PRESERVED</span>
               </div>
               <h2 class="text-base sm:text-xl font-black text-slate-900 tracking-tight leading-tight mt-0.5">
-                JSL 2026 Official Final Auction Summary
+                Official Final Auction Summary
               </h2>
             </div>
           </div>
           
-          <button id="close-jsl-auction-summary-modal-btn" class="w-8 h-8 rounded-full bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-950 border border-slate-300 flex items-center justify-center text-sm font-black transition-all shadow-xs cursor-pointer">
+          <button id="close-auction-summary-modal-btn" class="w-8 h-8 rounded-full bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-950 border border-slate-300 flex items-center justify-center text-sm font-black transition-all shadow-xs cursor-pointer">
             ✕
           </button>
         </div>
@@ -1764,13 +5162,13 @@ function openJslAuctionSummaryModal() {
         </div>
 
         <!-- MODAL BODY CONTAINER (WHITE BACKGROUND) -->
-        <div id="jsl-auction-summary-tab-content" class="p-3 sm:p-5 overflow-y-auto flex-1 space-y-4 bg-white">
+        <div id="auction-summary-tab-content" class="p-3 sm:p-5 overflow-y-auto flex-1 space-y-4 bg-white">
           <!-- Content dynamically rendered below -->
         </div>
 
         <!-- MODAL FOOTER (CLEAN SLATE BAR) -->
         <div class="p-2.5 sm:p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between text-[10px] text-slate-600 shrink-0 font-bold">
-          <span>🏛️ Jhankra Super League 2026 Archive Record Vault</span>
+          <span>🏛️ Official Archive Record Vault</span>
           <span>System Architect: Suman Kolay</span>
         </div>
 
@@ -1782,7 +5180,7 @@ function openJslAuctionSummaryModal() {
 
   const renderTab = (tab) => {
     activeTab = tab;
-    const content = document.getElementById('jsl-auction-summary-tab-content');
+    const content = document.getElementById('auction-summary-tab-content');
     if (!content) return;
 
     // Highlight active tab
@@ -1824,11 +5222,11 @@ function openJslAuctionSummaryModal() {
             </div>
           </div>
 
-          <!-- TOP BUYS OF JSL 2026 (COLORFUL WHITE CARDS) -->
+          <!-- TOP BUYS (COLORFUL WHITE CARDS) -->
           <div class="bg-slate-50/80 border-2 border-slate-200 rounded-2xl sm:rounded-3xl p-3.5 sm:p-4 space-y-3 shadow-xs">
             <div class="flex items-center justify-between border-b border-slate-200 pb-2">
               <h3 class="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                <span>🔥 Top Highest Buys of JSL 2026 Auction</span>
+                <span>🔥 Top Highest Buys of Auction</span>
               </h3>
               <span class="text-[10px] font-bold text-slate-500 font-mono bg-white px-2 py-0.5 rounded-full border border-slate-200">Top 8 Bids</span>
             </div>
@@ -2037,12 +5435,12 @@ function openJslAuctionSummaryModal() {
 
   // Close handlers
   const handleClose = () => {
-    document.getElementById('jsl-auction-summary-modal')?.remove();
+    document.getElementById('auction-summary-modal')?.remove();
   };
 
-  document.getElementById('close-jsl-auction-summary-modal-btn')?.addEventListener('click', handleClose);
-  document.getElementById('jsl-auction-summary-modal')?.addEventListener('click', (e) => {
-    if (e.target.id === 'jsl-auction-summary-modal') handleClose();
+  document.getElementById('close-auction-summary-modal-btn')?.addEventListener('click', handleClose);
+  document.getElementById('auction-summary-modal')?.addEventListener('click', (e) => {
+    if (e.target.id === 'auction-summary-modal') handleClose();
   });
 
   // Tab switch listeners
@@ -2204,7 +5602,7 @@ function openRegisteredTeamsModal(allTeams) {
 
         <div class="flex items-center justify-between gap-2 border-b-2 border-slate-200 pb-2.5">
           <div>
-            <span class="px-2 py-0.5 bg-sky-100 text-sky-800 text-[9px] font-black rounded-full border border-sky-300 uppercase font-mono">JSL 2026</span>
+            <span class="px-2 py-0.5 bg-sky-100 text-sky-800 text-[9px] font-black rounded-full border border-sky-300 uppercase font-mono">TOURNAMENT</span>
             <h2 class="text-base sm:text-lg font-black text-slate-900 mt-0.5">Registered Team List (${allTeams.length})</h2>
           </div>
         </div>
@@ -2315,14 +5713,14 @@ function openRegisteredPlayersModal(allPlayers = store.getPlayers()) {
 
         <div class="flex items-center justify-between gap-2 border-b border-slate-200 pb-2">
           <div>
-            <span class="px-2 py-0.5 bg-amber-100 text-amber-800 text-[9px] font-black rounded border border-amber-300 uppercase">JSL 2026</span>
+            <span class="px-2 py-0.5 bg-amber-100 text-amber-800 text-[9px] font-black rounded border border-amber-300 uppercase">TOURNAMENT</span>
             <h2 class="text-base font-black text-slate-900 mt-0.5">Registered Player List <span id="player-count-display">(${allPlayers.length})</span></h2>
           </div>
         </div>
 
         <div class="space-y-2">
           <div class="relative">
-            <input type="text" id="player-search-input" placeholder="🔍 Search player by name, Reg ID (JSL2026-0001), phone, village..." class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 pl-3 focus:outline-none focus:border-emerald-500 placeholder-slate-400" />
+            <input type="text" id="player-search-input" placeholder="🔍 Search player by name, Reg ID, phone, village..." class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 pl-3 focus:outline-none focus:border-emerald-500 placeholder-slate-400" />
           </div>
 
           <!-- CATEGORY FILTER PILLS -->
@@ -2474,16 +5872,16 @@ function renderPlayerCardsWithSerial(playersList) {
     const photoSrc = getOptimizedImageUrl(p.photoUrl || p.player_photo_url || '', 280, 280);
 
     return `
-      <div class="glass-card p-2 flex flex-col justify-between items-center text-center relative border border-emerald-200 bg-white hover:border-emerald-500 shadow-md rounded-2xl overflow-hidden">
+      <div class="cpl-white-card p-2.5 flex flex-col justify-between items-center text-center relative border border-slate-200 bg-white hover:border-emerald-400 shadow-sm hover:shadow-md rounded-2xl overflow-hidden transition-all">
         
         <!-- LARGE SQUARE PICTURE CONTAINER WITH TOP-LEFT SHORT SERIAL & TOP-RIGHT BLINKING STATUS DOT -->
-        <div class="w-full aspect-square rounded-xl bg-slate-100 border-2 border-emerald-500 flex items-center justify-center overflow-hidden shadow-md relative mb-1.5 mx-auto">
+        <div class="w-full aspect-square rounded-xl bg-slate-100 border-2 border-slate-200 flex items-center justify-center overflow-hidden shadow-xs relative mb-1.5 mx-auto">
           
-          <!-- PLAYER PHOTO WITH LAZY LOADING & ASYNC DECODING -->
-          <img src="${photoSrc}" loading="lazy" decoding="async" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Crect width=\'100\' height=\'100\' fill=\'%23059669\'/%3E%3Ctext x=\'50\' y=\'62\' font-size=\'45\' text-anchor=\'middle\' fill=\'white\'%3E🏏%3C/text%3E%3C/svg%3E';" />
+          <!-- PLAYER PHOTO WITH INSTANT DECODING & BULLETPROOF FALLBACK -->
+          <img src="${photoSrc}" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='assets/card_jsl_user.png';" />
 
           <!-- SHORT SERIAL NO ON PICTURE TOP-LEFT (E.G. #01, #02) -->
-          <span class="absolute top-1.5 left-1.5 px-2 py-0.5 bg-slate-950/85 backdrop-blur-sm text-amber-300 font-mono font-black text-[10px] rounded-md border border-amber-400/80 shadow-md">
+          <span class="absolute top-1.5 left-1.5 px-2 py-0.5 bg-slate-900/90 backdrop-blur-sm text-amber-300 font-mono font-black text-[10px] rounded-md border border-amber-400/60 shadow-sm">
             #${shortSerialNo}
           </span>
 
@@ -2495,13 +5893,21 @@ function renderPlayerCardsWithSerial(playersList) {
 
         </div>
 
-        <!-- PLAYER NAME ONLY (CATEGORY & DISTRICT REMOVED FOR CLEAN SQUARE CARD) -->
-        <div class="w-full mb-1.5 px-0.5">
+        <!-- PLAYER NAME & COLORFUL CATEGORY BADGE -->
+        <div class="w-full mb-2 px-0.5 space-y-1">
           <h3 class="font-black text-slate-900 text-xs sm:text-sm truncate leading-tight">${p.name}</h3>
+          <span class="inline-block px-2 py-0.5 rounded-full text-[8.5px] font-black uppercase tracking-wider ${
+            p.category === 'Batsman' ? 'bg-sky-50 text-sky-700 border border-sky-300' :
+            p.category === 'Bowler' ? 'bg-purple-50 text-purple-700 border border-purple-300' :
+            p.category === 'Wicket Keeper' ? 'bg-amber-50 text-amber-800 border border-amber-300' :
+            'bg-emerald-50 text-emerald-700 border border-emerald-300'
+          }">
+            ${p.category || 'All Rounder'}
+          </span>
         </div>
 
         <!-- VIEW PROFILE BUTTON -->
-        <button data-profile-id="${p.id}" class="view-profile-modal-btn w-full py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-[9px] sm:text-[10px] font-extrabold rounded-xl shadow-sm flex items-center justify-center gap-1 transition-colors">
+        <button data-profile-id="${p.id}" class="view-profile-modal-btn w-full py-1.5 bg-slate-900 hover:bg-slate-800 text-white text-[9px] sm:text-[10px] font-black rounded-xl shadow-xs flex items-center justify-center gap-1 transition-colors cursor-pointer">
           <i data-lucide="user" class="w-3 h-3 text-amber-400"></i> View Profile
         </button>
       </div>
@@ -2525,14 +5931,14 @@ function openFullPlayerProfileModal(player) {
         <!-- SQUARE 200 KB CROPPED PLAYER PHOTO DISPLAY -->
         <div class="pt-1 text-center">
           <div class="w-32 h-32 sm:w-40 sm:h-40 rounded-2xl bg-white border-2 border-emerald-500 shadow-xl mx-auto overflow-hidden flex items-center justify-center">
-            <img src="${getOptimizedImageUrl(player.photoUrl || player.player_photo_url, 400, 400)}" loading="lazy" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Crect width=\'100\' height=\'100\' fill=\'%23059669\'/%3E%3Ctext x=\'50\' y=\'62\' font-size=\'45\' text-anchor=\'middle\' fill=\'white\'%3E🏏%3C/text%3E%3C/svg%3E';" />
+            <img src="${getOptimizedImageUrl(player.photoUrl || player.player_photo_url, 400, 400)}" class="w-full h-full object-cover" onerror="this.onerror=null; this.src='assets/card_jsl_user.png';" />
           </div>
         </div>
 
         <!-- PLAYER NAME, REG ID & STATUS BADGE -->
         <div class="space-y-1">
           <span class="px-2.5 py-0.5 bg-slate-100 text-slate-800 font-mono font-black text-xs rounded border border-slate-300 shadow-sm">
-            ${player.registrationId || player.regNo || 'JSL2026-0001'} (Serial #${player.displayRegistrationNumber || player.serialNo || 1})
+            ${player.registrationId || player.regNo || 'REG-0001'} (Serial #${player.displayRegistrationNumber || player.serialNo || 1})
           </span>
           <h2 class="text-lg sm:text-xl font-black text-slate-900 leading-tight mt-1">${player.name}</h2>
           <div class="inline-block px-3 py-0.5 bg-emerald-100 text-emerald-800 font-extrabold text-xs rounded-full border border-emerald-300">
@@ -2541,7 +5947,7 @@ function openFullPlayerProfileModal(player) {
         </div>
 
         <!-- DETAILED PROFILE INFORMATION GRID -->
-        <div class="grid grid-cols-2 gap-2 text-left bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs">
+        <div class="grid grid-cols-2 gap-2 text-left bg-slate-50 p-3 rounded-xl border border-slate-200 text-xs font-semibold">
           <div class="space-y-0.5">
             <span class="text-[8px] text-slate-500 uppercase font-bold block">Father's Name</span>
             <span class="font-extrabold text-slate-900 truncate block">${player.fatherName || 'N/A'}</span>
@@ -2554,12 +5960,25 @@ function openFullPlayerProfileModal(player) {
 
           <div class="space-y-0.5">
             <span class="text-[8px] text-slate-500 uppercase font-bold block">Mobile Phone</span>
-            <span class="font-extrabold text-emerald-700 font-mono block">📞 ${player.phone || 'N/A'}</span>
+            <span class="font-extrabold text-emerald-700 font-mono block">
+              📞 ${(() => {
+                const isPrivileged = store.isAdminAuthenticated ? store.isAdminAuthenticated() : false;
+                const pPhone = (player.phone || player.mobile || '').replace(/[^0-9]/g, '');
+                if (!pPhone) return 'N/A';
+                if (isPrivileged) return pPhone;
+                return '*******' + pPhone.slice(-2);
+              })()}
+            </span>
           </div>
 
           <div class="space-y-0.5">
-            <span class="text-[8px] text-slate-500 uppercase font-bold block">Alt Mobile</span>
-            <span class="font-bold text-slate-700 font-mono block">${player.alternateMobile || 'N/A'}</span>
+            <span class="text-[8px] text-slate-500 uppercase font-bold block">Registration Time</span>
+            <span class="font-bold text-slate-700 font-mono text-[11px] block">
+              🕒 ${(() => {
+                const d = player.created_at ? new Date(player.created_at) : (player.regDate ? new Date(player.regDate) : new Date());
+                return d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' }) + ', ' + d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
+              })()}
+            </span>
           </div>
 
           <div class="space-y-0.5">
@@ -2589,12 +6008,15 @@ function openFullPlayerProfileModal(player) {
           </div>
         </div>
 
-        <!-- PRINT DIGITAL PASS & CLOSE BUTTONS -->
-        <div class="flex gap-2 pt-1">
-          <button id="print-pass-btn" class="flex-1 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1">
-            <i data-lucide="ticket" class="w-3.5 h-3.5"></i> Download Player Pass
+        <!-- PRINT DIGITAL PASS, SOCIAL STORY CARD & CLOSE BUTTONS -->
+        <div class="flex flex-col sm:flex-row gap-2 pt-1">
+          <button id="btn-social-story-card" class="flex-1 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95">
+            <span>🎨</span> Story Card (PNG)
           </button>
-          <button id="close-profile-bottom-btn" class="py-2 px-4 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow">
+          <button id="print-pass-btn" class="flex-1 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-md flex items-center justify-center gap-1 cursor-pointer transition-all active:scale-95">
+            <i data-lucide="ticket" class="w-3.5 h-3.5"></i> Player Pass
+          </button>
+          <button id="close-profile-bottom-btn" class="py-2 px-4 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow cursor-pointer">
             Close
           </button>
         </div>
@@ -2610,37 +6032,23 @@ function openFullPlayerProfileModal(player) {
   document.getElementById('close-profile-btn')?.addEventListener('click', removeModal);
   document.getElementById('close-profile-bottom-btn')?.addEventListener('click', removeModal);
 
+  document.getElementById('btn-social-story-card')?.addEventListener('click', () => {
+    const team = store.getTeamById(player.teamId);
+    const tourney = store.getLeagueById(player.leagueId || store.activeTournamentId) || store.getCustomTournamentById(player.tournamentId) || { name: 'CRICKET PREMIER LEAGUE' };
+    exportPlayerSocialCard(player, team, tourney);
+  });
+
   document.getElementById('print-pass-btn')?.addEventListener('click', () => {
-    printDigitalPass(player, store.getLeagueById('leg-jsl'), store.getTeamById(player.teamId));
+    printDigitalPass(player, store.getLeagueById(player.leagueId || store.activeTournamentId), store.getTeamById(player.teamId));
   });
 }
 
-// --- FIREBASE LIVE AUTH INITIALIZATION ---
-const firebaseConfig = {
-  apiKey: "AIzaSyCtyOlUuFX6Io2ZDcYlt2xLB3ADkeQH0Ns",
-  authDomain: "cricket-league-794da.firebaseapp.com",
-  projectId: "cricket-league-794da",
-  storageBucket: "cricket-league-794da.firebasestorage.app",
-  messagingSenderId: "481137863760",
-  appId: "1:481137863760:web:a315b609cca5cf36af3555",
-  measurementId: "G-F180JQGSHP"
-};
+// --- SUPABASE PHONE OTP AUTH ---
 
-try {
-  if (window.firebase && !window.firebase.apps.length) {
-    window.firebase.initializeApp(firebaseConfig);
-    console.log("Firebase App & Phone Auth initialized with live config.");
-  }
-} catch (e) {
-  console.warn("Firebase Auth init notice:", e);
-}
-
-// --- UNIVERSAL PHONE OTP VERIFICATION MODAL WITH LIVE FIREBASE SMS DELIVERY ---
+// --- UNIVERSAL PHONE OTP VERIFICATION MODAL WITH SUPABASE SMS DELIVERY ---
 export function openPhoneOtpModal({ title = 'Mobile Number Verification', subtitle = 'Verify your 10-digit mobile number via SMS OTP', prefilledPhone = '', onSuccess }) {
   document.getElementById('phone-otp-modal')?.remove();
 
-  let confirmationResult = null;
-  let recaptchaVerifier = null;
   let countdown = 60;
   let timerInterval = null;
   let currentPhone = prefilledPhone ? prefilledPhone.replace(/[^0-9]/g, '').slice(-10) : '';
@@ -2659,9 +6067,6 @@ export function openPhoneOtpModal({ title = 'Mobile Number Verification', subtit
           <h2 class="text-lg font-black text-slate-900 leading-tight">${title}</h2>
           <p class="text-xs text-slate-500 font-medium">${subtitle}</p>
         </div>
-
-        <!-- INVISIBLE RECAPTCHA CONTAINER -->
-        <div id="recaptcha-container"></div>
 
         <!-- STEP 1: PHONE INPUT -->
         <div id="otp-phone-step" class="space-y-3">
@@ -2714,9 +6119,6 @@ export function openPhoneOtpModal({ title = 'Mobile Number Verification', subtit
 
   const removeModal = () => {
     if (timerInterval) clearInterval(timerInterval);
-    if (recaptchaVerifier) {
-      try { recaptchaVerifier.clear(); } catch (e) {}
-    }
     document.getElementById('phone-otp-modal')?.remove();
   };
 
@@ -2766,17 +6168,9 @@ export function openPhoneOtpModal({ title = 'Mobile Number Verification', subtit
     }
 
     try {
-      if (window.firebase && window.firebase.auth) {
-        if (!recaptchaVerifier) {
-          recaptchaVerifier = new window.firebase.auth.RecaptchaVerifier('recaptcha-container', {
-            size: 'invisible'
-          });
-        }
-        confirmationResult = await window.firebase.auth().signInWithPhoneNumber(fullPhoneNumber, recaptchaVerifier);
-        console.log("Firebase SMS OTP sent to:", fullPhoneNumber);
-      } else {
-        throw new Error("Firebase Auth SDK not ready");
-      }
+      const otpResult = await sendPhoneOtp(fullPhoneNumber);
+      if (otpResult.error) throw otpResult.error;
+      console.log("Supabase SMS OTP sent to:", fullPhoneNumber);
 
       phoneStep?.classList.add('hidden');
       verifyStep?.classList.remove('hidden');
@@ -2791,7 +6185,7 @@ export function openPhoneOtpModal({ title = 'Mobile Number Verification', subtit
         sendBtn.innerHTML = `<i data-lucide="send" class="w-4 h-4"></i> Send SMS OTP Code`;
         if (window.lucide) window.lucide.createIcons();
       }
-      alert(`⚠️ SMS Delivery Notice:\n\n${err.message || 'Unable to send SMS code'}\n\n(Ensure Phone provider is enabled in Firebase Console & localhost is in Authorized Domains).`);
+      alert(`⚠️ SMS Delivery Notice:\n\n${err.message || 'Unable to send SMS code'}\n\n(Ensure Phone provider is enabled in Supabase Auth settings).`);
     }
   };
 
@@ -2812,10 +6206,9 @@ export function openPhoneOtpModal({ title = 'Mobile Number Verification', subtit
     }
 
     try {
-      if (confirmationResult) {
-        const userCredential = await confirmationResult.confirm(entered);
-        console.log("Phone OTP verified successfully:", userCredential.user);
-      }
+      const verifyResult = await verifyPhoneOtp(`+91${currentPhone}`, entered);
+      if (verifyResult.error) throw verifyResult.error;
+      console.log("Phone OTP verified successfully via Supabase");
 
       const profile = store.getPlayerProfileByPhone(currentPhone);
       removeModal();
@@ -2838,7 +6231,7 @@ export function openPhoneOtpModal({ title = 'Mobile Number Verification', subtit
 function openRegistrationClosedModal() {
   document.getElementById('reg-closed-backdrop')?.remove();
   const regSettings = store.getRegistrationSettings();
-  const message = regSettings.closedReason || "JSL 2026 Registration is currently closed by the Master Admin.";
+  const message = regSettings.closedReason || "Registration is currently closed by the Admin.";
 
   const modalHtml = `
     <div id="reg-closed-backdrop" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3">
@@ -3018,7 +6411,7 @@ function openTeamRegisterFormModal(initialData = null, verifiedPhone = null) {
           <!-- 1. Team Name -->
           <div>
             <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Name of The Team *</label>
-            <input type="text" id="team-name" required placeholder="Jhankra Strikers XI" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-2 focus:outline-none focus:border-sky-500" />
+            <input type="text" id="team-name" required placeholder="e.g. Thunder Strikers XI" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-2 focus:outline-none focus:border-sky-500" />
           </div>
 
           <!-- 2. Owner Details (Required) -->
@@ -3258,7 +6651,7 @@ function openTeamRegisterFormModal(initialData = null, verifiedPhone = null) {
       ]);
 
       const newTeam = store.registerTeam({
-        leagueId: 'leg-jsl',
+        leagueId: store.activeTournamentId || 'default',
         name,
         shortCode: name.substring(0, 3).toUpperCase(),
         ownerName,
@@ -3314,7 +6707,7 @@ function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
   const upiId = "pintusantra4166@nyes";
   const payeeName = "Pintu Santra";
   const amount = 200;
-  const note = "JSL2026PlayerReg";
+  const note = "PlayerReg";
 
   const prefilledPhone = verifiedPhone || (initialData ? initialData.phone : '') || '';
 
@@ -3374,11 +6767,20 @@ function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
             </div>
           </div>
 
+          <!-- 3b. Account Security PIN (4-Digit Password for Login) -->
+          <div class="bg-emerald-50/70 border border-emerald-200 p-2 rounded-xl">
+            <div class="flex items-center justify-between mb-0.5">
+              <label class="block text-[9px] font-black text-emerald-900 uppercase">🔒 Account Security PIN (4-Digits) *</label>
+              <span class="text-[8px] text-emerald-700 font-bold">For Profile Login</span>
+            </div>
+            <input type="password" id="ply-security-pin" required minlength="4" maxlength="10" placeholder="Set your secret 4-digit PIN (e.g. 1234)" class="w-full bg-white border border-emerald-300 text-slate-900 font-mono text-xs rounded-lg p-1.5 focus:outline-none focus:border-emerald-600 font-bold placeholder-slate-400" />
+          </div>
+
           <!-- 4. Village, District, State -->
           <div class="grid grid-cols-3 gap-1.5">
             <div>
               <label class="block text-[8px] font-bold text-slate-700 uppercase mb-0.5">Village *</label>
-              <input type="text" id="ply-village" required placeholder="Jhankra" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-1.5 focus:outline-none focus:border-emerald-500" />
+              <input type="text" id="ply-village" required placeholder="e.g. Mumbai" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-1.5 focus:outline-none focus:border-emerald-500" />
             </div>
             <div>
               <label class="block text-[8px] font-bold text-slate-700 uppercase mb-0.5">District *</label>
@@ -3869,6 +7271,7 @@ function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
       const age = parseInt(document.getElementById('ply-age').value, 10) || 22;
       const phone = document.getElementById('ply-phone').value;
       const alternateMobile = document.getElementById('ply-alt-mobile').value || '';
+      const securityPin = document.getElementById('ply-security-pin')?.value.trim() || '';
       const village = document.getElementById('ply-village').value;
       const district = document.getElementById('ply-district').value;
       const state = document.getElementById('ply-state').value || 'West Bengal';
@@ -3901,6 +7304,7 @@ function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
         age,
         phone,
         alternateMobile,
+        securityPin,
         village,
         district,
         state,
@@ -3943,88 +7347,136 @@ function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
   });
 }
 
+window.getMatchPotm = function(m) {
+  if (!m) return null;
+  if (m.potmName || m.playerOfTheMatch) {
+    return { name: m.potmName || m.playerOfTheMatch, desc: m.potmPerformance || 'Player of the Match' };
+  }
+  const ps = m.liveMatchState?.playerStats || {};
+  const pKeys = Object.keys(ps);
+  if (pKeys.length === 0) return null;
+
+  const allPlayers = store.getPlayers ? store.getPlayers() : [];
+  
+  let bestPlayer = null;
+  let bestMvp = -1;
+
+  pKeys.forEach(pid => {
+    const s = ps[pid] || {};
+    const runs = s.runs || 0;
+    const fours = s.fours || 0;
+    const sixes = s.sixes || 0;
+    const wickets = s.wickets || 0;
+    const maidens = s.maidens || 0;
+    const catches = s.catches || 0;
+    const stumpings = s.stumpings || 0;
+    const runOuts = s.runOuts || 0;
+
+    const mvp = (runs * 1) + (fours * 1) + (sixes * 2) + (wickets * 20) + (maidens * 8) + (catches * 8) + (stumpings * 10) + (runOuts * 8);
+
+    if (mvp > bestMvp && mvp > 0) {
+      bestMvp = mvp;
+      const pObj = allPlayers.find(x => String(x.id) === String(pid));
+      const name = pObj ? pObj.name : 'Match MVP';
+      const photoUrl = pObj ? (pObj.photoUrl || pObj.player_photo_url || '') : '';
+      
+      const parts = [];
+      if (runs > 0) parts.push(`${runs} runs (${s.balls || 0}b)`);
+      if (wickets > 0) parts.push(`${wickets} wkts`);
+      if (catches > 0) parts.push(`${catches} c`);
+      const desc = parts.length > 0 ? parts.join(' & ') : `${mvp} MVP Pts`;
+
+      bestPlayer = { name, desc, mvp, photoUrl };
+    }
+  });
+
+  return bestPlayer;
+};
+
+window.computeTeamStandings = function(teamList, categoryFixtures) {
+  if (!Array.isArray(teamList)) return [];
+  const fixtures = Array.isArray(categoryFixtures) ? categoryFixtures : [];
+
+  const standings = teamList.map(t => {
+    const teamId = t.id;
+    const teamFixtures = fixtures.filter(f => f.status === 'COMPLETED' && (f.teamAId === teamId || f.teamBId === teamId));
+    
+    let played = teamFixtures.length;
+    let won = 0;
+    let lost = 0;
+    let nr = 0;
+    let points = 0;
+    let totalRunsScored = 0;
+    let totalOversFaced = 0;
+    let totalRunsConceded = 0;
+    let totalOversBowled = 0;
+
+    teamFixtures.forEach(f => {
+      const isTeamA = f.teamAId === teamId;
+      const myScore = isTeamA ? f.teamAScore : f.teamBScore;
+      const oppScore = isTeamA ? f.teamBScore : f.teamAScore;
+
+      if (f.winnerTeamId === teamId) {
+        won += 1;
+        points += 2;
+      } else if (!f.winnerTeamId) {
+        nr += 1;
+        points += 1;
+      } else {
+        lost += 1;
+      }
+
+      if (myScore && oppScore) {
+        totalRunsScored += myScore.runs || 0;
+        const myOversLimit = f.oversLimit || 16;
+        if (myScore.wickets === 10) {
+          totalOversFaced += myOversLimit;
+        } else {
+          const balls = (myScore.overs || 0) * 6 + (myScore.balls || 0);
+          totalOversFaced += balls / 6;
+        }
+
+        totalRunsConceded += oppScore.runs || 0;
+        if (oppScore.wickets === 10) {
+          totalOversBowled += myOversLimit;
+        } else {
+          const oppBalls = (oppScore.overs || 0) * 6 + (oppScore.balls || 0);
+          totalOversBowled += oppBalls / 6;
+        }
+      }
+    });
+
+    const myRR = totalOversFaced > 0 ? (totalRunsScored / totalOversFaced) : 0;
+    const oppRR = totalOversBowled > 0 ? (totalRunsConceded / totalOversBowled) : 0;
+    const nrrVal = myRR - oppRR;
+
+    return {
+      ...t,
+      id: t.id,
+      name: t.name,
+      group: (t.group || 'A').toUpperCase(),
+      played,
+      won,
+      lost,
+      nr,
+      points,
+      nrr: nrrVal.toFixed(3)
+    };
+  });
+
+  standings.sort((a, b) => {
+    if (b.points !== a.points) return b.points - a.points;
+    if (parseFloat(b.nrr) !== parseFloat(a.nrr)) return parseFloat(b.nrr) - parseFloat(a.nrr);
+    return b.won - a.won;
+  });
+
+  return standings;
+};
+
 // --- VISITOR VIEWS: MATCH CENTER, LIVE AUCTION & CAREER HUB ---
 
-let activeFixtureCategory = sessionStorage.getItem('cpl_active_fixture_cat') || 'JSL';
-let activeFixtureSubTab = sessionStorage.getItem('cpl_active_fixture_subtab') || 'matches'; // 'matches' or 'table'
-let activeFixtureGroupFilter = sessionStorage.getItem('cpl_active_fixture_grp_filter') || 'ALL'; // 'ALL', 'A', 'B', 'C', 'D', 'KNOCKOUT'
-
 function renderFixturesView(container) {
-  const computeTeamStandings = (teamList, categoryFixtures) => {
-    const standings = teamList.map(t => {
-      const teamId = t.id;
-      const teamFixtures = categoryFixtures.filter(f => f.status === 'COMPLETED' && (f.teamAId === teamId || f.teamBId === teamId));
-      
-      let played = teamFixtures.length;
-      let won = 0;
-      let lost = 0;
-      let nr = 0;
-      let points = 0;
-      let totalRunsScored = 0;
-      let totalOversFaced = 0;
-      let totalRunsConceded = 0;
-      let totalOversBowled = 0;
-
-      teamFixtures.forEach(f => {
-        const isTeamA = f.teamAId === teamId;
-        const myScore = isTeamA ? f.teamAScore : f.teamBScore;
-        const oppScore = isTeamA ? f.teamBScore : f.teamAScore;
-
-        if (f.winnerTeamId === teamId) {
-          won += 1;
-          points += 2;
-        } else if (!f.winnerTeamId) {
-          nr += 1;
-          points += 1;
-        } else {
-          lost += 1;
-        }
-
-        if (myScore && oppScore) {
-          totalRunsScored += myScore.runs || 0;
-          const myOversLimit = f.oversLimit || 16;
-          if (myScore.wickets === 10) {
-            totalOversFaced += myOversLimit;
-          } else {
-            const balls = (myScore.overs || 0) * 6 + (myScore.balls || 0);
-            totalOversFaced += balls / 6;
-          }
-
-          totalRunsConceded += oppScore.runs || 0;
-          if (oppScore.wickets === 10) {
-            totalOversBowled += myOversLimit;
-          } else {
-            const oppBalls = (oppScore.overs || 0) * 6 + (oppScore.balls || 0);
-            totalOversBowled += oppBalls / 6;
-          }
-        }
-      });
-
-      const myRR = totalOversFaced > 0 ? (totalRunsScored / totalOversFaced) : 0;
-      const oppRR = totalOversBowled > 0 ? (totalRunsConceded / totalOversBowled) : 0;
-      const nrrVal = myRR - oppRR;
-
-      return {
-        id: t.id,
-        name: t.name,
-        group: (t.group || 'A').toUpperCase(),
-        played,
-        won,
-        lost,
-        nr,
-        points,
-        nrr: nrrVal.toFixed(3)
-      };
-    });
-
-    standings.sort((a, b) => {
-      if (b.points !== a.points) return b.points - a.points;
-      if (parseFloat(b.nrr) !== parseFloat(a.nrr)) return parseFloat(b.nrr) - parseFloat(a.nrr);
-      return b.won - a.won;
-    });
-
-    return standings;
-  };
+  const computeTeamStandings = window.computeTeamStandings;
 
   // Compact standings TABLE that fits a phone in one screen: tight columns, and the
   // team-name font shrinks as the name gets longer so all of P/W/L/PTS/NRR stay visible
@@ -4202,9 +7654,72 @@ function renderFixturesView(container) {
   window.openTournamentAwardModal = openTournamentAwardModal;
 
   const drawFixtures = () => {
-    const selectedCategory = activeFixtureCategory || 'JSL';
-    const rawFixtures = store.getFixtures().filter(f => (f.leagueCode || 'JSL').toUpperCase() === selectedCategory.toUpperCase());
-    
+    let selectedCategory = activeFixtureCategory || 'ALL';
+    if (selectedCategory === 'T') selectedCategory = 'ALL';
+    const allCrossFixtures = store.getAllFixturesAcrossTournaments();
+    const allCrossTeams = store.getAllTeamsAcrossTournaments();
+    const allTourneys = (store.getLeagues ? store.getLeagues() : []);
+
+    const targetTourney = (selectedCategory !== 'ALL') ? allTourneys.find(l => {
+      const catUpper = String(selectedCategory).toUpperCase().trim();
+      const lid = String(l.supabaseId || l.id || '').toUpperCase();
+      const lslug = String(l.slug || '').toUpperCase();
+      const lcode = String(l.code || l.category_code || '').toUpperCase();
+      return lid === catUpper || lslug === catUpper || lcode === catUpper || (toUUID(l.id) && toUUID(l.id).toUpperCase() === catUpper) || (toUUID(l.supabaseId) && toUUID(l.supabaseId).toUpperCase() === catUpper);
+    }) : null;
+
+    const targetTourneyId = targetTourney ? (targetTourney.supabaseId || targetTourney.id || selectedCategory) : selectedCategory;
+    const targetTourneyUUID = toUUID(targetTourneyId);
+
+    const targetTourneyTeamIds = new Set(
+      targetTourney ? allCrossTeams.filter(t => {
+        const tTid = t.tournament_id || t.tournamentId || t.leagueId;
+        const tCode = (t.leagueCode || t.category_code || '').toUpperCase();
+        const curCode = (targetTourney.code || targetTourney.category_code || targetTourney.slug || '').toUpperCase();
+        if (tTid && (tTid === targetTourneyId || toUUID(tTid) === targetTourneyUUID)) return true;
+        if (tCode && curCode && (tCode === curCode || (curCode === 'KPL' && (tCode === 'K2026' || tCode === 'KPL')) || (curCode === 'JSL' && (tCode === 'J2026' || tCode === 'JSL')))) return true;
+        return false;
+      }).map(t => String(t.id)) : []
+    );
+
+    const rawFixtures = (selectedCategory === 'ALL')
+      ? allCrossFixtures
+      : allCrossFixtures.filter(f => {
+          if (!f) return false;
+          const catUpper = String(selectedCategory).toUpperCase().trim();
+          const fCode = String(f.leagueCode || '').toUpperCase().trim();
+          const fTid = String(f.tournament_id || f.tournamentId || f.leagueId || '').toUpperCase().trim();
+          const fTeamA = f.teamAId ? String(f.teamAId) : '';
+          const fTeamB = f.teamBId ? String(f.teamBId) : '';
+
+          // Step 1: Match if Team A or Team B belongs to target tournament
+          if (targetTourneyTeamIds.size > 0 && (targetTourneyTeamIds.has(fTeamA) || targetTourneyTeamIds.has(fTeamB))) {
+            return true;
+          }
+
+          // Step 2: Match by exact tournament UUID / ID
+          if (fTid && (fTid === catUpper || fTid === String(targetTourneyId).toUpperCase() || (toUUID(fTid) && toUUID(fTid) === targetTourneyUUID))) {
+            return true;
+          }
+
+          // Step 3: Match by League Code
+          if (targetTourney) {
+            const tCodes = new Set([
+              String(targetTourney.code || '').toUpperCase(),
+              String(targetTourney.category_code || '').toUpperCase(),
+              String(targetTourney.slug || '').toUpperCase()
+            ].filter(Boolean));
+
+            if (tCodes.has(fCode)) return true;
+          }
+
+          if (fCode === catUpper) return true;
+          if ((catUpper.includes('KPL') || catUpper.includes('K2026') || catUpper.includes('KUAPUR')) && (fCode.includes('KPL') || fCode.includes('K2026') || fCode.includes('KUAPUR') || fCode === 'T2')) return true;
+          if ((catUpper.includes('JSL') || catUpper.includes('J2026') || catUpper.includes('JHANKRA')) && (fCode.includes('JSL') || fCode.includes('J2026') || fCode.includes('JHANKRA'))) return true;
+
+          return false;
+        });
+
     // Apply Match Group Filter
     let filteredFixtures = rawFixtures;
     if (activeFixtureGroupFilter === 'A') {
@@ -4224,197 +7739,311 @@ function renderFixturesView(container) {
     const completedMatches = filteredFixtures.filter(f => f.status === 'COMPLETED' || f.result);
 
     // Filter teams strictly by selected tournament category
-    const leagueTeams = store.getTeams().filter(t => {
-      const code = (t.leagueCode || (t.leagueId === 'leg-jsl' ? 'JSL' : (t.leagueId === 'leg-jpl' ? 'JPL' : (t.leagueId === 'leg-kpl' ? 'KPL' : 'JSL'))));
-      return code.toUpperCase() === selectedCategory.toUpperCase();
-    });
+    const leagueTeams = (selectedCategory === 'ALL')
+      ? allCrossTeams
+      : allCrossTeams.filter(t => {
+          const code = (t.leagueCode || (t.leagueId === 'leg-jsl' ? 'JSL' : (t.leagueId === 'leg-jpl' ? 'JPL' : (t.leagueId === 'leg-kpl' ? 'KPL' : 'T')))).toUpperCase();
+          const cat = selectedCategory.toUpperCase();
+          return code === cat || (cat === 'KPL' && (code === 'K2026' || code === 'KPL')) || (cat === 'K2026' && (code === 'KPL' || code === 'K2026')) || t.tournamentId === selectedCategory || t.tournament_id === selectedCategory;
+        });
 
     const format = store.getTournamentFormat(selectedCategory);
-    const isMultiGroup = format.format === 'TWO_GROUPS' || format.format === 'FOUR_GROUPS';
+    const detectedGroups = Array.from(new Set(leagueTeams.map(t => (t.group || 'A').toUpperCase()))).filter(Boolean).sort();
+    const isMultiGroup = (
+      format.format === 'TWO_GROUPS' ||
+      format.format === 'THREE_GROUPS' ||
+      format.format === 'FOUR_GROUPS' ||
+      detectedGroups.length > 1
+    ) && selectedCategory !== 'ALL';
+
+    // Helper: render a single match card
+    const renderSingleMatchCard = (m, idx) => {
+      const teamAObj = store.getTeamById(m.teamAId);
+      const teamBObj = store.getTeamById(m.teamBId);
+      const logoA = teamAObj?.logoUrl || teamAObj?.teamLogoUrl || 'assets/card_jsl_user.png';
+      const logoB = teamBObj?.logoUrl || teamBObj?.teamLogoUrl || 'assets/card_jsl_user.png';
+
+      const isLive = m.status === 'LIVE';
+      const isCompleted = m.status === 'COMPLETED' || !!m.result;
+      const aScore = m.teamAScore || {};
+      const bScore = m.teamBScore || {};
+      const liveState = m.liveMatchState || {};
+
+      let teamAScoreTxt = '-';
+      let teamBScoreTxt = '-';
+      if (isLive) {
+        const isBattingTeamA = liveState.innings !== 2;
+        teamAScoreTxt = isBattingTeamA ? `${liveState.runs || 0}/${liveState.wickets || 0} (${liveState.overs || 0}.${liveState.balls || 0})` : (m.teamAScore ? `${m.teamAScore.runs}/${m.teamAScore.wickets}` : '-');
+        teamBScoreTxt = !isBattingTeamA ? `${liveState.runs || 0}/${liveState.wickets || 0} (${liveState.overs || 0}.${liveState.balls || 0})` : (m.teamBScore ? `${m.teamBScore.runs}/${m.teamBScore.wickets}` : '-');
+      } else if (isCompleted) {
+        teamAScoreTxt = aScore.runs !== undefined ? `${aScore.runs}/${aScore.wickets || 0} (${aScore.overs || 0}.${aScore.balls || 0} ov)` : '-';
+        teamBScoreTxt = bScore.runs !== undefined ? `${bScore.runs}/${bScore.wickets || 0} (${bScore.overs || 0}.${bScore.balls || 0} ov)` : '-';
+      }
+
+      const startTs = m.startedAtTimestamp || Date.now();
+      const startClock = m.startedAt || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+          const tMatchObj = allTourneys.find(l => (l.supabaseId || l.id) === (m.tournamentId || m.tournament_id || m.leagueId) || (l.code || l.category || l.category_code || l.slug || '').toUpperCase() === (m.leagueCode || '').toUpperCase());
+          const fullMatchTourneyName = (m.tournamentName || tMatchObj?.name || (m.leagueCode === 'JSL' ? 'JHANKRA SUPER LEAGUE 2026' : ((m.leagueCode === 'KPL' || m.leagueCode === 'K2026' || m.leagueCode === 'T2') ? 'KUAPUR PREMIER LEAGUE' : 'CRICKET PREMIER LEAGUE'))).toUpperCase();
+
+          return `
+        <div class="cpl-match-card bg-white border-2 ${isLive ? 'border-rose-500 shadow-md ring-2 ring-rose-500/20' : isCompleted ? 'border-slate-200 hover:border-emerald-500 shadow-2xs' : 'border-slate-200 hover:border-sky-500 shadow-2xs'} rounded-3xl p-4 sm:p-5 shadow-xs hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between space-y-3 relative group" data-fixture-id="${m.id}" onclick="window.openMatchCenterModal('${m.id}')">
+          <!-- Top Line: Stage, T20/T16, Time & Status -->
+          <div class="flex items-center justify-between gap-2 text-xs">
+            <div class="font-medium text-slate-600 truncate flex items-center gap-1.5 min-w-0">
+              <span class="font-black text-slate-900">${m.group ? `GROUP ${m.group} Match ${m.matchNo || idx + 1}` : `Match ${m.matchNo || idx + 1}`}</span>
+              <span>•</span>
+              <span class="font-bold text-slate-700">T${m.oversLimit || 16}</span>
+              <span>•</span>
+              <span class="text-slate-500 truncate">${isLive ? `⏱️ <span class="cpl-live-match-timer font-mono font-black text-rose-600" data-start="${startTs}">0m 0s</span>` : `🗓️ ${m.date || 'Today'} ${m.time ? `(${m.time})` : ''}`}</span>
+            </div>
+            <div class="shrink-0">
+              ${isLive ? `
+                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black bg-rose-500 text-white animate-pulse shadow-xs">
+                  <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span> LIVE
+                </span>
+              ` : isCompleted ? `
+                <span class="text-emerald-700 font-black tracking-wider uppercase text-xs bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded-full">
+                  FINISHED
+                </span>
+              ` : `
+                <span class="text-sky-700 font-black tracking-wider uppercase text-xs bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full">
+                  SCHEDULED
+                </span>
+              `}
+            </div>
+          </div>
+
+          <!-- Teams List -->
+          <div class="space-y-2.5 py-1">
+            <div class="flex items-center justify-between gap-3">
+              <div class="flex items-center gap-3 min-w-0">
+                <img src="${logoA}" class="w-9 h-9 rounded-full object-cover border border-slate-200 bg-slate-50 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                <span class="font-black text-slate-900 text-sm sm:text-base tracking-wide uppercase truncate leading-tight group-hover:text-emerald-700 transition-colors">
+                  ${m.teamAName}
+                </span>
+              </div>
+              <div class="text-xs sm:text-sm font-black font-mono ${isLive ? 'text-rose-600 font-bold' : 'text-slate-900'} shrink-0">
+                ${teamAScoreTxt}
+              </div>
+            </div>
+
+            <div class="flex items-center justify-between gap-3">
+              <div class="flex items-center gap-3 min-w-0">
+                <img src="${logoB}" class="w-9 h-9 rounded-full object-cover border border-slate-200 bg-slate-50 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                <span class="font-black text-slate-900 text-sm sm:text-base tracking-wide uppercase truncate leading-tight group-hover:text-emerald-700 transition-colors">
+                  ${m.teamBName}
+                </span>
+              </div>
+              <div class="text-xs sm:text-sm font-black font-mono ${isLive ? 'text-rose-600 font-bold' : 'text-slate-900'} shrink-0">
+                ${teamBScoreTxt}
+              </div>
+            </div>
+          </div>
+
+          <!-- Toss / Target Equation or Result -->
+          ${isLive && liveState.innings === 2 && liveState.target ? `
+            <div class="bg-amber-50 border border-amber-200 text-amber-900 text-[11px] font-black p-2 rounded-xl text-center shadow-2xs">
+              🎯 Target: ${liveState.target} | Need ${liveState.target - (liveState.runs || 0)} runs off ${(m.oversLimit * 6) - (((liveState.overs || 0) * 6) + (liveState.balls || 0))} balls
+            </div>
+          ` : (isCompleted && m.result) ? `
+            <div class="space-y-1.5">
+              <div class="text-xs bg-emerald-50 border border-emerald-300 text-emerald-950 font-black p-2 rounded-xl text-center shadow-2xs uppercase tracking-wide flex items-center justify-center gap-1.5">
+                <span>🏆</span> <span>${m.result}</span>
+              </div>
+              ${(() => {
+                const potm = (typeof window.getMatchPotm === 'function') ? window.getMatchPotm(m) : null;
+                return potm ? `
+                  <div class="text-[11px] bg-amber-50 border border-amber-300 text-amber-950 font-black p-1.5 rounded-xl text-center shadow-2xs flex items-center justify-center gap-1.5 truncate">
+                    <span>🎖️</span> <span>MAN OF THE MATCH: <strong class="text-slate-900">${potm.name}</strong> (${potm.desc})</span>
+                  </div>
+                ` : '';
+              })()}
+            </div>
+          ` : (m.tossDetails || liveState.tossDetails) ? `
+            <div class="bg-slate-50 border border-slate-200 text-slate-700 text-[10px] font-bold p-1.5 rounded-xl truncate flex items-center gap-1">
+              <span>🪙</span> <span class="truncate">${m.tossDetails || liveState.tossDetails}</span>
+            </div>
+          ` : ''}
+
+          <!-- Footer: Tournament Name & Click Action -->
+          <div class="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
+            <div class="min-w-0">
+              <div class="text-[10px] text-emerald-800 font-extrabold uppercase tracking-wider truncate flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full ${isLive ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500'} shrink-0"></span>
+                <span class="truncate">${fullMatchTourneyName}</span>
+                <span>•</span>
+                <span class="text-slate-500 font-bold truncate">${m.venue || 'JHANKRA SCHOOL GROUND'}</span>
+              </div>
+              <div class="text-xs font-black text-emerald-700 group-hover:text-emerald-800 transition-colors flex items-center gap-1 mt-0.5">
+                ${isLive ? 'View Live Match Centre' : isCompleted ? 'View Full Scorecard' : 'View Match Preview'} <span class="text-emerald-600 font-bold transition-transform group-hover:translate-x-1">→</span>
+              </div>
+            </div>
+            <div class="flex items-center gap-1.5 shrink-0">
+              <button type="button" class="btn-share-fixture-wa px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-xl border border-emerald-300 flex items-center gap-1 shadow-2xs hover:scale-105 active:scale-95 transition-all cursor-pointer" data-fixture-id="${m.id}" onclick="event.stopPropagation(); window.shareMatchToWhatsApp(store.getFixtureById('${m.id}') || ${JSON.stringify(m).replace(/"/g, '&quot;')}, { name: '${fullMatchTourneyName}', venue: '${m.venue || 'JHANKRA SCHOOL GROUND'}' });">
+                <span>💬</span> <span>Share</span>
+              </button>
+              <span class="text-[11px] font-black ${isLive ? 'bg-rose-50 text-rose-800 border-rose-300' : 'bg-slate-100 text-slate-800 border-slate-300'} border px-3 py-1 rounded-xl shadow-2xs">
+                ${isLive ? '🔴 Live' : isCompleted ? '📊 Result' : '📊 Preview'}
+              </span>
+            </div>
+          </div>
+        </div>
+      `;
+    };
 
     let mainContentHtml = '';
 
     if (activeFixtureSubTab === 'matches') {
-      mainContentHtml = `
-        <!-- MATCH STAGE & GROUP FILTER PILLS -->
-        ${isMultiGroup ? `
-          <div class="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none bg-white p-2 rounded-2xl border border-slate-200/90 shadow-2xs">
-            <button class="match-grp-filter-btn px-3 py-1.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer ${activeFixtureGroupFilter === 'ALL' ? 'bg-slate-900 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}" data-grp="ALL">
-              All Matches (${rawFixtures.length})
-            </button>
-            <button class="match-grp-filter-btn px-3 py-1.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer ${activeFixtureGroupFilter === 'A' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}" data-grp="A">
-              🟢 Group A Matches
-            </button>
-            <button class="match-grp-filter-btn px-3 py-1.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer ${activeFixtureGroupFilter === 'B' ? 'bg-sky-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}" data-grp="B">
-              🔵 Group B Matches
-            </button>
-            ${format.format === 'FOUR_GROUPS' ? `
-              <button class="match-grp-filter-btn px-3 py-1.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer ${activeFixtureGroupFilter === 'C' ? 'bg-amber-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}" data-grp="C">
-                🟡 Group C
-              </button>
-              <button class="match-grp-filter-btn px-3 py-1.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer ${activeFixtureGroupFilter === 'D' ? 'bg-purple-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}" data-grp="D">
-                🟣 Group D
-              </button>
-            ` : ''}
-            <button class="match-grp-filter-btn px-3 py-1.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer ${activeFixtureGroupFilter === 'KNOCKOUT' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}" data-grp="KNOCKOUT">
-              🏆 Semi-Finals & Final
-            </button>
+      if (filteredFixtures.length === 0) {
+        mainContentHtml = `
+          <div class="bg-white border-2 border-dashed border-slate-200 rounded-3xl p-8 text-center space-y-2 shadow-2xs">
+            <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center mx-auto text-xl shadow-2xs">
+              🏏
+            </div>
+            <h4 class="text-sm font-black text-slate-800">No Matches Scheduled Yet</h4>
+            <p class="text-xs text-slate-500 max-w-sm mx-auto">Fixtures for ${selectedCategory} 2026 are being scheduled and will appear here shortly.</p>
           </div>
-        ` : ''}
+        `;
+      } else if (selectedCategory === 'ALL') {
+        // --- 🌟 ALL TOURNAMENTS GROUPED VIEW ---
+        const sections = [];
 
-        <!-- DYNAMIC MATCH SECTIONS: LIVE, SCHEDULED, COMPLETED -->
-        ${(() => {
-          if (filteredFixtures.length === 0) {
-            return `
-              <div class="bg-white border-2 border-dashed border-slate-200 rounded-3xl p-8 text-center space-y-2 shadow-2xs">
-                <div class="w-12 h-12 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-200 flex items-center justify-center mx-auto text-xl shadow-2xs">
-                  🏏
-                </div>
-                <h4 class="text-sm font-black text-slate-800">No Matches Scheduled Yet</h4>
-                <p class="text-xs text-slate-500 max-w-sm mx-auto">Fixtures for ${selectedCategory} 2026 are being scheduled and will appear here shortly.</p>
+        // 1. Live Matches Across Any League
+        if (liveMatches.length > 0) {
+          sections.push(`
+            <div class="space-y-3">
+              <div class="bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 text-white px-4 py-2.5 rounded-2xl shadow-sm flex items-center justify-between">
+                <h2 class="text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-2">
+                  <span class="w-2.5 h-2.5 rounded-full bg-white animate-ping"></span> 🔴 Live Match Scoreboard
+                </h2>
+                <span class="px-3 py-0.5 bg-white/20 backdrop-blur-sm text-white font-mono text-[10px] font-black rounded-full border border-white/30">
+                  ${liveMatches.length} LIVE NOW
+                </span>
               </div>
-            `;
-          }
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                ${liveMatches.map((m, idx) => renderSingleMatchCard(m, idx)).join('')}
+              </div>
+            </div>
+          `);
+        }
 
-          const sections = [];
+        // 2. Group Remaining Matches By Tournament
+        // Find which tournaments actually have matches
+        const tourneysWithMatches = allTourneys.filter(l => {
+          const code = (l.code || l.category || l.category_code || l.shortCode || l.slug || 'T').toUpperCase();
+          const tid = l.supabaseId || l.id;
+          return filteredFixtures.some(f => {
+            const fCode = (f.leagueCode || '').toUpperCase();
+            return (fCode === code) || (code === 'KPL' && (fCode === 'K2026' || fCode === 'KPL')) || (code === 'K2026' && (fCode === 'KPL' || fCode === 'K2026')) || (code === 'JSL' && fCode === 'JSL') || f.tournamentId === tid || f.tournament_id === tid;
+          });
+        });
 
-          const getMatchBadgeInfo = (m, idx = 1) => {
-            const matchNum = m.matchNo || idx;
-            let label = `Match #${matchNum}`;
-            let pillClass = 'bg-slate-800 text-white';
-            let borderClass = 'border-slate-200 hover:border-slate-400';
+        // If no custom tourney matches mapped, group by distinct tournament name/code on fixtures
+        if (tourneysWithMatches.length === 0) {
+          sections.push(`
+            <div class="space-y-3">
+              <div class="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white px-4 py-2.5 rounded-2xl shadow-sm flex items-center justify-between">
+                <h2 class="text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-2">
+                  <span>📅</span> All Scheduled & Completed Matches
+                </h2>
+                <span class="px-3 py-0.5 bg-white/20 backdrop-blur-sm text-white font-mono text-[10px] font-black rounded-full border border-white/30">
+                  ${filteredFixtures.length} TOTAL
+                </span>
+              </div>
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                ${filteredFixtures.map((m, idx) => renderSingleMatchCard(m, idx)).join('')}
+              </div>
+            </div>
+          `);
+        } else {
+          tourneysWithMatches.forEach(l => {
+            const code = (l.code || l.category || l.category_code || l.shortCode || l.slug || 'T').toUpperCase();
+            const tid = l.supabaseId || l.id;
+            const tMatches = filteredFixtures.filter(f => {
+              const fCode = (f.leagueCode || '').toUpperCase();
+              return (fCode === code) || (code === 'KPL' && (fCode === 'K2026' || fCode === 'KPL')) || (code === 'K2026' && (fCode === 'KPL' || fCode === 'K2026')) || (code === 'JSL' && fCode === 'JSL') || f.tournamentId === tid || f.tournament_id === tid;
+            });
+            if (tMatches.length === 0) return;
 
-            if (m.stage === 'GROUP_A' || m.groupCode === 'A') {
-              label = `🟢 Group A • Match ${matchNum}`;
-              pillClass = 'bg-emerald-100 text-emerald-900 border border-emerald-300';
-              borderClass = 'border-emerald-200 hover:border-emerald-400';
-            } else if (m.stage === 'GROUP_B' || m.groupCode === 'B') {
-              label = `🔵 Group B • Match ${matchNum}`;
-              pillClass = 'bg-sky-100 text-sky-900 border border-sky-300';
-              borderClass = 'border-sky-200 hover:border-sky-400';
-            } else if (m.stage === 'GROUP_C' || m.groupCode === 'C') {
-              label = `🟡 Group C • Match ${matchNum}`;
-              pillClass = 'bg-amber-100 text-amber-900 border border-amber-300';
-              borderClass = 'border-amber-200 hover:border-amber-400';
-            } else if (m.stage === 'GROUP_D' || m.groupCode === 'D') {
-              label = `🟣 Group D • Match ${matchNum}`;
-              pillClass = 'bg-purple-100 text-purple-900 border border-purple-300';
-              borderClass = 'border-purple-200 hover:border-purple-400';
-            } else {
-              label = `${m.leagueCode || 'JSL'} • Match ${matchNum}`;
-            }
+            const tName = l.name || `${code} Premier League`;
+            const tLogo = l.logoUrl || l.logo_url || l.banner_url || 'assets/card_jsl_user.png';
+            const tVenue = l.venue || 'Jharkra School Ground';
 
-            return { label, pillClass, borderClass, matchNum };
-          };
-
-          // 1. LIVE MATCH SCOREBOARD (ONLY IF LIVE MATCHES EXIST)
-          if (liveMatches.length > 0) {
             sections.push(`
-              <div class="space-y-3">
-                <div class="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white px-4 py-2.5 rounded-2xl shadow-sm flex items-center justify-between">
-                  <h2 class="text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-2">
-                    <span class="w-2.5 h-2.5 rounded-full bg-red-400 animate-ping"></span> 🔴 Live Match Scoreboard
-                  </h2>
-                  <span class="px-3 py-0.5 bg-white/20 backdrop-blur-sm text-white font-mono text-[10px] font-black rounded-full border border-white/30">
-                    LIVE NOW
-                  </span>
+              <div class="space-y-3 bg-slate-50/80 border border-slate-200/90 rounded-3xl p-3.5 sm:p-4 shadow-2xs">
+                <!-- Tournament Card Header Banner -->
+                <div class="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white p-3.5 rounded-2xl flex items-center justify-between shadow-xs border border-slate-700/80 gap-2 flex-wrap">
+                  <div class="flex items-center gap-3 min-w-0">
+                    <img src="${tLogo}" class="w-10 h-10 rounded-xl object-cover border border-white/20 shrink-0 shadow-xs bg-slate-800" onerror="this.src='assets/card_jsl_user.png'" />
+                    <div class="min-w-0">
+                      <h3 class="text-xs sm:text-sm font-black uppercase text-white truncate tracking-wide">${tName}</h3>
+                      <p class="text-[10px] text-slate-300 font-medium truncate">📍 ${tVenue} • ${tMatches.length} Matches</p>
+                    </div>
+                  </div>
+                  <button data-cat="${code}" class="fixture-cat-btn px-3 py-1.5 bg-emerald-500 hover:bg-emerald-600 active:scale-95 text-white font-black text-[10px] rounded-xl shadow-xs transition-all cursor-pointer shrink-0 flex items-center gap-1">
+                    <span>View Standings</span> <span>→</span>
+                  </button>
                 </div>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                  ${liveMatches.map((m, idx) => {
-                    const state = m.liveMatchState || {};
-                    const teamAObj = store.getTeamById(m.teamAId);
-                    const teamBObj = store.getTeamById(m.teamBId);
-                    const logoA = teamAObj?.logoUrl || teamAObj?.teamLogoUrl || 'assets/card_jsl_user.png';
-                    const logoB = teamBObj?.logoUrl || teamBObj?.teamLogoUrl || 'assets/card_jsl_user.png';
 
-                    const isBattingTeamA = state.innings !== 2;
-                    const teamAScoreTxt = isBattingTeamA ? `${state.runs}/${state.wickets} (${state.overs}.${state.balls})` : (m.teamAScore ? `${m.teamAScore.runs}/${m.teamAScore.wickets}` : '-');
-                    const teamBScoreTxt = !isBattingTeamA ? `${state.runs}/${state.wickets} (${state.overs}.${state.balls})` : (m.teamBScore ? `${m.teamBScore.runs}/${m.teamBScore.wickets}` : '-');
-
-                    const startTs = m.startedAtTimestamp || Date.now();
-                    const startClock = m.startedAt || new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-
-                    return `
-                      <div class="cpl-match-card bg-white border-2 border-slate-200 hover:border-emerald-500 rounded-3xl p-4 sm:p-5 shadow-xs hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between space-y-3 relative group" data-fixture-id="${m.id}" onclick="window.openMatchCenterModal('${m.id}')">
-                        <!-- Top Line: Stage, Start Time & Real-time Live Running Duration -->
-                        <div class="flex items-center justify-between gap-2 text-xs">
-                          <div class="font-medium text-slate-600 truncate flex items-center gap-1.5 min-w-0">
-                            <span class="font-black text-slate-900">${m.group ? `GROUP ${m.group} Match ${m.matchNo || idx + 1}` : `Match ${m.matchNo || idx + 1}`}</span>
-                            <span>•</span>
-                            <span class="font-bold text-slate-700">T${m.oversLimit || 16}</span>
-                            <span>•</span>
-                            <span class="text-slate-500 truncate">🗓️ Started: ${startClock} (⏱️ <span class="cpl-live-match-timer font-mono font-black text-emerald-700" data-start="${startTs}">0m 0s</span>)</span>
-                          </div>
-                          <div class="shrink-0">
-                            <span class="text-rose-600 font-black tracking-wider uppercase text-xs flex items-center gap-1.5 bg-rose-50 border border-rose-200 px-2 py-0.5 rounded-full">
-                              <span class="w-2 h-2 rounded-full bg-rose-600 animate-ping"></span> LIVE
-                            </span>
-                          </div>
-                        </div>
-
-                        <!-- Teams List with Circular Logos & Live Scores -->
-                        <div class="space-y-2.5 py-1">
-                          <div class="flex items-center justify-between gap-3">
-                            <div class="flex items-center gap-3 min-w-0">
-                              <img src="${logoA}" class="w-9 h-9 rounded-full object-cover border border-slate-200 bg-slate-50 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
-                              <span class="font-black text-slate-900 text-sm sm:text-base tracking-wide uppercase truncate leading-tight group-hover:text-emerald-700 transition-colors">
-                                ${m.teamAName}
-                              </span>
-                            </div>
-                            <div class="text-xs sm:text-sm font-black font-mono ${isBattingTeamA ? 'text-emerald-700' : 'text-slate-500'} shrink-0">
-                              ${teamAScoreTxt}
-                            </div>
-                          </div>
-
-                          <div class="flex items-center justify-between gap-3">
-                            <div class="flex items-center gap-3 min-w-0">
-                              <img src="${logoB}" class="w-9 h-9 rounded-full object-cover border border-slate-200 bg-slate-50 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
-                              <span class="font-black text-slate-900 text-sm sm:text-base tracking-wide uppercase truncate leading-tight group-hover:text-emerald-700 transition-colors">
-                                ${m.teamBName}
-                              </span>
-                            </div>
-                            <div class="text-xs sm:text-sm font-black font-mono ${!isBattingTeamA ? 'text-emerald-700' : 'text-slate-500'} shrink-0">
-                              ${teamBScoreTxt}
-                            </div>
-                          </div>
-                        </div>
-
-                        <!-- Toss / Target Equation if any -->
-                        ${state.innings === 2 && state.target ? `
-                          <div class="bg-amber-50 border border-amber-200 text-amber-900 text-[11px] font-black p-2 rounded-xl text-center shadow-2xs">
-                            🎯 Target: ${state.target} | Need ${state.target - state.runs} runs off ${(m.oversLimit * 6) - ((state.overs * 6) + state.balls)} balls
-                          </div>
-                        ` : ((m.tossDetails || state.tossDetails) ? `
-                          <div class="bg-slate-50 border border-slate-200 text-slate-700 text-[10px] font-bold p-1.5 rounded-xl truncate flex items-center gap-1">
-                            <span>🪙</span> <span class="truncate">${m.tossDetails || state.tossDetails}</span>
-                          </div>
-                        ` : '')}
-
-                        <!-- Footer: Tournament Name & Direct Match Centre Prompt -->
-                        <div class="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
-                          <div class="min-w-0">
-                            <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider truncate">
-                              ${m.leagueCode || selectedCategory} PREMIER LEAGUE • ${m.venue || 'JHANKRA SCHOOL GROUND'}
-                            </div>
-                            <div class="text-xs font-black text-emerald-700 group-hover:text-emerald-800 transition-colors flex items-center gap-1 mt-0.5">
-                              View Match Centre <span class="text-emerald-600 font-bold transition-transform group-hover:translate-x-1">→</span>
-                            </div>
-                          </div>
-                          <span class="text-[11px] font-black bg-emerald-50 text-emerald-800 border border-emerald-300 px-3 py-1 rounded-xl shadow-2xs">
-                            📊 Tap for Scorecard
-                          </span>
-                        </div>
-                      </div>
-                    `;
-                  }).join('')}
+                <!-- Matches in this Tournament -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  ${tMatches.map((m, idx) => renderSingleMatchCard(m, idx)).join('')}
                 </div>
               </div>
             `);
-          }
+          });
+        }
 
-          // 2. UPCOMING MATCH FIXTURES (ONLY IF SCHEDULED MATCHES EXIST)
-          if (scheduledMatches.length > 0) {
-            sections.push(`
+        mainContentHtml = `<div class="space-y-4 animate-fade-in">${sections.join('')}</div>`;
+      } else {
+        // --- SPECIFIC TOURNAMENT VIEW (e.g. K2026 or JSL) ---
+        mainContentHtml = `
+          <!-- MATCH STAGE & GROUP FILTER PILLS -->
+          ${isMultiGroup ? `
+            <div class="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none bg-white p-2 rounded-2xl border border-slate-200/90 shadow-2xs">
+              <button class="match-grp-filter-btn px-3 py-1.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer ${activeFixtureGroupFilter === 'ALL' ? 'bg-slate-900 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}" data-grp="ALL">
+                All Matches (${rawFixtures.length})
+              </button>
+              <button class="match-grp-filter-btn px-3 py-1.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer ${activeFixtureGroupFilter === 'A' ? 'bg-emerald-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}" data-grp="A">
+                🟢 Group A Matches
+              </button>
+              <button class="match-grp-filter-btn px-3 py-1.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer ${activeFixtureGroupFilter === 'B' ? 'bg-sky-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}" data-grp="B">
+                🔵 Group B Matches
+              </button>
+              ${format.format === 'FOUR_GROUPS' ? `
+                <button class="match-grp-filter-btn px-3 py-1.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer ${activeFixtureGroupFilter === 'C' ? 'bg-amber-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}" data-grp="C">
+                  🟡 Group C
+                </button>
+                <button class="match-grp-filter-btn px-3 py-1.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer ${activeFixtureGroupFilter === 'D' ? 'bg-purple-600 text-white shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}" data-grp="D">
+                  🟣 Group D
+                </button>
+              ` : ''}
+              <button class="match-grp-filter-btn px-3 py-1.5 rounded-xl font-black text-xs transition-all whitespace-nowrap cursor-pointer ${activeFixtureGroupFilter === 'KNOCKOUT' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'bg-slate-100 text-slate-700 hover:bg-slate-200'}" data-grp="KNOCKOUT">
+                🏆 Semi-Finals & Final
+              </button>
+            </div>
+          ` : ''}
+
+          <!-- DYNAMIC MATCH SECTIONS: LIVE, SCHEDULED, COMPLETED -->
+          <div class="space-y-4 animate-fade-in">
+            ${liveMatches.length > 0 ? `
+              <div class="space-y-3">
+                <div class="bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 text-white px-4 py-2.5 rounded-2xl shadow-sm flex items-center justify-between">
+                  <h2 class="text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-2">
+                    <span class="w-2.5 h-2.5 rounded-full bg-white animate-ping"></span> 🔴 Live Match Scoreboard
+                  </h2>
+                  <span class="px-3 py-0.5 bg-white/20 backdrop-blur-sm text-white font-mono text-[10px] font-black rounded-full border border-white/30">
+                    ${liveMatches.length} LIVE NOW
+                  </span>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                  ${liveMatches.map((m, idx) => renderSingleMatchCard(m, idx)).join('')}
+                </div>
+              </div>
+            ` : ''}
+
+            ${scheduledMatches.length > 0 ? `
               <div class="space-y-3">
                 <div class="bg-gradient-to-r from-blue-600 via-sky-600 to-indigo-700 text-white px-4 py-2.5 rounded-2xl shadow-sm flex items-center justify-between">
                   <h2 class="text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-2">
@@ -4424,176 +8053,32 @@ function renderFixturesView(container) {
                     ${scheduledMatches.length} MATCHES
                   </span>
                 </div>
-
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                  ${scheduledMatches.map((m, idx) => {
-                    const teamAObj = store.getTeamById(m.teamAId);
-                    const teamBObj = store.getTeamById(m.teamBId);
-                    const logoA = teamAObj?.logoUrl || teamAObj?.teamLogoUrl || 'assets/card_jsl_user.png';
-                    const logoB = teamBObj?.logoUrl || teamBObj?.teamLogoUrl || 'assets/card_jsl_user.png';
-
-                    return `
-                      <div class="cpl-match-card bg-white border-2 border-slate-200 hover:border-emerald-500 rounded-3xl p-4 sm:p-5 shadow-xs hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between space-y-3 relative group" data-fixture-id="${m.id}" onclick="window.openMatchCenterModal('${m.id}')">
-                        <!-- Top Line: Stage, T20/T16, Time & Status -->
-                        <div class="flex items-center justify-between gap-2 text-xs">
-                          <div class="font-medium text-slate-600 truncate flex items-center gap-1.5">
-                            <span class="font-black text-slate-900">${m.group ? `GROUP ${m.group} Match ${m.matchNo || idx + 1}` : `Match ${m.matchNo || idx + 1}`}</span>
-                            <span>•</span>
-                            <span class="font-bold text-slate-700">T${m.oversLimit || 16}</span>
-                            <span>•</span>
-                            <span class="text-slate-500">🗓️ ${m.date || 'Today'} ${m.time ? `(${m.time})` : ''}</span>
-                          </div>
-                          <div class="shrink-0">
-                            <span class="text-sky-700 font-black tracking-wider uppercase text-xs bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full">
-                              SCHEDULED
-                            </span>
-                          </div>
-                        </div>
-
-                        <!-- Teams List with Circular Logos -->
-                        <div class="space-y-2.5 py-1">
-                          <div class="flex items-center justify-between gap-3">
-                            <div class="flex items-center gap-3 min-w-0">
-                              <img src="${logoA}" class="w-9 h-9 rounded-full object-cover border border-slate-200 bg-slate-50 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
-                              <span class="font-black text-slate-900 text-sm sm:text-base tracking-wide uppercase truncate leading-tight group-hover:text-emerald-700 transition-colors">
-                                ${m.teamAName}
-                              </span>
-                            </div>
-                            <span class="text-xs font-bold text-slate-400 font-mono shrink-0">-</span>
-                          </div>
-
-                          <div class="flex items-center justify-between gap-3">
-                            <div class="flex items-center gap-3 min-w-0">
-                              <img src="${logoB}" class="w-9 h-9 rounded-full object-cover border border-slate-200 bg-slate-50 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
-                              <span class="font-black text-slate-900 text-sm sm:text-base tracking-wide uppercase truncate leading-tight group-hover:text-emerald-700 transition-colors">
-                                ${m.teamBName}
-                              </span>
-                            </div>
-                            <span class="text-xs font-bold text-slate-400 font-mono shrink-0">-</span>
-                          </div>
-                        </div>
-
-                        <!-- Footer: Tournament Name & Click Action -->
-                        <div class="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
-                          <div class="min-w-0">
-                            <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider truncate">
-                              ${m.leagueCode || selectedCategory} PREMIER LEAGUE • ${m.venue || 'JHANKRA SCHOOL GROUND'}
-                            </div>
-                            <div class="text-xs font-black text-emerald-700 group-hover:text-emerald-800 transition-colors flex items-center gap-1 mt-0.5">
-                              View Match Centre <span class="text-emerald-600 font-bold transition-transform group-hover:translate-x-1">→</span>
-                            </div>
-                          </div>
-                          <span class="text-[11px] font-black bg-slate-100 text-slate-800 border border-slate-300 px-3 py-1 rounded-xl shadow-2xs">
-                            📊 Tap for Preview
-                          </span>
-                        </div>
-                      </div>
-                    `;
-                  }).join('')}
+                  ${scheduledMatches.map((m, idx) => renderSingleMatchCard(m, idx)).join('')}
                 </div>
               </div>
-            `);
-          }
+            ` : ''}
 
-          // 3. COMPLETED MATCH RESULTS (ONLY IF COMPLETED MATCHES EXIST)
-          if (completedMatches.length > 0) {
-            sections.push(`
+            ${completedMatches.length > 0 ? `
               <div class="space-y-3">
                 <div class="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white px-4 py-2.5 rounded-2xl shadow-sm flex items-center justify-between">
                   <h2 class="text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-2">
-                    <span>🏆</span> Match Results (${selectedCategory})
+                    <span>🏁</span> Completed Matches (${selectedCategory})
                   </h2>
                   <span class="px-3 py-0.5 bg-white/20 backdrop-blur-sm text-white font-mono text-[10px] font-black rounded-full border border-white/30">
-                    ${completedMatches.length} COMPLETED
+                    ${completedMatches.length} FINISHED
                   </span>
                 </div>
-
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                  ${completedMatches.map((m, idx) => {
-                    const teamAObj = store.getTeamById(m.teamAId);
-                    const teamBObj = store.getTeamById(m.teamBId);
-                    const logoA = teamAObj?.logoUrl || teamAObj?.teamLogoUrl || 'assets/card_jsl_user.png';
-                    const logoB = teamBObj?.logoUrl || teamBObj?.teamLogoUrl || 'assets/card_jsl_user.png';
-
-                    return `
-                      <div class="cpl-match-card bg-white border-2 border-slate-200 hover:border-emerald-500 rounded-3xl p-4 sm:p-5 shadow-xs hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between space-y-3 relative group" data-fixture-id="${m.id}" onclick="window.openMatchCenterModal('${m.id}')">
-                        <!-- Top Line: Stage & Duration -->
-                        <div class="flex items-center justify-between gap-2 text-xs">
-                          <div class="font-medium text-slate-600 truncate flex items-center gap-1.5">
-                            <span class="font-black text-slate-900">${m.group ? `GROUP ${m.group} Match ${m.matchNo || idx + 1}` : `Match ${m.matchNo || idx + 1}`}</span>
-                            <span>•</span>
-                            <span class="font-bold text-slate-700">T${m.oversLimit || 16}</span>
-                            <span>•</span>
-                            <span class="text-slate-500">⏱️ ${m.startedAt || '09:00 AM'} - ${m.endedAt || 'Finished'}</span>
-                          </div>
-                          <div class="shrink-0">
-                            <span class="text-emerald-700 font-black tracking-wider uppercase text-xs bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full">
-                              COMPLETED
-                            </span>
-                          </div>
-                        </div>
-
-                        <!-- Teams List with Circular Logos & Final Scores -->
-                        <div class="space-y-2.5 py-1">
-                          <div class="flex items-center justify-between gap-3">
-                            <div class="flex items-center gap-3 min-w-0">
-                              <img src="${logoA}" class="w-9 h-9 rounded-full object-cover border border-slate-200 bg-slate-50 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
-                              <span class="font-black text-slate-900 text-sm sm:text-base tracking-wide uppercase truncate leading-tight group-hover:text-emerald-700 transition-colors">
-                                ${m.teamAName}
-                              </span>
-                            </div>
-                            <div class="text-xs sm:text-sm font-black font-mono text-slate-900 shrink-0">
-                              ${m.teamAScore ? `${m.teamAScore.runs}/${m.teamAScore.wickets} (${m.teamAScore.overs}.${m.teamAScore.balls} ov)` : '-'}
-                            </div>
-                          </div>
-
-                          <div class="flex items-center justify-between gap-3">
-                            <div class="flex items-center gap-3 min-w-0">
-                              <img src="${logoB}" class="w-9 h-9 rounded-full object-cover border border-slate-200 bg-slate-50 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
-                              <span class="font-black text-slate-900 text-sm sm:text-base tracking-wide uppercase truncate leading-tight group-hover:text-emerald-700 transition-colors">
-                                ${m.teamBName}
-                              </span>
-                            </div>
-                            <div class="text-xs sm:text-sm font-black font-mono text-slate-900 shrink-0">
-                              ${m.teamBScore ? `${m.teamBScore.runs}/${m.teamBScore.wickets} (${m.teamBScore.overs}.${m.teamBScore.balls} ov)` : '-'}
-                            </div>
-                          </div>
-                        </div>
-
-                        <!-- Result Banner -->
-                        <div class="text-xs bg-emerald-50 border border-emerald-300 text-emerald-950 font-black p-2 rounded-xl text-center shadow-2xs uppercase tracking-wide flex items-center justify-center gap-1.5">
-                          <span>🏆</span> <span>${m.result || 'Match Completed'}</span>
-                        </div>
-
-                        <!-- Footer: Tournament Name & Click Action -->
-                        <div class="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
-                          <div class="min-w-0">
-                            <div class="text-[10px] text-slate-400 font-bold uppercase tracking-wider truncate">
-                              ${m.leagueCode || selectedCategory} PREMIER LEAGUE • ${m.venue || 'JHANKRA SCHOOL GROUND'}
-                            </div>
-                            <div class="text-xs font-black text-emerald-700 group-hover:text-emerald-800 transition-colors flex items-center gap-1 mt-0.5">
-                              View Match Centre <span class="text-emerald-600 font-bold transition-transform group-hover:translate-x-1">→</span>
-                            </div>
-                          </div>
-                          <span class="text-[11px] font-black bg-emerald-50 text-emerald-800 border border-emerald-300 px-3 py-1 rounded-xl shadow-2xs">
-                            📊 View Summary
-                          </span>
-                        </div>
-                      </div>
-                    `;
-                  }).join('')}
+                  ${completedMatches.map((m, idx) => renderSingleMatchCard(m, idx)).join('')}
                 </div>
               </div>
-            `);
-          }
-
-          return `<div class="space-y-4">${sections.join('')}</div>`;
-        })()}
-      `;
+            ` : ''}
+          </div>
+        `;
+      }
     } else if (activeFixtureSubTab === 'awards') {
       // ---------------- TOURNAMENT AWARDS ----------------
-      // Aggregate every player's per-match stats across this league's fixtures.
-      // playerStats survives on each fixture's liveMatchState after the match completes.
       const agg = {};
       rawFixtures.forEach(f => {
         const ps = f.liveMatchState && f.liveMatchState.playerStats;
@@ -4609,13 +8094,12 @@ function renderFixturesView(container) {
       });
 
       const allPlayers = store.getPlayers();
-      const allTeams = store.getTeams();
+      const allTeams = store.getAllTeamsAcrossTournaments();
       const nameOf = (pid) => (allPlayers.find(p => p.id === pid)?.name) || 'Unknown Player';
       const teamOf = (pid) => { const p = allPlayers.find(x => x.id === pid); const t = p && allTeams.find(tt => tt.id === p.teamId); return t ? t.name : ''; };
 
       const rows = Object.keys(agg).map(pid => {
         const a = agg[pid];
-        // MVP weighted composite (signed off): reward all-round impact.
         const mvp = a.runs*1 + a.fours*1 + a.sixes*2 + a.wickets*20 + a.maidens*8 + a.catches*8 + a.stumpings*10 + a.runOuts*8;
         const fielding = a.catches + a.runOuts;
         return { pid, name: nameOf(pid), team: teamOf(pid), ...a, mvp, fielding };
@@ -4637,10 +8121,8 @@ function renderFixturesView(container) {
 
       const standings = computeTeamStandings(leagueTeams, rawFixtures);
       const bestTeam = (standings[0] && standings[0].played > 0) ? standings[0] : null;
-
       const hasAnyData = rows.length > 0 || bestTeam;
 
-      // Compact inline SVG icons (white on the gradient chip) for each award shape.
       const SVG = {
         bat:    '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3.5l6.5 6.5-8 8-6.5-6.5z"/><path d="M6 13.5L3.5 16l4.5 4.5L10.5 18"/></svg>',
         ball:   '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17" stroke-dasharray="1.5 2.5"/></svg>',
@@ -4664,11 +8146,8 @@ function renderFixturesView(container) {
         { title:'Tournament MVP',    key:'mvp',       accent:'fuchsia', svg:SVG.star },
       ];
 
-      // Cache the computed rows + standings so the "view full list" modal can reuse
-      // them without re-aggregating (the modal is only reachable from this rendered tab).
       window.__cplAwardsCache = { category: selectedCategory, rows, standings };
 
-      // Compact card: shape icon + award name + top player's name + "View Full List".
       const compactCard = (key, accent, svg, title, name) => `
         <button type="button" data-award-key="${key}" class="award-card text-left rounded-2xl p-3 bg-white border border-slate-200 shadow-2xs hover:shadow-md hover:border-${accent}-300 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col gap-2 overflow-hidden group">
           <div class="h-1 -mx-3 -mt-3 mb-0.5 bg-gradient-to-r from-${accent}-400 to-${accent}-600"></div>
@@ -4693,14 +8172,14 @@ function renderFixturesView(container) {
         mainContentHtml = `
           <div class="bg-white border-2 border-emerald-200 rounded-3xl p-8 text-center shadow-sm space-y-2 animate-fade-in">
             <div class="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 border border-amber-200 flex items-center justify-center mx-auto text-2xl">🏆</div>
-            <h3 class="text-sm font-black text-slate-900">${selectedCategory} Awards Coming Soon</h3>
-            <p class="text-[11px] text-slate-500 max-w-sm mx-auto">Player and team awards for ${selectedCategory} 2026 will appear here automatically as matches are scored.</p>
+            <h3 class="text-sm font-black text-slate-900">${selectedCategory === 'ALL' ? 'Tournament' : selectedCategory} Awards Coming Soon</h3>
+            <p class="text-[11px] text-slate-500 max-w-sm mx-auto">Player and team awards will appear here automatically as matches are scored.</p>
           </div>`;
       } else {
         mainContentHtml = `
           <div class="space-y-3 animate-fade-in">
             <div class="flex items-center justify-between flex-wrap gap-2">
-              <h3 class="text-sm font-black text-slate-900 flex items-center gap-2"><span>🏆</span> ${selectedCategory} Tournament Awards</h3>
+              <h3 class="text-sm font-black text-slate-900 flex items-center gap-2"><span>🏆</span> ${selectedCategory === 'ALL' ? 'Overall' : selectedCategory} Tournament Awards</h3>
               <span class="text-[10px] font-bold text-slate-500 bg-white border border-slate-200 px-2.5 py-1 rounded-lg shadow-2xs">Tap a card for the full list →</span>
             </div>
             <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
@@ -4713,8 +8192,85 @@ function renderFixturesView(container) {
           </div>`;
       }
     } else {
-      // Standings / Points Table Subtab
-      if (leagueTeams.length === 0) {
+      // ---------------- STANDINGS / POINTS TABLE SUBTAB ----------------
+      if (selectedCategory === 'ALL') {
+        // Render points tables for each tournament
+        const tourneyTables = [];
+        allTourneys.forEach(l => {
+          const code = (l.code || l.category || l.category_code || l.shortCode || l.slug || 'T').toUpperCase();
+          const tid = l.supabaseId || l.id;
+          const tFormat = store.getTournamentFormat ? store.getTournamentFormat(code) : { format: 'SINGLE_TABLE', groups: ['A'] };
+          const tTeams = allCrossTeams.filter(t => (t.leagueCode || '').toUpperCase() === code || t.tournamentId === tid);
+          const tMatches = allCrossFixtures.filter(f => (f.leagueCode || '').toUpperCase() === code || f.tournamentId === tid);
+          if (tTeams.length === 0 && tMatches.length === 0) return;
+
+          const tName = l.name || `${code} Premier League`;
+          const tLogo = l.logoUrl || l.logo_url || l.banner_url || 'assets/card_jsl_user.png';
+          const detectedTGroups = Array.from(new Set(tTeams.map(t => (t.group || 'A').toUpperCase()))).filter(Boolean).sort();
+          const isTMultiGroup = tFormat.format === 'TWO_GROUPS' || tFormat.format === 'THREE_GROUPS' || tFormat.format === 'FOUR_GROUPS' || detectedTGroups.length > 1;
+
+          if (isTMultiGroup) {
+            const groups = (detectedTGroups.length > 1)
+              ? detectedTGroups
+              : ((tFormat.groups && tFormat.groups.length > 0) ? tFormat.groups : (tFormat.format === 'THREE_GROUPS' ? ['A', 'B', 'C'] : (tFormat.format === 'FOUR_GROUPS' ? ['A', 'B', 'C', 'D'] : ['A', 'B'])));
+            const groupColors = {
+              A: { border: 'border-emerald-300', bg: 'bg-emerald-50', badge: 'bg-emerald-600 text-white', text: 'text-emerald-950', title: '🟢 GROUP A' },
+              B: { border: 'border-sky-300', bg: 'bg-sky-50', badge: 'bg-sky-600 text-white', text: 'text-sky-950', title: '🔵 GROUP B' },
+              C: { border: 'border-amber-300', bg: 'bg-amber-50', badge: 'bg-amber-600 text-white', text: 'text-amber-950', title: '🟡 GROUP C' },
+              D: { border: 'border-purple-300', bg: 'bg-purple-50', badge: 'bg-purple-600 text-white', text: 'text-purple-950', title: '🟣 GROUP D' }
+            };
+            const groupTablesHtml = groups.map(g => {
+              const styling = groupColors[g] || groupColors.A;
+              const gTeams = tTeams.filter(t => (t.group || 'A').toUpperCase() === g);
+              const gStandings = computeTeamStandings(gTeams, tMatches);
+              const gAccent = { A:'emerald', B:'sky', C:'amber', D:'purple' }[g] || 'emerald';
+              return `
+                <div class="space-y-1.5">
+                  <div class="flex items-center justify-between ${styling.bg} border ${styling.border} px-3 py-1.5 rounded-xl">
+                    <span class="text-xs font-black ${styling.text}">${styling.title}</span>
+                    <span class="text-[9px] font-black ${styling.badge} px-2 py-0.5 rounded-full">Top 2 Qualify</span>
+                  </div>
+                  ${standingsTableHtml(gStandings, 2, gAccent)}
+                </div>
+              `;
+            }).join('');
+
+            tourneyTables.push(`
+              <div class="space-y-2.5 bg-slate-50 border border-slate-200 rounded-3xl p-3 sm:p-4 shadow-2xs">
+                <div class="flex items-center gap-2.5 border-b border-slate-200/80 pb-2.5">
+                  <img src="${tLogo}" class="w-8 h-8 rounded-xl object-cover border border-slate-200 bg-white" onerror="this.src='assets/card_jsl_user.png'" />
+                  <div class="min-w-0">
+                    <h3 class="text-xs sm:text-sm font-black uppercase text-slate-900 truncate">${tName}</h3>
+                    <p class="text-[10px] text-slate-500 font-medium">Tournament Standings</p>
+                  </div>
+                </div>
+                ${groupTablesHtml}
+              </div>
+            `);
+          } else {
+            const tStandings = computeTeamStandings(tTeams, tMatches);
+            tourneyTables.push(`
+              <div class="space-y-2.5 bg-slate-50 border border-slate-200 rounded-3xl p-3 sm:p-4 shadow-2xs">
+                <div class="flex items-center gap-2.5 border-b border-slate-200/80 pb-2.5">
+                  <img src="${tLogo}" class="w-8 h-8 rounded-xl object-cover border border-slate-200 bg-white" onerror="this.src='assets/card_jsl_user.png'" />
+                  <div class="min-w-0">
+                    <h3 class="text-xs sm:text-sm font-black uppercase text-slate-900 truncate">${tName}</h3>
+                    <p class="text-[10px] text-slate-500 font-medium">Standings Table</p>
+                  </div>
+                </div>
+                ${standingsTableHtml(tStandings, 4, 'emerald')}
+              </div>
+            `);
+          }
+        });
+
+        mainContentHtml = tourneyTables.length > 0
+          ? `<div class="space-y-4 animate-fade-in">${tourneyTables.join('')}</div>`
+          : `<div class="bg-white border-2 border-emerald-200 rounded-3xl p-8 text-center shadow-sm space-y-2">
+               <h3 class="text-sm font-black text-slate-900">Tournament Standings Coming Soon</h3>
+               <p class="text-[11px] text-slate-500 max-w-sm mx-auto">Standings will be updated live as matches are scored.</p>
+             </div>`;
+      } else if (leagueTeams.length === 0) {
         mainContentHtml = `
           <div class="bg-white border-2 border-emerald-200 rounded-3xl p-8 text-center shadow-sm space-y-2 animate-fade-in">
             <div class="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 border border-amber-200 flex items-center justify-center mx-auto text-2xl">
@@ -4725,8 +8281,9 @@ function renderFixturesView(container) {
           </div>
         `;
       } else if (isMultiGroup) {
-        // Multi-Group Standings View (Group A & Group B + Playoff Bracket)
-        const groups = (format.groups && format.groups.length > 0) ? format.groups : ['A', 'B'];
+        const groups = (detectedGroups.length > 1)
+          ? detectedGroups
+          : ((format.groups && format.groups.length > 0) ? format.groups : (format.format === 'THREE_GROUPS' ? ['A', 'B', 'C'] : (format.format === 'FOUR_GROUPS' ? ['A', 'B', 'C', 'D'] : ['A', 'B'])));
         const groupColors = {
           A: { border: 'border-emerald-300', bg: 'bg-emerald-50', badge: 'bg-emerald-600 text-white', text: 'text-emerald-950', title: '🟢 GROUP A' },
           B: { border: 'border-sky-300', bg: 'bg-sky-50', badge: 'bg-sky-600 text-white', text: 'text-sky-950', title: '🔵 GROUP B' },
@@ -4748,7 +8305,6 @@ function renderFixturesView(container) {
             ${groups.map(g => {
               const styling = groupColors[g] || groupColors.A;
               const gStandings = groupStandingsMap[g] || [];
-
               const gAccent = { A:'emerald', B:'sky', C:'amber', D:'purple' }[g] || 'emerald';
               return `
                 <div class="space-y-2">
@@ -4768,7 +8324,7 @@ function renderFixturesView(container) {
               `;
             }).join('')}
 
-            <!-- DYNAMIC PLAYOFF / KNOCKOUT BRACKET VISUALIZER (COMPACT CRISP WHITE THEME) -->
+            <!-- DYNAMIC PLAYOFF / KNOCKOUT BRACKET VISUALIZER -->
             <div class="playoff-bracket-container p-3 sm:p-3.5 bg-white text-slate-900 rounded-2xl border-2 border-amber-400 shadow-2xs space-y-2.5">
               <div class="flex items-center justify-between gap-2 border-b border-slate-200 pb-2">
                 <div class="flex items-center gap-2 min-w-0">
@@ -4785,7 +8341,7 @@ function renderFixturesView(container) {
                 </span>
               </div>
 
-              <!-- Bracket Visual Tree Grid (Compact) -->
+              <!-- Bracket Visual Tree Grid -->
               <div class="grid grid-cols-1 md:grid-cols-3 gap-2 sm:gap-2.5">
                 <!-- SF 1 Card -->
                 <div class="playoff-card-box bg-slate-50 border border-slate-200 hover:border-emerald-400 rounded-xl p-2 sm:p-2.5 space-y-1.5 shadow-2xs transition-all flex flex-col justify-between">
@@ -4880,7 +8436,6 @@ function renderFixturesView(container) {
         const unifiedStandings = computeTeamStandings(leagueTeams, rawFixtures);
         mainContentHtml = `
           <div class="space-y-3 animate-fade-in">
-            <!-- Table Header Bar -->
             <div class="flex flex-wrap items-center justify-between gap-2 bg-emerald-50 border-2 border-emerald-300 p-3 rounded-2xl text-slate-900 shadow-2xs">
               <h2 class="text-xs sm:text-sm font-black text-emerald-950 uppercase tracking-wider flex items-center gap-1.5">
                 <span>🏆</span> ${selectedCategory} Franchise Standings Table
@@ -4890,10 +8445,8 @@ function renderFixturesView(container) {
               </span>
             </div>
 
-            <!-- Compact points table that fits one mobile screen -->
             ${standingsTableHtml(unifiedStandings, 4, 'emerald')}
 
-            <!-- Footer Legend -->
             <div class="bg-white border border-slate-200 rounded-2xl p-3 flex flex-wrap items-center justify-between text-[10px] text-slate-600 font-bold gap-2 shadow-2xs">
               <span class="flex items-center gap-1 text-emerald-700 font-black">
                 <span class="w-2 h-2 rounded-full bg-emerald-500"></span> 1-4 Rank: Semifinal Qualifier
@@ -4912,20 +8465,24 @@ function renderFixturesView(container) {
       // Update Category Button active classes
       container.querySelectorAll('.fixture-cat-btn').forEach(btn => {
         const cat = btn.getAttribute('data-cat');
-        const isActive = activeFixtureCategory === cat;
-        btn.className = `fixture-cat-btn ${isActive ? (cat === 'JSL' ? 'bg-emerald-600 text-white font-black shadow-xs' : (cat === 'JPL' ? 'bg-blue-600 text-white font-black shadow-xs' : 'bg-purple-600 text-white font-black shadow-xs')) : 'text-slate-700 hover:text-slate-900 font-bold'} px-3 py-1 text-[11px] rounded-lg transition-all cursor-pointer`;
+        const isSelected = activeFixtureCategory === cat;
+        if (cat === 'ALL') {
+          btn.className = `fixture-cat-btn ${isSelected ? 'bg-gradient-to-r from-emerald-600 to-teal-700 text-white font-black shadow-md border-2 border-emerald-400 scale-[1.02]' : 'bg-white text-slate-700 hover:bg-slate-50 font-bold border border-slate-200'} px-3.5 py-2 text-xs rounded-2xl transition-all cursor-pointer whitespace-nowrap snap-start flex items-center gap-2 shrink-0`;
+        } else {
+          btn.className = `fixture-cat-btn ${isSelected ? 'bg-gradient-to-r from-slate-900 to-slate-800 text-white font-black shadow-md border-2 border-emerald-400 scale-[1.02]' : 'bg-white text-slate-800 hover:bg-slate-50 font-bold border border-slate-200'} px-3 py-2 text-xs rounded-2xl transition-all cursor-pointer whitespace-nowrap snap-start flex items-center gap-2 shrink-0`;
+        }
       });
 
       // Update Subtab Button active classes
       const matchSubtabBtn = document.getElementById('fixture-subtab-matches');
       const tableSubtabBtn = document.getElementById('fixture-subtab-table');
+      const awardsSubtabBtn = document.getElementById('fixture-subtab-awards');
       if (matchSubtabBtn) {
         matchSubtabBtn.className = `text-xs font-black py-2 px-3 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${activeFixtureSubTab === 'matches' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`;
       }
       if (tableSubtabBtn) {
         tableSubtabBtn.className = `text-xs font-black py-2 px-3 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${activeFixtureSubTab === 'table' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`;
       }
-      const awardsSubtabBtn = document.getElementById('fixture-subtab-awards');
       if (awardsSubtabBtn) {
         awardsSubtabBtn.className = `text-xs font-black py-2 px-3 rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${activeFixtureSubTab === 'awards' ? 'bg-amber-500 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}`;
       }
@@ -4950,8 +8507,21 @@ function renderFixturesView(container) {
       // Re-bind View Playing 11 buttons inside content area
       contentArea.querySelectorAll('.view-match-lineups-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
+          e.stopPropagation();
           const fId = e.currentTarget.getAttribute('data-fixture-id');
           openMatchPlayingXIModal(fId);
+        });
+      });
+
+      // Re-bind Category filter buttons inside content area (e.g. from tournament header banner)
+      contentArea.querySelectorAll('.fixture-cat-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          activeFixtureCategory = e.currentTarget.getAttribute('data-cat') || 'ALL';
+          sessionStorage.setItem('cpl_active_fixture_cat', activeFixtureCategory);
+          activeFixtureGroupFilter = 'ALL';
+          sessionStorage.setItem('cpl_active_fixture_grp_filter', 'ALL');
+          drawFixtures();
         });
       });
 
@@ -4961,16 +8531,70 @@ function renderFixturesView(container) {
 
     container.innerHTML = `
       <div class="space-y-3 animate-fade-in pb-16">
-        <!-- Compact Header & Category Selector: Match Corner -->
-        <div class="bg-white border-2 border-emerald-500/20 px-3.5 py-2.5 rounded-2xl shadow-sm flex items-center justify-between gap-2">
+        <!-- Compact Header: Match Corner -->
+        <div class="bg-white border-2 border-emerald-500/20 px-3.5 py-2.5 rounded-2xl shadow-sm flex items-center justify-between gap-2 flex-wrap">
           <div class="flex items-center gap-2">
             <span class="w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white flex items-center justify-center shadow-xs text-sm">🏏</span>
-            <h1 class="text-sm sm:text-base font-black text-slate-900 leading-none">Match Corner</h1>
+            <div>
+              <h1 class="text-sm sm:text-base font-black text-slate-900 leading-none">Match Corner</h1>
+              <p class="text-[10px] text-slate-400 font-bold mt-0.5">Live Scores, Fixtures & Points Table</p>
+            </div>
           </div>
-          <div class="flex border border-slate-200 rounded-xl overflow-hidden bg-slate-100 p-0.5 shadow-inner gap-0.5">
-            <button data-cat="JSL" class="fixture-cat-btn ${activeFixtureCategory === 'JSL' ? 'bg-emerald-600 text-white font-black shadow-xs' : 'text-slate-700 hover:text-slate-900 font-bold'} px-3 py-1 text-[11px] rounded-lg transition-all cursor-pointer">JSL</button>
-            <button data-cat="JPL" class="fixture-cat-btn ${activeFixtureCategory === 'JPL' ? 'bg-blue-600 text-white font-black shadow-xs' : 'text-slate-700 hover:text-slate-900 font-bold'} px-3 py-1 text-[11px] rounded-lg transition-all cursor-pointer">JPL</button>
-            <button data-cat="KPL" class="fixture-cat-btn ${activeFixtureCategory === 'KPL' ? 'bg-purple-600 text-white font-black shadow-xs' : 'text-slate-700 hover:text-slate-900 font-bold'} px-3 py-1 text-[11px] rounded-lg transition-all cursor-pointer">KPL</button>
+          <span class="px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-full font-mono text-[10px] font-black">
+            ${rawFixtures.length} ${selectedCategory === 'ALL' ? 'Total Matches' : `${selectedCategory} Matches`}
+          </span>
+        </div>
+
+        <!-- FULL-WIDTH HORIZONTAL TOURNAMENT SELECTION CAROUSEL (Supports 10+ Tournaments) -->
+        <div class="space-y-1.5">
+          <div class="flex items-center justify-between px-1">
+            <span class="text-[10px] font-black uppercase text-slate-500 tracking-wider">Select League / Tournament</span>
+            <span class="text-[10px] font-bold text-slate-400 font-mono">${allTourneys.length} Active Leagues</span>
+          </div>
+          <div class="flex items-center gap-2 overflow-x-auto pb-1.5 scrollbar-none snap-x touch-pan-x">
+            <button data-cat="ALL" class="fixture-cat-btn ${(activeFixtureCategory === 'ALL' || !activeFixtureCategory) ? 'bg-gradient-to-r from-emerald-600 to-teal-700 text-white font-black shadow-md border-2 border-emerald-400 scale-[1.02]' : 'bg-white text-slate-700 hover:bg-slate-50 font-bold border border-slate-200'} px-3.5 py-2 text-xs rounded-2xl transition-all cursor-pointer whitespace-nowrap snap-start flex items-center gap-2 shrink-0">
+              <span class="w-6 h-6 rounded-lg bg-white/20 flex items-center justify-center text-xs">🌟</span>
+              <span>All Tournaments</span>
+              <span class="px-1.5 py-0.5 rounded-full text-[10px] font-mono ${(activeFixtureCategory === 'ALL' || !activeFixtureCategory) ? 'bg-white/30 text-white' : 'bg-slate-100 text-slate-600'}">${allCrossFixtures.length}</span>
+            </button>
+            ${allTourneys.map(l => {
+              const code = (l.code || l.category || l.category_code || l.shortCode || l.slug || 'T').toUpperCase();
+              const tid = l.supabaseId || l.id;
+              const lName = l.name || `${code} Premier League`;
+              const lLogo = l.logoUrl || l.logo_url || l.banner_url || 'assets/card_jsl_user.png';
+              
+              const tourneyUUID = toUUID(tid);
+              const tourneyTeamIds = new Set(
+                allCrossTeams.filter(t => {
+                  const tTid = t.tournament_id || t.tournamentId || t.leagueId;
+                  const tCode = (t.leagueCode || t.category_code || '').toUpperCase();
+                  if (tTid && (tTid === tid || toUUID(tTid) === tourneyUUID)) return true;
+                  if (tCode && code && (tCode === code || (code === 'KPL' && (tCode === 'K2026' || tCode === 'KPL')) || (code === 'JSL' && (tCode === 'J2026' || tCode === 'JSL')))) return true;
+                  return false;
+                }).map(t => String(t.id))
+              );
+
+              const lMatchesCount = allCrossFixtures.filter(f => {
+                if (!f) return false;
+                const fTeamA = f.teamAId ? String(f.teamAId) : '';
+                const fTeamB = f.teamBId ? String(f.teamBId) : '';
+                if (tourneyTeamIds.size > 0 && (tourneyTeamIds.has(fTeamA) || tourneyTeamIds.has(fTeamB))) return true;
+                const fTid = f.tournament_id || f.tournamentId || f.leagueId;
+                if (fTid && (fTid === tid || toUUID(fTid) === tourneyUUID)) return true;
+                const fCode = (f.leagueCode || '').toUpperCase();
+                if (fCode && code && (fCode === code || (code === 'KPL' && (fCode === 'K2026' || fCode === 'KPL' || fCode === 'T2')) || (code === 'K2026' && (fCode === 'KPL' || fCode === 'K2026' || fCode === 'T2')) || (code === 'JSL' && (fCode === 'JSL' || fCode === 'J2026')))) return true;
+                return false;
+              }).length;
+
+              const isSelected = activeFixtureCategory === lName || activeFixtureCategory === code || activeFixtureCategory === tid || (toUUID(activeFixtureCategory) && toUUID(activeFixtureCategory) === toUUID(tid));
+              return `
+                <button data-cat="${lName}" class="fixture-cat-btn ${isSelected ? 'bg-gradient-to-r from-slate-900 to-slate-800 text-white font-black shadow-md border-2 border-emerald-400 scale-[1.02]' : 'bg-white text-slate-800 hover:bg-slate-50 font-bold border border-slate-200'} px-3 py-2 text-xs rounded-2xl transition-all cursor-pointer whitespace-nowrap snap-start flex items-center gap-2 shrink-0">
+                  <img src="${lLogo}" class="w-6 h-6 rounded-lg object-cover border border-slate-200 bg-slate-50 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                  <span class="truncate max-w-[140px] sm:max-w-[180px]">${lName}</span>
+                  ${lMatchesCount > 0 ? `<span class="px-1.5 py-0.5 rounded-full text-[10px] font-mono ${isSelected ? 'bg-emerald-500 text-white' : 'bg-emerald-100 text-emerald-800'} font-black">${lMatchesCount}</span>` : ''}
+                </button>
+              `;
+            }).join('')}
           </div>
         </div>
 
@@ -4997,7 +8621,7 @@ function renderFixturesView(container) {
     // Bind Category switching buttons
     container.querySelectorAll('.fixture-cat-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
-        activeFixtureCategory = e.currentTarget.getAttribute('data-cat') || 'JSL';
+        activeFixtureCategory = e.currentTarget.getAttribute('data-cat') || 'ALL';
         sessionStorage.setItem('cpl_active_fixture_cat', activeFixtureCategory);
         activeFixtureGroupFilter = 'ALL';
         sessionStorage.setItem('cpl_active_fixture_grp_filter', 'ALL');
@@ -5052,7 +8676,7 @@ function renderFixturesView(container) {
     // Bind View Playing 11 buttons
     container.querySelectorAll('.view-match-lineups-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
-        e.stopPropagation(); // Prevent triggering card click
+        e.stopPropagation();
         const fId = e.currentTarget.getAttribute('data-fixture-id');
         openMatchPlayingXIModal(fId);
       });
@@ -5139,7 +8763,7 @@ export function openMatchCenterModal(fixtureId) {
             <div class="min-w-0">
               <div class="flex items-center gap-2">
                 <span class="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-mono font-black rounded-md uppercase shrink-0">
-                  ${fixture.leagueCode || 'JSL'} • MATCH ${fixture.matchNo || 1}
+                  ${(fixture.tournamentName || (store.getCustomTournamentById(fixture.tournamentId || fixture.tournament_id)?.name) || 'CRICKET PREMIER LEAGUE').toUpperCase()} • MATCH ${fixture.matchNo || 1}
                 </span>
                 ${isLive ? `<span class="px-2 py-0.5 bg-red-500 text-white text-[9px] font-black rounded-md uppercase animate-pulse shrink-0">🔴 LIVE</span>` : (isCompleted ? `<span class="px-2 py-0.5 bg-emerald-500 text-slate-950 text-[9px] font-black rounded-md uppercase shrink-0">COMPLETED</span>` : `<span class="px-2 py-0.5 bg-amber-400 text-slate-950 text-[9px] font-black rounded-md uppercase shrink-0">SCHEDULED</span>`)}
               </div>
@@ -5148,9 +8772,14 @@ export function openMatchCenterModal(fixtureId) {
               </h2>
             </div>
           </div>
-          <span class="text-[10px] text-slate-400 font-bold bg-slate-800/70 border border-slate-700 px-2.5 py-1 rounded-xl hidden sm:inline-block shrink-0">
-            📍 ${fixture.venue || 'School Ground'}
-          </span>
+          <div class="flex items-center gap-1.5 shrink-0">
+            <button id="btn-export-mc-scorecard-pdf" class="px-2.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[11px] font-black flex items-center gap-1 shadow-sm transition-all cursor-pointer active:scale-95" title="Download Official PDF Scorecard">
+              <span>📄</span> <span>PDF Scorecard</span>
+            </button>
+            <span class="text-[10px] text-slate-400 font-bold bg-slate-800/70 border border-slate-700 px-2 py-1 rounded-xl hidden md:inline-block">
+              📍 ${fixture.venue || 'School Ground'}
+            </span>
+          </div>
         </div>
 
         <!-- Sticky Navigation Tabs (Mobile-Scrollable) -->
@@ -5195,6 +8824,12 @@ export function openMatchCenterModal(fixtureId) {
     document.getElementById('match-center-modal')?.remove();
   };
   document.getElementById('close-match-center-btn')?.addEventListener('click', removeModal);
+
+  document.getElementById('btn-export-mc-scorecard-pdf')?.addEventListener('click', () => {
+    const curFixture = store.getFixtures().find(f => f.id === fixtureId) || fixture;
+    const tourney = store.getCustomTournamentById(curFixture.tournamentId || curFixture.tournament_id || curFixture.tournamentSlug) || { name: `${curFixture.leagueCode || 'T'} PREMIER LEAGUE` };
+    exportMatchScorecardPDF(curFixture, tourney);
+  });
 
   const contentArea = document.getElementById('mc-tab-content-area');
 
@@ -5266,171 +8901,281 @@ export function openMatchCenterModal(fixtureId) {
 
       contentArea.innerHTML = `
         <div class="space-y-3.5 animate-fade-in">
-          <!-- Main Big Score Hero Card -->
-          <div class="bg-white border-2 border-emerald-500 rounded-3xl p-4 sm:p-5 shadow-md space-y-3">
-            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
-              <div class="flex items-center gap-2.5 min-w-0">
-                <img src="${batLogo}" class="w-10 h-10 rounded-2xl object-cover border border-slate-200 shadow-2xs bg-slate-50 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
-                <div class="truncate">
-                  <h3 class="font-black text-slate-900 text-sm sm:text-base leading-tight truncate">${batTeamName}</h3>
-                  <span class="text-[10px] text-emerald-700 font-bold uppercase tracking-wider">Innings ${state.innings || 1} Batting</span>
-                </div>
-              </div>
-              <div class="text-right">
-                <div class="text-3xl sm:text-4xl font-black text-slate-900 font-mono leading-none">
-                  <span class="text-emerald-700">${state.runs || 0}</span><span class="text-slate-400 text-xl">/${state.wickets || 0}</span>
-                </div>
-                <div class="text-xs text-slate-500 font-mono font-bold mt-1">
-                  ${state.overs || 0}.${state.balls || 0} / ${fixture.oversLimit || 16} Overs
-                </div>
-              </div>
-            </div>
+          ${isCompleted ? (() => {
+            const potm = (typeof window.getMatchPotm === 'function') ? window.getMatchPotm(fixture) : null;
+            let topBatter = null, topRuns = -1;
+            let topBowler = null, topWkts = -1;
+            const allP = store.getPlayers();
+            Object.keys(pStats).forEach(pid => {
+              const s = pStats[pid] || {};
+              const r = s.runs || 0;
+              const w = s.wickets || 0;
+              const pObj = allP.find(x => String(x.id) === String(pid));
+              const pName = pObj ? pObj.name : 'Player';
+              const photo = pObj ? (pObj.photoUrl || pObj.player_photo_url || '') : '';
 
-            ${(fixture.tossDetails || state.tossDetails) ? `
-              <div class="bg-amber-50 border border-amber-200 text-amber-900 px-3 py-1.5 rounded-2xl text-[11px] font-bold flex items-center gap-2 shadow-2xs">
-                <span>🪙</span> <span>${fixture.tossDetails || state.tossDetails}</span>
-              </div>
-            ` : ''}
+              if (r > topRuns) {
+                topRuns = r;
+                topBatter = { name: pName, runs: r, balls: s.balls || 0, fours: s.fours || 0, sixes: s.sixes || 0, photo };
+              }
+              if (w > topWkts || (w === topWkts && (s.runsConceded || 99) < (topBowler?.runs || 99))) {
+                topWkts = w;
+                topBowler = { name: pName, wickets: w, overs: `${Math.floor((s.ballsBowled||0)/6)}.${(s.ballsBowled||0)%6}`, runs: s.runsConceded || 0, photo };
+              }
+            });
 
-            ${targetEquation}
+            const inn1Score = fixture.teamAScore || { runs: 0, wickets: 0, overs: 0, balls: 0 };
+            const inn2Score = fixture.teamBScore || { runs: 0, wickets: 0, overs: 0, balls: 0 };
 
-            <!-- Match Metric Badges Grid (Extras, Overs, CRR, Target, Req. RR, P'ship) -->
-            <div class="grid grid-cols-3 gap-2 bg-slate-50 border border-slate-200 p-2.5 rounded-2xl text-center font-mono">
-              <div class="p-1.5 bg-white border border-slate-200/80 rounded-xl shadow-2xs">
-                <div class="text-[9px] text-slate-400 font-bold uppercase">Extras</div>
-                <div class="text-xs font-black text-slate-800">${(state.extras || 0)}</div>
-              </div>
-              <div class="p-1.5 bg-white border border-slate-200/80 rounded-xl shadow-2xs">
-                <div class="text-[9px] text-slate-400 font-bold uppercase">Overs</div>
-                <div class="text-xs font-black text-slate-800">${state.overs || 0}.${state.balls || 0} / ${fixture.oversLimit || 16}</div>
-              </div>
-              <div class="p-1.5 bg-white border border-slate-200/80 rounded-xl shadow-2xs">
-                <div class="text-[9px] text-slate-400 font-bold uppercase">CRR</div>
-                <div class="text-xs font-black text-emerald-700">${crr}</div>
-              </div>
-              ${state.innings === 2 && state.target ? `
-                <div class="p-1.5 bg-amber-50 border border-amber-200 rounded-xl shadow-2xs">
-                  <div class="text-[9px] text-amber-800 font-bold uppercase">Target</div>
-                  <div class="text-xs font-black text-amber-950">${state.target}</div>
+            return `
+              <div class="space-y-3.5 animate-fade-in">
+                <!-- 1. Official Result Banner -->
+                <div class="bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 text-white p-4 rounded-3xl shadow-md text-center space-y-1">
+                  <div class="text-[10px] font-black uppercase tracking-widest text-emerald-200">Official Match Result</div>
+                  <h2 class="text-base sm:text-lg font-black tracking-wide uppercase">🏆 ${fixture.result || (fixture.winnerTeamName ? `${fixture.winnerTeamName} WON` : 'MATCH COMPLETED')}</h2>
                 </div>
-                <div class="p-1.5 bg-amber-50 border border-amber-200 rounded-xl shadow-2xs">
-                  <div class="text-[9px] text-amber-800 font-bold uppercase">Req. RR</div>
-                  <div class="text-xs font-black text-amber-950">${reqRR}</div>
+
+                <!-- 2. Man of the Match Card -->
+                ${potm ? `
+                  <div class="bg-gradient-to-r from-amber-400 via-amber-300 to-yellow-400 text-slate-950 p-4 rounded-3xl shadow-md border-2 border-amber-300 flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-3 min-w-0">
+                      ${potm.photoUrl ? `<img src="${potm.photoUrl}" class="w-12 h-12 rounded-2xl object-cover border-2 border-slate-950 shadow-md shrink-0" onerror="this.remove()" />` : `<div class="w-12 h-12 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center text-2xl font-black shrink-0">🎖️</div>`}
+                      <div class="min-w-0">
+                        <div class="text-[9px] font-black uppercase tracking-widest text-slate-900">Man of the Match</div>
+                        <h3 class="text-sm sm:text-base font-black uppercase text-slate-950 truncate">${potm.name}</h3>
+                        <p class="text-xs font-bold text-slate-800">${potm.desc}</p>
+                      </div>
+                    </div>
+                    <span class="px-2.5 py-1 bg-slate-950 text-amber-400 font-mono text-[10px] font-black rounded-xl uppercase shrink-0 shadow-2xs">MVP Award</span>
+                  </div>
+                ` : ''}
+
+                <!-- 3. Innings 1 vs Innings 2 Match Summary Cards -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <!-- Innings 1 -->
+                  <div class="bg-white border-2 border-slate-200 rounded-3xl p-4 shadow-sm space-y-2">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                      <div class="flex items-center gap-2 min-w-0">
+                        <img src="${logoA}" class="w-7 h-7 rounded-xl object-cover border border-slate-200 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                        <span class="text-xs font-black text-slate-900 uppercase truncate">${fixture.teamAName}</span>
+                      </div>
+                      <span class="text-xs font-black font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">${inn1Score.runs || 0}/${inn1Score.wickets || 0} (${inn1Score.overs || 0}.${inn1Score.balls || 0} ov)</span>
+                    </div>
+                    <div class="text-[11px] font-semibold text-slate-500">Run Rate: <strong class="font-mono text-slate-800">${inn1Score.overs ? ((inn1Score.runs / ((inn1Score.overs * 6) + (inn1Score.balls || 0))) * 6).toFixed(2) : '0.00'}</strong></div>
+                  </div>
+
+                  <!-- Innings 2 -->
+                  <div class="bg-white border-2 border-slate-200 rounded-3xl p-4 shadow-sm space-y-2">
+                    <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+                      <div class="flex items-center gap-2 min-w-0">
+                        <img src="${logoB}" class="w-7 h-7 rounded-xl object-cover border border-slate-200 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                        <span class="text-xs font-black text-slate-900 uppercase truncate">${fixture.teamBName}</span>
+                      </div>
+                      <span class="text-xs font-black font-mono text-sky-700 bg-sky-50 px-2 py-0.5 rounded-lg border border-sky-200">${inn2Score.runs || 0}/${inn2Score.wickets || 0} (${inn2Score.overs || 0}.${inn2Score.balls || 0} ov)</span>
+                    </div>
+                    <div class="text-[11px] font-semibold text-slate-500">Run Rate: <strong class="font-mono text-slate-800">${inn2Score.overs ? ((inn2Score.runs / ((inn2Score.overs * 6) + (inn2Score.balls || 0))) * 6).toFixed(2) : '0.00'}</strong></div>
+                  </div>
+                </div>
+
+                <!-- 4. Top Performers Cards -->
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  ${topBatter ? `
+                    <div class="bg-white border-2 border-slate-200 rounded-3xl p-3.5 shadow-sm flex items-center gap-3">
+                      <div class="w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-800 flex items-center justify-center text-lg shrink-0 font-black">🏏</div>
+                      <div class="min-w-0">
+                        <div class="text-[9px] font-black text-slate-400 uppercase">Top Match Batsman</div>
+                        <div class="text-xs font-black text-slate-900 truncate uppercase">${topBatter.name}</div>
+                        <div class="text-[11px] font-mono font-bold text-emerald-700">${topBatter.runs} runs (${topBatter.balls}b) • ${topBatter.fours}x4, ${topBatter.sixes}x6</div>
+                      </div>
+                    </div>
+                  ` : ''}
+
+                  ${topBowler ? `
+                    <div class="bg-white border-2 border-slate-200 rounded-3xl p-3.5 shadow-sm flex items-center gap-3">
+                      <div class="w-10 h-10 rounded-2xl bg-sky-100 text-sky-800 flex items-center justify-center text-lg shrink-0 font-black">⚾</div>
+                      <div class="min-w-0">
+                        <div class="text-[9px] font-black text-slate-400 uppercase">Top Match Bowler</div>
+                        <div class="text-xs font-black text-slate-900 truncate uppercase">${topBowler.name}</div>
+                        <div class="text-[11px] font-mono font-bold text-sky-700">${topBowler.wickets} wkts for ${topBowler.runs} runs (${topBowler.overs} ov)</div>
+                      </div>
+                    </div>
+                  ` : ''}
+                </div>
+
+                <!-- 5. Match Meta Info Footer -->
+                <div class="bg-slate-50 border border-slate-200 p-3.5 rounded-2xl text-xs font-bold text-slate-600 flex flex-wrap items-center justify-between gap-2">
+                  <span>🪙 Toss: <strong class="text-slate-900">${fixture.tossDetails || 'Toss updated'}</strong></span>
+                  <span>📍 Venue: <strong class="text-slate-900">${fixture.venue || 'JHANKRA SCHOOL GROUND'}</strong></span>
+                </div>
+              </div>
+            `;
+          })() : `
+            <!-- Main Big Score Hero Card for Live Match -->
+            <div class="bg-white border-2 border-emerald-500 rounded-3xl p-4 sm:p-5 shadow-md space-y-3">
+              <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div class="flex items-center gap-2.5 min-w-0">
+                  <img src="${batLogo}" class="w-10 h-10 rounded-2xl object-cover border border-slate-200 shadow-2xs bg-slate-50 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                  <div class="truncate">
+                    <h3 class="font-black text-slate-900 text-sm sm:text-base leading-tight truncate">${batTeamName}</h3>
+                    <span class="text-[10px] text-emerald-700 font-bold uppercase tracking-wider">Innings ${state.innings || 1} Batting</span>
+                  </div>
+                </div>
+                <div class="text-right">
+                  <div class="text-3xl sm:text-4xl font-black text-slate-900 font-mono leading-none">
+                    <span class="text-emerald-700">${state.runs || 0}</span><span class="text-slate-400 text-xl">/${state.wickets || 0}</span>
+                  </div>
+                  <div class="text-xs text-slate-500 font-mono font-bold mt-1">
+                    ${state.overs || 0}.${state.balls || 0} / ${fixture.oversLimit || 16} Overs
+                  </div>
+                </div>
+              </div>
+
+              ${(fixture.tossDetails || state.tossDetails) ? `
+                <div class="bg-amber-50 border border-amber-200 text-amber-900 px-3 py-1.5 rounded-2xl text-[11px] font-bold flex items-center gap-2 shadow-2xs">
+                  <span>🪙</span> <span>${fixture.tossDetails || state.tossDetails}</span>
                 </div>
               ` : ''}
-              <div class="p-1.5 bg-white border border-slate-200/80 rounded-xl shadow-2xs ${state.innings === 2 && state.target ? '' : 'col-span-3'}">
-                <div class="text-[9px] text-slate-400 font-bold uppercase">Partnership</div>
-                <div class="text-xs font-black text-slate-800">${pshipRuns} (${pshipBalls} balls)</div>
+
+              ${targetEquation}
+
+              <!-- Match Metric Badges Grid (Extras, Overs, CRR, Target, Req. RR, P'ship) -->
+              <div class="grid grid-cols-3 gap-2 bg-slate-50 border border-slate-200 p-2.5 rounded-2xl text-center font-mono">
+                <div class="p-1.5 bg-white border border-slate-200/80 rounded-xl shadow-2xs">
+                  <div class="text-[9px] text-slate-400 font-bold uppercase">Extras</div>
+                  <div class="text-xs font-black text-slate-800">${(state.extras || 0)}</div>
+                </div>
+                <div class="p-1.5 bg-white border border-slate-200/80 rounded-xl shadow-2xs">
+                  <div class="text-[9px] text-slate-400 font-bold uppercase">Overs</div>
+                  <div class="text-xs font-black text-slate-800">${state.overs || 0}.${state.balls || 0} / ${fixture.oversLimit || 16}</div>
+                </div>
+                <div class="p-1.5 bg-white border border-slate-200/80 rounded-xl shadow-2xs">
+                  <div class="text-[9px] text-slate-400 font-bold uppercase">CRR</div>
+                  <div class="text-xs font-black text-emerald-700">${crr}</div>
+                </div>
+                ${state.innings === 2 && state.target ? `
+                  <div class="p-1.5 bg-amber-50 border border-amber-200 rounded-xl shadow-2xs">
+                    <div class="text-[9px] text-amber-800 font-bold uppercase">Target</div>
+                    <div class="text-xs font-black text-amber-950">${state.target}</div>
+                  </div>
+                  <div class="p-1.5 bg-amber-50 border border-amber-200 rounded-xl shadow-2xs">
+                    <div class="text-[9px] text-amber-800 font-bold uppercase">Req. RR</div>
+                    <div class="text-xs font-black text-amber-950">${reqRR}</div>
+                  </div>
+                ` : ''}
+                <div class="p-1.5 bg-white border border-slate-200/80 rounded-xl shadow-2xs ${state.innings === 2 && state.target ? '' : 'col-span-3'}">
+                  <div class="text-[9px] text-slate-400 font-bold uppercase">Partnership</div>
+                  <div class="text-xs font-black text-slate-800">${pshipRuns} (${pshipBalls} balls)</div>
+                </div>
               </div>
             </div>
-          </div>
 
-          <!-- Live Batsman Table -->
-          <div class="bg-white border-2 border-slate-200 rounded-3xl p-3.5 sm:p-4 shadow-sm space-y-2">
-            <h4 class="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center justify-between">
-              <span>🏏 Batsmen in Play</span>
-              <span class="text-[10px] text-slate-400 font-normal">Live In-Play</span>
-            </h4>
-            
-            <div class="overflow-x-auto">
-              <table class="w-full text-xs text-left">
-                <thead>
-                  <tr class="text-[10px] font-black text-slate-400 uppercase border-b border-slate-100">
-                    <th class="py-1.5 px-2">Batsman</th>
-                    <th class="py-1.5 px-2 text-center font-mono">R</th>
-                    <th class="py-1.5 px-2 text-center font-mono">B</th>
-                    <th class="py-1.5 px-2 text-center font-mono">4s</th>
-                    <th class="py-1.5 px-2 text-center font-mono">6s</th>
-                    <th class="py-1.5 px-2 text-right font-mono">SR</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100 font-bold">
-                  <tr class="bg-emerald-50/60">
-                    <td class="py-2.5 px-2">
-                      <div class="flex items-center gap-1.5">
-                        <span class="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span>
-                        <span class="text-slate-950 font-black">${strikerP ? strikerP.name : 'Striker (Not Selected)'} *</span>
-                      </div>
-                    </td>
-                    <td class="py-2.5 px-2 text-center text-emerald-800 font-black font-mono">${strikerStat.runs || 0}</td>
-                    <td class="py-2.5 px-2 text-center text-slate-700 font-mono">${strikerStat.balls || 0}</td>
-                    <td class="py-2.5 px-2 text-center text-slate-700 font-mono">${strikerStat.fours || 0}</td>
-                    <td class="py-2.5 px-2 text-center text-slate-700 font-mono">${strikerStat.sixes || 0}</td>
-                    <td class="py-2.5 px-2 text-right text-slate-700 font-mono">${strikerSR}</td>
-                  </tr>
-                  <tr>
-                    <td class="py-2.5 px-2">
-                      <div class="flex items-center gap-1.5">
-                        <span class="w-2 h-2 rounded-full bg-teal-500"></span>
-                        <span class="text-slate-900">${nonStrikerP ? nonStrikerP.name : 'Non-Striker (Not Selected)'}</span>
-                      </div>
-                    </td>
-                    <td class="py-2.5 px-2 text-center text-teal-800 font-black font-mono">${nonStrikerStat.runs || 0}</td>
-                    <td class="py-2.5 px-2 text-center text-slate-700 font-mono">${nonStrikerStat.balls || 0}</td>
-                    <td class="py-2.5 px-2 text-center text-slate-700 font-mono">${nonStrikerStat.fours || 0}</td>
-                    <td class="py-2.5 px-2 text-center text-slate-700 font-mono">${nonStrikerStat.sixes || 0}</td>
-                    <td class="py-2.5 px-2 text-right text-slate-700 font-mono">${nonStrikerSR}</td>
-                  </tr>
-                </tbody>
-              </table>
+            <!-- Live Batsman Table -->
+            <div class="bg-white border-2 border-slate-200 rounded-3xl p-3.5 sm:p-4 shadow-sm space-y-2">
+              <h4 class="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center justify-between">
+                <span>🏏 Batsmen in Play</span>
+                <span class="text-[10px] text-slate-400 font-normal">Live In-Play</span>
+              </h4>
+              
+              <div class="overflow-x-auto">
+                <table class="w-full text-xs text-left">
+                  <thead>
+                    <tr class="text-[10px] font-black text-slate-400 uppercase border-b border-slate-100">
+                      <th class="py-1.5 px-2">Batsman</th>
+                      <th class="py-1.5 px-2 text-center font-mono">R</th>
+                      <th class="py-1.5 px-2 text-center font-mono">B</th>
+                      <th class="py-1.5 px-2 text-center font-mono">4s</th>
+                      <th class="py-1.5 px-2 text-center font-mono">6s</th>
+                      <th class="py-1.5 px-2 text-right font-mono">SR</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100 font-bold">
+                    <tr class="bg-emerald-50/60">
+                      <td class="py-2.5 px-2">
+                        <div class="flex items-center gap-1.5">
+                          <span class="w-2 h-2 rounded-full bg-emerald-600 animate-pulse"></span>
+                          <span class="text-slate-950 font-black">${strikerP ? strikerP.name : 'Striker (Not Selected)'} *</span>
+                        </div>
+                      </td>
+                      <td class="py-2.5 px-2 text-center text-emerald-800 font-black font-mono">${strikerStat.runs || 0}</td>
+                      <td class="py-2.5 px-2 text-center text-slate-700 font-mono">${strikerStat.balls || 0}</td>
+                      <td class="py-2.5 px-2 text-center text-slate-700 font-mono">${strikerStat.fours || 0}</td>
+                      <td class="py-2.5 px-2 text-center text-slate-700 font-mono">${strikerStat.sixes || 0}</td>
+                      <td class="py-2.5 px-2 text-right text-slate-700 font-mono">${strikerSR}</td>
+                    </tr>
+                    <tr>
+                      <td class="py-2.5 px-2">
+                        <div class="flex items-center gap-1.5">
+                          <span class="w-2 h-2 rounded-full bg-teal-500"></span>
+                          <span class="text-slate-900">${nonStrikerP ? nonStrikerP.name : 'Non-Striker (Not Selected)'}</span>
+                        </div>
+                      </td>
+                      <td class="py-2.5 px-2 text-center text-teal-800 font-black font-mono">${nonStrikerStat.runs || 0}</td>
+                      <td class="py-2.5 px-2 text-center text-slate-700 font-mono">${nonStrikerStat.balls || 0}</td>
+                      <td class="py-2.5 px-2 text-center text-slate-700 font-mono">${nonStrikerStat.fours || 0}</td>
+                      <td class="py-2.5 px-2 text-center text-slate-700 font-mono">${nonStrikerStat.sixes || 0}</td>
+                      <td class="py-2.5 px-2 text-right text-slate-700 font-mono">${nonStrikerSR}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
 
-          <!-- Live Bowler Table -->
-          <div class="bg-white border-2 border-slate-200 rounded-3xl p-3.5 sm:p-4 shadow-sm space-y-2">
-            <h4 class="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center justify-between">
-              <span>⚾ Active Bowler</span>
-              <span class="text-[10px] text-slate-400 font-normal">Current Spell</span>
-            </h4>
-            
-            <div class="overflow-x-auto">
-              <table class="w-full text-xs text-left">
-                <thead>
-                  <tr class="text-[10px] font-black text-slate-400 uppercase border-b border-slate-100">
-                    <th class="py-1.5 px-2">Bowler</th>
-                    <th class="py-1.5 px-2 text-center font-mono">O</th>
-                    <th class="py-1.5 px-2 text-center font-mono">M</th>
-                    <th class="py-1.5 px-2 text-center font-mono">R</th>
-                    <th class="py-1.5 px-2 text-center font-mono">W</th>
-                    <th class="py-1.5 px-2 text-right font-mono">Eco</th>
-                  </tr>
-                </thead>
-                <tbody class="divide-y divide-slate-100 font-bold">
-                  <tr class="bg-indigo-50/50">
-                    <td class="py-2.5 px-2">
-                      <div class="flex items-center gap-1.5">
-                        <span class="w-2 h-2 rounded-full bg-indigo-600 animate-pulse"></span>
-                        <span class="text-slate-950 font-black">${bowlerP ? bowlerP.name : 'Bowler (Not Selected)'}</span>
-                      </div>
-                    </td>
-                    <td class="py-2.5 px-2 text-center text-slate-800 font-mono">${bOvs}</td>
-                    <td class="py-2.5 px-2 text-center text-slate-700 font-mono">${bowlerStat.maidens || 0}</td>
-                    <td class="py-2.5 px-2 text-center text-slate-800 font-mono">${bowlerStat.runsConceded || 0}</td>
-                    <td class="py-2.5 px-2 text-center text-rose-700 font-black font-mono">${bowlerStat.wickets || 0}</td>
-                    <td class="py-2.5 px-2 text-right text-slate-700 font-mono">${bowlerEco}</td>
-                  </tr>
-                </tbody>
-              </table>
+            <!-- Live Bowler Table -->
+            <div class="bg-white border-2 border-slate-200 rounded-3xl p-3.5 sm:p-4 shadow-sm space-y-2">
+              <h4 class="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center justify-between">
+                <span>⚾ Active Bowler</span>
+                <span class="text-[10px] text-slate-400 font-normal">Current Spell</span>
+              </h4>
+              
+              <div class="overflow-x-auto">
+                <table class="w-full text-xs text-left">
+                  <thead>
+                    <tr class="text-[10px] font-black text-slate-400 uppercase border-b border-slate-100">
+                      <th class="py-1.5 px-2">Bowler</th>
+                      <th class="py-1.5 px-2 text-center font-mono">O</th>
+                      <th class="py-1.5 px-2 text-center font-mono">M</th>
+                      <th class="py-1.5 px-2 text-center font-mono">R</th>
+                      <th class="py-1.5 px-2 text-center font-mono">W</th>
+                      <th class="py-1.5 px-2 text-right font-mono">Eco</th>
+                    </tr>
+                  </thead>
+                  <tbody class="divide-y divide-slate-100 font-bold">
+                    <tr class="bg-indigo-50/50">
+                      <td class="py-2.5 px-2">
+                        <div class="flex items-center gap-1.5">
+                          <span class="w-2 h-2 rounded-full bg-indigo-600 animate-pulse"></span>
+                          <span class="text-slate-950 font-black">${bowlerP ? bowlerP.name : 'Bowler (Not Selected)'}</span>
+                        </div>
+                      </td>
+                      <td class="py-2.5 px-2 text-center text-slate-800 font-mono">${bOvs}</td>
+                      <td class="py-2.5 px-2 text-center text-slate-700 font-mono">${bowlerStat.maidens || 0}</td>
+                      <td class="py-2.5 px-2 text-center text-slate-800 font-mono">${bowlerStat.runsConceded || 0}</td>
+                      <td class="py-2.5 px-2 text-center text-rose-700 font-black font-mono">${bowlerStat.wickets || 0}</td>
+                      <td class="py-2.5 px-2 text-right text-slate-700 font-mono">${bowlerEco}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
             </div>
-          </div>
 
-          <!-- Recent Overs Ticker -->
-          <div class="bg-white border-2 border-slate-200 rounded-3xl p-3.5 sm:p-4 shadow-sm space-y-2">
-            <div class="flex items-center justify-between text-xs font-black text-slate-900 uppercase">
-              <span>⚡ Recent Deliveries</span>
-              <span class="text-[10px] text-slate-400 font-normal">This Over:</span>
+            <!-- Recent Overs Ticker -->
+            <div class="bg-white border-2 border-slate-200 rounded-3xl p-3.5 sm:p-4 shadow-sm space-y-2">
+              <div class="flex items-center justify-between text-xs font-black text-slate-900 uppercase">
+                <span>⚡ Recent Deliveries</span>
+                <span class="text-[10px] text-slate-400 font-normal">This Over:</span>
+              </div>
+              <div class="flex items-center gap-1.5 flex-wrap">
+                ${(state.overBalls || []).length > 0 ? (state.overBalls || []).map(b => {
+                  let pillClass = 'bg-slate-100 text-slate-800 border-slate-300';
+                  if (b.type === 'four') pillClass = 'bg-blue-600 text-white border-blue-700 font-black';
+                  if (b.type === 'six') pillClass = 'bg-amber-400 text-slate-950 border-amber-500 font-black';
+                  if (b.type === 'wicket') pillClass = 'bg-rose-600 text-white border-rose-700 font-black';
+                  if (b.type === 'wide' || b.type === 'noball') pillClass = 'bg-amber-100 text-amber-900 border-amber-300 font-semibold';
+                  return `<span class="px-2 py-1 rounded-xl border font-mono font-black text-xs shadow-2xs ${pillClass}">${b.label}</span>`;
+                }).join('') : '<span class="text-slate-400 italic text-xs">No balls in this over yet</span>'}
+              </div>
             </div>
-            <div class="flex items-center gap-1.5 flex-wrap">
-              ${(state.overBalls || []).length > 0 ? (state.overBalls || []).map(b => {
-                let pillClass = 'bg-slate-100 text-slate-800 border-slate-300';
-                if (b.type === 'four') pillClass = 'bg-blue-600 text-white border-blue-700 font-black';
-                if (b.type === 'six') pillClass = 'bg-amber-400 text-slate-950 border-amber-500 font-black';
-                if (b.type === 'wicket') pillClass = 'bg-rose-600 text-white border-rose-700 font-black';
-                if (b.type === 'wide' || b.type === 'noball') pillClass = 'bg-amber-100 text-amber-900 border-amber-300 font-semibold';
-                return `<span class="px-2 py-1 rounded-xl border font-mono font-black text-xs shadow-2xs ${pillClass}">${b.label}</span>`;
-              }).join('') : '<span class="text-slate-400 italic text-xs">No balls in this over yet</span>'}
-            </div>
-          </div>
+          `}
         </div>
       `;
     }
@@ -5484,27 +9229,61 @@ export function openMatchCenterModal(fixtureId) {
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100 font-bold">
-                  ${battingPlayers.map(p => {
-                    const stat = pStats[p.id] || {};
-                    const hasBatted = (stat.balls > 0 || stat.runs > 0 || stat.dismissed || state.strikerId === p.id || state.nonStrikerId === p.id);
-                    const isOut = stat.dismissed;
-                    const sr = stat.balls > 0 ? (((stat.runs || 0) / stat.balls) * 100).toFixed(1) : '-';
-                    const dismissalTxt = isOut ? `out (${stat.dismissalInfo || 'Dismissed'})` : (hasBatted ? `<span class="text-emerald-700 font-bold">not out *</span>` : `<span class="text-slate-400 font-normal">did not bat</span>`);
+                  ${(() => {
+                    const ballHistory = state.ballHistory || state.ballLog || [];
+                    const firstSeenMap = {};
+                    ballHistory.forEach((b, idx) => {
+                      if (b.strikerId && firstSeenMap[b.strikerId] === undefined) firstSeenMap[b.strikerId] = idx;
+                      if (b.nonStrikerId && firstSeenMap[b.nonStrikerId] === undefined) firstSeenMap[b.nonStrikerId] = idx;
+                    });
 
-                    return `
-                      <tr class="${hasBatted ? 'hover:bg-slate-50' : 'opacity-60'}">
-                        <td class="py-2 px-2">
-                          <div class="font-black text-slate-900">${p.name} ${p.isCaptain ? '<span class="text-[9px] bg-amber-400 text-slate-950 px-1 py-0.2 rounded">C</span>' : ''}</div>
-                          <div class="text-[10px] font-medium text-slate-500">${dismissalTxt}</div>
-                        </td>
-                        <td class="py-2 px-2 text-center font-black font-mono ${hasBatted ? 'text-slate-900' : 'text-slate-400'}">${hasBatted ? (stat.runs || 0) : '-'}</td>
-                        <td class="py-2 px-2 text-center font-mono ${hasBatted ? 'text-slate-700' : 'text-slate-400'}">${hasBatted ? (stat.balls || 0) : '-'}</td>
-                        <td class="py-2 px-2 text-center font-mono ${hasBatted ? 'text-slate-700' : 'text-slate-400'}">${hasBatted ? (stat.fours || 0) : '-'}</td>
-                        <td class="py-2 px-2 text-center font-mono ${hasBatted ? 'text-slate-700' : 'text-slate-400'}">${hasBatted ? (stat.sixes || 0) : '-'}</td>
-                        <td class="py-2 px-2 text-right font-mono ${hasBatted ? 'text-slate-700' : 'text-slate-400'}">${sr}</td>
-                      </tr>
-                    `;
-                  }).join('')}
+                    const orderedBatting = [...(battingPlayers || [])].sort((a, b) => {
+                      const statA = pStats[a.id] || {};
+                      const statB = pStats[b.id] || {};
+
+                      const hasBattedA = (statA.balls > 0 || statA.runs > 0 || statA.dismissed || state.strikerId === a.id || state.nonStrikerId === a.id);
+                      const hasBattedB = (statB.balls > 0 || statB.runs > 0 || statB.dismissed || state.strikerId === b.id || state.nonStrikerId === b.id);
+
+                      if (hasBattedA && !hasBattedB) return -1;
+                      if (!hasBattedA && hasBattedB) return 1;
+
+                      if (hasBattedA && hasBattedB) {
+                        if (typeof statA.battingOrder === 'number' && typeof statB.battingOrder === 'number') {
+                          return statA.battingOrder - statB.battingOrder;
+                        }
+                        const seenA = firstSeenMap[a.id] ?? 9999;
+                        const seenB = firstSeenMap[b.id] ?? 9999;
+                        if (seenA !== seenB) return seenA - seenB;
+                      }
+
+                      return 0;
+                    });
+
+                    return orderedBatting.map((p, idx) => {
+                      const stat = pStats[p.id] || {};
+                      const hasBatted = (stat.balls > 0 || stat.runs > 0 || stat.dismissed || state.strikerId === p.id || state.nonStrikerId === p.id);
+                      const isOut = stat.dismissed;
+                      const sr = stat.balls > 0 ? (((stat.runs || 0) / stat.balls) * 100).toFixed(1) : '-';
+                      const dismissalTxt = isOut ? `out (${stat.dismissalInfo || 'Dismissed'})` : (hasBatted ? `<span class="text-emerald-700 font-bold">not out *</span>` : `<span class="text-slate-400 font-normal">did not bat</span>`);
+
+                      return `
+                        <tr class="${hasBatted ? 'hover:bg-slate-50' : 'opacity-60'}">
+                          <td class="py-2 px-2">
+                            <div class="font-black text-slate-900 flex items-center gap-1.5">
+                              <span class="text-slate-400 font-mono text-[10px] w-4 text-right shrink-0">${idx + 1}.</span>
+                              <span class="truncate">${p.name} ${p.isCaptain ? '<span class="text-[9px] bg-amber-400 text-slate-950 px-1 py-0.2 rounded">C</span>' : ''}</span>
+                            </div>
+                            <div class="text-[10px] font-medium text-slate-500 pl-5.5">${dismissalTxt}</div>
+                          </td>
+                          <td class="py-2 px-2 text-center font-black font-mono ${hasBatted ? 'text-slate-900' : 'text-slate-400'}">${hasBatted ? (stat.runs || 0) : '-'}</td>
+                          <td class="py-2 px-2 text-center font-mono ${hasBatted ? 'text-slate-700' : 'text-slate-400'}">${hasBatted ? (stat.balls || 0) : '-'}</td>
+                          <td class="py-2 px-2 text-center font-mono ${hasBatted ? 'text-slate-700' : 'text-slate-400'}">${hasBatted ? (stat.fours || 0) : '-'}</td>
+                          <td class="py-2 px-2 text-center font-mono ${hasBatted ? 'text-slate-700' : 'text-slate-400'}">${hasBatted ? (stat.sixes || 0) : '-'}</td>
+                          <td class="py-2 px-2 text-right font-mono ${hasBatted ? 'text-slate-700' : 'text-slate-400'}">${sr}</td>
+                        </tr>
+                      `;
+                    }).join('');
+                  })()}
                 </tbody>
               </table>
             </div>
@@ -5773,7 +9552,7 @@ export function openMatchCenterModal(fixtureId) {
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
               <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
                 <span class="text-[10px] text-slate-400 uppercase font-black block">Tournament</span>
-                <span class="font-black text-slate-900">${fixture.leagueCode || 'JSL'} Premier League</span>
+                <span class="font-black text-slate-900">${fixture.tournamentName || (store.getCustomTournamentById(fixture.tournamentId || fixture.tournament_id)?.name) || 'Cricket Premier League'}</span>
               </div>
               <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
                 <span class="text-[10px] text-slate-400 uppercase font-black block">Match Number & Stage</span>
@@ -5939,7 +9718,7 @@ export function openMatchPlayingXIModal(fixtureId) {
                 ${p.isWicketKeeper ? `<span class="px-1.5 py-0.5 bg-blue-600 text-white text-[9px] font-black rounded uppercase shrink-0">WK</span>` : ''}
               </div>
               <div class="text-[10px] text-slate-500 font-bold truncate">
-                ${p.category || 'All Rounder'} • ${p.village || 'Jhankra'}
+                ${p.category || 'All Rounder'} • ${p.village || 'N/A'}
               </div>
             </div>
           </div>
@@ -5981,7 +9760,7 @@ export function openMatchPlayingXIModal(fixtureId) {
           <div class="flex items-center gap-2.5">
             <span class="p-2.5 bg-emerald-50 text-emerald-700 rounded-2xl border border-emerald-200 text-base shadow-2xs">👥</span>
             <div>
-              <span class="px-2 py-0.5 bg-emerald-50 text-emerald-800 font-mono text-[9px] font-black rounded border border-emerald-200 uppercase">${fixture.leagueCode || 'JSL'} MATCH LINEUPS</span>
+              <span class="px-2 py-0.5 bg-emerald-50 text-emerald-800 font-mono text-[9px] font-black rounded border border-emerald-200 uppercase">${(fixture.tournamentName || (store.getCustomTournamentById(fixture.tournamentId || fixture.tournament_id)?.name) || 'CRICKET PREMIER LEAGUE').toUpperCase()} MATCH LINEUPS</span>
               <h3 class="text-base font-black text-slate-900 leading-tight mt-0.5">Playing 11 & Match Scorecard</h3>
             </div>
           </div>
@@ -6084,255 +9863,361 @@ function renderLiveAuctionView(container) {
     auctionPollInterval = null;
   }
 
-  const liveState = store.getLiveAuctionStateSync();
-  const hasActivePlayer = liveState && liveState.active_player_id;
+  let isLiveMode = false;
+  let isConcludedMode = false;
+  let playerSearchQuery = '';
+  let activeStatusTab = 'all'; // 'all', 'sold', 'unsold', 'pending'
+  let lastActivePlayerId = undefined;
+  let lastActiveStatus = undefined;
+  let lastAuctionSyncTimestamp = 0;
+  let lastAuctionCloudHeartbeat = 0;
+  let lastRenderedTableHash = '';
+  let lastRenderedPursesHash = '';
+  let lastRenderedLiveBid = null;
 
-  if (!hasActivePlayer) {
+  const renderConcludedView = (globalInfo) => {
+    const recentTourneys = globalInfo.recentTournaments || [];
+    const mainTourney = globalInfo.liveTournament || recentTourneys.find(t => t.customTeamsCount > 0) || recentTourneys[0] || { name: 'Kuapur Premier League', slug: 'k2026' };
+    const allTourneys = store.getCustomTournaments();
+
     container.innerHTML = `
-      <div class="space-y-6 animate-fade-in pb-16 max-w-2xl mx-auto px-2 sm:px-4 py-8 sm:py-12">
-        <div class="bg-white border-2 border-slate-200 rounded-3xl p-6 sm:p-8 text-center space-y-4 shadow-md">
-          <div class="w-16 h-16 bg-amber-100 text-amber-800 rounded-3xl mx-auto flex items-center justify-center text-3xl shadow-xs font-black">
-            🔨
+      <div id="auction-concluded-standby-view" class="space-y-6 animate-fade-in pb-16 max-w-4xl mx-auto px-2 sm:px-4 text-slate-900">
+        
+        <!-- Top Status Bar -->
+        <div class="bg-white border-2 border-slate-200/90 rounded-2xl sm:rounded-3xl p-4 shadow-xs flex items-center justify-between flex-wrap gap-3">
+          <div class="flex items-center gap-3">
+            <span class="w-11 h-11 bg-amber-100 text-amber-800 rounded-2xl flex items-center justify-center shrink-0 text-2xl shadow-2xs">
+              🔨
+            </span>
+            <div>
+              <h1 class="text-base sm:text-xl font-black text-slate-900 tracking-tight">
+                Grand Player Auction Arena
+              </h1>
+              <p class="text-[11px] sm:text-xs text-slate-500 font-bold">Multi-Tenant Real-Time Auction & Squad Allocation Portal</p>
+            </div>
           </div>
           
-          <div class="space-y-2">
-            <span class="inline-block px-3 py-1 bg-emerald-100 text-emerald-800 text-xs font-black rounded-full border border-emerald-300">
-              ✅ AUCTION CONCLUDED & ARCHIVED
+          <div class="flex items-center gap-2">
+            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-700 font-black text-xs rounded-xl border border-slate-200 shadow-2xs">
+              <span class="w-2.5 h-2.5 rounded-full bg-slate-400"></span> NO AUCTION CURRENTLY LIVE
             </span>
-            <h2 class="text-xl sm:text-2xl font-black text-slate-900 tracking-tight">
-              No Live Auction in Session
-            </h2>
-            <p class="text-xs sm:text-sm text-slate-600 max-w-md mx-auto leading-relaxed">
-              The Jhankra Super League (JSL 2026) player auction has completed. All 8 franchise squads, player sold records, icon player allocations, and financial ledgers are securely archived under the <strong>JSL Hub</strong>.
-            </p>
-          </div>
-
-          <div class="pt-2 flex flex-wrap items-center justify-center gap-3">
-            <button id="auction-go-to-jsl-hub-btn" class="px-5 py-2.5 bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-500 hover:to-yellow-500 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-xs flex items-center justify-center gap-1.5 border border-amber-300 cursor-pointer transition-all">
-              <span>📜 Visit JSL Hub & View Auction Summary</span>
-            </button>
           </div>
         </div>
+
+        <!-- Featured Recent Auction Highlight Card -->
+        <div class="bg-gradient-to-br from-slate-900 via-[#0F172A] to-slate-950 text-white rounded-3xl p-5 sm:p-7 border-2 border-amber-400/80 shadow-xl space-y-4">
+          <div class="flex items-center justify-between flex-wrap gap-2">
+            <div class="flex items-center gap-2">
+              <span class="px-2.5 py-0.5 bg-amber-500 text-slate-950 font-black text-[9px] sm:text-[10px] rounded-full uppercase tracking-wider">
+                RECENT COMPLETED AUCTION
+              </span>
+              <span class="px-2.5 py-0.5 bg-emerald-500/20 text-emerald-400 font-bold text-[9px] sm:text-[10px] rounded-full border border-emerald-500/40">
+                🔒 5-YEAR ARCHIVE LOCKED
+              </span>
+            </div>
+            <span class="text-xs text-slate-400 font-bold">Official League Vault</span>
+          </div>
+
+          <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+            <div>
+              <h2 class="text-xl sm:text-3xl font-black text-white uppercase tracking-tight">
+                🏆 ${mainTourney.name}
+              </h2>
+              <p class="text-xs sm:text-sm text-amber-200/90 font-medium mt-0.5">
+                All franchise player allocations, icon fees, and financial balance sheets are finalized.
+              </p>
+            </div>
+
+            <a href="#t/${mainTourney.slug || 'k2026'}?tab=auction" class="w-full sm:w-auto px-5 py-3 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black text-xs sm:text-sm rounded-2xl shadow-lg flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-95 cursor-pointer select-none">
+              <span>👉 View ${mainTourney.name} Hub & Squads</span>
+              <span class="text-base">➔</span>
+            </a>
+          </div>
+
+          <!-- 4 Fast Metrics for Recent Tournament -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
+            <div class="p-3 bg-slate-900/90 rounded-2xl border border-slate-800 text-center">
+              <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider block">TEAMS</span>
+              <div class="text-base sm:text-lg font-black text-white font-mono mt-0.5">${mainTourney.customTeamsCount || 4} Franchises</div>
+            </div>
+            <div class="p-3 bg-slate-900/90 rounded-2xl border border-slate-800 text-center">
+              <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider block">SQUAD SIZE</span>
+              <div class="text-base sm:text-lg font-black text-amber-400 font-mono mt-0.5">13 Players / Team</div>
+            </div>
+            <div class="p-3 bg-slate-900/90 rounded-2xl border border-slate-800 text-center">
+              <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider block">ROSTERS</span>
+              <div class="text-base sm:text-lg font-black text-emerald-400 font-mono mt-0.5">Finalized ✅</div>
+            </div>
+            <div class="p-3 bg-slate-900/90 rounded-2xl border border-slate-800 text-center">
+              <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider block">RECORD VAULT</span>
+              <div class="text-base sm:text-lg font-black text-sky-400 font-mono mt-0.5">Preserved 🏛️</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- All Tournaments Hub Directory Grid -->
+        <div class="space-y-3">
+          <div class="flex items-center justify-between px-1">
+            <h3 class="text-xs sm:text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
+              <span>🏛️</span> Browse Tournament Auction Archives & Squads
+            </h3>
+            <span class="text-xs font-bold text-slate-500">${allTourneys.length} Leagues Available</span>
+          </div>
+
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            ${allTourneys.map(t => `
+              <div class="p-4 bg-white border-2 border-slate-200/90 hover:border-amber-400 rounded-3xl shadow-xs hover:shadow-md transition-all flex items-center justify-between gap-3 group">
+                <div class="flex items-center gap-3 min-w-0">
+                  <div class="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0 shadow-2xs">
+                    <img src="${t.posterUrl || t.logoUrl || 'assets/jsl_logo.jpg'}" class="w-full h-full object-cover" onerror="this.src='assets/jsl_logo.jpg'" />
+                  </div>
+                  <div class="min-w-0">
+                    <h4 class="text-xs sm:text-sm font-black text-slate-900 truncate group-hover:text-amber-800 transition-colors">${t.name}</h4>
+                    <div class="text-[10px] text-slate-500 font-bold truncate mt-0.5">📍 ${t.venue || 'West Bengal'} • ${t.teamsCount || 4} Teams</div>
+                  </div>
+                </div>
+
+                <a href="#t/${t.slug}?tab=auction" class="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-amber-400 font-black text-xs rounded-xl shadow-xs flex items-center gap-1 shrink-0 transition-transform active:scale-95">
+                  <span>View Hub</span> <span>➔</span>
+                </a>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <!-- Realtime Live Stream Standby Notice -->
+        <div class="p-4 bg-blue-50 border border-blue-200 rounded-3xl flex items-center gap-3 text-xs text-blue-900 font-bold">
+          <span class="text-xl shrink-0">📡</span>
+          <div>
+            <strong>Automated Live Auction Feed:</strong> Whenever a tournament organizer starts a live bidding round, this page will automatically connect and stream live player bids and countdown timers in real-time.
+          </div>
+        </div>
+
+      </div>
+    `;
+    if (window.lucide) window.lucide.createIcons();
+  };
+
+  const renderActiveLiveView = (globalInfo) => {
+    const liveTourney = globalInfo.liveTournament || store.getCustomTournaments().find(t => (t.supabaseId || t.id) === store.activeTournamentId) || { name: 'Live Auction', slug: 'k2026' };
+    
+    container.innerHTML = `
+      <div class="space-y-5 sm:space-y-6 animate-fade-in pb-16 max-w-4xl mx-auto px-1 sm:px-4">
+        
+        <!-- Top Header matching screenshot -->
+        <div class="bg-white border-2 border-slate-200/90 rounded-2xl sm:rounded-3xl p-3 sm:p-4 shadow-xs flex items-center justify-between flex-wrap gap-2">
+          <div class="flex items-center gap-3">
+            <span class="w-10 h-10 bg-amber-100 text-amber-800 rounded-2xl flex items-center justify-center shrink-0 text-xl shadow-2xs">
+              🔨
+            </span>
+            <div>
+              <h1 class="text-base sm:text-xl font-black text-slate-900 tracking-tight">
+                ${liveTourney.name} Live Auction Arena
+              </h1>
+              <p class="text-[10px] sm:text-xs text-slate-500 font-bold">Real-time bids, live purse tracking & official team squads</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <button id="auction-open-projector-view-btn" class="px-3.5 py-2 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-md flex items-center gap-1.5 transition-all hover:scale-105 border border-amber-300 cursor-pointer active:scale-95 select-none" title="Open Single-Screen Live Projector View">
+              <span class="text-base">📽️</span> <span>Projector Screen</span>
+            </button>
+            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 font-extrabold text-xs rounded-xl border border-emerald-200 shadow-2xs">
+              <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span> LIVE NOW
+            </span>
+          </div>
+        </div>
+
+        <!-- Active Player Live Block (Waiting / Active Bidding) -->
+        <div id="auction-active-block-container" class="space-y-4"></div>
+
+        <!-- FRANCHISE PURSES SECTION (ALL TEAMS SHOWN FIRST) -->
+        <div class="space-y-3 pt-1">
+          <div class="flex justify-between items-center px-1">
+            <h3 class="text-xs sm:text-sm font-black text-slate-800 uppercase tracking-wider">
+              FRANCHISE PURSES
+            </h3>
+            <span class="text-xs font-bold text-slate-500 font-mono">Target: ${store.getAuctionSettings().maxSquadSize || 13} Players</span>
+          </div>
+
+          <div class="space-y-3" id="auction-franchise-purses-list"></div>
+        </div>
+
+        <!-- LOWER PORTION: Compact & Ultra-Stylish Player Auction Status & Record Card -->
+        <div class="bg-white border-2 border-slate-200/90 rounded-2xl sm:rounded-3xl shadow-xs overflow-hidden">
+          
+          <!-- Sleek Click-to-Open Accordion Header (Strict Single-Line Design) -->
+          <button id="toggle-player-status-accordion-btn" class="w-full flex items-center justify-between p-2.5 sm:p-3.5 bg-white hover:bg-slate-50 transition-all text-left cursor-pointer group select-none">
+            <div class="flex items-center gap-2.5 min-w-0 pr-1">
+              <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-black text-sm shrink-0 shadow-xs group-hover:scale-105 transition-transform">
+                📋
+              </div>
+              <div class="min-w-0 flex flex-col justify-center">
+                <!-- Single Line 1: Header - Auction Record + Total Badge -->
+                <div class="flex items-center gap-1.5 whitespace-nowrap">
+                  <h3 class="text-xs sm:text-sm font-black text-slate-900 tracking-tight whitespace-nowrap">
+                    Auction Record
+                  </h3>
+                  <span class="px-1.5 py-0.2 bg-slate-900 text-white rounded-full text-[9px] sm:text-[10px] font-mono font-bold whitespace-nowrap" id="accordion-total-players-badge">
+                    0 Players
+                  </span>
+                </div>
+                
+                <!-- Mini Stats Row: Sold, Unsold & Queue in single line, respective Numbers in next line -->
+                <div class="flex items-center gap-2.5 sm:gap-4 mt-1">
+                  <!-- Sold -->
+                  <div class="flex flex-col items-center">
+                    <span class="text-[9px] font-extrabold text-emerald-700 flex items-center gap-0.5 whitespace-nowrap">
+                      <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span> Sold
+                    </span>
+                    <span class="text-[11px] sm:text-xs font-black text-emerald-900 font-mono leading-tight" id="accordion-sold-count">
+                      0
+                    </span>
+                  </div>
+
+                  <div class="h-4 w-[1px] bg-slate-200 shrink-0"></div>
+
+                  <!-- Unsold -->
+                  <div class="flex flex-col items-center">
+                    <span class="text-[9px] font-extrabold text-rose-600 flex items-center gap-0.5 whitespace-nowrap">
+                      <span class="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0"></span> Unsold
+                    </span>
+                    <span class="text-[11px] sm:text-xs font-black text-rose-900 font-mono leading-tight" id="accordion-unsold-count">
+                      0
+                    </span>
+                  </div>
+
+                  <div class="h-4 w-[1px] bg-slate-200 shrink-0"></div>
+
+                  <!-- Queue -->
+                  <div class="flex flex-col items-center">
+                    <span class="text-[9px] font-extrabold text-slate-500 flex items-center gap-0.5 whitespace-nowrap">
+                      <span class="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0"></span> Queue
+                    </span>
+                    <span class="text-[11px] sm:text-xs font-black text-slate-800 font-mono leading-tight" id="accordion-pending-count">
+                      0
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+            
+            <div class="flex items-center shrink-0 pl-1">
+              <span id="accordion-toggle-btn-badge" class="px-2.5 sm:px-3 py-1.5 bg-blue-600 group-hover:bg-blue-700 text-white font-black text-[11px] sm:text-xs rounded-xl shadow-xs flex items-center gap-1 transition-all whitespace-nowrap">
+                <span id="accordion-toggle-label">Open Table</span>
+                <span id="accordion-toggle-arrow" class="text-[9px] transition-transform duration-300">▼</span>
+              </span>
+            </div>
+          </button>
+
+          <!-- Collapsible Content (Hidden by Default) -->
+          <div id="player-auction-status-collapsible" class="hidden border-t border-slate-100 bg-slate-50/40 p-3 sm:p-4 space-y-3 animate-fade-in">
+            
+            <!-- Compact Segmented Filter Tabs -->
+            <div class="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar" id="auction-status-filter-tabs">
+              <button class="status-tab-btn px-2.5 py-1.2 rounded-lg font-black text-xs transition-all cursor-pointer bg-slate-900 text-white shadow-xs shrink-0" data-tab="all">
+                All (<span id="count-all">0</span>)
+              </button>
+              <button class="status-tab-btn px-2.5 py-1.2 rounded-lg font-bold text-xs transition-all cursor-pointer bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 shrink-0" data-tab="sold">
+                ✅ Sold (<span id="count-sold">0</span>)
+              </button>
+              <button class="status-tab-btn px-2.5 py-1.2 rounded-lg font-bold text-xs transition-all cursor-pointer bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 shrink-0" data-tab="unsold">
+                ❌ Unsold (<span id="count-unsold">0</span>)
+              </button>
+              <button class="status-tab-btn px-2.5 py-1.2 rounded-lg font-bold text-xs transition-all cursor-pointer bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 shrink-0" data-tab="pending">
+                ⏳ In Queue (<span id="count-pending">0</span>)
+              </button>
+            </div>
+
+            <!-- Compact Search Bar -->
+            <div class="relative">
+              <input type="text" id="auction-player-search-input" placeholder="🔍 Search by name, village, role, or team..." class="w-full bg-white border border-slate-200 text-slate-800 text-xs rounded-xl py-2 px-3 pl-3 focus:outline-none focus:border-blue-500 font-bold placeholder-slate-400 shadow-2xs" />
+            </div>
+
+            <!-- Stylish Compact Table Container -->
+            <div class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
+              <div id="auction-players-full-table-content" class="overflow-x-auto max-h-[460px] overflow-y-auto"></div>
+            </div>
+
+          </div>
+
+        </div>
+
       </div>
     `;
 
-    document.getElementById('auction-go-to-jsl-hub-btn')?.addEventListener('click', () => {
-      navigate('jsl-hub');
-    });
+    if (window.lucide) window.lucide.createIcons();
 
-    // Check periodically if admin starts an auction
-    auctionPollInterval = setInterval(async () => {
-      const state = await store.fetchLiveAuctionState();
-      if (state && state.active_player_id) {
-        clearInterval(auctionPollInterval);
-        renderLiveAuctionView(container);
-      }
-    }, 4000);
+    // Attach Accordion Toggle
+    let isTableOpen = false;
+    const toggleBtn = document.getElementById('toggle-player-status-accordion-btn');
+    const collapsibleDiv = document.getElementById('player-auction-status-collapsible');
+    const toggleLabel = document.getElementById('accordion-toggle-label');
+    const toggleArrow = document.getElementById('accordion-toggle-arrow');
 
-    return;
-  }
-
-  let playerSearchQuery = '';
-  let activeStatusTab = 'all'; // 'all', 'sold', 'unsold', 'pending'
-
-  // 1. Render outer shell ONCE in crisp professional theme
-  container.innerHTML = `
-    <div class="space-y-5 sm:space-y-6 animate-fade-in pb-16 max-w-4xl mx-auto px-1 sm:px-4">
-      
-      <!-- Top Header matching screenshot -->
-      <div class="bg-white border-2 border-slate-200/90 rounded-2xl sm:rounded-3xl p-3 sm:p-4 shadow-xs flex items-center justify-between flex-wrap gap-2">
-        <div class="flex items-center gap-3">
-          <span class="w-10 h-10 bg-amber-100 text-amber-800 rounded-2xl flex items-center justify-center shrink-0 text-xl shadow-2xs">
-            🔨
-          </span>
-          <div>
-            <h1 class="text-base sm:text-xl font-black text-slate-900 tracking-tight">
-              Live Player Auction Hub
-            </h1>
-            <p class="text-[10px] sm:text-xs text-slate-500 font-bold">Real-time bids, live purse tracking & official team squads</p>
-          </div>
-        </div>
-        <div class="flex items-center gap-2">
-          <button id="auction-open-projector-view-btn" onclick="window.openLiveAuctionProjectorView ? window.openLiveAuctionProjectorView() : null" class="px-3.5 py-2 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-md flex items-center gap-1.5 transition-all hover:scale-105 border border-amber-300 cursor-pointer active:scale-95 select-none" title="Open Single-Screen Live Projector View">
-            <span class="text-base">📽️</span> <span>Projector Screen</span>
-          </button>
-          <span class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 font-extrabold text-xs rounded-xl border border-emerald-200 shadow-2xs">
-            <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span> LIVE
-          </span>
-        </div>
-      </div>
-
-      <!-- Active Player Live Block (Waiting / Active Bidding) -->
-      <div id="auction-active-block-container" class="space-y-4"></div>
-
-      <!-- FRANCHISE PURSES SECTION (ALL TEAMS SHOWN FIRST) -->
-      <div class="space-y-3 pt-1">
-        <div class="flex justify-between items-center px-1">
-          <h3 class="text-xs sm:text-sm font-black text-slate-800 uppercase tracking-wider">
-            FRANCHISE PURSES
-          </h3>
-          <span class="text-xs font-bold text-slate-500">Target: 13 Players</span>
-        </div>
-
-        <div class="space-y-3" id="auction-franchise-purses-list"></div>
-      </div>
-
-      <!-- LOWER PORTION: Compact & Ultra-Stylish Player Auction Status & Record Card -->
-      <div class="bg-white border-2 border-slate-200/90 rounded-2xl sm:rounded-3xl shadow-xs overflow-hidden">
-        
-        <!-- Sleek Click-to-Open Accordion Header (Strict Single-Line Design) -->
-        <button id="toggle-player-status-accordion-btn" class="w-full flex items-center justify-between p-2.5 sm:p-3.5 bg-white hover:bg-slate-50 transition-all text-left cursor-pointer group select-none">
-          <div class="flex items-center gap-2.5 min-w-0 pr-1">
-            <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-gradient-to-br from-blue-600 to-indigo-700 text-white flex items-center justify-center font-black text-sm shrink-0 shadow-xs group-hover:scale-105 transition-transform">
-              📋
-            </div>
-            <div class="min-w-0 flex flex-col justify-center">
-              <!-- Single Line 1: Header - Auction Record + Total Badge -->
-              <div class="flex items-center gap-1.5 whitespace-nowrap">
-                <h3 class="text-xs sm:text-sm font-black text-slate-900 tracking-tight whitespace-nowrap">
-                  Auction Record
-                </h3>
-                <span class="px-1.5 py-0.2 bg-slate-900 text-white rounded-full text-[9px] sm:text-[10px] font-mono font-bold whitespace-nowrap" id="accordion-total-players-badge">
-                  0 Players
-                </span>
-              </div>
-              
-              <!-- Mini Stats Row: Sold, Unsold & Queue in single line, respective Numbers in next line -->
-              <div class="flex items-center gap-2.5 sm:gap-4 mt-1">
-                <!-- Sold -->
-                <div class="flex flex-col items-center">
-                  <span class="text-[9px] font-extrabold text-emerald-700 flex items-center gap-0.5 whitespace-nowrap">
-                    <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span> Sold
-                  </span>
-                  <span class="text-[11px] sm:text-xs font-black text-emerald-900 font-mono leading-tight" id="accordion-sold-count">
-                    0
-                  </span>
-                </div>
-
-                <div class="h-4 w-[1px] bg-slate-200 shrink-0"></div>
-
-                <!-- Unsold -->
-                <div class="flex flex-col items-center">
-                  <span class="text-[9px] font-extrabold text-rose-600 flex items-center gap-0.5 whitespace-nowrap">
-                    <span class="w-1.5 h-1.5 rounded-full bg-rose-500 shrink-0"></span> Unsold
-                  </span>
-                  <span class="text-[11px] sm:text-xs font-black text-rose-900 font-mono leading-tight" id="accordion-unsold-count">
-                    0
-                  </span>
-                </div>
-
-                <div class="h-4 w-[1px] bg-slate-200 shrink-0"></div>
-
-                <!-- Queue -->
-                <div class="flex flex-col items-center">
-                  <span class="text-[9px] font-extrabold text-slate-500 flex items-center gap-0.5 whitespace-nowrap">
-                    <span class="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0"></span> Queue
-                  </span>
-                  <span class="text-[11px] sm:text-xs font-black text-slate-800 font-mono leading-tight" id="accordion-pending-count">
-                    0
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-          
-          <div class="flex items-center shrink-0 pl-1">
-            <span id="accordion-toggle-btn-badge" class="px-2.5 sm:px-3 py-1.5 bg-blue-600 group-hover:bg-blue-700 text-white font-black text-[11px] sm:text-xs rounded-xl shadow-xs flex items-center gap-1 transition-all whitespace-nowrap">
-              <span id="accordion-toggle-label">Open Table</span>
-              <span id="accordion-toggle-arrow" class="text-[9px] transition-transform duration-300">▼</span>
-            </span>
-          </div>
-        </button>
-
-        <!-- Collapsible Content (Hidden by Default) -->
-        <div id="player-auction-status-collapsible" class="hidden border-t border-slate-100 bg-slate-50/40 p-3 sm:p-4 space-y-3 animate-fade-in">
-          
-          <!-- Compact Segmented Filter Tabs -->
-          <div class="flex items-center gap-1.5 overflow-x-auto pb-1 no-scrollbar" id="auction-status-filter-tabs">
-            <button class="status-tab-btn px-2.5 py-1.2 rounded-lg font-black text-xs transition-all cursor-pointer bg-slate-900 text-white shadow-xs shrink-0" data-tab="all">
-              All (<span id="count-all">0</span>)
-            </button>
-            <button class="status-tab-btn px-2.5 py-1.2 rounded-lg font-bold text-xs transition-all cursor-pointer bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 shrink-0" data-tab="sold">
-              ✅ Sold (<span id="count-sold">0</span>)
-            </button>
-            <button class="status-tab-btn px-2.5 py-1.2 rounded-lg font-bold text-xs transition-all cursor-pointer bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 shrink-0" data-tab="unsold">
-              ❌ Unsold (<span id="count-unsold">0</span>)
-            </button>
-            <button class="status-tab-btn px-2.5 py-1.2 rounded-lg font-bold text-xs transition-all cursor-pointer bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 shrink-0" data-tab="pending">
-              ⏳ In Queue (<span id="count-pending">0</span>)
-            </button>
-          </div>
-
-          <!-- Compact Search Bar -->
-          <div class="relative">
-            <input type="text" id="auction-player-search-input" placeholder="🔍 Search by name, village, role, or team..." class="w-full bg-white border border-slate-200 text-slate-800 text-xs rounded-xl py-2 px-3 pl-3 focus:outline-none focus:border-blue-500 font-bold placeholder-slate-400 shadow-2xs" />
-          </div>
-
-          <!-- Stylish Compact Table Container -->
-          <div class="bg-white rounded-xl border border-slate-200 overflow-hidden shadow-2xs">
-            <div id="auction-players-full-table-content" class="overflow-x-auto max-h-[460px] overflow-y-auto"></div>
-          </div>
-
-        </div>
-
-      </div>
-
-    </div>
-  `;
-
-  if (window.lucide) window.lucide.createIcons();
-
-  let lastActivePlayerId = undefined;
-  let lastActiveStatus = undefined;
-
-  // Toggle Accordion Click Handler
-  let isTableOpen = false;
-  const toggleBtn = document.getElementById('toggle-player-status-accordion-btn');
-  const collapsibleDiv = document.getElementById('player-auction-status-collapsible');
-  const toggleLabel = document.getElementById('accordion-toggle-label');
-  const toggleArrow = document.getElementById('accordion-toggle-arrow');
-
-  if (toggleBtn && collapsibleDiv) {
-    toggleBtn.addEventListener('click', () => {
-      isTableOpen = !isTableOpen;
-      if (isTableOpen) {
-        collapsibleDiv.classList.remove('hidden');
-        if (toggleLabel) toggleLabel.textContent = 'Close';
-        if (toggleArrow) toggleArrow.textContent = '▲';
-        renderPlayerStatusTable();
-      } else {
-        collapsibleDiv.classList.add('hidden');
-        if (toggleLabel) toggleLabel.textContent = 'Open Table';
-        if (toggleArrow) toggleArrow.textContent = '▼';
-      }
-    });
-  }
-
-  // Tab switching
-  document.querySelectorAll('.status-tab-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      activeStatusTab = e.currentTarget.getAttribute('data-tab');
-      document.querySelectorAll('.status-tab-btn').forEach(b => {
-        b.className = 'status-tab-btn px-2.5 py-1.2 rounded-lg font-bold text-xs transition-all cursor-pointer bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 shrink-0';
+    if (toggleBtn && collapsibleDiv) {
+      toggleBtn.addEventListener('click', () => {
+        isTableOpen = !isTableOpen;
+        if (isTableOpen) {
+          collapsibleDiv.classList.remove('hidden');
+          if (toggleLabel) toggleLabel.textContent = 'Close';
+          if (toggleArrow) toggleArrow.textContent = '▲';
+          renderPlayerStatusTable();
+        } else {
+          collapsibleDiv.classList.add('hidden');
+          if (toggleLabel) toggleLabel.textContent = 'Open Table';
+          if (toggleArrow) toggleArrow.textContent = '▼';
+        }
       });
-      e.currentTarget.className = 'status-tab-btn px-2.5 py-1.2 rounded-lg font-black text-xs transition-all cursor-pointer bg-slate-900 text-white shadow-xs shrink-0';
-      renderPlayerStatusTable();
-    });
-  });
+    }
 
-  // Search input handler
-  const searchInput = document.getElementById('auction-player-search-input');
-  if (searchInput) {
-    searchInput.addEventListener('input', (e) => {
-      playerSearchQuery = e.target.value.toLowerCase().trim();
-      renderPlayerStatusTable();
+    // Attach Status Tab Filter Buttons
+    document.querySelectorAll('.status-tab-btn').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        activeStatusTab = e.currentTarget.getAttribute('data-tab');
+        document.querySelectorAll('.status-tab-btn').forEach(b => {
+          b.className = 'status-tab-btn px-2.5 py-1.2 rounded-lg font-bold text-xs transition-all cursor-pointer bg-white text-slate-600 hover:bg-slate-100 border border-slate-200 shrink-0';
+        });
+        e.currentTarget.className = 'status-tab-btn px-2.5 py-1.2 rounded-lg font-black text-xs transition-all cursor-pointer bg-slate-900 text-white shadow-xs shrink-0';
+        renderPlayerStatusTable();
+      });
     });
-  }
+
+    // Attach Search Input
+    const searchInput = document.getElementById('auction-player-search-input');
+    if (searchInput) {
+      searchInput.addEventListener('input', (e) => {
+        playerSearchQuery = e.target.value.toLowerCase().trim();
+        renderPlayerStatusTable();
+      });
+    }
+
+    // Attach Projector Button
+    document.getElementById('auction-open-projector-view-btn')?.addEventListener('click', () => {
+      openLiveAuctionProjectorView();
+    });
+  };
 
   const renderPlayerStatusTable = () => {
     const tableContainer = document.getElementById('auction-players-full-table-content');
-    const allPlayers = store.getPlayers().filter(p => p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED');
-    const teams = store.getTeams();
+    const collapsibleDiv = document.getElementById('player-auction-status-collapsible');
+    const liveTourneyId = store.activeTournamentId;
+    const liveTourneyUUID = toUUID(liveTourneyId);
+
+    const allPlayersRaw = (store.getAllPlayersAcrossTournaments ? store.getAllPlayersAcrossTournaments() : store.getPlayers()).filter(p => p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED');
+    const allPlayers = allPlayersRaw.filter(p => {
+      if (!p) return false;
+      const pTid = p.tournament_id || p.tournamentId || p.leagueId;
+      if (!pTid) return true;
+      return pTid === liveTourneyId || toUUID(pTid) === liveTourneyUUID;
+    });
+
+    const allTeamsRaw = (store.getAllTeamsAcrossTournaments ? store.getAllTeamsAcrossTournaments() : store.getTeams());
+    const teams = allTeamsRaw.filter(t => {
+      if (!t) return false;
+      const tId = t.tournament_id || t.tournamentId || t.leagueId;
+      if (!tId) return true;
+      return tId === liveTourneyId || toUUID(tId) === liveTourneyUUID;
+    });
 
     const soldList = allPlayers.filter(p => p.teamId || p.auctionStatus === 'SOLD');
     const unsoldList = allPlayers.filter(p => p.auctionStatus === 'UNSOLD' && !p.teamId);
@@ -6400,12 +10285,17 @@ function renderLiveAuctionView(container) {
                     <img src="${getOptimizedImageUrl(p.photoUrl || p.player_photo_url, 70, 70)}" class="w-7 h-7 rounded-lg object-cover border border-slate-200 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
                     <div class="min-w-0">
                       <div class="font-black text-slate-900 text-xs truncate">${p.name}</div>
-                      <div class="text-[9px] text-slate-400 font-medium truncate leading-tight">📍 ${p.village || 'Jhankra'}</div>
+                      <div class="text-[9px] text-slate-400 font-medium truncate leading-tight">📍 ${p.village || 'N/A'}</div>
                     </div>
                   </div>
                 </td>
                 <td class="py-2 px-2.5">
-                  <span class="px-1.5 py-0.5 bg-slate-100 text-slate-700 rounded text-[9px] font-bold uppercase whitespace-nowrap">
+                  <span class="px-2 py-0.5 rounded-full text-[9px] font-black uppercase whitespace-nowrap ${
+                    p.category === 'Batsman' ? 'bg-sky-50 text-sky-700 border border-sky-300' :
+                    p.category === 'Bowler' ? 'bg-purple-50 text-purple-700 border border-purple-300' :
+                    p.category === 'Wicket Keeper' ? 'bg-amber-50 text-amber-800 border border-amber-300' :
+                    'bg-emerald-50 text-emerald-700 border border-emerald-300'
+                  }">
                     ${p.category || 'All Rounder'}
                   </span>
                 </td>
@@ -6444,17 +10334,18 @@ function renderLiveAuctionView(container) {
       const bidderTeam = teams.find(t => t.id === state.highest_bidder_team_id);
       const isUnsoldState = (state.status === 'UNSOLD' || state.is_unsold);
       const isSoldState = (state.status === 'SOLD' || state.is_sold);
-      const isNewPlayer = (lastActivePlayerId !== state.active_player_id);
+      const isNewPlayerOrStatus = (lastActivePlayerId !== state.active_player_id || lastActiveStatus !== state.status);
       const playerCardEl = document.getElementById('auction-player-card-box');
 
-      if (isNewPlayer || !playerCardEl) {
+      if (isNewPlayerOrStatus || !playerCardEl) {
         lastActivePlayerId = state.active_player_id;
         lastActiveStatus = state.status;
-        const playerPhoto = getOptimizedImageUrl(state.photoUrl, 600, 600) || 'assets/card_jsl_user.png';
+        const pObj = store.getPlayerById(state.active_player_id) || store.getPlayers().find(p => p.id === state.active_player_id || (state.active_player_id && p.id && toUUID(p.id) === toUUID(state.active_player_id)));
+        const rawPhoto = state.photoUrl || state.player_photo_url || pObj?.photoUrl || pObj?.photo_url || pObj?.player_photo_url || pObj?.photo || pObj?.image || '';
+        const playerPhoto = getOptimizedImageUrl(rawPhoto, 600, 600) || 'assets/card_jsl_user.png';
 
         activeBlockWrapper.innerHTML = `
           <div id="auction-player-card-box" class="relative rounded-3xl overflow-hidden shadow-2xl border-2 ${isSoldState ? 'border-emerald-500' : isUnsoldState ? 'border-rose-500' : 'border-emerald-500/40'} min-h-[460px] sm:min-h-[540px] md:min-h-[580px] max-w-2xl mx-auto flex flex-col justify-between p-3 sm:p-4 bg-slate-900 animate-fade-in">
-            <!-- Full Crystal Clear Real Player Photo (Zero Dark Shading/Light Overlay) -->
             <img id="auction-player-photo-img" src="${playerPhoto}" class="absolute inset-0 w-full h-full object-cover sm:object-contain object-top" alt="${state.name}" onerror="this.src='assets/card_jsl_user.png'" />
 
             <div id="auction-stamp-slot">
@@ -6466,17 +10357,7 @@ function renderLiveAuctionView(container) {
                       <circle cx="150" cy="150" r="128" fill="none" stroke="#059669" stroke-width="2.5" />
                       <path id="sold-arc-top-v9" d="M 35,150 A 115,115 0 0,1 265,150" fill="none" />
                       <text fill="#059669" font-size="22" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="6">
-                        <textPath href="#sold-arc-top-v9" startOffset="50%" text-anchor="middle">JSL 2026 AUCTION</textPath>
-                      </text>
-                      <text x="105" y="94" fill="#059669" font-size="20" text-anchor="middle">★</text>
-                      <text x="150" y="82" fill="#059669" font-size="28" text-anchor="middle">★</text>
-                      <text x="195" y="94" fill="#059669" font-size="20" text-anchor="middle">★</text>
-                      <text x="105" y="222" fill="#059669" font-size="20" text-anchor="middle">★</text>
-                      <text x="150" y="234" fill="#059669" font-size="28" text-anchor="middle">★</text>
-                      <text x="195" y="222" fill="#059669" font-size="20" text-anchor="middle">★</text>
-                      <path id="sold-arc-bottom-v9" d="M 265,150 A 115,115 0 0,1 35,150" fill="none" />
-                      <text fill="#059669" font-size="20" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="6">
-                        <textPath href="#sold-arc-bottom-v9" startOffset="50%" text-anchor="middle">OFFICIALLY SIGNED</textPath>
+                        <textPath href="#sold-arc-top-v9" startOffset="50%" text-anchor="middle">LIVE AUCTION</textPath>
                       </text>
                       <rect x="5" y="106" width="290" height="88" rx="16" fill="#059669" stroke="#ffffff" stroke-width="4" />
                       <text x="150" y="152" fill="#ffffff" font-size="46" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="8" text-anchor="middle">SOLD</text>
@@ -6489,21 +10370,6 @@ function renderLiveAuctionView(container) {
                   <svg viewBox="0 0 300 300" class="w-60 h-60 sm:w-80 sm:h-80 stamp-slam-animate select-none drop-shadow-2xl" xmlns="http://www.w3.org/2000/svg">
                     <g transform="rotate(-15 150 150)">
                       <circle cx="150" cy="150" r="140" fill="none" stroke="#C5221F" stroke-width="7" stroke-dasharray="18 4 12 3 24 5" />
-                      <circle cx="150" cy="150" r="128" fill="none" stroke="#C5221F" stroke-width="2.5" />
-                      <path id="unsold-arc-top-v9" d="M 35,150 A 115,115 0 0,1 265,150" fill="none" />
-                      <text fill="#C5221F" font-size="28" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="14">
-                        <textPath href="#unsold-arc-top-v9" startOffset="50%" text-anchor="middle">UNSOLD</textPath>
-                      </text>
-                      <text x="105" y="94" fill="#C5221F" font-size="20" text-anchor="middle">★</text>
-                      <text x="150" y="82" fill="#C5221F" font-size="28" text-anchor="middle">★</text>
-                      <text x="195" y="94" fill="#C5221F" font-size="20" text-anchor="middle">★</text>
-                      <text x="105" y="222" fill="#C5221F" font-size="20" text-anchor="middle">★</text>
-                      <text x="150" y="234" fill="#C5221F" font-size="28" text-anchor="middle">★</text>
-                      <text x="195" y="222" fill="#C5221F" font-size="20" text-anchor="middle">★</text>
-                      <path id="unsold-arc-bottom-v9" d="M 265,150 A 115,115 0 0,1 35,150" fill="none" />
-                      <text fill="#C5221F" font-size="24" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="12">
-                        <textPath href="#unsold-arc-bottom-v9" startOffset="50%" text-anchor="middle">UNSOLD</textPath>
-                      </text>
                       <rect x="5" y="110" width="290" height="80" rx="16" fill="#C5221F" stroke="#ffffff" stroke-width="4" />
                       <text x="150" y="167" fill="#ffffff" font-size="52" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="6" text-anchor="middle">UNSOLD</text>
                     </g>
@@ -6512,17 +10378,13 @@ function renderLiveAuctionView(container) {
               ` : ''}
             </div>
 
-            <!-- TOP ROW: Upper Right Red Box with Full JSL Serial ID -->
             <div class="relative z-10 flex justify-end items-center w-full">
               <span class="px-3.5 py-1.5 bg-red-600 text-white font-black font-mono text-xs sm:text-sm rounded-xl border-2 border-red-400 shadow-lg tracking-wider">
-                ${state.registrationId || state.regNo || ('JSL2026-' + String(state.displayRegistrationNumber || state.serialNo || 1).padStart(4, '0'))}
+                ${state.registrationId || state.regNo || ('REG-' + String(state.displayRegistrationNumber || state.serialNo || 1).padStart(4, '0'))}
               </span>
             </div>
 
-            <!-- LOWEST PORTION: Compact Player Details Box & Bid Shape (Max Image Visibility) -->
             <div class="relative z-10 mt-auto space-y-1.5">
-              
-              <!-- Compact Details Box with Larger Name & Category, SVG Icons -->
               <div class="p-2 sm:p-2.5 bg-white/95 backdrop-blur-md rounded-2xl border border-white/80 shadow-md space-y-0.5">
                 <div class="flex items-center justify-between gap-2">
                   <h2 class="text-lg sm:text-2xl font-black text-slate-950 tracking-tight leading-tight truncate">
@@ -6535,44 +10397,18 @@ function renderLiveAuctionView(container) {
 
                 <div class="flex items-center justify-between text-[10px] sm:text-xs text-slate-700 font-bold border-t border-slate-200/80 pt-1 flex-wrap gap-x-2 gap-y-0.5">
                   <div class="flex items-center gap-2 flex-wrap min-w-0">
-                    <!-- Red Pin SVG + Address -->
                     <span class="inline-flex items-center gap-0.5 truncate text-slate-800">
-                      <svg class="w-3.5 h-3.5 text-red-500 fill-red-500 shrink-0 inline-block" viewBox="0 0 24 24">
-                        <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
-                      </svg>
-                      ${state.village || 'Paschim Medinipur'}
+                      📍 ${state.village || 'Paschim Medinipur'}
                     </span>
-
-                    <!-- SVG Bat + Batting Style -->
                     <span class="inline-flex items-center gap-0.5 truncate text-slate-700">
-                      <svg class="w-3.5 h-3.5 text-amber-600 shrink-0 inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <path d="m14 13-7.5 7.5c-.83.83-2.17.83-3 0 0 0 0 0 0 0-.83-.83-.83-2.17 0-3L11 10"/>
-                        <path d="m16 16 6-6"/>
-                      </svg>
-                      ${state.battingStyle || 'Right Hand Bat'}
+                      🏏 ${state.battingStyle || 'Right Hand Bat'}
                     </span>
-
-                    <!-- SVG Ball + Bowling Style -->
-                    ${state.bowlingStyle && state.bowlingStyle !== 'None' ? `
-                      <span class="inline-flex items-center gap-0.5 truncate text-slate-700">
-                        <svg class="w-3.5 h-3.5 text-rose-600 shrink-0 inline-block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                          <circle cx="12" cy="12" r="9"/>
-                          <path d="m4.93 4.93 4.24 4.24"/>
-                          <path d="m14.83 14.83 4.24 4.24"/>
-                        </svg>
-                        ${state.bowlingStyle}
-                      </span>
-                    ` : ''}
                   </div>
-
-                  <!-- Base Price -->
                   <span class="text-amber-800 font-mono font-black shrink-0 ml-auto text-xs sm:text-sm">Base: ₹${state.basePrice || 300}</span>
                 </div>
               </div>
 
-              <!-- High-Impact Bold Bid Shape (Red High-Glow Amount & LEADER BIDDER 🔥) -->
               <div class="grid grid-cols-2 gap-2 ${isUnsoldState ? 'bg-rose-950/95 border-2 sm:border-3 border-rose-500' : 'bg-slate-950/95 border-2 sm:border-3 border-amber-400'} backdrop-blur-2xl p-2.5 sm:p-3 rounded-2xl sm:rounded-3xl shadow-2xl">
-                <!-- LEFT: CURRENT HIGH BID (Massive Glowing RED Display) -->
                 <div class="flex flex-col justify-center">
                   <span id="auction-status-label" class="text-[9px] sm:text-[11px] font-black ${isUnsoldState ? 'text-rose-300' : 'text-amber-300'} uppercase tracking-widest block">
                     ${isSoldState ? 'AUCTION RESULT' : isUnsoldState ? 'Auction Status' : 'CURRENT HIGH BID'}
@@ -6582,7 +10418,6 @@ function renderLiveAuctionView(container) {
                   </div>
                 </div>
                 
-                <!-- RIGHT: LEADER BIDDER 🔥 & TEAM NAME -->
                 <div class="text-right border-l border-slate-800/90 pl-2.5 flex flex-col justify-center">
                   <span id="auction-bidder-label" class="text-[9px] sm:text-[11px] font-black ${isSoldState ? 'text-emerald-400' : isUnsoldState ? 'text-rose-400' : 'text-amber-400'} uppercase tracking-widest flex items-center justify-end gap-1">
                     ${isSoldState ? 'WINNING FRANCHISE 🏆' : isUnsoldState ? 'ROUND 2 STATUS ⚡' : 'LEADER BIDDER 🔥'}
@@ -6598,7 +10433,6 @@ function renderLiveAuctionView(container) {
         `;
         if (window.lucide) window.lucide.createIcons();
       } else {
-        // SAME PLAYER ALREADY SHOWN: SMOOTH IN-PLACE UPDATES WITHOUT TOUCHING PHOTO!
         const stampSlot = document.getElementById('auction-stamp-slot');
         const stampOverlay = document.getElementById('auction-stamp-overlay');
 
@@ -6610,20 +10444,6 @@ function renderLiveAuctionView(container) {
                   <g transform="rotate(-13 150 150)">
                     <circle cx="150" cy="150" r="140" fill="none" stroke="#059669" stroke-width="7" stroke-dasharray="20 4 15 3 25 5" />
                     <circle cx="150" cy="150" r="128" fill="none" stroke="#059669" stroke-width="2.5" />
-                    <path id="sold-arc-top-v9" d="M 35,150 A 115,115 0 0,1 265,150" fill="none" />
-                    <text fill="#059669" font-size="22" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="6">
-                      <textPath href="#sold-arc-top-v9" startOffset="50%" text-anchor="middle">JSL 2026 AUCTION</textPath>
-                    </text>
-                    <text x="105" y="94" fill="#059669" font-size="20" text-anchor="middle">★</text>
-                    <text x="150" y="82" fill="#059669" font-size="28" text-anchor="middle">★</text>
-                    <text x="195" y="94" fill="#059669" font-size="20" text-anchor="middle">★</text>
-                    <text x="105" y="222" fill="#059669" font-size="20" text-anchor="middle">★</text>
-                    <text x="150" y="234" fill="#059669" font-size="28" text-anchor="middle">★</text>
-                    <text x="195" y="222" fill="#059669" font-size="20" text-anchor="middle">★</text>
-                    <path id="sold-arc-bottom-v9" d="M 265,150 A 115,115 0 0,1 35,150" fill="none" />
-                    <text fill="#059669" font-size="20" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="6">
-                      <textPath href="#sold-arc-bottom-v9" startOffset="50%" text-anchor="middle">OFFICIALLY SIGNED</textPath>
-                    </text>
                     <rect x="5" y="106" width="290" height="88" rx="16" fill="#059669" stroke="#ffffff" stroke-width="4" />
                     <text x="150" y="152" fill="#ffffff" font-size="46" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="8" text-anchor="middle">SOLD</text>
                     <text x="150" y="178" fill="#fef08a" font-size="14" font-weight="900" font-family="'Arial', sans-serif" text-anchor="middle">${bidderTeam ? bidderTeam.name + ' • ' : ''}₹ ${Number(state.sold_price || state.current_bid || 300).toLocaleString('en-IN')}</text>
@@ -6639,7 +10459,7 @@ function renderLiveAuctionView(container) {
           if (statusLabel) statusLabel.textContent = 'AUCTION RESULT';
           if (bidEl) {
             bidEl.textContent = '🔨 SOLD';
-            bidEl.className = 'text-3xl sm:text-5xl md:text-6xl font-black text-emerald-400 font-mono leading-none mt-0.5 drop-shadow-[0_4px_16px_rgba(16,185,129,0.5)]';
+            bidEl.className = 'text-3xl sm:text-5xl md:text-6xl font-black text-emerald-400 font-mono leading-none mt-0.5 drop-shadow-[0_4px_16px_rgba(5,150,105,0.6)]';
           }
           if (bidderLabel) bidderLabel.textContent = 'WINNING FRANCHISE 🏆';
           if (teamEl) teamEl.textContent = bidderTeam ? '🛡️ ' + bidderTeam.name : 'Sold';
@@ -6650,21 +10470,6 @@ function renderLiveAuctionView(container) {
                 <svg viewBox="0 0 300 300" class="w-60 h-60 sm:w-80 sm:h-80 stamp-slam-animate select-none drop-shadow-2xl" xmlns="http://www.w3.org/2000/svg">
                   <g transform="rotate(-15 150 150)">
                     <circle cx="150" cy="150" r="140" fill="none" stroke="#C5221F" stroke-width="7" stroke-dasharray="18 4 12 3 24 5" />
-                    <circle cx="150" cy="150" r="128" fill="none" stroke="#C5221F" stroke-width="2.5" />
-                    <path id="unsold-arc-top-v9" d="M 35,150 A 115,115 0 0,1 265,150" fill="none" />
-                    <text fill="#C5221F" font-size="28" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="14">
-                      <textPath href="#unsold-arc-top-v9" startOffset="50%" text-anchor="middle">UNSOLD</textPath>
-                    </text>
-                    <text x="105" y="94" fill="#C5221F" font-size="20" text-anchor="middle">★</text>
-                    <text x="150" y="82" fill="#C5221F" font-size="28" text-anchor="middle">★</text>
-                    <text x="195" y="94" fill="#C5221F" font-size="20" text-anchor="middle">★</text>
-                    <text x="105" y="222" fill="#C5221F" font-size="20" text-anchor="middle">★</text>
-                    <text x="150" y="234" fill="#C5221F" font-size="28" text-anchor="middle">★</text>
-                    <text x="195" y="222" fill="#C5221F" font-size="20" text-anchor="middle">★</text>
-                    <path id="unsold-arc-bottom-v9" d="M 265,150 A 115,115 0 0,1 35,150" fill="none" />
-                    <text fill="#C5221F" font-size="24" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="12">
-                      <textPath href="#unsold-arc-bottom-v9" startOffset="50%" text-anchor="middle">UNSOLD</textPath>
-                    </text>
                     <rect x="5" y="110" width="290" height="80" rx="16" fill="#C5221F" stroke="#ffffff" stroke-width="4" />
                     <text x="150" y="167" fill="#ffffff" font-size="52" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="6" text-anchor="middle">UNSOLD</text>
                   </g>
@@ -6684,7 +10489,6 @@ function renderLiveAuctionView(container) {
           if (bidderLabel) bidderLabel.textContent = 'ROUND 2 STATUS ⚡';
           if (teamEl) teamEl.textContent = 'Eligible for Re-Bid';
         } else {
-          // NORMAL BIDDING IN PROGRESS: Update text only + trigger pulse flash animation on change!
           if (stampOverlay && stampSlot) stampSlot.innerHTML = '';
           const statusLabel = document.getElementById('auction-status-label');
           const bidEl = document.getElementById('auction-live-bid-display');
@@ -6699,7 +10503,7 @@ function renderLiveAuctionView(container) {
             if (lastRenderedLiveBid !== currentBidVal) {
               lastRenderedLiveBid = currentBidVal;
               bidEl.classList.remove('bid-pulse-flash');
-              void bidEl.offsetWidth; // Force CSS reflow to replay flash
+              void bidEl.offsetWidth;
               bidEl.classList.add('bid-pulse-flash');
             }
           }
@@ -6716,16 +10520,10 @@ function renderLiveAuctionView(container) {
         activeBlockWrapper.innerHTML = `
           <div id="auction-waiting-block-box" class="text-center p-6 sm:p-8 ${isAuctionCompleted ? 'bg-gradient-to-br from-amber-500/10 to-emerald-500/10 border-2 border-amber-400/60' : 'bg-white border-2 border-dashed border-slate-300'} rounded-2xl sm:rounded-3xl shadow-xs animate-fade-in">
             <div class="w-12 h-12 rounded-2xl ${isAuctionCompleted ? 'bg-amber-100 text-amber-600' : 'bg-blue-50 text-blue-500'} flex items-center justify-center mx-auto mb-3 shadow-2xs">
-              <svg class="w-6 h-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="m14 13-7.5 7.5c-.83.83-2.17.83-3 0 0 0 0 0 0 0-.83-.83-.83-2.17 0-3L11 10"/>
-                <path d="m16 16 6-6"/>
-                <path d="m8 8 6-6"/>
-                <path d="m9 7 8 8"/>
-                <path d="m21 11-8-8"/>
-              </svg>
+              🔨
             </div>
             <h3 class="text-slate-900 font-black text-base sm:text-lg">
-              ${isAuctionCompleted ? '🏆 JSL 2026 Live Auction Concluded!' : 'Waiting for Auctioneer to Place Player on Block...'}
+              ${isAuctionCompleted ? '🏆 Live Auction Concluded!' : 'Waiting for Auctioneer to Place Player on Block...'}
             </h3>
             <p class="text-xs text-slate-500 mt-1 max-w-md mx-auto">
               ${isAuctionCompleted ? 'All approved franchise squad selections are complete. Review the final sold rosters below.' : 'Live bids will appear here automatically when the next player is auctioned.'}
@@ -6737,26 +10535,54 @@ function renderLiveAuctionView(container) {
     }
   };
 
-  const renderFranchisePurses = (teams, allPlayers) => {
+  const renderFranchisePurses = (teams, allPlayers, liveState) => {
     const pursesWrapper = document.getElementById('auction-franchise-purses-list');
     if (!pursesWrapper) return;
 
+    const liveHash = liveState ? `${liveState.status}:${liveState.active_player_id}:${liveState.highest_bidder_team_id}:${liveState.sold_price}` : '';
     const currentTableHash = allPlayers.map(p => p.id + ':' + (p.auctionStatus || '') + ':' + (p.teamId || '') + ':' + (p.soldPrice || 0)).join('|');
-    const currentPursesHash = teams.map(t => t.id + ':' + (t.remainingPurse || 0) + ':' + (t.squadCount || 0) + ':' + (t.purseSpent || 0)).join('|') + '||' + currentTableHash;
+    const currentPursesHash = teams.map(t => t.id + ':' + (t.remainingPurse || 0) + ':' + (t.squadCount || 0) + ':' + (t.purseSpent || 0)).join('|') + '||' + currentTableHash + '||' + liveHash;
     
     if (currentPursesHash === lastRenderedPursesHash && pursesWrapper.children.length > 0) return;
     lastRenderedPursesHash = currentPursesHash;
 
     pursesWrapper.innerHTML = teams.map(t => {
-      const hasIcon = !!((t.iconPlayerName && t.iconPlayerName.trim()) || (t.iconName && t.iconName.trim()));
-      const iconDeduction = hasIcon ? 1000 : 0;
+      const iconFee = Number(store.getAuctionSettings().defaultIconPrice) || 1000;
+      const hasIcon = !!((t.iconPlayerName && t.iconPlayerName.trim()) || (t.iconName && t.iconName.trim()) || (t.iconPlayerId && t.iconPlayerId.trim()));
+      const iconDeduction = hasIcon ? iconFee : 0;
       const totalPurse = Number(t.purseBudget || t.purse || 8000);
-      const purchasedNonIconPlayers = allPlayers.filter(p => (p.teamId === t.id || (p.teamName && p.teamName.trim().toLowerCase() === t.name.trim().toLowerCase())) && !p.isIcon && !p.isIconPlayer && (p.auctionStatus === 'SOLD' || p.isSold === true || !!p.teamId));
-      const auctionSpent = purchasedNonIconPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || 0), 0);
+      const purchasedNonIconPlayers = allPlayers.filter(p => {
+        if (!p) return false;
+        const pTeamId = p.teamId || p.team_id;
+        const isMatch = (pTeamId && (pTeamId === t.id || toUUID(pTeamId) === toUUID(t.id))) || (p.teamName && (p.teamName || '').trim().toLowerCase() === (t.name || '').trim().toLowerCase());
+        if (!isMatch) return false;
+        const isThisTeamIcon = hasIcon && ((p.name && (t.iconPlayerName || t.iconName) && p.name.trim().toLowerCase() === (t.iconPlayerName || t.iconName).trim().toLowerCase()) || (t.iconPlayerId && (p.id === t.iconPlayerId || toUUID(p.id) === toUUID(t.iconPlayerId))));
+        const isSoldStatus = (p.auctionStatus === 'SOLD' || p.isSold === true || !!pTeamId);
+        return isSoldStatus && !isThisTeamIcon;
+      });
+
+      // Optimistic addition for live auction SOLD state if not yet in allPlayers list
+      if (liveState && (liveState.status === 'SOLD' || liveState.is_sold) && liveState.highest_bidder_team_id) {
+        const liveTeamId = liveState.highest_bidder_team_id;
+        if (liveTeamId === t.id || toUUID(liveTeamId) === toUUID(t.id)) {
+          const livePlayerId = liveState.active_player_id || liveState.last_sold_player_id;
+          const alreadyIn = purchasedNonIconPlayers.some(p => p.id === livePlayerId || (livePlayerId && p.id && toUUID(p.id) === toUUID(livePlayerId)));
+          if (!alreadyIn) {
+            const livePlayerObj = allPlayers.find(p => p.id === livePlayerId || (livePlayerId && p.id && toUUID(p.id) === toUUID(livePlayerId))) || {
+              id: livePlayerId,
+              name: liveState.name || 'Player',
+              soldPrice: Number(liveState.sold_price || liveState.current_bid || 300)
+            };
+            purchasedNonIconPlayers.push(livePlayerObj);
+          }
+        }
+      }
+
+      const auctionSpent = purchasedNonIconPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || Number(p.basePrice) || 300), 0);
       const spent = iconDeduction + auctionSpent;
       const left = Math.max(0, totalPurse - spent);
       const squadCount = (hasIcon ? 1 : 0) + purchasedNonIconPlayers.length;
-      const totalRequired = 13;
+      const totalRequired = Number(store.getAuctionSettings().maxSquadSize) || 13;
       const ratio = Math.min(100, Math.max(0, (left / totalPurse) * 100));
 
       return `
@@ -6774,7 +10600,7 @@ function renderLiveAuctionView(container) {
           ${hasIcon ? `
             <div class="text-[11px] text-amber-900 bg-amber-50 px-3 py-1 rounded-xl border border-amber-200/90 font-bold flex items-center justify-between">
               <span class="truncate">⭐ Icon: ${t.iconPlayerName || t.iconName}</span>
-              <span class="text-amber-700 font-mono text-[10px] font-black shrink-0">-₹1,000</span>
+              <span class="text-amber-700 font-mono text-[10px] font-black shrink-0">-₹${iconFee.toLocaleString('en-IN')}</span>
             </div>
           ` : ''}
 
@@ -6782,9 +10608,9 @@ function renderLiveAuctionView(container) {
           ${purchasedNonIconPlayers.length > 0 ? `
             <div class="flex flex-wrap gap-1 pt-0.5">
               ${purchasedNonIconPlayers.map(pl => `
-                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-50 border border-slate-200 rounded text-[9px] font-bold text-slate-800 truncate max-w-[140px]" title="${pl.name} (₹${pl.soldPrice || 0})">
+                <span class="inline-flex items-center gap-1 px-1.5 py-0.5 bg-slate-50 border border-slate-200 rounded text-[9px] font-bold text-slate-800 truncate max-w-[140px]" title="${pl.name} (₹${pl.soldPrice || pl.basePrice || 300})">
                   <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0"></span>
-                  ${pl.name}
+                  ${pl.name} (₹${pl.soldPrice || pl.basePrice || 300})
                 </span>
               `).join('')}
             </div>
@@ -6806,7 +10632,7 @@ function renderLiveAuctionView(container) {
 
           <div class="flex items-center justify-between text-[10px] text-slate-400 font-bold pt-1 group-hover:text-amber-700 transition-colors">
             <span class="flex items-center gap-1">
-              <i data-lucide="users" class="w-3 h-3 text-amber-500"></i> Full Squad Details
+              👥 Full Squad Details
             </span>
             <span class="text-amber-600 font-black">➔</span>
           </div>
@@ -6824,21 +10650,6 @@ function renderLiveAuctionView(container) {
     });
   };
 
-  let lastAuctionSyncTimestamp = 0;
-  let lastAuctionCloudHeartbeat = 0;
-  let lastRenderedTableHash = '';
-  let lastRenderedPursesHash = '';
-  let lastRenderedLiveBid = null;
-
-  // --- IMMEDIATE 0ms SYNCHRONOUS FIRST RENDER ---
-  const initialTeams = store.getTeams();
-  const initialPlayers = store.getPlayers();
-  const initialLiveState = store.getLiveAuctionStateSync();
-
-  renderActiveBlock(initialLiveState, initialTeams, initialPlayers);
-  renderFranchisePurses(initialTeams, initialPlayers);
-  renderPlayerStatusTable();
-
   pollActiveAuctionState = async () => {
     if (currentRoute !== 'auction') {
       if (auctionPollInterval) {
@@ -6848,19 +10659,38 @@ function renderLiveAuctionView(container) {
       return;
     }
 
-    const state = await store.getLiveAuctionState();
+    const globalInfo = await store.getGlobalLiveAuctionInfo();
     if (currentRoute !== 'auction') return;
 
+    if (!globalInfo.isLive) {
+      if (!isConcludedMode || isLiveMode || !document.getElementById('auction-concluded-standby-view')) {
+        isLiveMode = false;
+        isConcludedMode = true;
+        renderConcludedView(globalInfo);
+      }
+      return;
+    }
+
+    // LIVE AUCTION IN PROGRESS: Switch to live mode if not already
+    if (!isLiveMode) {
+      isLiveMode = true;
+      isConcludedMode = false;
+      if (globalInfo.liveTournament?.id) {
+        store.activeTournamentId = globalInfo.liveTournament.id;
+      }
+      renderActiveLiveView(globalInfo);
+    }
+
+    const state = globalInfo.liveState || (await store.getLiveAuctionState());
     const now = Date.now();
     const stateUpdatedAt = Number(state?.updated_at || state?.timestamp || 0);
 
-    // MONOTONIC VERSION GUARD: Discard any stale in-flight packet older than what we already rendered
-    if (stateUpdatedAt < lastAuctionSyncTimestamp && stateUpdatedAt > 0) {
+    const isNewActive = state && (state.active_player_id !== lastActivePlayerId || state.status !== lastActiveStatus);
+    if (!isNewActive && stateUpdatedAt < lastAuctionSyncTimestamp && stateUpdatedAt > 0) {
       return;
     }
-    lastAuctionSyncTimestamp = Math.max(lastAuctionSyncTimestamp, stateUpdatedAt);
+    lastAuctionSyncTimestamp = Math.max(lastAuctionSyncTimestamp, stateUpdatedAt || Date.now());
 
-    // If state version changed OR periodic heartbeat (every 10s), sync cloud data
     if (now - lastAuctionCloudHeartbeat > 10000) {
       lastAuctionCloudHeartbeat = now;
       try {
@@ -6870,8 +10700,24 @@ function renderLiveAuctionView(container) {
       }
     }
 
-    const teams = store.getTeams();
-    const allPlayers = store.getPlayers();
+    const liveTourneyId = globalInfo.liveTournament?.id || globalInfo.liveTournament?.supabaseId || store.activeTournamentId;
+    const liveTourneyUUID = toUUID(liveTourneyId);
+
+    const allTeamsRaw = (store.getAllTeamsAcrossTournaments ? store.getAllTeamsAcrossTournaments() : store.getTeams());
+    const teams = allTeamsRaw.filter(t => {
+      if (!t) return false;
+      const tId = t.tournament_id || t.tournamentId || t.leagueId;
+      if (!tId) return true;
+      return tId === liveTourneyId || toUUID(tId) === liveTourneyUUID;
+    });
+
+    const allPlayersRaw = (store.getAllPlayersAcrossTournaments ? store.getAllPlayersAcrossTournaments() : store.getPlayers());
+    const allPlayers = allPlayersRaw.filter(p => {
+      if (!p) return false;
+      const pTid = p.tournament_id || p.tournamentId || p.leagueId;
+      if (!pTid) return true;
+      return pTid === liveTourneyId || toUUID(pTid) === liveTourneyUUID;
+    });
 
     // 1. Render / Update Active Bidding Block
     renderActiveBlock(state, teams, allPlayers);
@@ -6884,16 +10730,23 @@ function renderLiveAuctionView(container) {
     }
 
     // 3. Render / Update Franchise Purses ONLY when teams or player purchases changed
-    renderFranchisePurses(teams, allPlayers);
+    renderFranchisePurses(teams, allPlayers, state);
   };
 
-  // Attach Projector View Button Listener
-  document.getElementById('auction-open-projector-view-btn')?.addEventListener('click', () => {
-    openLiveAuctionProjectorView();
-  });
-
+  // Immediate Initial Render
   pollActiveAuctionState();
-  auctionPollInterval = setInterval(pollActiveAuctionState, 5000);
+  auctionPollInterval = setInterval(pollActiveAuctionState, 1000);
+
+  const onAuctionChange = async () => {
+    if (currentRoute === 'auction') {
+      try {
+        if (store.fetchPlayersFromCloud) await store.fetchPlayersFromCloud();
+      } catch(e) {}
+      pollActiveAuctionState();
+    }
+  };
+  window.addEventListener('cpl_live_auction_updated', onAuctionChange);
+  window.addEventListener('cpl_players_updated', onAuctionChange);
 }
 
 // --- 📽️ WORLD-CLASS LIVE AUCTION PROJECTOR SCREEN (ENHANCED OFF-WHITE THEME, AUTO-NAVIGATE & 2-PAGE SQUADS) ---
@@ -6981,7 +10834,7 @@ export function openLiveAuctionProjectorView() {
           <div class="min-w-0">
             <div class="flex items-center gap-1.5">
               <h1 class="text-xs sm:text-sm lg:text-base font-black tracking-tight text-slate-950 uppercase truncate">
-                JHANKRA SUPER LEAGUE 2026
+                ${(store.getActiveTournamentName ? store.getActiveTournamentName() : 'JHANKRA SUPER LEAGUE 2026').toUpperCase()}
               </h1>
               <span class="inline-flex items-center gap-1 px-1.5 py-0.5 bg-red-600 text-white font-black text-[9px] rounded uppercase tracking-wider animate-pulse shrink-0 shadow-xs">
                 <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span> 🔴 LIVE
@@ -7097,7 +10950,7 @@ export function openLiveAuctionProjectorView() {
             <!-- Footer Info Bar -->
             <div class="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-700 font-bold shrink-0">
               <span class="truncate">💰 League Total Spent: <strong id="proj-total-spent" class="text-emerald-700 font-mono font-black text-sm">₹0</strong></span>
-              <span class="text-slate-400 font-mono">JSL 2026 Live Arena</span>
+              <span class="text-slate-400 font-mono">Live Auction Arena</span>
             </div>
           </aside>
 
@@ -7345,8 +11198,24 @@ export function openLiveAuctionProjectorView() {
   const renderHistoryOverlay = () => {
     const box = document.getElementById('proj-history-content-box');
     if (!box) return;
-    const allPlayers = store.getPlayers();
-    const teams = store.getTeams();
+    const projTourneyId = store.activeTournamentId;
+    const projTourneyUUID = toUUID(projTourneyId);
+
+    const allPlayersRaw = (store.getAllPlayersAcrossTournaments ? store.getAllPlayersAcrossTournaments() : store.getPlayers());
+    const allPlayers = allPlayersRaw.filter(p => {
+      if (!p) return false;
+      const pTid = p.tournament_id || p.tournamentId || p.leagueId;
+      if (!pTid) return true;
+      return pTid === projTourneyId || toUUID(pTid) === projTourneyUUID;
+    });
+
+    const allTeamsRaw = (store.getAllTeamsAcrossTournaments ? store.getAllTeamsAcrossTournaments() : store.getTeams());
+    const teams = allTeamsRaw.filter(t => {
+      if (!t) return false;
+      const tId = t.tournament_id || t.tournamentId || t.leagueId;
+      if (!tId) return true;
+      return tId === projTourneyId || toUUID(tId) === projTourneyUUID;
+    });
 
     // Reverse so latest sold/unsold appear first!
     const soldPlayers = allPlayers.filter(p => p.teamId || p.auctionStatus === 'SOLD').reverse();
@@ -7365,18 +11234,20 @@ export function openLiveAuctionProjectorView() {
       box.innerHTML = `
         <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
           ${soldPlayers.map(p => {
-            const team = teams.find(t => t.id === p.teamId) || { name: p.teamName || 'Unknown Franchise' };
+            const team = teams.find(t => t.id === p.teamId || (p.teamId && t.id && toUUID(t.id) === toUUID(p.teamId))) || { name: p.teamName || 'Unknown Franchise' };
             const isIcon = (p.isIcon || p.isIconPlayer);
+            const iconFee = Number(store.getAuctionSettings().defaultIconPrice) || 1000;
+            const finalSoldPrice = isIcon ? iconFee : (Number(p.soldPrice) || Number(p.basePrice) || 300);
             return `
               <div class="p-3.5 sm:p-4 bg-white border-2 border-slate-200/90 rounded-2xl shadow-sm hover:border-slate-300 transition-all flex items-center justify-between gap-3.5">
                 <div class="flex items-center gap-3 min-w-0">
                   <img src="${p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png'}" class="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover border-2 border-slate-200 shadow-xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
                   <div class="min-w-0">
                     <span class="text-[10px] font-black font-mono text-red-600 bg-red-50 px-2 py-0.5 rounded-md border border-red-200 inline-block mb-1">
-                      ${p.registrationId || ('JSL2026-' + String(p.serialNo || 1).padStart(4, '0'))}
+                      ${p.registrationId || ('REG-' + String(p.serialNo || 1).padStart(4, '0'))}
                     </span>
                     <h4 class="font-black text-slate-950 text-sm sm:text-base lg:text-lg truncate leading-tight">${p.name}</h4>
-                    <div class="text-xs text-slate-500 font-bold truncate mt-0.5">🏏 ${p.category || 'All Rounder'} • 📍 ${p.village || 'Jhankra'}</div>
+                    <div class="text-xs text-slate-500 font-bold truncate mt-0.5">🏏 ${p.category || 'All Rounder'} • 📍 ${p.village || 'N/A'}</div>
                     <div class="text-xs sm:text-sm font-black text-sky-900 truncate mt-1 flex items-center gap-1">
                       <span>🛡️</span> <span class="truncate">${team.name}</span>
                     </div>
@@ -7384,7 +11255,7 @@ export function openLiveAuctionProjectorView() {
                 </div>
                 <div class="text-right shrink-0">
                   <span class="px-3 py-1.5 rounded-xl text-sm sm:text-base font-mono font-black block shadow-2xs ${isIcon ? 'bg-amber-100 text-amber-950 border-2 border-amber-300' : 'bg-emerald-100 text-emerald-950 border-2 border-emerald-300'}">
-                    ${isIcon ? '⭐ ₹1,000' : '₹' + Number(p.soldPrice || 0).toLocaleString('en-IN')}
+                    ${isIcon ? '⭐ ₹' + iconFee.toLocaleString('en-IN') : '₹' + finalSoldPrice.toLocaleString('en-IN')}
                   </span>
                   <span class="text-[10px] font-black uppercase tracking-wider text-slate-400 block mt-1">
                     ${isIcon ? 'ICON SIGNING' : 'WINNING BID'}
@@ -7408,10 +11279,10 @@ export function openLiveAuctionProjectorView() {
                 <img src="${p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png'}" class="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl object-cover border-2 border-slate-200 shadow-xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
                 <div class="min-w-0">
                   <span class="text-[10px] font-black font-mono text-slate-600 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200 inline-block mb-1">
-                    ${p.registrationId || ('JSL2026-' + String(p.serialNo || 1).padStart(4, '0'))}
+                    ${p.registrationId || ('REG-' + String(p.serialNo || 1).padStart(4, '0'))}
                   </span>
                   <h4 class="font-black text-slate-950 text-sm sm:text-base lg:text-lg truncate leading-tight">${p.name}</h4>
-                  <div class="text-xs text-slate-500 font-bold truncate mt-0.5">🏏 ${p.category || 'All Rounder'} • 📍 ${p.village || 'Jhankra'}</div>
+                  <div class="text-xs text-slate-500 font-bold truncate mt-0.5">🏏 ${p.category || 'All Rounder'} • 📍 ${p.village || 'N/A'}</div>
                   <span class="inline-block mt-1 text-[10px] font-black text-rose-800 bg-rose-50 px-2 py-0.5 rounded-md border border-rose-200">
                     ❌ UNSOLD (ROUND 1)
                   </span>
@@ -7432,49 +11303,65 @@ export function openLiveAuctionProjectorView() {
   const renderTeamsOverlay = () => {
     const box = document.getElementById('proj-teams-content-box');
     if (!box) return;
-    const allPlayers = store.getPlayers();
-    const teams = store.getTeams();
+    const projTourneyId = store.activeTournamentId;
+    const projTourneyUUID = toUUID(projTourneyId);
+
+    const allPlayersRaw = (store.getAllPlayersAcrossTournaments ? store.getAllPlayersAcrossTournaments() : store.getPlayers());
+    const allPlayers = allPlayersRaw.filter(p => {
+      if (!p) return false;
+      const pTid = p.tournament_id || p.tournamentId || p.leagueId;
+      if (!pTid) return true;
+      return pTid === projTourneyId || toUUID(pTid) === projTourneyUUID;
+    });
+
+    const allTeamsRaw = (store.getAllTeamsAcrossTournaments ? store.getAllTeamsAcrossTournaments() : store.getTeams());
+    const teams = allTeamsRaw.filter(t => {
+      if (!t) return false;
+      const tId = t.tournament_id || t.tournamentId || t.leagueId;
+      if (!tId) return true;
+      return tId === projTourneyId || toUUID(tId) === projTourneyUUID;
+    });
+    const targetSquadSize = Number(store.getAuctionSettings().maxSquadSize) || 13;
 
     const startIdx = (teamsCurrentPage - 1) * 4;
     const pageTeams = teams.slice(startIdx, startIdx + 4);
 
     box.innerHTML = pageTeams.map((t, idx) => {
-      const hasIcon = !!((t.iconPlayerName && t.iconPlayerName.trim()) || (t.iconName && t.iconName.trim()));
-      const iconName = t.iconPlayerName || t.iconName;
+      const defaultIconFee = Number(store.getAuctionSettings().defaultIconPrice) || 1000;
+      const hasIcon = !!((t.iconPlayerName && t.iconPlayerName.trim()) || (t.iconName && t.iconName.trim()) || (t.iconPlayerId && t.iconPlayerId.trim()));
+      const iconName = t.iconPlayerName || t.iconName || 'Icon Player';
+      const iconDeduction = hasIcon ? defaultIconFee : 0;
       const totalPurse = Number(t.purseBudget || t.purse || 8000);
       const purchasedPlayers = allPlayers.filter(p => {
-        const isMatch = (p.teamId === t.id) || (p.teamName && (p.teamName || '').trim().toLowerCase() === (t.name || '').trim().toLowerCase());
-        const isSoldStatus = (p.auctionStatus === 'SOLD' || p.isSold === true || !!p.teamId);
+        if (!p) return false;
+        const pTeamId = p.teamId || p.team_id;
+        const isMatch = (pTeamId && (pTeamId === t.id || toUUID(pTeamId) === toUUID(t.id))) || (p.teamName && (p.teamName || '').trim().toLowerCase() === (t.name || '').trim().toLowerCase());
+        const isSoldStatus = (p.auctionStatus === 'SOLD' || p.isSold === true || !!pTeamId);
         return isMatch && isSoldStatus;
       });
-      const iconPlayer = purchasedPlayers.find(p => (p.isIcon || p.isIconPlayer) || ((p.name || '').trim().toLowerCase() === (iconName || '').trim().toLowerCase()));
+      const iconPlayer = purchasedPlayers.find(p => (p.isIcon || p.isIconPlayer) || ((p.name || '').trim().toLowerCase() === (iconName || '').trim().toLowerCase()) || (t.iconPlayerId && (p.id === t.iconPlayerId || toUUID(p.id) === toUUID(t.iconPlayerId))));
       const nonIconPlayers = purchasedPlayers.filter(p => p !== iconPlayer);
-      const spent = (hasIcon ? 1000 : 0) + nonIconPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || 0), 0);
+      const spent = iconDeduction + nonIconPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || Number(p.basePrice) || 300), 0);
       const left = Math.max(0, totalPurse - spent);
       const squadCount = (hasIcon ? 1 : 0) + nonIconPlayers.length;
 
       return `
-        <div class="h-full bg-white border-2 border-slate-200/90 rounded-2xl sm:rounded-3xl p-3 sm:p-4 shadow-sm flex flex-col justify-between overflow-hidden">
-          <!-- Team Header with Large Logo & Huge Team Name -->
-          <div class="pb-3 border-b-2 border-slate-100 shrink-0">
-            <div class="flex items-center gap-3">
-              <img src="${t.logoUrl || t.teamLogoUrl || 'assets/card_jsl_user.png'}" class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl object-cover border-2 border-slate-200 shadow-xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
-              <div class="min-w-0 flex-1">
-                <span class="text-[10px] font-black uppercase text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 inline-block mb-0.5">
-                  Franchise #${startIdx + idx + 1}
-                </span>
-                <h3 class="font-black text-slate-950 text-base sm:text-lg lg:text-xl truncate leading-tight tracking-tight">${t.name}</h3>
-                <div class="text-xs text-slate-500 font-bold truncate">Owner: ${t.ownerName || 'Franchise Owner'}</div>
+        <div class="h-full bg-white border-2 border-slate-200/90 rounded-2xl p-3 sm:p-3.5 flex flex-col justify-between shadow-xs overflow-hidden">
+          <!-- Column Header -->
+          <div class="pb-2 border-b border-slate-100 shrink-0">
+            <div class="flex items-center gap-2">
+              <img src="${t.logoUrl || t.teamLogoUrl || 'assets/card_jsl_user.png'}" class="w-8 h-8 rounded-xl object-cover border border-slate-200 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+              <div class="min-w-0">
+                <h4 class="font-black text-slate-900 text-xs sm:text-sm truncate uppercase">${t.name}</h4>
+                <div class="text-[10px] text-slate-500 font-bold truncate">Owner: ${t.ownerName || t.owner_name || 'N/A'}</div>
               </div>
             </div>
-
-            <!-- Big Remaining Purse Banner -->
-            <div class="mt-2.5 p-2 bg-gradient-to-r from-emerald-50 to-teal-50 border border-emerald-300 rounded-xl flex items-center justify-between shadow-2xs">
-              <span class="text-[11px] font-black uppercase text-emerald-900">Remaining Purse:</span>
+            <div class="mt-2 flex items-center justify-between">
+              <span class="text-[10px] font-black text-slate-500 uppercase">Purse Balance</span>
               <span class="text-sm sm:text-base font-mono font-black text-emerald-800">₹ ${left.toLocaleString('en-IN')}</span>
             </div>
             <div class="mt-1 flex items-center justify-between text-[11px] text-slate-500 font-mono font-bold">
-              <span>Squad: <strong class="text-sky-700 font-black">${squadCount}/13</strong> Players</span>
+              <span>Squad: <strong class="text-sky-700 font-black">${squadCount}/${targetSquadSize}</strong> Players</span>
               <span>Budget: ₹${totalPurse.toLocaleString('en-IN')}</span>
             </div>
           </div>
@@ -7484,26 +11371,29 @@ export function openLiveAuctionProjectorView() {
             ${hasIcon ? `
               <div class="p-2 rounded-xl bg-amber-50 border border-amber-300 text-amber-950 text-xs sm:text-sm font-bold flex items-center justify-between shadow-2xs">
                 <span class="truncate">⭐ Icon: <strong>${iconName}</strong></span>
-                <span class="font-mono font-black text-amber-900 shrink-0 ml-1">₹1,000</span>
+                <span class="font-mono font-black text-amber-900 shrink-0 ml-1">₹${defaultIconFee.toLocaleString('en-IN')}</span>
               </div>
             ` : ''}
 
-            ${nonIconPlayers.length > 0 ? nonIconPlayers.map((p, pIdx) => `
-              <div class="p-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-950 text-xs sm:text-sm font-bold flex items-center justify-between hover:bg-slate-100 transition-all">
-                <div class="min-w-0 flex items-center gap-1.5">
-                  <span class="text-[10px] font-mono text-slate-400">${pIdx + 1}.</span>
-                  <span class="truncate font-black">${p.name}</span>
+            ${nonIconPlayers.length > 0 ? nonIconPlayers.map((p, pIdx) => {
+              const pPrice = Number(p.soldPrice) || Number(p.basePrice) || 300;
+              return `
+                <div class="p-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-950 text-xs sm:text-sm font-bold flex items-center justify-between hover:bg-slate-100 transition-all">
+                  <div class="min-w-0 flex items-center gap-1.5">
+                    <span class="text-[10px] font-mono text-slate-400">${pIdx + 1}.</span>
+                    <span class="truncate font-black">${p.name}</span>
+                  </div>
+                  <span class="font-mono font-black text-emerald-700 shrink-0 ml-1">₹${pPrice.toLocaleString('en-IN')}</span>
                 </div>
-                <span class="font-mono font-black text-emerald-700 shrink-0 ml-1">₹${Number(p.soldPrice || 0).toLocaleString('en-IN')}</span>
-              </div>
-            `).join('') : `
+              `;
+            }).join('') : `
               <div class="text-xs text-slate-400 italic py-8 text-center">No auction players purchased yet</div>
             `}
           </div>
 
           <!-- Column Footer -->
           <div class="pt-2.5 border-t border-slate-100 flex items-center justify-between text-xs text-slate-600 font-mono font-bold shrink-0">
-            <span>Slots Left: <strong class="text-slate-900">${Math.max(0, 13 - squadCount)}</strong></span>
+            <span>Slots Left: <strong class="text-slate-900">${Math.max(0, targetSquadSize - squadCount)}</strong></span>
             <span>Total Spent: <strong class="text-emerald-700">₹${spent.toLocaleString('en-IN')}</strong></span>
           </div>
         </div>
@@ -7619,7 +11509,9 @@ export function openLiveAuctionProjectorView() {
       if (isNewPlayer || !document.getElementById('proj-player-card-box')) {
         lastProjectorPlayerId = state.active_player_id;
         lastProjectorStatus = state.status;
-        const playerPhoto = getOptimizedImageUrl(state.photoUrl, 700, 700) || 'assets/card_jsl_user.png';
+        const pObjProj = store.getPlayerById(state.active_player_id) || store.getPlayers().find(p => p.id === state.active_player_id || (state.active_player_id && p.id && toUUID(p.id) === toUUID(state.active_player_id)));
+        const rawPhotoProj = state.photoUrl || state.player_photo_url || pObjProj?.photoUrl || pObjProj?.photo_url || pObjProj?.player_photo_url || pObjProj?.photo || pObjProj?.image || '';
+        const playerPhoto = getOptimizedImageUrl(rawPhotoProj, 700, 700) || 'assets/card_jsl_user.png';
 
         heroContainer.innerHTML = `
           <div id="proj-player-card-box" class="flex-1 relative rounded-2xl sm:rounded-3xl border-2 ${isSoldState ? 'border-emerald-500' : isUnsoldState ? 'border-rose-500' : 'border-slate-300'} overflow-hidden bg-slate-900 shadow-lg flex flex-col justify-between p-3 sm:p-4 min-h-0 relative animate-fade-in">
@@ -7636,7 +11528,7 @@ export function openLiveAuctionProjectorView() {
                       <circle cx="150" cy="150" r="128" fill="none" stroke="#059669" stroke-width="2.5" />
                       <path id="sold-arc-top-proj" d="M 35,150 A 115,115 0 0,1 265,150" fill="none" />
                       <text fill="#059669" font-size="22" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="6">
-                        <textPath href="#sold-arc-top-proj" startOffset="50%" text-anchor="middle">JSL 2026 AUCTION</textPath>
+                        <textPath href="#sold-arc-top-proj" startOffset="50%" text-anchor="middle">LIVE AUCTION</textPath>
                       </text>
                       <text x="105" y="94" fill="#059669" font-size="20" text-anchor="middle">★</text>
                       <text x="150" y="82" fill="#059669" font-size="28" text-anchor="middle">★</text>
@@ -7685,7 +11577,7 @@ export function openLiveAuctionProjectorView() {
             <!-- Top Right Full Registration Badge -->
             <div class="relative z-10 flex justify-end items-center w-full">
               <span class="px-4 py-1.5 bg-red-600 text-white font-black font-mono text-xs sm:text-sm rounded-xl border-2 border-red-400 shadow-md tracking-wider">
-                ${state.registrationId || state.regNo || ('JSL2026-' + String(state.displayRegistrationNumber || state.serialNo || 1).padStart(4, '0'))}
+                ${state.registrationId || state.regNo || ('REG-' + String(state.displayRegistrationNumber || state.serialNo || 1).padStart(4, '0'))}
               </span>
             </div>
 
@@ -7757,7 +11649,7 @@ export function openLiveAuctionProjectorView() {
                     <circle cx="150" cy="150" r="128" fill="none" stroke="#059669" stroke-width="2.5" />
                     <path id="sold-arc-top-proj" d="M 35,150 A 115,115 0 0,1 265,150" fill="none" />
                     <text fill="#059669" font-size="22" font-weight="900" font-family="'Impact', 'Arial Black', sans-serif" letter-spacing="6">
-                      <textPath href="#sold-arc-top-proj" startOffset="50%" text-anchor="middle">JSL 2026 AUCTION</textPath>
+                      <textPath href="#sold-arc-top-proj" startOffset="50%" text-anchor="middle">LIVE AUCTION</textPath>
                     </text>
                     <text x="105" y="94" fill="#059669" font-size="20" text-anchor="middle">★</text>
                     <text x="150" y="82" fill="#059669" font-size="28" text-anchor="middle">★</text>
@@ -7850,7 +11742,7 @@ export function openLiveAuctionProjectorView() {
 
             <img src="assets/jsl_logo.jpg" class="w-24 h-24 sm:w-32 sm:h-32 rounded-3xl object-cover border-4 border-amber-400 shadow-md mb-4 animate-bounce" onerror="this.src='assets/card_jsl_user.png'" />
             <h2 class="text-2xl sm:text-4xl font-black text-slate-900 tracking-tight uppercase">
-              JHANKRA SUPER LEAGUE 2026
+              ${store.getActiveTournamentName ? store.getActiveTournamentName() : 'JHANKRA SUPER LEAGUE 2026'}
             </h2>
             <div class="inline-flex items-center gap-2 px-4 py-1.5 bg-amber-100 text-amber-900 font-mono font-black text-sm rounded-full border border-amber-300 my-3 shadow-2xs">
               <span>🔨 LIVE AUCTION ARENA</span>
@@ -7865,23 +11757,28 @@ export function openLiveAuctionProjectorView() {
 
     // 4. Render 8 Franchise Team Cards (EXTRA LARGE FONTS, ZERO FLICKER DIFF GUARD)
     const activeBidderId = (state && state.status === 'BIDDING') ? state.highest_bidder_team_id : null;
-    const currentPursesHash = teams.slice(0, 8).map(t => `${t.id}:${t.remainingPurse}:${t.squadCount}`).join('|') + '||' + activeBidderId;
+    const currentTableHash = allPlayers.map(p => p.id + ':' + (p.auctionStatus || '') + ':' + (p.teamId || '') + ':' + (p.soldPrice || 0)).join('|');
+    const currentPursesHash = teams.slice(0, 8).map(t => `${t.id}:${t.remainingPurse}:${t.squadCount}`).join('|') + '||' + activeBidderId + '||' + currentTableHash;
 
     if (currentPursesHash !== lastProjectorPursesHash || franchiseList.children.length === 0) {
       lastProjectorPursesHash = currentPursesHash;
+      const defaultIconFee = Number(store.getAuctionSettings().defaultIconPrice) || 1000;
+      const targetSquadSize = Number(store.getAuctionSettings().maxSquadSize) || 13;
       
       franchiseList.innerHTML = teams.slice(0, 8).map(t => {
-        const hasIcon = !!((t.iconPlayerName && t.iconPlayerName.trim()) || (t.iconName && t.iconName.trim()));
-        const iconDeduction = hasIcon ? 1000 : 0;
+        const hasIcon = !!((t.iconPlayerName && t.iconPlayerName.trim()) || (t.iconName && t.iconName.trim()) || (t.iconPlayerId && t.iconPlayerId.trim()));
+        const iconDeduction = hasIcon ? defaultIconFee : 0;
         const totalPurse = Number(t.purseBudget || t.purse || 8000);
         const purchasedNonIconPlayers = allPlayers.filter(p => {
-          const isMatch = (p.teamId === t.id) || (p.teamName && (p.teamName || '').trim().toLowerCase() === (t.name || '').trim().toLowerCase());
-          const isSoldStatus = (p.auctionStatus === 'SOLD' || p.isSold === true || !!p.teamId);
+          if (!p) return false;
+          const pTeamId = p.teamId || p.team_id;
+          const isMatch = (pTeamId && (pTeamId === t.id || toUUID(pTeamId) === toUUID(t.id))) || (p.teamName && (p.teamName || '').trim().toLowerCase() === (t.name || '').trim().toLowerCase());
+          const isSoldStatus = (p.auctionStatus === 'SOLD' || p.isSold === true || !!pTeamId);
           const iconPlayerName = (t.iconPlayerName || t.iconName || '').trim().toLowerCase();
-          const isIcon = hasIcon && ((p.name || '').trim().toLowerCase() === iconPlayerName || (t.iconPlayerId && p.id === t.iconPlayerId));
+          const isIcon = hasIcon && (((p.name || '').trim().toLowerCase() === iconPlayerName) || (t.iconPlayerId && (p.id === t.iconPlayerId || toUUID(p.id) === toUUID(t.iconPlayerId))));
           return isMatch && isSoldStatus && !isIcon;
         });
-        const auctionSpent = purchasedNonIconPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || 0), 0);
+        const auctionSpent = purchasedNonIconPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || Number(p.basePrice) || 300), 0);
         const spent = iconDeduction + auctionSpent;
         const left = Math.max(0, totalPurse - spent);
         const squadCount = (hasIcon ? 1 : 0) + purchasedNonIconPlayers.length;
@@ -7899,7 +11796,7 @@ export function openLiveAuctionProjectorView() {
                   ${isLeaderNow ? '<span class="px-1.5 py-0.5 bg-amber-500 text-slate-950 font-mono text-[9px] font-black rounded uppercase animate-pulse shrink-0 shadow-2xs">🔥 BID</span>' : ''}
                 </div>
                 <div class="text-[11px] sm:text-xs text-slate-600 font-mono font-bold">
-                  Squad: <strong class="text-sky-800">${squadCount}/13</strong> ${hasIcon ? '• ⭐ Icon' : ''}
+                  Squad: <strong class="text-sky-800">${squadCount}/${targetSquadSize}</strong> ${hasIcon ? '• ⭐ Icon' : ''}
                 </div>
               </div>
             </div>
@@ -7940,7 +11837,16 @@ export function openLiveAuctionProjectorView() {
     if (activeProjectorTab === 'teams') renderTeamsOverlay();
   };
 
-  projectorPollInterval = setInterval(pollProjector, 1200);
+  projectorPollInterval = setInterval(pollProjector, 800);
+
+  const onProjAuctionChange = () => {
+    if (document.getElementById('live-auction-projector-view-modal')) {
+      pollProjector();
+    }
+  };
+  window.addEventListener('cpl_live_auction_updated', onProjAuctionChange);
+  window.addEventListener('cpl_players_updated', onProjAuctionChange);
+  window.addEventListener('cpl_teams_updated', onProjAuctionChange);
 }
 
 // --- FRANCHISE SQUAD & PURCHASED PLAYERS MODAL ---
@@ -7952,12 +11858,22 @@ export function openTeamPurchasedSquadModal(teamId) {
   if (!team) return;
 
   const allPlayers = store.getPlayers();
-  const hasIcon = !!((team.iconPlayerName && team.iconPlayerName.trim()) || (team.iconName && team.iconName.trim()));
-  const iconName = team.iconPlayerName || team.iconName;
-  const iconDeduction = hasIcon ? 1000 : 0;
+  const hasIcon = !!((team.iconPlayerName && team.iconPlayerName.trim()) || (team.iconName && team.iconName.trim()) || (team.iconPlayerId && team.iconPlayerId.trim()));
+  const iconName = team.iconPlayerName || team.iconName || 'Icon Player';
+  const defaultIconFee = Number(store.getAuctionSettings().defaultIconPrice) || 1000;
+  const iconDeduction = hasIcon ? defaultIconFee : 0;
+  const targetSquadSize = Number(store.getAuctionSettings().maxSquadSize) || 13;
 
   // Find purchased players (excluding icon player to avoid double charging)
-  const purchasedNonIconPlayers = allPlayers.filter(p => (p.teamId === team.id || (p.teamName && p.teamName.trim().toLowerCase() === team.name.trim().toLowerCase())) && !p.isIcon && !p.isIconPlayer && (p.auctionStatus === 'SOLD' || p.isSold === true || !!p.teamId));
+  const purchasedNonIconPlayers = allPlayers.filter(p => {
+    if (!p) return false;
+    const pTeamId = p.teamId || p.team_id;
+    const isMatch = (pTeamId && (pTeamId === team.id || toUUID(pTeamId) === toUUID(team.id))) || (p.teamName && (p.teamName || '').trim().toLowerCase() === (team.name || '').trim().toLowerCase());
+    if (!isMatch) return false;
+    const isThisTeamIcon = hasIcon && ((p.name && p.name.trim().toLowerCase() === iconName.trim().toLowerCase()) || (team.iconPlayerId && (p.id === team.iconPlayerId || toUUID(p.id) === toUUID(team.iconPlayerId))));
+    const isSoldStatus = (p.auctionStatus === 'SOLD' || p.isSold === true || !!pTeamId);
+    return isSoldStatus && !isThisTeamIcon;
+  });
   const auctionSpent = purchasedNonIconPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || 0), 0);
   const totalPurse = Number(team.purseBudget || team.purse || 8000);
   const totalSpent = iconDeduction + auctionSpent;
@@ -7994,7 +11910,7 @@ export function openTeamPurchasedSquadModal(teamId) {
         <div class="grid grid-cols-3 gap-2 my-3.5">
           <div class="p-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-center shadow-2xs">
             <div class="text-[9px] font-black text-slate-500 uppercase tracking-wider">Squad Count</div>
-            <div class="text-sm sm:text-base font-black text-teal-700 font-mono mt-0.5">${squadCount} / 13</div>
+            <div class="text-sm sm:text-base font-black text-teal-700 font-mono mt-0.5">${squadCount} / ${targetSquadSize}</div>
           </div>
           <div class="p-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-center shadow-2xs">
             <div class="text-[9px] font-black text-slate-500 uppercase tracking-wider">Purse Spent</div>
@@ -8036,7 +11952,7 @@ export function openTeamPurchasedSquadModal(teamId) {
               </div>
               <div class="text-right shrink-0">
                 <div class="text-[9px] font-black text-slate-400 uppercase tracking-wider">Icon Fee</div>
-                <div class="text-xs sm:text-sm font-black text-amber-700 font-mono">₹ 1,000</div>
+                <div class="text-xs sm:text-sm font-black text-amber-700 font-mono">₹ ${defaultIconFee.toLocaleString('en-IN')}</div>
               </div>
             </div>
           ` : ''}
@@ -8109,11 +12025,16 @@ function renderCareerHubView(container) {
   let searchQuery = '';
   let selectedCategory = 'ALL';
   let sortBy = 'points'; // 'points', 'runs', 'wickets', 'matches', 'avg', 'economy'
+  
+  const allTourneys = (store.getAllAvailableTournaments ? store.getAllAvailableTournaments() : []).filter(t => !t.status || t.status === 'ACTIVE' || t.status === 'active' || t.status === 'APPROVED');
+  // Default to ALL tournaments or active tournament
+  let selectedTourneyId = 'ALL';
 
   const drawCareerHub = () => {
-    const players = store.getPlayers().filter(p => (p.registrationStatus || p.paymentStatus) !== 'REJECTED');
+    const rawList = store.getPlayersForTournament ? store.getPlayersForTournament(selectedTourneyId) : store.getPlayers();
+    const players = (rawList || []).filter(p => (p.registrationStatus || p.paymentStatus) !== 'REJECTED');
     const fixtures = store.getFixtures();
-    const completedFixtures = fixtures.filter(f => f.status === 'COMPLETED');
+    const activeOrCompletedFixtures = fixtures.filter(f => f.status === 'COMPLETED' || f.status === 'LIVE');
 
     const list = players.map(p => {
       let runs = 0;
@@ -8128,7 +12049,7 @@ function renderCareerHubView(container) {
       let fiveWickets = 0;
       let highestScore = 0;
 
-      completedFixtures.forEach(f => {
+      activeOrCompletedFixtures.forEach(f => {
         if (f.liveMatchState && f.liveMatchState.playerStats && f.liveMatchState.playerStats[p.id]) {
           const ps = f.liveMatchState.playerStats[p.id];
           const r = ps.runs || 0;
@@ -8176,7 +12097,7 @@ function renderCareerHubView(container) {
         name: p.name || 'Unnamed Player',
         photoUrl: p.photoUrl || p.player_photo_url || '',
         category: p.category || p.playingType || 'All Rounder',
-        village: p.village || 'Jhankra',
+        village: p.village || 'N/A',
         battingStyle: p.battingStyle || 'Right Hand Bat',
         bowlingStyle: p.bowlingStyle || 'Right Arm Medium',
         runs,
@@ -8318,17 +12239,27 @@ function renderCareerHubView(container) {
               </button>
             </div>
 
-            <!-- Sort Selection Dropdown -->
-            <div class="flex items-center gap-2 self-end md:self-auto">
-              <span class="text-xs font-bold text-slate-500 whitespace-nowrap">Sort by:</span>
-              <select id="career-sort-select" class="bg-slate-50 border border-slate-300 text-slate-800 text-xs rounded-xl px-3 py-1.5 font-bold focus:outline-none focus:border-blue-500 shadow-sm cursor-pointer">
-                <option value="points" ${sortBy === 'points' ? 'selected' : ''}>🌟 Points (MVP)</option>
-                <option value="runs" ${sortBy === 'runs' ? 'selected' : ''}>🏏 Most Runs</option>
-                <option value="avg" ${sortBy === 'avg' ? 'selected' : ''}>📈 Best Bat Avg</option>
-                <option value="wickets" ${sortBy === 'wickets' ? 'selected' : ''}>🎯 Most Wickets</option>
-                <option value="economy" ${sortBy === 'economy' ? 'selected' : ''}>🛡️ Best Economy</option>
-                <option value="matches" ${sortBy === 'matches' ? 'selected' : ''}>🏟️ Most Matches</option>
-              </select>
+            <!-- League & Sort Dropdowns -->
+            <div class="flex items-center gap-2 flex-wrap self-end md:self-auto">
+              <div class="flex items-center gap-1.5 bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1 shadow-2xs">
+                <span class="text-[11px] font-bold text-slate-500 whitespace-nowrap">🏆 League:</span>
+                <select id="career-tourney-filter-select" class="bg-transparent text-slate-900 text-xs font-black focus:outline-none cursor-pointer">
+                  <option value="ALL" ${selectedTourneyId === 'ALL' ? 'selected' : ''}>🌐 All Leagues (Universal)</option>
+                  ${allTourneys.map(t => `<option value="${t.supabaseId || t.id}" ${(t.supabaseId || t.id) === selectedTourneyId ? 'selected' : ''}>🏆 ${t.name}</option>`).join('')}
+                </select>
+              </div>
+
+              <div class="flex items-center gap-1.5 bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1 shadow-2xs">
+                <span class="text-[11px] font-bold text-slate-500 whitespace-nowrap">Sort:</span>
+                <select id="career-sort-select" class="bg-transparent text-slate-900 text-xs font-bold focus:outline-none cursor-pointer">
+                  <option value="points" ${sortBy === 'points' ? 'selected' : ''}>🌟 Points (MVP)</option>
+                  <option value="runs" ${sortBy === 'runs' ? 'selected' : ''}>🏏 Most Runs</option>
+                  <option value="avg" ${sortBy === 'avg' ? 'selected' : ''}>📈 Best Bat Avg</option>
+                  <option value="wickets" ${sortBy === 'wickets' ? 'selected' : ''}>🎯 Most Wickets</option>
+                  <option value="economy" ${sortBy === 'economy' ? 'selected' : ''}>🛡️ Best Economy</option>
+                  <option value="matches" ${sortBy === 'matches' ? 'selected' : ''}>🏟️ Most Matches</option>
+                </select>
+              </div>
             </div>
           </div>
 
@@ -8371,10 +12302,13 @@ function renderCareerHubView(container) {
                 ${filtered.length === 0 ? `
                   <tr>
                     <td colspan="10" class="py-12 text-center bg-white">
-                      <div class="flex flex-col items-center justify-center space-y-2">
+                      <div class="flex flex-col items-center justify-center space-y-2 max-w-sm mx-auto p-4">
                         <span class="text-3xl">🏏</span>
-                        <div class="text-slate-700 font-bold text-sm">No players found</div>
-                        <p class="text-slate-400 text-xs">Try adjusting your search query or role filter</p>
+                        <div class="text-slate-800 font-black text-sm">No players found in this league view</div>
+                        <p class="text-slate-500 text-xs">Switch to All Leagues or Jhankra Super League 2026 to view verified player profiles & career stats.</p>
+                        <button type="button" class="btn-switch-career-universal px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-xs rounded-xl shadow-xs cursor-pointer mt-2">
+                          View All 120 Players ➔
+                        </button>
                       </div>
                     </td>
                   </tr>
@@ -8453,8 +12387,8 @@ function renderCareerHubView(container) {
 
                       <!-- Action Button -->
                       <td class="py-2.5 px-4 text-right">
-                        <button class="view-career-detail-btn px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-[10px] rounded-lg shadow-xs transition-all hover:scale-105 active:scale-95 cursor-pointer whitespace-nowrap" data-id="${p.id}">
-                          Profile
+                        <button class="view-career-detail-btn px-3 py-1 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-[10px] rounded-lg shadow-xs transition-all hover:scale-105 active:scale-95 cursor-pointer whitespace-nowrap" data-id="${p.id}">
+                          Profile Card
                         </button>
                       </td>
                     </tr>
@@ -8471,6 +12405,23 @@ function renderCareerHubView(container) {
     container.querySelectorAll('.filter-cat-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         selectedCategory = e.currentTarget.getAttribute('data-category');
+        drawCareerHub();
+      });
+    });
+
+    // League Tourney Select Event
+    const tourneyFilter = document.getElementById('career-tourney-filter-select');
+    if (tourneyFilter) {
+      tourneyFilter.addEventListener('change', (e) => {
+        selectedTourneyId = e.target.value;
+        drawCareerHub();
+      });
+    }
+
+    // Quick switch to Universal button
+    container.querySelectorAll('.btn-switch-career-universal').forEach(btn => {
+      btn.addEventListener('click', () => {
+        selectedTourneyId = 'ALL';
         drawCareerHub();
       });
     });
@@ -8505,13 +12456,27 @@ function renderCareerHubView(container) {
         openCareerDetailModal(playerId);
       });
     });
+
+    // Story Card Generator Event
+    container.querySelectorAll('.btn-gen-player-story-card').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const pid = e.currentTarget.getAttribute('data-id');
+        const pObj = store.getPlayerById ? store.getPlayerById(pid) : store.getPlayers().find(x => x.id === pid);
+        if (!pObj) return;
+        const team = store.getTeamById(pObj.teamId);
+        const tourney = store.getLeagueById(pObj.leagueId || store.activeTournamentId) || store.getCustomTournamentById(pObj.tournamentId) || { name: 'CRICKET PREMIER LEAGUE' };
+        exportPlayerSocialCard(pObj, team, tourney);
+      });
+    });
   };
 
   drawCareerHub();
 }
 
 function openCareerDetailModal(playerId) {
-  const playerReg = store.getPlayers().find(p => p.id === playerId);
+  const allList = store.getPlayersForTournament ? store.getPlayersForTournament('ALL') : store.getPlayers();
+  const playerReg = allList.find(p => String(p.id) === String(playerId)) || store.getPlayerById(playerId);
   if (!playerReg) return;
 
   const phone = (playerReg.phone || '').trim();
@@ -8523,7 +12488,7 @@ function openCareerDetailModal(playerId) {
       name: playerReg.name,
       phone: playerReg.phone,
       photoUrl: playerReg.photoUrl || playerReg.player_photo_url || '',
-      village: playerReg.village || 'Jhankra',
+      village: playerReg.village || 'N/A',
       battingStyle: playerReg.battingStyle || 'Right Hand Bat',
       bowlingStyle: playerReg.bowlingStyle || 'Right Arm Medium',
       category: playerReg.category || playerReg.playingType || 'All Rounder'
@@ -8532,7 +12497,7 @@ function openCareerDetailModal(playerId) {
 
   const allRegistrations = store.getPlayers().filter(p => (p.phone || '').trim() === phone);
   const fixtures = store.getFixtures();
-  const completedFixtures = fixtures.filter(f => f.status === 'COMPLETED');
+  const activeOrCompletedFixtures = fixtures.filter(f => f.status === 'COMPLETED' || f.status === 'LIVE');
   
   let totalRuns = 0;
   let totalWickets = 0;
@@ -8544,7 +12509,7 @@ function openCareerDetailModal(playerId) {
   let halfCenturies = 0;
   let fiveWickets = 0;
 
-  completedFixtures.forEach(f => {
+  activeOrCompletedFixtures.forEach(f => {
     if (f.liveMatchState && f.liveMatchState.playerStats && f.liveMatchState.playerStats[profile.id]) {
       const ps = f.liveMatchState.playerStats[profile.id];
       const r = ps.runs || 0;
@@ -8587,7 +12552,7 @@ function openCareerDetailModal(playerId) {
     let regMatches = 0;
 
     if (teamId) {
-      const teamMatches = completedFixtures.filter(f => f.teamAId === teamId || f.teamBId === teamId);
+      const teamMatches = activeOrCompletedFixtures.filter(f => f.teamAId === teamId || f.teamBId === teamId);
       teamMatches.forEach(f => {
         if (f.liveMatchState && f.liveMatchState.playerStats && f.liveMatchState.playerStats[profile.id]) {
           const ps = f.liveMatchState.playerStats[profile.id];
@@ -8599,7 +12564,7 @@ function openCareerDetailModal(playerId) {
     }
 
     return {
-      leagueCode: reg.leagueCategory || 'JSL',
+      leagueCode: reg.leagueCategory || 'T',
       year: 2026,
       teamName: team ? team.name : 'Unassigned / Free Agent',
       matches: regMatches,
@@ -8611,92 +12576,99 @@ function openCareerDetailModal(playerId) {
   document.getElementById('career-detail-modal')?.remove();
 
   const modalHtml = `
-    <div id="career-detail-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3 bg-slate-950/60 backdrop-blur-sm animate-fade-in">
-      <div class="bg-white border border-slate-200 max-w-sm w-full p-5 relative space-y-4 rounded-2xl shadow-2xl text-slate-800 text-center modal-content-container">
-        <button id="close-career-detail-btn" class="absolute top-3 right-3 text-slate-400 hover:text-slate-700 p-1">
-          <i data-lucide="x" class="w-4 h-4"></i>
+    <div id="career-detail-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3 bg-slate-950/85 backdrop-blur-md animate-fade-in">
+      <div class="bg-gradient-to-br from-[#020617] via-[#0B1536] to-[#064E3B] text-white border-2 border-emerald-400 max-w-sm sm:max-w-md w-full p-5 relative space-y-4 rounded-3xl shadow-2xl text-center modal-content-container overflow-hidden">
+        
+        <button id="close-career-detail-btn" class="absolute top-3 right-3 w-8 h-8 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center text-xs font-black cursor-pointer z-10">
+          ✕
         </button>
 
-        <div class="flex flex-col items-center space-y-3 pb-4 border-b border-slate-200">
-          <div class="w-28 h-28 sm:w-32 sm:h-32 rounded-2xl overflow-hidden shadow-lg border-2 border-slate-250 bg-slate-50 flex items-center justify-center">
+        <!-- Header Badge -->
+        <div class="space-y-1 pt-1">
+          <div class="text-xs font-black uppercase text-amber-400 tracking-wider flex items-center justify-center gap-1.5">
+            <span>🏆</span> <span>CRICKET PREMIER LEAGUE</span>
+          </div>
+          <div class="text-[10px] font-extrabold text-emerald-300 uppercase tracking-widest">
+            OFFICIAL LIFETIME CAREER STORY CARD
+          </div>
+        </div>
+
+        <!-- Player Photo & Profile Details -->
+        <div class="flex flex-col items-center space-y-2.5 py-1 relative">
+          <div class="w-28 h-28 sm:w-32 sm:h-32 rounded-full overflow-hidden shadow-2xl border-4 border-emerald-400 ring-4 ring-emerald-500/30 bg-slate-900 flex items-center justify-center">
             <img src="${profile.photoUrl || 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Crect width=\'100\' height=\'100\' rx=\'20\' fill=\'%23059669\'/%3E%3Ctext x=\'50\' y=\'62\' font-size=\'45\' text-anchor=\'middle\' fill=\'white\'%3E🏏%3C/text%3E%3C/svg%3E'}" class="w-full h-full object-cover" />
           </div>
           <div>
-            <span class="px-2.5 py-0.5 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded-full font-black text-[9px] uppercase tracking-wider">Player Profile</span>
-            <h3 class="text-base sm:text-lg font-black text-slate-900 leading-tight mt-1.5">${profile.name}</h3>
-            <div class="text-xs text-slate-500 font-bold mt-1">📍 Village: ${profile.village || 'Jhankra'}</div>
+            <h3 class="text-lg sm:text-xl font-black text-white leading-tight uppercase tracking-wide drop-shadow-md">${profile.name}</h3>
+            <div class="text-xs text-emerald-300 font-extrabold mt-1 flex items-center justify-center gap-1.5">
+              <span>🏏 ${profile.category || 'All Rounder'}</span>
+              <span>•</span>
+              <span>📍 ${profile.village || 'N/A'}</span>
+            </div>
           </div>
         </div>
 
-        <div class="grid grid-cols-2 gap-2 text-[11px] bg-slate-50 p-2.5 rounded-xl border border-slate-200 text-slate-650">
-          <div><span class="text-slate-400 font-bold">Batting:</span> <span class="text-slate-800 font-black">${profile.battingStyle || 'Right Hand'}</span></div>
-          <div><span class="text-slate-400 font-bold">Bowling:</span> <span class="text-slate-800 font-black">${profile.bowlingStyle || 'Right Arm'}</span></div>
+        <!-- Styles Pill Grid -->
+        <div class="grid grid-cols-2 gap-2 text-xs bg-slate-900/80 p-2.5 rounded-2xl border border-emerald-500/30 text-slate-300">
+          <div><span class="text-slate-400 font-bold">Batting:</span> <span class="text-white font-black">${profile.battingStyle || 'Right Hand'}</span></div>
+          <div><span class="text-slate-400 font-bold">Bowling:</span> <span class="text-white font-black">${profile.bowlingStyle || 'Right Arm'}</span></div>
         </div>
 
-        <div class="space-y-2">
-          <div class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Lifetime Stats</div>
+        <!-- Lifetime Stats Grid (Colorful Stat Boxes) -->
+        <div class="space-y-1.5">
+          <div class="text-[10px] font-black text-emerald-400 uppercase tracking-widest">LIFETIME CAREER STATISTICS</div>
           <div class="grid grid-cols-5 gap-1.5 text-center">
-            <div class="bg-slate-50 p-2 border border-slate-200 rounded-xl">
-              <span class="text-[8px] text-slate-500 uppercase font-semibold">MAT</span>
-              <div class="text-sm font-black text-slate-900 mt-0.5">${matchesCount}</div>
+            <div class="bg-slate-900/90 p-2 border border-slate-700 rounded-2xl shadow-xs">
+              <span class="text-[8px] text-slate-400 uppercase font-black">MAT</span>
+              <div class="text-sm font-black text-white mt-0.5">${matchesCount}</div>
             </div>
-            <div class="bg-slate-50 p-2 border border-slate-200 rounded-xl">
-              <span class="text-[8px] text-slate-500 uppercase font-semibold">RUNS</span>
-              <div class="text-sm font-black text-amber-700 mt-0.5">${totalRuns}</div>
+            <div class="bg-amber-950/80 p-2 border border-amber-500/50 rounded-2xl shadow-xs">
+              <span class="text-[8px] text-amber-300 uppercase font-black">RUNS</span>
+              <div class="text-sm font-black text-amber-400 mt-0.5">${totalRuns}</div>
             </div>
-            <div class="bg-slate-50 p-2 border border-slate-200 rounded-xl">
-              <span class="text-[8px] text-slate-500 uppercase font-semibold">AVG</span>
-              <div class="text-sm font-black text-slate-900 mt-0.5">${battingAvg}</div>
+            <div class="bg-emerald-950/80 p-2 border border-emerald-500/50 rounded-2xl shadow-xs">
+              <span class="text-[8px] text-emerald-300 uppercase font-black">AVG</span>
+              <div class="text-sm font-black text-emerald-300 mt-0.5">${battingAvg}</div>
             </div>
-            <div class="bg-slate-50 p-2 border border-slate-200 rounded-xl">
-              <span class="text-[8px] text-slate-500 uppercase font-semibold">WKT</span>
-              <div class="text-sm font-black text-sky-700 mt-0.5">${totalWickets}</div>
+            <div class="bg-sky-950/80 p-2 border border-sky-500/50 rounded-2xl shadow-xs">
+              <span class="text-[8px] text-sky-300 uppercase font-black">WKT</span>
+              <div class="text-sm font-black text-sky-400 mt-0.5">${totalWickets}</div>
             </div>
-            <div class="bg-slate-50 p-2 border border-slate-200 rounded-xl">
-              <span class="text-[8px] text-slate-500 uppercase font-semibold">ECON</span>
-              <div class="text-sm font-black text-slate-900 mt-0.5">${economy}</div>
-            </div>
-          </div>
-        </div>
-
-        <div class="space-y-2">
-          <div class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Milestones</div>
-          <div class="grid grid-cols-3 gap-2 text-center text-[10px] font-bold text-slate-700">
-            <div class="bg-amber-50/50 p-2 border border-amber-250 rounded-xl">
-              <span class="text-[8px] text-amber-800 uppercase block font-bold">100s</span>
-              <span class="text-sm font-black text-slate-900">${centuries}</span>
-            </div>
-            <div class="bg-amber-50/50 p-2 border border-amber-250 rounded-xl">
-              <span class="text-[8px] text-amber-800 uppercase block font-bold">50s</span>
-              <span class="text-sm font-black text-slate-900">${halfCenturies}</span>
-            </div>
-            <div class="bg-sky-50/50 p-2 border border-sky-250 rounded-xl">
-              <span class="text-[8px] text-sky-850 uppercase block font-bold">5W Hauls</span>
-              <span class="text-sm font-black text-slate-900">${fiveWickets}</span>
+            <div class="bg-purple-950/80 p-2 border border-purple-500/50 rounded-2xl shadow-xs">
+              <span class="text-[8px] text-purple-300 uppercase font-black">ECON</span>
+              <div class="text-sm font-black text-purple-300 mt-0.5">${economy}</div>
             </div>
           </div>
         </div>
 
-        <div class="space-y-2">
-          <div class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">League Timeline</div>
-          <div class="relative pl-3 border-l border-slate-200 space-y-3 max-h-[25vh] overflow-y-auto pr-1">
-            ${seasonalTimeline.map(time => `
-              <div class="relative text-xs">
-                <span class="absolute -left-[17px] top-1.5 w-2 h-2 rounded-full bg-emerald-500 border border-white shadow"></span>
-                <div>
-                  <div class="font-black text-slate-800">${time.year} — ${time.leagueCode} (${time.teamName})</div>
-                  <div class="text-[9px] text-slate-550 mt-0.5">
-                    Matches: ${time.matches} • Runs: ${time.runs} • Wickets: ${time.wickets}
-                  </div>
-                </div>
-              </div>
-            `).join('')}
+        <!-- Milestones -->
+        <div class="space-y-1.5">
+          <div class="text-[10px] font-black text-emerald-400 uppercase tracking-widest">CAREER MILESTONES</div>
+          <div class="grid grid-cols-3 gap-2 text-center text-xs font-bold text-white">
+            <div class="bg-amber-500/10 p-2 border border-amber-500/40 rounded-2xl">
+              <span class="text-[8px] text-amber-400 uppercase block font-black">CENTURIES (100s)</span>
+              <span class="text-sm font-black text-amber-300">${centuries}</span>
+            </div>
+            <div class="bg-amber-500/10 p-2 border border-amber-500/40 rounded-2xl">
+              <span class="text-[8px] text-amber-400 uppercase block font-black">HALF 100s (50s)</span>
+              <span class="text-sm font-black text-amber-300">${halfCenturies}</span>
+            </div>
+            <div class="bg-sky-500/10 p-2 border border-sky-500/40 rounded-2xl">
+              <span class="text-[8px] text-sky-400 uppercase block font-black">5W HAULS</span>
+              <span class="text-sm font-black text-sky-300">${fiveWickets}</span>
+            </div>
           </div>
         </div>
 
-        <button id="close-career-detail-btn-bottom" class="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow transition-colors">
-          Close Profile
-        </button>
+        <!-- Action Buttons -->
+        <div class="flex flex-col sm:flex-row gap-2 pt-2">
+          <button id="btn-career-social-story" class="flex-1 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-emerald-500/30 flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all">
+            <span>⬇️</span> <span>Download PNG Story Card</span>
+          </button>
+          <button id="close-career-detail-btn-bottom" class="py-2.5 px-4 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl border border-slate-700 shadow transition-colors cursor-pointer">
+            Close
+          </button>
+        </div>
       </div>
     </div>
   `;
@@ -8707,6 +12679,12 @@ function openCareerDetailModal(playerId) {
   const removeModal = () => document.getElementById('career-detail-modal')?.remove();
   document.getElementById('close-career-detail-btn')?.addEventListener('click', removeModal);
   document.getElementById('close-career-detail-btn-bottom')?.addEventListener('click', removeModal);
+
+  document.getElementById('btn-career-social-story')?.addEventListener('click', () => {
+    const team = store.getTeamById(playerReg.teamId) || { name: 'CRICKET PREMIER LEAGUE' };
+    const tourney = { name: 'CRICKET PREMIER LEAGUE' };
+    exportPlayerSocialCard(playerReg, team, tourney);
+  });
 }
 
 function openTeamSquadModal(team) {
@@ -8747,7 +12725,7 @@ window.navigateBackToHome = function() {
 
 async function checkAndShowAdvertisementPopup() {
   try {
-    const settings = await fetchPopupSettingsFromFirebase();
+    const settings = await fetchPopupSettingsFromCloud();
     if (!settings || !settings.isAdPopupEnabled) return;
 
     // Check expiry for snooze
@@ -9078,7 +13056,7 @@ function initRealtimePlayerToast() {
     const photoUrl = player.photoUrl || player.player_photo_url || player.photo_url || "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23059669'/%3E%3Ctext x='50' y='62' font-size='45' text-anchor='middle' fill='white'%3E🏏%3C/text%3E%3C/svg%3E";
     const playerName = player.playerName || player.name || 'Anonymous Player';
     const playerRole = player.playerRole || player.role || player.category || 'All Rounder';
-    const playerVillage = player.village || player.address || player.teamName || 'Jhankra';
+    const playerVillage = player.village || player.address || player.teamName || 'N/A';
 
     toastContainer.innerHTML = `
       <div class="relative bg-white/95 backdrop-blur-md border-2 border-emerald-400 rounded-2xl p-2.5 shadow-2xl flex items-center gap-2.5 max-w-[280px] sm:max-w-xs cursor-pointer group hover:scale-[1.02] transition-transform" id="toast-card-inner">
@@ -9146,7 +13124,7 @@ function initRealtimePlayerToast() {
   const triggerLatestPlayerToast = async (isNewEvent = false) => {
     // Check if Admin has paused/held the toast popup
     try {
-      const popupSettings = await fetchPopupSettingsFromFirebase();
+      const popupSettings = await fetchPopupSettingsFromCloud();
       if (popupSettings && popupSettings.isRealtimePlayerToastEnabled === false) {
         hideToast();
         return;
@@ -9210,13 +13188,13 @@ export function openPlayerLoginModal(onSuccess) {
 
         <div class="mt-3 mb-4">
           <h3 class="text-xl font-black text-slate-900">Player & Official Login</h3>
-          <p class="text-xs text-slate-500 mt-0.5">Sign in to view your digital pass, status & tournament controls</p>
+          <p class="text-xs text-slate-500 mt-0.5">Sign in with mobile number (players) or email (admin/organiser)</p>
         </div>
 
         <form id="player-login-form" class="space-y-3.5 text-left">
           <div>
-            <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">10-Digit Mobile Number *</label>
-            <input type="text" id="login-identifier" required autocomplete="off" placeholder="Enter your 10-digit mobile number" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-3 focus:border-blue-500 focus:outline-none font-mono" />
+            <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Mobile Number or Email *</label>
+            <input type="text" id="login-identifier" required autocomplete="off" placeholder="10-digit mobile or admin email" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-3 focus:border-blue-500 focus:outline-none font-mono" />
           </div>
 
           <div>
@@ -9234,10 +13212,14 @@ export function openPlayerLoginModal(onSuccess) {
           </button>
         </form>
 
-        <div class="mt-4 pt-3 border-t border-slate-100 text-center">
+        <div class="mt-4 pt-3 border-t border-slate-100 text-center space-y-2">
           <p class="text-xs text-slate-500">
-            New Player? 
+            New Player?
             <button id="modal-goto-register-btn" class="font-bold text-blue-600 hover:underline cursor-pointer">Register for Tournament</button>
+          </p>
+          <p class="text-xs text-slate-500">
+            Want to organise?
+            <button id="modal-goto-host-btn" class="font-bold text-amber-600 hover:underline cursor-pointer">Host Your Own Tournament</button>
           </p>
         </div>
       </div>
@@ -9255,26 +13237,43 @@ export function openPlayerLoginModal(onSuccess) {
     openRegistrationModal();
   });
 
-  document.getElementById('player-login-form')?.addEventListener('submit', (e) => {
+  document.getElementById('modal-goto-host-btn')?.addEventListener('click', () => {
+    removeModal();
+    openTournamentCreationRoadmapModal(false);
+  });
+
+  document.getElementById('player-login-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const identifier = document.getElementById('login-identifier').value.trim();
     const pass = document.getElementById('login-password').value.trim();
     const errEl = document.getElementById('login-error-msg');
+    const submitBtn = e.target.querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.disabled = true;
 
-    const res = store.authenticateUser(identifier, pass);
-    if (!res.success) {
-      if (errEl) {
-        errEl.textContent = res.message || 'Login failed';
-        errEl.classList.remove('hidden');
+    try {
+      const res = await store.authenticateUser(identifier, pass);
+      if (!res.success) {
+        if (errEl) {
+          errEl.textContent = res.message || 'Login failed';
+          errEl.classList.remove('hidden');
+        }
+        return;
       }
-      return;
-    }
 
-    removeModal();
+      removeModal();
 
     if (onSuccess) onSuccess(res.user);
     renderNavbar();
-    renderMobileNav();
+    renderMobileBottomNav();
+
+    // First-time login: prompt password reset before navigating
+    if (res.isFirstLogin) {
+      openFirstTimePasswordResetModal(identifier, () => {
+        if (res.role === 'SUPER_ADMIN') navigate('admin');
+        else navigate('profile');
+      });
+      return;
+    }
 
     // Smart routing based on role
     if (res.role === 'SUPER_ADMIN') {
@@ -9283,6 +13282,9 @@ export function openPlayerLoginModal(onSuccess) {
       navigate('profile');
     } else {
       navigate('profile');
+    }
+    } finally {
+      if (submitBtn) submitBtn.disabled = false;
     }
   });
 }
@@ -9345,7 +13347,7 @@ export function openFirstTimePasswordResetModal(phone, onSuccess) {
     navigate('profile');
   });
 
-  document.getElementById('first-login-pwd-form')?.addEventListener('submit', (e) => {
+  document.getElementById('first-login-pwd-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const p1 = document.getElementById('first-new-password').value;
     const p2 = document.getElementById('first-confirm-password').value;
@@ -9359,7 +13361,7 @@ export function openFirstTimePasswordResetModal(phone, onSuccess) {
       return;
     }
 
-    const res = store.updateUserPassword(phone, p1);
+    const res = await store.updateUserPassword(phone, p1);
     if (!res.success) {
       if (errEl) {
         errEl.textContent = res.message || 'Failed to update password';
@@ -9402,7 +13404,7 @@ function renderPlayerProfileView(container) {
     return;
   }
 
-  const isMaster = currentUser.role === 'SUPER_ADMIN' || (currentUser.email && currentUser.email.toLowerCase() === 'bakolaypan@gmail.com');
+  const isMaster = currentUser.role === 'SUPER_ADMIN' || currentUser.role === 'master_admin';
   const allPlayers = store.getPlayers();
   const cleanPhone = (currentUser.phone || '').replace(/[^0-9]/g, '');
   const cleanPhone10 = cleanPhone.slice(-10);
@@ -9436,7 +13438,7 @@ function renderPlayerProfileView(container) {
       basePrice: 300,
       serialNo: matchedProfile.serialNo || 103,
       displayRegistrationNumber: matchedProfile.displayRegistrationNumber || 103,
-      registrationId: matchedProfile.registrationId || `JSL2026-${String(matchedProfile.displayRegistrationNumber || 103).padStart(4, '0')}`
+      registrationId: matchedProfile.registrationId || `REG-${String(matchedProfile.displayRegistrationNumber || 103).padStart(4, '0')}`
     };
   }
 
@@ -9459,31 +13461,32 @@ function renderPlayerProfileView(container) {
     }
   }
 
-  if (!player) {
-    if (isMaster) {
+  if (isMaster) {
+    player = {
+      name: currentUser.name && currentUser.name !== 'Admin User' ? currentUser.name : 'Master Admin (Suman Kolay)',
+      phone: currentUser.email || currentUser.phone || 'bakolaypan@gmail.com',
+      category: 'Master Admin / Supreme Authority',
+      village: 'Tournament Headquarters',
+      district: 'Paschim Medinipur',
+      state: 'West Bengal',
+      registrationStatus: 'APPROVED',
+      paymentStatus: 'APPROVED',
+      basePrice: 0,
+      photoUrl: currentUser.avatar_url || 'assets/card_jsl_user.png'
+    };
+  } else if (!player) {
+    if (isTournamentOwner) {
+      const ownerEntry = Object.values(owners).find(o => o && (o.phone || '').replace(/[^0-9]/g, '').slice(-10) === cleanPhone10);
       player = {
-        name: 'Suman Kolay (Master Super Admin)',
-        phone: 'bakolaypan@gmail.com',
-        category: 'Super Admin Authority',
-        village: 'Kolkata',
-        district: 'Kolkata',
-        state: 'West Bengal',
-        registrationStatus: 'APPROVED',
-        paymentStatus: 'APPROVED',
-        basePrice: 300,
-        photoUrl: 'assets/card_jsl_user.png'
-      };
-    } else if (isTournamentOwner) {
-      player = {
-        name: owners['tournament-jsl-2026']?.name || 'Pintu Santra',
-        phone: currentUser.phone || '8972144166',
+        name: ownerEntry?.name || currentUser.name || 'Tournament Organizer',
+        phone: currentUser.phone || '',
         category: 'Tournament Owner',
-        village: 'Jhakra',
-        district: 'Paschim Medinipur',
-        state: 'West Bengal',
+        village: '',
+        district: '',
+        state: '',
         registrationStatus: 'APPROVED',
         paymentStatus: 'APPROVED',
-        basePrice: 300,
+        basePrice: 0,
         photoUrl: 'assets/card_jsl_user.png'
       };
     } else {
@@ -9535,11 +13538,11 @@ function renderPlayerProfileView(container) {
           <div class="flex-1 space-y-2 min-w-0">
             <div class="flex flex-wrap items-center justify-center sm:justify-start gap-2">
               <span class="px-2.5 py-0.5 ${isMaster ? 'bg-amber-50 text-amber-800 border-amber-300' : (isTournamentOwner ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200')} border rounded-full font-black text-[10px] uppercase">
-                ${isMaster ? '👑 MASTER SUPER ADMIN' : (isTournamentOwner ? '🏆 TOURNAMENT OWNER' : '🏏 JSL 2026 PLAYER')}
+                ${isMaster ? '👑 MASTER SUPER ADMIN' : (isTournamentOwner ? '🏆 TOURNAMENT OWNER' : '🏏 REGISTERED PLAYER')}
               </span>
               ${(player.displayRegistrationNumber || player.serialNo || player.registrationId) ? `
                 <span class="px-2.5 py-0.5 bg-slate-100 text-slate-700 border border-slate-200 rounded-full font-mono font-black text-[10px]">
-                  #${player.displayRegistrationNumber || player.serialNo || 1} • ${player.registrationId || ('JSL2026-' + String(player.serialNo || 1).padStart(4, '0'))}
+                  #${player.displayRegistrationNumber || player.serialNo || 1} • ${player.registrationId || ('REG-' + String(player.serialNo || 1).padStart(4, '0'))}
                 </span>
               ` : ''}
             </div>
@@ -9581,8 +13584,8 @@ function renderPlayerProfileView(container) {
           <div class="flex items-center gap-3">
             <span class="p-2.5 bg-amber-400 text-slate-950 font-black rounded-2xl text-xl shadow">🏆</span>
             <div>
-              <h3 class="font-black text-slate-900 text-sm sm:text-base">${isMaster ? 'Master Super Admin Control Console' : 'JSL 2026 Tournament Control Console'}</h3>
-              <p class="text-xs text-slate-600">${isMaster ? 'You have full Super Admin control over the entire system.' : 'You have full administrative authority over auction, verification & scoring.'}</p>
+              <h3 class="font-black text-slate-900 text-sm sm:text-base">${isMaster ? 'Master Super Admin Control Console' : 'Tournament Control Console'}</h3>
+              <p class="text-xs text-slate-600">${isMaster ? 'You have full Super Admin control over the entire system.' : 'Manage your tournament — teams, players, auction, verification & scoring.'}</p>
             </div>
           </div>
           <button id="profile-open-admin-console-btn" class="w-full px-4 py-2.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-black text-xs rounded-xl shadow flex items-center justify-center gap-2 cursor-pointer border border-amber-300">
@@ -9681,7 +13684,7 @@ export function openPlayerEditProfileModal(player, onSaved) {
           <!-- Village / City -->
           <div>
             <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Village / City *</label>
-            <input type="text" id="edit-player-village" value="${player.village || 'Paschim Medinipur'}" required placeholder="e.g. Jhankra, Paschim Medinipur" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-3 focus:border-blue-500 focus:outline-none" />
+            <input type="text" id="edit-player-village" value="${player.village || 'Paschim Medinipur'}" required placeholder="e.g. City, District" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-3 focus:border-blue-500 focus:outline-none" />
           </div>
 
           <div id="edit-profile-error-msg" class="text-xs text-rose-600 font-bold hidden text-center"></div>
@@ -9776,6 +13779,148 @@ window.compressImage = compressImage;
 window.openYouTubePromoModal = openYouTubePromoModal;
 window.openLiveAuctionProjectorView = openLiveAuctionProjectorView;
 
+// --- BENGALI TOURNAMENT ROADMAP & SETUP INSTRUCTIONS MODAL ---
+export function openTournamentCreationRoadmapModal(isTrialMode = false) {
+  document.getElementById('tournament-roadmap-intro-modal')?.remove();
+
+  const modalHtml = `
+    <div id="tournament-roadmap-intro-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-2.5 sm:p-4 animate-fade-in bg-slate-950/80 backdrop-blur-md font-sans">
+      <div class="bg-white text-slate-900 max-w-xl w-full max-h-[92vh] flex flex-col rounded-2xl sm:rounded-3xl border-2 border-amber-400 shadow-2xl overflow-hidden">
+        
+        <!-- HEADER -->
+        <div class="p-3 sm:p-4 bg-gradient-to-r from-amber-500 via-orange-500 to-yellow-500 text-slate-950 flex items-center justify-between gap-2 shrink-0 shadow-sm">
+          <div class="flex items-center gap-2.5">
+            <span class="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-white/95 text-slate-950 flex items-center justify-center text-lg sm:text-xl shrink-0 shadow-md font-black">
+              🏆
+            </span>
+            <div>
+              <span class="text-[9px] sm:text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-black/20 text-white border border-white/30">
+                ✨ FAST 2-MINUTE SETUP • টুর্নামেন্ট গাইড
+              </span>
+              <h2 class="text-sm sm:text-base font-black text-white tracking-tight leading-tight mt-0.5" style="font-family: 'Hind Siliguri', 'Anek Bangla', sans-serif;">
+                টুর্নামেন্ট তৈরি ও পরিচালনার নিয়মাবলী
+              </h2>
+            </div>
+          </div>
+          
+          <button id="close-tourney-roadmap-btn" class="w-8 h-8 rounded-full bg-white/90 hover:bg-white text-slate-900 flex items-center justify-center text-sm font-black transition-all shadow-xs cursor-pointer">
+            ✕
+          </button>
+        </div>
+
+        <!-- SCROLLABLE BODY -->
+        <div class="p-3.5 sm:p-5 overflow-y-auto flex-1 space-y-2.5 bg-gradient-to-b from-slate-50 to-white text-left" style="font-family: 'Hind Siliguri', 'Anek Bangla', sans-serif;">
+          
+          <!-- Intro Subtitle -->
+          <p class="text-xs sm:text-[13px] text-slate-700 leading-relaxed font-semibold text-center pb-0.5">
+            খুব সহজেই আপনার নিজস্ব ক্রিকেট টুর্নামেন্ট তৈরি করুন। নিচের <strong>সহজ ৪টি ধাপ</strong> অনুসরণ করে আপনার টুর্নামেন্ট চালু করুন:
+          </p>
+
+          <!-- Step 1: Basic Details -->
+          <div class="p-2.5 sm:p-3 bg-white rounded-2xl border-2 border-amber-200 shadow-2xs hover:border-amber-400 transition-all flex items-start gap-2.5">
+            <span class="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-gradient-to-br from-amber-400 to-orange-400 text-slate-950 flex items-center justify-center text-xs sm:text-sm font-black shrink-0 shadow-xs mt-0.5">
+              ১
+            </span>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-1.5">
+                <span class="text-xs font-black text-slate-900">ধাপ ১: টুর্নামেন্টের সাধারণ বিবরণ (Tournament Details)</span>
+              </div>
+              <p class="text-[11px] sm:text-[11.5px] text-slate-600 leading-snug mt-0.5">
+                টুর্নামেন্টের নাম, খেলার মাঠ (Venue), শুরুর তারিখ, চ্যাম্পিয়ন ও রানার্স প্রাইজমানি এবং ব্যানার পোস্টার নির্বাচন করুন।
+              </p>
+            </div>
+          </div>
+
+          <!-- Step 2: Mode Selection -->
+          <div class="p-2.5 sm:p-3 bg-white rounded-2xl border-2 border-emerald-200 shadow-2xs hover:border-emerald-400 transition-all flex items-start gap-2.5">
+            <span class="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 text-white flex items-center justify-center text-xs sm:text-sm font-black shrink-0 shadow-xs mt-0.5">
+              ২
+            </span>
+            <div class="min-w-0 flex-1 space-y-1">
+              <div class="flex items-center gap-1.5">
+                <span class="text-xs font-black text-slate-900">ধাপ ২: পরিচালনার মোড নির্বাচন (Choose Mode)</span>
+              </div>
+              <p class="text-[11px] sm:text-[11.5px] text-slate-600 leading-snug">
+                আপনার টুর্নামেন্টের আয়োজন অনুযায়ী যেকোনো একটি মোড বেছে নিন:
+              </p>
+              
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 pt-0.5">
+                <div class="p-2 bg-amber-50/90 rounded-xl border border-amber-300 text-[11px] text-amber-950">
+                  <strong class="font-bold block text-amber-900">🔨 Mode A: Auction League</strong>
+                  <span>প্লেয়ার রেজিস্ট্রেশন + লাইভ অকশন নিলাম + টিম বাজেট + লাইভ স্কোরার।</span>
+                </div>
+                <div class="p-2 bg-emerald-50/90 rounded-xl border border-emerald-300 text-[11px] text-emerald-950">
+                  <strong class="font-bold block text-emerald-900">🏏 Mode B: Fixture Only</strong>
+                  <span>সরাসরি টিম এন্ট্রি + অটো ফিক্সচার শিডিউলার + বল-বাই-বল লাইভ স্কোরার।</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Step 3: Admin Account Creation -->
+          <div class="p-2.5 sm:p-3 bg-white rounded-2xl border-2 border-sky-200 shadow-2xs hover:border-sky-400 transition-all flex items-start gap-2.5">
+            <span class="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-gradient-to-br from-sky-400 to-blue-500 text-white flex items-center justify-center text-xs sm:text-sm font-black shrink-0 shadow-xs mt-0.5">
+              ৩
+            </span>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-1.5">
+                <span class="text-xs font-black text-slate-900">ধাপ ৩: অ্যাডমিন আইডি ও পাসওয়ার্ড তৈরি (Admin Credentials)</span>
+              </div>
+              <p class="text-[11px] sm:text-[11.5px] text-slate-600 leading-snug mt-0.5">
+                আপনার নাম, মোবাইল নম্বর এবং পাসওয়ার্ড সেট করুন। এই আইডি দিয়ে আপনি পরবর্তীতে অ্যাডমিন প্যানেলে লগইন করে প্লেয়ার ও ম্যাচ পরিচালনা করবেন।
+              </p>
+            </div>
+          </div>
+
+          <!-- Step 4: Master Admin Approval & Go Live -->
+          <div class="p-2.5 sm:p-3 bg-white rounded-2xl border-2 border-purple-200 shadow-2xs hover:border-purple-400 transition-all flex items-start gap-2.5">
+            <span class="w-7 h-7 sm:w-8 sm:h-8 rounded-xl bg-gradient-to-br from-purple-400 to-indigo-500 text-white flex items-center justify-center text-xs sm:text-sm font-black shrink-0 shadow-xs mt-0.5">
+              ৪
+            </span>
+            <div class="min-w-0 flex-1">
+              <div class="flex items-center gap-1.5">
+                <span class="text-xs font-black text-slate-900">ধাপ ৪: মাস্টার অ্যাডমিন অনুমোদন ও লাইভ (Approval & Go LIVE)</span>
+              </div>
+              <p class="text-[11px] sm:text-[11.5px] text-slate-600 leading-snug mt-0.5">
+                ফর্ম সাবমিট করার পর মাস্টার অ্যাডমিনের কাছে অনুমোদনের জন্য যাবে। অ্যাডমিন অনুমোদন (Approve) করলেই আপনার টুর্নামেন্ট ও প্লেয়ার রেজিস্ট্রেশন লিঙ্ক সবার জন্য স্বয়ংক্রিয়ভাবে লাইভ হয়ে যাবে!
+              </p>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- FOOTER WITH PROCEED BUTTON -->
+        <div class="p-3 sm:p-4 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-2.5 shrink-0">
+          <div class="text-[11px] text-slate-500 font-semibold text-center sm:text-left flex items-center gap-1.5">
+            <span>🛡️</span> <span>100% সুরক্ষিত ও স্বয়ংক্রিয় ক্লাউড সিস্টেম</span>
+          </div>
+
+          <button type="button" id="btn-proceed-to-tourney-wizard" class="w-full sm:w-auto px-5 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg border border-emerald-400/40 flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-[1.02]">
+            <span style="font-family: 'Hind Siliguri', 'Anek Bangla', sans-serif;">🚀 এগিয়ে যান ও টুর্নামেন্ট তৈরি করুন (Proceed)</span>
+            <span>➔</span>
+          </button>
+        </div>
+
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+  const removeModal = () => {
+    document.getElementById('tournament-roadmap-intro-modal')?.remove();
+  };
+
+  document.getElementById('close-tourney-roadmap-btn')?.addEventListener('click', removeModal);
+
+  document.getElementById('btn-proceed-to-tourney-wizard')?.addEventListener('click', () => {
+    removeModal();
+    openTournamentCreationWizard(isTrialMode);
+  });
+}
+
+window.openTournamentCreationRoadmapModal = openTournamentCreationRoadmapModal;
+
 // --- MULTI-TENANT TOURNAMENT SAAS CREATION WIZARD (MODE A & MODE B) ---
 export function openTournamentCreationWizard(isTrialMode = false) {
   let currentStep = 1;
@@ -9788,21 +13933,19 @@ export function openTournamentCreationWizard(isTrialMode = false) {
       <div class="bg-white text-slate-900 max-w-2xl w-full max-h-[92vh] flex flex-col rounded-2xl sm:rounded-3xl border-2 border-amber-400 shadow-2xl overflow-hidden">
         
         <!-- MODAL HEADER -->
-        <div class="p-3.5 sm:p-4 bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50 border-b-2 border-amber-200 flex items-center justify-between gap-2 shrink-0">
-          <div class="flex items-center gap-2.5">
-            <span class="w-10 h-10 rounded-2xl bg-gradient-to-br from-amber-400 to-yellow-500 text-slate-950 border border-amber-300 flex items-center justify-center text-xl shrink-0 shadow-md font-black">
+        <div class="p-2.5 sm:p-3.5 bg-gradient-to-r from-amber-50 via-yellow-50 to-orange-50 border-b-2 border-amber-200 flex items-center justify-between gap-2 shrink-0">
+          <div class="flex items-center gap-2">
+            <span class="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-br from-amber-400 to-yellow-500 text-slate-950 border border-amber-300 flex items-center justify-center text-lg sm:text-xl shrink-0 shadow-md font-black">
               🏆
             </span>
             <div>
-              <div class="flex items-center gap-1.5 flex-wrap">
-                <span class="text-[9.5px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-amber-200/90 text-amber-950 border border-amber-300">
-                  ${isTrialMode ? '🧪 TRIAL / DRAFT MODE' : 'HOST TOURNAMENT'}
-                </span>
-                <span class="text-[9px] font-mono text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded-full border border-emerald-300 font-bold">SAAS CREATOR</span>
-              </div>
-              <h2 class="text-base sm:text-lg font-black text-slate-900 tracking-tight leading-tight mt-0.5">
-                Create & Host Your Cricket Tournament
+              <span class="text-[9.5px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-amber-200/90 text-amber-950 border border-amber-300">
+                ${isTrialMode ? '🧪 TRIAL / DRAFT MODE' : '🏆 HOST TOURNAMENT'}
+              </span>
+              <h2 class="text-sm sm:text-base font-black text-slate-900 tracking-tight leading-tight mt-0.5">
+                Create Your Cricket Tournament
               </h2>
+              <p class="text-[10px] font-bold text-slate-500 leading-tight">Create and host your custom tournament online</p>
             </div>
           </div>
           
@@ -9812,174 +13955,201 @@ export function openTournamentCreationWizard(isTrialMode = false) {
         </div>
 
         <!-- PROGRESS STEPS BAR -->
-        <div class="p-2 sm:p-3 bg-slate-50 border-b border-slate-200 flex items-center justify-around text-xs font-black shrink-0">
-          <div id="step-pill-1" class="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-400 text-slate-950 shadow-xs border border-amber-300">
+        <div class="px-2 py-1.5 sm:p-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-around text-[10px] sm:text-xs font-black shrink-0">
+          <div id="step-pill-1" class="flex items-center gap-1 px-2 sm:px-3 py-1 rounded-xl bg-amber-400 text-slate-950 shadow-xs border border-amber-300">
             <span>1</span> <span>Identity</span>
           </div>
-          <span class="text-slate-300">➔</span>
-          <div id="step-pill-2" class="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white text-slate-500 border border-slate-200">
-            <span>2</span> <span>Mode & Rules</span>
+          <span class="text-slate-300 text-[10px]">➔</span>
+          <div id="step-pill-2" class="flex items-center gap-1 px-2 sm:px-3 py-1 rounded-xl bg-white text-slate-500 border border-slate-200">
+            <span>2</span> <span>Mode</span>
           </div>
-          <span class="text-slate-300">➔</span>
-          <div id="step-pill-3" class="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white text-slate-500 border border-slate-200">
-            <span>3</span> <span>Organizer & Launch</span>
+          <span class="text-slate-300 text-[10px]">➔</span>
+          <div id="step-pill-3" class="flex items-center gap-1 px-2 sm:px-3 py-1 rounded-xl bg-white text-slate-500 border border-slate-200">
+            <span>3</span> <span>Launch</span>
           </div>
         </div>
 
         <!-- WIZARD BODY CONTAINER -->
-        <div id="tourney-wizard-content" class="p-4 sm:p-6 overflow-y-auto flex-1 space-y-4 bg-white">
+        <div id="tourney-wizard-content" class="p-3 sm:p-5 overflow-y-auto flex-1 space-y-3 bg-white">
           <!-- Step 1: Basic Identity -->
-          <div id="wizard-step-1" class="space-y-4 animate-fade-in">
+          <div id="wizard-step-1" class="space-y-3 animate-fade-in">
             <div>
-              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Tournament Full Name *</label>
-              <input type="text" id="wiz-tourney-name" placeholder="e.g. Medinipur Super Trophy 2026" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400" />
+              <label class="block text-[10.5px] font-black text-slate-800 uppercase mb-1">Tournament Name *</label>
+              <input type="text" id="wiz-tourney-name" placeholder="Tournament Name" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400 focus:bg-white transition-all shadow-2xs" />
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="grid grid-cols-2 gap-2.5">
               <div>
-                <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Short Code / URL Slug *</label>
-                <input type="text" id="wiz-tourney-slug" placeholder="e.g. MST2026" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-amber-400 uppercase" />
-                <span class="text-[9px] text-slate-400 block mt-0.5">Generates link: yourdomain.com/#t/mst2026</span>
+                <label class="block text-[10.5px] font-black text-slate-800 uppercase mb-1">Short Code</label>
+                <input type="text" id="wiz-tourney-slug" placeholder="Auto / Short Code" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-amber-400 focus:bg-white uppercase transition-all shadow-2xs" />
               </div>
               <div>
-                <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Venue / Ground Location *</label>
-                <input type="text" id="wiz-tourney-venue" placeholder="e.g. Town Club Ground, Medinipur" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400" />
-              </div>
-            </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Kickoff Date & Time *</label>
-                <input type="datetime-local" id="wiz-tourney-date" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400" />
-              </div>
-              <div>
-                <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Winner Prize (₹)</label>
-                <input type="number" id="wiz-tourney-prize" placeholder="e.g. 35000" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400 font-mono" />
+                <label class="block text-[10.5px] font-black text-slate-800 uppercase mb-1">Venue *</label>
+                <input type="text" id="wiz-tourney-venue" placeholder="Ground / Stadium Venue" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400 focus:bg-white transition-all shadow-2xs" />
               </div>
             </div>
 
+            <div class="grid grid-cols-2 gap-2.5">
+              <div>
+                <label class="block text-[10.5px] font-black text-slate-800 uppercase mb-1">Season</label>
+                <input type="text" id="wiz-tourney-season" placeholder="Season / Year" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400 focus:bg-white transition-all shadow-2xs" />
+              </div>
+              <div>
+                <label class="block text-[10.5px] font-black text-slate-800 uppercase mb-1">Total Teams *</label>
+                <input type="number" id="wiz-tourney-total-teams" placeholder="Number of Teams" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400 focus:bg-white font-mono transition-all shadow-2xs" />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2.5">
+              <div>
+                <label class="block text-[10.5px] font-black text-slate-800 uppercase mb-1">Start Date *</label>
+                <input type="date" id="wiz-tourney-date" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400 focus:bg-white transition-all shadow-2xs" />
+              </div>
+              <div>
+                <label class="block text-[10.5px] font-black text-slate-800 uppercase mb-1">End Date</label>
+                <input type="date" id="wiz-tourney-end-date" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400 focus:bg-white transition-all shadow-2xs" />
+              </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2.5">
+              <div>
+                <label class="block text-[10.5px] font-black text-slate-800 uppercase mb-1">Winner Prize ₹ *</label>
+                <input type="number" id="wiz-tourney-prize" placeholder="Winner Amount" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400 focus:bg-white font-mono transition-all shadow-2xs" />
+              </div>
+              <div>
+                <label class="block text-[10.5px] font-black text-slate-800 uppercase mb-1">Runner-Up ₹</label>
+                <input type="number" id="wiz-tourney-runner-prize" placeholder="Runner-Up Amount" class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400 focus:bg-white font-mono transition-all shadow-2xs" />
+              </div>
+            </div>
+
+            <!-- Upload Poster / Banner -->
+            <div class="p-3 bg-gradient-to-r from-amber-50/60 to-orange-50/60 rounded-2xl border border-amber-200/80 space-y-1.5 shadow-2xs">
+              <label class="block text-[10.5px] font-black text-slate-900 uppercase">Upload Poster / Banner</label>
+              <input type="file" id="wiz-poster-file" accept="image/*" class="w-full text-xs text-slate-600 file:mr-2.5 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-[11px] file:font-black file:bg-slate-950 file:text-white hover:file:bg-slate-800 cursor-pointer" />
+              <div id="wiz-poster-preview-container" class="hidden"></div>
+            </div>
+
+            <!-- Extra Information (If any) -->
             <div>
-              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Tournament Poster / Banner (Optional)</label>
-              <input type="file" id="wiz-poster-file" accept="image/*" class="w-full text-xs text-slate-600 file:mr-3 file:py-2 file:px-4 file:rounded-xl file:border-0 file:text-xs file:font-black file:bg-slate-900 file:text-white hover:file:bg-slate-800 cursor-pointer" />
+              <label class="block text-[10.5px] font-black text-slate-800 uppercase mb-1">Extra Information (If any)</label>
+              <textarea id="wiz-extra-info" rows="2" placeholder="Rules, contact numbers, special instructions or notes..." class="w-full bg-slate-50 border border-slate-300 rounded-xl px-3 py-2 text-xs text-slate-900 font-medium focus:outline-none focus:border-amber-400 focus:bg-white resize-none transition-all shadow-2xs"></textarea>
             </div>
           </div>
 
-          <!-- Step 2: Choose Mode & Rules (Hidden by Default) -->
-          <div id="wizard-step-2" class="space-y-4 hidden animate-fade-in">
-            <label class="block text-xs font-black text-slate-700 uppercase tracking-wider">Select Operating Mode *</label>
-            
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <!-- Step 2: Choose Mode -->
+          <div id="wizard-step-2" class="space-y-2.5 hidden animate-fade-in">
+            <label class="block text-[10px] font-black text-slate-700 uppercase">Select Mode *</label>
+
+            <div class="grid grid-cols-2 gap-2">
               <!-- Mode A: Full Auction -->
-              <div id="select-mode-a" class="p-3.5 rounded-2xl border-2 border-amber-400 bg-amber-50/50 cursor-pointer shadow-xs transition-all flex flex-col justify-between space-y-2">
-                <div class="space-y-1">
-                  <div class="flex items-center justify-between">
-                    <span class="text-xs font-black text-amber-950 flex items-center gap-1.5">
-                      <span>🔨 Mode A: Full Auction</span>
-                    </span>
-                    <span class="w-4 h-4 rounded-full bg-amber-400 text-slate-950 text-[10px] font-black flex items-center justify-center">✓</span>
-                  </div>
-                  <p class="text-[11px] text-slate-600">
-                    Open player registration form + Custom UPI QR code + Live Auction Projector screen with franchise purse tracking.
-                  </p>
+              <div id="select-mode-a" class="p-2.5 rounded-xl border-2 border-amber-400 bg-amber-50/50 cursor-pointer transition-all space-y-1">
+                <div class="flex items-center justify-between">
+                  <span class="text-[11px] font-black text-amber-950">🔨 Mode A</span>
+                  <span class="w-4 h-4 rounded-full bg-amber-400 text-slate-950 text-[9px] font-black flex items-center justify-center">✓</span>
                 </div>
-                <span class="text-[9.5px] font-black text-amber-800 uppercase tracking-wider">RECOMMENDED (JSL MODEL)</span>
+                <p class="text-[10px] font-bold text-amber-900">Full Auction League</p>
+                <p class="text-[9px] text-slate-500 leading-tight">Registration + Auction + Squads + Live Scorer</p>
               </div>
 
               <!-- Mode B: Quick Fixtures -->
-              <div id="select-mode-b" class="p-3.5 rounded-2xl border-2 border-slate-200 bg-white hover:border-slate-300 cursor-pointer shadow-xs transition-all flex flex-col justify-between space-y-2">
-                <div class="space-y-1">
-                  <div class="flex items-center justify-between">
-                    <span class="text-xs font-black text-slate-900 flex items-center gap-1.5">
-                      <span>🏏 Mode B: Quick Fixtures</span>
-                    </span>
-                    <span class="w-4 h-4 rounded-full bg-slate-200 text-slate-500 text-[10px] font-black flex items-center justify-center"></span>
-                  </div>
-                  <p class="text-[11px] text-slate-600">
-                    No public player registration. Direct team squad entry, 1-click fixture generation, and ball-by-ball live scoring.
-                  </p>
+              <div id="select-mode-b" class="p-2.5 rounded-xl border-2 border-slate-200 bg-white hover:border-slate-300 cursor-pointer transition-all space-y-1">
+                <div class="flex items-center justify-between">
+                  <span class="text-[11px] font-black text-slate-900">🏏 Mode B</span>
+                  <span class="w-4 h-4 rounded-full bg-slate-200 text-slate-500 text-[9px] font-black flex items-center justify-center"></span>
                 </div>
-                <span class="text-[9.5px] font-black text-slate-400 uppercase tracking-wider">CLUB / KNOCKOUT MODEL</span>
+                <p class="text-[10px] font-bold text-slate-700">Quick Fixtures League</p>
+                <p class="text-[9px] text-slate-500 leading-tight">Team Entry + Fixtures + Ball-by-Ball Scoring</p>
               </div>
             </div>
 
             <!-- Mode A Specific Fields -->
-            <div id="mode-a-config-block" class="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
-              <h4 class="text-xs font-black text-amber-900 uppercase tracking-wider">Mode A Auction & Registration Settings</h4>
-              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <div id="mode-a-config-block" class="p-2.5 rounded-xl bg-slate-50 border border-slate-200 space-y-2">
+              <h4 class="text-[10px] font-black text-amber-900 uppercase flex items-center gap-1.5">
+                <span>🔨</span> <span>Auction & Registration Settings</span>
+              </h4>
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <div>
-                  <label class="block text-[10px] font-black text-slate-600 uppercase mb-1">Player Entry Fee (₹)</label>
-                  <input type="number" id="wiz-entry-fee" value="300" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold font-mono" />
+                  <label class="block text-[9.5px] font-black text-slate-800 uppercase mb-0.5">Player Reg Fee ₹</label>
+                  <input type="number" id="wiz-entry-fee" value="300" class="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-bold font-mono" />
+                  <span class="text-[8.5px] text-slate-500 font-medium block mt-0.5">Per player registration fee</span>
                 </div>
                 <div>
-                  <label class="block text-[10px] font-black text-slate-600 uppercase mb-1">Team Purse (₹)</label>
-                  <input type="number" id="wiz-team-purse" value="8000" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold font-mono" />
+                  <label class="block text-[9.5px] font-black text-slate-800 uppercase mb-0.5">Team Purse ₹</label>
+                  <input type="number" id="wiz-team-purse" value="8000" class="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-bold font-mono" />
+                  <span class="text-[8.5px] text-slate-500 font-medium block mt-0.5">Auction purse per team</span>
                 </div>
                 <div>
-                  <label class="block text-[10px] font-black text-slate-600 uppercase mb-1">Base Price (₹)</label>
-                  <input type="number" id="wiz-base-price" value="300" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold font-mono" />
+                  <label class="block text-[9.5px] font-black text-slate-800 uppercase mb-0.5">Base Price ₹</label>
+                  <input type="number" id="wiz-base-price" value="300" class="w-full bg-white border border-slate-300 rounded-lg px-2 py-1.5 text-xs font-bold font-mono" />
+                  <span class="text-[8.5px] text-slate-500 font-medium block mt-0.5">Starting bid per player</span>
                 </div>
               </div>
 
               <div>
-                <label class="block text-[10px] font-black text-slate-600 uppercase mb-1">Organizer UPI ID (For Direct Payments) *</label>
-                <input type="text" id="wiz-upi-id" placeholder="e.g. organizer@okaxis or 8972214416@paytm" class="w-full bg-white border border-slate-300 rounded-xl px-3 py-2 text-xs font-bold font-mono" />
+                <label class="block text-[9px] font-black text-slate-600 uppercase mb-0.5">UPI ID *</label>
+                <input type="text" id="wiz-upi-id" placeholder="organizer@okaxis" class="w-full bg-white border border-slate-300 rounded-lg px-2.5 py-1.5 text-xs font-bold font-mono" />
               </div>
 
               <div>
-                <label class="block text-[10px] font-black text-slate-600 uppercase mb-1">Upload Organizer Payment QR Code Image *</label>
-                <input type="file" id="wiz-qr-file" accept="image/*" class="w-full text-xs text-slate-600 file:mr-2 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-[11px] file:font-black file:bg-emerald-600 file:text-white hover:file:bg-emerald-500 cursor-pointer" />
+                <label class="block text-[9px] font-black text-slate-600 uppercase mb-0.5">Payment QR Code *</label>
+                <input type="file" id="wiz-qr-file" accept="image/*" class="w-full text-[11px] text-slate-600 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:bg-emerald-600 file:text-white cursor-pointer" />
+                <div id="wiz-qr-preview-container" class="hidden"></div>
               </div>
             </div>
           </div>
 
-          <!-- Step 3: Organizer Contact & Launch (Hidden by Default) -->
-          <div id="wizard-step-3" class="space-y-4 hidden animate-fade-in">
-            <h4 class="text-xs font-black text-slate-900 uppercase tracking-wider">Organizer Admin Account Setup</h4>
-            
+          <!-- Step 3: Organizer Account -->
+          <div id="wizard-step-3" class="space-y-2.5 hidden animate-fade-in">
+            <h4 class="text-[10px] font-black text-slate-900 uppercase">Organizer Account Setup</h4>
+
             <div>
-              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Organizer / President Name *</label>
-              <input type="text" id="wiz-org-name" placeholder="e.g. Suman Kolay" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400" />
+              <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">Organizer Name *</label>
+              <input type="text" id="wiz-org-name" placeholder="e.g. Suman Kolay" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400" />
             </div>
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div class="grid grid-cols-2 gap-2">
               <div>
-                <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Organizer WhatsApp Number *</label>
-                <input type="tel" id="wiz-org-phone" placeholder="e.g. 8972214416" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-amber-400" />
+                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">
+                  Organizer Phone Number * <span class="text-amber-600 font-bold lowercase block sm:inline text-[9px]">(Admin Login ID)</span>
+                </label>
+                <input type="tel" id="wiz-org-phone" placeholder="8972214416" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-amber-400" />
               </div>
               <div>
-                <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Admin Password *</label>
-                <input type="password" id="wiz-org-password" placeholder="Create Secret Password" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-amber-400" />
+                <label class="block text-[10px] font-black text-slate-700 uppercase mb-0.5">
+                  Set Admin Password *
+                </label>
+                <input type="password" id="wiz-org-password" placeholder="Create Admin Password" class="w-full bg-slate-50 border border-slate-300 rounded-lg px-3 py-2 text-xs text-slate-900 font-mono font-bold focus:outline-none focus:border-amber-400" />
               </div>
             </div>
           </div>
 
-          <!-- Success Launch View (Hidden by Default) -->
-          <div id="wizard-step-success" class="space-y-4 hidden animate-fade-in text-center py-2">
-            <div class="w-14 h-14 rounded-3xl bg-emerald-100 text-emerald-800 mx-auto flex items-center justify-center text-2xl font-black shadow-xs">
+          <!-- Success Launch View -->
+          <div id="wizard-step-success" class="space-y-3 hidden animate-fade-in text-center py-1">
+            <div class="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-800 mx-auto flex items-center justify-center text-xl font-black shadow-xs">
               🎉
             </div>
             <div class="space-y-1">
-              <span class="px-3 py-0.5 bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-full border border-emerald-300 uppercase">
-                TOURNAMENT CREATED SUCCESSFULLY
+              <span class="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 text-[9px] font-black rounded-full border border-emerald-300 uppercase">
+                TOURNAMENT CREATED SUCCESSFULLY ✅
               </span>
-              <h3 id="wiz-success-title" class="text-base sm:text-lg font-black text-slate-900">Tournament Name</h3>
-              <p class="text-xs text-slate-600">Your dedicated tournament portal and player registration links are live!</p>
+              <h3 id="wiz-success-title" class="text-sm sm:text-base font-black text-slate-900">Tournament Name</h3>
+              <p class="text-[11px] text-slate-600">Your tournament portal and registration link are now live!</p>
             </div>
 
-            <div class="bg-slate-50 border-2 border-slate-200 p-3.5 rounded-2xl text-left space-y-2.5 text-xs">
+            <div class="bg-slate-50 border border-slate-200 p-2.5 rounded-xl text-left space-y-2 text-xs">
               <div>
-                <span class="text-[10px] font-black text-slate-500 uppercase block">Public Tournament Hub Link:</span>
-                <div class="flex items-center justify-between gap-2 mt-0.5">
-                  <span id="wiz-success-hub-link" class="font-mono text-[11px] text-blue-700 font-bold truncate">...</span>
-                  <button type="button" id="wiz-copy-hub-btn" class="px-2.5 py-1 bg-white hover:bg-slate-100 border border-slate-300 rounded-lg text-[10px] font-black shrink-0 cursor-pointer">Copy</button>
+                <span class="text-[9px] font-black text-slate-500 uppercase block">Hub Link:</span>
+                <div class="flex items-center justify-between gap-1.5 mt-0.5">
+                  <span id="wiz-success-hub-link" class="font-mono text-[10px] text-blue-700 font-bold truncate">...</span>
+                  <button type="button" id="wiz-copy-hub-btn" class="px-2 py-0.5 bg-white hover:bg-slate-100 border border-slate-300 rounded text-[9px] font-black shrink-0 cursor-pointer">Copy</button>
                 </div>
               </div>
 
               <div id="wiz-success-reg-container">
-                <span class="text-[10px] font-black text-slate-500 uppercase block">Player Registration Link:</span>
-                <div class="flex items-center justify-between gap-2 mt-0.5">
-                  <span id="wiz-success-reg-link" class="font-mono text-[11px] text-emerald-700 font-bold truncate">...</span>
-                  <button type="button" id="wiz-copy-reg-btn" class="px-2.5 py-1 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 rounded-lg text-[10px] font-black shrink-0 cursor-pointer">Copy</button>
+                <span class="text-[9px] font-black text-slate-500 uppercase block">Registration Link:</span>
+                <div class="flex items-center justify-between gap-1.5 mt-0.5">
+                  <span id="wiz-success-reg-link" class="font-mono text-[10px] text-emerald-700 font-bold truncate">...</span>
+                  <button type="button" id="wiz-copy-reg-btn" class="px-2 py-0.5 bg-emerald-50 text-emerald-800 hover:bg-emerald-100 border border-emerald-300 rounded text-[9px] font-black shrink-0 cursor-pointer">Copy</button>
                 </div>
               </div>
             </div>
@@ -9988,12 +14158,12 @@ export function openTournamentCreationWizard(isTrialMode = false) {
         </div>
 
         <!-- MODAL FOOTER BUTTONS -->
-        <div class="p-3 sm:p-4 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-2 shrink-0">
-          <button type="button" id="wiz-prev-btn" class="px-4 py-2 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-xl border border-slate-300 cursor-pointer hidden">
+        <div class="p-2.5 sm:p-3 bg-slate-50 border-t border-slate-200 flex items-center justify-between gap-2 shrink-0">
+          <button type="button" id="wiz-prev-btn" class="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-700 font-bold text-xs rounded-lg border border-slate-300 cursor-pointer hidden">
             ← Back
           </button>
           <div class="flex-1"></div>
-          <button type="button" id="wiz-next-btn" class="px-6 py-2.5 bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-500 hover:to-yellow-500 text-slate-950 font-black text-xs sm:text-sm rounded-xl shadow-xs border border-amber-300 cursor-pointer transition-all">
+          <button type="button" id="wiz-next-btn" class="px-5 py-2 bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-500 hover:to-yellow-500 text-slate-950 font-black text-xs rounded-xl shadow-xs border border-amber-300 cursor-pointer transition-all">
             Continue →
           </button>
         </div>
@@ -10011,34 +14181,154 @@ export function openTournamentCreationWizard(isTrialMode = false) {
 
   modeABox?.addEventListener('click', () => {
     selectedMode = 'AUCTION_LEAGUE';
-    modeABox.className = 'p-3.5 rounded-2xl border-2 border-amber-400 bg-amber-50/50 cursor-pointer shadow-xs transition-all flex flex-col justify-between space-y-2';
-    modeBBox.className = 'p-3.5 rounded-2xl border-2 border-slate-200 bg-white hover:border-slate-300 cursor-pointer shadow-xs transition-all flex flex-col justify-between space-y-2';
+    modeABox.className = 'p-2.5 rounded-xl border-2 border-amber-400 bg-amber-50/50 cursor-pointer transition-all space-y-1';
+    modeBBox.className = 'p-2.5 rounded-xl border-2 border-slate-200 bg-white hover:border-slate-300 cursor-pointer transition-all space-y-1';
     if (modeAConfig) modeAConfig.classList.remove('hidden');
   });
 
   modeBBox?.addEventListener('click', () => {
     selectedMode = 'FIXTURE_ONLY';
-    modeBBox.className = 'p-3.5 rounded-2xl border-2 border-emerald-500 bg-emerald-50/50 cursor-pointer shadow-xs transition-all flex flex-col justify-between space-y-2';
-    modeABox.className = 'p-3.5 rounded-2xl border-2 border-slate-200 bg-white hover:border-slate-300 cursor-pointer shadow-xs transition-all flex flex-col justify-between space-y-2';
+    modeBBox.className = 'p-2.5 rounded-xl border-2 border-emerald-500 bg-emerald-50/50 cursor-pointer transition-all space-y-1';
+    modeABox.className = 'p-2.5 rounded-xl border-2 border-slate-200 bg-white hover:border-slate-300 cursor-pointer transition-all space-y-1';
     if (modeAConfig) modeAConfig.classList.add('hidden');
   });
 
-  // Poster File handler
+  // Poster File handler — interactive cropper + ~100KB compression + Cloudinary upload
   document.getElementById('wiz-poster-file')?.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = (ev) => { uploadedPosterBase64 = ev.target.result; };
+      reader.onload = (ev) => {
+        const rawSrc = ev.target.result;
+        openTournamentBannerCropModal(rawSrc, async (croppedDataUrl) => {
+          uploadedPosterBase64 = croppedDataUrl;
+          const previewContainer = document.getElementById('wiz-poster-preview-container');
+          if (previewContainer) {
+            previewContainer.innerHTML = `
+              <div class="mt-2 p-2.5 bg-emerald-50 border border-emerald-300 rounded-xl flex items-center gap-2.5 text-emerald-800 text-xs font-black animate-pulse">
+                <span class="inline-block w-3.5 h-3.5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></span>
+                <span>Optimizing image (~100 KB) & uploading to CDN...</span>
+              </div>
+            `;
+            previewContainer.classList.remove('hidden');
+          }
+
+          try {
+            // 1. Compress to ~100 KB
+            const compressed = await compressImageToTarget(croppedDataUrl, 100, 1200);
+            const compressedDataUrl = compressed || croppedDataUrl;
+
+            // 2. Upload to Cloudinary CDN
+            const slugVal = (document.getElementById('wiz-tourney-slug')?.value || 'tourney').trim().toLowerCase();
+            const cdnUrl = await uploadHDImage(compressedDataUrl, `tournaments/${slugVal}`);
+
+            if (cdnUrl) {
+              uploadedPosterBase64 = cdnUrl;
+            }
+
+            if (previewContainer) {
+              previewContainer.innerHTML = `
+                <div class="mt-2 p-2 bg-emerald-50 border border-emerald-400 rounded-xl flex items-center justify-between gap-2 shadow-2xs">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <img src="${uploadedPosterBase64}" class="w-12 h-6 object-cover rounded-md border border-emerald-300 shrink-0" />
+                    <span class="text-xs font-black text-emerald-950 flex items-center gap-1">
+                      <span class="w-3.5 h-3.5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[9px]">✓</span> Image Uploaded
+                    </span>
+                  </div>
+                </div>
+              `;
+            }
+          } catch (uploadErr) {
+            console.warn('CDN upload notice, using local optimized image:', uploadErr);
+            if (previewContainer) {
+              previewContainer.innerHTML = `
+                <div class="mt-2 p-2 bg-emerald-50 border border-emerald-400 rounded-xl flex items-center justify-between gap-2 shadow-2xs">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <img src="${croppedDataUrl}" class="w-12 h-6 object-cover rounded-md border border-emerald-300 shrink-0" />
+                    <span class="text-xs font-black text-emerald-950">✓ Image Uploaded</span>
+                  </div>
+                </div>
+              `;
+            }
+          }
+        }, "Crop Tournament Banner (Wide 21:9)");
+      };
       reader.readAsDataURL(file);
     }
   });
 
-  // QR File handler
-  document.getElementById('wiz-qr-file')?.addEventListener('change', (e) => {
+  // Auto-generate short code as user types tournament name
+  document.getElementById('wiz-tourney-name')?.addEventListener('input', (e) => {
+    const slugInput = document.getElementById('wiz-tourney-slug');
+    if (slugInput && (!slugInput.dataset.manual || !slugInput.value)) {
+      const val = e.target.value.trim();
+      const initials = val.split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 6);
+      slugInput.value = initials ? `${initials}${new Date().getFullYear()}` : '';
+    }
+  });
+  document.getElementById('wiz-tourney-slug')?.addEventListener('input', (e) => {
+    e.target.dataset.manual = 'true';
+  });
+
+  // QR File handler with ~100KB auto-compression, spinner, and Cloudinary upload
+  document.getElementById('wiz-qr-file')?.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (file) {
+      const previewContainer = document.getElementById('wiz-qr-preview-container');
+      if (previewContainer) {
+        previewContainer.innerHTML = `
+          <div class="mt-2 p-2 bg-emerald-50 border border-emerald-300 rounded-xl flex items-center gap-2 text-emerald-800 text-[11px] font-black animate-pulse">
+            <span class="inline-block w-3.5 h-3.5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></span>
+            <span>Optimizing QR (~100 KB) & uploading to CDN...</span>
+          </div>
+        `;
+        previewContainer.classList.remove('hidden');
+      }
+
       const reader = new FileReader();
-      reader.onload = (ev) => { uploadedQrBase64 = ev.target.result; };
+      reader.onload = async (ev) => {
+        const rawDataUrl = ev.target.result;
+        uploadedQrBase64 = rawDataUrl;
+
+        try {
+          // 1. Compress to ~100 KB
+          const compressed = await compressImageToTarget(rawDataUrl, 100, 1200);
+          const compressedDataUrl = compressed || rawDataUrl;
+
+          // 2. Upload to Cloudinary CDN
+          const slugVal = (document.getElementById('wiz-tourney-slug')?.value || 'tourney').trim().toLowerCase();
+          const cdnUrl = await uploadHDImage(compressedDataUrl, `tournaments/${slugVal}/qr`);
+
+          if (cdnUrl) {
+            uploadedQrBase64 = cdnUrl;
+          }
+
+          if (previewContainer) {
+            previewContainer.innerHTML = `
+              <div class="mt-2 p-1.5 bg-emerald-50 border border-emerald-400 rounded-xl flex items-center justify-between gap-2 shadow-2xs">
+                <div class="flex items-center gap-2 min-w-0">
+                  <img src="${uploadedQrBase64}" class="w-8 h-8 object-cover rounded-md border border-emerald-300 shrink-0" />
+                  <span class="text-[11px] font-black text-emerald-950 flex items-center gap-1">
+                    <span class="w-3.5 h-3.5 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[9px]">✓</span> QR Code Uploaded
+                  </span>
+                </div>
+              </div>
+            `;
+          }
+        } catch (uploadErr) {
+          console.warn('QR CDN upload notice, using local image:', uploadErr);
+          if (previewContainer) {
+            previewContainer.innerHTML = `
+              <div class="mt-2 p-1.5 bg-emerald-50 border border-emerald-400 rounded-xl flex items-center justify-between gap-2 shadow-2xs">
+                <div class="flex items-center gap-2 min-w-0">
+                  <img src="${rawDataUrl}" class="w-8 h-8 object-cover rounded-md border border-emerald-300 shrink-0" />
+                  <span class="text-[11px] font-black text-emerald-950">✓ QR Code Uploaded</span>
+                </div>
+              </div>
+            `;
+          }
+        }
+      };
       reader.readAsDataURL(file);
     }
   });
@@ -10064,7 +14354,7 @@ export function openTournamentCreationWizard(isTrialMode = false) {
     if (prevBtn) prevBtn.classList.toggle('hidden', currentStep <= 1 || currentStep > 3);
     if (nextBtn) {
       if (currentStep === 3) {
-        nextBtn.textContent = '🚀 Launch & Create Tournament';
+        nextBtn.textContent = '🚀 Launch Tournament';
       } else if (currentStep > 3) {
         nextBtn.textContent = 'Done & View Portal';
       } else {
@@ -10083,11 +14373,16 @@ export function openTournamentCreationWizard(isTrialMode = false) {
   document.getElementById('wiz-next-btn')?.addEventListener('click', async () => {
     if (currentStep === 1) {
       const name = document.getElementById('wiz-tourney-name')?.value.trim();
-      const slug = document.getElementById('wiz-tourney-slug')?.value.trim();
+      let slug = document.getElementById('wiz-tourney-slug')?.value.trim();
       const venue = document.getElementById('wiz-tourney-venue')?.value.trim();
-      if (!name || !slug || !venue) {
-        alert("⚠️ Please fill Tournament Name, Slug, and Venue.");
+      if (!name || !venue) {
+        alert("⚠️ Please fill Tournament Name and Venue.");
         return;
+      }
+      if (!slug) {
+        slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || ('tourney-' + Date.now());
+        const slugInput = document.getElementById('wiz-tourney-slug');
+        if (slugInput) slugInput.value = slug.toUpperCase();
       }
       currentStep = 2;
       updateStepsUI();
@@ -10096,10 +14391,13 @@ export function openTournamentCreationWizard(isTrialMode = false) {
       updateStepsUI();
     } else if (currentStep === 3) {
       const name = document.getElementById('wiz-tourney-name')?.value.trim();
-      const slug = document.getElementById('wiz-tourney-slug')?.value.trim().toLowerCase();
+      let slug = document.getElementById('wiz-tourney-slug')?.value.trim().toLowerCase();
+      if (!slug) {
+        slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || ('tourney-' + Date.now());
+      }
       const venue = document.getElementById('wiz-tourney-venue')?.value.trim();
       const date = document.getElementById('wiz-tourney-date')?.value;
-      const prize = document.getElementById('wiz-tourney-prize')?.value || 35000;
+      const prize = document.getElementById('wiz-tourney-prize')?.value || 0;
       const orgName = document.getElementById('wiz-org-name')?.value.trim();
       const orgPhone = document.getElementById('wiz-org-phone')?.value.trim();
       const orgPass = document.getElementById('wiz-org-password')?.value.trim();
@@ -10110,7 +14408,31 @@ export function openTournamentCreationWizard(isTrialMode = false) {
       }
 
       const nextBtn = document.getElementById('wiz-next-btn');
-      if (nextBtn) { nextBtn.disabled = true; nextBtn.textContent = 'Creating Tournament...'; }
+      if (nextBtn) { nextBtn.disabled = true; nextBtn.textContent = 'Uploading images & creating...'; }
+
+      // Upload poster and QR to Cloudinary (fall back to base64 if upload fails)
+      let posterUrl = uploadedPosterBase64 || '';
+      let paymentQrUrl = uploadedQrBase64 || '';
+      const posterFile = document.getElementById('wiz-poster-file');
+      const qrFile = document.getElementById('wiz-qr-file');
+      try {
+        const [posterResult, qrResult] = await Promise.all([
+          (!posterUrl && posterFile?.files[0]) ? uploadHDImage(posterFile, `tournaments/${slug}`) : Promise.resolve(null),
+          qrFile?.files[0] ? uploadHDImage(qrFile, `tournaments/${slug}`) : Promise.resolve(null)
+        ]);
+        if (posterResult) posterUrl = posterResult;
+        if (qrResult) paymentQrUrl = qrResult;
+      } catch (uploadErr) {
+        console.warn('Image upload to cloud failed, using local base64:', uploadErr);
+      }
+
+      if (nextBtn) { nextBtn.textContent = 'Creating Tournament...'; }
+
+      const season = document.getElementById('wiz-tourney-season')?.value.trim() || '';
+      const totalTeams = Number(document.getElementById('wiz-tourney-total-teams')?.value || 8);
+      const endDate = document.getElementById('wiz-tourney-end-date')?.value || '';
+      const prizeRunner = Number(document.getElementById('wiz-tourney-runner-prize')?.value || 0);
+      const extraInfo = document.getElementById('wiz-extra-info')?.value.trim() || '';
 
       const tourneyRecord = {
         id: `t_${slug}`,
@@ -10118,56 +14440,245 @@ export function openTournamentCreationWizard(isTrialMode = false) {
         slug,
         shortCode: slug.toUpperCase(),
         venue,
+        season,
+        totalTeams,
         kickoffDate: date || new Date().toISOString(),
+        endDate,
         prizeWinner: Number(prize),
+        prizeRunner,
         mode: selectedMode,
-        posterUrl: uploadedPosterBase64 || '',
+        posterUrl,
+        extraInfo,
         entryFee: Number(document.getElementById('wiz-entry-fee')?.value || 300),
         teamPurse: Number(document.getElementById('wiz-team-purse')?.value || 8000),
         basePrice: Number(document.getElementById('wiz-base-price')?.value || 300),
         upiId: document.getElementById('wiz-upi-id')?.value.trim() || '',
-        paymentQrUrl: uploadedQrBase64 || '',
+        paymentQrUrl,
         organizer: {
           name: orgName,
           phone: orgPhone,
           password: orgPass
         },
-        status: 'ACTIVE'
+        status: 'PENDING_APPROVAL'
       };
 
       await store.saveCustomTournament(tourneyRecord);
 
-      // Show Success step
+      // Auto-login the organiser account in pending state
+      const cleanOrgPhone = orgPhone.replace(/[^0-9]/g, '');
+      store.setCurrentUser({
+        phone: cleanOrgPhone,
+        name: orgName,
+        role: 'TOURNAMENT_OWNER',
+        isFirstLogin: false,
+        ownedTournaments: [tourneyRecord.id]
+      });
+      localStorage.setItem('cpl_admin_auth_v8', 'true');
+      renderNavbar();
+      renderMobileBottomNav();
+
+      // Render Dedicated "Application Awaiting Approval" Success Screen
       currentStep = 4;
       document.getElementById('wizard-step-1')?.classList.add('hidden');
       document.getElementById('wizard-step-2')?.classList.add('hidden');
       document.getElementById('wizard-step-3')?.classList.add('hidden');
-      document.getElementById('wizard-step-success')?.classList.remove('hidden');
+      
+      const successContainer = document.getElementById('wizard-step-success');
+      if (successContainer) {
+        successContainer.classList.remove('hidden');
+        const hostUrl = window.location.origin + window.location.pathname;
+        const hubUrl = `${hostUrl}#t/${slug}`;
+        const regUrl = `${hostUrl}#reg-${slug}`;
 
-      document.getElementById('wiz-success-title').textContent = name;
-      const hostUrl = window.location.origin + window.location.pathname;
-      const hubUrl = `${hostUrl}#t/${slug}`;
-      const regUrl = `${hostUrl}#reg-${slug}`;
+        successContainer.innerHTML = `
+          <div class="space-y-3 py-1 text-center font-sans">
+            
+            <!-- Glowing Animated Header Icon -->
+            <div class="relative w-14 h-14 mx-auto flex items-center justify-center">
+              <div class="absolute inset-0 rounded-2xl bg-gradient-to-tr from-amber-400 via-orange-400 to-yellow-300 animate-pulse blur-sm opacity-75"></div>
+              <div class="relative w-12 h-12 rounded-2xl bg-gradient-to-tr from-amber-500 to-orange-500 text-white flex items-center justify-center text-2xl font-black shadow-lg border-2 border-white/70">
+                ⏳
+              </div>
+            </div>
+            
+            <!-- Status Badge & Header -->
+            <div class="space-y-1">
+              <span class="px-3.5 py-0.5 bg-gradient-to-r from-amber-100 via-orange-100 to-yellow-100 text-amber-950 text-[10px] font-black rounded-full border border-amber-300 uppercase shadow-2xs tracking-wider inline-flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
+                <span>APPLICATION UNDER REVIEW • আবেদন যাচাই চলছে</span>
+              </span>
+              
+              <h3 class="text-base sm:text-lg font-black text-slate-900 tracking-tight pt-0.5">${name}</h3>
+              
+              <p class="text-[12px] text-slate-600 max-w-md mx-auto leading-relaxed font-semibold" style="font-family: 'Hind Siliguri', 'Anek Bangla', sans-serif;">
+                আপনার টুর্নামেন্ট আবেদনটি সফলভাবে জমা হয়েছে এবং <strong>মাস্টার অ্যাডমিনের অনুমোদনের</strong> অপেক্ষায় রয়েছে।
+              </p>
+            </div>
 
-      document.getElementById('wiz-success-hub-link').textContent = hubUrl;
-      document.getElementById('wiz-success-reg-link').textContent = regUrl;
+            <!-- Colourful Approval & Activation Process Box (Bengali & English) -->
+            <div class="p-3 sm:p-3.5 bg-gradient-to-br from-amber-50/90 via-orange-50/60 to-yellow-50/90 rounded-2xl border-2 border-amber-300/80 text-left space-y-2 shadow-xs">
+              <div class="flex items-center justify-between border-b border-amber-200/90 pb-1.5">
+                <div class="flex items-center gap-1.5 text-slate-900 font-black text-xs">
+                  <span class="w-5 h-5 rounded-lg bg-amber-500 text-white flex items-center justify-center text-[11px] font-black shrink-0 shadow-2xs">🛡️</span>
+                  <span>অনুমোদন ও চালুকরণ প্রক্রিয়া (Approval & Activation Process)</span>
+                </div>
+                <span class="text-[8.5px] font-black uppercase tracking-wider px-2 py-0.2 rounded-full bg-amber-200/80 text-amber-950">10-30 MINS</span>
+              </div>
 
-      if (selectedMode === 'FIXTURE_ONLY') {
-        document.getElementById('wiz-success-reg-container')?.classList.add('hidden');
+              <div class="space-y-1.5 text-xs" style="font-family: 'Hind Siliguri', 'Anek Bangla', sans-serif;">
+                <div class="flex items-start gap-2">
+                  <span class="w-4 h-4 rounded-full bg-amber-200 text-amber-900 flex items-center justify-center text-[9.5px] font-black shrink-0 mt-0.5">১</span>
+                  <div class="min-w-0">
+                    <strong class="text-amber-950 font-bold text-[11.5px]">মাস্টার অ্যাডমিন ভেরিফিকেশন:</strong>
+                    <p class="text-slate-700 text-[11px] leading-snug">মাস্টার অ্যাডমিন আপনার টুর্নামেন্টের নাম, গ্রাউন্ড ভেন্যু, ব্যানার পোস্টার এবং UPI পেমেন্ট বিবরণ যাচাই করবেন।</p>
+                  </div>
+                </div>
+
+                <div class="flex items-start gap-2">
+                  <span class="w-4 h-4 rounded-full bg-emerald-200 text-emerald-900 flex items-center justify-center text-[9.5px] font-black shrink-0 mt-0.5">২</span>
+                  <div class="min-w-0">
+                    <strong class="text-emerald-950 font-bold text-[11.5px]">স্বয়ংক্রিয় লাইভ ও রেজিস্ট্রেশন ওপেন:</strong>
+                    <p class="text-slate-700 text-[11px] leading-snug">অনুমোদন (Approve) পাওয়ার পর স্বয়ংক্রিয়ভাবে অনলাইন প্লেয়ার রেজিস্ট্রেশন লিঙ্ক সবার জন্য লাইভ হয়ে যাবে।</p>
+                  </div>
+                </div>
+
+                <div class="flex items-start gap-2">
+                  <span class="w-4 h-4 rounded-full bg-blue-200 text-blue-900 flex items-center justify-center text-[9.5px] font-black shrink-0 mt-0.5">৩</span>
+                  <div class="min-w-0">
+                    <strong class="text-blue-950 font-bold text-[11.5px]">টুর্নামেন্ট হাব ও স্কোরবোর্ড দৃশ্যমান:</strong>
+                    <p class="text-slate-700 text-[11px] leading-snug">আপনার টুর্নামেন্ট হাব, লাইভ স্কোরার এবং পয়েন্ট টেবিল প্ল্যাটফর্মের হোমপেজে সবার জন্য চালু হয়ে যাবে।</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Direct Contact Helpline: Bumba & Suman -->
+            <div class="p-3 bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white rounded-2xl border border-slate-700 shadow-md text-left space-y-2">
+              <div class="flex items-center justify-between border-b border-slate-700 pb-1.5">
+                <div class="flex items-center gap-1.5 text-xs font-black text-amber-400">
+                  <span>📞</span>
+                  <span>দ্রুত অনুমোদনের জন্য সরাসরি যোগাযোগ করুন (Helpline):</span>
+                </div>
+                <span class="text-[8px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-emerald-500/30 text-emerald-300 border border-emerald-500/40">24x7 Help</span>
+              </div>
+
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-0.5">
+                
+                <!-- Bumba Contact with Phone Call SVG Dialer -->
+                <div class="p-2.5 bg-slate-800/90 hover:bg-slate-800 rounded-xl border border-slate-700 flex items-center justify-between gap-2 transition-all">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <span class="w-8 h-8 rounded-lg bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center shrink-0">
+                      <!-- Call SVG Icon -->
+                      <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-emerald-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                      </svg>
+                    </span>
+                    <div class="min-w-0">
+                      <div class="text-[11px] font-black text-white truncate">Bumba (বুম্বা)</div>
+                      <a href="tel:8145313902" class="text-xs font-mono font-black text-emerald-400 hover:text-emerald-300 flex items-center gap-1 cursor-pointer">
+                        <span>8145313902</span>
+                      </a>
+                    </div>
+                  </div>
+
+                  <div class="flex items-center gap-1 shrink-0">
+                    <!-- Call Button (Opens Phone Dialer) -->
+                    <a href="tel:8145313902" title="Click to Call Bumba" class="p-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[10px] font-black shadow-xs transition-all flex items-center gap-1 cursor-pointer">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" />
+                      </svg>
+                      <span>Call</span>
+                    </a>
+                    <!-- WhatsApp Button -->
+                    <a href="https://wa.me/918145313902?text=${encodeURIComponent(`👋 Hello Bumba,\nI have submitted a new tournament for approval:\n\n🏆 *Tournament:* ${name}\n📍 *Venue:* ${venue}\n📱 *Organizer:* ${orgName} (${orgPhone})\n🔗 *Slug:* ${slug}\n\nPlease review and approve.`)}" target="_blank" title="WhatsApp Bumba" class="p-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded-lg text-xs font-bold transition-all cursor-pointer">
+                      💬
+                    </a>
+                  </div>
+                </div>
+
+                <!-- Suman Contact with Email SVG -->
+                <div class="p-2.5 bg-slate-800/90 hover:bg-slate-800 rounded-xl border border-slate-700 flex items-center justify-between gap-2 transition-all">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <span class="w-8 h-8 rounded-lg bg-sky-500/20 border border-sky-500/40 flex items-center justify-center shrink-0">
+                      <!-- Mail SVG Icon -->
+                      <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4 text-sky-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                      </svg>
+                    </span>
+                    <div class="min-w-0">
+                      <div class="text-[11px] font-black text-white truncate">Suman (সুমন)</div>
+                      <a href="mailto:jecanimcet@gmail.com" class="text-[10.5px] font-mono text-sky-400 hover:text-sky-300 truncate block">
+                        jecanimcet@gmail.com
+                      </a>
+                    </div>
+                  </div>
+
+                  <div class="flex items-center gap-1 shrink-0">
+                    <!-- Email Button -->
+                    <a href="mailto:jecanimcet@gmail.com?subject=${encodeURIComponent(`Tournament Approval Request: ${name}`)}" title="Email Suman" class="p-1.5 bg-sky-600 hover:bg-sky-500 text-white rounded-lg text-[10px] font-black shadow-xs transition-all flex items-center gap-1 cursor-pointer">
+                      <svg xmlns="http://www.w3.org/2000/svg" class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                      </svg>
+                      <span>Mail</span>
+                    </a>
+                    <!-- WhatsApp Button -->
+                    <a href="https://wa.me/919732710002?text=${encodeURIComponent(`👋 Hello Suman,\nI have submitted a new tournament for approval:\n\n🏆 *Tournament:* ${name}\n📍 *Venue:* ${venue}\n📱 *Organizer:* ${orgName} (${orgPhone})\n🔗 *Slug:* ${slug}\n\nPlease review and approve.`)}" target="_blank" title="WhatsApp Suman" class="p-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded-lg text-xs font-bold transition-all cursor-pointer">
+                      💬
+                    </a>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            <!-- Tournament Shareable Links (Guarded Previews) -->
+            <div class="bg-slate-50 border-2 border-slate-200/80 p-3 rounded-2xl text-left space-y-2 text-xs">
+              <div>
+                <div class="flex items-center justify-between">
+                  <span class="text-[9.5px] font-black text-slate-600 uppercase tracking-wider">Tournament Hub (টুর্নামেন্ট হাব):</span>
+                  <span class="text-[9px] font-black text-amber-900 bg-amber-100 border border-amber-300 px-2 py-0.2 rounded-full">⏳ Awaiting Approval</span>
+                </div>
+                <div class="flex items-center justify-between gap-1.5 mt-1 bg-white p-1.5 rounded-xl border border-slate-200">
+                  <span class="font-mono text-[10px] text-blue-700 font-bold truncate">${hubUrl}</span>
+                  <button type="button" id="wiz-copy-hub-btn" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 rounded-lg text-[9.5px] font-black shrink-0 cursor-pointer transition-all">Copy</button>
+                </div>
+              </div>
+
+              <div id="wiz-success-reg-container">
+                <div class="flex items-center justify-between">
+                  <span class="text-[9.5px] font-black text-slate-600 uppercase tracking-wider">Player Registration (প্লেয়ার রেজিস্ট্রেশন লিঙ্ক):</span>
+                  <span class="text-[9px] font-black text-emerald-900 bg-emerald-100 border border-emerald-300 px-2 py-0.2 rounded-full">🚀 Opens on Approval</span>
+                </div>
+                <div class="flex items-center justify-between gap-1.5 mt-1 bg-white p-1.5 rounded-xl border border-slate-200">
+                  <span class="font-mono text-[10px] text-emerald-700 font-bold truncate">${regUrl}</span>
+                  <button type="button" id="wiz-copy-reg-btn" class="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-[9.5px] font-black shrink-0 cursor-pointer shadow-xs transition-all">Copy</button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Primary Notify Master Admin Button -->
+            <div class="pt-0.5">
+              <a href="https://wa.me/918145313902?text=${encodeURIComponent(`👋 Hello Master Admin (Bumba),\nI have submitted a new tournament for approval:\n\n🏆 *Tournament:* ${name}\n📍 *Venue:* ${venue}\n📱 *Organizer:* ${orgName} (${orgPhone})\n🔗 *Slug:* ${slug}\n\nPlease review and approve from the Admin Panel.`)}" target="_blank" class="w-full py-2.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-500 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg border border-emerald-400/40 flex items-center justify-center gap-2 cursor-pointer transition-all hover:scale-[1.01]">
+                <span class="text-base">💬</span>
+                <span style="font-family: 'Hind Siliguri', 'Anek Bangla', sans-serif;">মাস্টার অ্যাডমিনকে হোয়াটসঅ্যাপে জানান (Notify Master Admin)</span>
+              </a>
+            </div>
+          </div>
+        `;
+
+        document.getElementById('wiz-copy-hub-btn')?.addEventListener('click', () => {
+          navigator.clipboard.writeText(hubUrl);
+          alert("✅ Tournament Hub link copied to clipboard!");
+        });
+        document.getElementById('wiz-copy-reg-btn')?.addEventListener('click', () => {
+          navigator.clipboard.writeText(regUrl);
+          alert("✅ Registration Link copied to clipboard!");
+        });
       }
-
-      document.getElementById('wiz-copy-hub-btn')?.addEventListener('click', () => {
-        navigator.clipboard.writeText(hubUrl);
-        alert("✅ Tournament Hub link copied to clipboard!");
-      });
-      document.getElementById('wiz-copy-reg-btn')?.addEventListener('click', () => {
-        navigator.clipboard.writeText(regUrl);
-        alert("✅ Registration Link copied to clipboard!");
-      });
 
       if (nextBtn) {
         nextBtn.disabled = false;
-        nextBtn.textContent = 'Done & View Portal';
+        nextBtn.textContent = 'Close & View Status';
         nextBtn.onclick = () => {
           document.getElementById('tournament-creation-wizard-modal')?.remove();
           navigate(`t/${slug}`);
@@ -10185,12 +14696,83 @@ export function openTournamentCreationWizard(isTrialMode = false) {
 // --- DYNAMIC TOURNAMENT REGISTRATION MODAL WITH 1-SECOND UNIVERSAL PHONE AUTO-FILL ---
 export function openDynamicTournamentRegistrationModal(tourneyIdOrSlug) {
   const tourney = store.getCustomTournamentById(tourneyIdOrSlug) || {
-    id: 'jsl_2026',
-    name: 'Jhankra Super League (JSL 2026)',
+    id: 'default',
+    name: 'Tournament',
     entryFee: 300,
-    upiId: '8972214416@paytm',
-    paymentQrUrl: 'assets/payment_qr_code.jpg'
+    upiId: '',
+    paymentQrUrl: ''
   };
+
+  const tourneyStatus = (tourney.status || 'ACTIVE').toUpperCase();
+  if (tourneyStatus === 'PENDING_APPROVAL' || tourneyStatus === 'PENDING') {
+    const underReviewHtml = `
+      <div id="dynamic-tournament-reg-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4 animate-fade-in bg-slate-950/75 backdrop-blur-sm">
+        <div class="bg-white text-slate-900 max-w-md w-full rounded-2xl border-2 border-amber-300 shadow-2xl overflow-hidden font-sans">
+          <div class="p-4 bg-gradient-to-r from-amber-50 via-orange-50 to-yellow-50 border-b-2 border-amber-200 flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <span class="w-10 h-10 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center text-xl shrink-0 shadow-md font-black">⏳</span>
+              <div>
+                <h2 class="text-sm sm:text-base font-black text-slate-900 leading-tight">টুর্নামেন্ট যাচাই চলছে • Under Review</h2>
+                <span class="text-[10px] font-bold text-amber-800">Pending Master Admin Approval</span>
+              </div>
+            </div>
+            <button id="close-reg-review-modal" class="w-8 h-8 rounded-full bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-950 border border-slate-300 flex items-center justify-center text-sm font-black transition-all shadow-xs cursor-pointer">✕</button>
+          </div>
+          <div class="p-5 text-center space-y-3">
+            <p class="text-sm font-black text-slate-900">${tourney.name}</p>
+            <p class="text-xs text-slate-600 leading-relaxed" style="font-family: 'Hind Siliguri', 'Anek Bangla', sans-serif;">
+              এই টুর্নামেন্টটির আবেদন বর্তমানে প্ল্যাটফর্ম মাস্টার অ্যাডমিনের অনুমোদনের অপেক্ষায় রয়েছে। অনুমোদন পাওয়ার সাথে সাথে প্লেয়ার রেজিস্ট্রেশন পোর্টাল স্বয়ংক্রিয়ভাবে খুলে যাবে।
+            </p>
+            
+            <div class="p-3 bg-gradient-to-r from-slate-900 to-indigo-950 text-white rounded-xl text-left text-xs space-y-1.5 border border-slate-700">
+              <span class="text-[10px] font-black text-amber-400 uppercase tracking-wider block">জরুরি হেল্পলাইন (Contact Support):</span>
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-[11px] font-bold text-slate-200">📞 Bumba: <a href="tel:8145313902" class="font-mono text-emerald-400 hover:underline">8145313902</a></span>
+                <a href="tel:8145313902" class="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[10px] font-bold">Call</a>
+              </div>
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-[11px] font-bold text-slate-200">✉️ Suman: <a href="mailto:jecanimcet@gmail.com" class="font-mono text-sky-400 hover:underline">jecanimcet@gmail.com</a></span>
+                <a href="mailto:jecanimcet@gmail.com" class="px-2 py-0.5 bg-sky-600 hover:bg-sky-500 text-white rounded text-[10px] font-bold">Mail</a>
+              </div>
+            </div>
+
+            <button id="close-reg-review-btn" class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-black rounded-xl transition-all cursor-pointer">ঠিক আছে, হোমপেজে ফিরে যান (Got It)</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.insertAdjacentHTML('beforeend', underReviewHtml);
+    const closeModal = () => document.getElementById('dynamic-tournament-reg-modal')?.remove();
+    document.getElementById('close-reg-review-modal')?.addEventListener('click', closeModal);
+    document.getElementById('close-reg-review-btn')?.addEventListener('click', closeModal);
+    return;
+  }
+
+  if (!store.isRegistrationOpen()) {
+    const regSettings = store.getRegistrationSettings();
+    const reason = regSettings.closedReason || 'Registration is currently closed by the Admin.';
+    const closedHtml = `
+      <div id="dynamic-tournament-reg-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4 animate-fade-in bg-slate-950/75 backdrop-blur-sm">
+        <div class="bg-white text-slate-900 max-w-md w-full rounded-2xl border-2 border-red-300 shadow-2xl overflow-hidden">
+          <div class="p-5 bg-gradient-to-r from-red-50 via-rose-50 to-red-50 border-b-2 border-red-200 flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <span class="w-10 h-10 rounded-2xl bg-red-600 text-white flex items-center justify-center text-xl shrink-0 shadow-md font-black">🚫</span>
+              <h2 class="text-lg font-black text-slate-900">Registration Closed</h2>
+            </div>
+            <button id="close-reg-closed-modal" class="w-8 h-8 rounded-full bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-950 border border-slate-300 flex items-center justify-center text-sm font-black transition-all shadow-xs cursor-pointer">✕</button>
+          </div>
+          <div class="p-6 text-center space-y-4">
+            <p class="text-sm font-bold text-slate-700">${tourney.name}</p>
+            <p class="text-xs text-slate-500">${reason}</p>
+            <button id="close-reg-closed-btn" class="px-6 py-2.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-black rounded-xl transition-all cursor-pointer">OK, Go Back</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.insertAdjacentHTML('beforeend', closedHtml);
+    const closeModal = () => document.getElementById('dynamic-tournament-reg-modal')?.remove();
+    document.getElementById('close-reg-closed-modal')?.addEventListener('click', closeModal);
+    document.getElementById('close-reg-closed-btn')?.addEventListener('click', closeModal);
+    return;
+  }
 
   let uploadedPhotoBase64 = '';
   let uploadedReceiptBase64 = '';
@@ -10251,6 +14833,21 @@ export function openDynamicTournamentRegistrationModal(tourneyIdOrSlug) {
             </div>
           </div>
 
+          <!-- DOB & AUTO-CALCULATED AGE -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Date of Birth (DOB) *</label>
+              <input type="date" id="dyn-reg-dob" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-400" required />
+            </div>
+            <div>
+              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1 flex items-center justify-between">
+                <span>Calculated Age</span>
+                <span class="text-[9px] font-mono text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">AUTO-FETCH</span>
+              </label>
+              <input type="text" id="dyn-reg-age" placeholder="Age auto-computed" readonly class="w-full bg-slate-100 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono font-black select-none cursor-not-allowed" />
+            </div>
+          </div>
+
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Batting Style</label>
@@ -10274,7 +14871,7 @@ export function openDynamicTournamentRegistrationModal(tourneyIdOrSlug) {
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Village / Town *</label>
-              <input type="text" id="dyn-reg-village" placeholder="e.g. Jhankra" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-400" required />
+              <input type="text" id="dyn-reg-village" placeholder="e.g. Your City" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-400" required />
             </div>
             <div>
               <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">District</label>
@@ -10282,47 +14879,136 @@ export function openDynamicTournamentRegistrationModal(tourneyIdOrSlug) {
             </div>
           </div>
 
-          <!-- PHOTO UPLOAD & PREVIEW -->
-          <div class="flex items-center gap-3 p-3 bg-slate-50 rounded-2xl border border-slate-200">
-            <div class="w-12 h-12 rounded-xl bg-slate-200 overflow-hidden shrink-0 border border-slate-300">
-              <img id="dyn-preview-photo" src="assets/card_jsl_user.png" class="w-full h-full object-cover" />
+          <!-- PHOTO UPLOAD & PREVIEW WITH ZOOM & CROP -->
+          <div class="p-3 bg-slate-50 rounded-2xl border-2 border-slate-200 space-y-2">
+            <label class="block text-xs font-black text-slate-800 uppercase tracking-wider flex items-center justify-between">
+              <span>Player HD Passport Photo *</span>
+              <span class="text-[9px] font-mono text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">🔍 ZOOM & CROP</span>
+            </label>
+            <div class="flex items-center gap-3">
+              <div class="w-14 h-14 rounded-2xl bg-slate-200 overflow-hidden shrink-0 border-2 border-emerald-400 shadow-sm relative group">
+                <img id="dyn-preview-photo" src="assets/card_jsl_user.png" class="w-full h-full object-cover" />
+              </div>
+              <div class="flex-1 space-y-1">
+                <input type="file" id="dyn-photo-file" accept="image/*" class="w-full text-xs text-slate-600 file:mr-2.5 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-[10px] file:font-black file:bg-slate-900 file:text-white hover:file:bg-slate-800 cursor-pointer" />
+                <div id="dyn-photo-upload-status" class="hidden"></div>
+              </div>
             </div>
-            <div class="flex-1">
-              <label class="block text-[10px] font-black text-slate-700 uppercase mb-1">Player HD Photo</label>
-              <input type="file" id="dyn-photo-file" accept="image/*" class="w-full text-xs text-slate-600 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:bg-slate-900 file:text-white hover:file:bg-slate-800 cursor-pointer" />
+          </div>
+
+          <!-- IDENTITY CARD (AADHAAR / VOTER / PAN) FRONT & BACK -->
+          <div class="p-3.5 bg-gradient-to-br from-slate-50 to-blue-50/50 rounded-2xl border-2 border-blue-200/80 space-y-3">
+            <div class="flex items-center justify-between">
+              <label class="block text-xs font-black text-blue-950 uppercase tracking-wider">
+                🪪 Identity Card Verification
+              </label>
+              <select id="dyn-reg-doctype" class="text-[10px] font-black bg-white border border-blue-300 rounded-lg px-2 py-1 text-blue-900 focus:outline-none">
+                <option value="Aadhaar Card">Aadhaar Card</option>
+                <option value="Voter ID Card">Voter ID Card</option>
+                <option value="PAN Card">PAN Card</option>
+                <option value="Driving License">Driving License</option>
+              </select>
+            </div>
+
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <!-- FRONT SIDE -->
+              <div class="bg-white p-2.5 rounded-xl border border-blue-200 space-y-1">
+                <label class="block text-[10px] font-black text-slate-700 uppercase">1. ID Card Front Side *</label>
+                <input type="file" id="dyn-id-front-file" accept="image/*" class="w-full text-[11px] text-slate-600 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-[9.5px] file:font-black file:bg-blue-600 file:text-white cursor-pointer" required />
+                <div id="dyn-id-front-status" class="hidden"></div>
+              </div>
+              <!-- BACK SIDE -->
+              <div class="bg-white p-2.5 rounded-xl border border-blue-200 space-y-1">
+                <label class="block text-[10px] font-black text-slate-700 uppercase">2. ID Card Back Side *</label>
+                <input type="file" id="dyn-id-back-file" accept="image/*" class="w-full text-[11px] text-slate-600 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-[9.5px] file:font-black file:bg-blue-600 file:text-white cursor-pointer" required />
+                <div id="dyn-id-back-status" class="hidden"></div>
+              </div>
             </div>
           </div>
 
           <!-- TOURNAMENT UPI PAYMENT & QR CODE SECTION -->
-          <div class="p-3.5 rounded-2xl bg-gradient-to-br from-amber-50 to-yellow-50/80 border-2 border-amber-300 space-y-2.5 text-center">
-            <div class="flex items-center justify-between">
-              <span class="text-xs font-black text-amber-950 uppercase tracking-wider">Tournament Entry Fee</span>
-              <span class="text-base font-black text-emerald-700 font-mono">₹ ${tourney.entryFee || 300}</span>
+          <div class="rounded-3xl bg-slate-900 text-white p-4 sm:p-6 shadow-2xl border border-slate-800 space-y-4 text-center">
+            
+            <!-- Fee Header -->
+            <div class="flex items-center justify-between bg-slate-800/90 px-4 py-3 rounded-2xl border border-slate-700/80">
+              <div class="text-left">
+                <span class="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Player Registration Fee</span>
+                <span class="text-xs font-bold text-slate-200">${tourney.name || 'Tournament'}</span>
+              </div>
+              <div class="text-right">
+                <span class="text-2xl font-black text-emerald-400 font-mono">₹ ${Number(tourney.entryFee || tourney.playerEntryFee || 300).toLocaleString('en-IN')}</span>
+              </div>
             </div>
 
-            ${tourney.paymentQrUrl ? `
-              <div class="w-36 h-36 mx-auto bg-white p-2 rounded-2xl border-2 border-amber-300 shadow-sm">
-                <img src="${tourney.paymentQrUrl}" class="w-full h-full object-contain" alt="Tournament UPI QR Code" />
+            <!-- MAXIMUM SIZE QR CODE DISPLAY (EDGE-TO-EDGE, NO TIGHT BORDERS) -->
+            ${(tourney.paymentQrUrl || tourney.upiId) ? `
+              <div class="space-y-2.5">
+                <div class="w-full max-w-[280px] sm:max-w-[340px] aspect-square mx-auto bg-white p-2.5 sm:p-3.5 rounded-3xl shadow-2xl flex items-center justify-center relative overflow-hidden group border-4 border-emerald-500/30">
+                  <img src="${tourney.paymentQrUrl || `https://api.qrserver.com/v1/create-qr-code/?size=450x450&data=${encodeURIComponent(`upi://pay?pa=${tourney.upiId}&pn=${tourney.name || 'Tournament'}&am=${tourney.entryFee || 300}&cu=INR`)}`}" class="w-full h-full object-contain rounded-2xl" alt="Tournament UPI QR Code" />
+                </div>
+                
+                <div class="flex items-center justify-center gap-1.5 text-slate-300 text-xs font-bold bg-slate-800/60 py-1.5 px-3 rounded-full max-w-sm mx-auto">
+                  <span class="text-sm">📸</span>
+                  <span>Scan with GPay, PhonePe, Paytm, BHIM, or Any UPI App</span>
+                </div>
               </div>
             ` : ''}
 
+            <!-- UPI ID & 1-TAP COPY -->
             ${tourney.upiId ? `
-              <div class="text-[11px] font-bold text-amber-900">
-                <span>UPI ID: </span><span class="font-mono font-black text-slate-950">${tourney.upiId}</span>
+              <div class="space-y-2.5 pt-1">
+                <div class="flex items-center justify-between bg-slate-800/95 hover:bg-slate-800 px-4 py-2.5 rounded-2xl border border-slate-700 max-w-md mx-auto transition-all shadow-inner">
+                  <div class="text-left min-w-0 pr-2">
+                    <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Official Tournament UPI ID</span>
+                    <span class="font-mono text-emerald-400 font-black text-xs sm:text-sm select-all truncate block">${tourney.upiId}</span>
+                  </div>
+                  <button type="button" onclick="navigator.clipboard.writeText('${tourney.upiId}'); this.textContent='✅ Copied!'; setTimeout(()=>this.textContent='📋 Copy', 2000)" class="px-3.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-[11px] font-black rounded-xl shadow-xs cursor-pointer transition-all shrink-0">
+                    📋 Copy
+                  </button>
+                </div>
+
+                <!-- 1-TAP APP PAYMENT LAUNCH BUTTONS -->
+                <div class="grid grid-cols-3 gap-2 max-w-md mx-auto">
+                  <a href="gpay://upi/pay?pa=${encodeURIComponent(tourney.upiId)}&pn=${encodeURIComponent(tourney.name || 'Tournament')}&am=${encodeURIComponent(tourney.entryFee || 300)}&cu=INR" class="flex flex-col items-center justify-center py-2.5 px-1 bg-white hover:bg-slate-100 text-slate-900 rounded-2xl font-black text-[10px] shadow-sm transition-transform active:scale-95 cursor-pointer">
+                    <span class="text-base leading-none mb-0.5">🔵</span>
+                    <span>Google Pay</span>
+                  </a>
+
+                  <a href="phonepe://pay?pa=${encodeURIComponent(tourney.upiId)}&pn=${encodeURIComponent(tourney.name || 'Tournament')}&am=${encodeURIComponent(tourney.entryFee || 300)}&cu=INR" class="flex flex-col items-center justify-center py-2.5 px-1 bg-[#5f259f] hover:bg-[#521e8a] text-white rounded-2xl font-black text-[10px] shadow-sm transition-transform active:scale-95 cursor-pointer">
+                    <span class="text-base leading-none mb-0.5">🟣</span>
+                    <span>PhonePe</span>
+                  </a>
+
+                  <a href="upi://pay?pa=${encodeURIComponent(tourney.upiId)}&pn=${encodeURIComponent(tourney.name || 'Tournament')}&am=${encodeURIComponent(tourney.entryFee || 300)}&cu=INR" class="flex flex-col items-center justify-center py-2.5 px-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-2xl font-black text-[10px] shadow-sm transition-transform active:scale-95 cursor-pointer">
+                    <span class="text-base leading-none mb-0.5">⚡</span>
+                    <span>Paytm / UPI</span>
+                  </a>
+                </div>
               </div>
             ` : ''}
 
-            <p class="text-[10px] text-slate-600">Scan QR Code using PhonePe / GPay, pay ₹${tourney.entryFee || 300}, and upload payment screenshot below:</p>
+            <!-- PAYMENT ID / UTR / TRANSACTION REF -->
+            <div class="text-left bg-slate-800/90 p-3.5 sm:p-4 rounded-2xl border border-slate-700 space-y-3">
+              <div>
+                <label class="block text-[11px] font-black text-slate-200 uppercase tracking-wider mb-1">
+                  1. UPI Payment ID / UTR / Transaction No. <span class="text-rose-400">*</span>
+                </label>
+                <input type="text" id="dyn-payment-ref" placeholder="e.g. 423456789012 (12-Digit UTR No.)" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-mono font-bold text-emerald-400 placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-all" required />
+              </div>
 
-            <div class="text-left bg-white p-2.5 rounded-xl border border-amber-200">
-              <label class="block text-[10px] font-black text-slate-700 uppercase mb-1">Payment Receipt Screenshot *</label>
-              <input type="file" id="dyn-receipt-file" accept="image/*" class="w-full text-xs text-slate-600 file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-[10px] file:font-black file:bg-emerald-600 file:text-white cursor-pointer" required />
+              <div>
+                <label class="block text-[11px] font-black text-slate-200 uppercase tracking-wider mb-1">
+                  2. Payment Screenshot Proof <span class="text-rose-400">*</span>
+                </label>
+                <input type="file" id="dyn-receipt-file" accept="image/*" class="w-full text-xs text-slate-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-[10.5px] file:font-black file:bg-emerald-600 file:text-white hover:file:bg-emerald-500 cursor-pointer" required />
+                <div id="dyn-receipt-status" class="hidden"></div>
+              </div>
             </div>
           </div>
 
           <!-- SUBMIT BUTTON -->
           <div class="pt-2">
-            <button type="submit" id="dyn-submit-reg-btn" class="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-xs sm:text-sm rounded-xl shadow-md flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-emerald-400">
+            <button type="submit" id="dyn-submit-reg-btn" class="w-full py-3.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-emerald-400">
               <span>Submit Registration to ${tourney.shortCode || 'League'} ➔</span>
             </button>
           </div>
@@ -10335,52 +15021,254 @@ export function openDynamicTournamentRegistrationModal(tourneyIdOrSlug) {
 
   document.body.insertAdjacentHTML('beforeend', modalHtml);
 
-  // 1-Second Smart Auto-Fill on Mobile Input
-  const phoneInput = document.getElementById('dyn-reg-phone');
-  phoneInput?.addEventListener('input', (e) => {
-    const val = e.target.value.trim().replace(/[^0-9]/g, '');
-    if (val.length === 10) {
-      const existing = store.getUniversalPlayerByPhone(val);
-      if (existing) {
-        document.getElementById('dyn-reg-name').value = existing.name || '';
-        document.getElementById('dyn-reg-role').value = existing.category || 'All Rounder';
-        document.getElementById('dyn-reg-batting').value = existing.battingStyle || 'Right Hand Bat';
-        document.getElementById('dyn-reg-bowling').value = existing.bowlingStyle || 'Right Arm Medium';
-        document.getElementById('dyn-reg-village').value = existing.village || '';
-        document.getElementById('dyn-reg-district').value = existing.district || 'Paschim Medinipur';
-        if (existing.photoUrl) {
-          uploadedPhotoBase64 = existing.photoUrl;
-          document.getElementById('dyn-preview-photo').src = existing.photoUrl;
-        }
-        document.getElementById('dyn-autofill-notice')?.classList.remove('hidden');
-      } else {
-        document.getElementById('dyn-autofill-notice')?.classList.add('hidden');
+  // Auto-Calculate Age from DOB on change
+  const dobInput = document.getElementById('dyn-reg-dob');
+  const ageInput = document.getElementById('dyn-reg-age');
+  dobInput?.addEventListener('change', (e) => {
+    const dobVal = e.target.value;
+    if (dobVal) {
+      const birth = new Date(dobVal);
+      const today = new Date();
+      let age = today.getFullYear() - birth.getFullYear();
+      const m = today.getMonth() - birth.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+        age--;
       }
-    } else {
-      document.getElementById('dyn-autofill-notice')?.classList.add('hidden');
+      if (age >= 5 && age <= 100) {
+        if (ageInput) ageInput.value = `${age} Years Old`;
+      } else {
+        if (ageInput) ageInput.value = `${age} Years`;
+      }
     }
   });
 
-  // Photo change
+  // Helper to reset form fields to blank when phone is cleared or changed
+  const resetPlayerFormFields = () => {
+    const nameEl = document.getElementById('dyn-reg-name');
+    const roleEl = document.getElementById('dyn-reg-role');
+    const battingEl = document.getElementById('dyn-reg-batting');
+    const bowlingEl = document.getElementById('dyn-reg-bowling');
+    const villageEl = document.getElementById('dyn-reg-village');
+    const districtEl = document.getElementById('dyn-reg-district');
+    const dobEl = document.getElementById('dyn-reg-dob');
+    const ageEl = document.getElementById('dyn-reg-age');
+    const previewEl = document.getElementById('dyn-preview-photo');
+
+    if (nameEl) nameEl.value = '';
+    if (roleEl) roleEl.value = 'All Rounder';
+    if (battingEl) battingEl.value = 'Right Hand Bat';
+    if (bowlingEl) bowlingEl.value = 'Right Arm Medium';
+    if (villageEl) villageEl.value = '';
+    if (districtEl) districtEl.value = 'Paschim Medinipur';
+    if (dobEl) dobEl.value = '';
+    if (ageEl) ageEl.value = '';
+    if (previewEl) previewEl.src = 'assets/card_jsl_user.png';
+    uploadedPhotoBase64 = '';
+    document.getElementById('dyn-autofill-notice')?.classList.add('hidden');
+  };
+
+  // 1-Second Smart Auto-Fill on Mobile Input (Supabase Postgres + Universal Store)
+  const phoneInput = document.getElementById('dyn-reg-phone');
+  phoneInput?.addEventListener('input', async (e) => {
+    const val = e.target.value.trim().replace(/[^0-9]/g, '');
+    if (val.length === 10) {
+      let existing = store.getUniversalPlayerByPhone(val);
+      if (!existing) {
+        existing = await dbLookupPlayerByPhone(val);
+      }
+      if (existing) {
+        document.getElementById('dyn-reg-name').value = existing.name || existing.full_name || '';
+        document.getElementById('dyn-reg-role').value = existing.category || existing.role || 'All Rounder';
+        document.getElementById('dyn-reg-batting').value = existing.battingStyle || existing.batting_style || 'Right Hand Bat';
+        document.getElementById('dyn-reg-bowling').value = existing.bowlingStyle || existing.bowling_style || 'Right Arm Medium';
+        document.getElementById('dyn-reg-village').value = existing.village || '';
+        document.getElementById('dyn-reg-district').value = existing.district || 'Paschim Medinipur';
+        if (existing.dob) {
+          const dobEl = document.getElementById('dyn-reg-dob');
+          if (dobEl) {
+            dobEl.value = existing.dob;
+            dobEl.dispatchEvent(new Event('change'));
+          }
+        }
+        const photo = existing.photoUrl || existing.photo_url;
+        if (photo) {
+          uploadedPhotoBase64 = photo;
+          document.getElementById('dyn-preview-photo').src = photo;
+        }
+        document.getElementById('dyn-autofill-notice')?.classList.remove('hidden');
+      } else {
+        // 10 digits entered but no record found: keep blank
+        resetPlayerFormFields();
+      }
+    } else {
+      // If any digit is changed/deleted (less than 10 digits or mismatched): clear form immediately
+      resetPlayerFormFields();
+    }
+  });
+
+  // Photo change with Zoom & Crop Modal + Auto-Compression (~90-100 KB) + Cloudinary Upload
   document.getElementById('dyn-photo-file')?.addEventListener('change', (e) => {
     const file = e.target.files[0];
     if (file) {
       const reader = new FileReader();
       reader.onload = (ev) => {
-        uploadedPhotoBase64 = ev.target.result;
-        document.getElementById('dyn-preview-photo').src = uploadedPhotoBase64;
+        const rawSrc = ev.target.result;
+        openPlayerPhotoCropModal(rawSrc, async (croppedDataUrl) => {
+          uploadedPhotoBase64 = croppedDataUrl;
+          document.getElementById('dyn-preview-photo').src = croppedDataUrl;
+
+          const statusEl = document.getElementById('dyn-photo-upload-status');
+          if (statusEl) {
+            statusEl.innerHTML = `
+              <div class="mt-1 p-1.5 bg-emerald-50 border border-emerald-300 rounded-lg flex items-center gap-1.5 text-emerald-800 text-[10px] font-black animate-pulse">
+                <span class="inline-block w-3 h-3 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></span>
+                <span>Compressing (~90 KB) & uploading to CDN...</span>
+              </div>
+            `;
+            statusEl.classList.remove('hidden');
+          }
+
+          try {
+            const compressed = await compressImageToTarget(croppedDataUrl, 95, 800);
+            const slugVal = (tourney.slug || 'tourney').toLowerCase();
+            const cdnUrl = await uploadHDImage(compressed || croppedDataUrl, `players/${slugVal}`);
+            if (cdnUrl) {
+              uploadedPhotoBase64 = cdnUrl;
+            }
+            if (statusEl) {
+              statusEl.innerHTML = `
+                <div class="mt-1 p-1 bg-emerald-50 border border-emerald-400 rounded-lg flex items-center gap-1 text-[10px] font-black text-emerald-950">
+                  <span class="w-3 h-3 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[8px]">✓</span> Photo Uploaded
+                </div>
+              `;
+            }
+          } catch(err) {
+            if (statusEl) {
+              statusEl.innerHTML = `<span class="text-[9.5px] font-black text-emerald-800">✓ Photo Ready</span>`;
+            }
+          }
+        });
       };
       reader.readAsDataURL(file);
     }
   });
 
-  // Receipt change
-  document.getElementById('dyn-receipt-file')?.addEventListener('change', (e) => {
+  // ID Card Front File Handler (~90-100 KB compression + CDN upload)
+  let uploadedIdFrontUrl = '';
+  document.getElementById('dyn-id-front-file')?.addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onload = (ev) => { uploadedReceiptBase64 = ev.target.result; };
-      reader.readAsDataURL(file);
+      const statusEl = document.getElementById('dyn-id-front-status');
+      if (statusEl) {
+        statusEl.innerHTML = `
+          <div class="mt-1 p-1 bg-blue-50 border border-blue-300 rounded-md flex items-center gap-1 text-blue-800 text-[9.5px] font-black animate-pulse">
+            <span class="inline-block w-2.5 h-2.5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></span>
+            <span>Compressing & uploading...</span>
+          </div>
+        `;
+        statusEl.classList.remove('hidden');
+      }
+
+      try {
+        const compressed = await compressImageToTarget(file, 95, 1200);
+        const slugVal = (tourney.slug || 'tourney').toLowerCase();
+        const cdnUrl = await uploadHDImage(compressed || file, `verification/${slugVal}/front`);
+        if (cdnUrl) {
+          uploadedIdFrontUrl = cdnUrl;
+        } else {
+          const reader = new FileReader();
+          reader.onload = (ev) => { uploadedIdFrontUrl = ev.target.result; };
+          reader.readAsDataURL(compressed || file);
+        }
+        if (statusEl) {
+          statusEl.innerHTML = `
+            <div class="mt-1 p-0.5 bg-emerald-50 border border-emerald-400 rounded-md flex items-center gap-1 text-[9.5px] font-black text-emerald-950">
+              <span class="w-3 h-3 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[8px]">✓</span> Front Side Uploaded
+            </div>
+          `;
+        }
+      } catch(e2) {
+        if (statusEl) statusEl.innerHTML = `<span class="text-[9px] font-black text-emerald-800">✓ Front Ready</span>`;
+      }
+    }
+  });
+
+  // ID Card Back File Handler (~90-100 KB compression + CDN upload)
+  let uploadedIdBackUrl = '';
+  document.getElementById('dyn-id-back-file')?.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const statusEl = document.getElementById('dyn-id-back-status');
+      if (statusEl) {
+        statusEl.innerHTML = `
+          <div class="mt-1 p-1 bg-blue-50 border border-blue-300 rounded-md flex items-center gap-1 text-blue-800 text-[9.5px] font-black animate-pulse">
+            <span class="inline-block w-2.5 h-2.5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></span>
+            <span>Compressing & uploading...</span>
+          </div>
+        `;
+        statusEl.classList.remove('hidden');
+      }
+
+      try {
+        const compressed = await compressImageToTarget(file, 95, 1200);
+        const slugVal = (tourney.slug || 'tourney').toLowerCase();
+        const cdnUrl = await uploadHDImage(compressed || file, `verification/${slugVal}/back`);
+        if (cdnUrl) {
+          uploadedIdBackUrl = cdnUrl;
+        } else {
+          const reader = new FileReader();
+          reader.onload = (ev) => { uploadedIdBackUrl = ev.target.result; };
+          reader.readAsDataURL(compressed || file);
+        }
+        if (statusEl) {
+          statusEl.innerHTML = `
+            <div class="mt-1 p-0.5 bg-emerald-50 border border-emerald-400 rounded-md flex items-center gap-1 text-[9.5px] font-black text-emerald-950">
+              <span class="w-3 h-3 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[8px]">✓</span> Back Side Uploaded
+            </div>
+          `;
+        }
+      } catch(e2) {
+        if (statusEl) statusEl.innerHTML = `<span class="text-[9px] font-black text-emerald-800">✓ Back Ready</span>`;
+      }
+    }
+  });
+
+  // Receipt change with auto-compression (< 100 KB) + CDN upload
+  document.getElementById('dyn-receipt-file')?.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      const statusEl = document.getElementById('dyn-receipt-status');
+      if (statusEl) {
+        statusEl.innerHTML = `
+          <div class="mt-1 p-1 bg-emerald-50 border border-emerald-300 rounded-md flex items-center gap-1 text-emerald-800 text-[9.5px] font-black animate-pulse">
+            <span class="inline-block w-2.5 h-2.5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></span>
+            <span>Compressing receipt & uploading...</span>
+          </div>
+        `;
+        statusEl.classList.remove('hidden');
+      }
+
+      try {
+        const compressed = await compressImageToTarget(file, 95, 1200);
+        const slugVal = (tourney.slug || 'tourney').toLowerCase();
+        const cdnUrl = await uploadHDImage(compressed || file, `receipts/${slugVal}`);
+        if (cdnUrl) {
+          uploadedReceiptBase64 = cdnUrl;
+        } else {
+          const reader = new FileReader();
+          reader.onload = (ev) => { uploadedReceiptBase64 = ev.target.result; };
+          reader.readAsDataURL(compressed || file);
+        }
+        if (statusEl) {
+          statusEl.innerHTML = `
+            <div class="mt-1 p-0.5 bg-emerald-50 border border-emerald-400 rounded-md flex items-center gap-1 text-[9.5px] font-black text-emerald-950">
+              <span class="w-3 h-3 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[8px]">✓</span> Receipt Uploaded
+            </div>
+          `;
+        }
+      } catch(e3) {
+        if (statusEl) statusEl.innerHTML = `<span class="text-[9px] font-black text-emerald-800">✓ Receipt Ready</span>`;
+      }
     }
   });
 
@@ -10397,32 +15285,80 @@ export function openDynamicTournamentRegistrationModal(tourneyIdOrSlug) {
     const bowlingStyle = document.getElementById('dyn-reg-bowling').value;
     const village = document.getElementById('dyn-reg-village').value.trim();
     const district = document.getElementById('dyn-reg-district').value.trim();
+    const dob = document.getElementById('dyn-reg-dob')?.value || null;
+    const age = document.getElementById('dyn-reg-age')?.value || '';
+    const docType = document.getElementById('dyn-reg-doctype')?.value || 'Aadhaar Card';
+    const paymentRef = document.getElementById('dyn-payment-ref')?.value.trim() || `UPI_${Date.now()}`;
+
+    // Use Supabase UUID for tournament_id (falls back to local ID)
+    const effectiveTournamentId = tourney.supabaseId || tourney.tournament_id || tourney.id;
+    const atomicRegNo = await dbGetNextRegNumber(effectiveTournamentId);
 
     const playerData = {
-      id: `p_${phone}_${Date.now()}`,
+      id: generateUUID(),
       name,
       phone,
       category,
+      role: category,
       battingStyle,
       bowlingStyle,
       village,
       district,
+      dob,
+      age,
+      docType,
       tournamentId: tourney.id,
+      tournament_id: effectiveTournamentId,
       tournamentSlug: tourney.slug,
       tournamentName: tourney.name,
       photoUrl: uploadedPhotoBase64 || '',
+      photo_url: uploadedPhotoBase64 || '',
+      idCardFrontUrl: uploadedIdFrontUrl || '',
+      idCardBackUrl: uploadedIdBackUrl || '',
+      aadharPhotoUrl: uploadedIdFrontUrl || '',
+      aadharBackUrl: uploadedIdBackUrl || '',
       paymentReceiptUrl: uploadedReceiptBase64 || '',
+      paymentProofUrl: uploadedReceiptBase64 || '',
+      paymentRef: paymentRef,
+      remarks: paymentRef,
       registrationStatus: 'PENDING_VERIFICATION',
       paymentStatus: 'PENDING_VERIFICATION',
+      reg_number: atomicRegNo,
+      serialNo: atomicRegNo || (store.getPlayers().length + 1),
       createdAt: Date.now()
     };
 
-    // Save locally and globally
-    await store.saveUniversalPlayer(playerData);
-    await store.addPlayer(playerData);
+    const docsData = {
+      doc_type: docType,
+      aadhaar_url: uploadedIdFrontUrl || '',
+      id_card_front_url: uploadedIdFrontUrl || '',
+      id_card_back_url: uploadedIdBackUrl || '',
+      payment_screenshot_url: uploadedReceiptBase64 || '',
+      payment_ref: paymentRef
+    };
 
-    alert(`🎉 Registration Submitted Successfully for ${tourney.name}!\n\nYour application is sent to the tournament organizer for payment verification.`);
+    // 1. Save to Supabase Postgres (Multi-Tenant RLS Database)
+    await dbRegisterPlayer(playerData, docsData);
+
+    // 2. Set active tournament context and save to local store
+    if (effectiveTournamentId) {
+      store.setActiveTournament(effectiveTournamentId);
+    }
+    await store.saveUniversalPlayer(playerData);
+    store.registerPlayer(playerData);
+    store.notify('players_updated');
+
     document.getElementById('dynamic-tournament-reg-modal')?.remove();
+
+    // Open Beautiful Success Modal
+    openRegistrationSuccessModal({
+      name: playerData.name,
+      registrationId: `${(tourney.shortCode || 'CPL').toUpperCase()}-2026-${String(playerData.serialNo).padStart(4, '0')}`,
+      serialNo: playerData.serialNo,
+      displayRegistrationNumber: playerData.serialNo,
+      photoUrl: playerData.photoUrl,
+      category: playerData.category
+    });
   });
 
   const handleClose = () => {
@@ -10432,6 +15368,8 @@ export function openDynamicTournamentRegistrationModal(tourneyIdOrSlug) {
 }
 
 window.openTournamentCreationWizard = openTournamentCreationWizard;
+window.openTournamentBannerCropModal = openTournamentBannerCropModal;
+window.openTournamentCommentsModal = openTournamentCommentsModal;
 window.openDynamicTournamentRegistrationModal = openDynamicTournamentRegistrationModal;
 window.openMatchCenterModal = openMatchCenterModal;
 window.openMatchPlayingXIModal = openMatchPlayingXIModal;

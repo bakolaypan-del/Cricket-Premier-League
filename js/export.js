@@ -1,4 +1,57 @@
-// Export & Printing Utility Module for PDF & CSV (Developer: Suman Kolay - User Guide PDF Release)
+import { store } from './store.js?v=13.0.53';
+import { toUUID, getOptimizedImageUrl, compressImageToTarget } from './supabase.js?v=13.0.53';
+
+export async function preparePlayerPhotoForPDF(targetSrc, targetSizeKb = 30, maxDimension = 350) {
+  if (!targetSrc) return '';
+
+  // 1. If it's a Cloudinary URL, use Cloudinary dynamic optimization to request ~30KB (w_350,h_350,c_fill,g_face,q_90)
+  if (typeof targetSrc === 'string' && targetSrc.includes('cloudinary.com')) {
+    return getOptimizedImageUrl(targetSrc, maxDimension, maxDimension);
+  }
+
+  // 2. For HTTP URLs, fetch and compress to ~30KB target
+  if (typeof targetSrc === 'string' && targetSrc.startsWith('http')) {
+    try {
+      const res = await fetch(targetSrc, { cache: 'no-store' });
+      if (res.ok) {
+        const blob = await res.blob();
+        const compressedFile = await compressImageToTarget(blob, targetSizeKb, maxDimension);
+        return await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.readAsDataURL(compressedFile);
+        });
+      }
+    } catch (err) {
+      return targetSrc;
+    }
+  }
+
+  // 3. For Data URLs, compress canvas to ~30KB target
+  if (typeof targetSrc === 'string' && targetSrc.startsWith('data:image')) {
+    try {
+      const compressedFile = await compressImageToTarget(targetSrc, targetSizeKb, maxDimension);
+      return await new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => resolve(reader.result);
+        reader.readAsDataURL(compressedFile);
+      });
+    } catch (err) {
+      return targetSrc;
+    }
+  }
+
+  return targetSrc;
+}
+
+export function getTournamentDocName(overrideTourney = null) {
+  if (overrideTourney && overrideTourney.name) return overrideTourney.name;
+  if (typeof store !== 'undefined' && store && store.getActiveTournamentName) {
+    const name = store.getActiveTournamentName();
+    if (name) return name;
+  }
+  return 'Cricket Premier League';
+}
 
 export function exportPlayersToCSV(players) {
   if (!players || players.length === 0) {
@@ -6,6 +59,7 @@ export function exportPlayersToCSV(players) {
     return;
   }
 
+  const tourneyName = getTournamentDocName();
   const headers = ['Serial No', 'Player ID', 'Full Name', 'Father Name', 'DOB', 'Age', 'Phone', 'Address', 'Category', 'Payment Ref', 'Payment Status', 'Reg Date'];
   const rows = players.map(p => [
     p.displayRegistrationNumber || p.serialNo || '',
@@ -26,7 +80,7 @@ export function exportPlayersToCSV(players) {
   const encodedUri = encodeURI(csvContent);
   const link = document.createElement('a');
   link.setAttribute('href', encodedUri);
-  link.setAttribute('download', `JSL_Registered_Players_${new Date().toISOString().slice(0, 10)}.csv`);
+  link.setAttribute('download', `${tourneyName.replace(/[^a-zA-Z0-9_-]/g, '_')}_Registered_Players_${new Date().toISOString().slice(0, 10)}.csv`);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -38,6 +92,7 @@ export function exportTeamsToCSV(teams) {
     return;
   }
 
+  const tourneyName = getTournamentDocName();
   const headers = ['Team ID', 'Team Name', 'Short Code', 'Owner Name', 'Owner Phone', 'Co-Owner 1 Name', 'Co-Owner 1 Phone', 'Co-Owner 2 Name', 'Co-Owner 2 Phone', 'Reg Date'];
   const rows = teams.map(t => [
     t.id || '',
@@ -56,7 +111,7 @@ export function exportTeamsToCSV(teams) {
   const encodedUri = encodeURI(csvContent);
   const link = document.createElement('a');
   link.setAttribute('href', encodedUri);
-  link.setAttribute('download', `JSL_Registered_Teams_${new Date().toISOString().slice(0, 10)}.csv`);
+  link.setAttribute('download', `${tourneyName.replace(/[^a-zA-Z0-9_-]/g, '_')}_Registered_Teams_${new Date().toISOString().slice(0, 10)}.csv`);
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
@@ -128,11 +183,12 @@ export async function exportTeamsToPDF(teams) {
     `;
   }).join('');
 
+  const tourneyName = getTournamentDocName();
   const html = `
     <!DOCTYPE html>
     <html>
     <head>
-      <title>JSL 2026 - Registered Teams Directory PDF</title>
+      <title>${tourneyName} - Registered Teams Directory PDF</title>
       <style>
         body { font-family: 'Helvetica Neue', Arial, sans-serif; padding: 20px; color: #1E293B; }
         .header-box { text-align: center; border-bottom: 3px solid #0F172A; padding-bottom: 15px; margin-bottom: 20px; }
@@ -148,7 +204,7 @@ export async function exportTeamsToPDF(teams) {
     </head>
     <body>
       <div class="header-box">
-        <h1 class="title">JHANKRA SUPER LEAGUE (JSL 2026)</h1>
+        <h1 class="title">${tourneyName.toUpperCase()}</h1>
         <div class="subtitle">Official Registered Teams Directory</div>
         <div class="meta">Generated: ${new Date().toLocaleString()} • Total Registered Teams: ${teams.length}</div>
       </div>
@@ -173,7 +229,7 @@ export async function exportTeamsToPDF(teams) {
       </table>
 
       <div class="footer">
-        Jhankra Super League (JSL 2026) • Official Registration Management System • Developer: Suman Kolay
+        ${tourneyName} • Official Registration Management System • Developer: Suman Kolay
       </div>
     </body>
     </html>
@@ -198,6 +254,7 @@ export async function exportPlayersToPDF(players, filterLabel = 'All Registered 
     return;
   }
 
+  const tourneyName = getTournamentDocName();
   const now = new Date();
   const formattedTimestamp = now.toLocaleString('en-IN', {
     weekday: 'long',
@@ -243,25 +300,7 @@ export async function exportPlayersToPDF(players, filterLabel = 'All Registered 
       }
 
       let targetSrc = p.hdPhotoUrl || p.photoUrl || p.player_photo_url || '';
-      let hdPhoto = targetSrc;
-
-      if (targetSrc && targetSrc.startsWith('http')) {
-        try {
-          const res = await fetch(targetSrc, { cache: 'no-store' });
-          if (res.ok) {
-            const blob = await res.blob();
-            hdPhoto = await new Promise((resolve) => {
-              const reader = new FileReader();
-              reader.onloadend = () => resolve(reader.result);
-              reader.readAsDataURL(blob);
-            });
-          }
-        } catch (err) {
-          hdPhoto = targetSrc;
-        }
-      } else if (targetSrc && targetSrc.startsWith('data:image')) {
-        hdPhoto = targetSrc;
-      }
+      let hdPhoto = await preparePlayerPhotoForPDF(targetSrc, 30, 350);
 
       playersWithHDPhotos.push({ ...p, hdPhoto });
     }
@@ -306,7 +345,7 @@ export async function exportPlayersToPDF(players, filterLabel = 'All Registered 
       <!DOCTYPE html>
       <html>
       <head>
-        <title>JSL 2026 - Registered Players Directory (${filterLabel})</title>
+        <title>${tourneyName} - Registered Players Directory (${filterLabel})</title>
         <style>
           body { font-family: 'Helvetica Neue', Arial, sans-serif; padding: 20px; color: #1E293B; }
           .header-box { text-align: center; border-bottom: 3px solid #0F172A; padding-bottom: 15px; margin-bottom: 20px; }
@@ -323,7 +362,7 @@ export async function exportPlayersToPDF(players, filterLabel = 'All Registered 
       </head>
       <body>
         <div class="header-box">
-          <h1 class="title">JHANKRA SUPER LEAGUE (JSL 2026)</h1>
+          <h1 class="title">${tourneyName.toUpperCase()}</h1>
           <div class="subtitle">Official Registered Players Directory — ${filterLabel}</div>
           <div class="meta">
             <span class="timestamp-badge">📅 Download Date & Time: ${formattedTimestamp}</span>
@@ -350,7 +389,7 @@ export async function exportPlayersToPDF(players, filterLabel = 'All Registered 
         </table>
 
         <div class="footer">
-          Jhankra Super League (JSL 2026) • Official Registration Management System • Developer: Suman Kolay
+          ${tourneyName} • Official Registration Management System • Developer: Suman Kolay
         </div>
       </body>
       </html>
@@ -374,7 +413,7 @@ export async function exportPlayersToPDF(players, filterLabel = 'All Registered 
 }
 
 // PRINT / DOWNLOAD DIGITAL PASS FOR INDIVIDUAL PLAYER (WHITE BACKGROUND & SQUARE SHAPE)
-export function printDigitalPass(player, league, team) {
+export async function printDigitalPass(player, league, team) {
   if (!player) return;
 
   const printWindow = window.open('', '_blank');
@@ -384,7 +423,8 @@ export function printDigitalPass(player, league, team) {
   }
 
   const serialNo = player.registrationId || player.regNo || 'JSL2026-0001';
-  const photoSrc = player.photoUrl || player.player_photo_url || 'assets/jsl_logo_white.jpg';
+  const rawPhoto = player.photoUrl || player.player_photo_url || 'assets/jsl_logo_white.jpg';
+  const photoSrc = await preparePlayerPhotoForPDF(rawPhoto, 30, 350);
 
   const rawDate = player.createdTime || player.regTimestamp || player.regDate || player.created_at || player.registeredAt || player.createdAt || player.timestamp || player.date;
   let regDateTime = 'Registered';
@@ -407,11 +447,12 @@ export function printDigitalPass(player, league, team) {
     ? `<div class="official-seal" style="background: #ECFDF5; color: #065F46; border: 1.5px solid #10B981;">✅ VERIFIED PASS</div>`
     : `<div class="official-seal" style="background: #FFFBEB; color: #92400E; border: 1.5px solid #F59E0B;">⏳ PENDING VERIFICATION</div>`;
 
+  const tourneyName = getTournamentDocName();
   const html = `
     <!DOCTYPE html>
     <html>
     <head>
-      <title>JSL 2026 Player Pass - ${player.name} (${serialNo})</title>
+      <title>${tourneyName} Player Pass - ${player.name} (${serialNo})</title>
       <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
       <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -477,8 +518,8 @@ export function printDigitalPass(player, league, team) {
         
         <!-- HEADER -->
         <div class="card-header">
-          <div class="league-title">JHANKRA SUPER LEAGUE</div>
-          <div class="league-sub">JSL 2026 • OFFICIAL DIGITAL PLAYER PASS</div>
+          <div class="league-title">${tourneyName.toUpperCase()}</div>
+          <div class="league-sub">${tourneyName.toUpperCase()} • OFFICIAL DIGITAL PLAYER PASS</div>
         </div>
 
         <!-- MAIN BODY SECTION -->
@@ -492,7 +533,7 @@ export function printDigitalPass(player, league, team) {
             <div class="serial-badge">SERIAL NO: ${serialNo}</div>
             
             <div class="player-name">${player.name}</div>
-            <div class="player-team">🏆 ${team ? team.name : 'JSL Registered Player'}</div>
+            <div class="player-team">🏆 ${team ? team.name : `${tourneyName} Registered Player`}</div>
           </div>
         </div>
 
@@ -646,12 +687,13 @@ async function convertImageToLightweightBase64(url, maxDim = 100, quality = 0.70
 
 // HELPER: Prepare structured squad data for a team
 export function getTeamFinalSquadData(team, allPlayers) {
+  const defaultIconFee = Number(store.getAuctionSettings().defaultIconPrice) || 1000;
   const hasIcon = !!((team.iconPlayerName && team.iconPlayerName.trim()) || (team.iconName && team.iconName.trim()) || (team.iconPlayerId && team.iconPlayerId.trim()));
   const iconRawName = (team.iconPlayerName || team.iconName || '').trim();
   const iconPlayerId = team.iconPlayerId || '';
   
   // Match icon player against registered players
-  let iconPlayerObj = allPlayers.find(p => (iconPlayerId && p.id === iconPlayerId) || (iconRawName && p.name && p.name.trim().toLowerCase() === iconRawName.toLowerCase()));
+  let iconPlayerObj = allPlayers.find(p => (iconPlayerId && (p.id === iconPlayerId || toUUID(p.id) === toUUID(iconPlayerId))) || (iconRawName && p.name && p.name.trim().toLowerCase() === iconRawName.toLowerCase()));
 
   let iconItem = null;
   if (hasIcon || iconPlayerObj) {
@@ -664,25 +706,27 @@ export function getTeamFinalSquadData(team, allPlayers) {
       phone: (iconPlayerObj && (iconPlayerObj.phone || iconPlayerObj.mobile)) || team.iconPhone || team.iconPlayerPhone || 'N/A',
       village: (iconPlayerObj && (iconPlayerObj.village ? `${iconPlayerObj.village}${iconPlayerObj.district ? ', ' + iconPlayerObj.district : ''}` : iconPlayerObj.address)) || team.iconVillage || team.iconPlayerVillage || 'Paschim Medinipur',
       category: (iconPlayerObj && (iconPlayerObj.category || iconPlayerObj.playingType || iconPlayerObj.role)) || 'Icon Player',
-      price: 1000,
-      priceLabel: '₹ 1,000 (Icon Allocation)'
+      price: defaultIconFee,
+      priceLabel: `₹ ${defaultIconFee.toLocaleString('en-IN')} (Icon Allocation)`
     };
   }
 
   // Find non-icon purchased squad players
   const purchasedNonIconPlayers = allPlayers.filter(p => {
-    const isThisTeam = (p.teamId === team.id || (p.teamName && p.teamName.trim().toLowerCase() === team.name.trim().toLowerCase()));
+    if (!p) return false;
+    const pTeamId = p.teamId || p.team_id;
+    const isThisTeam = (pTeamId && (pTeamId === team.id || toUUID(pTeamId) === toUUID(team.id))) || (p.teamName && (p.teamName || '').trim().toLowerCase() === (team.name || '').trim().toLowerCase());
     if (!isThisTeam) return false;
     if (iconItem && ((iconPlayerObj && p.id === iconPlayerObj.id) || (iconRawName && p.name && p.name.trim().toLowerCase() === iconRawName.toLowerCase()))) {
       return false;
     }
     if (p.isIcon || p.isIconPlayer) return false;
-    return (p.auctionStatus === 'SOLD' || p.isSold === true || !!p.teamId);
+    return (p.auctionStatus === 'SOLD' || p.isSold === true || !!pTeamId);
   });
 
   const totalPurse = Number(team.purseBudget || team.purse || 8000);
-  const iconDeduction = iconItem ? 1000 : 0;
-  const auctionSpent = purchasedNonIconPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || 0), 0);
+  const iconDeduction = iconItem ? defaultIconFee : 0;
+  const auctionSpent = purchasedNonIconPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || Number(p.basePrice) || 300), 0);
   const totalSpent = iconDeduction + auctionSpent;
   const remainingPurse = Math.max(0, totalPurse - totalSpent);
 
@@ -717,7 +761,10 @@ function getFormattedPDFTimestamp() {
 }
 
 // HELPER: Build single-page HTML for a team squad
-function generateTeamSinglePageHtml(team, allPlayers, processedIconItem, processedPlayers, teamIdx = 0, totalTeamsCount = 8, formattedTimestamp = '') {
+function generateTeamSinglePageHtml(team, allPlayers, processedIconItem, processedPlayers, teamIdx = 0, totalTeamsCount = 8, formattedTimestamp = '', tournamentName = '') {
+  const tourneyName = tournamentName || getTournamentDocName();
+  const defaultIconFee = Number(store.getAuctionSettings().defaultIconPrice) || 1000;
+  const targetSquadSize = Number(store.getAuctionSettings().maxSquadSize) || 13;
   const squadData = getTeamFinalSquadData(team, allPlayers);
   const { totalPurse, iconDeduction, auctionSpent, totalSpent, remainingPurse } = squadData;
   const iconItem = processedIconItem;
@@ -754,7 +801,7 @@ function generateTeamSinglePageHtml(team, allPlayers, processedIconItem, process
           🏏 ${iconItem.category || 'Icon Player'}
         </td>
         <td style="text-align: right; font-weight: 900; color: #92400E; font-size: 12px; font-family: monospace; vertical-align: middle; padding: 2px 8px; white-space: nowrap;">
-          ₹ 1,000
+          ₹ ${defaultIconFee.toLocaleString('en-IN')}
         </td>
       </tr>
     `;
@@ -764,6 +811,7 @@ function generateTeamSinglePageHtml(team, allPlayers, processedIconItem, process
   // Rows 2 to 13: Auctioned Squad Players
   processedPlayers.forEach((p, idx) => {
     const isEven = idx % 2 === 0;
+    const playerSoldPrice = Number(p.soldPrice) || Number(p.basePrice) || 300;
     rowsHtml += `
       <tr style="background-color: ${isEven ? '#FFFFFF' : '#F8FAFC'}; height: 38px; border-bottom: 1px solid #E2E8F0;">
         <td style="text-align: center; vertical-align: middle; font-weight: bold; font-family: monospace; font-size: 11.5px; color: #475569; padding: 2px;">
@@ -788,15 +836,15 @@ function generateTeamSinglePageHtml(team, allPlayers, processedIconItem, process
           🏏 ${p.category || p.playingType || p.role || 'All Rounder'}
         </td>
         <td style="text-align: right; font-weight: 900; color: #059669; font-size: 12.5px; font-family: monospace; vertical-align: middle; padding: 2px 8px; white-space: nowrap;">
-          ₹ ${Number(p.soldPrice || p.basePrice || 300).toLocaleString('en-IN')}
+          ₹ ${playerSoldPrice.toLocaleString('en-IN')}
         </td>
       </tr>
     `;
     currentSl++;
   });
 
-  // Remaining slots up to 13 if squad has less than 13 players
-  while (currentSl <= 13) {
+  // Remaining slots up to targetSquadSize if squad has less players
+  while (currentSl <= targetSquadSize) {
     rowsHtml += `
       <tr style="background-color: #F8FAFC; height: 32px; border-bottom: 1px dashed #E2E8F0;">
         <td style="text-align: center; vertical-align: middle; font-weight: bold; font-family: monospace; font-size: 11px; color: #94A3B8; padding: 2px;">#${currentSl}</td>
@@ -819,7 +867,7 @@ function generateTeamSinglePageHtml(team, allPlayers, processedIconItem, process
     <div class="team-page" style="${teamIdx > 0 ? 'page-break-before: always;' : ''}">
       <!-- 1. TOP HEADER -->
       <div class="header-box">
-        <h1 class="tournament-name">Jhankra Super League 2026</h1>
+        <h1 class="tournament-name">${tourneyName}</h1>
         <div class="doc-subtitle">Official Final Auction Squad & Roster</div>
         <div class="doc-meta">📅 Generated: ${formattedTimestamp} • Team ${teamIdx + 1} of ${totalTeamsCount}</div>
       </div>
@@ -854,11 +902,11 @@ function generateTeamSinglePageHtml(team, allPlayers, processedIconItem, process
         </div>
         <div class="fin-pill">
           <span class="fin-lbl">Squad Count:</span>
-          <span class="fin-num" style="color: #0284C7;">${squadCount} / 13 Players</span>
+          <span class="fin-num" style="color: #0284C7;">${squadCount} / ${targetSquadSize} Players</span>
         </div>
       </div>
 
-      <!-- 4. 13 SQUAD MEMBERS TABLE -->
+      <!-- 4. SQUAD MEMBERS TABLE -->
       <div class="table-container">
         <table class="squad-table">
           <thead>
@@ -887,12 +935,12 @@ function generateTeamSinglePageHtml(team, allPlayers, processedIconItem, process
           </div>
           <div class="sig-col" style="text-align: right;">
             <div class="sig-line"></div>
-            <div class="sig-text">JSL Organiser Signature</div>
+            <div class="sig-text">${tourneyName} Organiser Signature</div>
           </div>
         </div>
 
         <div class="footer-credit">
-          Jhankra Super League (JSL 2026) • Official Auction Roster Record • System Architect: Suman Kolay
+          ${tourneyName} • Official Auction Roster Record • System Architect: Suman Kolay
         </div>
       </div>
     </div>
@@ -968,13 +1016,14 @@ export async function exportTeamFinalSquadToPDF(team, allPlayers) {
     }
 
     const formattedTimestamp = getFormattedPDFTimestamp();
-    const pageHtml = generateTeamSinglePageHtml(team, allPlayers, iconItem, processedPlayers, tIdx, teams.length || 8, formattedTimestamp);
+    const tourneyName = getTournamentDocName();
+    const pageHtml = generateTeamSinglePageHtml(team, allPlayers, iconItem, processedPlayers, tIdx, teams.length || 8, formattedTimestamp, tourneyName);
 
     const html = `
       <!DOCTYPE html>
       <html>
       <head>
-        <title>JSL 2026 - Final Auction Squad: ${team.name}</title>
+        <title>${tourneyName} - Final Auction Squad: ${team.name}</title>
         <style>
           * { box-sizing: border-box; margin: 0; padding: 0; }
           body { 
@@ -1057,7 +1106,7 @@ export async function exportTeamFinalSquadToPDF(team, allPlayers) {
       </head>
       <body>
         <div class="toolbar">
-          <div class="toolbar-title">🏆 JSL 2026 Final Auction Squad Document — ${team.name}</div>
+          <div class="toolbar-title">🏆 ${tourneyName} Final Auction Squad Document — ${team.name}</div>
           <button class="toolbar-btn" onclick="window.print()">🖨️ Print / Save as PDF</button>
         </div>
 
@@ -1121,6 +1170,7 @@ export async function exportAllTeamsFinalSquadsToPDF(teams, allPlayers) {
   try {
     const pagesHtmlList = [];
     const formattedTimestamp = getFormattedPDFTimestamp();
+    const tourneyName = getTournamentDocName();
     const totalTeams = teams.length;
 
     for (let tIdx = 0; tIdx < totalTeams; tIdx++) {
@@ -1143,7 +1193,7 @@ export async function exportAllTeamsFinalSquadsToPDF(teams, allPlayers) {
         processedPlayers.push({ ...p, photoBase64 });
       }
 
-      const pageHtml = generateTeamSinglePageHtml(team, allPlayers, iconItem, processedPlayers, tIdx, totalTeams, formattedTimestamp);
+      const pageHtml = generateTeamSinglePageHtml(team, allPlayers, iconItem, processedPlayers, tIdx, totalTeams, formattedTimestamp, tourneyName);
       pagesHtmlList.push(pageHtml);
     }
 
@@ -1159,7 +1209,7 @@ export async function exportAllTeamsFinalSquadsToPDF(teams, allPlayers) {
       <!DOCTYPE html>
       <html>
       <head>
-        <title>JSL 2026 - All Teams Final Auction Squads PDF</title>
+        <title>${tourneyName} - All Teams Final Auction Squads PDF</title>
         <style>
           * { box-sizing: border-box; margin: 0; padding: 0; }
           body { 
@@ -1236,7 +1286,7 @@ export async function exportAllTeamsFinalSquadsToPDF(teams, allPlayers) {
       </head>
       <body>
         <div class="toolbar">
-          <div class="toolbar-title">🏆 JSL 2026 Complete Tournament Final Squads (${totalTeams} Teams)</div>
+          <div class="toolbar-title">🏆 ${tourneyName} Complete Tournament Final Squads (${totalTeams} Teams)</div>
           <button class="toolbar-btn" onclick="window.print()">🖨️ Print / Save Complete PDF</button>
         </div>
 
@@ -1261,4 +1311,794 @@ export async function exportAllTeamsFinalSquadsToPDF(teams, allPlayers) {
     alert("An error occurred while generating All Teams PDF: " + err.message);
   }
 }
+
+// ==============================================================================
+// 🏏 OFFICIAL PRINTABLE MATCH SCORECARD PDF (A4 PORTRAIT)
+// ==============================================================================
+export function exportMatchScorecardPDF(fixture, tourney) {
+  if (!fixture) {
+    alert("Match fixture data not found.");
+    return;
+  }
+
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) {
+    alert("Please allow popups in your browser to view and print the Official Match Scorecard.");
+    return;
+  }
+
+  const tourneyName = (tourney?.name || fixture.leagueCode || 'Cricket Premier League').toUpperCase();
+  const venue = fixture.venue || tourney?.venue || 'JHANKRA HIGH SCHOOL GROUND';
+  const matchNo = fixture.matchNo || 1;
+  const stage = (fixture.stage || fixture.groupCode || 'LEAGUE MATCH').replace(/_/g, ' ').toUpperCase();
+  const date = fixture.date || new Date().toISOString().slice(0, 10);
+  const time = fixture.time || '09:00 AM';
+  const teamA = fixture.teamAName || 'Team A';
+  const teamB = fixture.teamBName || 'Team B';
+  const toss = fixture.tossDetails || `${teamA} won the toss & elected to bat`;
+  const result = fixture.result || fixture.resultText || (fixture.winnerTeamName ? `${fixture.winnerTeamName} WON` : 'MATCH COMPLETED');
+  let potm = fixture.potmName || fixture.playerOfTheMatch || fixture.mvpName;
+  if (!potm) {
+    const ps = (fixture.liveMatchState || {}).playerStats || {};
+    const pKeys = Object.keys(ps);
+    let bestMvp = -1;
+    let bestObj = null;
+    const allP = (typeof store !== 'undefined' && store.getPlayers) ? store.getPlayers() : [];
+    pKeys.forEach(pid => {
+      const s = ps[pid] || {};
+      const runs = s.runs || 0, fours = s.fours || 0, sixes = s.sixes || 0, wickets = s.wickets || 0, maidens = s.maidens || 0, catches = s.catches || 0, stumpings = s.stumpings || 0, runOuts = s.runOuts || 0;
+      const mvp = (runs * 1) + (fours * 1) + (sixes * 2) + (wickets * 20) + (maidens * 8) + (catches * 8) + (stumpings * 10) + (runOuts * 8);
+      if (mvp > bestMvp && mvp > 0) {
+        bestMvp = mvp;
+        const pObj = allP.find(x => String(x.id) === String(pid));
+        const pName = pObj ? pObj.name : 'Match MVP';
+        const parts = [];
+        if (runs > 0) parts.push(`${runs} runs (${s.balls || 0}b)`);
+        if (wickets > 0) parts.push(`${wickets} wkts`);
+        if (catches > 0) parts.push(`${catches} c`);
+        const desc = parts.length > 0 ? parts.join(' & ') : `${mvp} MVP Pts`;
+        bestObj = `${pName} (${desc})`;
+      }
+    });
+    if (bestObj) potm = bestObj;
+  }
+  if (!potm) potm = '—';
+
+  const state = fixture.liveMatchState || {};
+  const pStats = state.playerStats || {};
+  const ballHistory = state.ballHistory || state.ballLog || [];
+
+  const allPlayers = (typeof store !== 'undefined' && store.getPlayers) ? store.getPlayers() : [];
+  const teamAPlayers = allPlayers.filter(p => p.teamId === fixture.teamAId);
+  const teamBPlayers = allPlayers.filter(p => p.teamId === fixture.teamBId);
+
+  const pxiA = fixture.playingXI?.[fixture.teamAId]?.playing11Ids || teamAPlayers.map(p => p.id);
+  const pxiB = fixture.playingXI?.[fixture.teamBId]?.playing11Ids || teamBPlayers.map(p => p.id);
+
+  const squadA = teamAPlayers.length > 0 ? teamAPlayers.filter(p => pxiA.includes(p.id)) : Array.from({ length: 11 }, (_, i) => ({ id: `${fixture.teamAId}-ply-${i+1}`, name: `${teamA} Player ${i+1}` }));
+  const squadB = teamBPlayers.length > 0 ? teamBPlayers.filter(p => pxiB.includes(p.id)) : Array.from({ length: 11 }, (_, i) => ({ id: `${fixture.teamBId}-ply-${i+1}`, name: `${teamB} Player ${i+1}` }));
+
+  // Helper to extract real batters sorted by Who Batted First
+  const extractRealBatters = (playersList) => {
+    const firstSeenMap = {};
+    ballHistory.forEach((b, idx) => {
+      if (b.strikerId && firstSeenMap[b.strikerId] === undefined) firstSeenMap[b.strikerId] = idx;
+      if (b.nonStrikerId && firstSeenMap[b.nonStrikerId] === undefined) firstSeenMap[b.nonStrikerId] = idx;
+    });
+
+    const sorted = [...(playersList || [])].sort((a, b) => {
+      const sA = pStats[a.id] || {};
+      const sB = pStats[b.id] || {};
+      const bA = (sA.balls > 0 || sA.runs > 0 || sA.dismissed || state.strikerId === a.id || state.nonStrikerId === a.id);
+      const bB = (sB.balls > 0 || sB.runs > 0 || sB.dismissed || state.strikerId === b.id || state.nonStrikerId === b.id);
+      if (bA && !bB) return -1;
+      if (!bA && bB) return 1;
+      if (bA && bB) {
+        const idxA = firstSeenMap[a.id] ?? 9999;
+        const idxB = firstSeenMap[b.id] ?? 9999;
+        if (idxA !== idxB) return idxA - idxB;
+      }
+      return 0;
+    });
+
+    return sorted.map(p => {
+      const s = pStats[p.id] || {};
+      const hasBatted = (s.balls > 0 || s.runs > 0 || s.dismissed || state.strikerId === p.id || state.nonStrikerId === p.id);
+      const isOut = s.dismissed;
+      const dismissal = isOut ? (s.dismissalInfo || 'out') : (hasBatted ? 'not out' : 'did not bat');
+      const sr = s.balls > 0 ? (((s.runs || 0) / s.balls) * 100).toFixed(1) : '0.0';
+      return {
+        name: p.name,
+        dismissal,
+        runs: hasBatted ? (s.runs || 0) : 0,
+        balls: hasBatted ? (s.balls || 0) : 0,
+        fours: hasBatted ? (s.fours || 0) : 0,
+        sixes: hasBatted ? (s.sixes || 0) : 0,
+        sr,
+        hasBatted
+      };
+    });
+  };
+
+  // Helper to extract real bowlers
+  const extractRealBowlers = (playersList) => {
+    const bowlers = (playersList || []).filter(p => {
+      const s = pStats[p.id] || {};
+      return (s.ballsBowled > 0 || s.runsConceded > 0 || s.wickets > 0);
+    });
+
+    return bowlers.map(p => {
+      const s = pStats[p.id] || {};
+      const balls = s.ballsBowled || 0;
+      const overs = `${Math.floor(balls / 6)}.${balls % 6}`;
+      const maidens = s.maidens || 0;
+      const runs = s.runsConceded || 0;
+      const wickets = s.wickets || 0;
+      const econ = balls > 0 ? ((runs / (balls / 6)).toFixed(2)) : '0.00';
+      return {
+        name: p.name,
+        overs,
+        maidens,
+        runs,
+        wickets,
+        econ,
+        dots: s.dots || 0
+      };
+    });
+  };
+
+  // Innings 1 data
+  const inn1Score = fixture.teamAScore || { runs: state.runs || 0, wickets: state.wickets || 0, overs: state.overs || 0, balls: state.balls || 0 };
+  const inn1Batters = (fixture.teamABatting && fixture.teamABatting.length > 0) ? fixture.teamABatting : extractRealBatters(squadA);
+  const inn1Bowlers = (fixture.teamBBowling && fixture.teamBBowling.length > 0) ? fixture.teamBBowling : extractRealBowlers(squadB);
+
+  // Innings 2 data
+  const inn2Score = fixture.teamBScore || { runs: 0, wickets: 0, overs: 0, balls: 0 };
+  const inn2Batters = (fixture.teamBBatting && fixture.teamBBatting.length > 0) ? fixture.teamBBatting : extractRealBatters(squadB);
+  const inn2Bowlers = (fixture.teamABowling && fixture.teamABowling.length > 0) ? fixture.teamABowling : extractRealBowlers(squadA);
+
+  const html = `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8" />
+      <title>Official Scorecard - Match #${matchNo} (${teamA} vs ${teamB})</title>
+      <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; }
+        body { background-color: #F8FAFC; color: #0F172A; padding: 15px; }
+        .toolbar { max-width: 900px; margin: 0 auto 15px auto; display: flex; justify-content: space-between; align-items: center; background: #0F172A; color: white; padding: 12px 20px; border-radius: 12px; }
+        .toolbar-btn { background: #10B981; color: white; border: none; padding: 8px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .scorecard-container { max-width: 900px; margin: 0 auto; background: white; border: 2px solid #0F172A; border-radius: 16px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.06); }
+        .header-box { text-align: center; border-bottom: 2px solid #0F172A; padding-bottom: 12px; margin-bottom: 15px; }
+        .tourney-title { font-size: 20px; font-weight: 900; color: #0F172A; letter-spacing: 0.5px; }
+        .match-subtitle { font-size: 13px; font-weight: 800; color: #047857; margin-top: 2px; }
+        .meta-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; background: #F1F5F9; padding: 8px 12px; border-radius: 8px; font-size: 11px; margin-top: 8px; }
+        .meta-item strong { color: #475569; display: block; font-size: 9.5px; text-transform: uppercase; }
+        
+        .result-banner { background: #ECFDF5; border: 1.5px solid #10B981; color: #064E3B; font-weight: 900; font-size: 13px; text-align: center; padding: 8px; border-radius: 8px; margin: 12px 0; }
+        
+        .innings-section { margin-bottom: 16px; }
+        .innings-header { background: #0F172A; color: white; padding: 6px 12px; font-size: 12px; font-weight: 800; border-radius: 6px 6px 0 0; display: flex; justify-content: space-between; }
+        
+        table { width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 8px; }
+        th { background: #F8FAFC; border: 1px solid #E2E8F0; padding: 5px 8px; font-size: 10px; font-weight: 800; color: #475569; text-transform: uppercase; }
+        td { border: 1px solid #E2E8F0; padding: 5px 8px; }
+        .text-right { text-align: right; }
+        .text-center { text-align: center; }
+        .font-mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
+        .font-bold { font-weight: bold; }
+        
+        .extras-row { background: #F8FAFC; font-size: 11px; padding: 6px 10px; border: 1px solid #E2E8F0; border-top: none; display: flex; justify-content: space-between; font-weight: bold; }
+        .potm-box { background: #FFFBEB; border: 1.5px solid #F59E0B; padding: 8px 12px; border-radius: 8px; font-size: 11px; font-weight: bold; margin-top: 10px; display: flex; justify-content: space-between; }
+
+        .signatures-row { display: flex; justify-content: space-between; margin-top: 20px; padding: 10px 20px 0 20px; border-top: 1px solid #E2E8F0; }
+        .sig-box { width: 180px; text-align: center; font-size: 10px; font-weight: bold; color: #64748B; }
+        .sig-line { border-bottom: 1px solid #0F172A; height: 30px; margin-bottom: 4px; }
+
+        @media print {
+          body { padding: 0; background: white; }
+          .toolbar { display: none !important; }
+          @page { size: A4 portrait; margin: 8mm; }
+          .scorecard-container { border: 1px solid #000; box-shadow: none; padding: 12px; }
+          tr { page-break-inside: avoid; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="toolbar">
+        <div>🏏 <strong>Official Match Scorecard</strong> • Match #${matchNo} (${teamA} vs ${teamB})</div>
+        <button class="toolbar-btn" onclick="window.print()">🖨️ Print / Save as PDF</button>
+      </div>
+
+      <div class="scorecard-container">
+        <div class="header-box">
+          <div class="tourney-title">🏆 ${tourneyName}</div>
+          <div class="match-subtitle">OFFICIAL MATCH SCORECARD & SUMMARY • MATCH #${matchNo} (${stage})</div>
+          
+          <div class="meta-grid">
+            <div class="meta-item"><strong>Date</strong> ${date}</div>
+            <div class="meta-item"><strong>Time</strong> ${time}</div>
+            <div class="meta-item"><strong>Venue</strong> ${venue}</div>
+            <div class="meta-item"><strong>Toss</strong> ${toss}</div>
+          </div>
+        </div>
+
+        <div class="result-banner">
+          🏆 RESULT: ${result}
+        </div>
+
+        <!-- 1ST INNINGS -->
+        <div class="innings-section">
+          <div class="innings-header">
+            <span>1ST INNINGS: ${teamA.toUpperCase()}</span>
+            <span>${inn1Score.runs || 0}/${inn1Score.wickets || 0} (${inn1Score.overs || 0}.${inn1Score.balls || 0} OVERS)</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th style="text-align:left;">Batter</th>
+                <th style="text-align:left;">Dismissal</th>
+                <th class="text-right">R</th>
+                <th class="text-right">B</th>
+                <th class="text-right">4s</th>
+                <th class="text-right">6s</th>
+                <th class="text-right">SR</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${inn1Batters.map((b, idx) => `
+                <tr>
+                  <td class="font-bold">${idx + 1}. ${b.name}</td>
+                  <td style="color:#64748B;">${b.dismissal || 'not out'}</td>
+                  <td class="text-right font-bold font-mono">${b.runs || 0}</td>
+                  <td class="text-right font-mono">${b.balls || 0}</td>
+                  <td class="text-right font-mono">${b.fours || 0}</td>
+                  <td class="text-right font-mono">${b.sixes || 0}</td>
+                  <td class="text-right font-mono">${Number(b.sr || (b.balls ? (b.runs/b.balls*100) : 0)).toFixed(1)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+
+          <div class="innings-header" style="background:#334155; font-size:11px; margin-top:6px;">
+            <span>BOWLING ANALYSIS: ${teamB.toUpperCase()}</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th style="text-align:left;">Bowler</th>
+                <th class="text-right">O</th>
+                <th class="text-right">M</th>
+                <th class="text-right">R</th>
+                <th class="text-right">W</th>
+                <th class="text-right">Econ</th>
+                <th class="text-right">Dots</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${inn1Bowlers.map(bw => `
+                <tr>
+                  <td class="font-bold">${bw.name}</td>
+                  <td class="text-right font-mono">${bw.overs || '4.0'}</td>
+                  <td class="text-right font-mono">${bw.maidens || 0}</td>
+                  <td class="text-right font-bold font-mono">${bw.runs || 0}</td>
+                  <td class="text-right font-bold font-mono" style="color:#047857;">${bw.wickets || 0}</td>
+                  <td class="text-right font-mono">${Number(bw.econ || 0).toFixed(2)}</td>
+                  <td class="text-right font-mono">${bw.dots || 0}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- 2ND INNINGS -->
+        <div class="innings-section">
+          <div class="innings-header">
+            <span>2ND INNINGS: ${teamB.toUpperCase()}</span>
+            <span>${inn2Score.runs || 0}/${inn2Score.wickets || 0} (${inn2Score.overs || 0}.${inn2Score.balls || 0} OVERS)</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th style="text-align:left;">Batter</th>
+                <th style="text-align:left;">Dismissal</th>
+                <th class="text-right">R</th>
+                <th class="text-right">B</th>
+                <th class="text-right">4s</th>
+                <th class="text-right">6s</th>
+                <th class="text-right">SR</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${inn2Batters.map((b, idx) => `
+                <tr>
+                  <td class="font-bold">${idx + 1}. ${b.name}</td>
+                  <td style="color:#64748B;">${b.dismissal || 'not out'}</td>
+                  <td class="text-right font-bold font-mono">${b.runs || 0}</td>
+                  <td class="text-right font-mono">${b.balls || 0}</td>
+                  <td class="text-right font-mono">${b.fours || 0}</td>
+                  <td class="text-right font-mono">${b.sixes || 0}</td>
+                  <td class="text-right font-mono">${Number(b.sr || (b.balls ? (b.runs/b.balls*100) : 0)).toFixed(1)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+
+          <div class="innings-header" style="background:#334155; font-size:11px; margin-top:6px;">
+            <span>BOWLING ANALYSIS: ${teamA.toUpperCase()}</span>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th style="text-align:left;">Bowler</th>
+                <th class="text-right">O</th>
+                <th class="text-right">M</th>
+                <th class="text-right">R</th>
+                <th class="text-right">W</th>
+                <th class="text-right">Econ</th>
+                <th class="text-right">Dots</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${inn2Bowlers.map(bw => `
+                <tr>
+                  <td class="font-bold">${bw.name}</td>
+                  <td class="text-right font-mono">${bw.overs || '4.0'}</td>
+                  <td class="text-right font-mono">${bw.maidens || 0}</td>
+                  <td class="text-right font-bold font-mono">${bw.runs || 0}</td>
+                  <td class="text-right font-bold font-mono" style="color:#047857;">${bw.wickets || 0}</td>
+                  <td class="text-right font-mono">${Number(bw.econ || 0).toFixed(2)}</td>
+                  <td class="text-right font-mono">${bw.dots || 0}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="potm-box">
+          <span>🏅 PLAYER OF THE MATCH (MVP)</span>
+          <span>${potm}</span>
+        </div>
+
+        <div class="signatures-row">
+          <div class="sig-box">
+            <div class="sig-line"></div>
+            <div>ON-FIELD UMPIRE 1</div>
+          </div>
+          <div class="sig-box">
+            <div class="sig-line"></div>
+            <div>ON-FIELD UMPIRE 2</div>
+          </div>
+          <div class="sig-box">
+            <div class="sig-line"></div>
+            <div>OFFICIAL SCORER</div>
+          </div>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  printWindow.document.open();
+  printWindow.document.write(html);
+  printWindow.document.close();
+
+  printWindow.onload = () => {
+    setTimeout(() => {
+      printWindow.focus();
+      printWindow.print();
+    }, 400);
+  };
+}
+// ==============================================================================
+// 🔨 OFFICIAL AUCTION ROSTER & SUMMARY PDF (A4 PORTRAIT)
+// ==============================================================================
+export function exportAuctionSummaryPDF(tourney, teams = [], players = []) {
+  if (!teams || teams.length === 0) {
+    alert("No teams available to export.");
+    return;
+  }
+
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) {
+    alert("Please allow popups in your browser to view and print the Auction Roster.");
+    return;
+  }
+
+  const tourneyName = (tourney?.name || 'Cricket Premier League').toUpperCase();
+  const dateStr = new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+
+  const html = `
+    <!DOCTYPE html>
+    <html lang="en">
+    <head>
+      <meta charset="UTF-8" />
+      <title>${tourneyName} - Official Auction Summary & Team Rosters</title>
+      <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; }
+        body { background-color: #F8FAFC; color: #0F172A; padding: 15px; }
+        .toolbar { max-width: 900px; margin: 0 auto 15px auto; display: flex; justify-content: space-between; align-items: center; background: #0F172A; color: white; padding: 12px 20px; border-radius: 12px; }
+        .toolbar-btn { background: #D97706; color: white; border: none; padding: 8px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; }
+        .page { max-width: 900px; margin: 0 auto 20px auto; background: white; border: 2px solid #0F172A; border-radius: 16px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.06); }
+        .header { text-align: center; border-bottom: 2px solid #0F172A; padding-bottom: 10px; margin-bottom: 15px; }
+        .title { font-size: 20px; font-weight: 900; }
+        .subtitle { font-size: 12px; font-weight: 800; color: #B45309; margin-top: 2px; }
+        table { width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 15px; }
+        th { background: #0F172A; color: white; padding: 6px 8px; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+        td { border: 1px solid #E2E8F0; padding: 5px 8px; }
+        .team-box { border: 1.5px solid #CBD5E1; border-radius: 10px; padding: 10px; margin-bottom: 14px; background: #F8FAFC; }
+        .team-header { display: flex; justify-content: space-between; font-weight: 900; font-size: 13px; color: #0F172A; border-bottom: 1px solid #E2E8F0; padding-bottom: 6px; margin-bottom: 8px; }
+        .purse-pill { font-size: 11px; font-family: monospace; color: #047857; }
+        .text-right { text-align: right; }
+        .font-bold { font-weight: bold; }
+        .font-mono { font-family: ui-monospace, SFMono-Regular, monospace; }
+        @media print {
+          body { padding: 0; background: white; }
+          .toolbar { display: none !important; }
+          @page { size: A4 portrait; margin: 8mm; }
+          .page { border: 1px solid #000; box-shadow: none; page-break-after: always; }
+          .page:last-child { page-break-after: auto; }
+          .team-box { page-break-inside: avoid; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="toolbar">
+        <div>🔨 <strong>${tourneyName}</strong> • Official Auction Summary Report</div>
+        <button class="toolbar-btn" onclick="window.print()">🖨️ Print / Save as PDF</button>
+      </div>
+
+      <div class="page">
+        <div class="header">
+          <div class="title">🏆 ${tourneyName}</div>
+          <div class="subtitle">OFFICIAL PLAYER AUCTION SUMMARY & TEAM ROSTERS • ${dateStr}</div>
+        </div>
+
+        <h3 style="font-size: 13px; font-weight: 900; margin-bottom: 8px; color: #0F172A;">📊 FRANCHISE TEAM PURSE EXPENDITURE</h3>
+        <table>
+          <thead>
+            <tr>
+              <th style="text-align:center; width:35px;">#</th>
+              <th style="text-align:left;">Team Name</th>
+              <th style="text-align:left;">Owner</th>
+              <th class="text-right">Total Purse</th>
+              <th class="text-right">Spent</th>
+              <th class="text-right">Remaining</th>
+              <th class="text-right">Squad Size</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${teams.map((t, i) => {
+              const squad = players.filter(p => p.teamId === t.id);
+              const spent = squad.reduce((sum, p) => sum + Number(p.soldPrice || p.boughtPrice || 0), 0);
+              const purse = Number(t.purseBudget || t.purse || tourney?.teamPurse || 8000);
+              const rem = Math.max(0, purse - spent);
+              return `
+                <tr>
+                  <td style="text-align:center; font-weight:bold;">${i + 1}</td>
+                  <td class="font-bold">${t.name}</td>
+                  <td>${t.ownerName || '—'}</td>
+                  <td class="text-right font-mono">₹ ${purse.toLocaleString('en-IN')}</td>
+                  <td class="text-right font-mono font-bold" style="color:#B45309;">₹ ${spent.toLocaleString('en-IN')}</td>
+                  <td class="text-right font-mono font-bold" style="color:#047857;">₹ ${rem.toLocaleString('en-IN')}</td>
+                  <td class="text-right font-bold">${squad.length}</td>
+                </tr>
+              `;
+            }).join('')}
+          </tbody>
+        </table>
+
+        <h3 style="font-size: 13px; font-weight: 900; margin: 16px 0 8px 0; color: #0F172A;">🛡️ DETAILED TEAM SQUAD ROSTERS</h3>
+        ${teams.map((t, idx) => {
+          const squad = players.filter(p => p.teamId === t.id);
+          const spent = squad.reduce((sum, p) => sum + Number(p.soldPrice || p.boughtPrice || 0), 0);
+          return `
+            <div class="team-box">
+              <div class="team-header">
+                <span>#${idx + 1} ${t.name.toUpperCase()} (${squad.length} Players)</span>
+                <span class="purse-pill">Total Spent: ₹ ${spent.toLocaleString('en-IN')}</span>
+              </div>
+              <table>
+                <thead>
+                  <tr>
+                    <th style="width:30px; text-align:center;">#</th>
+                    <th style="text-align:left;">Player Name</th>
+                    <th style="text-align:left;">Category / Role</th>
+                    <th style="text-align:left;">Location</th>
+                    <th class="text-right">Auction Bid Price</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${squad.map((p, pIdx) => `
+                    <tr>
+                      <td style="text-align:center; font-weight:bold;">${pIdx + 1}</td>
+                      <td class="font-bold">${p.name} ${p.isIcon ? '<span style="color:#D97706;">(ICON)</span>' : ''}</td>
+                      <td>${p.category || p.role || 'All-rounder'}</td>
+                      <td>${p.village || p.address || 'Local'}</td>
+                      <td class="text-right font-mono font-bold" style="color:#047857;">₹ ${Number(p.soldPrice || p.boughtPrice || 0).toLocaleString('en-IN')}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+            </div>
+          `;
+        }).join('')}
+      </div>
+    </body>
+    </html>
+  `;
+
+  printWindow.document.open();
+  printWindow.document.write(html);
+  printWindow.document.close();
+
+  printWindow.onload = () => {
+    setTimeout(() => {
+      printWindow.focus();
+      printWindow.print();
+    }, 400);
+  };
+}
+
+// ==============================================================================
+// 🎨 OFFICIAL PLAYER SOCIAL MEDIA STORY CARD (CANVAS 1080x1350)
+// ==============================================================================
+export function exportPlayerSocialCard(player, team, tourney) {
+  if (!player) return;
+
+  document.getElementById('player-social-card-modal')?.remove();
+
+  const tourneyName = (tourney?.name || 'Cricket Premier League').toUpperCase();
+  const teamName = (team?.name || 'Franchise Team').toUpperCase();
+  const serialNo = player.displayRegistrationNumber || player.serialNo || 1;
+  const photoSrc = player.photoUrl || player.player_photo_url || 'assets/card_jsl_user.png';
+  // Calculate real-time player career stats from match fixtures
+  let totalRuns = 0;
+  let totalBalls = 0;
+  let totalWickets = 0;
+  let totalSixes = 0;
+
+  try {
+    const fixtures = (typeof store !== 'undefined' && store.getFixtures) ? store.getFixtures() : [];
+    fixtures.forEach(f => {
+      if (f.liveMatchState && f.liveMatchState.playerStats && f.liveMatchState.playerStats[player.id]) {
+        const ps = f.liveMatchState.playerStats[player.id];
+        totalRuns += ps.runs || 0;
+        totalBalls += ps.balls || 0;
+        totalWickets += ps.wickets || 0;
+        totalSixes += ps.sixes || 0;
+      }
+    });
+  } catch(e) {}
+
+  const runs = totalRuns || player.totalRuns || player.runs || 0;
+  const wickets = totalWickets || player.totalWickets || player.wickets || 0;
+  const sixes = totalSixes || player.totalSixes || player.sixes || 0;
+  const strikeRate = totalBalls > 0 ? ((totalRuns / totalBalls) * 100).toFixed(1) : (player.strikeRate || player.sr || '0.0');
+  const role = player.category || player.playingType || 'All-rounder';
+  const village = player.village || player.address || 'Local';
+
+  const modalHtml = `
+    <div id="player-social-card-modal" class="fixed inset-0 z-[90] modal-overlay flex items-center justify-center p-3 bg-slate-950/85 backdrop-blur-md animate-fade-in">
+      <div class="bg-gradient-to-br from-[#0B1120] via-[#111827] to-[#064E3B] text-white max-w-sm w-full p-4 rounded-3xl border-2 border-emerald-400 shadow-2xl space-y-3 relative overflow-hidden flex flex-col items-center max-h-[92vh]">
+        
+        <!-- Header -->
+        <div class="w-full flex items-center justify-between">
+          <div class="flex items-center gap-1.5">
+            <span class="text-base">🎨</span>
+            <span class="text-xs font-black uppercase text-emerald-300 tracking-wider">Social Story Card</span>
+          </div>
+          <button id="close-social-card-btn" class="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center text-xs font-black cursor-pointer">
+            ✕
+          </button>
+        </div>
+
+        <!-- Canvas Preview -->
+        <div class="w-full rounded-2xl overflow-hidden shadow-2xl border border-emerald-500/40 bg-slate-950 flex items-center justify-center relative aspect-[4/5] max-h-[58vh]">
+          <canvas id="player-social-canvas" width="1080" height="1350" class="w-full h-full object-contain"></canvas>
+          <div id="social-canvas-loading" class="absolute inset-0 bg-slate-950/80 flex flex-col items-center justify-center gap-2 text-emerald-400 text-xs font-black">
+            <span class="inline-block w-5 h-5 border-2 border-emerald-400 border-t-transparent rounded-full animate-spin"></span>
+            <span>Rendering High-Res Story Card...</span>
+          </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="w-full flex gap-2 pt-1">
+          <button id="btn-download-social-png" class="flex-1 py-2.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-slate-950 font-black text-xs rounded-xl shadow-lg shadow-emerald-500/30 flex items-center justify-center gap-1.5 cursor-pointer active:scale-95 transition-all">
+            <span>⬇️</span> <span>Download PNG Image</span>
+          </button>
+          <button id="btn-share-social-wa" class="px-3.5 py-2.5 bg-emerald-800/80 hover:bg-emerald-700 text-emerald-200 font-bold text-xs rounded-xl border border-emerald-600/50 flex items-center justify-center gap-1 cursor-pointer active:scale-95 transition-all">
+            <span>💬</span> <span>WhatsApp</span>
+          </button>
+        </div>
+
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+  document.getElementById('close-social-card-btn')?.addEventListener('click', () => {
+    document.getElementById('player-social-card-modal')?.remove();
+  });
+
+  const canvas = document.getElementById('player-social-canvas');
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+
+  // Draw High-Res Canvas Card (1080x1350)
+  const drawCard = (img) => {
+    // 1. Background Gradient
+    const bgGrad = ctx.createLinearGradient(0, 0, 1080, 1350);
+    bgGrad.addColorStop(0, '#020617');
+    bgGrad.addColorStop(0.4, '#0B1536');
+    bgGrad.addColorStop(0.8, '#064E3B');
+    bgGrad.addColorStop(1, '#022C22');
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, 1080, 1350);
+
+    // 2. Ambient Lighting Circles
+    const radial = ctx.createRadialGradient(540, 480, 50, 540, 480, 450);
+    radial.addColorStop(0, 'rgba(16, 185, 129, 0.35)');
+    radial.addColorStop(0.7, 'rgba(59, 130, 246, 0.15)');
+    radial.addColorStop(1, 'rgba(0, 0, 0, 0)');
+    ctx.fillStyle = radial;
+    ctx.fillRect(0, 0, 1080, 1350);
+
+    // 3. Top Decorative Border & Header
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.08)';
+    ctx.beginPath();
+    ctx.roundRect(40, 40, 1000, 1270, 40);
+    ctx.fill();
+    ctx.strokeStyle = '#10B981';
+    ctx.lineWidth = 4;
+    ctx.stroke();
+
+    // Tournament / Platform Name Header
+    ctx.fillStyle = '#F59E0B';
+    ctx.font = '900 38px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText(`🏆 ${tourneyName}`, 540, 110);
+
+    ctx.fillStyle = '#34D399';
+    ctx.font = '800 24px sans-serif';
+    ctx.letterSpacing = '2px';
+    ctx.fillText(tourneyName.includes('CRICKET PREMIER') ? 'OFFICIAL LIFETIME CAREER STORY CARD' : 'OFFICIAL PLAYER PROFILE CARD', 540, 150);
+
+    // 4. Player Photo Frame
+    const photoX = 540;
+    const photoY = 430;
+    const photoRadius = 220;
+
+    // Glowing Ring
+    ctx.save();
+    ctx.shadowColor = '#10B981';
+    ctx.shadowBlur = 30;
+    ctx.beginPath();
+    ctx.arc(photoX, photoY, photoRadius + 12, 0, Math.PI * 2);
+    ctx.fillStyle = '#10B981';
+    ctx.fill();
+    ctx.restore();
+
+    // Clip & Draw Photo
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(photoX, photoY, photoRadius, 0, Math.PI * 2);
+    ctx.clip();
+    if (img && img.complete) {
+      ctx.drawImage(img, photoX - photoRadius, photoY - photoRadius, photoRadius * 2, photoRadius * 2);
+    } else {
+      ctx.fillStyle = '#064E3B';
+      ctx.fillRect(photoX - photoRadius, photoY - photoRadius, photoRadius * 2, photoRadius * 2);
+      ctx.fillStyle = '#FFFFFF';
+      ctx.font = '900 120px sans-serif';
+      ctx.fillText('🏏', photoX, photoY + 40);
+    }
+    ctx.restore();
+
+    // Serial No Badge
+    ctx.fillStyle = '#0F172A';
+    ctx.beginPath();
+    ctx.roundRect(photoX - 80, photoY + photoRadius - 25, 160, 50, 25);
+    ctx.fill();
+    ctx.strokeStyle = '#F59E0B';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    ctx.fillStyle = '#F59E0B';
+    ctx.font = '900 26px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(`#${serialNo}`, photoX, photoY + photoRadius + 10);
+
+    // 5. Player Name & Subtitles
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = '900 56px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.shadowColor = 'rgba(0,0,0,0.8)';
+    ctx.shadowBlur = 10;
+    ctx.fillText(player.name.toUpperCase(), 540, 750);
+    ctx.shadowBlur = 0;
+
+    // Team & Role Badge
+    ctx.fillStyle = '#34D399';
+    ctx.font = '800 30px sans-serif';
+    ctx.fillText(`🛡️ ${teamName}  •  🏏 ${role.toUpperCase()}`, 540, 805);
+
+    ctx.fillStyle = '#94A3B8';
+    ctx.font = '700 24px sans-serif';
+    ctx.fillText(`📍 ${village.toUpperCase()} • PASCHIM MEDINIPUR`, 540, 845);
+
+    // 6. 4 Statistics Boxes (2x2 Grid)
+    const stats = [
+      { label: 'TOTAL RUNS', val: String(runs), color: '#38BDF8' },
+      { label: 'TOTAL WICKETS', val: String(wickets), color: '#34D399' },
+      { label: 'STRIKE RATE', val: String(strikeRate), color: '#FBBF24' },
+      { label: 'MAX SIXES (6s)', val: String(sixes), color: '#F43F5E' }
+    ];
+
+    const boxW = 450;
+    const boxH = 130;
+    const startX = 80;
+    const startY = 890;
+
+    stats.forEach((st, i) => {
+      const col = i % 2;
+      const row = Math.floor(i / 2);
+      const x = startX + col * (boxW + 20);
+      const y = startY + row * (boxH + 18);
+
+      ctx.fillStyle = 'rgba(15, 23, 42, 0.7)';
+      ctx.beginPath();
+      ctx.roundRect(x, y, boxW, boxH, 20);
+      ctx.fill();
+      ctx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      ctx.fillStyle = '#94A3B8';
+      ctx.font = '800 20px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(st.label, x + boxW / 2, y + 42);
+
+      ctx.fillStyle = st.color;
+      ctx.font = '900 48px monospace';
+      ctx.fillText(st.val, x + boxW / 2, y + 100);
+    });
+
+    // 7. Footer Watermark
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+    ctx.font = '700 20px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('CRICKET PREMIER LEAGUE 2026 • OFFICIAL PLAYER CARD', 540, 1260);
+
+    document.getElementById('social-canvas-loading')?.classList.add('hidden');
+  };
+
+  const pImg = new Image();
+  pImg.crossOrigin = 'anonymous';
+  pImg.onload = () => drawCard(pImg);
+  pImg.onerror = () => drawCard(null);
+  pImg.src = photoSrc;
+
+  // Download PNG listener
+  document.getElementById('btn-download-social-png')?.addEventListener('click', () => {
+    const link = document.createElement('a');
+    link.download = `${player.name.replace(/\s+/g, '_')}_social_card.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+  });
+
+  // WhatsApp share link
+  document.getElementById('btn-share-social-wa')?.addEventListener('click', () => {
+    const text = `🏏 *${player.name.toUpperCase()}* - Official Player Card\n🏆 ${tourneyName}\n🛡️ Team: ${teamName}\n📊 Runs: ${runs} | Wickets: ${wickets} | 6s: ${sixes}\n🔗 View Profile: ${window.location.href}`;
+    window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`, '_blank');
+  });
+}
+
+if (typeof window !== 'undefined') {
+  window.exportMatchScorecardPDF = exportMatchScorecardPDF;
+  window.exportAuctionSummaryPDF = exportAuctionSummaryPDF;
+  window.exportPlayerSocialCard = exportPlayerSocialCard;
+}
+
 

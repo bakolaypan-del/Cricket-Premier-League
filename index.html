@@ -36,16 +36,17 @@
   <!-- Supabase JS Client -->
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-  <!-- Firebase App & Auth SDK for Live Phone OTP SMS Delivery -->
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-  <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
-
   <!-- Cropper.js CDN for Square Image Cropping -->
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.css" />
   <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.6.1/cropper.min.js"></script>
 
-  <!-- Custom Styles with Version Cache Buster -->
-  <link rel="stylesheet" href="css/styles_v9.css?v=11.0.2" />
+  <!-- Custom Styles with Automatic Dynamic Cache Buster -->
+  <script>
+    document.write('<link rel="stylesheet" href="css/styles_v9.css?t=' + Date.now() + '" />');
+  </script>
+  <noscript>
+    <link rel="stylesheet" href="css/styles_v9.css?v=13.0.53" />
+  </noscript>
 </head>
 <body class="bg-slate-50 text-slate-900 min-h-screen font-sans">
 
