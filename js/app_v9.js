@@ -2632,13 +2632,27 @@ export function renderCustomTournamentHub(container, tourney) {
   const tournamentPlayerStats = Array.from(playerStatsMap.values()).map(p => {
     const mvp = (p.runs * 1) + (p.fours * 1) + (p.sixes * 2) + (p.wickets * 20) + (p.maidens * 8) + (p.catches * 8) + (p.stumpings * 10) + (p.runOuts * 8);
     const fielding = p.catches + p.runOuts;
-    return { ...p, mvp, fielding, totalRuns: p.runs, totalWickets: p.wickets, totalSixes: p.sixes, totalFours: p.fours };
+    return {
+      ...p,
+      mvp,
+      fielding,
+      totalRuns: p.runs,
+      totalWickets: p.wickets,
+      totalSixes: p.sixes,
+      totalFours: p.fours,
+      totalMaidens: p.maidens,
+      totalDotBalls: p.dotBalls || 0,
+      totalTwos: p.twos || 0
+    };
   });
 
   const topBatsman = tournamentPlayerStats.filter(p => p.totalRuns > 0).sort((a, b) => b.totalRuns - a.totalRuns)[0] || null;
   const topBowler = tournamentPlayerStats.filter(p => p.totalWickets > 0).sort((a, b) => b.totalWickets - a.totalWickets)[0] || null;
   const topSixes = tournamentPlayerStats.filter(p => p.totalSixes > 0).sort((a, b) => b.totalSixes - a.totalSixes)[0] || null;
   const topFours = tournamentPlayerStats.filter(p => p.totalFours > 0).sort((a, b) => b.totalFours - a.totalFours)[0] || null;
+  const topMaidens = tournamentPlayerStats.filter(p => p.totalMaidens > 0).sort((a, b) => b.totalMaidens - a.totalMaidens)[0] || null;
+  const topDotBalls = tournamentPlayerStats.filter(p => p.totalDotBalls > 0).sort((a, b) => b.totalDotBalls - a.totalDotBalls)[0] || null;
+  const topTwos = tournamentPlayerStats.filter(p => p.totalTwos > 0).sort((a, b) => b.totalTwos - a.totalTwos)[0] || null;
   const topKeeper = tournamentPlayerStats.filter(p => p.stumpings > 0).sort((a, b) => b.stumpings - a.stumpings)[0] || null;
   const topFielder = tournamentPlayerStats.filter(p => p.fielding > 0).sort((a, b) => b.fielding - a.fielding)[0] || null;
   const emergingPlayer = tournamentPlayerStats.filter(p => p.age && Number(p.age) <= 19 && (p.totalRuns > 0 || p.totalWickets > 0)).sort((a, b) => (b.totalRuns + b.totalWickets * 20) - (a.totalRuns + a.totalWickets * 20))[0] || null;
