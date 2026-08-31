@@ -7585,6 +7585,28 @@ function renderFixturesView(container) {
     const allCrossTeams = store.getAllTeamsAcrossTournaments();
     const allTourneys = (store.getLeagues ? store.getLeagues() : []);
 
+    const targetTourney = (selectedCategory !== 'ALL') ? allTourneys.find(l => {
+      const catUpper = String(selectedCategory).toUpperCase().trim();
+      const lid = String(l.supabaseId || l.id || '').toUpperCase();
+      const lslug = String(l.slug || '').toUpperCase();
+      const lcode = String(l.code || l.category_code || '').toUpperCase();
+      return lid === catUpper || lslug === catUpper || lcode === catUpper || (toUUID(l.id) && toUUID(l.id).toUpperCase() === catUpper) || (toUUID(l.supabaseId) && toUUID(l.supabaseId).toUpperCase() === catUpper);
+    }) : null;
+
+    const targetTourneyId = targetTourney ? (targetTourney.supabaseId || targetTourney.id || selectedCategory) : selectedCategory;
+    const targetTourneyUUID = toUUID(targetTourneyId);
+
+    const targetTourneyTeamIds = new Set(
+      targetTourney ? allCrossTeams.filter(t => {
+        const tTid = t.tournament_id || t.tournamentId || t.leagueId;
+        const tCode = (t.leagueCode || t.category_code || '').toUpperCase();
+        const curCode = (targetTourney.code || targetTourney.category_code || targetTourney.slug || '').toUpperCase();
+        if (tTid && (tTid === targetTourneyId || toUUID(tTid) === targetTourneyUUID)) return true;
+        if (tCode && curCode && (tCode === curCode || (curCode === 'KPL' && (tCode === 'K2026' || tCode === 'KPL')) || (curCode === 'JSL' && (tCode === 'J2026' || tCode === 'JSL')))) return true;
+        return false;
+      }).map(t => String(t.id)) : []
+    );
+
     const rawFixtures = (selectedCategory === 'ALL')
       ? allCrossFixtures
       : allCrossFixtures.filter(f => {
@@ -7592,20 +7614,21 @@ function renderFixturesView(container) {
           const catUpper = String(selectedCategory).toUpperCase().trim();
           const fCode = String(f.leagueCode || '').toUpperCase().trim();
           const fTid = String(f.tournament_id || f.tournamentId || f.leagueId || '').toUpperCase().trim();
+          const fTeamA = f.teamAId ? String(f.teamAId) : '';
+          const fTeamB = f.teamBId ? String(f.teamBId) : '';
 
-          if (fTid && (fTid === catUpper || (toUUID(fTid) && toUUID(fTid).toUpperCase() === catUpper))) return true;
+          // Step 1: Match if Team A or Team B belongs to target tournament
+          if (targetTourneyTeamIds.size > 0 && (targetTourneyTeamIds.has(fTeamA) || targetTourneyTeamIds.has(fTeamB))) {
+            return true;
+          }
 
-          const targetTourney = allTourneys.find(l => {
-            const lid = String(l.supabaseId || l.id || '').toUpperCase();
-            const lslug = String(l.slug || '').toUpperCase();
-            const lcode = String(l.code || l.category_code || '').toUpperCase();
-            return lid === catUpper || lslug === catUpper || lcode === catUpper;
-          });
+          // Step 2: Match by exact tournament UUID / ID
+          if (fTid && (fTid === catUpper || fTid === String(targetTourneyId).toUpperCase() || (toUUID(fTid) && toUUID(fTid) === targetTourneyUUID))) {
+            return true;
+          }
 
+          // Step 3: Match by League Code
           if (targetTourney) {
-            const targetId = String(targetTourney.supabaseId || targetTourney.id || '').toUpperCase();
-            if (targetId && fTid && (targetId === fTid || toUUID(targetId) === toUUID(fTid))) return true;
-
             const tCodes = new Set([
               String(targetTourney.code || '').toUpperCase(),
               String(targetTourney.category_code || '').toUpperCase(),
@@ -8433,7 +8456,7 @@ function renderFixturesView(container) {
             </div>
           </div>
           <span class="px-2.5 py-1 bg-emerald-50 text-emerald-800 border border-emerald-200 rounded-full font-mono text-[10px] font-black">
-            ${allCrossFixtures.length} Total Matches
+            ${rawFixtures.length} ${selectedCategory === 'ALL' ? 'Total Matches' : `${selectedCategory} Matches`}
           </span>
         </div>
 
@@ -8454,13 +8477,30 @@ function renderFixturesView(container) {
               const tid = l.supabaseId || l.id;
               const lName = l.name || `${code} Premier League`;
               const lLogo = l.logoUrl || l.logo_url || l.banner_url || 'assets/card_jsl_user.png';
+              
+              const tourneyUUID = toUUID(tid);
+              const tourneyTeamIds = new Set(
+                allCrossTeams.filter(t => {
+                  const tTid = t.tournament_id || t.tournamentId || t.leagueId;
+                  const tCode = (t.leagueCode || t.category_code || '').toUpperCase();
+                  if (tTid && (tTid === tid || toUUID(tTid) === tourneyUUID)) return true;
+                  if (tCode && code && (tCode === code || (code === 'KPL' && (tCode === 'K2026' || tCode === 'KPL')) || (code === 'JSL' && (tCode === 'J2026' || tCode === 'JSL')))) return true;
+                  return false;
+                }).map(t => String(t.id))
+              );
+
               const lMatchesCount = allCrossFixtures.filter(f => {
                 if (!f) return false;
-                const fCode = (f.leagueCode || '').toUpperCase();
+                const fTeamA = f.teamAId ? String(f.teamAId) : '';
+                const fTeamB = f.teamBId ? String(f.teamBId) : '';
+                if (tourneyTeamIds.size > 0 && (tourneyTeamIds.has(fTeamA) || tourneyTeamIds.has(fTeamB))) return true;
                 const fTid = f.tournament_id || f.tournamentId || f.leagueId;
-                if (fTid && (fTid === tid || (toUUID(fTid) && toUUID(fTid) === toUUID(tid)))) return true;
-                return fCode === code || (code === 'KPL' && (fCode === 'K2026' || fCode === 'KPL' || fCode === 'T2')) || (code === 'K2026' && (fCode === 'KPL' || fCode === 'K2026' || fCode === 'T2')) || (code === 'JSL' && fCode === 'JSL');
+                if (fTid && (fTid === tid || toUUID(fTid) === tourneyUUID)) return true;
+                const fCode = (f.leagueCode || '').toUpperCase();
+                if (fCode && code && (fCode === code || (code === 'KPL' && (fCode === 'K2026' || fCode === 'KPL' || fCode === 'T2')) || (code === 'K2026' && (fCode === 'KPL' || fCode === 'K2026' || fCode === 'T2')) || (code === 'JSL' && (fCode === 'JSL' || fCode === 'J2026')))) return true;
+                return false;
               }).length;
+
               const isSelected = activeFixtureCategory === code || activeFixtureCategory === tid || (toUUID(activeFixtureCategory) && toUUID(activeFixtureCategory) === toUUID(tid));
               return `
                 <button data-cat="${code}" class="fixture-cat-btn ${isSelected ? 'bg-gradient-to-r from-slate-900 to-slate-800 text-white font-black shadow-md border-2 border-emerald-400 scale-[1.02]' : 'bg-white text-slate-800 hover:bg-slate-50 font-bold border border-slate-200'} px-3 py-2 text-xs rounded-2xl transition-all cursor-pointer whitespace-nowrap snap-start flex items-center gap-2 shrink-0">
