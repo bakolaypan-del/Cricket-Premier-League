@@ -7843,7 +7843,7 @@ function renderFixturesView(container) {
                 <span>🏆</span> <span>${m.result}</span>
               </div>
               ${(() => {
-                const potm = window.getMatchPotm(m);
+                const potm = (typeof window.getMatchPotm === 'function') ? window.getMatchPotm(m) : null;
                 return potm ? `
                   <div class="text-[11px] bg-amber-50 border border-amber-300 text-amber-950 font-black p-1.5 rounded-xl text-center shadow-2xs flex items-center justify-center gap-1.5 truncate">
                     <span>🎖️</span> <span>MAN OF THE MATCH: <strong class="text-slate-900">${potm.name}</strong> (${potm.desc})</span>
@@ -8181,6 +8181,7 @@ function renderFixturesView(container) {
         allTourneys.forEach(l => {
           const code = (l.code || l.category || l.category_code || l.shortCode || l.slug || 'T').toUpperCase();
           const tid = l.supabaseId || l.id;
+          const tFormat = store.getTournamentFormat ? store.getTournamentFormat(code) : { format: 'SINGLE_TABLE', groups: ['A'] };
           const tTeams = allCrossTeams.filter(t => (t.leagueCode || '').toUpperCase() === code || t.tournamentId === tid);
           const tMatches = allCrossFixtures.filter(f => (f.leagueCode || '').toUpperCase() === code || f.tournamentId === tid);
           if (tTeams.length === 0 && tMatches.length === 0) return;
@@ -8883,7 +8884,7 @@ export function openMatchCenterModal(fixtureId) {
       contentArea.innerHTML = `
         <div class="space-y-3.5 animate-fade-in">
           ${isCompleted ? (() => {
-            const potm = window.getMatchPotm(fixture);
+            const potm = (typeof window.getMatchPotm === 'function') ? window.getMatchPotm(fixture) : null;
             let topBatter = null, topRuns = -1;
             let topBowler = null, topWkts = -1;
             const allP = store.getPlayers();
