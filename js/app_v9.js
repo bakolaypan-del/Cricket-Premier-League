@@ -2617,8 +2617,8 @@ export function renderCustomTournamentHub(container, tourney) {
 
       entry.runs += Number(ps.runs || ps.runsScored || 0);
       entry.balls += Number(ps.balls || ps.ballsFaced || 0);
-      entry.fours += Number(ps.fours || ps.4s || 0);
-      entry.sixes += Number(ps.sixes || ps.6s || 0);
+      entry.fours += Number(ps.fours || ps['4s'] || 0);
+      entry.sixes += Number(ps.sixes || ps['6s'] || 0);
       entry.wickets += Number(ps.wickets || ps.wicketsTaken || 0);
       entry.ballsBowled += Number(ps.ballsBowled || ((ps.overs || 0) * 6 + (ps.oversBalls || 0)));
       entry.runsConceded += Number(ps.runsConceded || ps.runsAgainst || 0);
