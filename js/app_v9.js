@@ -9739,6 +9739,7 @@ function renderLiveAuctionView(container) {
   }
 
   let isLiveMode = false;
+  let isConcludedMode = false;
   let playerSearchQuery = '';
   let activeStatusTab = 'all'; // 'all', 'sold', 'unsold', 'pending'
   let lastActivePlayerId = undefined;
@@ -9755,7 +9756,7 @@ function renderLiveAuctionView(container) {
     const allTourneys = store.getCustomTournaments();
 
     container.innerHTML = `
-      <div class="space-y-6 animate-fade-in pb-16 max-w-4xl mx-auto px-2 sm:px-4 text-slate-900">
+      <div id="auction-concluded-standby-view" class="space-y-6 animate-fade-in pb-16 max-w-4xl mx-auto px-2 sm:px-4 text-slate-900">
         
         <!-- Top Status Bar -->
         <div class="bg-white border-2 border-slate-200/90 rounded-2xl sm:rounded-3xl p-4 shadow-xs flex items-center justify-between flex-wrap gap-3">
@@ -10537,8 +10538,9 @@ function renderLiveAuctionView(container) {
     if (currentRoute !== 'auction') return;
 
     if (!globalInfo.isLive) {
-      if (isLiveMode || !document.getElementById('auction-franchise-purses-list')) {
+      if (!isConcludedMode || isLiveMode || !document.getElementById('auction-concluded-standby-view')) {
         isLiveMode = false;
+        isConcludedMode = true;
         renderConcludedView(globalInfo);
       }
       return;
@@ -10547,6 +10549,7 @@ function renderLiveAuctionView(container) {
     // LIVE AUCTION IN PROGRESS: Switch to live mode if not already
     if (!isLiveMode) {
       isLiveMode = true;
+      isConcludedMode = false;
       if (globalInfo.liveTournament?.id) {
         store.activeTournamentId = globalInfo.liveTournament.id;
       }
