@@ -618,18 +618,12 @@ class Store {
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') {
         this.syncWithCloud();
-        this.notify('live_auction_updated');
-        this.notify('players_updated');
-        this.notify('teams_updated');
       }
     });
 
     window.addEventListener('online', () => {
       this.flushOfflineQueue();
       this.syncWithCloud();
-      this.notify('live_auction_updated');
-      this.notify('players_updated');
-      this.notify('teams_updated');
     });
 
     window.addEventListener('focus', () => {
@@ -960,6 +954,71 @@ class Store {
         regNo: regId
       };
     });
+
+    // Calculate real-time cumulative match performance statistics across all fixtures
+    try {
+      const fixtures = this.getFixtures() || [];
+      const statsMap = new Map();
+
+      for (const f of fixtures) {
+        const psMap = f.liveMatchState?.playerStats || f.liveState?.playerStats;
+        if (!psMap || typeof psMap !== 'object') continue;
+
+        for (const [pId, ps] of Object.entries(psMap)) {
+          if (!ps || typeof ps !== 'object') continue;
+          let pStat = statsMap.get(pId);
+          if (!pStat) {
+            pStat = {
+              runs: 0, balls: 0, fours: 0, sixes: 0, wickets: 0,
+              runsConceded: 0, ballsBowled: 0, maidens: 0,
+              dismissals: 0, catches: 0, stumpings: 0, matchesPlayed: 0
+            };
+            statsMap.set(pId, pStat);
+          }
+          pStat.runs += Number(ps.runs) || 0;
+          pStat.balls += Number(ps.balls) || 0;
+          pStat.fours += Number(ps.fours) || 0;
+          pStat.sixes += Number(ps.sixes) || 0;
+          pStat.wickets += Number(ps.wickets) || 0;
+          pStat.runsConceded += Number(ps.runsConceded) || 0;
+          pStat.ballsBowled += Number(ps.ballsBowled) || 0;
+          pStat.maidens += Number(ps.maidens) || 0;
+          if (ps.dismissed) pStat.dismissals += 1;
+          pStat.catches += Number(ps.catches) || 0;
+          pStat.stumpings += Number(ps.stumpings) || 0;
+          pStat.matchesPlayed += 1;
+        }
+      }
+
+      if (statsMap.size > 0) {
+        result.forEach(p => {
+          const st = statsMap.get(p.id) || statsMap.get(String(p.id)) || null;
+          if (st) {
+            p.totalRuns = (Number(p.totalRuns) || Number(p.runs) || 0) + st.runs;
+            p.runs = p.totalRuns;
+            p.totalBalls = (Number(p.totalBalls) || Number(p.balls) || 0) + st.balls;
+            p.balls = p.totalBalls;
+            p.totalFours = (Number(p.totalFours) || Number(p.fours) || 0) + st.fours;
+            p.fours = p.totalFours;
+            p.totalSixes = (Number(p.totalSixes) || Number(p.sixes) || 0) + st.sixes;
+            p.sixes = p.totalSixes;
+            p.totalWickets = (Number(p.totalWickets) || Number(p.wickets) || 0) + st.wickets;
+            p.wickets = p.totalWickets;
+            p.runsConceded = (Number(p.runsConceded) || 0) + st.runsConceded;
+            p.ballsBowled = (Number(p.ballsBowled) || 0) + st.ballsBowled;
+            p.totalMaidens = (Number(p.totalMaidens) || Number(p.maidens) || 0) + st.maidens;
+            p.maidens = p.totalMaidens;
+            p.dismissals = (Number(p.dismissals) || 0) + st.dismissals;
+            p.catches = (Number(p.catches) || 0) + st.catches;
+            p.stumpings = (Number(p.stumpings) || 0) + st.stumpings;
+            p.matchesPlayed = (Number(p.matchesPlayed) || 0) + st.matchesPlayed;
+          }
+        });
+      }
+    } catch (errStats) {
+      console.warn('[STORE] Error calculating real-time player stats:', errStats);
+    }
+
     this._cache.players = result;
     return result;
   }
@@ -3498,7 +3557,7 @@ class Store {
   notify(eventName) {
     if (eventName === 'players_updated') this._invalidateCache('players');
     if (eventName === 'teams_updated') this._invalidateCache('teams');
-    if (eventName === 'fixtures_updated') this._invalidateCache('fixtures');
+    if (eventName === 'fixtures_updated') { this._invalidateCache('fixtures'); this._invalidateCache('players'); }
     window.dispatchEvent(new CustomEvent(eventName));
     if (this.broadcastChannel) {
       try {

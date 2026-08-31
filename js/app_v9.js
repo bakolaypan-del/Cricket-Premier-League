@@ -351,6 +351,9 @@ function initApp() {
 
     if (renderDebounceTimer) clearTimeout(renderDebounceTimer);
     renderDebounceTimer = setTimeout(() => {
+      const scrollY = window.scrollY;
+      document.body.classList.add('no-anim');
+
       renderCurrentView();
 
       // REAL-TIME AUTO SQUAD SYNC: If Franchise Squad Modal is open on screen, re-render it in real-time!
@@ -358,12 +361,16 @@ function initApp() {
       if (openSquadModal && window.currentViewingTeamId) {
         openTeamPurchasedSquadModal(window.currentViewingTeamId);
       }
+
+      window.scrollTo(0, scrollY);
+      setTimeout(() => document.body.classList.remove('no-anim'), 100);
     }, 250);
   };
 
   window.addEventListener('leagues_updated', safeRenderCurrentView);
   window.addEventListener('players_updated', safeRenderCurrentView);
   window.addEventListener('teams_updated', safeRenderCurrentView);
+  window.addEventListener('fixtures_updated', safeRenderCurrentView);
   window.addEventListener('registration_settings_updated', () => {
     if (renderDebounceTimer) clearTimeout(renderDebounceTimer);
     renderDebounceTimer = setTimeout(() => renderCurrentView(), 250);

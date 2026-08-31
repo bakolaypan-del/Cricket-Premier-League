@@ -352,6 +352,10 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   animation: fadeIn 0.25s ease-out forwards;
 }
 
+body.no-anim .animate-fade-in {
+  animation: none !important;
+}
+
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: #F1F5F9; }
 ::-webkit-scrollbar-thumb { background: #CBD5E1; border-radius: 4px; }

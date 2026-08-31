@@ -553,19 +553,26 @@ export function renderAdminDashboard(containerEl) {
                         <div class="font-black text-slate-900 text-sm truncate">${t.name}</div>
                         <div class="text-[11px] text-sky-700 font-bold">Owner: ${t.ownerName || 'N/A'} <span class="text-slate-500">(${t.ownerPhone || 'N/A'})</span></div>
                         ${t.iconPlayerName || t.iconName ? `<div class="text-[10px] text-amber-700 font-black truncate">⭐ Icon: ${t.iconPlayerName || t.iconName}</div>` : ''}
-                        <div class="text-[10px] text-slate-700 font-bold mt-0.5">Purse: <span class="text-emerald-700 font-extrabold">₹${remPurse}</span> / ₹${maxPurse}</div>
+                        <div class="text-[10px] text-slate-700 font-bold mt-0.5">Purse: <span class="text-emerald-700 font-extrabold">₹${remPurse}</span> / ₹${maxPurse} • Squad: <span class="text-indigo-700 font-black">${t.squadCount || 0} Players</span></div>
                       </div>
                     </div>
-                    <div class="flex items-center pt-2.5 border-t border-slate-100 gap-1.5">
-                      <button data-download-team-squad-pdf-id="${t.id}" class="download-team-squad-pdf-btn flex-1 py-1.5 px-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1 cursor-pointer" title="Download Official Final Auction Squad PDF for ${t.name}">
-                        <i data-lucide="file-down" class="w-3.5 h-3.5"></i> Squad PDF
-                      </button>
-                      <button data-edit-team-id="${t.id}" class="edit-team-btn py-1.5 px-2.5 bg-sky-600 hover:bg-sky-500 text-white font-black text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1 cursor-pointer">
-                        <i data-lucide="edit-3" class="w-3.5 h-3.5"></i> Edit
-                      </button>
-                      <button data-delete-team-id="${t.id}" class="delete-team-btn py-1.5 px-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-xl border border-rose-300 transition-all flex items-center gap-1 cursor-pointer" title="Delete Team">
-                        <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
-                      </button>
+                    <div class="space-y-1.5 pt-2.5 border-t border-slate-100">
+                      <div class="flex items-center gap-1.5">
+                        <button data-manage-squad-team-id="${t.id}" class="manage-squad-team-btn flex-1 py-1.5 px-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-xs rounded-xl shadow-2xs transition-all flex items-center justify-center gap-1.5 cursor-pointer" title="View & Edit Team Squad Roster, Add or Remove Players">
+                          <i data-lucide="users" class="w-3.5 h-3.5"></i> 👥 Squad (${t.squadCount || 0})
+                        </button>
+                        <button data-download-team-squad-pdf-id="${t.id}" class="download-team-squad-pdf-btn py-1.5 px-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-2xs transition-all flex items-center justify-center gap-1 cursor-pointer" title="Download Official Final Auction Squad PDF">
+                          <i data-lucide="file-down" class="w-3.5 h-3.5"></i> PDF
+                        </button>
+                      </div>
+                      <div class="flex items-center gap-1.5">
+                        <button data-edit-team-id="${t.id}" class="edit-team-btn flex-1 py-1 px-2.5 bg-sky-600 hover:bg-sky-500 text-white font-black text-xs rounded-xl shadow-2xs transition-all flex items-center justify-center gap-1 cursor-pointer">
+                          <i data-lucide="edit-3" class="w-3.5 h-3.5"></i> Edit Details
+                        </button>
+                        <button data-delete-team-id="${t.id}" class="delete-team-btn py-1 px-2 bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold text-xs rounded-xl border border-rose-300 transition-all flex items-center justify-center gap-1 cursor-pointer" title="Delete Team">
+                          <i data-lucide="trash-2" class="w-3.5 h-3.5"></i>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 `;}).join('')}
@@ -2314,6 +2321,19 @@ export function renderAdminDashboard(containerEl) {
     });
   });
 
+  // --- TEAM MANAGE SQUAD LISTENERS ---
+  containerEl.querySelectorAll('.manage-squad-team-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const teamId = e.currentTarget.getAttribute('data-manage-squad-team-id');
+      const team = store.getTeamById(teamId);
+      if (team) {
+        openAdminSquadManageModal(team, () => renderAdminDashboard(containerEl));
+      } else {
+        alert("Team not found!");
+      }
+    });
+  });
+
   // --- TEAM EDIT & DELETE LISTENERS ---
   containerEl.querySelectorAll('.edit-team-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
@@ -3901,15 +3921,16 @@ function renderScorerActivePanel() {
       <div class="bg-white p-4 sm:p-5 rounded-3xl border-2 border-emerald-500 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md text-slate-900">
         <div>
           <div class="flex flex-wrap items-center gap-2">
+            ${state.isSuperOver ? `<span class="text-[10px] bg-amber-400 text-slate-950 px-2.5 py-0.5 rounded-full font-black animate-pulse border border-amber-500 shadow-2xs">⚡ SUPER OVER #${state.superOverNum || 1} (Innings ${state.superOverInnings || 1})</span>` : ''}
             <span class="text-[10px] font-black text-slate-500 uppercase tracking-wider">
-              Innings ${state.innings} Batting: <strong class="text-emerald-700 font-black">${battingTeamName}</strong>
+              ${state.isSuperOver ? `SO Innings ${state.superOverInnings || 1}` : `Innings ${state.innings}`} Batting: <strong class="text-emerald-700 font-black">${battingTeamName}</strong>
             </span>
-            ${state.tossDetails ? `<span class="text-[9px] bg-amber-50 text-amber-900 border border-amber-300 px-2.5 py-0.5 rounded-full font-bold">🪙 ${state.tossDetails}</span>` : ''}
+            ${state.tossDetails && !state.isSuperOver ? `<span class="text-[9px] bg-amber-50 text-amber-900 border border-amber-300 px-2.5 py-0.5 rounded-full font-bold">🪙 ${state.tossDetails}</span>` : ''}
             ${state.freeHit ? `<span class="text-[9px] bg-rose-600 text-white px-2.5 py-0.5 rounded-full font-black animate-pulse">🎯 FREE HIT</span>` : ''}
           </div>
           <div class="text-3xl font-black text-slate-900 font-mono mt-1">
             <span class="text-emerald-700">${state.runs}</span><span class="text-slate-400 text-xl font-bold">/${state.wickets}</span>
-            <span class="text-xs text-slate-500 font-sans font-bold">(${state.overs}.${state.balls} / ${fixture.oversLimit} Overs)</span>
+            <span class="text-xs text-slate-500 font-sans font-bold">(${state.overs}.${state.balls} / ${state.isSuperOver ? '1 Over [Max 2 Wkts]' : `${fixture.oversLimit} Overs`})</span>
           </div>
           ${targetTxt}
         </div>
@@ -4069,6 +4090,11 @@ function renderScorerActivePanel() {
         const teamAScore = fixture.teamAScore || { runs: 0, wickets: 0 };
         const teamBScore = fixture.teamBScore || { runs: 0, wickets: 0 };
 
+        if (teamAScore.runs === teamBScore.runs && !fixture.liveMatchState?.isSuperOver) {
+          openTieResolutionModal(fixture, false, 1);
+          return;
+        }
+
         if (teamAScore.runs > teamBScore.runs) {
           winnerId = fixture.teamAId;
           resultTxt = `${fixture.teamAName} won by ${teamAScore.runs - teamBScore.runs} runs`;
@@ -4090,6 +4116,291 @@ function renderScorerActivePanel() {
       }
     };
   }
+}
+
+// ==============================================================================
+// TIE RESOLUTION & SUPER OVER ENGINE
+// ==============================================================================
+
+function openTieResolutionModal(fixture, isSuperOverTie = false, superOverNum = 1) {
+  document.getElementById('scorer-tie-resolution-modal')?.remove();
+  
+  const teamAScore = fixture.teamAScore || { runs: 0, wickets: 0 };
+  const teamAName = fixture.teamAName || 'Team A';
+  const teamBName = fixture.teamBName || 'Team B';
+  const runs = teamAScore.runs || 0;
+  
+  const titleText = isSuperOverTie 
+    ? `⚡ SUPER OVER #${superOverNum} TIED!` 
+    : `🤝 MATCH TIED! (${runs} - ${runs})`;
+
+  const modalHtml = `
+    <div id="scorer-tie-resolution-modal" class="fixed inset-0 z-[100] modal-overlay flex items-center justify-center p-3 bg-slate-950/85 backdrop-blur-md animate-fade-in">
+      <div class="bg-white border-2 border-amber-400 max-w-lg w-full p-5 sm:p-6 relative space-y-4 animate-fade-in rounded-3xl shadow-2xl text-slate-900 text-left">
+        <!-- Header -->
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div class="flex items-center gap-3">
+            <span class="p-2.5 bg-amber-100 text-amber-700 rounded-2xl border border-amber-300 text-xl font-black shadow-2xs">⚖️</span>
+            <div>
+              <span class="px-2 py-0.5 bg-amber-100 text-amber-900 font-mono text-[9.5px] font-black rounded border border-amber-300 uppercase">OFFICIAL TIE RESOLUTION</span>
+              <h3 class="text-base sm:text-lg font-black text-slate-950 leading-tight mt-0.5">${titleText}</h3>
+            </div>
+          </div>
+        </div>
+
+        <p class="text-xs text-slate-600 font-semibold leading-relaxed">
+          ${isSuperOverTie 
+            ? `Super Over #${superOverNum} between <strong>${teamAName}</strong> and <strong>${teamBName}</strong> ended in an equal score! Select how the tournament organizer wishes to finalize this tiebreaker:`
+            : `Both <strong>${teamAName}</strong> and <strong>${teamBName}</strong> scored <strong>${runs} runs</strong>. Select how to resolve this match according to tournament rules:`}
+        </p>
+
+        <!-- Choices -->
+        <div class="space-y-2.5 pt-1">
+          <!-- Button 1: Share Points -->
+          <button type="button" id="tie-opt-share-points" class="w-full bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-700 hover:to-teal-800 text-white p-3.5 rounded-2xl font-black text-xs sm:text-sm text-left shadow-md flex items-center justify-between transition-all cursor-pointer group">
+            <div>
+              <div class="flex items-center gap-2 text-white font-extrabold text-sm sm:text-base">🤝 Distribute Points (1 Pt Each)</div>
+              <p class="text-[11px] font-normal text-emerald-100 mt-0.5">Finalizes match as Tied. Both teams receive 1 point in standings.</p>
+            </div>
+            <span class="text-xl group-hover:translate-x-1 transition-transform">➔</span>
+          </button>
+
+          <!-- Button 2: Start Super Over / Play Super Over #X -->
+          <button type="button" id="tie-opt-super-over" class="w-full bg-gradient-to-r from-amber-500 via-orange-500 to-amber-600 hover:from-amber-600 hover:to-orange-600 text-white p-3.5 rounded-2xl font-black text-xs sm:text-sm text-left shadow-md flex items-center justify-between transition-all cursor-pointer group">
+            <div>
+              <div class="flex items-center gap-2 text-white font-extrabold text-sm sm:text-base">⚡ ${isSuperOverTie ? `Play Super Over #${superOverNum + 1}` : 'Start Super Over'}</div>
+              <p class="text-[11px] font-normal text-amber-100 mt-0.5">${isSuperOverTie ? 'Play another 1-over tiebreaker (6 balls, 2 wickets max).' : 'Launch 1-over elimination mode (6 balls, 2 wickets limit per side).'}</p>
+            </div>
+            <span class="text-xl group-hover:translate-x-1 transition-transform">➔</span>
+          </button>
+
+          ${isSuperOverTie ? `
+            <!-- Button 3: Boundary Count Rule -->
+            <button type="button" id="tie-opt-boundary-count" class="w-full bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-700 hover:to-indigo-800 text-white p-3.5 rounded-2xl font-black text-xs sm:text-sm text-left shadow-md flex items-center justify-between transition-all cursor-pointer group">
+              <div>
+                <div class="flex items-center gap-2 text-white font-extrabold text-sm sm:text-base">🎯 Boundary Count Rule (Most 4s & 6s)</div>
+                <p class="text-[11px] font-normal text-blue-100 mt-0.5">Calculates total 4s and 6s across match + Super Over to declare winner.</p>
+              </div>
+              <span class="text-xl group-hover:translate-x-1 transition-transform">➔</span>
+            </button>
+          ` : ''}
+        </div>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+  document.getElementById('tie-opt-share-points')?.addEventListener('click', () => {
+    document.getElementById('scorer-tie-resolution-modal')?.remove();
+    finalizeMatchAsTie(fixture, isSuperOverTie ? `Match & Super Over #${superOverNum} Tied - Points Shared (1 pt each)` : `Match Tied - Points Shared (1 pt each)`);
+  });
+
+  document.getElementById('tie-opt-super-over')?.addEventListener('click', () => {
+    document.getElementById('scorer-tie-resolution-modal')?.remove();
+    const nextSONum = isSuperOverTie ? (superOverNum + 1) : 1;
+    startSuperOverSession(fixture, nextSONum);
+  });
+
+  if (isSuperOverTie) {
+    document.getElementById('tie-opt-boundary-count')?.addEventListener('click', () => {
+      document.getElementById('scorer-tie-resolution-modal')?.remove();
+      resolveMatchByBoundaryCount(fixture, superOverNum);
+    });
+  }
+}
+
+function finalizeMatchAsTie(fixture, resultTxt) {
+  fixture.status = 'COMPLETED';
+  fixture.endedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  fixture.result = resultTxt;
+  fixture.winnerTeamId = null;
+  if (window.__cplActiveScoringFixtureId === fixture.id) window.__cplActiveScoringFixtureId = null;
+  if (typeof localStorage !== 'undefined') {
+    localStorage.removeItem('cpl_active_scoring_fixture_id');
+    localStorage.removeItem(`cpl_active_scoring_${fixture.id}_v`);
+  }
+  activeScoringMatchId = null;
+
+  const selMatch = document.getElementById('scorer-select-match');
+  if (selMatch) selMatch.value = '';
+
+  document.getElementById('scorer-active-panel')?.classList.add('hidden');
+  store.updateFixture(fixture);
+  renderScorerMatchesList();
+  renderAdminFixturesList();
+  if (window.renderActiveMatchCenter) window.renderActiveMatchCenter();
+  if (window.refreshFixturesViewContent) window.refreshFixturesViewContent();
+  showScoringAnimation('match');
+  alert(`🤝 Match Finalized!\n\nResult: ${resultTxt}`);
+}
+
+function startSuperOverSession(fixture, superOverNum = 1) {
+  const teamAName = fixture.teamAName || 'Team A';
+  const teamBName = fixture.teamBName || 'Team B';
+  
+  const choice = confirm(`⚡ SUPER OVER #${superOverNum}\n\nClick OK for ${teamBName} to BAT FIRST in Super Over.\nClick CANCEL for ${teamAName} to BAT FIRST.`);
+  const teamBBatsFirst = choice;
+
+  const firstBatTeamId = teamBBatsFirst ? fixture.teamBId : fixture.teamAId;
+  const firstBowlTeamId = teamBBatsFirst ? fixture.teamAId : fixture.teamBId;
+
+  const state = fixture.liveMatchState || {};
+  state.isSuperOver = true;
+  state.superOverNum = superOverNum;
+  state.superOverInnings = 1;
+  state.firstBatTeamId = firstBatTeamId;
+  state.firstBowlTeamId = firstBowlTeamId;
+  state.soTeamAScore = { runs: 0, wickets: 0, balls: 0 };
+  state.soTeamBScore = { runs: 0, wickets: 0, balls: 0 };
+
+  state.innings = 1;
+  state.target = null;
+  state.runs = 0;
+  state.wickets = 0;
+  state.overs = 0;
+  state.balls = 0;
+  state.extras = 0;
+  state.strikerId = '';
+  state.nonStrikerId = '';
+  state.bowlerId = '';
+  state.overBalls = [];
+  state.currentOverBowlerRuns = 0;
+  
+  fixture.liveMatchState = state;
+  fixture.status = 'LIVE';
+  store.updateFixture(fixture);
+  renderScorerActivePanel();
+  showScoringAnimation('match');
+  alert(`⚡ Super Over #${superOverNum} Initiated!\n\nLimit: 1 Over (6 balls), Max 2 Wickets.\nNow select opening batters & bowler for Innings 1.`);
+}
+
+function handleSuperOverInningsEnd(fixture) {
+  const s = fixture.liveMatchState;
+  if (!s || !s.isSuperOver) return;
+
+  const teamAName = fixture.teamAName || 'Team A';
+  const teamBName = fixture.teamBName || 'Team B';
+  const firstBatId = s.firstBatTeamId || fixture.teamAId;
+  const isTeamABattingFirst = firstBatId === fixture.teamAId;
+
+  if (s.superOverInnings === 1) {
+    if (isTeamABattingFirst) {
+      s.soTeamAScore = { runs: s.runs, wickets: s.wickets, balls: (s.overs * 6) + s.balls };
+    } else {
+      s.soTeamBScore = { runs: s.runs, wickets: s.wickets, balls: (s.overs * 6) + s.balls };
+    }
+
+    const target = s.runs + 1;
+    s.superOverInnings = 2;
+    s.target = target;
+    s.runs = 0;
+    s.wickets = 0;
+    s.overs = 0;
+    s.balls = 0;
+    s.extras = 0;
+    s.strikerId = '';
+    s.nonStrikerId = '';
+    s.bowlerId = '';
+    s.overBalls = [];
+    s.currentOverBowlerRuns = 0;
+
+    fixture.liveMatchState = s;
+    store.updateFixture(fixture);
+    renderScorerActivePanel();
+    if (window.renderActiveMatchCenter) window.renderActiveMatchCenter();
+    if (window.refreshFixturesViewContent) window.refreshFixturesViewContent();
+    showScoringAnimation('innings');
+    const chasingTeam = isTeamABattingFirst ? teamBName : teamAName;
+    setTimeout(() => alert(`🏁 Super Over Innings 1 complete!\n\nTarget for ${chasingTeam}: ${target} runs (6 balls).\nSelect opening batters & bowler for Innings 2.`), 2300);
+    return;
+  }
+
+  if (isTeamABattingFirst) {
+    s.soTeamBScore = { runs: s.runs, wickets: s.wickets, balls: (s.overs * 6) + s.balls };
+  } else {
+    s.soTeamAScore = { runs: s.runs, wickets: s.wickets, balls: (s.overs * 6) + s.balls };
+  }
+
+  const teamARuns = s.soTeamAScore?.runs || 0;
+  const teamBRuns = s.soTeamBScore?.runs || 0;
+  const superOverNum = s.superOverNum || 1;
+
+  let winnerId = null;
+  let resultTxt = '';
+
+  if (teamARuns > teamBRuns) {
+    winnerId = fixture.teamAId;
+    const margin = teamARuns - teamBRuns;
+    resultTxt = `${teamAName} won Super Over #${superOverNum} by ${margin} ${margin === 1 ? 'run' : 'runs'}`;
+  } else if (teamBRuns > teamARuns) {
+    winnerId = fixture.teamBId;
+    const margin = teamBRuns - teamARuns;
+    resultTxt = `${teamBName} won Super Over #${superOverNum} by ${margin} ${margin === 1 ? 'run' : 'runs'}`;
+  } else {
+    openTieResolutionModal(fixture, true, superOverNum);
+    return;
+  }
+
+  fixture.status = 'COMPLETED';
+  fixture.endedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  fixture.result = resultTxt;
+  fixture.winnerTeamId = winnerId;
+  if (window.__cplActiveScoringFixtureId === fixture.id) window.__cplActiveScoringFixtureId = null;
+  if (typeof localStorage !== 'undefined') {
+    localStorage.removeItem('cpl_active_scoring_fixture_id');
+    localStorage.removeItem(`cpl_active_scoring_${fixture.id}_v`);
+  }
+  activeScoringMatchId = null;
+
+  const selMatch = document.getElementById('scorer-select-match');
+  if (selMatch) selMatch.value = '';
+  document.getElementById('scorer-active-panel')?.classList.add('hidden');
+  store.updateFixture(fixture);
+  renderScorerMatchesList();
+  renderAdminFixturesList();
+  if (window.renderActiveMatchCenter) window.renderActiveMatchCenter();
+  if (window.refreshFixturesViewContent) window.refreshFixturesViewContent();
+  showScoringAnimation('match');
+  alert(`🏆 Super Over Completed!\n\nOfficial Result: ${resultTxt}`);
+}
+
+function resolveMatchByBoundaryCount(fixture, superOverNum) {
+  const pStats = fixture.liveMatchState?.playerStats || {};
+  const teamAId = fixture.teamAId;
+  const teamBId = fixture.teamBId;
+  const allP = store.getPlayers();
+
+  let teamABoundaries = 0;
+  let teamBBoundaries = 0;
+
+  Object.keys(pStats).forEach(pid => {
+    const s = pStats[pid] || {};
+    const pObj = allP.find(x => String(x.id) === String(pid));
+    const pTeamId = pObj?.teamId;
+    const fours = Number(s.fours) || 0;
+    const sixes = Number(s.sixes) || 0;
+    const boundaries = fours + sixes;
+
+    if (pTeamId === teamAId) teamABoundaries += boundaries;
+    else if (pTeamId === teamBId) teamBBoundaries += boundaries;
+  });
+
+  let winnerId = null;
+  let resultTxt = '';
+
+  if (teamABoundaries > teamBBoundaries) {
+    winnerId = fixture.teamAId;
+    resultTxt = `${fixture.teamAName} won on Boundary Count (${teamABoundaries} vs ${teamBBoundaries} boundaries)`;
+  } else if (teamBBoundaries > teamABoundaries) {
+    winnerId = fixture.teamBId;
+    resultTxt = `${fixture.teamBName} won on Boundary Count (${teamBBoundaries} vs ${teamABoundaries} boundaries)`;
+  } else {
+    winnerId = null;
+    resultTxt = `Match & Super Over #${superOverNum} Tied - Points Shared (Equal Boundaries: ${teamABoundaries})`;
+  }
+
+  finalizeMatchAsTie(fixture, resultTxt);
 }
 
 // Full-screen celebratory flash for key scoring events (four / six / wicket / wide / no-ball).
@@ -4135,6 +4446,11 @@ function endInningsOrFinishMatch(fixture) {
   const s = fixture.liveMatchState;
   if (!s) return;
 
+  if (s.isSuperOver) {
+    handleSuperOverInningsEnd(fixture);
+    return;
+  }
+
   if (s.innings === 1) {
     const target = (s.runs || 0) + 1;
     // Innings-1 final total is already stored in teamAScore by the caller.
@@ -4166,6 +4482,12 @@ function endInningsOrFinishMatch(fixture) {
   // Innings 2 over -> decide the result
   const teamAScore = fixture.teamAScore || { runs: 0, wickets: 0 };
   const teamBScore = fixture.teamBScore || { runs: 0, wickets: 0 };
+
+  if (teamAScore.runs === teamBScore.runs) {
+    openTieResolutionModal(fixture, false, 1);
+    return;
+  }
+
   let winnerId = null, resultTxt = 'Match Tied';
   if (teamAScore.runs > teamBScore.runs) {
     winnerId = fixture.teamAId;
@@ -4478,15 +4800,16 @@ function processScorerBall(runsScored) {
   else if (isNoBall) animKind = 'noball';
   if (animKind) showScoringAnimation(animKind);
 
-  // Auto-close the innings the moment the overs limit is reached
-  const oversLimit = Number(fixture.oversLimit) || 16;
+  // Auto-close the innings the moment the overs limit is reached (1 over for Super Over)
+  const oversLimit = state.isSuperOver ? 1 : (Number(fixture.oversLimit) || 16);
   if (state.overs >= oversLimit) {
     endInningsOrFinishMatch(fixture);
     return;
   }
 
   // 2nd innings target chased -> finish the match immediately
-  if (state.innings === 2 && state.target && state.runs >= state.target) {
+  const isChasing = state.isSuperOver ? (state.superOverInnings === 2) : (state.innings === 2);
+  if (isChasing && state.target && state.runs >= state.target) {
     endInningsOrFinishMatch(fixture);
     return;
   }
@@ -4763,8 +5086,9 @@ function openScorerWicketModal() {
     showScoringAnimation('wicket');
 
     // All out, or overs limit reached on this ball -> auto-close the innings/match.
-    const oversLimit = Number(fixture.oversLimit) || 16;
-    if (state.wickets >= 10 || state.overs >= oversLimit) {
+    const maxWickets = state.isSuperOver ? 2 : 10;
+    const oversLimit = state.isSuperOver ? 1 : (Number(fixture.oversLimit) || 16);
+    if (state.wickets >= maxWickets || state.overs >= oversLimit) {
       endInningsOrFinishMatch(fixture);
       return;
     }
@@ -6947,6 +7271,229 @@ export function openTeamFinalSquadPDFModal() {
         alert("Team not found.");
       }
     }
+  });
+}
+
+// --- ADMIN SQUAD MANAGEMENT MODAL (View Roster, Edit Player Bought Price, Add or Remove Players) ---
+export function openAdminSquadManageModal(teamInput, onUpdated = null) {
+  document.getElementById('admin-manage-squad-modal')?.remove();
+
+  if (!teamInput || !teamInput.id) return;
+  const teamId = teamInput.id;
+
+  const refreshModal = () => {
+    const freshTeam = store.getTeamById(teamId) || teamInput;
+    openAdminSquadManageModal(freshTeam, onUpdated);
+    if (typeof onUpdated === 'function') onUpdated();
+  };
+
+  const team = store.getTeamById(teamId) || teamInput;
+  const teamTourneyId = team.tournament_id || team.tournamentId || store.activeTournamentId;
+  const tourneyUUID = toUUID(teamTourneyId);
+  const activeScopedPlayers = store.getPlayers() || [];
+  const globalPlayers = store.getAllPlayersAcrossTournaments ? store.getAllPlayersAcrossTournaments() : activeScopedPlayers;
+
+  // Filter ONLY players registered for this specific tournament (e.g. JSL)
+  const tourneyPlayers = globalPlayers.filter(p => {
+    if (!p) return false;
+    const pTid = p.tournament_id || p.tournamentId || p.leagueId;
+    if (!pTid) return true; // default fallback if unmapped
+    return pTid === teamTourneyId || toUUID(pTid) === tourneyUUID;
+  });
+
+  // Filter players currently assigned to THIS team
+  const squadPlayers = tourneyPlayers.filter(p => {
+    if (!p) return false;
+    const pTeamId = p.teamId || p.team_id;
+    const matchesTeamId = pTeamId && (pTeamId === team.id || toUUID(pTeamId) === toUUID(team.id));
+    const matchesTeamName = p.teamName && (p.teamName || '').trim().toLowerCase() === (team.name || '').trim().toLowerCase();
+    const isSold = (p.auctionStatus === 'SOLD' || p.isSold === true || !!pTeamId);
+    return isSold && (matchesTeamId || matchesTeamName);
+  });
+
+  // Filter available/unsold players belonging ONLY to this tournament (excludes players already in any squad)
+  const availablePlayers = tourneyPlayers.filter(p => {
+    if (!p) return false;
+    const pTeamId = p.teamId || p.team_id;
+    const isSold = (p.auctionStatus === 'SOLD' || p.isSold === true || !!pTeamId);
+    return !isSold;
+  });
+
+  const maxPurse = Number(team.purse || team.purseBudget || 8000);
+  const spent = squadPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || 0), 0);
+  const remPurse = Math.max(0, maxPurse - spent);
+
+  const modalHtml = `
+    <div id="admin-manage-squad-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-fade-in">
+      <div class="relative w-full max-w-3xl bg-white text-slate-900 rounded-3xl shadow-2xl border border-slate-200 p-4 sm:p-6 max-h-[92vh] overflow-y-auto modal-content-container space-y-4 text-left">
+        
+        <!-- Header -->
+        <div class="flex items-center justify-between pb-3 border-b border-slate-200">
+          <div class="flex items-center gap-3">
+            <img src="${team.logoUrl || team.teamLogoUrl || 'assets/jsl_logo.jpg'}" class="w-12 h-12 rounded-2xl object-cover border-2 border-amber-500/80 shadow-xs shrink-0" onerror="this.src='assets/jsl_logo.jpg'" />
+            <div>
+              <div class="flex items-center gap-2">
+                <h3 class="text-base sm:text-lg font-black text-slate-900">${team.name} Squad Roster</h3>
+                <span class="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 font-mono text-[10px] font-black rounded-full border border-emerald-300">${squadPlayers.length} Players</span>
+              </div>
+              <p class="text-xs text-slate-500 font-medium">Owner: <strong>${team.ownerName || 'N/A'}</strong> (${team.ownerPhone || 'N/A'})</p>
+            </div>
+          </div>
+          <button id="close-admin-squad-modal-btn" class="p-2 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer">
+            <i data-lucide="x" class="w-5 h-5"></i>
+          </button>
+        </div>
+
+        <!-- Purse Summary Bar -->
+        <div class="grid grid-cols-3 gap-2.5 p-3.5 bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 text-white rounded-2xl shadow-sm border border-slate-700 text-center">
+          <div>
+            <span class="text-[9.5px] uppercase tracking-wider text-slate-400 font-bold block">Total Budget</span>
+            <span class="text-sm sm:text-base font-black font-mono text-white">₹${maxPurse.toLocaleString('en-IN')}</span>
+          </div>
+          <div>
+            <span class="text-[9.5px] uppercase tracking-wider text-amber-400 font-bold block">Purse Spent</span>
+            <span class="text-sm sm:text-base font-black font-mono text-amber-400">₹${spent.toLocaleString('en-IN')}</span>
+          </div>
+          <div>
+            <span class="text-[9.5px] uppercase tracking-wider text-emerald-400 font-bold block">Remaining Purse</span>
+            <span class="text-sm sm:text-base font-black font-mono text-emerald-400">₹${remPurse.toLocaleString('en-IN')}</span>
+          </div>
+        </div>
+
+        <!-- Section 1: Add Player to Squad -->
+        <div class="p-3.5 sm:p-4 bg-emerald-50/60 border-2 border-emerald-300/80 rounded-2xl space-y-3">
+          <div class="flex items-center gap-2">
+            <span class="p-1.5 bg-emerald-600 text-white rounded-xl text-xs font-black">➕</span>
+            <h4 class="text-xs sm:text-sm font-black text-slate-900">Add Registered Player to ${team.name} Squad</h4>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-12 gap-2">
+            <div class="sm:col-span-7">
+              <label class="block text-[10px] font-black text-slate-700 uppercase tracking-wider mb-1">Select Available Player (${availablePlayers.length} Available)</label>
+              <select id="squad-add-player-select" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold shadow-2xs focus:outline-none focus:border-emerald-500">
+                <option value="">-- Choose Player to Add --</option>
+                ${availablePlayers.map(p => `
+                  <option value="${p.id}">
+                    [REG-${String(p.serialNo || p.displayRegistrationNumber || 1).padStart(4, '0')}] ${p.name} (${p.role || p.playingType || 'All-Rounder'} - Base ₹${p.basePrice || 300})
+                  </option>
+                `).join('')}
+              </select>
+            </div>
+            <div class="sm:col-span-3">
+              <label class="block text-[10px] font-black text-slate-700 uppercase tracking-wider mb-1">Bought / Sold Price ₹</label>
+              <input type="number" id="squad-add-player-price" placeholder="Amount ₹" min="0" value="300" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-black font-mono shadow-2xs focus:outline-none focus:border-emerald-500" />
+            </div>
+            <div class="sm:col-span-2 flex items-end">
+              <button type="button" id="confirm-add-player-to-squad-btn" class="w-full py-2.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-xs rounded-xl shadow-xs transition-all flex items-center justify-center gap-1 cursor-pointer">
+                + Add
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Section 2: Current Team Squad List -->
+        <div class="space-y-2">
+          <div class="flex items-center justify-between">
+            <h4 class="text-xs sm:text-sm font-black text-slate-900 flex items-center gap-2">
+              <span>📋 Official Purchased Roster</span>
+              <span class="px-2 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-bold rounded-lg border border-slate-200">${squadPlayers.length} Players</span>
+            </h4>
+          </div>
+
+          ${squadPlayers.length === 0 ? `
+            <div class="text-center py-8 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50 space-y-2">
+              <div class="text-2xl">🏏</div>
+              <p class="text-xs font-bold text-slate-600">No players assigned to ${team.name} squad yet.</p>
+              <p class="text-[11px] text-slate-400">Use the form above to add registered players or conduct the auction.</p>
+            </div>
+          ` : `
+            <div class="space-y-2 max-h-[340px] overflow-y-auto pr-1">
+              ${squadPlayers.map((p, idx) => `
+                <div class="p-3 bg-white border border-slate-200 rounded-2xl hover:border-amber-400 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+                  <div class="flex items-center gap-3 min-w-0">
+                    <span class="text-xs font-mono font-black text-slate-400 w-5">${idx + 1}.</span>
+                    <img src="${p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png'}" class="w-10 h-10 rounded-xl object-cover border border-slate-200 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                    <div class="min-w-0">
+                      <div class="flex items-center gap-1.5">
+                        <span class="font-black text-xs sm:text-sm text-slate-900 truncate">${p.name}</span>
+                        ${p.isIcon || p.isIconPlayer ? `<span class="px-1.5 py-0.5 bg-amber-400 text-slate-950 font-black text-[9px] rounded uppercase shrink-0">⭐ ICON</span>` : ''}
+                      </div>
+                      <div class="text-[10px] font-bold text-slate-500 truncate">
+                        ${p.role || p.playingType || 'All-Rounder'} • <span class="text-sky-700">REG-${String(p.serialNo || p.displayRegistrationNumber || (idx + 1)).padStart(4, '0')}</span> • Base: ₹${p.basePrice || 300}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                    <div class="flex items-center gap-1 bg-slate-50 border border-slate-300 rounded-xl px-2 py-1">
+                      <span class="text-[10px] font-black text-slate-500">Bought: ₹</span>
+                      <input type="number" id="squad-edit-price-${p.id}" value="${p.soldPrice || 300}" min="0" class="w-20 bg-white font-mono font-black text-xs text-slate-900 border border-slate-300 rounded px-1.5 py-0.5 focus:outline-none focus:border-amber-500" />
+                      <button type="button" data-save-price-player-id="${p.id}" class="save-squad-player-price-btn px-2 py-1 bg-sky-600 hover:bg-sky-500 text-white font-black text-[10px] rounded shadow-2xs cursor-pointer">
+                        💾 Save
+                      </button>
+                    </div>
+                    <button type="button" data-remove-player-id="${p.id}" data-player-name="${p.name}" class="remove-squad-player-btn px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 font-black text-[11px] rounded-xl shadow-2xs transition-all flex items-center gap-1 cursor-pointer" title="Remove player from squad & refund sold price">
+                      <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Remove
+                    </button>
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          `}
+        </div>
+
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  if (window.lucide) window.lucide.createIcons();
+
+  const removeModal = () => document.getElementById('admin-manage-squad-modal')?.remove();
+  document.getElementById('close-admin-squad-modal-btn')?.addEventListener('click', removeModal);
+
+  // Add Player Handler
+  document.getElementById('confirm-add-player-to-squad-btn')?.addEventListener('click', () => {
+    const selPlayerId = document.getElementById('squad-add-player-select').value;
+    const price = Number(document.getElementById('squad-add-player-price').value) || 300;
+    if (!selPlayerId) {
+      alert("Please select a player to add to the squad!");
+      return;
+    }
+
+    store.assignPlayerToTeam(selPlayerId, team.id, price);
+    const addedPlayer = store.getPlayerById(selPlayerId);
+    alert(`✅ Added "${addedPlayer?.name || 'Player'}" to ${team.name} squad for ₹${price}!`);
+    removeModal();
+    refreshModal();
+  });
+
+  // Save Player Price Handlers
+  document.querySelectorAll('.save-squad-player-price-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const pid = e.currentTarget.getAttribute('data-save-price-player-id');
+      const inputEl = document.getElementById(`squad-edit-price-${pid}`);
+      const newPrice = Number(inputEl?.value) || 300;
+
+      store.assignPlayerToTeam(pid, team.id, newPrice);
+      const playerObj = store.getPlayerById(pid);
+      alert(`✅ Updated bought price for "${playerObj?.name || 'Player'}" to ₹${newPrice}!`);
+      removeModal();
+      refreshModal();
+    });
+  });
+
+  // Remove Player Handlers
+  document.querySelectorAll('.remove-squad-player-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      const pid = e.currentTarget.getAttribute('data-remove-player-id');
+      const pname = e.currentTarget.getAttribute('data-player-name');
+      if (confirm(`Are you sure you want to remove "${pname}" from ${team.name} squad?\n\nThis will return the player to the Available/Unsold pool and refund their price back to the team purse.`)) {
+        store.unassignPlayerFromTeam(pid);
+        alert(`🗑️ Removed "${pname}" from ${team.name} squad!`);
+        removeModal();
+        refreshModal();
+      }
+    });
   });
 }
 
