@@ -822,9 +822,11 @@ class Store {
     if (this._cache.players) return this._cache.players;
     let rawPlayers = JSON.parse(localStorage.getItem(this._scopedKey('PLAYERS'))) || [];
     const isKuapur = (this.activeTournamentId === '5cf4f50c-3930-486a-83c3-3f59414a7d6f' || toUUID(this.activeTournamentId) === '5cf4f50c-3930-486a-83c3-3f59414a7d6f');
-    if (isKuapur && rawPlayers.length === 0 && Array.isArray(INITIAL_KUAPUR_PLAYERS) && INITIAL_KUAPUR_PLAYERS.length > 0) {
-      rawPlayers = INITIAL_KUAPUR_PLAYERS;
-      safeSetLocalStorage(this._scopedKey('PLAYERS'), INITIAL_KUAPUR_PLAYERS);
+    if (isKuapur && Array.isArray(INITIAL_KUAPUR_PLAYERS) && INITIAL_KUAPUR_PLAYERS.length > 0) {
+      if (rawPlayers.length === 0 || !rawPlayers[0]?.id?.startsWith('ply-kpl-')) {
+        rawPlayers = INITIAL_KUAPUR_PLAYERS;
+        safeSetLocalStorage(this._scopedKey('PLAYERS'), INITIAL_KUAPUR_PLAYERS);
+      }
     }
     const rawTeams = JSON.parse(localStorage.getItem(this._scopedKey('TEAMS'))) || [];
 
