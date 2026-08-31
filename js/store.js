@@ -1678,20 +1678,29 @@ class Store {
 
 
   resetAuctionData() {
-    const players = this.getPlayers();
+    // Pause cloud polling so it doesn't overwrite the reset with stale cloud data
+    if (this.cloudPollingInterval) {
+      clearInterval(this.cloudPollingInterval);
+      this.cloudPollingInterval = null;
+    }
+
+    // Read raw from localStorage (bypass cache which may be stale)
+    const players = JSON.parse(localStorage.getItem(this._scopedKey('PLAYERS'))) || [];
     const now = Date.now();
     const syncPromises = [];
     players.forEach(p => {
       p.teamId = null;
+      p.team_id = null;
       p.teamName = null;
       p.soldPrice = 0;
+      p.sold_price = 0;
       p.auctionStatus = 'PENDING';
+      p.status = 'registered';
       p.isSold = false;
       p.boughtByTeamId = null;
       p.updated_at = now;
       syncPromises.push(syncPlayerToSupabase(p));
     });
-    Promise.all(syncPromises).catch(e => console.warn('Batch auction reset sync:', e));
 
     const teams = (JSON.parse(localStorage.getItem(this._scopedKey('TEAMS'))) || []).map((t, idx) => {
       const hasIcon = !!(t.iconPlayerName || t.iconName);
@@ -1724,10 +1733,16 @@ class Store {
 
     safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
     safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
-    
-    if (typeof syncTeamToSupabase === 'function') {
-      teams.forEach(t => syncTeamToSupabase(t));
-    }
+
+    // Invalidate cache so getPlayers()/getTeams() read fresh data
+    this._cache = { players: null, teams: null, fixtures: null };
+
+    // Sync reset teams to Supabase, then restart cloud polling
+    const teamSyncPromises = teams.map(t => syncTeamToSupabase(t));
+    Promise.all([...syncPromises, ...teamSyncPromises])
+      .then(() => console.log("[RESET] All auction data synced to cloud"))
+      .catch(e => console.warn('[RESET] Batch auction reset sync:', e))
+      .finally(() => this.startCloudPolling());
 
     this.notify('players_updated');
     this.notify('teams_updated');
@@ -1762,7 +1777,7 @@ class Store {
           deduped.push(t);
           teamNameMap.set(normName, t);
         }
-        // else keep existing (already timestamp or same type)
+        console.warn("[DEDUP] Dropping duplicate team:", t.name, "id:", t.id, "kept id:", existing.id);
       } else {
         teamNameMap.set(normName, t);
         deduped.push(t);

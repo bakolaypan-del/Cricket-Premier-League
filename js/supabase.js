@@ -567,7 +567,7 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
 
     const [playersRes, teamsRes, matchesRes, tourneyRes] = await Promise.all([
       supabase.from('players').select('id, tournament_id, name, phone, photo_url, role, category_name, base_price, is_icon, team_id, status, sold_price, verified, reg_number, updated_at').eq('tournament_id', tId),
-      supabase.from('teams').select('id, tournament_id, name, short_name, owner_name, owner_phone, logo_url, budget_total, budget_remaining, squad_count, updated_at').eq('tournament_id', tId),
+      supabase.from('teams').select('id, tournament_id, name, short_name, owner_name, owner_phone, logo_url, budget_total, budget_remaining, updated_at').eq('tournament_id', tId),
       supabase.from('matches').select('*').eq('tournament_id', tId),
       supabase.from('tournaments').select('category_code, slug, name, registration_fee, total_team_budget, icon_price, registration_settings, format_config').eq('id', tId).maybeSingle()
     ]);
@@ -1072,7 +1072,6 @@ export async function syncTeamToSupabase(teamData) {
         logo_url: teamData.logoUrl || teamData.teamLogoUrl || null,
         budget_total: budgetTotal,
         budget_remaining: (remainingVal != null) ? remainingVal : budgetTotal,
-        squad_count: Number(teamData.squadCount) || 0,
         updated_at: new Date().toISOString()
       };
       const { error: teamUpsertErr } = await supabase.from('teams').upsert(payload);

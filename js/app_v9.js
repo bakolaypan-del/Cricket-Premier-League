@@ -2999,7 +2999,10 @@ export function renderCustomTournamentHub(container, tourney) {
         ${allTeams.length > 0 ? `
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             ${allTeams.map((t, idx) => {
-              const teamSquad = allPlayers.filter(p => p.teamId === t.id);
+              const teamSquad = allPlayers.filter(p => {
+                const pTeamId = p.teamId || p.team_id;
+                return pTeamId && (pTeamId === t.id || (p.teamName && p.teamName.trim().toLowerCase() === t.name.trim().toLowerCase()));
+              });
               const logo = t.logoUrl || t.teamLogoUrl || generateUniqueTeamBadge(t.name, idx);
 
               return `
