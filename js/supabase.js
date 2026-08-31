@@ -754,8 +754,12 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
       });
     });
 
+    const deletedIdsRaw = typeof localStorage !== 'undefined' ? localStorage.getItem('cpl_deleted_fixture_ids') : null;
+    const deletedIdsSet = new Set(deletedIdsRaw ? JSON.parse(deletedIdsRaw) : []);
+
     configMatches.forEach(cm => {
       if (!cm || !cm.id) return;
+      if (deletedIdsSet.has(cm.id) || (toUUID(cm.id) && deletedIdsSet.has(toUUID(cm.id)))) return;
       const existing = matchesMap.get(cm.id);
       matchesMap.set(cm.id, {
         ...(existing || {}),

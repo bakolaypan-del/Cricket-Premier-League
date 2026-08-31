@@ -2224,7 +2224,7 @@ class Store {
         if (localRaw !== null) {
           localScopedMatches = JSON.parse(localRaw) || [];
         } else {
-          localScopedMatches = Array.isArray(t.format_config?.custom_matches) ? t.format_config.custom_matches : [];
+          localScopedMatches = [];
         }
       } catch (e) {}
 
@@ -2241,7 +2241,10 @@ class Store {
       });
     });
 
-    const result = Array.from(map.values());
+    const deletedIdsRaw = typeof localStorage !== 'undefined' ? localStorage.getItem('cpl_deleted_fixture_ids') : null;
+    const deletedSet = new Set(deletedIdsRaw ? JSON.parse(deletedIdsRaw) : []);
+
+    const result = Array.from(map.values()).filter(f => f && f.id && !deletedSet.has(f.id) && (!toUUID(f.id) || !deletedSet.has(toUUID(f.id))));
     const activeScoringId = typeof localStorage !== 'undefined' ? localStorage.getItem('cpl_active_scoring_fixture_id') : null;
     result.forEach(f => {
       if (f && f.status === 'LIVE' && f.id !== activeScoringId) {
