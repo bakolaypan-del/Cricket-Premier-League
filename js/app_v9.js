@@ -2579,18 +2579,70 @@ export function renderCustomTournamentHub(container, tourney) {
   });
   const soldPlayers = allPlayers.filter(p => p.teamId || p.auctionStatus === 'SOLD');
 
-  // Top Award Candidates & Tournament Leaders (Calculated Match-by-Match, No Dummy Fallbacks)
-  const topBatsman = allPlayers.filter(p => Number(p.totalRuns || p.runs || 0) > 0).sort((a, b) => Number(b.totalRuns || b.runs || 0) - Number(a.totalRuns || a.runs || 0))[0] || null;
-  const topBowler = allPlayers.filter(p => Number(p.totalWickets || p.wickets || 0) > 0).sort((a, b) => Number(b.totalWickets || b.wickets || 0) - Number(a.totalWickets || a.wickets || 0))[0] || null;
-  const topSixes = allPlayers.filter(p => Number(p.totalSixes || p.sixes || 0) > 0).sort((a, b) => Number(b.totalSixes || b.sixes || 0) - Number(a.totalSixes || a.sixes || 0))[0] || null;
-  const topFours = allPlayers.filter(p => Number(p.totalFours || p.fours || 0) > 0).sort((a, b) => Number(b.totalFours || b.fours || 0) - Number(a.totalFours || a.fours || 0))[0] || null;
-  const topDotBalls = allPlayers.filter(p => Number(p.totalDotBalls || p.dotBalls || p.dots || 0) > 0).sort((a, b) => Number(b.totalDotBalls || b.dotBalls || b.dots || 0) - Number(a.totalDotBalls || a.dotBalls || a.dots || 0))[0] || null;
-  const topMaidens = allPlayers.filter(p => Number(p.totalMaidens || p.maidens || p.maidenOvers || 0) > 0).sort((a, b) => Number(b.totalMaidens || b.maidens || b.maidenOvers || 0) - Number(a.totalMaidens || a.maidens || a.maidenOvers || 0))[0] || null;
-  const topTwos = allPlayers.filter(p => Number(p.totalTwos || p.twos || p.doubleRuns || 0) > 0).sort((a, b) => Number(b.totalTwos || b.twos || b.doubleRuns || 0) - Number(a.totalTwos || a.twos || a.doubleRuns || 0))[0] || null;
-  const topKeeper = allPlayers.filter(p => Number(p.dismissals || p.catches || p.stumpings || 0) > 0 && ((p.category || '').toUpperCase().includes('KEEPER') || p.isWicketKeeper)).sort((a, b) => Number(b.dismissals || b.catches || 0) - Number(a.dismissals || a.catches || 0))[0] || null;
-  const topFielder = allPlayers.filter(p => Number(p.catches || p.fieldCatches || 0) > 0).sort((a, b) => Number(b.catches || 0) - Number(a.catches || 0))[0] || null;
-  const emergingPlayer = allPlayers.filter(p => p.age && Number(p.age) <= 19 && (Number(p.totalRuns || 0) > 0 || Number(p.totalWickets || 0) > 0)).sort((a, b) => (Number(b.totalRuns || 0) + Number(b.totalWickets || 0) * 20) - (Number(a.totalRuns || 0) + Number(a.totalWickets || 0) * 20))[0] || null;
-  const topMVP = allPlayers.filter(p => (Number(p.totalRuns || p.runs || 0) * 1 + Number(p.totalWickets || p.wickets || 0) * 25 + Number(p.totalSixes || p.sixes || 0) * 2) > 0).sort((a, b) => ((Number(b.totalRuns || 0) * 1 + Number(b.totalWickets || 0) * 25 + Number(b.totalSixes || 0) * 2) - (Number(a.totalRuns || 0) * 1 + Number(a.totalWickets || 0) * 25 + Number(a.totalSixes || 0) * 2)))[0] || null;
+  // Top Award Candidates & Tournament Leaders (Calculated Strictly from Real Match Scorecards)
+  const playerStatsMap = new Map();
+
+  allFixtures.forEach(f => {
+    if (!f) return;
+    const state = f.liveMatchState || f.liveState || {};
+    const pStats = state.playerStats || f.playerStats || {};
+
+    Object.keys(pStats).forEach(pid => {
+      const ps = pStats[pid];
+      if (!ps) return;
+
+      let entry = playerStatsMap.get(pid);
+      if (!entry) {
+        const playerObj = allPlayers.find(p => p.id === pid || (p.id && pid && toUUID(p.id) === toUUID(pid))) || {};
+        entry = {
+          id: pid,
+          name: ps.name || playerObj.name || 'Unknown Player',
+          photoUrl: playerObj.photoUrl || playerObj.player_photo_url || 'assets/card_jsl_user.png',
+          runs: 0,
+          balls: 0,
+          fours: 0,
+          sixes: 0,
+          wickets: 0,
+          overs: 0,
+          ballsBowled: 0,
+          runsConceded: 0,
+          maidens: 0,
+          catches: 0,
+          stumpings: 0,
+          runOuts: 0,
+          age: playerObj.age
+        };
+        playerStatsMap.set(pid, entry);
+      }
+
+      entry.runs += Number(ps.runs || ps.runsScored || 0);
+      entry.balls += Number(ps.balls || ps.ballsFaced || 0);
+      entry.fours += Number(ps.fours || ps.4s || 0);
+      entry.sixes += Number(ps.sixes || ps.6s || 0);
+      entry.wickets += Number(ps.wickets || ps.wicketsTaken || 0);
+      entry.ballsBowled += Number(ps.ballsBowled || ((ps.overs || 0) * 6 + (ps.oversBalls || 0)));
+      entry.runsConceded += Number(ps.runsConceded || ps.runsAgainst || 0);
+      entry.maidens += Number(ps.maidens || 0);
+      entry.catches += Number(ps.catches || 0);
+      entry.stumpings += Number(ps.stumpings || 0);
+      entry.runOuts += Number(ps.runOuts || 0);
+    });
+  });
+
+  const tournamentPlayerStats = Array.from(playerStatsMap.values()).map(p => {
+    const mvp = (p.runs * 1) + (p.fours * 1) + (p.sixes * 2) + (p.wickets * 20) + (p.maidens * 8) + (p.catches * 8) + (p.stumpings * 10) + (p.runOuts * 8);
+    const fielding = p.catches + p.runOuts;
+    return { ...p, mvp, fielding, totalRuns: p.runs, totalWickets: p.wickets, totalSixes: p.sixes, totalFours: p.fours };
+  });
+
+  const topBatsman = tournamentPlayerStats.filter(p => p.totalRuns > 0).sort((a, b) => b.totalRuns - a.totalRuns)[0] || null;
+  const topBowler = tournamentPlayerStats.filter(p => p.totalWickets > 0).sort((a, b) => b.totalWickets - a.totalWickets)[0] || null;
+  const topSixes = tournamentPlayerStats.filter(p => p.totalSixes > 0).sort((a, b) => b.totalSixes - a.totalSixes)[0] || null;
+  const topFours = tournamentPlayerStats.filter(p => p.totalFours > 0).sort((a, b) => b.totalFours - a.totalFours)[0] || null;
+  const topKeeper = tournamentPlayerStats.filter(p => p.stumpings > 0).sort((a, b) => b.stumpings - a.stumpings)[0] || null;
+  const topFielder = tournamentPlayerStats.filter(p => p.fielding > 0).sort((a, b) => b.fielding - a.fielding)[0] || null;
+  const emergingPlayer = tournamentPlayerStats.filter(p => p.age && Number(p.age) <= 19 && (p.totalRuns > 0 || p.totalWickets > 0)).sort((a, b) => (b.totalRuns + b.totalWickets * 20) - (a.totalRuns + a.totalWickets * 20))[0] || null;
+  const topMVP = tournamentPlayerStats.filter(p => p.mvp > 0).sort((a, b) => b.mvp - a.mvp)[0] || null;
   const topTeam = allTeams[0] || null;
 
   // DYNAMIC TABS CONFIGURATION:
