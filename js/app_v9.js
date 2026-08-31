@@ -10074,8 +10074,24 @@ function renderLiveAuctionView(container) {
   const renderPlayerStatusTable = () => {
     const tableContainer = document.getElementById('auction-players-full-table-content');
     const collapsibleDiv = document.getElementById('player-auction-status-collapsible');
-    const allPlayers = (store.getAllPlayersAcrossTournaments ? store.getAllPlayersAcrossTournaments() : store.getPlayers()).filter(p => p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED');
-    const teams = (store.getAllTeamsAcrossTournaments ? store.getAllTeamsAcrossTournaments() : store.getTeams());
+    const liveTourneyId = store.activeTournamentId;
+    const liveTourneyUUID = toUUID(liveTourneyId);
+
+    const allPlayersRaw = (store.getAllPlayersAcrossTournaments ? store.getAllPlayersAcrossTournaments() : store.getPlayers()).filter(p => p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED');
+    const allPlayers = allPlayersRaw.filter(p => {
+      if (!p) return false;
+      const pTid = p.tournament_id || p.tournamentId || p.leagueId;
+      if (!pTid) return true;
+      return pTid === liveTourneyId || toUUID(pTid) === liveTourneyUUID;
+    });
+
+    const allTeamsRaw = (store.getAllTeamsAcrossTournaments ? store.getAllTeamsAcrossTournaments() : store.getTeams());
+    const teams = allTeamsRaw.filter(t => {
+      if (!t) return false;
+      const tId = t.tournament_id || t.tournamentId || t.leagueId;
+      if (!tId) return true;
+      return tId === liveTourneyId || toUUID(tId) === liveTourneyUUID;
+    });
 
     const soldList = allPlayers.filter(p => p.teamId || p.auctionStatus === 'SOLD');
     const unsoldList = allPlayers.filter(p => p.auctionStatus === 'UNSOLD' && !p.teamId);
@@ -10556,8 +10572,24 @@ function renderLiveAuctionView(container) {
       }
     }
 
-    const teams = (store.getAllTeamsAcrossTournaments ? store.getAllTeamsAcrossTournaments() : store.getTeams());
-    const allPlayers = (store.getAllPlayersAcrossTournaments ? store.getAllPlayersAcrossTournaments() : store.getPlayers());
+    const liveTourneyId = globalInfo.liveTournament?.id || globalInfo.liveTournament?.supabaseId || store.activeTournamentId;
+    const liveTourneyUUID = toUUID(liveTourneyId);
+
+    const allTeamsRaw = (store.getAllTeamsAcrossTournaments ? store.getAllTeamsAcrossTournaments() : store.getTeams());
+    const teams = allTeamsRaw.filter(t => {
+      if (!t) return false;
+      const tId = t.tournament_id || t.tournamentId || t.leagueId;
+      if (!tId) return true;
+      return tId === liveTourneyId || toUUID(tId) === liveTourneyUUID;
+    });
+
+    const allPlayersRaw = (store.getAllPlayersAcrossTournaments ? store.getAllPlayersAcrossTournaments() : store.getPlayers());
+    const allPlayers = allPlayersRaw.filter(p => {
+      if (!p) return false;
+      const pTid = p.tournament_id || p.tournamentId || p.leagueId;
+      if (!pTid) return true;
+      return pTid === liveTourneyId || toUUID(pTid) === liveTourneyUUID;
+    });
 
     // 1. Render / Update Active Bidding Block
     renderActiveBlock(state, teams, allPlayers);
@@ -11038,8 +11070,24 @@ export function openLiveAuctionProjectorView() {
   const renderHistoryOverlay = () => {
     const box = document.getElementById('proj-history-content-box');
     if (!box) return;
-    const allPlayers = (store.getAllPlayersAcrossTournaments ? store.getAllPlayersAcrossTournaments() : store.getPlayers());
-    const teams = (store.getAllTeamsAcrossTournaments ? store.getAllTeamsAcrossTournaments() : store.getTeams());
+    const projTourneyId = store.activeTournamentId;
+    const projTourneyUUID = toUUID(projTourneyId);
+
+    const allPlayersRaw = (store.getAllPlayersAcrossTournaments ? store.getAllPlayersAcrossTournaments() : store.getPlayers());
+    const allPlayers = allPlayersRaw.filter(p => {
+      if (!p) return false;
+      const pTid = p.tournament_id || p.tournamentId || p.leagueId;
+      if (!pTid) return true;
+      return pTid === projTourneyId || toUUID(pTid) === projTourneyUUID;
+    });
+
+    const allTeamsRaw = (store.getAllTeamsAcrossTournaments ? store.getAllTeamsAcrossTournaments() : store.getTeams());
+    const teams = allTeamsRaw.filter(t => {
+      if (!t) return false;
+      const tId = t.tournament_id || t.tournamentId || t.leagueId;
+      if (!tId) return true;
+      return tId === projTourneyId || toUUID(tId) === projTourneyUUID;
+    });
 
     // Reverse so latest sold/unsold appear first!
     const soldPlayers = allPlayers.filter(p => p.teamId || p.auctionStatus === 'SOLD').reverse();
@@ -11127,8 +11175,24 @@ export function openLiveAuctionProjectorView() {
   const renderTeamsOverlay = () => {
     const box = document.getElementById('proj-teams-content-box');
     if (!box) return;
-    const allPlayers = (store.getAllPlayersAcrossTournaments ? store.getAllPlayersAcrossTournaments() : store.getPlayers());
-    const teams = (store.getAllTeamsAcrossTournaments ? store.getAllTeamsAcrossTournaments() : store.getTeams());
+    const projTourneyId = store.activeTournamentId;
+    const projTourneyUUID = toUUID(projTourneyId);
+
+    const allPlayersRaw = (store.getAllPlayersAcrossTournaments ? store.getAllPlayersAcrossTournaments() : store.getPlayers());
+    const allPlayers = allPlayersRaw.filter(p => {
+      if (!p) return false;
+      const pTid = p.tournament_id || p.tournamentId || p.leagueId;
+      if (!pTid) return true;
+      return pTid === projTourneyId || toUUID(pTid) === projTourneyUUID;
+    });
+
+    const allTeamsRaw = (store.getAllTeamsAcrossTournaments ? store.getAllTeamsAcrossTournaments() : store.getTeams());
+    const teams = allTeamsRaw.filter(t => {
+      if (!t) return false;
+      const tId = t.tournament_id || t.tournamentId || t.leagueId;
+      if (!tId) return true;
+      return tId === projTourneyId || toUUID(tId) === projTourneyUUID;
+    });
     const targetSquadSize = Number(store.getAuctionSettings().maxSquadSize) || 13;
 
     const startIdx = (teamsCurrentPage - 1) * 4;
