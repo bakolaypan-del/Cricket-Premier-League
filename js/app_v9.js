@@ -8728,7 +8728,7 @@ function renderFixturesView(container) {
 export function openMatchCenterModal(fixtureId) {
   document.getElementById('match-center-modal')?.remove();
 
-  const fixture = store.getFixtures().find(f => f.id === fixtureId);
+  const fixture = store.getFixtures().find(f => f.id === fixtureId) || (store.getAllFixturesAcrossTournaments ? store.getAllFixturesAcrossTournaments().find(f => f.id === fixtureId) : null);
   if (!fixture) return;
 
   const teamAObj = store.getTeamById(fixture.teamAId) || {};
@@ -8736,8 +8736,9 @@ export function openMatchCenterModal(fixtureId) {
   const logoA = teamAObj.logoUrl || teamAObj.teamLogoUrl || 'assets/card_jsl_user.png';
   const logoB = teamBObj.logoUrl || teamBObj.teamLogoUrl || 'assets/card_jsl_user.png';
 
-  const teamAPlayers = store.getPlayers().filter(p => p.teamId === fixture.teamAId);
-  const teamBPlayers = store.getPlayers().filter(p => p.teamId === fixture.teamBId);
+  const allPlayers = store.getAllPlayersAcrossTournaments ? store.getAllPlayersAcrossTournaments() : store.getPlayers();
+  const teamAPlayers = allPlayers.filter(p => p.teamId === fixture.teamAId);
+  const teamBPlayers = allPlayers.filter(p => p.teamId === fixture.teamBId);
 
   const pxiA = fixture.playingXI?.[fixture.teamAId] || { playing11Ids: teamAPlayers.slice(0, 11).map(p => p.id), twelfthManId: teamAPlayers[11]?.id || '' };
   const pxiB = fixture.playingXI?.[fixture.teamBId] || { playing11Ids: teamBPlayers.slice(0, 11).map(p => p.id), twelfthManId: teamBPlayers[11]?.id || '' };
@@ -8832,7 +8833,7 @@ export function openMatchCenterModal(fixtureId) {
   document.getElementById('close-match-center-btn')?.addEventListener('click', removeModal);
 
   document.getElementById('btn-export-mc-scorecard-pdf')?.addEventListener('click', () => {
-    const curFixture = store.getFixtures().find(f => f.id === fixtureId) || fixture;
+    const curFixture = store.getFixtures().find(f => f.id === fixtureId) || (store.getAllFixturesAcrossTournaments ? store.getAllFixturesAcrossTournaments().find(f => f.id === fixtureId) : null) || fixture;
     const tourney = store.getCustomTournamentById(curFixture.tournamentId || curFixture.tournament_id || curFixture.tournamentSlug) || { name: `${curFixture.leagueCode || 'T'} PREMIER LEAGUE` };
     exportMatchScorecardPDF(curFixture, tourney);
   });
@@ -8844,7 +8845,7 @@ export function openMatchCenterModal(fixtureId) {
 
     // LIVE REFRESH: re-read the freshest fixture every render so spectators see
     // real-time score updates instead of a stale open-time snapshot.
-    const fixture = store.getFixtures().find(f => f.id === fixtureId) || {};
+    const fixture = store.getFixtures().find(f => f.id === fixtureId) || (store.getAllFixturesAcrossTournaments ? store.getAllFixturesAcrossTournaments().find(f => f.id === fixtureId) : null) || {};
     const state = fixture.liveMatchState || {};
     const pStats = state.playerStats || {};
     const isLive = fixture.status === 'LIVE';
@@ -9614,11 +9615,12 @@ export function openMatchCenterModal(fixtureId) {
 export function openMatchPlayingXIModal(fixtureId) {
   document.getElementById('match-lineups-modal')?.remove();
 
-  const fixture = store.getFixtures().find(f => f.id === fixtureId);
+  const fixture = store.getFixtures().find(f => f.id === fixtureId) || (store.getAllFixturesAcrossTournaments ? store.getAllFixturesAcrossTournaments().find(f => f.id === fixtureId) : null);
   if (!fixture) return;
 
-  const teamAPlayers = store.getPlayers().filter(p => p.teamId === fixture.teamAId);
-  const teamBPlayers = store.getPlayers().filter(p => p.teamId === fixture.teamBId);
+  const allPlayers = store.getAllPlayersAcrossTournaments ? store.getAllPlayersAcrossTournaments() : store.getPlayers();
+  const teamAPlayers = allPlayers.filter(p => p.teamId === fixture.teamAId);
+  const teamBPlayers = allPlayers.filter(p => p.teamId === fixture.teamBId);
 
   const pxiA = fixture.playingXI?.[fixture.teamAId] || { playing11Ids: teamAPlayers.slice(0, 11).map(p => p.id), twelfthManId: teamAPlayers[11]?.id || '' };
   const pxiB = fixture.playingXI?.[fixture.teamBId] || { playing11Ids: teamBPlayers.slice(0, 11).map(p => p.id), twelfthManId: teamBPlayers[11]?.id || '' };
