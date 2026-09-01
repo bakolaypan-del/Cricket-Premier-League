@@ -1255,7 +1255,7 @@ class Store {
       battingStyle: playerData.battingStyle || 'Right Hand Bat',
       bowlingStyle: playerData.bowlingStyle || 'Right Hand Medium',
       isWicketKeeper: !!playerData.isWicketKeeper,
-      teamPreference: playerData.teamPreference || playerData.team || 'Any Team',
+      jerseySize: playerData.jerseySize || '',
       photoUrl: playerData.photoUrl || playerData.player_photo_url || '',
       docType: playerData.docType || 'ID Card',
       idCardFrontUrl: playerData.idCardFrontUrl || playerData.id_card_front_url || playerData.aadharPhotoUrl || playerData.aadhaar_url || '',

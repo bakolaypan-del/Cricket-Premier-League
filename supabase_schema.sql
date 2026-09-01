@@ -69,6 +69,11 @@ CREATE TABLE IF NOT EXISTS public.person_profiles (
   batting_style TEXT DEFAULT 'Right Hand Bat',
   bowling_style TEXT DEFAULT 'Right Arm Medium',
   dob DATE,
+  age INT,
+  village TEXT,
+  district TEXT,
+  state TEXT,
+  jersey_size TEXT,
   aadhaar_hash TEXT,
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
@@ -122,6 +127,7 @@ CREATE TABLE IF NOT EXISTS public.players (
   status TEXT DEFAULT 'available' CHECK (status IN ('available', 'sold', 'unsold', 'withdrawn')),
   sold_price NUMERIC DEFAULT 0,
   verified BOOLEAN DEFAULT false,
+  jersey_size TEXT,
   source TEXT DEFAULT 'registered' CHECK (source IN ('registered', 'manual')),
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
@@ -138,6 +144,7 @@ CREATE TABLE IF NOT EXISTS public.player_verification_docs (
   player_id UUID NOT NULL REFERENCES public.players(id) ON DELETE CASCADE,
   tournament_id UUID NOT NULL REFERENCES public.tournaments(id) ON DELETE CASCADE,
   aadhaar_url TEXT,
+  id_card_back_url TEXT,
   payment_screenshot_url TEXT,
   payment_ref TEXT,
   status TEXT DEFAULT 'pending' CHECK (status IN ('pending', 'verified', 'rejected')),

@@ -961,6 +961,7 @@ export async function syncPlayerToSupabase(playerData) {
       status: derivePlayerStatus(playerData),
       sold_price: Number(playerData.soldPrice || playerData.sold_price || playerData.boughtPrice) || 0,
       verified: isApproved,
+      jersey_size: playerData.jerseySize || playerData.jersey_size || null,
       reg_number: Number(playerData.serialNo || playerData.displayRegistrationNumber || playerData.reg_number) || null,
       updated_at: new Date().toISOString()
     };
@@ -1052,6 +1053,7 @@ export async function syncPlayerToSupabase(playerData) {
           player_id: playerUUID,
           tournament_id: tournamentUUID,
           aadhaar_url: idCardFront,
+          id_card_back_url: idCardBack,
           payment_screenshot_url: paymentReceipt,
           payment_ref: paymentRef,
           status: isApproved ? 'verified' : (isRejected ? 'rejected' : 'pending'),
@@ -2252,7 +2254,7 @@ export async function fetchUniversalPlayersFromCloud() {
     const { data } = await supabase.from('person_profiles').select('*').order('updated_at', { ascending: false }).limit(500);
     if (!data) return {};
     const result = {};
-    data.forEach(p => { result[p.phone] = { name: p.name, phone: p.phone, photoUrl: p.photo_url, role: p.role, battingStyle: p.batting_style, bowlingStyle: p.bowling_style }; });
+    data.forEach(p => { result[p.phone] = { name: p.name, phone: p.phone, photoUrl: p.photo_url, role: p.role, battingStyle: p.batting_style, bowlingStyle: p.bowling_style, dob: p.dob, age: p.age, village: p.village, district: p.district, state: p.state, jerseySize: p.jersey_size }; });
     return result;
   } catch (e) { return {}; }
 }
@@ -2427,7 +2429,8 @@ export async function dbLookupPlayerByPhone(phone) {
           role: pData.role,
           category: pData.category_name,
           batting_style: pData.batting_style || 'Right Hand Bat',
-          bowling_style: pData.bowling_style || 'Right Arm Medium'
+          bowling_style: pData.bowling_style || 'Right Arm Medium',
+          jersey_size: pData.jersey_size || null
         };
       }
     } catch (e) {}
@@ -2476,6 +2479,7 @@ export async function dbRegisterPlayer(playerData, docsData = null) {
       base_price: Number(playerData.base_price || playerData.basePrice) || 300,
       reg_number: playerData.reg_number || playerData.serialNo || null,
       verified: false,
+      jersey_size: playerData.jersey_size || playerData.jerseySize || null,
       status: 'available',
       source: 'registered',
       created_at: new Date().toISOString()
@@ -2497,6 +2501,7 @@ export async function dbRegisterPlayer(playerData, docsData = null) {
           player_id: player.id,
           tournament_id: player.tournament_id,
           aadhaar_url: docsData.aadhaar_url || null,
+          id_card_back_url: docsData.id_card_back_url || null,
           payment_screenshot_url: docsData.payment_screenshot_url || null,
           payment_ref: docsData.payment_ref || null,
           status: 'pending'
@@ -2512,7 +2517,14 @@ export async function dbRegisterPlayer(playerData, docsData = null) {
           name: player.name,
           photo_url: player.photo_url,
           role: player.role,
+          batting_style: playerData.battingStyle || playerData.batting_style || 'Right Hand Bat',
+          bowling_style: playerData.bowlingStyle || playerData.bowling_style || 'Right Arm Medium',
           dob: playerData.dob || null,
+          age: playerData.age || null,
+          village: playerData.village || null,
+          district: playerData.district || null,
+          state: playerData.state || null,
+          jersey_size: playerData.jerseySize || playerData.jersey_size || null,
           updated_at: new Date().toISOString()
         }, { onConflict: 'phone' });
     }

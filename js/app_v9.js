@@ -6499,7 +6499,7 @@ function openRegistrationTypeModal() {
       return;
     }
     removeModal();
-    openPlayerRegisterFormModal();
+    openPhoneEntryModal();
   });
 }
 
@@ -6828,6 +6828,101 @@ function openTeamRegisterFormModal(initialData = null, verifiedPhone = null) {
 }
 
 // --- FULL PROFESSIONAL PLAYER REGISTER FORM MODAL ---
+function openPhoneEntryModal() {
+  const modalHtml = `
+    <div id="phone-entry-backdrop" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3">
+      <div class="bg-white max-w-sm w-full p-5 relative space-y-4 animate-fade-in rounded-2xl shadow-2xl border-2 border-emerald-500 modal-content-container">
+        <button id="close-phone-entry-btn" class="absolute top-3 right-3 text-slate-400 hover:text-slate-900 p-1">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+
+        <div class="text-center space-y-1">
+          <div class="w-14 h-14 mx-auto rounded-2xl bg-emerald-100 flex items-center justify-center border-2 border-emerald-300">
+            <i data-lucide="smartphone" class="w-7 h-7 text-emerald-700"></i>
+          </div>
+          <h2 class="text-lg font-black text-slate-900">Enter Your Mobile Number</h2>
+          <p class="text-[10px] text-slate-500 font-semibold">We'll auto-fill your details if you've registered before</p>
+        </div>
+
+        <div class="space-y-3">
+          <div class="flex items-center gap-2">
+            <span class="text-sm font-black text-slate-700 bg-slate-100 px-3 py-2 rounded-lg border border-slate-300">+91</span>
+            <input type="tel" id="phone-entry-input" maxlength="10" placeholder="9876543210" class="flex-1 bg-slate-50 border-2 border-slate-300 text-slate-900 font-mono font-bold text-base rounded-xl p-2.5 focus:outline-none focus:border-emerald-500 focus:bg-white text-center tracking-widest" />
+          </div>
+
+          <button type="button" id="phone-entry-proceed-btn" class="w-full py-3 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-sm rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all">
+            <i data-lucide="arrow-right" class="w-4 h-4"></i> Proceed to Registration
+          </button>
+        </div>
+
+        <div id="phone-entry-status" class="hidden text-center"></div>
+      </div>
+    </div>
+  `;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  if (window.lucide) window.lucide.createIcons();
+
+  const removeModal = () => document.getElementById('phone-entry-backdrop')?.remove();
+  document.getElementById('close-phone-entry-btn')?.addEventListener('click', removeModal);
+
+  document.getElementById('phone-entry-proceed-btn')?.addEventListener('click', async () => {
+    const phoneInput = document.getElementById('phone-entry-input');
+    const statusBox = document.getElementById('phone-entry-status');
+    const proceedBtn = document.getElementById('phone-entry-proceed-btn');
+    const phone = (phoneInput?.value || '').replace(/[^0-9]/g, '');
+
+    if (phone.length < 10) {
+      alert('⚠️ Please enter a valid 10-digit mobile number.');
+      return;
+    }
+
+    proceedBtn.disabled = true;
+    proceedBtn.innerHTML = '<div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div> <span>Checking...</span>';
+
+    if (statusBox) {
+      statusBox.classList.remove('hidden');
+      statusBox.innerHTML = '<span class="text-[10px] text-amber-600 font-bold">Searching your profile...</span>';
+    }
+
+    try {
+      const existing = await dbLookupPlayerByPhone(phone);
+      removeModal();
+
+      if (existing && existing.name) {
+        openPlayerRegisterFormModal({
+          phone: phone,
+          name: existing.name || '',
+          photoUrl: existing.photo_url || existing.photoUrl || '',
+          dob: existing.dob || existing.date_of_birth || '',
+          age: existing.age || '',
+          village: existing.village || existing.address?.split(',')[0]?.trim() || '',
+          district: existing.district || '',
+          state: existing.state || 'West Bengal',
+          category: existing.category || existing.category_name || existing.role || '',
+          battingStyle: existing.batting_style || existing.battingStyle || 'Right Hand Bat',
+          bowlingStyle: existing.bowling_style || existing.bowlingStyle || 'Right Hand Fast',
+          securityPin: existing.security_pin || existing.securityPin || '',
+          jerseySize: existing.jersey_size || existing.jerseySize || '',
+        }, phone);
+      } else {
+        openPlayerRegisterFormModal(null, phone);
+      }
+    } catch (err) {
+      console.warn('Phone lookup error:', err);
+      removeModal();
+      openPlayerRegisterFormModal(null, phone);
+    }
+  });
+
+  // Allow Enter key
+  document.getElementById('phone-entry-input')?.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') document.getElementById('phone-entry-proceed-btn')?.click();
+  });
+
+  setTimeout(() => document.getElementById('phone-entry-input')?.focus(), 100);
+}
+
 function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
   if (!store.isPlayerRegistrationOpen()) {
     openRegistrationClosedModal();
@@ -6858,16 +6953,10 @@ function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
         </div>
 
         <form id="player-registration-form" class="space-y-2.5">
-          <!-- 1. Player Name & Father Name -->
-          <div class="grid grid-cols-2 gap-2">
-            <div>
-              <label class="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">Player Name *</label>
-              <input type="text" id="ply-name" required placeholder="Rahul Sharma" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-2 focus:outline-none focus:border-emerald-500" />
-            </div>
-            <div>
-              <label class="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">Father's Name *</label>
-              <input type="text" id="ply-father-name" required placeholder="Suresh Sharma" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-2 focus:outline-none focus:border-emerald-500" />
-            </div>
+          <!-- 1. Player Name -->
+          <div>
+            <label class="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">Player Name *</label>
+            <input type="text" id="ply-name" required placeholder="Rahul Sharma" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-2 focus:outline-none focus:border-emerald-500" />
           </div>
 
           <!-- 2. Date of Birth & Auto-Calculated Age -->
@@ -6884,19 +6973,7 @@ function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
             </div>
           </div>
 
-          <!-- 3. Mobile Number & Alternate Mobile -->
-          <div class="grid grid-cols-2 gap-2">
-            <div>
-              <label class="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">Mobile Number *</label>
-              <input type="tel" id="ply-phone" required value="${prefilledPhone}" placeholder="+91 9876543210" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-2 focus:outline-none focus:border-emerald-500" />
-            </div>
-            <div>
-              <label class="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">Alternate Mobile</label>
-              <input type="tel" id="ply-alt-mobile" placeholder="+91 9812345678" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-2 focus:outline-none focus:border-emerald-500" />
-            </div>
-          </div>
-
-          <!-- 3b. Account Security PIN (4-Digit Password for Login) -->
+          <!-- 3. Account Security PIN (4-Digit Password for Login) -->
           <div class="bg-emerald-50/70 border border-emerald-200 p-2 rounded-xl">
             <div class="flex items-center justify-between mb-0.5">
               <label class="block text-[9px] font-black text-emerald-900 uppercase">🔒 Account Security PIN (4-Digits) *</label>
@@ -6905,19 +6982,49 @@ function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
             <input type="password" id="ply-security-pin" required minlength="4" maxlength="10" placeholder="Set your secret 4-digit PIN (e.g. 1234)" class="w-full bg-white border border-emerald-300 text-slate-900 font-mono text-xs rounded-lg p-1.5 focus:outline-none focus:border-emerald-600 font-bold placeholder-slate-400" />
           </div>
 
-          <!-- 4. Village, District, State -->
+          <!-- 4. Village/Town, District, State -->
           <div class="grid grid-cols-3 gap-1.5">
             <div>
-              <label class="block text-[8px] font-bold text-slate-700 uppercase mb-0.5">Village *</label>
-              <input type="text" id="ply-village" required placeholder="e.g. Mumbai" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-1.5 focus:outline-none focus:border-emerald-500" />
+              <label class="block text-[8px] font-bold text-slate-700 uppercase mb-0.5">Village/Town *</label>
+              <input type="text" id="ply-village" required placeholder="e.g. Jhankra" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-1.5 focus:outline-none focus:border-emerald-500" />
             </div>
             <div>
               <label class="block text-[8px] font-bold text-slate-700 uppercase mb-0.5">District *</label>
-              <input type="text" id="ply-district" required value="Paschim Medinipur" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-1.5 focus:outline-none focus:border-emerald-500" />
+              <input type="text" id="ply-district" required placeholder="e.g. Paschim Medinipur" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-1.5 focus:outline-none focus:border-emerald-500" />
             </div>
             <div>
-              <label class="block text-[8px] font-bold text-slate-700 uppercase mb-0.5">State</label>
-              <input type="text" id="ply-state" value="West Bengal" readonly class="w-full bg-slate-100 border border-slate-300 text-slate-600 text-xs rounded-lg p-1.5" />
+              <label class="block text-[8px] font-bold text-slate-700 uppercase mb-0.5">State *</label>
+              <select id="ply-state" required class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-1.5 focus:outline-none focus:border-emerald-500">
+                <option value="" disabled>-- Select --</option>
+                <option value="Andhra Pradesh">Andhra Pradesh</option>
+                <option value="Arunachal Pradesh">Arunachal Pradesh</option>
+                <option value="Assam">Assam</option>
+                <option value="Bihar">Bihar</option>
+                <option value="Chhattisgarh">Chhattisgarh</option>
+                <option value="Goa">Goa</option>
+                <option value="Gujarat">Gujarat</option>
+                <option value="Haryana">Haryana</option>
+                <option value="Himachal Pradesh">Himachal Pradesh</option>
+                <option value="Jharkhand">Jharkhand</option>
+                <option value="Karnataka">Karnataka</option>
+                <option value="Kerala">Kerala</option>
+                <option value="Madhya Pradesh">Madhya Pradesh</option>
+                <option value="Maharashtra">Maharashtra</option>
+                <option value="Manipur">Manipur</option>
+                <option value="Meghalaya">Meghalaya</option>
+                <option value="Mizoram">Mizoram</option>
+                <option value="Nagaland">Nagaland</option>
+                <option value="Odisha">Odisha</option>
+                <option value="Punjab">Punjab</option>
+                <option value="Rajasthan">Rajasthan</option>
+                <option value="Sikkim">Sikkim</option>
+                <option value="Tamil Nadu">Tamil Nadu</option>
+                <option value="Telangana">Telangana</option>
+                <option value="Tripura">Tripura</option>
+                <option value="Uttar Pradesh">Uttar Pradesh</option>
+                <option value="Uttarakhand">Uttarakhand</option>
+                <option value="West Bengal" selected>West Bengal</option>
+              </select>
             </div>
           </div>
 
@@ -6952,10 +7059,7 @@ function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
             </div>
           </div>
 
-          <!-- 6. Team Preference -->
-          <div>
-            <label class="block text-[8px] font-bold text-slate-700 uppercase mb-0.5">Team Preference (Optional)</label>
-            <input type="text" id="ply-team-pref" placeholder="Preferred Franchise Team Name (Optional)" class="w-full bg-slate-50 border border          <!-- 7. HD Player Photo (Square 1:1 Crop with Camera & Gallery Options) -->
+          <!-- 7. HD Player Photo (Square 1:1 Crop with Camera & Gallery Options) -->
           <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-2 shadow-sm">
             <div class="flex items-center justify-between">
               <label class="block text-[9px] font-black text-slate-800 uppercase">Player Photo (Square Shape 1:1) *</label>
@@ -6995,11 +7099,11 @@ function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
             </div>
           </div>
 
-          <!-- 8. Aadhaar Card Front / Proof -->
+          <!-- 8a. Identity Card FRONT (Aadhaar/Voter/Etc) -->
           <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-2 shadow-sm">
             <div class="flex items-center justify-between">
-              <label class="block text-[9px] font-black text-slate-800 uppercase">Aadhaar Card Front / Proof *</label>
-              <span class="px-2 py-0.5 bg-sky-100 text-sky-800 text-[8px] font-black rounded-full border border-sky-300">DOCUMENT PROOF</span>
+              <label class="block text-[9px] font-black text-slate-800 uppercase">Identity Card - FRONT Side *</label>
+              <span class="px-2 py-0.5 bg-sky-100 text-sky-800 text-[8px] font-black rounded-full border border-sky-300">AADHAAR / VOTER / ID</span>
             </div>
 
             <div class="grid grid-cols-2 gap-2">
@@ -7021,12 +7125,60 @@ function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
                 <img id="ply-aadhar-preview-img" class="w-12 h-9 rounded-lg object-cover border border-sky-500 shadow-sm" />
                 <div id="ply-aadhar-status-text">
                   <div class="text-[10px] text-slate-900 font-black flex items-center gap-1">
-                    <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-sky-600"></i> Aadhaar Document Selected
+                    <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-sky-600"></i> ID Front Selected
                   </div>
                   <div class="text-[9px] text-slate-500 font-semibold">HD Proof Ready</div>
                 </div>
               </div>
             </div>
+          </div>
+
+          <!-- 8b. Identity Card BACK -->
+          <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-2 shadow-sm">
+            <div class="flex items-center justify-between">
+              <label class="block text-[9px] font-black text-slate-800 uppercase">Identity Card - BACK Side *</label>
+              <span class="px-2 py-0.5 bg-sky-100 text-sky-800 text-[8px] font-black rounded-full border border-sky-300">BACK SIDE</span>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2">
+              <label class="px-2.5 py-2 bg-white hover:bg-sky-50 text-slate-800 font-bold text-[10px] rounded-xl border border-slate-300 flex items-center justify-center gap-1.5 cursor-pointer shadow-sm transition-all hover:border-sky-400">
+                <i data-lucide="file-text" class="w-4 h-4 text-sky-600"></i>
+                <span>📁 Select File</span>
+                <input type="file" id="ply-idback-file-gallery" accept="image/*" class="hidden" />
+              </label>
+
+              <label class="px-2.5 py-2 bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-500 hover:to-blue-600 text-white font-extrabold text-[10px] rounded-xl border border-sky-400 flex items-center justify-center gap-1.5 cursor-pointer shadow-md transition-all">
+                <i data-lucide="camera" class="w-4 h-4 text-white animate-pulse"></i>
+                <span>📷 Capture Camera</span>
+                <input type="file" id="ply-idback-file-camera" accept="image/*" capture="environment" class="hidden" />
+              </label>
+            </div>
+
+            <div id="ply-idback-preview-box" class="hidden p-2 bg-white rounded-xl border border-sky-300 flex items-center justify-between gap-2 shadow-sm">
+              <div class="flex items-center gap-2.5">
+                <img id="ply-idback-preview-img" class="w-12 h-9 rounded-lg object-cover border border-sky-500 shadow-sm" />
+                <div id="ply-idback-status-text">
+                  <div class="text-[10px] text-slate-900 font-black flex items-center gap-1">
+                    <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-sky-600"></i> ID Back Selected
+                  </div>
+                  <div class="text-[9px] text-slate-500 font-semibold">HD Proof Ready</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 8c. Select Jersey Size -->
+          <div>
+            <label class="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">Select Jersey Size *</label>
+            <select id="ply-jersey-size" required class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-2 focus:outline-none focus:border-emerald-500">
+              <option value="" disabled selected>-- Select Jersey Size --</option>
+              <option value="S">S (Small)</option>
+              <option value="M">M (Medium)</option>
+              <option value="L">L (Large)</option>
+              <option value="XL">XL (Extra Large)</option>
+              <option value="XXL">XXL (Double XL)</option>
+              <option value="XXXL">XXXL (Triple XL)</option>
+            </select>
           </div>
 
           <!-- 9. Entry Fee Payment & Receipt Upload -->
@@ -7099,12 +7251,6 @@ function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
             </div>
           </div>
 
-          <!-- 10. Remarks & Terms Checkbox -->
-          <div>
-            <label class="block text-[8px] font-bold text-slate-700 uppercase mb-0.5">Additional Remarks</label>
-            <input type="text" id="ply-remarks" placeholder="Any additional notes or instructions..." class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-2 focus:outline-none" />
-          </div>
-
           <div class="pt-1">
             <label class="flex items-start gap-2 text-[10px] text-slate-700 cursor-pointer">
               <input type="checkbox" id="ply-terms" required class="w-4 h-4 mt-0.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 bg-white" />
@@ -7148,7 +7294,6 @@ function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
   // AUTO-POPULATE RETURNING PLAYER DETAILS FROM LIFETIME PROFILE
   if (initialData) {
     if (initialData.name) document.getElementById('ply-name').value = initialData.name;
-    if (initialData.fatherName && initialData.fatherName !== 'N/A') document.getElementById('ply-father-name').value = initialData.fatherName;
     if (initialData.dob) {
       document.getElementById('ply-dob').value = initialData.dob;
       updateAgeFromDOB();
@@ -7158,6 +7303,8 @@ function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
     if (initialData.category || initialData.playingType) document.getElementById('ply-category').value = initialData.category || initialData.playingType;
     if (initialData.battingStyle) document.getElementById('ply-batting-style').value = initialData.battingStyle;
     if (initialData.bowlingStyle) document.getElementById('ply-bowling-style').value = initialData.bowlingStyle;
+    if (initialData.jerseySize) document.getElementById('ply-jersey-size').value = initialData.jerseySize;
+    if (initialData.securityPin) document.getElementById('ply-security-pin').value = initialData.securityPin;
   }
 
   let plyPhotoFileObj = null;
@@ -7166,10 +7313,12 @@ function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
 
   let plyPhotoDataUrl = (initialData && initialData.photoUrl) ? initialData.photoUrl : '';
   let plyAadharDataUrl = '';
+  let plyIdBackDataUrl = '';
   let plyProofDataUrl = '';
 
   let finalPhotoUrl = (initialData && initialData.photoUrl) ? initialData.photoUrl : '';
   let finalAadharUrl = '';
+  let finalIdBackUrl = '';
   let finalProofUrl = '';
 
   if (initialData && initialData.photoUrl) {
@@ -7306,6 +7455,56 @@ function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
   document.getElementById('ply-aadhar-file-gallery')?.addEventListener('change', (e) => handleAadharSelection(e.target.files[0]));
   document.getElementById('ply-aadhar-file-camera')?.addEventListener('change', (e) => handleAadharSelection(e.target.files[0]));
 
+  // PROCESS ID CARD BACK (REALTIME 100KB COMPRESSION + INSTANT CDN UPLOAD + GREEN CHECKMARK)
+  const handleIdBackSelection = async (file) => {
+    if (!file) return;
+
+    const previewBox = document.getElementById('ply-idback-preview-box');
+    const previewImg = document.getElementById('ply-idback-preview-img');
+    const statusBox = document.getElementById('ply-idback-status-text');
+
+    if (previewBox) previewBox.classList.remove('hidden');
+
+    if (statusBox) {
+      statusBox.innerHTML = `
+        <span class="text-[9px] text-amber-600 font-extrabold flex items-center gap-1">
+          <i data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i> ⏳ Compressing & Uploading ID Back to Cloud CDN...
+        </span>
+      `;
+      if (window.lucide) window.lucide.createIcons();
+    }
+
+    try {
+      const compressedDataUrl = await compressImage(file, 800, 800, 0.75);
+      plyIdBackDataUrl = compressedDataUrl;
+      if (previewImg) previewImg.src = compressedDataUrl;
+
+      const cdnUrl = await uploadHDImage(compressedDataUrl, 'id_card_back');
+      if (cdnUrl && (cdnUrl.startsWith('http://') || cdnUrl.startsWith('https://'))) {
+        finalIdBackUrl = cdnUrl;
+        const estKb = Math.round((compressedDataUrl.length - 22) * 0.75 / 1024);
+        if (statusBox) {
+          statusBox.innerHTML = `
+            <span class="text-[9px] text-emerald-700 font-black flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-300">
+              <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-600"></i> ✅ ID Back Uploaded to CDN (${estKb} KB)
+            </span>
+          `;
+          if (window.lucide) window.lucide.createIcons();
+        }
+      } else {
+        finalIdBackUrl = compressedDataUrl;
+        if (statusBox) {
+          statusBox.innerHTML = `<span class="text-[9px] text-emerald-700 font-bold">✅ ID Back Ready (<100 KB)</span>`;
+        }
+      }
+    } catch (err) {
+      console.warn("ID Back upload notice:", err);
+    }
+  };
+
+  document.getElementById('ply-idback-file-gallery')?.addEventListener('change', (e) => handleIdBackSelection(e.target.files[0]));
+  document.getElementById('ply-idback-file-camera')?.addEventListener('change', (e) => handleIdBackSelection(e.target.files[0]));
+
   // PROCESS PAYMENT RECEIPT SCREENSHOT (REALTIME 100KB COMPRESSION + INSTANT CDN UPLOAD + GREEN CHECKMARK)
   const handleProofSelection = async (file) => {
     if (!file) return;
@@ -7365,7 +7564,11 @@ function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
       return;
     }
     if (!plyAadharDataUrl) {
-      alert("Please upload or capture your Aadhaar Card proof!");
+      alert("Please upload your Identity Card FRONT side!");
+      return;
+    }
+    if (!plyIdBackDataUrl) {
+      alert("Please upload your Identity Card BACK side!");
       return;
     }
     if (!plyProofDataUrl) {
@@ -7395,11 +7598,9 @@ function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
         alert("⚠️ Please select your Player Category (Batsman, Bowler, All-rounder, or Wicket Keeper).");
         return;
       }
-      const fatherName = document.getElementById('ply-father-name').value;
       const dob = document.getElementById('ply-dob').value;
       const age = parseInt(document.getElementById('ply-age').value, 10) || 22;
-      const phone = document.getElementById('ply-phone').value;
-      const alternateMobile = document.getElementById('ply-alt-mobile').value || '';
+      const phone = prefilledPhone;
       const securityPin = document.getElementById('ply-security-pin')?.value.trim() || '';
       const village = document.getElementById('ply-village').value;
       const district = document.getElementById('ply-district').value;
@@ -7407,32 +7608,52 @@ function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
       const battingStyle = document.getElementById('ply-batting-style').value;
       const bowlingStyle = document.getElementById('ply-bowling-style').value;
       const isWicketKeeper = (category === 'Wicket Keeper');
-      const teamPreference = document.getElementById('ply-team-pref').value || 'Any Team';
-      const upiRef = document.getElementById('ply-upi-ref').value;
-      const remarks = document.getElementById('ply-remarks').value || upiRef;
-
-      // Ensure CDN URLs are finalized or fallback to compressed data URLs
-      const photoToSave = finalPhotoUrl || plyPhotoDataUrl;
-      const aadharToSave = finalAadharUrl || plyAadharDataUrl;
-      const proofToSave = finalProofUrl || plyProofDataUrl;
-
-      // STRICT VALIDATION: Photo upload MUST succeed with a valid Cloudinary/CDN URL (http/https)
-      if (!finalPhotoUrl || (!finalPhotoUrl.startsWith('http://') && !finalPhotoUrl.startsWith('https://'))) {
+      const jerseySize = document.getElementById('ply-jersey-size').value;
+      if (!jerseySize) {
         if (submitBtn) {
           submitBtn.disabled = false;
           submitBtn.innerText = "Submit Player Registration";
         }
-        alert("⚠️ Photo Upload Failed!\n\nUnable to upload player photo to Cloudinary CDN. Please check your internet connection and try submitting again.\n\n(Registration was stopped to prevent corrupted/missing pictures).");
+        alert("⚠️ Please select your Jersey Size.");
+        return;
+      }
+      const upiRef = document.getElementById('ply-upi-ref').value;
+      const remarks = upiRef;
+
+      // Ensure CDN URLs are finalized or fallback to compressed data URLs
+      const photoToSave = finalPhotoUrl || plyPhotoDataUrl;
+      const aadharToSave = finalAadharUrl || plyAadharDataUrl;
+      const idBackToSave = finalIdBackUrl || plyIdBackDataUrl;
+      const proofToSave = finalProofUrl || plyProofDataUrl;
+
+      // STRICT VALIDATION: ALL images MUST be uploaded to CDN before submission
+      const isCdnUrl = (u) => u && (u.startsWith('http://') || u.startsWith('https://'));
+      if (!isCdnUrl(finalPhotoUrl)) {
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.innerText = "Submit Player Registration"; }
+        alert("⚠️ Player Photo not uploaded to CDN yet! Please wait for the upload to finish or check your internet connection.");
+        return;
+      }
+      if (!isCdnUrl(finalAadharUrl)) {
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.innerText = "Submit Player Registration"; }
+        alert("⚠️ Identity Card FRONT not uploaded to CDN yet! Please wait for the upload to finish or check your internet connection.");
+        return;
+      }
+      if (!isCdnUrl(finalIdBackUrl)) {
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.innerText = "Submit Player Registration"; }
+        alert("⚠️ Identity Card BACK not uploaded to CDN yet! Please wait for the upload to finish or check your internet connection.");
+        return;
+      }
+      if (!isCdnUrl(finalProofUrl)) {
+        if (submitBtn) { submitBtn.disabled = false; submitBtn.innerText = "Submit Player Registration"; }
+        alert("⚠️ Payment Receipt not uploaded to CDN yet! Please wait for the upload to finish or check your internet connection.");
         return;
       }
 
       const newPlayer = await store.registerPlayer({
         name,
-        fatherName,
         dob,
         age,
         phone,
-        alternateMobile,
         securityPin,
         village,
         district,
@@ -7444,11 +7665,13 @@ function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
         battingStyle,
         bowlingStyle,
         isWicketKeeper,
-        teamPreference,
+        jerseySize,
         photoUrl: photoToSave || '',
         player_photo_url: photoToSave || '',
         aadharPhotoUrl: aadharToSave || '',
         aadhaar_photo_url: aadharToSave || '',
+        idCardBackUrl: idBackToSave || '',
+        id_card_back_url: idBackToSave || '',
         paymentReceiptUrl: proofToSave || '',
         payment_receipt_url: proofToSave || '',
         paymentRef: upiRef,
