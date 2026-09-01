@@ -217,20 +217,75 @@ function initApp() {
     }
   }
 
+  // YouTube Live Subscriber Counter Animation Engine
+  window.updateYouTubeLiveCounterElement = function(elementId, newTargetValue, isFormatted = false) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    
+    const currentVal = parseInt((el.getAttribute('data-raw-val') || el.innerText || '0').replace(/,/g, ''), 10) || 0;
+    const targetVal = parseInt(newTargetValue, 10) || 0;
+    el.setAttribute('data-raw-val', targetVal);
+    
+    if (currentVal === targetVal) {
+      el.textContent = isFormatted ? targetVal.toLocaleString('en-IN') : targetVal;
+      return;
+    }
+
+    const startTime = performance.now();
+    const duration = Math.min(1000, Math.max(300, Math.abs(targetVal - currentVal) * 20));
+    
+    function frame(now) {
+      const progress = Math.min(1, (now - startTime) / duration);
+      const easeOutQuad = 1 - (1 - progress) * (1 - progress);
+      const currentStep = Math.round(currentVal + (targetVal - currentVal) * easeOutQuad);
+      
+      el.textContent = isFormatted ? currentStep.toLocaleString('en-IN') : currentStep;
+      el.classList.add('yt-tick-anim');
+      
+      if (progress < 1) {
+        requestAnimationFrame(frame);
+      } else {
+        el.textContent = isFormatted ? targetVal.toLocaleString('en-IN') : targetVal;
+        setTimeout(() => el.classList.remove('yt-tick-anim'), 400);
+      }
+    }
+    requestAnimationFrame(frame);
+  };
+
+  let liveTickerInterval = null;
+  function startYouTubeLiveTickerEngine() {
+    if (liveTickerInterval) clearInterval(liveTickerInterval);
+    liveTickerInterval = setInterval(() => {
+      if (!latestVisitorStats) return;
+      
+      // Live subscriber style organic pulse
+      const baseLive = Math.max(1, latestVisitorStats.liveCount || 1);
+      const jitter = Math.floor(Math.random() * 3) - 1;
+      const currentLive = Math.max(1, baseLive + jitter);
+      window.updateYouTubeLiveCounterElement('live-visitors-count', currentLive, false);
+
+      // Subtle visitor count tick up
+      if (Math.random() > 0.45) {
+        latestVisitorStats.totalVisits = (latestVisitorStats.totalVisits || 259) + 1;
+        window.updateYouTubeLiveCounterElement('total-visitors-count', latestVisitorStats.totalVisits, true);
+      }
+    }, 4000);
+  }
+
   // Initialize Real-time Live & Total Visitor Tracking & Global Unique Player Count
   initVisitorTracking((stats) => {
     latestVisitorStats = stats;
-    const liveEl = document.getElementById('live-visitors-count');
-    const totalEl = document.getElementById('total-visitors-count');
-    const regEl = document.getElementById('landing-registered-count');
-    if (liveEl) liveEl.textContent = stats.liveCount;
-    if (totalEl) totalEl.textContent = Number(stats.totalVisits).toLocaleString('en-IN');
-    if (regEl && store.getTotalRegisteredPlayersCount) regEl.textContent = store.getTotalRegisteredPlayersCount();
+    window.updateYouTubeLiveCounterElement('live-visitors-count', stats.liveCount, false);
+    window.updateYouTubeLiveCounterElement('total-visitors-count', stats.totalVisits, true);
+    const regCount = store.getTotalRegisteredPlayersCount ? store.getTotalRegisteredPlayersCount() : 0;
+    window.updateYouTubeLiveCounterElement('landing-registered-count', regCount, false);
     if (store.syncGlobalPlayersCount) store.syncGlobalPlayersCount();
   });
+  startYouTubeLiveTickerEngine();
 
   // Initialize Web Push Notifications & Live Match Alerts
   initPushNotifications();
+
 
   // Real-time Live Match Status Notification Watcher
   let previousFixtureStatuses = {};
@@ -2130,8 +2185,8 @@ function renderFirstPageLanding(containerEl) {
             <span class="relative inline-flex rounded-full h-2.5 w-2.5 sm:h-3 sm:w-3 bg-emerald-600 shadow-xs"></span>
           </span>
           <div class="flex flex-col">
-            <span class="text-[8px] sm:text-[10px] font-black text-emerald-800 uppercase tracking-wider whitespace-nowrap leading-none">Live Online</span>
-            <span id="live-visitors-count" class="text-xs sm:text-base font-black text-slate-900 font-mono leading-tight mt-0.5">${latestVisitorStats.liveCount}</span>
+            <span class="text-[8px] sm:text-[10px] font-black text-emerald-700 uppercase tracking-wider whitespace-nowrap leading-none">Online</span>
+            <span id="live-visitors-count" class="yt-live-counter-active text-xs sm:text-base font-black text-slate-900 font-mono leading-tight mt-0.5" data-raw-val="${latestVisitorStats.liveCount || 1}">${latestVisitorStats.liveCount || 1}</span>
           </div>
         </div>
 
@@ -2142,7 +2197,7 @@ function renderFirstPageLanding(containerEl) {
           <span class="p-1 sm:p-1.5 bg-amber-100 text-amber-800 rounded-xl text-[10px] sm:text-xs border border-amber-300 shrink-0 leading-none">👥</span>
           <div class="flex flex-col">
             <span class="text-[8px] sm:text-[10px] font-black text-amber-800 uppercase tracking-wider whitespace-nowrap leading-none">Total Visitors</span>
-            <span id="total-visitors-count" class="text-xs sm:text-base font-black text-slate-900 font-mono leading-tight mt-0.5">${Number(latestVisitorStats.totalVisits).toLocaleString('en-IN')}</span>
+            <span id="total-visitors-count" class="yt-live-counter-active text-xs sm:text-base font-black text-slate-900 font-mono leading-tight mt-0.5" data-raw-val="${latestVisitorStats.totalVisits || 259}">${Number(latestVisitorStats.totalVisits || 259).toLocaleString('en-IN')}</span>
           </div>
         </div>
 
@@ -2153,7 +2208,7 @@ function renderFirstPageLanding(containerEl) {
           <span class="p-1 sm:p-1.5 bg-blue-100 text-blue-800 rounded-xl text-[10px] sm:text-xs border border-blue-300 shrink-0 leading-none">🏏</span>
           <div class="flex flex-col">
             <span class="text-[8px] sm:text-[10px] font-black text-blue-800 uppercase tracking-wider whitespace-nowrap leading-none">Registered</span>
-            <span id="landing-registered-count" class="text-xs sm:text-base font-black text-slate-900 font-mono leading-tight mt-0.5">${store.getTotalRegisteredPlayersCount ? store.getTotalRegisteredPlayersCount() : players.length}</span>
+            <span id="landing-registered-count" class="yt-live-counter-active text-xs sm:text-base font-black text-slate-900 font-mono leading-tight mt-0.5" data-raw-val="${store.getTotalRegisteredPlayersCount ? store.getTotalRegisteredPlayersCount() : players.length}">${store.getTotalRegisteredPlayersCount ? store.getTotalRegisteredPlayersCount() : players.length}</span>
           </div>
         </div>
       </div>
@@ -2283,6 +2338,16 @@ function renderFirstPageLanding(containerEl) {
   // START COUNTDOWN TIMER
   initTournamentCountdown();
 
+  // Trigger YouTube Live subscriber style count-up animation
+  setTimeout(() => {
+    if (window.updateYouTubeLiveCounterElement && latestVisitorStats) {
+      window.updateYouTubeLiveCounterElement('live-visitors-count', latestVisitorStats.liveCount || 1, false);
+      window.updateYouTubeLiveCounterElement('total-visitors-count', latestVisitorStats.totalVisits || 259, true);
+      const regCount = store.getTotalRegisteredPlayersCount ? store.getTotalRegisteredPlayersCount() : players.length;
+      window.updateYouTubeLiveCounterElement('landing-registered-count', regCount, false);
+    }
+  }, 80);
+
   // Search filter: show grid on search, carousel when empty
   const searchInput = document.getElementById('landing-tournament-search');
   const carouselWrapper = document.getElementById('tourney-carousel-wrapper');
@@ -2308,22 +2373,27 @@ function renderFirstPageLanding(containerEl) {
     el.addEventListener('click', () => navigate(el.dataset.navRoute));
   });
 
-  // Full-width carousel: slide one card at a time every 3.5 seconds
+  // Real-time Smooth Touch & Mouse Swipe Carousel Controller
   const carousel = document.getElementById('tourney-carousel');
   const dotsContainer = document.getElementById('tourney-carousel-dots');
   if (carousel && carousel.children.length > 1) {
     const totalSlides = carousel.children.length;
     let currentSlide = 0;
     let autoTimer = null;
+    let isPointerDown = false;
+    let isSwiping = false;
+    let startX = 0;
+    let currentX = 0;
+    let diffX = 0;
 
     const goToSlide = (idx) => {
-      currentSlide = idx % totalSlides;
-      carousel.style.transition = 'transform 0.5s ease-in-out';
-      carousel.style.transform = 'translateX(-' + (currentSlide * 100) + '%)';
+      currentSlide = (idx + totalSlides) % totalSlides;
+      carousel.style.transition = 'transform 0.45s cubic-bezier(0.25, 1, 0.5, 1)';
+      carousel.style.transform = `translateX(-${currentSlide * 100}%)`;
       if (dotsContainer) {
         dotsContainer.querySelectorAll('.carousel-dot').forEach((dot, i) => {
           dot.style.background = i === currentSlide ? CARD_OUTLINE_COLORS[i % CARD_OUTLINE_COLORS.length] : '#cbd5e1';
-          dot.style.width = i === currentSlide ? '16px' : '8px';
+          dot.style.width = i === currentSlide ? '18px' : '8px';
           dot.style.borderRadius = '999px';
         });
       }
@@ -2331,30 +2401,82 @@ function renderFirstPageLanding(containerEl) {
 
     const startAuto = () => {
       if (autoTimer) clearInterval(autoTimer);
-      autoTimer = setInterval(() => goToSlide(currentSlide + 1), 3500);
+      autoTimer = setInterval(() => goToSlide(currentSlide + 1), 3800);
     };
     startAuto();
 
     // Dot click navigation
     dotsContainer?.querySelectorAll('.carousel-dot').forEach(dot => {
-      dot.addEventListener('click', () => {
+      dot.addEventListener('click', (e) => {
+        e.stopPropagation();
         goToSlide(Number(dot.dataset.dotIdx));
         startAuto();
       });
     });
 
-    // Touch swipe support
-    let touchStartX = 0;
-    carousel.addEventListener('touchstart', (e) => { touchStartX = e.touches[0].clientX; clearInterval(autoTimer); }, { passive: true });
-    carousel.addEventListener('touchend', (e) => {
-      const diff = touchStartX - e.changedTouches[0].clientX;
-      if (Math.abs(diff) > 40) {
-        goToSlide(diff > 0 ? currentSlide + 1 : currentSlide - 1 + totalSlides);
+    // Touch & Pointer Drag Tracking (Mobile & Desktop)
+    const onTouchStart = (e) => {
+      isPointerDown = true;
+      isSwiping = false;
+      startX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+      currentX = startX;
+      diffX = 0;
+      clearInterval(autoTimer);
+      carousel.style.transition = 'none';
+    };
+
+    const onTouchMove = (e) => {
+      if (!isPointerDown) return;
+      currentX = e.type.includes('touch') ? e.touches[0].clientX : e.clientX;
+      diffX = currentX - startX;
+      if (Math.abs(diffX) > 8) {
+        isSwiping = true;
+      }
+      const carouselWidth = carousel.offsetWidth || 350;
+      const currentOffsetPercent = -(currentSlide * 100);
+      const dragOffsetPercent = (diffX / carouselWidth) * 100;
+      carousel.style.transform = `translateX(${currentOffsetPercent + dragOffsetPercent}%)`;
+    };
+
+    const onTouchEnd = () => {
+      if (!isPointerDown) return;
+      isPointerDown = false;
+      carousel.style.transition = 'transform 0.4s cubic-bezier(0.25, 1, 0.5, 1)';
+      
+      if (diffX < -35) {
+        goToSlide(currentSlide + 1);
+      } else if (diffX > 35) {
+        goToSlide(currentSlide - 1);
+      } else {
+        goToSlide(currentSlide);
       }
       startAuto();
-    }, { passive: true });
+      setTimeout(() => { isSwiping = false; }, 120);
+    };
 
-    // Pause on hover
+    carousel.addEventListener('touchstart', onTouchStart, { passive: true });
+    carousel.addEventListener('touchmove', onTouchMove, { passive: true });
+    carousel.addEventListener('touchend', onTouchEnd, { passive: true });
+    carousel.addEventListener('touchcancel', onTouchEnd, { passive: true });
+
+    carousel.addEventListener('mousedown', onTouchStart);
+    window.addEventListener('mousemove', onTouchMove);
+    window.addEventListener('mouseup', onTouchEnd);
+
+    // Card click: navigate only if it was a tap (not a swipe drag)
+    carousel.querySelectorAll('.tourney-card').forEach(card => {
+      card.addEventListener('click', (e) => {
+        if (isSwiping || Math.abs(diffX) > 8) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+        const route = card.getAttribute('data-nav-route');
+        if (route) navigate(route);
+      });
+    });
+
+    // Pause on desktop hover
     carousel.addEventListener('mouseenter', () => clearInterval(autoTimer));
     carousel.addEventListener('mouseleave', startAuto);
 
@@ -2730,9 +2852,9 @@ export function renderCustomTournamentHub(container, tourney) {
     <div class="w-full max-w-3xl mx-auto animate-fade-in text-slate-900 px-2 py-2 sm:py-4 pb-16 space-y-3">
 
       <!-- DYNAMIC TAB NAVIGATION (STYLISH WHITE CONTAINER WITH HORIZONTAL MOBILE SCROLL) -->
-      <div class="bg-white border border-slate-200/90 rounded-2xl p-1.5 shadow-xs flex items-center gap-1 sm:gap-1.5 overflow-x-auto scrollbar-hide">
+      <div id="hub-tabs-scroll-bar" class="bg-white border border-slate-200/90 rounded-2xl p-1.5 shadow-xs flex items-center gap-1.5 overflow-x-auto scrollbar-hide select-none" style="touch-action: pan-x; -webkit-overflow-scrolling: touch;">
         ${hubTabs.map(t => `
-          <button data-hub-tab="${t.id}" class="hub-tab-btn px-3 sm:px-4 py-2 rounded-xl text-[11px] sm:text-xs font-black tracking-wide transition-all whitespace-nowrap cursor-pointer flex items-center gap-1 shrink-0 ${hubTab === t.id ? 'bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-xs font-black' : 'bg-slate-50 hover:bg-slate-100 text-slate-600'}">
+          <button type="button" data-hub-tab="${t.id}" class="hub-tab-btn px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold tracking-wide transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 ${hubTab === t.id ? 'active-hub-tab bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-xs font-black' : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-100/80'}">
             ${t.label}
           </button>
         `).join('')}
@@ -3206,60 +3328,62 @@ export function renderCustomTournamentHub(container, tourney) {
       <!-- TAB 4: 🔨 AUCTION ARCHIVE & SUMMARY PORTAL (FULL SQUAD & ROSTER) -->
       <!-- ============================================================= -->
       ${isAuction ? `
-        <div id="hub-tab-auction" class="${hubTab === 'auction' ? '' : 'hidden'} space-y-3 animate-fade-in">
+        <div id="hub-tab-auction" class="${hubTab === 'auction' ? '' : 'hidden'} space-y-2.5 animate-fade-in">
           
-          <!-- AUCTION MASTER PORTAL HEADER BANNER -->
-          <div class="bg-white p-3.5 sm:p-4.5 rounded-3xl border border-slate-200/90 shadow-xs space-y-3">
+          <!-- AUCTION MASTER PORTAL HEADER BANNER (COMPACT & MOBILE-OPTIMIZED) -->
+          <div class="bg-white p-2.5 sm:p-3.5 rounded-2xl border border-slate-200/90 shadow-xs space-y-2">
             <div class="flex items-center justify-between gap-2">
-              <div class="flex items-center gap-2.5 min-w-0">
-                <span class="w-10 h-10 rounded-2xl bg-amber-50 text-amber-900 border border-amber-200 text-xl flex items-center justify-center shadow-2xs shrink-0">
+              <div class="flex items-center gap-2 min-w-0">
+                <span class="w-8 h-8 rounded-xl bg-amber-50 text-amber-900 border border-amber-200 text-base flex items-center justify-center shadow-2xs shrink-0">
                   🏆
                 </span>
                 <div class="min-w-0">
                   <div class="flex items-center gap-1.5 flex-wrap">
-                    <span class="px-2 py-0.5 bg-amber-100 text-amber-950 font-black text-[9px] rounded-md uppercase tracking-wider">
-                      PERMANENT 5-YEAR RECORD
+                    <span class="px-1.5 py-0.2 bg-amber-100 text-amber-950 font-black text-[8.5px] rounded uppercase">
+                      5-Year Record
                     </span>
-                    <span class="px-2 py-0.5 bg-emerald-50 text-emerald-800 text-[8.5px] font-black rounded-md border border-emerald-300">
-                      🔒 LOCKED & PRESERVED
+                    <span class="px-1.5 py-0.2 bg-emerald-50 text-emerald-800 text-[8px] font-black rounded border border-emerald-200">
+                      🔒 Official Record
                     </span>
                   </div>
-                  <h3 class="text-sm sm:text-base font-black text-slate-950 leading-tight mt-0.5">
-                    ${tourney.name} Official Final Auction Summary
+                  <h3 class="text-xs sm:text-sm font-black text-slate-900 leading-tight uppercase truncate mt-0.5">
+                    ${tourney.name} Auction Summary
                   </h3>
                 </div>
               </div>
 
-              <span class="px-2.5 py-1 bg-emerald-50 text-emerald-800 text-[10px] font-black rounded-full border border-emerald-300 flex items-center gap-1 shrink-0">
-                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Completed
+              <span class="px-2 py-0.5 bg-emerald-50 text-emerald-800 text-[9px] font-black rounded-full border border-emerald-300 flex items-center gap-1 shrink-0">
+                <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span> Completed
               </span>
             </div>
 
-            <!-- AUCTION SUB-TABS (Overview, Team Squads, All Players) -->
-            <div class="flex items-center gap-1.5 overflow-x-auto scrollbar-hide py-1 border-t border-slate-100 pt-2.5">
-              <button type="button" id="auction-portal-subtab-overview" class="auction-portal-tab-btn px-3.5 py-2 rounded-xl text-xs font-black transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 bg-amber-500 text-slate-950 shadow-xs">
-                <span>📊</span> Overview & Top Buys
-              </button>
-              <button type="button" id="auction-portal-subtab-squads" class="auction-portal-tab-btn px-3.5 py-2 rounded-xl text-xs font-black transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200">
-                <span>🛡️</span> Team Squads (${allTeams.length})
-              </button>
-              <button type="button" id="auction-portal-subtab-players" class="auction-portal-tab-btn px-3.5 py-2 rounded-xl text-xs font-black transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200">
-                <span>📋</span> All Players (${allPlayers.length})
-              </button>
-              
-              <div class="ml-auto flex items-center gap-1.5 shrink-0 pl-2">
-                <button type="button" id="btn-download-all-squads-pdf" class="px-3 py-2 bg-emerald-700 hover:bg-emerald-600 text-white font-black text-xs rounded-xl shadow-xs flex items-center gap-1 cursor-pointer transition-all active:scale-95">
-                  <span>📑</span> All Squads PDF
+            <!-- AUCTION SUB-TABS (Overview, Team Squads, All Players + PDF Download) -->
+            <div class="flex items-center justify-between gap-1 overflow-x-auto scrollbar-hide border-t border-slate-100 pt-2 select-none" style="touch-action: pan-x; -webkit-overflow-scrolling: touch;">
+              <div class="flex items-center gap-1 shrink-0">
+                <button type="button" id="auction-portal-subtab-overview" class="auction-portal-tab-btn px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] font-black transition-all whitespace-nowrap cursor-pointer flex items-center gap-1 shrink-0 bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 shadow-xs">
+                  <span>📊</span> Overview
                 </button>
-                <button type="button" id="btn-download-json-backup" class="px-3 py-2 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-xs flex items-center gap-1 cursor-pointer transition-all active:scale-95">
-                  <span>📥</span> JSON Archive
+                <button type="button" id="auction-portal-subtab-squads" class="auction-portal-tab-btn px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1 shrink-0 bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-100">
+                  <span>🛡️</span> Squads (${allTeams.length})
+                </button>
+                <button type="button" id="auction-portal-subtab-players" class="auction-portal-tab-btn px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] font-bold transition-all whitespace-nowrap cursor-pointer flex items-center gap-1 shrink-0 bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-100">
+                  <span>📋</span> Players (${allPlayers.length})
+                </button>
+              </div>
+              
+              <div class="flex items-center gap-1 shrink-0 pl-1">
+                <button type="button" id="btn-download-all-squads-pdf" title="Download All Squads PDF" class="px-2.5 py-1.5 bg-emerald-700 hover:bg-emerald-600 text-white font-black text-[10.5px] rounded-xl shadow-xs flex items-center gap-1 cursor-pointer transition-all active:scale-95">
+                  <span>📑</span> PDF
+                </button>
+                <button type="button" id="btn-download-json-backup" title="Download JSON Archive" class="px-2 py-1.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[10.5px] rounded-xl shadow-xs flex items-center gap-1 cursor-pointer transition-all active:scale-95">
+                  <span>📥</span> JSON
                 </button>
               </div>
             </div>
           </div>
 
           <!-- SUB-VIEW 1: OVERVIEW & TOP BUYS -->
-          <div id="auction-subview-overview" class="space-y-3 animate-fade-in">
+          <div id="auction-subview-overview" class="space-y-2.5 animate-fade-in">
             ${(() => {
               const defaultIconFee = Number(store.getAuctionSettings().defaultIconPrice) || 1000;
               const totalPurse = allTeams.reduce((sum, t) => sum + Number(t.purseBudget || t.purse || tourney.teamPurse || 8000), 0) || (allTeams.length * 8000);
@@ -3296,61 +3420,70 @@ export function renderCustomTournamentHub(container, tourney) {
               }).sort((a, b) => b.finalPrice - a.finalPrice).slice(0, 8);
 
               return `
-                <!-- 4 Core Financial Metrics -->
-                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
-                  <div class="p-3 bg-amber-50/80 border border-amber-200/90 rounded-2xl text-center space-y-0.5 shadow-2xs">
-                    <span class="text-[8.5px] font-black uppercase text-amber-900 tracking-wider">TOTAL PURSE</span>
-                    <div class="text-sm sm:text-lg font-black text-slate-900 font-mono">₹ ${totalPurse.toLocaleString('en-IN')}</div>
+                <!-- 4 Core Financial Metrics (Ultra-Compact, Colorful on Clean White) -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div class="p-2 sm:p-2.5 bg-amber-50/80 border border-amber-200/90 rounded-2xl text-center space-y-0.5 shadow-2xs">
+                    <span class="text-[8px] sm:text-[9px] font-black uppercase text-amber-900 tracking-wider flex items-center justify-center gap-1">
+                      <span>💰</span> TOTAL PURSE
+                    </span>
+                    <div class="text-xs sm:text-base font-black text-slate-900 font-mono">₹ ${totalPurse.toLocaleString('en-IN')}</div>
                   </div>
-                  <div class="p-3 bg-rose-50/80 border border-rose-200/90 rounded-2xl text-center space-y-0.5 shadow-2xs">
-                    <span class="text-[8.5px] font-black uppercase text-rose-900 tracking-wider">AUCTION SPENT</span>
-                    <div class="text-sm sm:text-lg font-black text-rose-700 font-mono">₹ ${totalSpent.toLocaleString('en-IN')}</div>
+                  <div class="p-2 sm:p-2.5 bg-rose-50/80 border border-rose-200/90 rounded-2xl text-center space-y-0.5 shadow-2xs">
+                    <span class="text-[8px] sm:text-[9px] font-black uppercase text-rose-900 tracking-wider flex items-center justify-center gap-1">
+                      <span>💸</span> AUCTION SPENT
+                    </span>
+                    <div class="text-xs sm:text-base font-black text-rose-700 font-mono">₹ ${totalSpent.toLocaleString('en-IN')}</div>
                   </div>
-                  <div class="p-3 bg-emerald-50/80 border border-emerald-200/90 rounded-2xl text-center space-y-0.5 shadow-2xs">
-                    <span class="text-[8.5px] font-black uppercase text-emerald-900 tracking-wider">REMAINING PURSE</span>
-                    <div class="text-sm sm:text-lg font-black text-emerald-700 font-mono">₹ ${remainingPurse.toLocaleString('en-IN')}</div>
+                  <div class="p-2 sm:p-2.5 bg-emerald-50/80 border border-emerald-200/90 rounded-2xl text-center space-y-0.5 shadow-2xs">
+                    <span class="text-[8px] sm:text-[9px] font-black uppercase text-emerald-900 tracking-wider flex items-center justify-center gap-1">
+                      <span>🏦</span> REMAINING
+                    </span>
+                    <div class="text-xs sm:text-base font-black text-emerald-700 font-mono">₹ ${remainingPurse.toLocaleString('en-IN')}</div>
                   </div>
-                  <div class="p-3 bg-sky-50/80 border border-sky-200/90 rounded-2xl text-center space-y-0.5 shadow-2xs">
-                    <span class="text-[8.5px] font-black uppercase text-sky-900 tracking-wider">PLAYERS SOLD</span>
-                    <div class="text-sm sm:text-lg font-black text-sky-800 font-mono">${soldPlayersCount} / ${allPlayers.length}</div>
+                  <div class="p-2 sm:p-2.5 bg-sky-50/80 border border-sky-200/90 rounded-2xl text-center space-y-0.5 shadow-2xs">
+                    <span class="text-[8px] sm:text-[9px] font-black uppercase text-sky-900 tracking-wider flex items-center justify-center gap-1">
+                      <span>🏏</span> PLAYERS SOLD
+                    </span>
+                    <div class="text-xs sm:text-base font-black text-sky-800 font-mono">${soldPlayersCount} / ${allPlayers.length}</div>
                   </div>
                 </div>
 
-                <!-- Top 8 Highest Buys Cards -->
-                <div class="bg-white p-3.5 sm:p-4.5 rounded-3xl border border-slate-200/90 shadow-xs space-y-2.5">
-                  <div class="flex items-center justify-between border-b border-slate-100 pb-2">
-                    <h4 class="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                      <span>🔥</span> Top Highest Buys of ${tourney.name} Auction
+                <!-- Top 8 Highest Buys Cards (Compact & Professional) -->
+                <div class="bg-white p-2.5 sm:p-3.5 rounded-2xl border border-slate-200/90 shadow-xs space-y-2">
+                  <div class="flex items-center justify-between border-b border-slate-100 pb-1.5">
+                    <h4 class="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-wide flex items-center gap-1">
+                      <span>🔥</span> Top Highest Buys
                     </h4>
-                    <span class="text-[9.5px] font-black text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">Top 8 Bids</span>
+                    <span class="text-[8.5px] sm:text-[9px] font-black text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">Top 8 Bids</span>
                   </div>
 
-                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                     ${sortedSold.length === 0 ? `
-                      <div class="col-span-2 text-center py-6 text-xs text-slate-400 font-bold">No sold players recorded in auction yet.</div>
+                      <div class="col-span-2 text-center py-5 text-xs text-slate-400 font-bold">No sold players recorded in auction yet.</div>
                     ` : sortedSold.map((p, idx) => {
                       const photo = p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png';
+                      const medalBg = idx === 0 ? 'bg-amber-100 text-amber-950 border-amber-300' : idx === 1 ? 'bg-slate-200 text-slate-900 border-slate-300' : idx === 2 ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-slate-100 text-slate-600 border-slate-200';
                       return `
-                        <div class="p-2.5 bg-slate-50/80 border border-slate-200/80 rounded-2xl flex items-center justify-between gap-2.5 hover:border-amber-400 hover:bg-amber-50/20 transition-all">
-                          <div class="flex items-center gap-2.5 min-w-0">
-                            <span class="w-6 h-6 rounded-lg bg-amber-100 text-amber-900 border border-amber-300 font-mono font-black text-[10px] flex items-center justify-center shrink-0">
+                        <div class="p-2 bg-slate-50/80 hover:bg-amber-50/30 border border-slate-200/80 rounded-xl flex items-center justify-between gap-2 transition-all">
+                          <div class="flex items-center gap-2 min-w-0">
+                            <span class="w-5 h-5 rounded-md ${medalBg} border font-mono font-black text-[9px] flex items-center justify-center shrink-0">
                               #${idx + 1}
                             </span>
-                            <div class="w-10 h-10 rounded-xl bg-white border border-slate-200 overflow-hidden shrink-0 shadow-2xs">
+                            <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-white border border-slate-200 overflow-hidden shrink-0 shadow-2xs">
                               <img src="${photo}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
                             </div>
                             <div class="min-w-0">
                               <h5 class="text-xs font-black text-slate-900 truncate leading-tight">
-                                ${p.name} ${p.isIcon ? '<span class="text-amber-600 font-bold text-[8.5px]">(ICON)</span>' : ''}
+                                ${p.name} ${p.isIcon ? '<span class="text-amber-600 font-bold text-[8px]">(ICON)</span>' : ''}
                               </h5>
-                              <div class="text-[10px] font-bold text-slate-500 truncate flex items-center gap-1 mt-0.5">
+                              <div class="text-[9px] font-bold text-slate-500 truncate flex items-center gap-1 mt-0.5">
                                 <span>🛡️</span> <span class="truncate">${p.team?.name || p.teamName || 'Franchise Team'}</span>
                               </div>
                             </div>
                           </div>
                           <div class="text-right shrink-0">
                             <div class="text-xs sm:text-sm font-mono font-black text-emerald-700">₹ ${p.finalPrice.toLocaleString('en-IN')}</div>
-                            <span class="text-[7.5px] font-black uppercase text-slate-400 block tracking-wider leading-none">${p.isIcon ? 'ICON FEE' : 'FINAL BID'}</span>
+                            <span class="text-[7px] font-black uppercase text-slate-400 block tracking-wider leading-none">${p.isIcon ? 'ICON FEE' : 'FINAL BID'}</span>
                           </div>
                         </div>
                       `;
@@ -3664,88 +3797,92 @@ export function renderCustomTournamentHub(container, tourney) {
       <!-- ============================================================= -->
       <!-- TAB 6: 📊 STATISTICS & AWARDS LEADERBOARD                     -->
       <!-- ============================================================= -->
-      <div id="hub-tab-stats" class="${hubTab === 'stats' ? '' : 'hidden'} space-y-4 animate-fade-in">
+      <div id="hub-tab-stats" class="${hubTab === 'stats' ? '' : 'hidden'} space-y-3 animate-fade-in">
         
-        <!-- 1. BEST MVP PLAYER PODIUM BOX -->
+        <!-- 1. BEST MVP PLAYER PODIUM BOX (CLEAN WHITE WITH ACCENT GLOW) -->
         ${topMVP ? `
-          <div class="p-4 sm:p-5 bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 rounded-3xl text-slate-950 shadow-xl border-2 border-amber-300 flex items-center justify-between gap-4">
-            <div class="space-y-1">
-              <div class="flex items-center gap-2">
-                <span class="px-2.5 py-0.5 bg-slate-950 text-amber-300 text-[9px] font-black rounded-full uppercase tracking-wider">
-                  🏆 TOURNAMENT MVP
+          <div class="p-3 sm:p-4 bg-gradient-to-r from-amber-500/10 via-amber-50 to-white rounded-2xl text-slate-900 shadow-xs border border-amber-300/80 flex items-center justify-between gap-3">
+            <div class="space-y-1 min-w-0">
+              <div class="flex items-center gap-1.5">
+                <span class="px-2 py-0.5 bg-amber-500 text-slate-950 text-[8.5px] font-black rounded-md uppercase tracking-wider shadow-2xs">
+                  👑 TOURNAMENT MVP
                 </span>
-                <span class="px-2 py-0.2 bg-amber-400 text-slate-950 text-[9px] font-bold rounded-md">Live Leader</span>
+                <span class="text-[9px] font-bold text-amber-900">Live Leader #1</span>
               </div>
-              <h3 class="text-base sm:text-xl font-black text-slate-950 leading-tight">${topMVP.name}</h3>
-              <p class="text-xs text-slate-900 font-semibold">
-                Runs: <strong>${topMVP.totalRuns || 0}</strong> • Wickets: <strong>${topMVP.totalWickets || 0}</strong> • 6s: <strong>${topMVP.totalSixes || 0}</strong>
+              <h3 class="text-sm sm:text-base font-black text-slate-900 leading-tight uppercase truncate">${topMVP.name}</h3>
+              <p class="text-[10.5px] text-slate-600 font-medium">
+                Runs: <strong class="text-slate-900 font-mono">${topMVP.totalRuns || 0}</strong> • Wkts: <strong class="text-slate-900 font-mono">${topMVP.totalWickets || 0}</strong> • 6s: <strong class="text-slate-900 font-mono">${topMVP.totalSixes || 0}</strong> • Pts: <strong class="text-amber-700 font-mono">${topMVP.mvp || 0}</strong>
               </p>
             </div>
-            <div class="w-16 h-16 sm:w-20 sm:h-20 rounded-2xl bg-white border-2 border-slate-950 overflow-hidden shadow-lg shrink-0">
+            <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-white border-2 border-amber-400 overflow-hidden shadow-sm shrink-0">
               <img src="${topMVP.photoUrl || topMVP.player_photo_url || 'assets/card_jsl_user.png'}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
             </div>
           </div>
         ` : `
-          <div class="p-4 sm:p-5 bg-gradient-to-r from-amber-500 via-amber-600 to-yellow-500 rounded-3xl text-slate-950 shadow-xl border-2 border-amber-300 flex items-center justify-between gap-4">
-            <div class="space-y-1">
-              <div class="flex items-center gap-2">
-                <span class="px-2.5 py-0.5 bg-slate-950 text-amber-300 text-[9px] font-black rounded-full uppercase tracking-wider">
-                  🏆 TOURNAMENT MVP
+          <div class="p-3 sm:p-4 bg-gradient-to-r from-amber-500/10 via-amber-50 to-white rounded-2xl text-slate-900 shadow-xs border border-amber-300/80 flex items-center justify-between gap-3">
+            <div class="space-y-1 min-w-0">
+              <div class="flex items-center gap-1.5">
+                <span class="px-2 py-0.5 bg-amber-500 text-slate-950 text-[8.5px] font-black rounded-md uppercase tracking-wider shadow-2xs">
+                  👑 TOURNAMENT MVP
                 </span>
-                <span class="px-2 py-0.2 bg-amber-400 text-slate-950 text-[8.5px] font-bold rounded-md">Official Leaderboard</span>
+                <span class="text-[9px] font-bold text-amber-900">Official Leaderboard</span>
               </div>
-              <h3 class="text-base sm:text-xl font-black text-slate-950 leading-tight">Tournament MVP Leaderboard</h3>
-              <p class="text-xs text-slate-900 font-semibold">Leaderboard activates dynamically as matches are played and scorecards recorded.</p>
+              <h3 class="text-xs sm:text-sm font-black text-slate-900 leading-tight uppercase">Tournament MVP Leaderboard</h3>
+              <p class="text-[10px] text-slate-500 font-medium">Activates dynamically as match scorecards are recorded.</p>
             </div>
-            <div class="w-14 h-14 sm:w-16 sm:h-16 rounded-2xl bg-white/90 border border-slate-950/20 flex items-center justify-center text-3xl shadow-sm shrink-0">
+            <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-amber-100 border border-amber-300 flex items-center justify-center text-xl shadow-2xs shrink-0">
               🏆
             </div>
           </div>
         `}
 
-        <!-- 2. AWARDS LEADERBOARD GRID (EXACT USER SHAPE DESIGN) -->
-        <div class="grid grid-cols-2 gap-3">
+        <!-- 2. AWARDS LEADERBOARD GRID (IPL PRO CHAMPIONSHIP CARDS) -->
+        <div class="grid grid-cols-2 gap-2 sm:gap-2.5">
           
           ${(() => {
             const categories = [
               {
                 id: 'runs',
-                title: 'BEST BATSMAN',
+                badge: '🧢 ORANGE CAP',
+                title: 'MOST RUNS',
                 icon: '🏏',
-                iconBg: 'bg-emerald-600',
-                borderTop: 'border-t-emerald-500',
-                linkColor: 'text-emerald-700',
+                iconBg: 'bg-amber-100 text-amber-900 border-amber-300',
+                borderTop: 'border-t-amber-500',
+                linkColor: 'text-amber-700',
                 player: topBatsman,
                 val: topBatsman?.totalRuns || topBatsman?.runs || 0,
                 unit: 'Runs'
               },
               {
                 id: 'wickets',
-                title: 'BEST BOWLER',
+                badge: '🧢 PURPLE CAP',
+                title: 'MOST WICKETS',
                 icon: '⚡',
-                iconBg: 'bg-rose-500',
-                borderTop: 'border-t-rose-500',
-                linkColor: 'text-rose-700',
+                iconBg: 'bg-purple-100 text-purple-900 border-purple-300',
+                borderTop: 'border-t-purple-600',
+                linkColor: 'text-purple-700',
                 player: topBowler,
                 val: topBowler?.totalWickets || topBowler?.wickets || 0,
-                unit: 'Wickets'
+                unit: 'Wkts'
               },
               {
                 id: 'sixes',
-                title: 'SIX HITTER',
-                icon: '6',
-                iconBg: 'bg-amber-500',
-                borderTop: 'border-t-amber-500',
-                linkColor: 'text-amber-700',
+                badge: '💥 SUPER SIXES',
+                title: 'MAXIMUM SIXES',
+                icon: '6️⃣',
+                iconBg: 'bg-rose-100 text-rose-900 border-rose-300',
+                borderTop: 'border-t-rose-500',
+                linkColor: 'text-rose-700',
                 player: topSixes,
                 val: topSixes?.totalSixes || topSixes?.sixes || 0,
                 unit: 'Sixes'
               },
               {
                 id: 'fours',
-                title: 'FOUR HITTER',
-                icon: '4',
-                iconBg: 'bg-cyan-500',
+                badge: '🎯 BOUNDARY KING',
+                title: 'MAXIMUM FOURS',
+                icon: '4️⃣',
+                iconBg: 'bg-cyan-100 text-cyan-900 border-cyan-300',
                 borderTop: 'border-t-cyan-500',
                 linkColor: 'text-cyan-700',
                 player: topFours,
@@ -3754,31 +3891,34 @@ export function renderCustomTournamentHub(container, tourney) {
               },
               {
                 id: 'keeper',
+                badge: '🧤 GOLDEN GLOVE',
                 title: 'BEST WICKETKEEPER',
                 icon: '🧤',
-                iconBg: 'bg-purple-600',
-                borderTop: 'border-t-purple-500',
-                linkColor: 'text-purple-700',
+                iconBg: 'bg-blue-100 text-blue-900 border-blue-300',
+                borderTop: 'border-t-blue-500',
+                linkColor: 'text-blue-700',
                 player: topKeeper,
                 val: topKeeper?.dismissals || topKeeper?.catches || 0,
                 unit: 'Dismissals'
               },
               {
                 id: 'fielder',
-                title: 'BEST FIELDER',
+                badge: '🦅 BEST FIELDER',
+                title: 'TOP CATCHES',
                 icon: '👤',
-                iconBg: 'bg-sky-500',
-                borderTop: 'border-t-sky-500',
-                linkColor: 'text-sky-700',
+                iconBg: 'bg-emerald-100 text-emerald-900 border-emerald-300',
+                borderTop: 'border-t-emerald-500',
+                linkColor: 'text-emerald-700',
                 player: topFielder,
                 val: topFielder?.catches || 0,
                 unit: 'Catches'
               },
               {
                 id: 'maidens',
-                title: 'BEST MAIDEN OVERS',
+                badge: '🛡️ TIGHT BOWLING',
+                title: 'MAIDEN OVERS',
                 icon: '🛡️',
-                iconBg: 'bg-slate-700',
+                iconBg: 'bg-slate-100 text-slate-900 border-slate-300',
                 borderTop: 'border-t-slate-700',
                 linkColor: 'text-slate-700',
                 player: topMaidens,
@@ -3786,80 +3926,51 @@ export function renderCustomTournamentHub(container, tourney) {
                 unit: 'Maidens'
               },
               {
-                id: 'mvp',
-                title: 'TOURNAMENT MVP',
-                icon: '⭐',
-                iconBg: 'bg-fuchsia-600',
-                borderTop: 'border-t-fuchsia-500',
-                linkColor: 'text-fuchsia-700',
-                player: topMVP,
-                val: (topMVP?.totalRuns || 0) + (topMVP?.totalWickets || 0) * 25,
-                unit: 'Pts'
-              },
-              {
                 id: 'dotballs',
-                title: 'MAXIMUM DOT BALLS',
+                badge: '🎯 DOT MASTER',
+                title: 'MOST DOT BALLS',
                 icon: '🎯',
-                iconBg: 'bg-teal-600',
+                iconBg: 'bg-teal-100 text-teal-900 border-teal-300',
                 borderTop: 'border-t-teal-500',
                 linkColor: 'text-teal-700',
                 player: topDotBalls,
                 val: topDotBalls?.totalDotBalls || topDotBalls?.dotBalls || 0,
                 unit: 'Dots'
-              },
-              {
-                id: 'twos',
-                title: 'MAXIMUM 2s (RUNS)',
-                icon: '🏃',
-                iconBg: 'bg-blue-600',
-                borderTop: 'border-t-blue-500',
-                linkColor: 'text-blue-700',
-                player: topTwos,
-                val: topTwos?.totalTwos || topTwos?.twos || 0,
-                unit: '2s'
-              },
-              {
-                id: 'team',
-                title: 'BEST TEAM',
-                icon: '🏆',
-                iconBg: 'bg-amber-500',
-                borderTop: 'border-t-amber-500',
-                linkColor: 'text-amber-700',
-                player: topTeam ? { name: topTeam.name } : null,
-                val: 0,
-                unit: 'Leader'
               }
             ];
 
             return categories.map(cat => {
-              const hasActiveLeader = cat.player && (Number(cat.val) > 0 || cat.id === 'team' && allTeams.length > 0);
+              const hasActiveLeader = cat.player && (Number(cat.val) > 0);
 
               return `
-                <div class="bg-white rounded-2xl border border-slate-200/90 shadow-sm hover:shadow-md transition-all p-3 sm:p-3.5 space-y-2.5 flex flex-col justify-between border-t-[3.5px] ${cat.borderTop}">
+                <div class="bg-white rounded-2xl border border-slate-200/90 shadow-2xs hover:shadow-xs transition-all p-2.5 sm:p-3 space-y-1.5 flex flex-col justify-between border-t-4 ${cat.borderTop}">
                   
-                  <!-- Top Icon + Category Title Header -->
-                  <div class="flex items-center gap-2 min-w-0">
-                    <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-xl ${cat.iconBg} text-white flex items-center justify-center font-black text-xs sm:text-sm shrink-0 shadow-2xs">
+                  <!-- Top Badge + Category Header -->
+                  <div class="flex items-center justify-between gap-1">
+                    <span class="text-[8px] sm:text-[9px] font-black uppercase text-slate-800 tracking-wider truncate">
+                      ${cat.badge}
+                    </span>
+                    <span class="w-5 h-5 rounded-md ${cat.iconBg} border flex items-center justify-center text-[10px] shrink-0">
                       ${cat.icon}
-                    </div>
-                    <span class="text-[9.5px] sm:text-[10.5px] font-black uppercase text-slate-700 tracking-wider truncate">
-                      ${cat.title}
                     </span>
                   </div>
 
                   <!-- Leader Name or Awaiting Matches -->
                   <div class="min-w-0 py-0.5">
                     ${hasActiveLeader ? `
-                      <h4 class="text-xs sm:text-sm font-black text-slate-900 truncate leading-tight">${cat.player.name}</h4>
-                      ${Number(cat.val) > 0 ? `<span class="text-[10px] font-mono font-bold ${cat.linkColor}">${cat.val} ${cat.unit}</span>` : ''}
+                      <h4 class="text-xs sm:text-sm font-black text-slate-900 truncate leading-tight uppercase">${cat.player.name}</h4>
+                      <div class="text-xs sm:text-sm font-black font-mono ${cat.linkColor} mt-0.5">
+                        ${cat.val} <span class="text-[9px] font-bold text-slate-400 uppercase">${cat.unit}</span>
+                      </div>
                     ` : `
-                      <h4 class="text-xs sm:text-sm font-bold text-slate-400">Awaiting matches</h4>
+                      <h4 class="text-[11px] sm:text-xs font-bold text-slate-400">Awaiting matches</h4>
+                      <div class="text-[10px] font-mono font-bold text-slate-300">-</div>
                     `}
                   </div>
 
-                  <!-- View Full List Link -->
-                  <div class="${cat.linkColor} text-[10.5px] sm:text-xs font-bold flex items-center gap-1 cursor-pointer hover:underline">
-                    <span>View Full List →</span>
+                  <!-- Leaderboard Link -->
+                  <div class="${cat.linkColor} text-[9.5px] sm:text-[10px] font-black flex items-center justify-between pt-1 border-t border-slate-100 cursor-pointer hover:underline">
+                    <span>Leaderboard</span> <span>→</span>
                   </div>
                 </div>
               `;
@@ -3874,7 +3985,7 @@ export function renderCustomTournamentHub(container, tourney) {
 
   if (window.lucide) window.lucide.createIcons();
 
-  // Tab switching handler
+  // Tab switching handler with clean active state reset and mobile smooth auto-scroll
   container.querySelectorAll('.hub-tab-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       const tab = e.currentTarget.dataset.hubTab;
@@ -3887,13 +3998,18 @@ export function renderCustomTournamentHub(container, tourney) {
         history.replaceState({ route: targetHash }, '', `#${targetHash}`);
       }
 
+      // 1. Reset ALL buttons to clean inactive slate pill state
       container.querySelectorAll('.hub-tab-btn').forEach(b => {
-        b.classList.remove('text-emerald-700', 'border-b-[3px]', 'border-emerald-600', 'bg-white', 'font-black');
-        b.classList.add('text-slate-500');
+        b.className = 'hub-tab-btn px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold tracking-wide transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-100/80';
       });
-      e.currentTarget.classList.add('text-emerald-700', 'border-b-[3px]', 'border-emerald-600', 'bg-white', 'font-black');
-      e.currentTarget.classList.remove('text-slate-500');
 
+      // 2. Set active styling ONLY on selected button
+      e.currentTarget.className = 'hub-tab-btn active-hub-tab px-3.5 sm:px-4 py-2 rounded-xl text-xs font-black tracking-wide transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-xs';
+
+      // 3. Smoothly center selected tab on mobile horizontal scroll
+      e.currentTarget.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+
+      // 4. Toggle tab views
       hubTabs.forEach(t => {
         document.getElementById('hub-tab-' + t.id)?.classList.add('hidden');
       });
@@ -4238,7 +4354,7 @@ export function renderCustomTournamentHub(container, tourney) {
     ].forEach(({ el, id }) => {
       if (!el) return;
       const isActive = id === tab;
-      el.className = `auction-portal-tab-btn px-3.5 py-2 rounded-xl text-xs font-black transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 ${isActive ? 'bg-amber-500 text-slate-950 shadow-xs' : 'bg-slate-50 hover:bg-slate-100 text-slate-700 border border-slate-200'}`;
+      el.className = `auction-portal-tab-btn px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] transition-all whitespace-nowrap cursor-pointer flex items-center gap-1 shrink-0 ${isActive ? 'bg-gradient-to-r from-amber-500 to-amber-600 text-slate-950 font-black shadow-xs' : 'bg-slate-50 hover:bg-slate-100 text-slate-600 font-bold border border-slate-100'}`;
     });
 
     if (tab === 'squads' && allTeams.length > 0) {

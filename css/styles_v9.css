@@ -231,6 +231,37 @@ body {
   display: inline-block;
 }
 
+/* YOUTUBE LIVE SUBSCRIBER STYLE TICKER ANIMATIONS */
+@keyframes ytNumberTickUp {
+  0% {
+    transform: translateY(4px);
+    opacity: 0.5;
+    color: #10B981;
+  }
+  50% {
+    transform: translateY(-1.5px);
+    opacity: 1;
+    color: #059669;
+  }
+  100% {
+    transform: translateY(0);
+    opacity: 1;
+    color: inherit;
+  }
+}
+
+.yt-live-counter-active {
+  display: inline-block;
+  font-feature-settings: "tnum";
+  font-variant-numeric: tabular-nums;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.yt-tick-anim {
+  animation: ytNumberTickUp 0.5s ease-out;
+}
+
+
 /* Ultra-Sleek Crisp White Elevated Cards */
 .glass-card {
   background: #FFFFFF !important;
