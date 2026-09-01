@@ -213,6 +213,18 @@ function getPlayerTimestamp(p) {
 class Store {
   constructor() {
     clearOldStorageQuota();
+    // One-time fixture cache bust to clear stale cross-tournament data (v2)
+    const FIX_CACHE_VER = 'cpl_fixture_cache_v2';
+    if (!localStorage.getItem(FIX_CACHE_VER)) {
+      for (let i = localStorage.length - 1; i >= 0; i--) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('cpl_fixtures_v8')) {
+          localStorage.removeItem(k);
+        }
+      }
+      localStorage.setItem(FIX_CACHE_VER, '1');
+      console.log('[STORE] Fixture cache cleared for cross-tournament sync upgrade');
+    }
     this._cache = { players: null, teams: null, fixtures: null };
     this._globalUniquePlayersCount = Number(localStorage.getItem('cpl_global_unique_players_count') || 110);
     const rawTid = localStorage.getItem(STORAGE_KEYS.ACTIVE_TOURNAMENT);
