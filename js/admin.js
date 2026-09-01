@@ -6823,12 +6823,23 @@ export function renderActiveAuctionBlock() {
     const confirmed = confirm(`🔨 Confirm Player Sale:\n\nAre you sure you want to mark "${p.name}" as SOLD to "${team.name}" for ₹${price.toLocaleString('en-IN')}?\n\nClick OK to confirm or Cancel to revert.`);
     if (!confirmed) return;
 
+    // 1. Validate squad/purse BEFORE broadcasting to avoid false SOLD on spectator screens
+    const result = store.assignPlayerToTeam(p.id, team.id, price);
+    if (result && result.error === 'SQUAD_FULL') {
+      alert(`❌ ${team.name} squad is FULL (${result.currentSquad}/${result.maxSquad} players). Cannot add more players.`);
+      return;
+    }
+    if (result && result.error === 'INSUFFICIENT_PURSE') {
+      alert(`❌ ${team.name} has insufficient purse (₹${result.remainingPurse} left, needs ₹${result.price}).`);
+      return;
+    }
+
     // Stop timer
     if (activeAuction.timerInterval) clearInterval(activeAuction.timerInterval);
 
     playAuctionAudio('sold');
 
-    // 1. Broadcast SOLD stamp IMMEDIATELY to all spectator phones, projector and admin screen
+    // 2. Broadcast SOLD stamp to all spectator phones, projector and admin screen
     await store.updateLiveAuctionState({
       status: 'SOLD',
       is_sold: true,
@@ -6848,17 +6859,6 @@ export function renderActiveAuctionBlock() {
     activeAuction.isSold = true;
     renderActiveAuctionBlock();
     updateProjectorModalView();
-
-    // 2. Update player and team database records atomically via store.assignPlayerToTeam
-    const result = store.assignPlayerToTeam(p.id, team.id, price);
-    if (result && result.error === 'SQUAD_FULL') {
-      alert(`❌ ${team.name} squad is FULL (${result.currentSquad}/${result.maxSquad} players). Cannot add more players.`);
-      return;
-    }
-    if (result && result.error === 'INSUFFICIENT_PURSE') {
-      alert(`❌ ${team.name} has insufficient purse (₹${result.remainingPurse} left, needs ₹${result.price}).`);
-      return;
-    }
 
     // 3. Keep SOLD stamp visible continuously on screen until admin selects the next player
     setTimeout(() => {
