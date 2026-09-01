@@ -52,10 +52,14 @@
 
   <!-- CPL WELCOME INTRO SCREEN (only first visit per session) -->
   <div id="intro-loading-screen">
-    <!-- Blurred cricket action images on sides -->
-    <div class="intro-bg-left" style="background-image:url('assets/cricket_championship_hero.png')"></div>
-    <div class="intro-bg-right" style="background-image:url('assets/cricket_championship_hero.png')"></div>
-    <div class="intro-bg-overlay"></div>
+    <!-- INDIA TRICOLOR & BATSMAN BACKGROUND MEDIA -->
+    <div class="intro-bg-media-container">
+      <div class="intro-bg-batsman">
+        <img src="assets/shot_virat.jpg" alt="Indian Batsman with Bat" />
+      </div>
+      <div class="intro-bg-tricolor"></div>
+      <div class="intro-bg-royal-glow"></div>
+    </div>
 
     <!-- Center content -->
     <div class="intro-center">
@@ -65,7 +69,46 @@
         <span class="intro-cpl-p" id="intro-p">P</span>
         <span class="intro-cpl-l-wrap">
           <span class="intro-cpl-l" id="intro-l">L</span>
-          <span class="intro-ball" id="intro-ball">🔴</span>
+          <span class="intro-ball" id="intro-ball">
+            <span class="intro-ball-spin">
+              <svg class="w-full h-full" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <defs>
+                  <radialGradient id="tennisBaseGrad" cx="32%" cy="28%" r="68%">
+                    <stop offset="0%" stop-color="#f6ff7d" />
+                    <stop offset="25%" stop-color="#d6f31f" />
+                    <stop offset="60%" stop-color="#a6d808" />
+                    <stop offset="85%" stop-color="#729c03" />
+                    <stop offset="100%" stop-color="#4c6902" />
+                  </radialGradient>
+                  <radialGradient id="tennisShadeGrad" cx="30%" cy="25%" r="72%">
+                    <stop offset="0%" stop-color="#ffffff" stop-opacity="0.55" />
+                    <stop offset="25%" stop-color="#ffffff" stop-opacity="0.1" />
+                    <stop offset="65%" stop-color="#000000" stop-opacity="0.05" />
+                    <stop offset="90%" stop-color="#000000" stop-opacity="0.3" />
+                    <stop offset="100%" stop-color="#000000" stop-opacity="0.6" />
+                  </radialGradient>
+                  <clipPath id="tennisBallClip">
+                    <circle cx="50" cy="50" r="46" />
+                  </clipPath>
+                </defs>
+                <circle cx="50" cy="50" r="46" fill="url(#tennisBaseGrad)" />
+                <g clip-path="url(#tennisBallClip)">
+                  <!-- Left Seam -->
+                  <path d="M 12 18 C 42 32 42 68 12 82" stroke="#4c6902" stroke-width="6.5" fill="none" stroke-linecap="round" opacity="0.65" />
+                  <path d="M 12 18 C 42 32 42 68 12 82" stroke="#ffffff" stroke-width="4" fill="none" stroke-linecap="round" />
+                  <path d="M 12 18 C 42 32 42 68 12 82" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round" opacity="0.8" />
+                  <!-- Right Seam -->
+                  <path d="M 88 18 C 58 32 58 68 88 82" stroke="#4c6902" stroke-width="6.5" fill="none" stroke-linecap="round" opacity="0.65" />
+                  <path d="M 88 18 C 58 32 58 68 88 82" stroke="#ffffff" stroke-width="4" fill="none" stroke-linecap="round" />
+                  <path d="M 88 18 C 58 32 58 68 88 82" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round" opacity="0.8" />
+                  <!-- 3D Shading -->
+                  <circle cx="50" cy="50" r="46" fill="url(#tennisShadeGrad)" />
+                </g>
+                <!-- Outer Felt Fuzz Rim -->
+                <circle cx="50" cy="50" r="46" stroke="#c0eb12" stroke-width="1.5" fill="none" opacity="0.8" />
+              </svg>
+            </span>
+          </span>
         </span>
       </div>
       <div class="intro-full-name" id="intro-full-name">Cricket Premier League</div>

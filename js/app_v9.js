@@ -171,10 +171,12 @@ function initIntroLoadingScreen() {
   setTimeout(() => { const el = $('intro-c'); if (el) el.classList.add('show'); }, t0 + 400);
   setTimeout(() => { const el = $('intro-p'); if (el) el.classList.add('show'); }, t0 + 400);
   setTimeout(() => { const el = $('intro-l'); if (el) el.classList.add('show'); }, t0 + 400);
-  setTimeout(() => { const el = $('intro-ball'); if (el) el.classList.add('bounce'); }, t0 + 1100);
-  setTimeout(() => { const el = $('intro-full-name'); if (el) el.classList.add('show'); }, t0 + 2200);
-  setTimeout(() => { const el = $('intro-dev-shimmer'); if (el) { el.classList.add('show'); el.classList.add('shimmer'); } }, t0 + 2800);
-  setTimeout(dismissIntro, t0 + 4500);
+  setTimeout(() => { 
+    const el = $('intro-ball'); if (el) el.classList.add('bounce'); 
+  }, t0 + 900);
+  setTimeout(() => { const el = $('intro-full-name'); if (el) el.classList.add('show'); }, t0 + 2700);
+  setTimeout(() => { const el = $('intro-dev-shimmer'); if (el) { el.classList.add('show'); el.classList.add('shimmer'); } }, t0 + 3300);
+  setTimeout(dismissIntro, t0 + 5200);
 
   const fallbackTimer = setTimeout(dismissIntro, 6000);
 

@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Cricket Premier League - Clean Letter 'L' & Slow Drop from Head to Bend</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@600;700&family=Plus+Jakarta+Sans:wght@700;800;900&display=swap" rel="stylesheet">
+  
+  <style>
+    /* =========================================================================
+       WHITE & INDIA TRICOLOR INTRO CONTAINER
+       ========================================================================= */
+    #demo-intro-container {
+      position: relative;
+      width: 100%;
+      height: 490px;
+      background: #ffffff;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+      border-radius: 28px;
+      box-shadow: 0 20px 45px -10px rgba(0, 0, 0, 0.10);
+      border: 1px solid #f1f5f9;
+      user-select: none;
+    }
+
+    /* Background Media Layer with Indian Tricolor & Clear Batsman */
+    .intro-bg-media-container {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      pointer-events: none;
+      z-index: 1;
+      background: #ffffff;
+    }
+
+    /* Indian National Flag Tricolor Dynamic Wash */
+    .intro-bg-tricolor {
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(
+        180deg,
+        rgba(255, 153, 51, 0.18) 0%,
+        rgba(255, 255, 255, 0.90) 42%,
+        rgba(255, 255, 255, 0.90) 58%,
+        rgba(19, 136, 8, 0.16) 100%
+      );
+      z-index: 2;
+    }
+
+    /* Indian Batsman in Blue with Bat */
+    .intro-bg-batsman {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 360px;
+      height: 360px;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      overflow: hidden;
+      opacity: 0.65;
+      filter: blur(2px) saturate(1.22) brightness(1.02);
+      -webkit-mask-image: radial-gradient(circle at center, rgba(0, 0, 0, 1) 40%, rgba(0, 0, 0, 0) 72%);
+      mask-image: radial-gradient(circle at center, rgba(0, 0, 0, 1) 40%, rgba(0, 0, 0, 0) 72%);
+      z-index: 1;
+      animation: introHeroDrift 18s ease-in-out infinite alternate;
+      will-change: transform;
+    }
+
+    .intro-bg-batsman img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    @keyframes introHeroDrift {
+      0% {
+        transform: translate(-50%, -50%) scale(1);
+      }
+      50% {
+        transform: translate(-50%, -52%) scale(1.05);
+      }
+      100% {
+        transform: translate(-50%, -49%) scale(1.02);
+      }
+    }
+
+    /* Royal Blue Stadium Floodlight Accent */
+    .intro-bg-royal-glow {
+      position: absolute;
+      top: -50px;
+      right: -50px;
+      width: 280px;
+      height: 280px;
+      background: radial-gradient(circle, rgba(30, 64, 175, 0.15) 0%, rgba(59, 130, 246, 0) 70%);
+      z-index: 3;
+    }
+
+    /* Center Content Stack */
+    .intro-center {
+      position: relative;
+      z-index: 10;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      padding: 0 16px;
+      width: 100%;
+    }
+
+    .intro-welcome-label {
+      font-family: 'Caveat', cursive;
+      font-size: clamp(22px, 5.5vw, 30px);
+      font-weight: 700;
+      color: #334155;
+      letter-spacing: 2px;
+      opacity: 0;
+      transform: translateY(12px);
+      margin-bottom: 2px;
+      text-shadow: 0 1px 4px rgba(255, 255, 255, 0.95);
+    }
+
+    .intro-welcome-label.show {
+      animation: introFadeUp 0.6s ease-out forwards;
+    }
+
+    .intro-cpl-row {
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 2px;
+      line-height: 1;
+      margin-bottom: 6px;
+    }
+
+    .intro-cpl-c,
+    .intro-cpl-p,
+    .intro-cpl-l {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-weight: 900;
+      font-size: clamp(84px, 20vw, 140px);
+      line-height: 0.85;
+      opacity: 0;
+      display: inline-block;
+      filter: drop-shadow(0 2px 8px rgba(255, 255, 255, 0.9));
+    }
+
+    .intro-cpl-c {
+      background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .intro-cpl-p {
+      background: linear-gradient(135deg, #0f172a 0%, #334155 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .intro-cpl-l {
+      background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .intro-cpl-c.show { animation: introLetterIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+    .intro-cpl-p.show { animation: introLetterIn 0.5s 0.12s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+    .intro-cpl-l.show { animation: introLetterIn 0.5s 0.24s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+
+    @keyframes introLetterIn {
+      0% { opacity: 0; transform: translateY(40px) scale(0.7); }
+      100% { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .intro-cpl-l-wrap {
+      position: relative;
+      display: inline-flex;
+      align-items: flex-end;
+    }
+
+    /* =========================================================================
+       CRICKET TENNIS BALL: TOUCHES HEAD -> SLOWLY DROPS OFF -> FALLS ONTO BEND OF 'L'
+       1. Touches/lands on the head of 'L'
+       2. Slowly tips & drops off the head
+       3. Falls in smooth gravity down onto the bend of 'L'
+       4. Cushions and rests firmly inside the bend of 'L'
+       ========================================================================= */
+    .intro-ball {
+      position: absolute;
+      top: -2px;
+      left: 28%;
+      margin-left: -13px;
+      margin-top: -26px;
+      width: 26px;
+      height: 26px;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 20;
+      will-change: transform, opacity;
+      transform: translate3d(0, 0, 0);
+      backface-visibility: hidden;
+    }
+
+    .intro-ball-spin {
+      width: 100%;
+      height: 100%;
+      display: block;
+      will-change: transform;
+      transform: translate3d(0, 0, 0);
+      backface-visibility: hidden;
+      filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.25));
+    }
+
+    /* Trajectory: Head Touch -> Slow Drop off Head -> Settle in Bend of L */
+    .intro-ball.bounce {
+      animation: ballHeadToBendDrop 1.8s forwards;
+    }
+
+    .intro-ball.bounce .intro-ball-spin {
+      animation: ballHeadToBendSpin 1.8s forwards;
+    }
+
+    /*
+      PHYSICS BREAKDOWN:
+      - 0% to 15%: Ball appears and touches softly down on the head of 'L' (0, 0)
+      - 15% to 32%: Stays perched on head of 'L'
+      - 32% to 48%: Slowly tips and drops off the top edge of the head (4px, 14px)
+      - 48% to 75%: Falls in smooth gravity down into the bend of 'L' (8px, clamp(58px, 13.5vw, 92px))
+      - 75% to 88%: Gentle natural cushion settle in the bend of 'L'
+      - 88% to 100%: Stays resting completely motionless inside the bend of 'L'!
+    */
+    @keyframes ballHeadToBendDrop {
+      0% {
+        opacity: 0;
+        transform: translate3d(0, 0, 0) scale(0.65);
+      }
+      12% {
+        opacity: 1;
+        transform: translate3d(0, 0, 0) scale(1.05);
+      }
+      22% {
+        opacity: 1;
+        transform: translate3d(0, 0, 0) scale(1);
+      }
+      /* Stays perched touching the head of L */
+      32% {
+        transform: translate3d(0, 0, 0);
+        animation-timing-function: cubic-bezier(0.55, 0.055, 0.675, 0.19);
+      }
+      /* Slowly rolls/drops off the head of L */
+      48% {
+        transform: translate3d(5px, clamp(16px, 3.8vw, 24px), 0);
+        animation-timing-function: cubic-bezier(0.25, 0.1, 0.25, 1);
+      }
+      /* Falls down directly onto the bend of L */
+      75% {
+        transform: translate3d(8px, clamp(58px, 13.5vw, 92px), 0);
+        animation-timing-function: cubic-bezier(0.215, 0.61, 0.355, 1);
+      }
+      /* Gentle soft cushion micro-hop inside the bend */
+      86% {
+        transform: translate3d(8px, clamp(52px, 12vw, 84px), 0);
+        animation-timing-function: cubic-bezier(0.55, 0.055, 0.675, 0.19);
+      }
+      93% {
+        transform: translate3d(8px, clamp(58px, 13.5vw, 92px), 0);
+      }
+      /* Stays rested firmly in the bend of L */
+      100% {
+        opacity: 1;
+        transform: translate3d(8px, clamp(58px, 13.5vw, 92px), 0);
+      }
+    }
+
+    @keyframes ballHeadToBendSpin {
+      0% {
+        transform: rotate(0deg);
+      }
+      32% {
+        transform: rotate(0deg);
+      }
+      48% {
+        transform: rotate(60deg);
+      }
+      75% {
+        transform: rotate(260deg);
+      }
+      86% {
+        transform: rotate(300deg);
+      }
+      100% {
+        transform: rotate(315deg);
+      }
+    }
+
+    .intro-full-name {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      font-size: clamp(12px, 3.2vw, 16px);
+      font-weight: 800;
+      letter-spacing: 4px;
+      color: #475569;
+      text-transform: uppercase;
+      opacity: 0;
+      transform: translateY(10px);
+      text-shadow: 0 1px 4px rgba(255, 255, 255, 0.85);
+    }
+
+    .intro-full-name.show {
+      animation: introFadeUp 0.5s 0.1s ease-out forwards;
+    }
+
+    .intro-dev-shimmer {
+      margin-top: 22px;
+      font-family: 'Caveat', cursive;
+      font-size: clamp(18px, 4.5vw, 24px);
+      font-weight: 700;
+      color: #64748b;
+      letter-spacing: 1.5px;
+      opacity: 0;
+      transform: translateY(8px);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .intro-dev-shimmer.show {
+      animation: introFadeUp 0.5s ease-out forwards;
+    }
+
+    .intro-dev-shimmer.shimmer::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 60%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent 0%, rgba(59,130,246,0.35) 50%, transparent 100%);
+      animation: introShimmerPass 1.2s 0.3s ease-in-out forwards;
+    }
+
+    @keyframes introShimmerPass {
+      0%   { left: -60%; }
+      100% { left: 120%; }
+    }
+
+    @keyframes introFadeUp {
+      0%   { opacity: 0; transform: translateY(12px); }
+      100% { opacity: 1; transform: translateY(0); }
+    }
+  </style>
+</head>
+<body class="bg-slate-900 text-slate-100 min-h-screen p-4 sm:p-8 flex flex-col items-center justify-center space-y-6 font-sans">
+
+  <!-- Header / Badge -->
+  <div class="text-center space-y-2 max-w-2xl">
+    <div class="inline-flex items-center gap-2 px-3 py-1 bg-blue-500/20 text-blue-300 border border-blue-500/30 rounded-full text-xs font-black tracking-wider uppercase">
+      <span>🏏</span> <span>Clean Typography 'L' & Slow Drop from Head to Bend</span>
+    </div>
+    <h1 class="text-2xl sm:text-3xl font-black tracking-tight text-white">
+      Clean 'L' & Smooth Drop to Bend
+    </h1>
+    <p class="text-xs sm:text-sm text-slate-400">
+      Ball touches the head of 'L', slowly drops off the head, falls smoothly down, and stays securely rested inside the bend of 'L'.
+    </p>
+  </div>
+
+  <!-- Interactive Live Intro Container -->
+  <div class="w-full max-w-3xl">
+    <div id="demo-intro-container">
+      <!-- INDIA TRICOLOR & CLEAR BATSMAN BACKGROUND MEDIA -->
+      <div class="intro-bg-media-container">
+        <!-- Indian Batsman in Blue with Bat -->
+        <div class="intro-bg-batsman">
+          <img src="assets/shot_virat.jpg" alt="Indian Batsman with Bat" />
+        </div>
+        <!-- Indian Flag Subtle Gradient Wash -->
+        <div class="intro-bg-tricolor"></div>
+        <!-- Royal Blue Accent Glow -->
+        <div class="intro-bg-royal-glow"></div>
+      </div>
+
+      <!-- Center content -->
+      <div class="intro-center">
+        <div class="intro-welcome-label" id="demo-welcome-label">Welcome to</div>
+        
+        <div class="intro-cpl-row">
+          <span class="intro-cpl-c" id="demo-c">C</span>
+          <span class="intro-cpl-p" id="demo-p">P</span>
+          <span class="intro-cpl-l-wrap">
+            <span class="intro-cpl-l" id="demo-l">L</span>
+            
+            <!-- Professional Clean Cricket Tennis Ball -->
+            <span class="intro-ball" id="demo-ball">
+              <span class="intro-ball-spin">
+                <svg class="w-full h-full" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                  <defs>
+                    <radialGradient id="tennisBaseGrad" cx="32%" cy="28%" r="68%">
+                      <stop offset="0%" stop-color="#f6ff7d" />
+                      <stop offset="25%" stop-color="#d6f31f" />
+                      <stop offset="60%" stop-color="#a6d808" />
+                      <stop offset="85%" stop-color="#729c03" />
+                      <stop offset="100%" stop-color="#4c6902" />
+                    </radialGradient>
+                    <radialGradient id="tennisShadeGrad" cx="30%" cy="25%" r="72%">
+                      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.55" />
+                      <stop offset="25%" stop-color="#ffffff" stop-opacity="0.1" />
+                      <stop offset="65%" stop-color="#000000" stop-opacity="0.05" />
+                      <stop offset="90%" stop-color="#000000" stop-opacity="0.3" />
+                      <stop offset="100%" stop-color="#000000" stop-opacity="0.6" />
+                    </radialGradient>
+                    <clipPath id="tennisBallClip">
+                      <circle cx="50" cy="50" r="46" />
+                    </clipPath>
+                  </defs>
+                  <circle cx="50" cy="50" r="46" fill="url(#tennisBaseGrad)" />
+                  <g clip-path="url(#tennisBallClip)">
+                    <!-- Left Seam -->
+                    <path d="M 12 18 C 42 32 42 68 12 82" stroke="#4c6902" stroke-width="6.5" fill="none" stroke-linecap="round" opacity="0.65" />
+                    <path d="M 12 18 C 42 32 42 68 12 82" stroke="#ffffff" stroke-width="4" fill="none" stroke-linecap="round" />
+                    <path d="M 12 18 C 42 32 42 68 12 82" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round" opacity="0.8" />
+                    <!-- Right Seam -->
+                    <path d="M 88 18 C 58 32 58 68 88 82" stroke="#4c6902" stroke-width="6.5" fill="none" stroke-linecap="round" opacity="0.65" />
+                    <path d="M 88 18 C 58 32 58 68 88 82" stroke="#ffffff" stroke-width="4" fill="none" stroke-linecap="round" />
+                    <path d="M 88 18 C 58 32 58 68 88 82" stroke="#fff" stroke-width="1.5" fill="none" stroke-linecap="round" opacity="0.8" />
+                    <!-- 3D Shading -->
+                    <circle cx="50" cy="50" r="46" fill="url(#tennisShadeGrad)" />
+                  </g>
+                  <!-- Outer Felt Fuzz Rim -->
+                  <circle cx="50" cy="50" r="46" stroke="#c0eb12" stroke-width="1.5" fill="none" opacity="0.8" />
+                </svg>
+              </span>
+            </span>
+          </span>
+        </div>
+
+        <div class="intro-full-name" id="demo-full-name">Cricket Premier League</div>
+        <div class="intro-dev-shimmer" id="demo-dev-shimmer">Developer — Suman Kolay</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Interactive Controls Bar -->
+  <div class="flex flex-wrap items-center justify-center gap-3">
+    <button id="btn-replay" class="px-6 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-700 hover:from-blue-500 hover:to-indigo-600 text-white font-black text-sm rounded-xl shadow-lg shadow-blue-500/25 transition-all active:scale-95 flex items-center gap-2 cursor-pointer">
+      <span>🔄</span> <span>Replay Head Touch & Drop to Bend</span>
+    </button>
+  </div>
+
+  <script>
+    function playIntroSequence() {
+      const $ = (id) => document.getElementById(id);
+      
+      // Reset classes
+      ['demo-welcome-label', 'demo-c', 'demo-p', 'demo-l', 'demo-full-name', 'demo-dev-shimmer'].forEach(id => {
+        const el = $(id);
+        if (el) {
+          el.classList.remove('show');
+          el.classList.remove('shimmer');
+        }
+      });
+      const ball = $('demo-ball');
+      if (ball) ball.classList.remove('bounce');
+
+      // Trigger animation sequence
+      const t0 = 100;
+      setTimeout(() => { $('demo-welcome-label')?.classList.add('show'); }, t0);
+      setTimeout(() => { $('demo-c')?.classList.add('show'); }, t0 + 400);
+      setTimeout(() => { $('demo-p')?.classList.add('show'); }, t0 + 400);
+      setTimeout(() => { $('demo-l')?.classList.add('show'); }, t0 + 400);
+      
+      // Ball touches head of L, slowly drops off, and falls onto the bend of L
+      setTimeout(() => { $('demo-ball')?.classList.add('bounce'); }, t0 + 900);
+      
+      setTimeout(() => { $('demo-full-name')?.classList.add('show'); }, t0 + 2700);
+      setTimeout(() => { 
+        const dev = $('demo-dev-shimmer');
+        if (dev) {
+          dev.classList.add('show');
+          dev.classList.add('shimmer');
+        }
+      }, t0 + 3300);
+    }
+
+    document.getElementById('btn-replay')?.addEventListener('click', playIntroSequence);
+    window.addEventListener('load', playIntroSequence);
+  </script>
+</body>
+</html>

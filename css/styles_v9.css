@@ -568,35 +568,271 @@ body.no-anim .animate-fade-in {
   pointer-events: none;
 }
 
-/* Blurred cricket action images — left & right halves */
-.intro-bg-left,
-.intro-bg-right {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 50%;
-  background-size: cover;
-  filter: blur(8px) saturate(0.8) brightness(0.9);
-  opacity: 0.35;
-  transform: scale(1.15);
-}
-
-.intro-bg-left {
-  left: 0;
-  background-position: left center;
-}
-
-.intro-bg-right {
-  right: 0;
-  background-position: right center;
-  transform: scale(1.15) scaleX(-1);
-}
-
-.intro-bg-overlay {
+/* Background Media Layer with Indian Tricolor & Blue Stadium Glow */
+.intro-bg-media-container {
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse at center, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0.95) 70%);
+  overflow: hidden;
+  pointer-events: none;
   z-index: 1;
+  background: #ffffff;
+}
+
+/* Indian National Flag Tricolor Dynamic Wash */
+.intro-bg-tricolor {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(255, 153, 51, 0.16) 0%,
+    rgba(255, 255, 255, 0.95) 45%,
+    rgba(255, 255, 255, 0.95) 55%,
+    rgba(19, 136, 8, 0.15) 100%
+  );
+  z-index: 2;
+}
+
+/* Indian Batsman in Blue with Bat (High Visibility & Soft Feathered Edge) */
+.intro-bg-batsman {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 360px;
+  height: 360px;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  overflow: hidden;
+  opacity: 0.65;
+  filter: blur(2px) saturate(1.22) brightness(1.02);
+  -webkit-mask-image: radial-gradient(circle at center, rgba(0, 0, 0, 1) 40%, rgba(0, 0, 0, 0) 72%);
+  mask-image: radial-gradient(circle at center, rgba(0, 0, 0, 1) 40%, rgba(0, 0, 0, 0) 72%);
+  z-index: 1;
+  animation: introHeroDrift 18s ease-in-out infinite alternate;
+  will-change: transform;
+}
+
+.intro-bg-batsman img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+@keyframes introHeroDrift {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    transform: translate(-50%, -52%) scale(1.05);
+  }
+  100% {
+    transform: translate(-50%, -49%) scale(1.02);
+  }
+}
+
+/* Royal Blue Stadium Floodlight Accent */
+.intro-bg-royal-glow {
+  position: absolute;
+  top: -50px;
+  right: -50px;
+  width: 280px;
+  height: 280px;
+  background: radial-gradient(circle, rgba(30, 64, 175, 0.15) 0%, rgba(59, 130, 246, 0) 70%);
+  z-index: 3;
+}
+
+/* Center content stack */
+.intro-center {
+  position: relative;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  text-align: center;
+  padding: 0 20px;
+}
+
+/* "Welcome to" label */
+.intro-welcome-label {
+  font-family: 'Caveat', cursive;
+  font-size: clamp(18px, 5vw, 26px);
+  font-weight: 600;
+  color: #64748b;
+  letter-spacing: 2px;
+  opacity: 0;
+  transform: translateY(12px);
+  margin-bottom: 4px;
+}
+
+.intro-welcome-label.show {
+  animation: introFadeUp 0.6s ease-out forwards;
+}
+
+/* CPL big letters */
+.intro-cpl-row {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+  line-height: 1;
+  margin-bottom: 6px;
+}
+
+.intro-cpl-c,
+.intro-cpl-p,
+.intro-cpl-l {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 800;
+  font-size: clamp(80px, 22vw, 150px);
+  line-height: 0.85;
+  opacity: 0;
+  display: inline-block;
+}
+
+.intro-cpl-c {
+  background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.intro-cpl-p {
+  background: linear-gradient(135deg, #0f172a 0%, #334155 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.intro-cpl-l {
+  background: linear-gradient(135deg, #dc2626 0%, #ef4444 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.intro-cpl-c.show { animation: introLetterIn 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+.intro-cpl-p.show { animation: introLetterIn 0.5s 0.12s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+.intro-cpl-l.show { animation: introLetterIn 0.5s 0.24s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
+
+@keyframes introLetterIn {
+  0% { opacity: 0; transform: translateY(40px) scale(0.7); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* Ball that stays on Head of L, then slowly falls and stays at Bend of L */
+.intro-cpl-l-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: flex-end;
+}
+
+.intro-ball {
+  position: absolute;
+  top: -2px;
+  left: 28%;
+  margin-left: -13px;
+  margin-top: -26px;
+  width: 26px;
+  height: 26px;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 20;
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+}
+
+.intro-ball-spin {
+  width: 100%;
+  height: 100%;
+  display: block;
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.25));
+}
+
+/* Trajectory: Head Touch -> Slow Drop off Head -> Settle in Bend of L */
+.intro-ball.bounce {
+  animation: ballHeadToBendDrop 1.8s forwards;
+}
+
+.intro-ball.bounce .intro-ball-spin {
+  animation: ballHeadToBendSpin 1.8s forwards;
+}
+
+/*
+  PHYSICS BREAKDOWN:
+  - 0% to 15%: Ball appears and touches softly down on the head of 'L' (0, 0)
+  - 15% to 32%: Stays perched on head of 'L'
+  - 32% to 48%: Slowly tips and drops off the top edge of the head (4px, 14px)
+  - 48% to 75%: Falls in smooth gravity down into the bend of 'L' (8px, clamp(58px, 13.5vw, 92px))
+  - 75% to 88%: Gentle natural cushion settle in the bend of 'L'
+  - 88% to 100%: Stays resting completely motionless inside the bend of 'L'!
+*/
+@keyframes ballHeadToBendDrop {
+  0% {
+    opacity: 0;
+    transform: translate3d(0, 0, 0) scale(0.65);
+  }
+  12% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1.05);
+  }
+  22% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  /* Stays perched touching the head of L */
+  32% {
+    transform: translate3d(0, 0, 0);
+    animation-timing-function: cubic-bezier(0.55, 0.055, 0.675, 0.19);
+  }
+  /* Slowly rolls/drops off the head of L */
+  48% {
+    transform: translate3d(5px, clamp(16px, 3.8vw, 24px), 0);
+    animation-timing-function: cubic-bezier(0.25, 0.1, 0.25, 1);
+  }
+  /* Falls down directly onto the bend of L */
+  75% {
+    transform: translate3d(8px, clamp(58px, 13.5vw, 92px), 0);
+    animation-timing-function: cubic-bezier(0.215, 0.61, 0.355, 1);
+  }
+  /* Gentle soft cushion micro-hop inside the bend */
+  86% {
+    transform: translate3d(8px, clamp(52px, 12vw, 84px), 0);
+    animation-timing-function: cubic-bezier(0.55, 0.055, 0.675, 0.19);
+  }
+  93% {
+    transform: translate3d(8px, clamp(58px, 13.5vw, 92px), 0);
+  }
+  /* Stays rested firmly in the bend of L */
+  100% {
+    opacity: 1;
+    transform: translate3d(8px, clamp(58px, 13.5vw, 92px), 0);
+  }
+}
+
+@keyframes ballHeadToBendSpin {
+  0% {
+    transform: rotate(0deg);
+  }
+  32% {
+    transform: rotate(0deg);
+  }
+  48% {
+    transform: rotate(60deg);
+  }
+  75% {
+    transform: rotate(260deg);
+  }
+  86% {
+    transform: rotate(300deg);
+  }
+  100% {
+    transform: rotate(315deg);
+  }
 }
 
 /* Center content stack */
@@ -687,28 +923,96 @@ body.no-anim .animate-fade-in {
 
 .intro-ball {
   position: absolute;
-  top: -8px;
-  left: 50%;
-  translate: -50% -100%;
-  font-size: clamp(18px, 5vw, 26px);
+  top: -4px;
+  left: 28%;
+  margin-left: calc(-0.5 * clamp(26px, 5.5vw, 40px));
+  margin-top: calc(-1 * clamp(26px, 5.5vw, 40px));
+  width: clamp(26px, 5.5vw, 40px);
+  height: clamp(26px, 5.5vw, 40px);
   opacity: 0;
-  transform-origin: center bottom;
-  line-height: 1;
+  pointer-events: none;
+  z-index: 20;
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
 }
 
+.intro-ball-spin {
+  width: 100%;
+  height: 100%;
+  display: block;
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.28));
+}
+
+/* Trajectory Animation on Outer Container */
 .intro-ball.bounce {
-  animation: introBallBounce 1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: smoothCricketBallTrajectory 1.35s forwards;
 }
 
-@keyframes introBallBounce {
-  0%   { opacity: 1; transform: translateY(-200px) rotate(0deg); }
-  35%  { transform: translateY(0px) rotate(180deg); }
-  50%  { transform: translateY(-40px) rotate(260deg); }
-  65%  { transform: translateY(0px) rotate(340deg); }
-  78%  { transform: translateY(-12px) rotate(380deg); }
-  88%  { transform: translateY(0px) rotate(400deg); }
-  95%  { transform: translateY(-3px) rotate(410deg); }
-  100% { opacity: 1; transform: translateY(0px) rotate(420deg); }
+/* Continuous Spin on Inner Container */
+.intro-ball.bounce .intro-ball-spin {
+  animation: smoothCricketBallSpin 1.35s cubic-bezier(0.25, 0.1, 0.25, 1) forwards;
+}
+
+/* SEGMENTED SMOOTH PHYSICS (Accelerates Down, Decelerates Up) */
+@keyframes smoothCricketBallTrajectory {
+  /* 1. Fast Gravitational Drop from Sky to Upper Head */
+  0% {
+    opacity: 0;
+    transform: translate3d(0, -220px, 0);
+    animation-timing-function: cubic-bezier(0.55, 0.055, 0.675, 0.19);
+  }
+  8% {
+    opacity: 1;
+  }
+  /* 2. Lands on UPPER HEAD of L */
+  26% {
+    transform: translate3d(0, 0, 0);
+    animation-timing-function: cubic-bezier(0.215, 0.61, 0.355, 1);
+  }
+  /* 3. Deflection Apex off top head */
+  38% {
+    transform: translate3d(12px, -14px, 0);
+    animation-timing-function: cubic-bezier(0.55, 0.055, 0.675, 0.19);
+  }
+  /* 4. Hits LOWER BASE of L */
+  54% {
+    transform: translate3d(30px, 80px, 0);
+    animation-timing-function: cubic-bezier(0.215, 0.61, 0.355, 1);
+  }
+  /* 5. Powerful Rebound Apex above Upper Head */
+  74% {
+    transform: translate3d(8px, -20px, 0);
+    animation-timing-function: cubic-bezier(0.55, 0.055, 0.675, 0.19);
+  }
+  /* 6. Lands on Upper Head of L */
+  88% {
+    transform: translate3d(0, 0, 0);
+    animation-timing-function: cubic-bezier(0.215, 0.61, 0.355, 1);
+  }
+  /* 7. Gentle Cushion Micro-hop */
+  94% {
+    transform: translate3d(0, -5px, 0);
+    animation-timing-function: cubic-bezier(0.55, 0.055, 0.675, 0.19);
+  }
+  /* 8. Resting firmly on Upper Head */
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* Seamless rotational spin */
+@keyframes smoothCricketBallSpin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(440deg);
+  }
 }
 
 /* "Cricket Premier League" full name */
@@ -886,35 +1190,35 @@ body.no-anim .animate-fade-in {
   pointer-events: none;
 }
 
-/* Blurred cricket action images — left & right halves */
-.intro-bg-left,
-.intro-bg-right {
+/* Clean White Media Container (Mobile-Perfect) */
+.intro-bg-media-container {
   position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 50%;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  z-index: 1;
+  background: #ffffff;
+}
+
+/* Seamless Cricket Superstars Background (Slow Pan, Mobile-Perfect) */
+.intro-bg-hero {
+  position: absolute;
+  inset: -25px;
+  background-image: url('../assets/cricket_superstars_bg.jpg');
   background-size: cover;
-  filter: blur(8px) saturate(0.8) brightness(0.9);
-  opacity: 0.35;
-  transform: scale(1.15);
+  background-position: center 32%;
+  filter: blur(3.5px) saturate(1.2) brightness(0.96);
+  opacity: 0.78;
+  z-index: 2;
+  animation: introSlowPan 24s ease-in-out infinite alternate;
 }
 
-.intro-bg-left {
-  left: 0;
-  background-position: left center;
-}
-
-.intro-bg-right {
-  right: 0;
-  background-position: right center;
-  transform: scale(1.15) scaleX(-1);
-}
-
+/* Soft White Vignette for high contrast */
 .intro-bg-overlay {
   position: absolute;
   inset: 0;
-  background: radial-gradient(ellipse at center, rgba(255,255,255,0.6) 0%, rgba(255,255,255,0.95) 70%);
-  z-index: 1;
+  background: radial-gradient(ellipse at center, rgba(255, 255, 255, 0.50) 0%, rgba(255, 255, 255, 0.88) 75%);
+  z-index: 3;
 }
 
 /* Center content stack */
@@ -991,12 +1295,7 @@ body.no-anim .animate-fade-in {
 .intro-cpl-p.show { animation: introLetterIn 0.5s 0.12s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
 .intro-cpl-l.show { animation: introLetterIn 0.5s 0.24s cubic-bezier(0.34, 1.56, 0.64, 1) forwards; }
 
-@keyframes introLetterIn {
-  0% { opacity: 0; transform: translateY(40px) scale(0.7); }
-  100% { opacity: 1; transform: translateY(0) scale(1); }
-}
-
-/* Ball that bounces onto L */
+/* Ball that stays on Head of L, then slowly falls and stays at Bend of L */
 .intro-cpl-l-wrap {
   position: relative;
   display: inline-flex;
@@ -1005,28 +1304,37 @@ body.no-anim .animate-fade-in {
 
 .intro-ball {
   position: absolute;
-  top: -8px;
-  left: 50%;
-  translate: -50% -100%;
-  font-size: clamp(18px, 5vw, 26px);
+  top: -2px;
+  left: 28%;
+  margin-left: -13px;
+  margin-top: -26px;
+  width: 26px;
+  height: 26px;
   opacity: 0;
-  transform-origin: center bottom;
-  line-height: 1;
+  pointer-events: none;
+  z-index: 20;
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
 }
 
+.intro-ball-spin {
+  width: 100%;
+  height: 100%;
+  display: block;
+  will-change: transform;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  filter: drop-shadow(0 3px 6px rgba(0, 0, 0, 0.25));
+}
+
+/* Trajectory: Head Touch -> Slow Drop off Head -> Settle in Bend of L */
 .intro-ball.bounce {
-  animation: introBallBounce 1s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+  animation: ballHeadToBendDrop 1.8s forwards;
 }
 
-@keyframes introBallBounce {
-  0%   { opacity: 1; transform: translateY(-200px) rotate(0deg); }
-  35%  { transform: translateY(0px) rotate(180deg); }
-  50%  { transform: translateY(-40px) rotate(260deg); }
-  65%  { transform: translateY(0px) rotate(340deg); }
-  78%  { transform: translateY(-12px) rotate(380deg); }
-  88%  { transform: translateY(0px) rotate(400deg); }
-  95%  { transform: translateY(-3px) rotate(410deg); }
-  100% { opacity: 1; transform: translateY(0px) rotate(420deg); }
+.intro-ball.bounce .intro-ball-spin {
+  animation: ballHeadToBendSpin 1.8s forwards;
 }
 
 /* "Cricket Premier League" full name */
