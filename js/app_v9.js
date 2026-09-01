@@ -2237,26 +2237,30 @@ function renderFirstPageLanding(containerEl) {
 
           <!-- 2 Modes Side-by-Side in SAME ROW (grid-cols-2) -->
           <div class="grid grid-cols-2 gap-2 sm:gap-3">
-            <!-- Mode A (Sunset Rose-Orange Glowing Border) -->
-            <div class="p-2.5 sm:p-3.5 bg-gradient-to-b from-rose-500/25 via-orange-500/15 to-slate-900/80 rounded-xl sm:rounded-2xl border-2 border-rose-400 shadow-[0_0_18px_rgba(244,63,94,0.38)] space-y-1 text-center flex flex-col items-center justify-between transition-all hover:scale-[1.02]">
-              <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-tr from-rose-500 to-orange-400 text-white flex items-center justify-center text-xs sm:text-sm font-black shadow-xs shrink-0">
-                🔨
+            <!-- Mode A (Sunset Rose-Orange Running Border Clockwise) -->
+            <div class="running-border-cw rounded-xl sm:rounded-2xl transition-all hover:scale-[1.02] shadow-[0_0_16px_rgba(244,63,94,0.32)]">
+              <div class="mode-inner-box p-2.5 sm:p-3.5 bg-gradient-to-b from-[#220B1A] via-[#181129] to-[#0D0818] rounded-xl sm:rounded-2xl space-y-1 text-center flex flex-col items-center justify-between">
+                <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-tr from-rose-500 to-orange-400 text-white flex items-center justify-center text-xs sm:text-sm font-black shadow-xs shrink-0">
+                  🔨
+                </div>
+                <h4 class="text-[10.5px] sm:text-xs font-black text-orange-300 uppercase tracking-tight leading-tight">AUCTION MODE</h4>
+                <p class="text-[8.5px] sm:text-[9.5px] text-orange-100/90 font-semibold leading-tight line-clamp-3">
+                  Player Reg • Live Bidding • Squad • Fixture • Live Score
+                </p>
               </div>
-              <h4 class="text-[10.5px] sm:text-xs font-black text-orange-300 uppercase tracking-tight leading-tight">AUCTION MODE</h4>
-              <p class="text-[8.5px] sm:text-[9.5px] text-orange-100/90 font-semibold leading-tight line-clamp-3">
-                Player Reg • Live Bidding • Squad • Fixture • Live Score
-              </p>
             </div>
 
-            <!-- Mode B (Electric Emerald-Teal Glowing Border) -->
-            <div class="p-2.5 sm:p-3.5 bg-gradient-to-b from-emerald-500/25 via-teal-500/15 to-slate-900/80 rounded-xl sm:rounded-2xl border-2 border-emerald-400 shadow-[0_0_18px_rgba(16,185,129,0.38)] space-y-1 text-center flex flex-col items-center justify-between transition-all hover:scale-[1.02]">
-              <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 text-white flex items-center justify-center text-xs sm:text-sm font-black shadow-xs shrink-0">
-                ⚡
+            <!-- Mode B (Electric Emerald-Teal Running Border Anti-Clockwise) -->
+            <div class="running-border-ccw rounded-xl sm:rounded-2xl transition-all hover:scale-[1.02] shadow-[0_0_16px_rgba(16,185,129,0.32)]">
+              <div class="mode-inner-box p-2.5 sm:p-3.5 bg-gradient-to-b from-[#08201A] via-[#0D1A27] to-[#0D0818] rounded-xl sm:rounded-2xl space-y-1 text-center flex flex-col items-center justify-between">
+                <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 text-white flex items-center justify-center text-xs sm:text-sm font-black shadow-xs shrink-0">
+                  ⚡
+                </div>
+                <h4 class="text-[10.5px] sm:text-xs font-black text-emerald-300 uppercase tracking-tight leading-tight">FIXTURE MODE</h4>
+                <p class="text-[8.5px] sm:text-[9.5px] text-emerald-100/90 font-semibold leading-tight line-clamp-3">
+                  Direct Entry • Fixture • Live Score
+                </p>
               </div>
-              <h4 class="text-[10.5px] sm:text-xs font-black text-emerald-300 uppercase tracking-tight leading-tight">FIXTURE MODE</h4>
-              <p class="text-[8.5px] sm:text-[9.5px] text-emerald-100/90 font-semibold leading-tight line-clamp-3">
-                Direct Entry • Fixture • Live Score
-              </p>
             </div>
           </div>
 

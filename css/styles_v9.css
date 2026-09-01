@@ -103,6 +103,64 @@ body {
   pointer-events: none;
 }
 
+/* 1. RUNNING GLOW BORDER IN LOOP (CLOCKWISE FOR AUCTION MODE) */
+.running-border-cw {
+  position: relative;
+  overflow: hidden;
+  padding: 2px;
+  background: rgba(244, 63, 94, 0.25);
+}
+
+.running-border-cw::before {
+  content: '';
+  position: absolute;
+  top: -75%;
+  left: -75%;
+  width: 250%;
+  height: 250%;
+  background: conic-gradient(from 0deg, transparent 0deg 230deg, rgba(251, 146, 60, 0.3) 260deg, #F43F5E 310deg, #FFFFFF 345deg, #FB923C 360deg);
+  animation: spinBorderCW 3s linear infinite;
+  z-index: 0;
+}
+
+/* 2. RUNNING GLOW BORDER IN LOOP (ANTI-CLOCKWISE FOR FIXTURE MODE) */
+.running-border-ccw {
+  position: relative;
+  overflow: hidden;
+  padding: 2px;
+  background: rgba(16, 185, 129, 0.25);
+}
+
+.running-border-ccw::before {
+  content: '';
+  position: absolute;
+  top: -75%;
+  left: -75%;
+  width: 250%;
+  height: 250%;
+  background: conic-gradient(from 0deg, transparent 0deg 230deg, rgba(45, 212, 191, 0.3) 260deg, #10B981 310deg, #FFFFFF 345deg, #06B6D4 360deg);
+  animation: spinBorderCCW 3s linear infinite;
+  z-index: 0;
+}
+
+@keyframes spinBorderCW {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes spinBorderCCW {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(-360deg); }
+}
+
+.mode-inner-box {
+  position: relative;
+  z-index: 1;
+  width: 100%;
+  height: 100%;
+}
+
+
 
 
 
