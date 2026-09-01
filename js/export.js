@@ -449,8 +449,8 @@ export async function printDigitalPass(player, league, team) {
   const tourneyVenue = league?.venue || '';
   const tourneyStartDate = league?.startDate || league?.date || '';
   const tourneyEndDate = league?.endDate || '';
-  let dateRange = '';
-  if (tourneyStartDate) {
+  let dateRange = league?.dates || '';
+  if (!dateRange && tourneyStartDate) {
     try {
       const sd = new Date(tourneyStartDate);
       const ed = tourneyEndDate ? new Date(tourneyEndDate) : null;
@@ -460,8 +460,8 @@ export async function printDigitalPass(player, league, team) {
       }
     } catch(e) {}
   }
-  const organizerName = league?.organizer?.name || league?.organizerName || league?.organiserName || '';
-  const organizerPhone = league?.organizer?.phone || league?.organizerPhone || '';
+  const organizerName = league?.organizer?.name || league?.organizerName || league?.organiserName || league?.contactPerson || '';
+  const organizerPhone = league?.organizer?.phone || league?.organizerPhone || league?.contactNumber || '';
 
   // Masked phone: 98765*****
   const playerPhone = player.phone || player.mobile || '';
@@ -508,7 +508,7 @@ export async function printDigitalPass(player, league, team) {
 
         .pass-body { padding: 16px 20px 0; display: flex; gap: 16px; align-items: flex-start; }
         .photo-frame {
-          width: 110px; height: 130px; border-radius: 16px;
+          width: 140px; height: 170px; border-radius: 16px;
           border: 3px solid #10B981; overflow: hidden; background: #F1F5F9;
           flex-shrink: 0; box-shadow: 0 6px 15px rgba(0,0,0,0.15);
         }
@@ -531,7 +531,7 @@ export async function printDigitalPass(player, league, team) {
         .player-phone { font-size: 11px; font-weight: 800; color: #475569; margin-top: 4px; }
 
         .details-grid {
-          display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0;
+          display: grid; grid-template-columns: 1fr 1fr; gap: 0;
           margin: 12px 20px 0; border-radius: 12px; overflow: hidden;
           border: 1.5px solid #E2E8F0;
         }
@@ -539,8 +539,8 @@ export async function printDigitalPass(player, league, team) {
           padding: 8px 10px; text-align: center;
           border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0;
         }
-        .detail-cell:nth-child(3n) { border-right: none; }
-        .detail-cell:nth-child(n+4) { border-bottom: none; }
+        .detail-cell:nth-child(2n) { border-right: none; }
+        .detail-cell:nth-child(n+3) { border-bottom: none; }
         .detail-cell:nth-child(odd) { background: #F0FDF4; }
         .detail-cell:nth-child(even) { background: #F8FAFC; }
         .detail-label { font-size: 8px; color: #64748B; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; }
@@ -603,16 +603,8 @@ export async function printDigitalPass(player, league, team) {
 
         <div class="details-grid">
           <div class="detail-cell">
-            <div class="detail-label">Date of Birth</div>
-            <div class="detail-val">${dob || 'N/A'}</div>
-          </div>
-          <div class="detail-cell">
             <div class="detail-label">Age</div>
             <div class="detail-val">${player.age ? player.age + ' Yrs' : 'N/A'}</div>
-          </div>
-          <div class="detail-cell">
-            <div class="detail-label">Jersey Size</div>
-            <div class="detail-val">${player.jerseySize || 'N/A'}</div>
           </div>
           <div class="detail-cell">
             <div class="detail-label">Village/Town</div>
