@@ -50,16 +50,26 @@
 </head>
 <body class="bg-slate-50 text-slate-900 min-h-screen font-sans">
 
-  <!-- CRICKET HERO INTRO SCREEN (only first visit per session) -->
-  <div id="intro-loading-screen" onclick="this.classList.add('fade-out'); this.style.pointerEvents='none'; setTimeout(() => this.remove(), 350);">
-    <div class="intro-stage-clean">
-      <div class="intro-hero-poster-wrapper">
-        <img src="assets/cricket_championship_hero.png" alt="Cricket Action" class="intro-hero-poster-img" id="intro-hero-img" onerror="this.src='assets/user_cartoon_cards_full.png'" />
+  <!-- CPL WELCOME INTRO SCREEN (only first visit per session) -->
+  <div id="intro-loading-screen">
+    <!-- Blurred cricket action images on sides -->
+    <div class="intro-bg-left" style="background-image:url('assets/cricket_championship_hero.png')"></div>
+    <div class="intro-bg-right" style="background-image:url('assets/cricket_championship_hero.png')"></div>
+    <div class="intro-bg-overlay"></div>
+
+    <!-- Center content -->
+    <div class="intro-center">
+      <div class="intro-welcome-label" id="intro-welcome-label">Welcome to</div>
+      <div class="intro-cpl-row">
+        <span class="intro-cpl-c" id="intro-c">C</span>
+        <span class="intro-cpl-p" id="intro-p">P</span>
+        <span class="intro-cpl-l-wrap">
+          <span class="intro-cpl-l" id="intro-l">L</span>
+          <span class="intro-ball" id="intro-ball">🔴</span>
+        </span>
       </div>
-    </div>
-    <div class="intro-developer-simple">
-      <span id="typewriter-text" class="typewriter-handwritten"></span>
-      <span class="typewriter-cursor-simple">|</span>
+      <div class="intro-full-name" id="intro-full-name">Cricket Premier League</div>
+      <div class="intro-dev-shimmer" id="intro-dev-shimmer">Developer — Suman Kolay</div>
     </div>
   </div>
 
@@ -81,9 +91,9 @@
           if (intro) {
             intro.classList.add('fade-out');
             intro.style.pointerEvents = 'none';
-            setTimeout(function() { if (intro && intro.parentNode) intro.parentNode.removeChild(intro); }, 350);
+            setTimeout(function() { if (intro && intro.parentNode) intro.parentNode.removeChild(intro); }, 500);
           }
-        }, 2600);
+        }, 6000);
       } else {
         if (intro) intro.remove();
         if (spinner) spinner.style.display = 'flex';

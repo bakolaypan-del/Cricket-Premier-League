@@ -151,63 +151,34 @@ function initIntroLoadingScreen() {
   introScreenInitialized = true;
 
   const introScreen = document.getElementById('intro-loading-screen');
-  if (!introScreen) return; // Already removed by inline script on refresh
+  if (!introScreen) return;
 
-  const typewriterEl = document.getElementById('typewriter-text');
-  const targetText = "Developer - Suman Kolay";
-  let typeIndex = 0;
-  let typeInterval = null;
+  let dismissed = false;
+
+  const $ = (id) => document.getElementById(id);
 
   const dismissIntro = () => {
-    if (typeInterval) {
-      clearInterval(typeInterval);
-      typeInterval = null;
-    }
-    if (!introScreen) return;
+    if (dismissed) return;
+    dismissed = true;
     introScreen.classList.add('fade-out');
-    if (introScreen.style) introScreen.style.pointerEvents = 'none';
-    setTimeout(() => {
-      if (introScreen && introScreen.parentNode) {
-        introScreen.parentNode.removeChild(introScreen);
-      }
-    }, 350);
+    introScreen.style.pointerEvents = 'none';
+    setTimeout(() => { if (introScreen.parentNode) introScreen.parentNode.removeChild(introScreen); }, 500);
   };
 
-  const startTypewriter = () => {
-    if (!typewriterEl) {
-      dismissIntro();
-      return;
-    }
-    if (typeInterval) {
-      clearInterval(typeInterval);
-      typeInterval = null;
-    }
-    typeIndex = 0;
-    typewriterEl.textContent = "";
+  // Sequenced animation: Welcome → C P L letters → ball bounce → full name → developer shimmer → dismiss
+  const t0 = 200;
+  setTimeout(() => { const el = $('intro-welcome-label'); if (el) el.classList.add('show'); }, t0);
+  setTimeout(() => { const el = $('intro-c'); if (el) el.classList.add('show'); }, t0 + 400);
+  setTimeout(() => { const el = $('intro-p'); if (el) el.classList.add('show'); }, t0 + 400);
+  setTimeout(() => { const el = $('intro-l'); if (el) el.classList.add('show'); }, t0 + 400);
+  setTimeout(() => { const el = $('intro-ball'); if (el) el.classList.add('bounce'); }, t0 + 1100);
+  setTimeout(() => { const el = $('intro-full-name'); if (el) el.classList.add('show'); }, t0 + 2200);
+  setTimeout(() => { const el = $('intro-dev-shimmer'); if (el) { el.classList.add('show'); el.classList.add('shimmer'); } }, t0 + 2800);
+  setTimeout(dismissIntro, t0 + 4500);
 
-    typeInterval = setInterval(() => {
-      try {
-        if (typeIndex < targetText.length) {
-          typeIndex++;
-          typewriterEl.textContent = targetText.slice(0, typeIndex);
-        } else {
-          clearInterval(typeInterval);
-          typeInterval = null;
-          // Hold display for 700ms so user can clearly read Developer - Suman Kolay
-          setTimeout(dismissIntro, 700);
-        }
-      } catch (e) {
-        if (typeInterval) clearInterval(typeInterval);
-        dismissIntro();
-      }
-    }, 45);
-  };
-
-  const typewriterTimer = setTimeout(startTypewriter, 100);
-  const fallbackTimer = setTimeout(dismissIntro, 2500);
+  const fallbackTimer = setTimeout(dismissIntro, 6000);
 
   introScreen.addEventListener('click', () => {
-    clearTimeout(typewriterTimer);
     clearTimeout(fallbackTimer);
     dismissIntro();
   });
