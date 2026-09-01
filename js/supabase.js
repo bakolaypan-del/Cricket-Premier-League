@@ -494,38 +494,39 @@ export function initRealtimePushListener(onUpdateCallback, tournamentId) {
         const p = msg?.payload;
         if (!p) return;
         const s = window.store;
+        const fTid = p.fixture?.tournament_id || p.fixture?.leagueId || p.tournament_id;
+        const isActive = !fTid || fTid === s.activeTournamentId || toUUID(fTid) === toUUID(s.activeTournamentId);
+        const scopedFixKey = isActive ? s._scopedKey('FIXTURES') : ('cpl_fixtures_v8_' + (toUUID(fTid) || fTid));
+
         if (p.action === 'upsert' && p.fixture) {
-          const fixtures = s.getFixtures();
+          let fixtures = [];
+          try { fixtures = JSON.parse(localStorage.getItem(scopedFixKey)) || []; } catch(e) {}
           const idx = fixtures.findIndex(f => f.id === p.fixture.id || (toUUID(f.id) && toUUID(f.id) === toUUID(p.fixture.id)));
           if (idx !== -1) {
             fixtures[idx] = { ...fixtures[idx], ...p.fixture, updated_at: Date.now() };
           } else {
-            const fTid = p.fixture.tournament_id || p.fixture.leagueId || p.tournament_id;
-            if (fTid === s.activeTournamentId || toUUID(fTid) === toUUID(s.activeTournamentId)) {
-              fixtures.push(p.fixture);
-            }
+            fixtures.push(p.fixture);
           }
+          try { localStorage.setItem(scopedFixKey, JSON.stringify(fixtures)); } catch (e) {}
           s._invalidateCache('fixtures');
-          try { localStorage.setItem(s._scopedKey('FIXTURES'), JSON.stringify(fixtures)); } catch (e) {}
           s.notify('fixtures_updated');
           window.dispatchEvent(new CustomEvent('cpl_fixtures_realtime', { detail: p }));
           console.log('[REALTIME] Fixture upsert:', p.fixture.teamAName, 'vs', p.fixture.teamBName);
         } else if (p.action === 'delete' && p.fixture_id) {
-          const fixtures = s.getFixtures().filter(f => f.id !== p.fixture_id && toUUID(f.id) !== toUUID(p.fixture_id));
+          let fixtures = [];
+          try { fixtures = JSON.parse(localStorage.getItem(scopedFixKey)) || []; } catch(e) {}
+          fixtures = fixtures.filter(f => f.id !== p.fixture_id && toUUID(f.id) !== toUUID(p.fixture_id));
+          try { localStorage.setItem(scopedFixKey, JSON.stringify(fixtures)); } catch (e) {}
           s._invalidateCache('fixtures');
-          try { localStorage.setItem(s._scopedKey('FIXTURES'), JSON.stringify(fixtures)); } catch (e) {}
           s.notify('fixtures_updated');
           window.dispatchEvent(new CustomEvent('cpl_fixtures_realtime', { detail: p }));
           console.log('[REALTIME] Fixture deleted:', p.fixture_id);
         } else if (p.action === 'clear_all') {
-          const tId = p.tournament_id;
-          if (!tId || tId === s.activeTournamentId || toUUID(tId) === toUUID(s.activeTournamentId)) {
-            s._invalidateCache('fixtures');
-            try { localStorage.setItem(s._scopedKey('FIXTURES'), JSON.stringify([])); } catch (e) {}
-            s.notify('fixtures_updated');
-            window.dispatchEvent(new CustomEvent('cpl_fixtures_realtime', { detail: p }));
-            console.log('[REALTIME] All fixtures cleared for tournament:', tId);
-          }
+          try { localStorage.setItem(scopedFixKey, JSON.stringify([])); } catch (e) {}
+          s._invalidateCache('fixtures');
+          s.notify('fixtures_updated');
+          window.dispatchEvent(new CustomEvent('cpl_fixtures_realtime', { detail: p }));
+          console.log('[REALTIME] All fixtures cleared for tournament:', fTid);
         }
       })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, (payload) => {
@@ -590,6 +591,51 @@ export async function fetchPersonProfiles(tournamentId) {
     if (error) { console.warn("[SUPABASE] fetchPersonProfiles error:", error.message); return []; }
     return data || [];
   } catch (e) { return []; }
+}
+
+// --- CROSS-TOURNAMENT FIXTURES FETCH (lightweight, fixtures only) ---
+export async function fetchAllTournamentsFixtures() {
+  if (!supabase) return {};
+  try {
+    const { data: tourneys } = await supabase.from('tournaments').select('id, name, category_code, slug, logo_url, banner_url, venue, format_config');
+    if (!Array.isArray(tourneys)) return {};
+    const result = {};
+    for (const t of tourneys) {
+      const tid = t.id;
+      const configMatches = Array.isArray(t.format_config?.custom_matches) ? t.format_config.custom_matches : [];
+      const { data: dbMatches } = await supabase.from('matches').select('*').eq('tournament_id', tid);
+      const matchesMap = new Map();
+      (dbMatches || []).forEach(m => {
+        if (!m || !m.id) return;
+        matchesMap.set(m.id, {
+          id: m.id, tournament_id: tid, leagueId: tid,
+          leagueCode: (t.category_code || t.slug || 'T').toUpperCase(),
+          matchNo: m.match_no, stage: m.stage || 'GROUP_A', groupCode: m.group_code || 'A',
+          teamAId: m.team_a_id, teamBId: m.team_b_id,
+          teamAName: m.team_a_name || 'Team A', teamBName: m.team_b_name || 'Team B',
+          date: m.date, time: m.time, venue: m.venue,
+          oversLimit: m.overs_limit || 16, status: m.status || 'SCHEDULED',
+          result: m.result, liveState: m.live_state,
+          tournamentName: t.name, logoUrl: t.logo_url || t.banner_url
+        });
+      });
+      configMatches.forEach(cm => {
+        if (!cm || !cm.id) return;
+        const existing = matchesMap.get(cm.id);
+        matchesMap.set(cm.id, {
+          ...(existing || {}), ...cm, id: cm.id,
+          tournament_id: tid, leagueId: tid,
+          leagueCode: (t.category_code || t.slug || cm.leagueCode || 'T').toUpperCase(),
+          tournamentName: t.name, logoUrl: t.logo_url || t.banner_url
+        });
+      });
+      result[tid] = Array.from(matchesMap.values());
+    }
+    return result;
+  } catch (e) {
+    console.warn('[SUPABASE] fetchAllTournamentsFixtures:', e.message);
+    return {};
+  }
 }
 
 // --- INSTANT CLOUD DATA FETCH (SUPABASE POSTGRES BACKED) ---

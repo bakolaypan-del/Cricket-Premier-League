@@ -60,8 +60,9 @@ import {
   fetchLiveAuctionFromCloud,
   fetchGlobalLiveAuctionStatus,
   fetchVerificationDocs,
-  fetchPersonProfiles
-} from './supabase.js?v=13.0.54';
+  fetchPersonProfiles,
+  fetchAllTournamentsFixtures
+} from './supabase.js?v=13.0.55';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -602,10 +603,34 @@ class Store {
     }
   }
 
+  async syncCrossTournamentFixtures() {
+    try {
+      const allFixturesByTid = await fetchAllTournamentsFixtures();
+      if (!allFixturesByTid || typeof allFixturesByTid !== 'object') return;
+      const activeTid = this.activeTournamentId;
+      const activeUUID = toUUID(activeTid);
+      let changed = false;
+      for (const [tid, fixtures] of Object.entries(allFixturesByTid)) {
+        if (tid === activeTid || tid === activeUUID || toUUID(tid) === activeUUID) continue;
+        const key = scopedKey(STORAGE_KEYS.FIXTURES, toUUID(tid) || tid);
+        const existing = localStorage.getItem(key);
+        const newStr = JSON.stringify(fixtures);
+        if (existing !== newStr) {
+          safeSetLocalStorage(key, fixtures);
+          changed = true;
+        }
+      }
+      if (changed) {
+        this._invalidateCache('fixtures');
+        this.notify('fixtures_updated');
+      }
+    } catch (e) {
+      console.warn('[STORE] crossTournamentFixtures sync:', e.message);
+    }
+  }
+
   startCloudPolling() {
     if (this.cloudPollingInterval) clearInterval(this.cloudPollingInterval);
-    // 60s backup poll — Supabase Realtime WebSocket handles instant updates;
-    // this is only a safety net for brief disconnects. Skips when tab is hidden to save mobile data.
     this.cloudPollingInterval = setInterval(() => {
       if (document.visibilityState === 'hidden') return;
       const isUserFillingForm = document.getElementById('player-reg-modal') || document.getElementById('team-reg-modal') || document.getElementById('edit-player-modal');
@@ -613,6 +638,12 @@ class Store {
         this.syncWithCloud();
       }
     }, 60000);
+    this.syncCrossTournamentFixtures();
+    if (this._crossTourneyInterval) clearInterval(this._crossTourneyInterval);
+    this._crossTourneyInterval = setInterval(() => {
+      if (document.visibilityState === 'hidden') return;
+      this.syncCrossTournamentFixtures();
+    }, 120000);
   }
 
   async fetchDocsOnDemand() {
