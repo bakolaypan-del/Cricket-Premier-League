@@ -50,32 +50,52 @@
 </head>
 <body class="bg-slate-50 text-slate-900 min-h-screen font-sans">
 
-  <!-- CRICKET HERO INTRO SCREEN (CLEAN WHITE BACKGROUND - DEVELOPER: SUMAN KOLAY) -->
+  <!-- CRICKET HERO INTRO SCREEN (only first visit per session) -->
   <div id="intro-loading-screen" onclick="this.classList.add('fade-out'); this.style.pointerEvents='none'; setTimeout(() => this.remove(), 350);">
-    <!-- Center Main Action Cricket Poster Image (No border, no shape) -->
     <div class="intro-stage-clean">
       <div class="intro-hero-poster-wrapper">
         <img src="assets/cricket_championship_hero.png" alt="Cricket Action" class="intro-hero-poster-img" id="intro-hero-img" onerror="this.src='assets/user_cartoon_cards_full.png'" />
       </div>
     </div>
-
-    <!-- Lower Portion on White Background: Handwritten Developer - Suman Kolay (No shape/border) -->
     <div class="intro-developer-simple">
       <span id="typewriter-text" class="typewriter-handwritten"></span>
       <span class="typewriter-cursor-simple">|</span>
     </div>
   </div>
 
+  <!-- REFRESH SPINNER (shown on refresh instead of full intro) -->
+  <div id="refresh-loading-spinner" style="display:none; position:fixed; inset:0; z-index:9999; background:white; justify-content:center; align-items:center;">
+    <div style="width:44px; height:44px; border:4px solid #e2e8f0; border-top-color:#3b82f6; border-radius:50%; animation:cpl-spin .7s linear infinite;"></div>
+  </div>
+  <style>@keyframes cpl-spin{to{transform:rotate(360deg)}}</style>
+
   <script>
-    // Failsafe auto-dismiss after 2.6s so intro screen NEVER stays stuck
-    setTimeout(function() {
+    (function() {
+      var isFirstVisit = !sessionStorage.getItem('cpl_session_started');
       var intro = document.getElementById('intro-loading-screen');
-      if (intro) {
-        intro.classList.add('fade-out');
-        intro.style.pointerEvents = 'none';
-        setTimeout(function() { if (intro && intro.parentNode) intro.parentNode.removeChild(intro); }, 350);
+      var spinner = document.getElementById('refresh-loading-spinner');
+      if (isFirstVisit) {
+        sessionStorage.setItem('cpl_session_started', '1');
+        if (spinner) spinner.style.display = 'none';
+        setTimeout(function() {
+          if (intro) {
+            intro.classList.add('fade-out');
+            intro.style.pointerEvents = 'none';
+            setTimeout(function() { if (intro && intro.parentNode) intro.parentNode.removeChild(intro); }, 350);
+          }
+        }, 2600);
+      } else {
+        if (intro) intro.remove();
+        if (spinner) spinner.style.display = 'flex';
+        setTimeout(function() {
+          if (spinner) {
+            spinner.style.opacity = '0';
+            spinner.style.transition = 'opacity 0.3s';
+            setTimeout(function() { if (spinner && spinner.parentNode) spinner.parentNode.removeChild(spinner); }, 300);
+          }
+        }, 800);
       }
-    }, 2600);
+    })();
   </script>
 
   <!-- Upper Header (Blue & Indigo Gradient) -->

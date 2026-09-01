@@ -151,7 +151,7 @@ function initIntroLoadingScreen() {
   introScreenInitialized = true;
 
   const introScreen = document.getElementById('intro-loading-screen');
-  if (!introScreen) return;
+  if (!introScreen) return; // Already removed by inline script on refresh
 
   const typewriterEl = document.getElementById('typewriter-text');
   const targetText = "Developer - Suman Kolay";
