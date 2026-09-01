@@ -9,7 +9,20 @@ import { shops } from './shopsData.js?v=12.0.2';
 
 const WHATSAPP_GROUP_LINK = "https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL";
 const CARD_OUTLINE_COLORS = ['#10b981','#3b82f6','#f59e0b','#f43f5e','#a855f7','#14b8a6','#f97316','#6366f1','#ec4899','#06b6d4'];
+const TOURNAMENT_BANNER_DEEP_COLORS = [
+  { bg: 'linear-gradient(135deg, #064E3B 0%, #022C22 100%)', border: '#047857', accent: '#6EE7B7' }, // 1. Deep Emerald Forest
+  { bg: 'linear-gradient(135deg, #1E3A8A 0%, #0F172A 100%)', border: '#1E40AF', accent: '#93C5FD' }, // 2. Royal Sapphire Navy
+  { bg: 'linear-gradient(135deg, #881337 0%, #4C0519 100%)', border: '#9F1239', accent: '#FDA4AF' }, // 3. Deep Crimson Wine
+  { bg: 'linear-gradient(135deg, #581C87 0%, #2E1065 100%)', border: '#6B21A8', accent: '#D8B4FE' }, // 4. Royal Midnight Purple
+  { bg: 'linear-gradient(135deg, #78350F 0%, #451A03 100%)', border: '#92400E', accent: '#FDE68A' }, // 5. Deep Amber Bronze
+  { bg: 'linear-gradient(135deg, #134E4A 0%, #042F2E 100%)', border: '#0F766E', accent: '#5EEAD4' }, // 6. Deep Teal Ocean
+  { bg: 'linear-gradient(135deg, #312E81 0%, #1E1B4B 100%)', border: '#3730A3', accent: '#C7D2FE' }, // 7. Deep Indigo Night
+  { bg: 'linear-gradient(135deg, #7F1D1D 0%, #450A0A 100%)', border: '#991B1B', accent: '#FECACA' }, // 8. Dark Ruby Red
+  { bg: 'linear-gradient(135deg, #0F172A 0%, #020617 100%)', border: '#334155', accent: '#CBD5E1' }, // 9. Deep Slate Charcoal
+  { bg: 'linear-gradient(135deg, #701A75 0%, #3B0764 100%)', border: '#86198F', accent: '#F0ABFC' }, // 10. Deep Boysenberry Plum
+];
 let latestVisitorStats = { liveCount: 1, totalVisits: 259 };
+
 
 const CRICKET_THUMBNAILS = [
   { gradient: 'from-emerald-800 via-teal-700 to-green-900', emoji: '🏏', pattern: 'Cricket Stadium' },
@@ -2031,27 +2044,27 @@ function buildTournamentCarouselHTML(allTournaments) {
   const featuredTourneys = activeTourneys.slice(0, 8);
 
   const carouselCards = featuredTourneys.map((ct, idx) => {
-    const outlineColor = CARD_OUTLINE_COLORS[idx % CARD_OUTLINE_COLORS.length];
+    const colorTheme = TOURNAMENT_BANNER_DEEP_COLORS[idx % TOURNAMENT_BANNER_DEEP_COLORS.length];
     const bannerSrc = ct.posterUrl || ct.bannerUrl || ct.poster_url || ct.banner_url || null;
     const poster = bannerSrc
       ? '<img src="' + bannerSrc + '" loading="lazy" class="w-full h-full object-cover object-center" onerror="this.style.display=\'none\'" />'
       : renderTournamentFallbackPoster(ct);
     const venueHtml = ct.venue ? `
-      <div class="flex items-center justify-center gap-1 text-[10px] sm:text-[11px] font-bold text-slate-600 truncate max-w-full">
-        <svg class="w-3.5 h-3.5 text-red-600 shrink-0 inline-block" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+      <div class="flex items-center justify-center gap-1 text-[10.5px] sm:text-[11.5px] font-bold text-white/90 truncate max-w-full">
+        <svg class="w-3.5 h-3.5 text-rose-300 shrink-0 inline-block" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
           <circle cx="12" cy="9" r="2.5" fill="currentColor"/>
         </svg>
         <span class="truncate">${ct.venue}</span>
       </div>` : '';
 
-    return '<div data-nav-route="t/' + ct.slug + '" data-tourney-name="' + (ct.name || '').toLowerCase() + '" data-tourney-venue="' + (ct.venue || '').toLowerCase() + '" class="tourney-card shrink-0 bg-white rounded-2xl shadow-sm hover:shadow-md overflow-hidden cursor-pointer transition-all group border border-slate-200/80" style="width:100%;min-width:100%;max-width:100%;box-sizing:border-box;">'
-      + '<div class="relative w-full aspect-[16/9] sm:aspect-[21/9] md:aspect-[24/9] min-h-[160px] sm:min-h-[190px] max-h-[240px] overflow-hidden">'
+    return '<div data-nav-route="t/' + ct.slug + '" data-tourney-name="' + (ct.name || '').toLowerCase() + '" data-tourney-venue="' + (ct.venue || '').toLowerCase() + '" class="tourney-card shrink-0 bg-white rounded-2xl overflow-hidden cursor-pointer transition-all group" style="width:100%;min-width:100%;max-width:100%;box-sizing:border-box;">'
+      + '<div class="relative w-full aspect-[18/9] sm:aspect-[21/9] min-h-[120px] sm:min-h-[150px] max-h-[175px] overflow-hidden bg-slate-900">'
       + poster
       + '<div class="absolute top-2 left-2 z-10"><span class="px-2 py-0.5 bg-emerald-500 text-white text-[8px] sm:text-[9px] font-black rounded-full uppercase shadow-md flex items-center gap-1"><span class="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span> LIVE</span></div>'
       + '</div>'
-      + '<div class="px-2.5 py-1.5 sm:py-2 bg-white text-center flex flex-col items-center justify-center space-y-0.5 border-t border-slate-100">'
-      + '<h4 class="text-xs sm:text-sm font-black text-slate-900 truncate max-w-full group-hover:text-emerald-700 transition-colors uppercase tracking-wide">' + ct.name + '</h4>'
+      + '<div class="px-2.5 py-1.5 sm:py-2 text-center flex flex-col items-center justify-center space-y-0.5 border-t" style="background:' + colorTheme.bg + '; border-color:' + colorTheme.border + ';">'
+      + '<h4 class="text-xs sm:text-sm font-black text-white truncate max-w-full uppercase tracking-wide drop-shadow-xs">' + ct.name + '</h4>'
       + venueHtml
       + '</div>'
       + '</div>';
@@ -2063,41 +2076,41 @@ function buildTournamentCarouselHTML(allTournaments) {
   }).join('');
 
   const searchCards = allTournaments.map((ct, idx) => {
-    const outlineColor = CARD_OUTLINE_COLORS[idx % CARD_OUTLINE_COLORS.length];
+    const searchColorTheme = TOURNAMENT_BANNER_DEEP_COLORS[idx % TOURNAMENT_BANNER_DEEP_COLORS.length];
     const bannerSrc = ct.posterUrl || ct.bannerUrl || ct.poster_url || ct.banner_url || null;
     const poster = bannerSrc
       ? '<img src="' + bannerSrc + '" loading="lazy" class="w-full h-full object-cover object-center" onerror="this.style.display=\'none\'" />'
       : renderTournamentFallbackPoster(ct);
     const statusBadge = (ct.status === 'ACTIVE' || !ct.status)
-      ? '<span class="px-1 py-0.5 bg-emerald-500 text-white text-[7px] font-black rounded-full uppercase">LIVE</span>'
-      : '<span class="px-1 py-0.5 bg-slate-500 text-white text-[7px] font-black rounded-full uppercase">' + (ct.status || 'DRAFT') + '</span>';
+      ? '<span class="px-1.5 py-0.5 bg-emerald-500 text-white text-[7px] font-black rounded-full uppercase">LIVE</span>'
+      : '<span class="px-1.5 py-0.5 bg-slate-500 text-white text-[7px] font-black rounded-full uppercase">' + (ct.status || 'DRAFT') + '</span>';
     
     const searchVenueHtml = ct.venue ? `
-      <div class="flex items-center justify-center gap-0.5 text-[9px] sm:text-[10px] font-bold text-slate-600 truncate max-w-full">
-        <svg class="w-3 h-3 text-red-600 shrink-0 inline-block" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+      <div class="flex items-center justify-center gap-0.5 text-[9px] sm:text-[10px] font-bold text-white/90 truncate max-w-full">
+        <svg class="w-3 h-3 text-rose-300 shrink-0 inline-block" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
           <circle cx="12" cy="9" r="2.5" fill="currentColor"/>
         </svg>
         <span class="truncate">${ct.venue}</span>
       </div>` : '';
 
-    return '<div data-nav-route="t/' + ct.slug + '" data-tourney-name="' + (ct.name || '').toLowerCase() + '" data-tourney-venue="' + (ct.venue || '').toLowerCase() + '" class="tourney-card-search bg-white rounded-xl shadow-sm hover:shadow-md overflow-hidden cursor-pointer transition-all group border border-slate-200">'
-      + '<div class="relative w-full aspect-[4/3] overflow-hidden bg-slate-100">'
+    return '<div data-nav-route="t/' + ct.slug + '" data-tourney-name="' + (ct.name || '').toLowerCase() + '" data-tourney-venue="' + (ct.venue || '').toLowerCase() + '" class="tourney-card-search bg-white rounded-xl shadow-sm hover:shadow-md overflow-hidden cursor-pointer transition-all group border border-slate-900 flex flex-col">'
+      + '<div class="relative w-full aspect-[16/9] overflow-hidden bg-slate-900">'
       + poster
       + '<div class="absolute top-1 left-1">' + statusBadge + '</div>'
       + '</div>'
-      + '<div class="px-2 py-1.5 bg-white text-center flex flex-col items-center justify-center space-y-0.5">'
-      + '<h4 class="text-[11px] font-black text-slate-900 truncate max-w-full leading-tight uppercase">' + ct.name + '</h4>'
+      + '<div class="px-2 py-1.5 text-center flex flex-col items-center justify-center space-y-0.5 border-t" style="background:' + searchColorTheme.bg + '; border-color:' + searchColorTheme.border + ';">'
+      + '<h4 class="text-[11px] font-black text-white truncate max-w-full leading-tight uppercase drop-shadow-xs">' + ct.name + '</h4>'
       + searchVenueHtml
       + '</div>'
       + '</div>';
   }).join('');
 
-  return '<div id="tourney-carousel-wrapper" class="relative overflow-hidden rounded-2xl p-0.5">'
+  return '<div id="tourney-carousel-wrapper" class="relative overflow-hidden rounded-2xl p-1 max-w-[480px] sm:max-w-3xl md:max-w-4xl mx-auto w-full">'
     + '<div id="tourney-carousel" class="flex gap-0" style="will-change:transform;">' + carouselCards + '</div>'
-    + '<div id="tourney-carousel-dots" class="flex items-center justify-center gap-1.5 py-1.5 bg-white/80">' + dots + '</div>'
+    + '<div id="tourney-carousel-dots" class="flex items-center justify-center gap-1.5 py-1.5 bg-transparent">' + dots + '</div>'
     + '</div>'
-    + '<div id="landing-tournaments-grid" class="hidden grid grid-cols-2 sm:grid-cols-3 gap-2.5">' + searchCards + '</div>';
+    + '<div id="landing-tournaments-grid" class="hidden grid grid-cols-2 sm:grid-cols-3 gap-2.5 p-1 max-w-3xl mx-auto">' + searchCards + '</div>';
 }
 
 function renderFirstPageLanding(containerEl) {
@@ -2224,33 +2237,33 @@ function renderFirstPageLanding(containerEl) {
 
           <!-- 2 Modes Side-by-Side in SAME ROW (grid-cols-2) -->
           <div class="grid grid-cols-2 gap-2 sm:gap-3">
-            <!-- Mode A (Sunset Orange-Red Glow) -->
-            <div class="p-2 sm:p-3 bg-gradient-to-b from-rose-500/30 via-orange-500/20 to-slate-900/80 rounded-xl sm:rounded-2xl border border-rose-400/80 shadow-md shadow-rose-500/10 space-y-1 text-center flex flex-col items-center justify-between">
+            <!-- Mode A (Sunset Rose-Orange Glowing Border) -->
+            <div class="p-2.5 sm:p-3.5 bg-gradient-to-b from-rose-500/25 via-orange-500/15 to-slate-900/80 rounded-xl sm:rounded-2xl border-2 border-rose-400 shadow-[0_0_18px_rgba(244,63,94,0.38)] space-y-1 text-center flex flex-col items-center justify-between transition-all hover:scale-[1.02]">
               <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-tr from-rose-500 to-orange-400 text-white flex items-center justify-center text-xs sm:text-sm font-black shadow-xs shrink-0">
                 🔨
               </div>
-              <h4 class="text-[10px] sm:text-xs font-black text-orange-300 uppercase tracking-tight leading-tight">AUCTION MODE</h4>
+              <h4 class="text-[10.5px] sm:text-xs font-black text-orange-300 uppercase tracking-tight leading-tight">AUCTION MODE</h4>
               <p class="text-[8.5px] sm:text-[9.5px] text-orange-100/90 font-semibold leading-tight line-clamp-3">
                 Player Reg • Live Bidding • Squad • Fixture • Live Score
               </p>
             </div>
 
-            <!-- Mode B (Emerald Green Glow) -->
-            <div class="p-2 sm:p-3 bg-gradient-to-b from-emerald-500/30 via-teal-500/20 to-slate-900/80 rounded-xl sm:rounded-2xl border border-emerald-400/80 shadow-md shadow-emerald-500/10 space-y-1 text-center flex flex-col items-center justify-between">
+            <!-- Mode B (Electric Emerald-Teal Glowing Border) -->
+            <div class="p-2.5 sm:p-3.5 bg-gradient-to-b from-emerald-500/25 via-teal-500/15 to-slate-900/80 rounded-xl sm:rounded-2xl border-2 border-emerald-400 shadow-[0_0_18px_rgba(16,185,129,0.38)] space-y-1 text-center flex flex-col items-center justify-between transition-all hover:scale-[1.02]">
               <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 text-white flex items-center justify-center text-xs sm:text-sm font-black shadow-xs shrink-0">
                 ⚡
               </div>
-              <h4 class="text-[10px] sm:text-xs font-black text-emerald-300 uppercase tracking-tight leading-tight">FIXTURE MODE</h4>
+              <h4 class="text-[10.5px] sm:text-xs font-black text-emerald-300 uppercase tracking-tight leading-tight">FIXTURE MODE</h4>
               <p class="text-[8.5px] sm:text-[9.5px] text-emerald-100/90 font-semibold leading-tight line-clamp-3">
                 Direct Entry • Fixture • Live Score
               </p>
             </div>
           </div>
 
-          <!-- Glowing Emerald CTA Button (Compact) -->
-          <button id="btn-home-create-tourney" class="w-full py-2.5 sm:py-3 bg-gradient-to-r from-emerald-400 via-teal-400 to-emerald-500 hover:from-emerald-500 hover:to-teal-500 text-slate-950 font-black text-xs sm:text-sm rounded-xl sm:rounded-2xl shadow-lg shadow-emerald-500/20 hover:scale-[1.01] active:scale-98 transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+          <!-- Glowing Emerald CTA Button with Looping Sliding Light Glow & Larger Font -->
+          <button id="btn-home-create-tourney" class="glow-sliding-cta w-full py-3 sm:py-3.5 bg-gradient-to-r from-emerald-400 via-teal-400 to-emerald-500 hover:from-emerald-300 hover:to-teal-300 text-slate-950 font-black text-sm sm:text-base md:text-lg rounded-xl sm:rounded-2xl shadow-xl shadow-emerald-500/35 hover:scale-[1.01] active:scale-98 transition-all flex items-center justify-center gap-2 cursor-pointer">
             <span>+ Create Tournament</span>
-            <span class="text-sm sm:text-base">➔</span>
+            <span class="text-base sm:text-lg">➔</span>
           </button>
         </div>
       </div>

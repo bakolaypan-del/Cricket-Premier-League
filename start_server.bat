@@ -8,9 +8,10 @@ echo ==========================================================
 
 start "" http://127.0.0.1:8080/
 
-if exist "C:\Users\ss\.gemini\antigravity\scratch\node_tool\node-v20.15.0-win-x64\node.exe" (
-    "C:\Users\ss\.gemini\antigravity\scratch\node_tool\node-v20.15.0-win-x64\node.exe" server.js
-) else (
-    node server.js
+node server.js
+if %errorlevel% neq 0 (
+    echo Node.js not found or failed, attempting PowerShell server fallback...
+    powershell -ExecutionPolicy Bypass -File .\server.ps1
 )
 pause
+

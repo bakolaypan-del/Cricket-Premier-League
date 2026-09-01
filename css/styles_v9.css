@@ -23,13 +23,15 @@
 /* GLOBAL CAMBRIA ENGLISH FONT ACROSS WHOLE PROJECT */
 body {
   font-family: 'Cambria', Georgia, 'Times New Roman', serif !important;
-  background-color: #F8FAFC !important;
+  background-color: #FFFFFF !important;
   color: #0F172A !important;
   min-height: 100vh;
   margin: 0;
   overflow-x: hidden;
   padding-bottom: 60px;
 }
+
+
 
 @media (min-width: 768px) {
   body {
@@ -49,6 +51,61 @@ body {
 #app-navbar::before {
   display: none !important;
 }
+
+/* FINE SLIM BLACK BORDER FOR TOURNAMENT BANNER CARDS */
+.tourney-card {
+  border: 1.2px solid #000000 !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08) !important;
+  border-radius: 1.15rem !important;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.tourney-card:hover {
+  border-color: #000000 !important;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.14) !important;
+  transform: translateY(-2px);
+}
+
+/* LOOPING SLIDING GLOW LIGHT BEAM FOR CREATE TOURNAMENT BUTTON */
+@keyframes ctaGlowSlideLoop {
+  0% {
+    transform: translateX(-150%) skewX(-25deg);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  60% {
+    transform: translateX(250%) skewX(-25deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateX(250%) skewX(-25deg);
+    opacity: 0;
+  }
+}
+
+.glow-sliding-cta {
+  position: relative;
+  overflow: hidden;
+}
+
+.glow-sliding-cta::after {
+  content: '';
+  position: absolute;
+  top: -60%;
+  left: -40%;
+  width: 50%;
+  height: 220%;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.4) 30%, rgba(255, 255, 255, 0.9) 50%, rgba(255, 255, 255, 0.4) 70%, transparent 100%);
+  transform: translateX(-150%) skewX(-25deg);
+  animation: ctaGlowSlideLoop 2.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  pointer-events: none;
+}
+
+
+
+
 
 /* HANDWRITTEN QUOTES STYLE */
 .handwritten-quote {
