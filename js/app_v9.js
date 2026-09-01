@@ -113,8 +113,13 @@ window.addEventListener('beforeinstallprompt', (e) => {
   console.log("PWA install prompt captured.");
 });
 
-// ALWAYS default to landing page (No category opens automatically!)
-let currentRoute = 'landing'; // landing, tournament-hub, admin, fixtures, auction, career, profile, shop-detail
+// Restore route from hash or session IMMEDIATELY (before Store sync callbacks fire)
+let currentRoute = (() => {
+  const h = location.hash.replace(/^#/, '');
+  if (h) return h;
+  try { const s = sessionStorage.getItem('cpl_last_route'); if (s && s !== 'landing') return s; } catch(e) {}
+  return 'landing';
+})();
 let selectedShopId = '';
 let introScreenInitialized = false;
 let renderDebounceTimer = null;
