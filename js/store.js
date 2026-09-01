@@ -2149,7 +2149,8 @@ class Store {
     fixtures.push(newFixture);
     this._invalidateCache('fixtures');
     safeSetLocalStorage(this._scopedKey('FIXTURES'), fixtures);
-    saveFixtureToCloud(newFixture, this.activeTournamentId);
+    const fixtureTid = newFixture.tournament_id || newFixture.leagueId || this.activeTournamentId;
+    saveFixtureToCloud(newFixture, fixtureTid);
     this.notify('fixtures_updated');
     return newFixture;
   }
@@ -2161,7 +2162,8 @@ class Store {
       fixtures[idx] = { ...fixtures[idx], ...updatedFixture, updated_at: Date.now() };
       this._invalidateCache('fixtures');
       safeSetLocalStorage(this._scopedKey('FIXTURES'), fixtures);
-      saveFixtureToCloud(fixtures[idx], this.activeTournamentId);
+      const fixtureTid = fixtures[idx].tournament_id || fixtures[idx].leagueId || this.activeTournamentId;
+      saveFixtureToCloud(fixtures[idx], fixtureTid);
       this.notify('fixtures_updated');
       return fixtures[idx];
     }
