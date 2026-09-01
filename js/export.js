@@ -412,7 +412,7 @@ export async function exportPlayersToPDF(players, filterLabel = 'All Registered 
   }
 }
 
-// PRINT / DOWNLOAD DIGITAL PASS FOR INDIVIDUAL PLAYER (WHITE BACKGROUND & SQUARE SHAPE)
+// PRINT / DOWNLOAD DIGITAL PASS FOR INDIVIDUAL PLAYER (COLORFUL GRADIENT DESIGN)
 export async function printDigitalPass(player, league, team) {
   if (!player) return;
 
@@ -422,7 +422,7 @@ export async function printDigitalPass(player, league, team) {
     return;
   }
 
-  const serialNo = player.registrationId || player.regNo || 'JSL2026-0001';
+  const serialNo = player.registrationId || player.regNo || 'REG-0001';
   const rawPhoto = player.photoUrl || player.player_photo_url || 'assets/jsl_logo_white.jpg';
   const photoSrc = await preparePlayerPhotoForPDF(rawPhoto, 30, 350);
 
@@ -431,146 +431,221 @@ export async function printDigitalPass(player, league, team) {
   if (rawDate) {
     const parsedDate = typeof rawDate === 'number' ? new Date(rawDate) : new Date(rawDate);
     if (!isNaN(parsedDate.getTime())) {
-      regDateTime = parsedDate.toLocaleString('en-IN', { 
-        day: '2-digit', 
-        month: '2-digit', 
-        year: 'numeric', 
-        hour: '2-digit', 
-        minute: '2-digit', 
-        hour12: true 
+      regDateTime = parsedDate.toLocaleString('en-IN', {
+        day: '2-digit', month: '2-digit', year: 'numeric',
+        hour: '2-digit', minute: '2-digit', hour12: true
       });
     }
   }
 
   const isApproved = player.registrationStatus === 'APPROVED' || player.paymentStatus === 'APPROVED';
-  const statusBadgeHtml = isApproved 
-    ? `<div class="official-seal" style="background: #ECFDF5; color: #065F46; border: 1.5px solid #10B981;">✅ VERIFIED PASS</div>`
-    : `<div class="official-seal" style="background: #FFFBEB; color: #92400E; border: 1.5px solid #F59E0B;">⏳ PENDING VERIFICATION</div>`;
+  const statusBadgeHtml = isApproved
+    ? `<div class="official-seal seal-verified">VERIFIED</div>`
+    : `<div class="official-seal seal-pending">PENDING</div>`;
 
-  const tourneyName = getTournamentDocName();
+  const tourneyName = getTournamentDocName(league);
+
+  // Dynamic footer from tournament data
+  const tourneyVenue = league?.venue || '';
+  const tourneyStartDate = league?.startDate || league?.date || '';
+  const tourneyEndDate = league?.endDate || '';
+  let dateRange = '';
+  if (tourneyStartDate) {
+    try {
+      const sd = new Date(tourneyStartDate);
+      const ed = tourneyEndDate ? new Date(tourneyEndDate) : null;
+      if (!isNaN(sd.getTime())) {
+        const fmt = (d) => d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+        dateRange = ed && !isNaN(ed.getTime()) ? `${fmt(sd)} - ${fmt(ed)}` : fmt(sd);
+      }
+    } catch(e) {}
+  }
+  const organizerName = league?.organizer?.name || league?.organizerName || league?.organiserName || '';
+  const organizerPhone = league?.organizer?.phone || league?.organizerPhone || '';
+
+  // Masked phone: 98765*****
+  const playerPhone = player.phone || player.mobile || '';
+  const maskedPhone = playerPhone.length >= 5
+    ? playerPhone.slice(0, 5) + '*'.repeat(playerPhone.length - 5)
+    : playerPhone || 'N/A';
+
+  const dob = player.dob || player.dateOfBirth || '';
+  const address = [player.village || '', player.district || '', player.state || ''].filter(Boolean).join(', ');
+
   const html = `
     <!DOCTYPE html>
     <html>
     <head>
       <title>${tourneyName} Player Pass - ${player.name} (${serialNo})</title>
-      <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+      <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"><\/script>
       <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #F8FAFC; color: #0F172A; display: flex; flex-direction: column; items: center; justify-content: center; min-height: 100vh; padding: 20px; }
-        
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #0F172A; color: #0F172A; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 20px; }
+
         .action-toolbar { display: flex; gap: 12px; margin-bottom: 20px; }
-        .action-btn { padding: 10px 20px; font-weight: 800; font-size: 13px; border-radius: 12px; border: none; cursor: pointer; display: inline-flex; items-center; gap: 8px; shadow: 0 4px 6px rgba(0,0,0,0.1); transition: all 0.2s; }
-        .btn-png { background: #059669; color: white; }
-        .btn-png:hover { background: #047857; }
-        .btn-pdf { background: #0F172A; color: white; }
-        .btn-pdf:hover { background: #1E293B; }
+        .action-btn { padding: 10px 20px; font-weight: 800; font-size: 13px; border-radius: 12px; border: none; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: all 0.2s; }
+        .btn-png { background: linear-gradient(135deg, #059669, #0D9488); color: white; }
+        .btn-png:hover { background: linear-gradient(135deg, #047857, #0F766E); }
+        .btn-pdf { background: linear-gradient(135deg, #1E293B, #334155); color: white; }
+        .btn-pdf:hover { background: linear-gradient(135deg, #0F172A, #1E293B); }
 
-        /* SQUARE SHAPE CARD DESIGN (WHITE BACKGROUND, 430px x 430px) */
-        .pass-card { width: 430px; height: 430px; background: #FFFFFF; border: 3px solid #10B981; border-radius: 24px; padding: 18px; text-align: center; box-shadow: 0 20px 30px rgba(0,0,0,0.12); position: relative; display: flex; flex-direction: column; justify-content: space-between; overflow: hidden; }
-        
-        /* CARD TOP HEADER STRIP */
-        .card-header { background: linear-gradient(135deg, #064E3B 0%, #047857 100%); margin: -18px -18px 12px -18px; padding: 12px 16px; border-bottom: 3px solid #F59E0B; text-align: center; }
-        .league-title { font-size: 18px; font-weight: 900; color: #FFFFFF; letter-spacing: 1px; text-transform: uppercase; }
-        .league-sub { font-size: 10px; font-weight: 800; color: #FDE047; text-transform: uppercase; margin-top: 2px; }
+        .pass-card {
+          width: 440px; background: #FFFFFF; border-radius: 24px;
+          box-shadow: 0 20px 40px rgba(0,0,0,0.25); position: relative;
+          overflow: hidden;
+        }
 
-        /* BODY LAYOUT: PHOTO & MAIN INFO */
-        .pass-body { display: flex; gap: 14px; text-align: left; items: center; }
-        .photo-frame { width: 105px; height: 105px; border-radius: 16px; border: 3px solid #10B981; overflow: hidden; background: #F1F5F9; flex-shrink: 0; box-shadow: 0 4px 10px rgba(0,0,0,0.15); }
+        .card-header {
+          background: linear-gradient(135deg, #0F4C3A 0%, #065F46 30%, #047857 60%, #0D9488 100%);
+          padding: 16px 20px 14px; text-align: center; position: relative;
+        }
+        .card-header::after {
+          content: ''; position: absolute; bottom: 0; left: 0; right: 0; height: 4px;
+          background: linear-gradient(90deg, #F59E0B, #EAB308, #F59E0B);
+        }
+        .league-title { font-size: 17px; font-weight: 900; color: #FFFFFF; letter-spacing: 1.5px; text-transform: uppercase; text-shadow: 0 2px 4px rgba(0,0,0,0.3); }
+        .league-sub { font-size: 9px; font-weight: 800; color: #FDE047; text-transform: uppercase; margin-top: 3px; letter-spacing: 2px; }
+
+        .pass-body { padding: 16px 20px 0; display: flex; gap: 16px; align-items: flex-start; }
+        .photo-frame {
+          width: 110px; height: 130px; border-radius: 16px;
+          border: 3px solid #10B981; overflow: hidden; background: #F1F5F9;
+          flex-shrink: 0; box-shadow: 0 6px 15px rgba(0,0,0,0.15);
+        }
         .photo-frame img { width: 100%; height: 100%; object-fit: cover; }
-        
-        .info-col { flex: 1; }
-        
-        /* HIGHLIGHTED SERIAL NO BADGE (RED / GOLD HIGHLIGHT) */
-        .serial-badge { display: inline-block; background: linear-gradient(135deg, #DC2626 0%, #B91C1C 100%); color: #FFFFFF; font-weight: 900; font-size: 12px; padding: 4px 12px; border-radius: 20px; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 3px 8px rgba(220,38,38,0.3); border: 1.5px solid #FCA5A5; margin-bottom: 4px; }
-        
-        .player-name { font-size: 18px; font-weight: 900; color: #0F172A; margin: 2px 0; leading-tight; }
-        .player-team { font-size: 11px; font-weight: 800; color: #047857; text-transform: uppercase; }
 
-        /* DETAILS GRID */
-        .details-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; background: #F8FAFC; padding: 10px 12px; border-radius: 14px; border: 1.5px solid #E2E8F0; text-align: left; }
-        .detail-item { font-size: 8.5px; color: #64748B; font-weight: 800; text-transform: uppercase; }
-        .detail-val { font-size: 10.5px; color: #0F172A; font-weight: 900; margin-top: 1px; }
+        .info-col { flex: 1; padding-top: 2px; }
+        .serial-badge {
+          display: inline-block;
+          background: linear-gradient(135deg, #DC2626 0%, #B91C1C 100%);
+          color: #FFFFFF; font-weight: 900; font-size: 11px; padding: 4px 14px;
+          border-radius: 20px; text-transform: uppercase; letter-spacing: 1px;
+          box-shadow: 0 3px 8px rgba(220,38,38,0.3); border: 1.5px solid #FCA5A5;
+        }
+        .player-name { font-size: 19px; font-weight: 900; color: #0F172A; margin: 6px 0 2px; line-height: 1.2; }
+        .player-category {
+          display: inline-block; font-size: 10px; font-weight: 800; color: #047857;
+          background: #ECFDF5; padding: 2px 10px; border-radius: 12px; border: 1px solid #A7F3D0;
+          text-transform: uppercase; letter-spacing: 0.5px;
+        }
+        .player-phone { font-size: 11px; font-weight: 800; color: #475569; margin-top: 4px; }
 
-        /* FOOTER STRIP */
-        .card-footer { border-top: 1.5px border-dashed #CBD5E1; padding-top: 8px; font-size: 9px; color: #475569; font-weight: 800; display: flex; justify-content: space-between; items: center; }
-        .official-seal { padding: 4px 10px; border-radius: 8px; font-weight: 900; font-size: 9.5px; }
+        .details-grid {
+          display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 0;
+          margin: 12px 20px 0; border-radius: 12px; overflow: hidden;
+          border: 1.5px solid #E2E8F0;
+        }
+        .detail-cell {
+          padding: 8px 10px; text-align: center;
+          border-right: 1px solid #E2E8F0; border-bottom: 1px solid #E2E8F0;
+        }
+        .detail-cell:nth-child(3n) { border-right: none; }
+        .detail-cell:nth-child(n+4) { border-bottom: none; }
+        .detail-cell:nth-child(odd) { background: #F0FDF4; }
+        .detail-cell:nth-child(even) { background: #F8FAFC; }
+        .detail-label { font-size: 8px; color: #64748B; font-weight: 800; text-transform: uppercase; letter-spacing: 0.5px; }
+        .detail-val { font-size: 10.5px; color: #0F172A; font-weight: 900; margin-top: 2px; }
+
+        .reg-datetime-bar {
+          margin: 10px 20px 0; padding: 8px 14px; border-radius: 10px;
+          background: linear-gradient(135deg, #EFF6FF, #DBEAFE);
+          border: 1.5px solid #93C5FD; display: flex; justify-content: space-between;
+          align-items: center; font-size: 10px;
+        }
+        .reg-label { font-weight: 800; color: #1E40AF; text-transform: uppercase; font-size: 8px; letter-spacing: 1px; }
+        .reg-value { font-weight: 900; color: #1E3A8A; font-size: 11px; }
+
+        .card-footer {
+          margin: 12px 0 0; padding: 12px 20px;
+          background: linear-gradient(135deg, #1E293B 0%, #0F172A 100%);
+          display: flex; justify-content: space-between; align-items: center;
+          color: #94A3B8; font-size: 9px; font-weight: 700;
+        }
+        .footer-left { line-height: 1.6; }
+        .footer-left strong { color: #E2E8F0; }
+        .official-seal {
+          padding: 5px 12px; border-radius: 8px; font-weight: 900; font-size: 9px;
+          text-transform: uppercase; letter-spacing: 1px;
+        }
+        .seal-verified { background: #065F46; color: #A7F3D0; border: 1.5px solid #10B981; }
+        .seal-pending { background: #78350F; color: #FDE68A; border: 1.5px solid #F59E0B; }
 
         @media print {
-          body { background: white; padding: 0; display: block; }
+          body { background: white; padding: 0; }
           .action-toolbar { display: none !important; }
           .pass-card { box-shadow: none; margin: 0 auto; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
         }
       </style>
     </head>
     <body>
-      <!-- TOP ACTION BUTTONS BAR -->
       <div class="action-toolbar">
-        <button class="action-btn btn-png" id="download-png-btn">
-          📥 Download Square PNG Image
-        </button>
-        <button class="action-btn btn-pdf" id="print-pdf-btn">
-          🖨️ Print / Save PDF
-        </button>
+        <button class="action-btn btn-png" id="download-png-btn">📥 Download PNG Image</button>
+        <button class="action-btn btn-pdf" id="print-pdf-btn">🖨️ Print / Save PDF</button>
       </div>
 
-      <!-- WHITE BACKGROUND SQUARE PASS CARD (1:1 RATIO) -->
       <div class="pass-card" id="digital-pass-card">
-        
-        <!-- HEADER -->
         <div class="card-header">
           <div class="league-title">${tourneyName.toUpperCase()}</div>
-          <div class="league-sub">${tourneyName.toUpperCase()} • OFFICIAL DIGITAL PLAYER PASS</div>
+          <div class="league-sub">OFFICIAL DIGITAL PLAYER PASS</div>
         </div>
 
-        <!-- MAIN BODY SECTION -->
         <div class="pass-body">
           <div class="photo-frame">
-            <img src="${photoSrc}" alt="${player.name}" />
+            <img src="${photoSrc}" alt="${player.name}" crossorigin="anonymous" />
           </div>
-          
           <div class="info-col">
-            <!-- HIGHLIGHTED SERIAL NUMBER BADGE -->
-            <div class="serial-badge">SERIAL NO: ${serialNo}</div>
-            
+            <div class="serial-badge">REG NO: ${serialNo}</div>
             <div class="player-name">${player.name}</div>
-            <div class="player-team">🏆 ${team ? team.name : `${tourneyName} Registered Player`}</div>
+            <div class="player-category">${player.category || player.playingType || 'All Rounder'}</div>
+            <div class="player-phone">📱 ${maskedPhone}</div>
           </div>
         </div>
 
-        <!-- DETAILS GRID WITH REGISTRATION DATE & TIME -->
         <div class="details-grid">
-          <div>
-            <div class="detail-item">Father Name</div>
-            <div class="detail-val">${player.fatherName || 'N/A'}</div>
+          <div class="detail-cell">
+            <div class="detail-label">Date of Birth</div>
+            <div class="detail-val">${dob || 'N/A'}</div>
           </div>
-          <div>
-            <div class="detail-item">Playing Category</div>
-            <div class="detail-val" style="color: #059669;">${player.category || player.playingType || 'All Rounder'}</div>
+          <div class="detail-cell">
+            <div class="detail-label">Age</div>
+            <div class="detail-val">${player.age ? player.age + ' Yrs' : 'N/A'}</div>
           </div>
-          <div>
-            <div class="detail-item">Age / Village</div>
-            <div class="detail-val" style="color: #D97706;">${player.age ? player.age + ' Yrs' : ''} ${player.village ? '(' + player.village + ')' : ''}</div>
+          <div class="detail-cell">
+            <div class="detail-label">Jersey Size</div>
+            <div class="detail-val">${player.jerseySize || 'N/A'}</div>
           </div>
-          <div>
-            <div class="detail-item">Reg Date & Time</div>
-            <div class="detail-val" style="color: #0284C7;">${regDateTime}</div>
+          <div class="detail-cell">
+            <div class="detail-label">Village/Town</div>
+            <div class="detail-val">${player.village || 'N/A'}</div>
+          </div>
+          <div class="detail-cell">
+            <div class="detail-label">District</div>
+            <div class="detail-val">${player.district || 'N/A'}</div>
+          </div>
+          <div class="detail-cell">
+            <div class="detail-label">State</div>
+            <div class="detail-val">${player.state || 'N/A'}</div>
           </div>
         </div>
 
-        <!-- FOOTER -->
-        <div class="card-footer">
+        <div class="reg-datetime-bar">
           <div>
-            📍 Jhankra School Ground • 29-31 Aug 2026<br/>
-            Organizer: Pintu Santra (89722144166)
+            <div class="reg-label">Registration Date & Time</div>
+            <div class="reg-value">${regDateTime}</div>
           </div>
           ${statusBadgeHtml}
         </div>
 
+        <div class="card-footer">
+          <div class="footer-left">
+            ${tourneyVenue ? '📍 <strong>' + tourneyVenue + '</strong>' : ''}${dateRange ? ' • ' + dateRange : ''}<br/>
+            ${organizerName ? 'Organizer: <strong>' + organizerName + '</strong>' : ''}${organizerPhone ? ' (' + organizerPhone + ')' : ''}
+          </div>
+        </div>
       </div>
 
       <script>
         document.getElementById('print-pdf-btn').addEventListener('click', () => window.print());
-
         document.getElementById('download-png-btn').addEventListener('click', () => {
           const card = document.getElementById('digital-pass-card');
           html2canvas(card, { scale: 3, useCORS: true, allowTaint: true }).then(canvas => {
@@ -580,7 +655,7 @@ export async function printDigitalPass(player, league, team) {
             link.click();
           });
         });
-      </script>
+      <\/script>
     </body>
     </html>
   `;

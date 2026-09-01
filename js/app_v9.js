@@ -1464,7 +1464,10 @@ function openRegistrationSuccessModal(details) {
         </div>
 
         <div class="space-y-2 pt-1">
-          <a href="https://chat.whatsapp.com/EDLr1a3qfww42HSmjKaBEL" target="_blank" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all">
+          ${!details.isTeam ? `<button id="download-pass-btn" class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all">
+            🎫 Download Player Pass
+          </button>` : ''}
+          <a href="${WHATSAPP_GROUP_LINK}" target="_blank" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all">
             💬 Join Official WhatsApp Group
           </a>
           <button id="close-reg-success-btn" class="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow">
@@ -1488,6 +1491,15 @@ function openRegistrationSuccessModal(details) {
   };
 
   document.getElementById('close-reg-success-btn')?.addEventListener('click', removeModal);
+
+  document.getElementById('download-pass-btn')?.addEventListener('click', () => {
+    const player = details.playerData;
+    if (player) {
+      const league = store.getLeagueById(player.leagueId || store.activeTournamentId);
+      const team = player.teamId ? store.getTeamById(player.teamId) : null;
+      printDigitalPass(player, league, team);
+    }
+  });
 }
 
 // --- FULL HD PHOTO ZOOM MODAL ---
@@ -7568,7 +7580,8 @@ function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
         name: newPlayer.name,
         registrationId: newPlayer.registrationId || newPlayer.regNo,
         displayRegistrationNumber: newPlayer.displayRegistrationNumber || newPlayer.serialNo,
-        isTeam: false
+        isTeam: false,
+        playerData: newPlayer
       });
     } catch (err) {
       console.error("Player Registration Error:", err);
