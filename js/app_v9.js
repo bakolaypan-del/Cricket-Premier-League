@@ -10245,104 +10245,105 @@ function renderLiveAuctionView(container) {
     const allTourneys = store.getCustomTournaments();
 
     container.innerHTML = `
-      <div id="auction-concluded-standby-view" class="space-y-6 animate-fade-in pb-16 w-full max-w-none mx-auto px-2 sm:px-4 text-slate-900">
+      <div id="auction-concluded-standby-view" class="space-y-3 animate-fade-in pb-16 w-full max-w-3xl mx-auto px-2 sm:px-4 text-slate-900">
         
-        <!-- Top Status Bar -->
-        <div class="bg-white border-2 border-slate-200/90 rounded-2xl sm:rounded-3xl p-4 shadow-xs flex items-center justify-between flex-wrap gap-3">
-          <div class="flex items-center gap-3">
-            <span class="w-11 h-11 bg-amber-100 text-amber-800 rounded-2xl flex items-center justify-center shrink-0 text-2xl shadow-2xs">
+        <!-- Compact Top Status Bar -->
+        <div class="bg-white border border-slate-200/90 rounded-2xl p-2.5 sm:p-3.5 shadow-xs flex items-center justify-between gap-2 flex-wrap">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <span class="w-8 h-8 sm:w-9 sm:h-9 bg-amber-50 text-amber-900 border border-amber-200 rounded-xl flex items-center justify-center shrink-0 text-base shadow-2xs">
               🔨
             </span>
-            <div>
-              <h1 class="text-base sm:text-xl font-black text-slate-900 tracking-tight">
+            <div class="min-w-0">
+              <h1 class="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-tight truncate">
                 Grand Player Auction Arena
               </h1>
-              <p class="text-[11px] sm:text-xs text-slate-500 font-bold">Multi-Tenant Real-Time Auction & Squad Allocation Portal</p>
+              <p class="text-[9px] sm:text-[10px] text-slate-400 font-bold truncate">Real-Time Auction & Squad Allocation Portal</p>
             </div>
           </div>
           
-          <div class="flex items-center gap-2">
-            <span class="inline-flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 text-slate-700 font-black text-xs rounded-xl border border-slate-200 shadow-2xs">
-              <span class="w-2.5 h-2.5 rounded-full bg-slate-400"></span> NO AUCTION CURRENTLY LIVE
-            </span>
-          </div>
+          <span class="inline-flex items-center gap-1.5 px-2.5 py-1 bg-rose-50 text-rose-700 font-black text-[9.5px] sm:text-[10.5px] rounded-full border border-rose-200 shadow-2xs shrink-0">
+            <span class="w-2 h-2 rounded-full bg-rose-600 animate-pulse"></span> No Current Auction Live
+          </span>
         </div>
 
-        <!-- Featured Recent Auction Highlight Card -->
-        <div class="bg-gradient-to-br from-slate-900 via-[#0F172A] to-slate-950 text-white rounded-3xl p-5 sm:p-7 border-2 border-amber-400/80 shadow-xl space-y-4">
-          <div class="flex items-center justify-between flex-wrap gap-2">
-            <div class="flex items-center gap-2">
-              <span class="px-2.5 py-0.5 bg-amber-500 text-slate-950 font-black text-[9px] sm:text-[10px] rounded-full uppercase tracking-wider">
-                RECENT COMPLETED AUCTION
+        <!-- Featured Recent Auction Highlight Card (Clean White with Vibrant Color Accents) -->
+        <div class="bg-white rounded-2xl sm:rounded-3xl p-3 sm:p-4.5 border border-amber-300/80 shadow-xs space-y-2.5 relative overflow-hidden">
+          
+          <!-- Top Tags -->
+          <div class="flex items-center justify-between gap-1.5 flex-wrap">
+            <div class="flex items-center gap-1.5">
+              <span class="px-2 py-0.5 bg-amber-500 text-slate-950 font-black text-[8.5px] sm:text-[9px] rounded-md uppercase tracking-wider shadow-2xs">
+                RECENT COMPLETED
               </span>
-              <span class="px-2.5 py-0.5 bg-emerald-500/20 text-emerald-400 font-bold text-[9px] sm:text-[10px] rounded-full border border-emerald-500/40">
-                🔒 5-YEAR ARCHIVE LOCKED
+              <span class="px-2 py-0.5 bg-emerald-50 text-emerald-800 font-black text-[8.5px] sm:text-[9px] rounded-md border border-emerald-200 flex items-center gap-1">
+                <span>🔒</span> 5-Year Vault
               </span>
             </div>
-            <span class="text-xs text-slate-400 font-bold">Official League Vault</span>
+            <span class="text-[9px] font-bold text-slate-400 uppercase">Official Record</span>
           </div>
 
-          <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-slate-800 pb-4">
+          <!-- Tournament Title & Action Link -->
+          <div class="space-y-2 border-b border-slate-100 pb-2.5">
             <div>
-              <h2 class="text-xl sm:text-3xl font-black text-white uppercase tracking-tight">
-                🏆 ${mainTourney.name}
+              <h2 class="text-sm sm:text-base font-black text-slate-900 uppercase tracking-tight leading-tight flex items-center gap-1.5">
+                <span>🏆</span> <span>${mainTourney.name}</span>
               </h2>
-              <p class="text-xs sm:text-sm text-amber-200/90 font-medium mt-0.5">
+              <p class="text-[10px] sm:text-[11px] text-slate-500 font-medium mt-0.5">
                 All franchise player allocations, icon fees, and financial balance sheets are finalized.
               </p>
             </div>
 
-            <a href="#t/${mainTourney.slug || 'k2026'}?tab=auction" class="w-full sm:w-auto px-5 py-3 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black text-xs sm:text-sm rounded-2xl shadow-lg flex items-center justify-center gap-2 transition-all hover:scale-105 active:scale-95 cursor-pointer select-none">
+            <a href="#t/${mainTourney.slug || 'k2026'}?tab=auction" class="w-full sm:w-auto px-4 py-2 bg-gradient-to-r from-amber-500 via-amber-400 to-yellow-500 hover:from-amber-400 hover:to-yellow-400 text-slate-950 font-black text-xs rounded-xl shadow-xs flex items-center justify-center gap-2 transition-all active:scale-95 cursor-pointer select-none">
               <span>👉 View ${mainTourney.name} Hub & Squads</span>
-              <span class="text-base">➔</span>
+              <span class="text-sm">➔</span>
             </a>
           </div>
 
-          <!-- 4 Fast Metrics for Recent Tournament -->
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-1">
-            <div class="p-3 bg-slate-900/90 rounded-2xl border border-slate-800 text-center">
-              <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider block">TEAMS</span>
-              <div class="text-base sm:text-lg font-black text-white font-mono mt-0.5">${mainTourney.customTeamsCount || 4} Franchises</div>
+          <!-- 4 Colorful Compact Metric Pills (2x2 on mobile, 4-col on desktop) -->
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div class="p-2 bg-amber-50/80 rounded-xl border border-amber-200/90 text-center space-y-0.5 shadow-2xs">
+              <span class="text-[8px] sm:text-[8.5px] font-black text-amber-800 uppercase tracking-wider block">🛡️ FRANCHISES</span>
+              <div class="text-xs sm:text-sm font-black text-slate-900 font-mono">${mainTourney.customTeamsCount || 4} Teams</div>
             </div>
-            <div class="p-3 bg-slate-900/90 rounded-2xl border border-slate-800 text-center">
-              <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider block">SQUAD SIZE</span>
-              <div class="text-base sm:text-lg font-black text-amber-400 font-mono mt-0.5">13 Players / Team</div>
+            <div class="p-2 bg-blue-50/80 rounded-xl border border-blue-200/90 text-center space-y-0.5 shadow-2xs">
+              <span class="text-[8px] sm:text-[8.5px] font-black text-blue-800 uppercase tracking-wider block">👥 SQUAD SIZE</span>
+              <div class="text-xs sm:text-sm font-black text-blue-900 font-mono">13 Players / Team</div>
             </div>
-            <div class="p-3 bg-slate-900/90 rounded-2xl border border-slate-800 text-center">
-              <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider block">ROSTERS</span>
-              <div class="text-base sm:text-lg font-black text-emerald-400 font-mono mt-0.5">Finalized ✅</div>
+            <div class="p-2 bg-emerald-50/80 rounded-xl border border-emerald-200/90 text-center space-y-0.5 shadow-2xs">
+              <span class="text-[8px] sm:text-[8.5px] font-black text-emerald-800 uppercase tracking-wider block">✅ ROSTERS</span>
+              <div class="text-xs sm:text-sm font-black text-emerald-700 font-mono">Finalized ✓</div>
             </div>
-            <div class="p-3 bg-slate-900/90 rounded-2xl border border-slate-800 text-center">
-              <span class="text-[9px] font-black text-slate-400 uppercase tracking-wider block">RECORD VAULT</span>
-              <div class="text-base sm:text-lg font-black text-sky-400 font-mono mt-0.5">Preserved 🏛️</div>
+            <div class="p-2 bg-purple-50/80 rounded-xl border border-purple-200/90 text-center space-y-0.5 shadow-2xs">
+              <span class="text-[8px] sm:text-[8.5px] font-black text-purple-800 uppercase tracking-wider block">🏛️ VAULT</span>
+              <div class="text-xs sm:text-sm font-black text-purple-700 font-mono">Preserved</div>
             </div>
           </div>
         </div>
 
         <!-- All Tournaments Hub Directory Grid -->
-        <div class="space-y-3">
+        <div class="space-y-2">
           <div class="flex items-center justify-between px-1">
-            <h3 class="text-xs sm:text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-1.5">
-              <span>🏛️</span> Browse Tournament Auction Archives & Squads
+            <h3 class="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+              <span>🏛️</span> Browse Auction Archives
             </h3>
-            <span class="text-xs font-bold text-slate-500">${allTourneys.length} Leagues Available</span>
+            <span class="text-[10px] font-bold text-slate-400">${allTourneys.length} Leagues</span>
           </div>
 
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
             ${allTourneys.map(t => `
-              <div class="p-4 bg-white border-2 border-slate-200/90 hover:border-amber-400 rounded-3xl shadow-xs hover:shadow-md transition-all flex items-center justify-between gap-3 group">
-                <div class="flex items-center gap-3 min-w-0">
-                  <div class="w-12 h-12 rounded-2xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0 shadow-2xs">
+              <div class="p-2.5 bg-white border border-slate-200/90 hover:border-amber-400 rounded-2xl shadow-2xs hover:shadow-xs transition-all flex items-center justify-between gap-2.5 group">
+                <div class="flex items-center gap-2.5 min-w-0">
+                  <div class="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0 shadow-2xs">
                     <img src="${t.posterUrl || t.logoUrl || 'assets/jsl_logo.jpg'}" class="w-full h-full object-cover" onerror="this.src='assets/jsl_logo.jpg'" />
                   </div>
                   <div class="min-w-0">
-                    <h4 class="text-xs sm:text-sm font-black text-slate-900 truncate group-hover:text-amber-800 transition-colors">${t.name}</h4>
-                    <div class="text-[10px] text-slate-500 font-bold truncate mt-0.5">📍 ${t.venue || 'West Bengal'} • ${t.teamsCount || 4} Teams</div>
+                    <h4 class="text-xs font-black text-slate-900 truncate group-hover:text-amber-800 transition-colors uppercase">${t.name}</h4>
+                    <div class="text-[9.5px] text-slate-400 font-bold truncate mt-0.5">📍 ${t.venue || 'Local'} • ${t.teamsCount || 4} Teams</div>
                   </div>
                 </div>
 
-                <a href="#t/${t.slug}?tab=auction" class="px-3.5 py-2 bg-slate-900 hover:bg-slate-800 text-amber-400 font-black text-xs rounded-xl shadow-xs flex items-center gap-1 shrink-0 transition-transform active:scale-95">
-                  <span>View Hub</span> <span>➔</span>
+                <a href="#t/${t.slug}?tab=auction" class="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-amber-400 font-black text-[11px] rounded-xl shadow-xs flex items-center gap-1 shrink-0 transition-transform active:scale-95">
+                  <span>Hub</span> <span>➔</span>
                 </a>
               </div>
             `).join('')}
@@ -10350,10 +10351,10 @@ function renderLiveAuctionView(container) {
         </div>
 
         <!-- Realtime Live Stream Standby Notice -->
-        <div class="p-4 bg-blue-50 border border-blue-200 rounded-3xl flex items-center gap-3 text-xs text-blue-900 font-bold">
-          <span class="text-xl shrink-0">📡</span>
-          <div>
-            <strong>Automated Live Auction Feed:</strong> Whenever a tournament organizer starts a live bidding round, this page will automatically connect and stream live player bids and countdown timers in real-time.
+        <div class="p-2.5 bg-blue-50/70 border border-blue-200/80 rounded-2xl flex items-center gap-2.5 text-[10px] sm:text-xs text-blue-900 font-bold">
+          <span class="text-base shrink-0">📡</span>
+          <div class="leading-relaxed">
+            <strong>Live Feed Standby:</strong> When an organizer starts a live bidding round, this portal streams live player bids in real-time.
           </div>
         </div>
 
@@ -12528,58 +12529,58 @@ function renderCareerHubView(container) {
     });
 
     container.innerHTML = `
-      <div class="space-y-4 sm:space-y-5 animate-fade-in pb-16">
+      <div class="space-y-3 sm:space-y-4 animate-fade-in pb-16 w-full max-w-4xl mx-auto px-1 sm:px-3 text-slate-900">
         
-        <!-- Compact Stylish White Header Card with Single Row 3 Top Performers -->
-        <div class="bg-white border border-slate-200/90 rounded-2xl sm:rounded-3xl shadow-sm p-3.5 sm:p-5">
+        <!-- Compact Stylish White Header Card with 3 Top Performers -->
+        <div class="bg-white border border-slate-200/90 rounded-2xl sm:rounded-3xl shadow-xs p-3 sm:p-4 space-y-2.5">
           <!-- Heading -->
-          <div class="flex items-center justify-between border-b border-slate-100 pb-2.5 mb-3">
-            <h1 class="text-base sm:text-2xl font-black text-slate-900 flex items-center gap-1.5 sm:gap-2">
+          <div class="flex items-center justify-between border-b border-slate-100 pb-2">
+            <h1 class="text-xs sm:text-base font-black text-slate-900 flex items-center gap-1.5 uppercase tracking-wide">
               <span>📊</span> Lifetime Player Stats
             </h1>
-            <span class="px-2.5 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-full font-black text-[10px] font-mono uppercase tracking-wider">
+            <span class="px-2 py-0.5 bg-blue-50 text-blue-700 border border-blue-200 rounded-full font-black text-[9px] sm:text-[10px] font-mono uppercase tracking-wider">
               ${list.length} Registered
             </span>
           </div>
 
-          <!-- Single Row 3 Top Performers (Mobile Friendly & Stylish White Background) -->
-          <div class="grid grid-cols-3 gap-2 sm:gap-4">
+          <!-- Single Row 3 Top Performers (Compact & Colorful on White Background) -->
+          <div class="grid grid-cols-3 gap-1.5 sm:gap-3">
             
             <!-- 1. Top Run Scorer -->
-            <div class="bg-amber-50/70 border border-amber-200/80 rounded-xl p-2 sm:p-3 text-center shadow-xs flex flex-col justify-between">
+            <div class="bg-amber-50/80 border border-amber-200/90 rounded-xl p-2 text-center shadow-2xs flex flex-col justify-between">
               <div>
-                <span class="text-[8px] sm:text-[10px] font-black uppercase tracking-wider text-amber-800 block truncate">🏏 Top Run Scorer</span>
-                <div class="text-xs sm:text-sm md:text-base font-black text-slate-900 truncate mt-1 leading-tight">
+                <span class="text-[8px] sm:text-[9.5px] font-black uppercase tracking-wider text-amber-900 block truncate">🏏 Runs Leader</span>
+                <div class="text-[11px] sm:text-xs md:text-sm font-black text-slate-900 truncate mt-0.5 leading-tight">
                   ${topRunScorer && topRunScorer.runs > 0 ? topRunScorer.name : '—'}
                 </div>
               </div>
-              <div class="text-[10px] sm:text-xs font-black text-amber-700 font-mono mt-1">
+              <div class="text-[10px] sm:text-xs font-black text-amber-700 font-mono mt-0.5">
                 ${topRunScorer && topRunScorer.runs > 0 ? `${topRunScorer.runs} Runs` : '0 Runs'}
               </div>
             </div>
 
             <!-- 2. Top Wicket Taker -->
-            <div class="bg-sky-50/70 border border-sky-200/80 rounded-xl p-2 sm:p-3 text-center shadow-xs flex flex-col justify-between">
+            <div class="bg-sky-50/80 border border-sky-200/90 rounded-xl p-2 text-center shadow-2xs flex flex-col justify-between">
               <div>
-                <span class="text-[8px] sm:text-[10px] font-black uppercase tracking-wider text-sky-800 block truncate">⚡ Top Wicket Taker</span>
-                <div class="text-xs sm:text-sm md:text-base font-black text-slate-900 truncate mt-1 leading-tight">
+                <span class="text-[8px] sm:text-[9.5px] font-black uppercase tracking-wider text-sky-900 block truncate">⚡ Wkts Leader</span>
+                <div class="text-[11px] sm:text-xs md:text-sm font-black text-slate-900 truncate mt-0.5 leading-tight">
                   ${topWicketTaker && topWicketTaker.wickets > 0 ? topWicketTaker.name : '—'}
                 </div>
               </div>
-              <div class="text-[10px] sm:text-xs font-black text-sky-700 font-mono mt-1">
+              <div class="text-[10px] sm:text-xs font-black text-sky-700 font-mono mt-0.5">
                 ${topWicketTaker && topWicketTaker.wickets > 0 ? `${topWicketTaker.wickets} Wkts` : '0 Wkts'}
               </div>
             </div>
 
             <!-- 3. MVP Player -->
-            <div class="bg-emerald-50/70 border border-emerald-200/80 rounded-xl p-2 sm:p-3 text-center shadow-xs flex flex-col justify-between">
+            <div class="bg-emerald-50/80 border border-emerald-200/90 rounded-xl p-2 text-center shadow-2xs flex flex-col justify-between">
               <div>
-                <span class="text-[8px] sm:text-[10px] font-black uppercase tracking-wider text-emerald-800 block truncate">🌟 MVP Player</span>
-                <div class="text-xs sm:text-sm md:text-base font-black text-slate-900 truncate mt-1 leading-tight">
+                <span class="text-[8px] sm:text-[9.5px] font-black uppercase tracking-wider text-emerald-900 block truncate">👑 MVP Leader</span>
+                <div class="text-[11px] sm:text-xs md:text-sm font-black text-slate-900 truncate mt-0.5 leading-tight">
                   ${topMvp && topMvp.points > 0 ? topMvp.name : '—'}
                 </div>
               </div>
-              <div class="text-[10px] sm:text-xs font-black text-emerald-700 font-mono mt-1">
+              <div class="text-[10px] sm:text-xs font-black text-emerald-700 font-mono mt-0.5">
                 ${topMvp && topMvp.points > 0 ? `${topMvp.points} Pts` : '0 Pts'}
               </div>
             </div>
@@ -12587,77 +12588,131 @@ function renderCareerHubView(container) {
           </div>
         </div>
 
-        <!-- Filter & Search Toolbar (White Container) -->
-        <div class="bg-white p-3 sm:p-4 rounded-2xl border border-slate-200/90 shadow-sm space-y-3">
-          <div class="flex flex-col md:flex-row md:items-center justify-between gap-2.5">
-            
-            <!-- Category Pills -->
-            <div class="flex items-center gap-1.5 overflow-x-auto pb-1 sm:pb-0 scrollbar-none">
-              <button class="filter-cat-btn px-3 py-1.5 rounded-xl font-bold text-xs transition-all whitespace-nowrap ${selectedCategory === 'ALL' ? 'bg-slate-900 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}" data-category="ALL">
-                All Players (${list.length})
-              </button>
-              <button class="filter-cat-btn px-3 py-1.5 rounded-xl font-bold text-xs transition-all whitespace-nowrap ${selectedCategory === 'BATSMAN' ? 'bg-amber-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}" data-category="BATSMAN">
-                🏏 Batsmen
-              </button>
-              <button class="filter-cat-btn px-3 py-1.5 rounded-xl font-bold text-xs transition-all whitespace-nowrap ${selectedCategory === 'BOWLER' ? 'bg-sky-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}" data-category="BOWLER">
-                🎯 Bowlers
-              </button>
-              <button class="filter-cat-btn px-3 py-1.5 rounded-xl font-bold text-xs transition-all whitespace-nowrap ${selectedCategory === 'ALL_ROUNDER' ? 'bg-emerald-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}" data-category="ALL_ROUNDER">
-                ⚡ All-Rounders
-              </button>
-              <button class="filter-cat-btn px-3 py-1.5 rounded-xl font-bold text-xs transition-all whitespace-nowrap ${selectedCategory === 'WK' ? 'bg-purple-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}" data-category="WK">
-                🧤 Wicket Keepers
-              </button>
+        <!-- Filter & Search Toolbar (Compact White Container) -->
+        <div class="bg-white p-2.5 sm:p-3.5 rounded-2xl border border-slate-200/90 shadow-xs space-y-2">
+          
+          <!-- Category Pills with Touch Horizontal Scroll -->
+          <div class="flex items-center gap-1 overflow-x-auto pb-1 scrollbar-hide select-none" style="touch-action: pan-x; -webkit-overflow-scrolling: touch;">
+            <button class="filter-cat-btn px-2.5 py-1 rounded-xl font-black text-[11px] transition-all whitespace-nowrap shrink-0 ${selectedCategory === 'ALL' ? 'bg-slate-900 text-white shadow-2xs' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}" data-category="ALL">
+              All (${list.length})
+            </button>
+            <button class="filter-cat-btn px-2.5 py-1 rounded-xl font-bold text-[11px] transition-all whitespace-nowrap shrink-0 ${selectedCategory === 'BATSMAN' ? 'bg-amber-600 text-white shadow-2xs font-black' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}" data-category="BATSMAN">
+              🏏 Batsmen
+            </button>
+            <button class="filter-cat-btn px-2.5 py-1 rounded-xl font-bold text-[11px] transition-all whitespace-nowrap shrink-0 ${selectedCategory === 'BOWLER' ? 'bg-sky-600 text-white shadow-2xs font-black' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}" data-category="BOWLER">
+              🎯 Bowlers
+            </button>
+            <button class="filter-cat-btn px-2.5 py-1 rounded-xl font-bold text-[11px] transition-all whitespace-nowrap shrink-0 ${selectedCategory === 'ALL_ROUNDER' ? 'bg-emerald-600 text-white shadow-2xs font-black' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}" data-category="ALL_ROUNDER">
+              ⚡ All-Rounders
+            </button>
+            <button class="filter-cat-btn px-2.5 py-1 rounded-xl font-bold text-[11px] transition-all whitespace-nowrap shrink-0 ${selectedCategory === 'WK' ? 'bg-purple-600 text-white shadow-2xs font-black' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}" data-category="WK">
+              🧤 Keepers
+            </button>
+          </div>
+
+          <!-- League & Sort Dropdowns Grid -->
+          <div class="grid grid-cols-2 gap-1.5">
+            <div class="flex items-center gap-1 bg-slate-50 border border-slate-200/90 rounded-xl px-2 py-1 shadow-2xs">
+              <span class="text-[10px] font-bold text-slate-400 whitespace-nowrap">🏆</span>
+              <select id="career-tourney-filter-select" class="bg-transparent text-slate-900 text-[11px] font-black focus:outline-none cursor-pointer w-full truncate">
+                <option value="ALL" ${selectedTourneyId === 'ALL' ? 'selected' : ''}>🌐 All Leagues (Universal)</option>
+                ${allTourneys.map(t => `<option value="${t.supabaseId || t.id}" ${(t.supabaseId || t.id) === selectedTourneyId ? 'selected' : ''}>🏆 ${t.name}</option>`).join('')}
+              </select>
             </div>
 
-            <!-- League & Sort Dropdowns -->
-            <div class="flex items-center gap-2 flex-wrap self-end md:self-auto">
-              <div class="flex items-center gap-1.5 bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1 shadow-2xs">
-                <span class="text-[11px] font-bold text-slate-500 whitespace-nowrap">🏆 League:</span>
-                <select id="career-tourney-filter-select" class="bg-transparent text-slate-900 text-xs font-black focus:outline-none cursor-pointer">
-                  <option value="ALL" ${selectedTourneyId === 'ALL' ? 'selected' : ''}>🌐 All Leagues (Universal)</option>
-                  ${allTourneys.map(t => `<option value="${t.supabaseId || t.id}" ${(t.supabaseId || t.id) === selectedTourneyId ? 'selected' : ''}>🏆 ${t.name}</option>`).join('')}
-                </select>
-              </div>
-
-              <div class="flex items-center gap-1.5 bg-slate-50 border border-slate-300 rounded-xl px-2.5 py-1 shadow-2xs">
-                <span class="text-[11px] font-bold text-slate-500 whitespace-nowrap">Sort:</span>
-                <select id="career-sort-select" class="bg-transparent text-slate-900 text-xs font-bold focus:outline-none cursor-pointer">
-                  <option value="points" ${sortBy === 'points' ? 'selected' : ''}>🌟 Points (MVP)</option>
-                  <option value="runs" ${sortBy === 'runs' ? 'selected' : ''}>🏏 Most Runs</option>
-                  <option value="avg" ${sortBy === 'avg' ? 'selected' : ''}>📈 Best Bat Avg</option>
-                  <option value="wickets" ${sortBy === 'wickets' ? 'selected' : ''}>🎯 Most Wickets</option>
-                  <option value="economy" ${sortBy === 'economy' ? 'selected' : ''}>🛡️ Best Economy</option>
-                  <option value="matches" ${sortBy === 'matches' ? 'selected' : ''}>🏟️ Most Matches</option>
-                </select>
-              </div>
+            <div class="flex items-center gap-1 bg-slate-50 border border-slate-200/90 rounded-xl px-2 py-1 shadow-2xs">
+              <span class="text-[10px] font-bold text-slate-400 whitespace-nowrap">Sort:</span>
+              <select id="career-sort-select" class="bg-transparent text-slate-900 text-[11px] font-bold focus:outline-none cursor-pointer w-full truncate">
+                <option value="points" ${sortBy === 'points' ? 'selected' : ''}>🌟 Points (MVP)</option>
+                <option value="runs" ${sortBy === 'runs' ? 'selected' : ''}>🏏 Most Runs</option>
+                <option value="avg" ${sortBy === 'avg' ? 'selected' : ''}>📈 Best Bat Avg</option>
+                <option value="wickets" ${sortBy === 'wickets' ? 'selected' : ''}>🎯 Most Wickets</option>
+                <option value="economy" ${sortBy === 'economy' ? 'selected' : ''}>🛡️ Best Economy</option>
+                <option value="matches" ${sortBy === 'matches' ? 'selected' : ''}>🏟️ Most Matches</option>
+              </select>
             </div>
           </div>
 
-          <!-- Search Input Field (No phone numbers, no team) -->
+          <!-- Search Input Field -->
           <div class="relative w-full">
-            <input type="text" id="career-search-query-input" value="${searchQuery}" placeholder="🔍 Search player by name, village, or role..." class="w-full bg-slate-50 border border-slate-200/90 text-slate-800 text-xs sm:text-sm rounded-xl p-2.5 pl-3.5 focus:outline-none focus:border-blue-500 focus:bg-white font-bold placeholder-slate-400 shadow-inner transition-all" />
+            <input type="text" id="career-search-query-input" value="${searchQuery}" placeholder="🔍 Search by name, village, or role..." class="w-full bg-slate-50 border border-slate-200 text-slate-800 text-xs rounded-xl py-2 pl-3 pr-3 focus:outline-none focus:border-emerald-500 focus:bg-white font-bold placeholder-slate-400 shadow-2xs transition-all" />
           </div>
         </div>
 
-        <!-- Professional Clean White Table -->
-        <div class="bg-white border border-slate-200/90 rounded-2xl sm:rounded-3xl shadow-md overflow-hidden">
+        <!-- Clean White Players Container -->
+        <div class="bg-white border border-slate-200/90 rounded-2xl sm:rounded-3xl shadow-xs overflow-hidden space-y-0">
           
-          <!-- Table Subheader -->
-          <div class="px-4 py-3 bg-slate-50/90 border-b border-slate-200 flex items-center justify-between">
-            <div class="flex items-center gap-2">
-              <span class="font-black text-slate-800 text-xs sm:text-sm uppercase tracking-wider">Registered Players List</span>
-              <span class="px-2 py-0.5 bg-blue-100 text-blue-800 text-[10px] font-black rounded-full font-mono">${filtered.length}</span>
+          <!-- Subheader -->
+          <div class="px-3 py-2 bg-slate-50 border-b border-slate-200/90 flex items-center justify-between">
+            <div class="flex items-center gap-1.5">
+              <span class="font-black text-slate-900 text-xs uppercase tracking-wide">Players Roster</span>
+              <span class="px-2 py-0.2 bg-blue-100 text-blue-800 text-[9px] font-black rounded-full font-mono">${filtered.length}</span>
             </div>
-            <span class="text-[10px] sm:text-[11px] text-slate-400 font-semibold">Live match compiled</span>
+            <span class="text-[9px] sm:text-[10px] text-slate-400 font-bold">Verified Profiles</span>
           </div>
 
-          <!-- Table Container with Horizontal Scroll -->
-          <div class="overflow-x-auto">
+          <!-- MOBILE VIEW: COMPACT RESPONSIVE PLAYER CARDS (Block on mobile, Hidden on desktop) -->
+          <div class="block md:hidden divide-y divide-slate-100">
+            ${filtered.length === 0 ? `
+              <div class="py-8 text-center bg-white p-4">
+                <span class="text-2xl block mb-1">🏏</span>
+                <div class="text-slate-800 font-black text-xs">No players found</div>
+                <p class="text-slate-400 text-[10px] mt-0.5">Try clearing filters or switching to All Leagues.</p>
+              </div>
+            ` : filtered.map((p, idx) => {
+              const rank = idx + 1;
+              const medalBg = rank === 1 ? 'bg-amber-100 text-amber-950 border-amber-300' : rank === 2 ? 'bg-slate-200 text-slate-900 border-slate-300' : rank === 3 ? 'bg-amber-50 text-amber-800 border-amber-200' : 'bg-slate-100 text-slate-600 border-slate-200';
+              const roleColor = p.category.toLowerCase().includes('bat')
+                ? 'bg-amber-50 text-amber-800 border-amber-200'
+                : p.category.toLowerCase().includes('bowl')
+                ? 'bg-sky-50 text-sky-800 border-sky-200'
+                : p.category.toLowerCase().includes('keep') || p.category.toLowerCase().includes('wk')
+                ? 'bg-purple-50 text-purple-800 border-purple-200'
+                : 'bg-emerald-50 text-emerald-800 border-emerald-200';
+
+              return `
+                <div class="p-2.5 bg-white hover:bg-slate-50 flex items-center justify-between gap-2 transition-all cursor-pointer view-career-detail-btn" data-id="${p.id}">
+                  <div class="flex items-center gap-2 min-w-0">
+                    <!-- Rank -->
+                    <span class="w-5 h-5 rounded-md ${medalBg} border font-mono font-black text-[9px] flex items-center justify-center shrink-0 shadow-2xs">
+                      #${rank}
+                    </span>
+
+                    <!-- Photo -->
+                    <img src="${p.photoUrl || 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Crect width=\'100\' height=\'100\' rx=\'20\' fill=\'%23059669\'/%3E%3Ctext x=\'50\' y=\'62\' font-size=\'45\' text-anchor=\'middle\' fill=\'white\'%3E🏏%3C/text%3E%3C/svg%3E'}" class="w-9 h-9 rounded-xl object-cover border border-slate-200 shrink-0 shadow-2xs" />
+
+                    <!-- Details -->
+                    <div class="min-w-0">
+                      <div class="font-black text-slate-900 text-xs leading-tight truncate uppercase">${p.name}</div>
+                      <div class="flex items-center gap-1 mt-0.5 flex-wrap">
+                        <span class="px-1.5 py-0.2 rounded-md ${roleColor} border text-[8px] font-black uppercase">
+                          ${p.category || 'All-rounder'}
+                        </span>
+                        <span class="text-[9px] text-slate-400 truncate">📍 ${p.village || 'Local'}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <!-- Right Stats & Action -->
+                  <div class="text-right shrink-0 flex flex-col items-end justify-center space-y-0.5">
+                    <div class="flex items-center gap-1 font-mono text-[10.5px]">
+                      ${Number(p.runs) > 0 ? `<span class="px-1.5 py-0.2 bg-amber-50 text-amber-800 rounded font-black border border-amber-200/80">${p.runs} R</span>` : ''}
+                      ${Number(p.wickets) > 0 ? `<span class="px-1.5 py-0.2 bg-sky-50 text-sky-800 rounded font-black border border-sky-200/80">${p.wickets} W</span>` : ''}
+                      <span class="px-1.5 py-0.2 bg-emerald-50 text-emerald-800 rounded font-black border border-emerald-200/80">${p.points} P</span>
+                    </div>
+                    <span class="text-[8px] font-bold text-slate-400">Tap for Card ➔</span>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+
+          <!-- DESKTOP VIEW: FULL STATISTICAL TABLE (Hidden on mobile, Block on md+) -->
+          <div class="hidden md:block overflow-x-auto">
             <table class="w-full text-left text-xs sm:text-sm text-slate-700">
               <thead class="bg-slate-100/80 font-black text-[10px] uppercase text-slate-600 border-b border-slate-200 tracking-wider">
                 <tr>
-                  <th class="py-3 px-3 sm:px-4 text-center w-12">RANK</th>
+                  <th class="py-3 px-3 text-center w-12">RANK</th>
                   <th class="py-3 px-3 min-w-[170px]">PLAYER</th>
                   <th class="py-3 px-3">ROLE</th>
                   <th class="py-3 px-3 text-center">MAT</th>
@@ -12672,93 +12727,39 @@ function renderCareerHubView(container) {
               <tbody class="divide-y divide-slate-100 font-semibold text-slate-700">
                 ${filtered.length === 0 ? `
                   <tr>
-                    <td colspan="10" class="py-12 text-center bg-white">
-                      <div class="flex flex-col items-center justify-center space-y-2 max-w-sm mx-auto p-4">
-                        <span class="text-3xl">🏏</span>
-                        <div class="text-slate-800 font-black text-sm">No players found in this league view</div>
-                        <p class="text-slate-500 text-xs">Switch to All Leagues or Jhankra Super League 2026 to view verified player profiles & career stats.</p>
-                        <button type="button" class="btn-switch-career-universal px-4 py-2 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-xs rounded-xl shadow-xs cursor-pointer mt-2">
-                          View All 120 Players ➔
-                        </button>
-                      </div>
-                    </td>
+                    <td colspan="10" class="py-10 text-center bg-white text-xs text-slate-400 font-bold">No players found in this view.</td>
                   </tr>
                 ` : filtered.map((p, idx) => {
                   const rank = idx + 1;
                   const rankBadge = rank === 1 
-                    ? '<span class="inline-flex w-6 h-6 rounded-full bg-gradient-to-tr from-amber-400 to-yellow-300 text-slate-950 font-black items-center justify-center text-xs shadow-xs border border-amber-300">🥇</span>'
+                    ? '<span class="inline-flex w-6 h-6 rounded-full bg-amber-100 text-amber-950 font-black items-center justify-center text-xs shadow-xs border border-amber-300">🥇</span>'
                     : rank === 2 
-                    ? '<span class="inline-flex w-6 h-6 rounded-full bg-gradient-to-tr from-slate-300 to-slate-100 text-slate-900 font-black items-center justify-center text-xs shadow-xs border border-slate-300">🥈</span>'
+                    ? '<span class="inline-flex w-6 h-6 rounded-full bg-slate-200 text-slate-900 font-black items-center justify-center text-xs shadow-xs border border-slate-300">🥈</span>'
                     : rank === 3 
-                    ? '<span class="inline-flex w-6 h-6 rounded-full bg-gradient-to-tr from-amber-700 to-amber-600 text-white font-black items-center justify-center text-xs shadow-xs border border-amber-600">🥉</span>'
+                    ? '<span class="inline-flex w-6 h-6 rounded-full bg-amber-50 text-amber-800 font-black items-center justify-center text-xs shadow-xs border border-amber-200">🥉</span>'
                     : `<span class="inline-flex w-6 h-6 rounded-full bg-slate-100 text-slate-600 font-bold items-center justify-center text-[10px] border border-slate-200">${rank}</span>`;
-
-                  const rolePill = p.category.toLowerCase().includes('bat')
-                    ? '<span class="px-2 py-0.5 rounded-md bg-amber-50 text-amber-800 border border-amber-200 text-[9px] font-black uppercase">Batsman</span>'
-                    : p.category.toLowerCase().includes('bowl')
-                    ? '<span class="px-2 py-0.5 rounded-md bg-sky-50 text-sky-800 border border-sky-200 text-[9px] font-black uppercase">Bowler</span>'
-                    : p.category.toLowerCase().includes('keep') || p.category.toLowerCase().includes('wk')
-                    ? '<span class="px-2 py-0.5 rounded-md bg-purple-50 text-purple-800 border border-purple-200 text-[9px] font-black uppercase">Wicket Keeper</span>'
-                    : '<span class="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-800 border border-emerald-200 text-[9px] font-black uppercase">All Rounder</span>';
 
                   return `
                     <tr class="hover:bg-blue-50/40 transition-colors">
-                      <!-- Rank -->
-                      <td class="py-2.5 px-3 sm:px-4 text-center">
-                        ${rankBadge}
-                      </td>
-
-                      <!-- Player Avatar & Name -->
+                      <td class="py-2.5 px-3 text-center">${rankBadge}</td>
                       <td class="py-2.5 px-3">
-                        <div class="flex items-center gap-2.5">
-                          <img src="${p.photoUrl || 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Crect width=\'100\' height=\'100\' rx=\'20\' fill=\'%23059669\'/%3E%3Ctext x=\'50\' y=\'62\' font-size=\'45\' text-anchor=\'middle\' fill=\'white\'%3E🏏%3C/text%3E%3C/svg%3E'}" class="w-8 h-8 sm:w-9 sm:h-9 rounded-xl object-cover border-2 border-slate-200 shadow-xs flex-shrink-0" />
+                        <div class="flex items-center gap-2">
+                          <img src="${p.photoUrl || 'data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' viewBox=\'0 0 100 100\'%3E%3Crect width=\'100\' height=\'100\' rx=\'20\' fill=\'%23059669\'/%3E%3Ctext x=\'50\' y=\'62\' font-size=\'45\' text-anchor=\'middle\' fill=\'white\'%3E🏏%3C/text%3E%3C/svg%3E'}" class="w-8 h-8 rounded-xl object-cover border border-slate-200 shrink-0" />
                           <div class="min-w-0">
-                            <div class="font-black text-slate-900 text-xs sm:text-sm leading-tight truncate">${p.name}</div>
-                            <div class="text-[9px] sm:text-[10px] text-slate-400 font-medium flex items-center gap-1">
-                              <span>📍 ${p.village}</span>
-                              <span class="text-slate-300">•</span>
-                              <span>${p.battingStyle.split(' ')[0]}</span>
-                            </div>
+                            <div class="font-black text-slate-900 text-xs truncate uppercase">${p.name}</div>
+                            <div class="text-[9px] text-slate-400">📍 ${p.village || 'Local'}</div>
                           </div>
                         </div>
                       </td>
-
-                      <!-- Role -->
-                      <td class="py-2.5 px-3">
-                        ${rolePill}
-                      </td>
-
-                      <!-- Matches -->
-                      <td class="py-2.5 px-3 text-center font-mono font-bold text-slate-700">${p.matches}</td>
-
-                      <!-- Runs -->
-                      <td class="py-2.5 px-3 text-center font-mono font-black text-amber-700">
-                        <div>${p.runs}</div>
-                        ${p.balls > 0 ? `<div class="text-[9px] font-normal text-slate-400">SR ${p.strikeRate}</div>` : ''}
-                      </td>
-
-                      <!-- Batting Average -->
-                      <td class="py-2.5 px-3 text-center font-mono text-slate-700 font-bold">${p.battingAvg}</td>
-
-                      <!-- Wickets -->
-                      <td class="py-2.5 px-3 text-center font-mono font-black text-sky-700">
-                        <div>${p.wickets}</div>
-                        ${p.ballsBowled > 0 ? `<div class="text-[9px] font-normal text-slate-400">${p.ballsBowled} b</div>` : ''}
-                      </td>
-
-                      <!-- Economy -->
+                      <td class="py-2.5 px-3 font-bold text-[10px] uppercase text-slate-600">${p.category || 'All-rounder'}</td>
+                      <td class="py-2.5 px-3 text-center font-mono font-bold">${p.matches}</td>
+                      <td class="py-2.5 px-3 text-center font-mono font-black text-amber-700">${p.runs}</td>
+                      <td class="py-2.5 px-3 text-center font-mono text-slate-700">${p.battingAvg}</td>
+                      <td class="py-2.5 px-3 text-center font-mono font-black text-sky-700">${p.wickets}</td>
                       <td class="py-2.5 px-3 text-center font-mono text-slate-700">${p.economy}</td>
-
-                      <!-- Points -->
-                      <td class="py-2.5 px-3 text-center">
-                        <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200 font-black font-mono text-[11px]">
-                          ${p.points}
-                        </span>
-                      </td>
-
-                      <!-- Action Button -->
+                      <td class="py-2.5 px-3 text-center font-mono font-black text-emerald-700">${p.points}</td>
                       <td class="py-2.5 px-4 text-right">
-                        <button class="view-career-detail-btn px-3 py-1 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-[10px] rounded-lg shadow-xs transition-all hover:scale-105 active:scale-95 cursor-pointer whitespace-nowrap" data-id="${p.id}">
+                        <button class="view-career-detail-btn px-2.5 py-1 bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-[10px] rounded-lg shadow-xs cursor-pointer whitespace-nowrap" data-id="${p.id}">
                           Profile Card
                         </button>
                       </td>
@@ -12768,6 +12769,7 @@ function renderCareerHubView(container) {
               </tbody>
             </table>
           </div>
+
         </div>
       </div>
     `;
