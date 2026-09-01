@@ -2121,10 +2121,26 @@ function renderFirstPageLanding(containerEl) {
   const allTournaments = store.getCustomTournaments ? store.getCustomTournaments() : [];
 
   containerEl.innerHTML = `
-    <div class="w-full max-w-5xl mx-auto space-y-4 sm:space-y-6 animate-fade-in py-2 sm:py-4 text-slate-900">
+    <div class="w-full max-w-7xl mx-auto space-y-4 sm:space-y-6 animate-fade-in py-2 sm:py-4 text-slate-900">
       
+      <!-- OPTION 5 DESKTOP TICKER STRIP (Hidden on mobile, visible on lg screens) -->
+      <div class="hidden lg:flex items-center justify-between px-4 py-2 bg-gradient-to-r from-slate-950 via-slate-900 to-orange-950 text-white rounded-2xl border border-orange-500/40 shadow-lg text-xs font-bold uppercase tracking-wider">
+        <div class="flex items-center gap-2">
+          <span class="w-2.5 h-2.5 rounded-full bg-red-600 animate-ping"></span>
+          <span class="text-orange-400 font-black">LIVE BROADCAST TICKER:</span>
+          <span>CRICKET PREMIER LEAGUE 2026 SEASON IS LIVE NOW!</span>
+        </div>
+        <div class="flex items-center gap-4 text-[11px] text-slate-300">
+          <span class="hover:text-orange-400 cursor-pointer transition-colors" onclick="navigate('fixtures')">📅 SCHEDULE</span>
+          <span>•</span>
+          <span class="hover:text-orange-400 cursor-pointer transition-colors" onclick="navigate('tournament-hub')">🏆 RANKINGS</span>
+          <span>•</span>
+          <span class="hover:text-orange-400 cursor-pointer transition-colors" onclick="navigate('career')">📊 REPLAY & STATS</span>
+        </div>
+      </div>
+
       <!-- 👥 REALTIME LIVE & TOTAL VISITOR TRAFFIC METRICS BAR -->
-      <div class="w-full max-w-3xl mx-auto bg-white border border-slate-200/90 rounded-2xl p-2 sm:p-3 shadow-xs flex items-center justify-around gap-1.5 sm:gap-4 text-slate-800 animate-fade-in">
+      <div class="w-full max-w-3xl lg:max-w-none mx-auto bg-white border border-slate-200/90 rounded-2xl p-2 sm:p-3 shadow-xs flex items-center justify-around gap-1.5 sm:gap-4 text-slate-800 animate-fade-in">
         <!-- Live Online Visitors -->
         <div class="flex items-center gap-1.5 sm:gap-2">
           <span class="relative flex h-2.5 w-2.5 sm:h-3 sm:w-3 shrink-0">
@@ -2160,114 +2176,216 @@ function renderFirstPageLanding(containerEl) {
         </div>
       </div>
 
-      <!-- ⏳ LIVE TOURNAMENT COUNTDOWN TIMER (COMPACT & MOBILE-OPTIMIZED) -->
-      <div id="tournament-countdown-card" class="w-full max-w-3xl mx-auto bg-white border border-amber-400/90 p-2.5 sm:p-3.5 rounded-2xl sm:rounded-3xl shadow-lg text-slate-900 animate-fade-in relative overflow-hidden">
-        <div class="absolute -right-8 -bottom-8 w-24 h-24 bg-amber-400/10 rounded-full blur-lg pointer-events-none"></div>
-        <div class="absolute -left-8 -top-8 w-24 h-24 bg-blue-500/10 rounded-full blur-lg pointer-events-none"></div>
+      <!-- MAIN OPTION 5 MAGAZINE 3-COLUMN DESKTOP GRID -->
+      <div class="space-y-4 lg:space-y-0 lg:grid lg:grid-cols-12 lg:gap-6 items-start">
         
-        <div class="flex flex-col sm:flex-row items-center justify-between gap-2.5 sm:gap-3 relative z-10">
-          <div class="text-center sm:text-left space-y-0.5">
-            <div class="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded-full text-[9px] sm:text-[10px] font-black tracking-wider uppercase shadow-2xs">
-              <span class="w-1.5 h-1.5 rounded-full bg-red-600 animate-ping"></span>
-              <span>🏆 MEGA TOURNAMENT KICKOFF</span>
+        <!-- LEFT COLUMN (col-span-5): TOURNAMENT NEWS HERO BANNER & HOST BANNER -->
+        <div class="lg:col-span-5 space-y-4">
+          <!-- MAGAZINE HERO FEATURED NEWS BANNER -->
+          <div class="editorial-hero-card relative group cursor-pointer" onclick="navigate('tournament-hub')">
+            <div class="relative w-full aspect-[16/10] bg-slate-900 overflow-hidden">
+              <img src="assets/cricket_championship_hero.png" onerror="this.src='assets/user_cartoon_cards_full.png'" alt="Tournament News" class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+              <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/50 to-transparent"></div>
+              
+              <div class="absolute top-3 left-3 z-10">
+                <span class="px-2.5 py-1 bg-orange-600 text-white text-[10px] font-black uppercase rounded-full tracking-wider shadow-md">
+                  🔥 BREAKING NEWS
+                </span>
+              </div>
+
+              <div class="absolute bottom-0 inset-x-0 p-4 text-white space-y-1 z-10">
+                <h3 class="text-base sm:text-xl font-black text-white leading-tight tracking-tight uppercase group-hover:text-orange-400 transition-colors">
+                  ROYALS TRIUMPH OVER KNIGHTS IN THRILLER KICKOFF!
+                </h3>
+                <p class="text-xs text-slate-300 line-clamp-2">
+                  Last-ball victory seals playoff spot. Relive the high-voltage action & stats archive.
+                </p>
+                <div class="text-[10px] text-orange-400 font-bold pt-1 flex items-center gap-2">
+                  <span>📅 CPL OFFICIAL NEWS</span> • <span>READ MORE ➔</span>
+                </div>
+              </div>
             </div>
-            <h3 class="text-xs sm:text-base font-black text-slate-900 tracking-tight leading-tight">${allTournaments[0]?.kickoffDate ? new Date(allTournaments[0].kickoffDate + 'T09:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase() + ' • 9:00 AM IST' : 'COMING SOON'}</h3>
-            <p class="text-[10px] sm:text-[11px] text-emerald-700 font-bold flex items-center justify-center sm:justify-start gap-1">
-              <span>📍 ${allTournaments[0]?.venue || 'Tournament Venue'}</span>
-              <span>•</span>
-              <span>${allTournaments[0]?.name || 'Cricket Premier League'}</span>
-            </p>
           </div>
 
-          <!-- 4-Unit Colourful Vibrant Countdown Clock Grid (Compact on Mobile) -->
-          <div class="grid grid-cols-4 gap-1.5 sm:gap-2 text-center">
-            <!-- Days: Blue -->
-            <div class="bg-gradient-to-b from-blue-50 to-blue-100/80 border border-blue-200 rounded-xl p-1.5 sm:p-2 min-w-[48px] sm:min-w-[60px] shadow-2xs">
-              <div id="cd-days" class="text-base sm:text-2xl font-black text-blue-700 font-mono leading-none">00</div>
-              <div class="text-[8px] sm:text-[9px] font-black text-blue-600 uppercase tracking-wider mt-0.5">Days</div>
-            </div>
-            <!-- Hours: Purple -->
-            <div class="bg-gradient-to-b from-purple-50 to-purple-100/80 border border-purple-200 rounded-xl p-1.5 sm:p-2 min-w-[48px] sm:min-w-[60px] shadow-2xs">
-              <div id="cd-hours" class="text-base sm:text-2xl font-black text-purple-700 font-mono leading-none">00</div>
-              <div class="text-[8px] sm:text-[9px] font-black text-purple-600 uppercase tracking-wider mt-0.5">Hours</div>
-            </div>
-            <!-- Mins: Emerald -->
-            <div class="bg-gradient-to-b from-emerald-50 to-emerald-100/80 border border-emerald-200 rounded-xl p-1.5 sm:p-2 min-w-[48px] sm:min-w-[60px] shadow-2xs">
-              <div id="cd-mins" class="text-base sm:text-2xl font-black text-emerald-700 font-mono leading-none">00</div>
-              <div class="text-[8px] sm:text-[9px] font-black text-emerald-600 uppercase tracking-wider mt-0.5">Mins</div>
-            </div>
-            <!-- Secs: Rose Pulse -->
-            <div class="bg-gradient-to-b from-rose-50 to-rose-100/80 border border-rose-200 rounded-xl p-1.5 sm:p-2 min-w-[48px] sm:min-w-[60px] shadow-2xs">
-              <div id="cd-secs" class="text-base sm:text-2xl font-black text-rose-600 font-mono leading-none animate-pulse">00</div>
-              <div class="text-[8px] sm:text-[9px] font-black text-rose-600 uppercase tracking-wider mt-0.5">Secs</div>
+          <!-- HOST YOUR OWN TOURNAMENT BANNER -->
+          <div class="w-full">
+            <div class="bg-gradient-to-br from-[#120B24] via-[#1A1438] to-[#0A0618] rounded-2xl sm:rounded-3xl p-3 sm:p-5 text-white shadow-xl border border-purple-400/40 space-y-2.5 sm:space-y-3.5 relative overflow-hidden">
+              
+              <!-- Top Tag & Bengali Header -->
+              <div class="text-center space-y-0.5 sm:space-y-1">
+                <div class="inline-flex items-center gap-1 px-2.5 py-0.2 bg-emerald-400/20 border border-emerald-400/30 rounded-full text-[9.5px] sm:text-[10.5px] font-black text-emerald-300">
+                  <span>🚀</span> <span>Launch in 2 Minutes</span>
+                </div>
+                <h3 class="text-base sm:text-xl font-black text-white tracking-tight flex items-center justify-center gap-1.5 pt-0.5 font-['Anek_Bangla','Hind_Siliguri',sans-serif] leading-tight">
+                  <span>🏆</span> <span>আপনার নিজের টুর্নামেন্ট তৈরি করুন</span>
+                </h3>
+                <p class="text-[10.5px] sm:text-xs text-slate-300 font-medium">Create custom leagues with automated tools</p>
+              </div>
+
+              <!-- 2 Modes Side-by-Side in SAME ROW (grid-cols-2) -->
+              <div class="grid grid-cols-2 gap-2 sm:gap-3">
+                <!-- Mode A (Sunset Orange-Red Glow) -->
+                <div class="p-2 sm:p-3 bg-gradient-to-b from-rose-500/30 via-orange-500/20 to-slate-900/80 rounded-xl sm:rounded-2xl border border-rose-400/80 shadow-md shadow-rose-500/10 space-y-1 text-center flex flex-col items-center justify-between">
+                  <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-tr from-rose-500 to-orange-400 text-white flex items-center justify-center text-xs sm:text-sm font-black shadow-xs shrink-0">
+                    🔨
+                  </div>
+                  <h4 class="text-[10px] sm:text-xs font-black text-orange-300 uppercase tracking-tight leading-tight">AUCTION MODE</h4>
+                  <p class="text-[8.5px] sm:text-[9.5px] text-orange-100/90 font-semibold leading-tight line-clamp-3">
+                    Player Reg • Live Bidding • Squad • Fixture • Live Score
+                  </p>
+                </div>
+
+                <!-- Mode B (Emerald Green Glow) -->
+                <div class="p-2 sm:p-3 bg-gradient-to-b from-emerald-500/30 via-teal-500/20 to-slate-900/80 rounded-xl sm:rounded-2xl border border-emerald-400/80 shadow-md shadow-emerald-500/10 space-y-1 text-center flex flex-col items-center justify-between">
+                  <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 text-white flex items-center justify-center text-xs sm:text-sm font-black shadow-xs shrink-0">
+                    ⚡
+                  </div>
+                  <h4 class="text-[10px] sm:text-xs font-black text-emerald-300 uppercase tracking-tight leading-tight">FIXTURE MODE</h4>
+                  <p class="text-[8.5px] sm:text-[9.5px] text-emerald-100/90 font-semibold leading-tight line-clamp-3">
+                    Direct Entry • Fixture • Live Score
+                  </p>
+                </div>
+              </div>
+
+              <!-- Glowing Emerald CTA Button (Compact) -->
+              <button id="btn-home-create-tourney" class="w-full py-2.5 sm:py-3 bg-gradient-to-r from-emerald-400 via-teal-400 to-emerald-500 hover:from-emerald-500 hover:to-teal-500 text-slate-950 font-black text-xs sm:text-sm rounded-xl sm:rounded-2xl shadow-lg shadow-emerald-500/20 hover:scale-[1.01] active:scale-98 transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+                <span>+ Create Tournament</span>
+                <span class="text-sm sm:text-base">➔</span>
+              </button>
             </div>
           </div>
         </div>
-      </div>
 
-      <!-- BROWSE TOURNAMENTS -->
-      <div class="w-full max-w-3xl mx-auto px-2 space-y-2">
-        <div class="flex items-center justify-between gap-2">
-          <h3 class="text-xs sm:text-sm font-black text-slate-900 flex items-center gap-1.5">
-            <i data-lucide="trophy" class="w-3.5 h-3.5 text-amber-600"></i>
-            Tournaments
-            <span class="px-1.5 py-0.5 bg-emerald-100 text-emerald-800 text-[9px] font-black rounded-full border border-emerald-200">${allTournaments.length}</span>
-          </h3>
-          <div class="relative">
-            <input type="text" id="landing-tournament-search" placeholder="Search..." class="bg-white border border-slate-200 text-slate-900 text-[11px] rounded-lg py-1.5 pl-7 pr-2 focus:outline-none focus:border-emerald-400 w-32 sm:w-44 shadow-xs" />
-            <i data-lucide="search" class="w-3 h-3 text-slate-400 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none"></i>
-          </div>
-        </div>
-
-        ${allTournaments.length === 0 ? '<div class="text-center py-8 bg-white border-2 border-dashed border-slate-200 rounded-xl"><div class="text-3xl mb-1">🏏</div><h4 class="text-xs font-black text-slate-900">No Tournaments Yet</h4><p class="text-[10px] text-slate-500 mt-0.5">Be the first to host a tournament!</p></div>' : buildTournamentCarouselHTML(allTournaments)}
-      </div>
-
-      <!-- HOST YOUR OWN TOURNAMENT BANNER (SUNSET & EMERALD COMPACT BOX) -->
-      <div class="w-full max-w-2xl mx-auto px-1 pt-1">
-        <div class="bg-gradient-to-br from-[#120B24] via-[#1A1438] to-[#0A0618] rounded-2xl sm:rounded-3xl p-3 sm:p-5 text-white shadow-xl border border-purple-400/40 space-y-2.5 sm:space-y-3.5 relative overflow-hidden">
+        <!-- CENTER COLUMN (col-span-4): FIXTURES & LIVE SCORES -->
+        <div class="lg:col-span-4 space-y-4">
           
-          <!-- Top Tag & Bengali Header -->
-          <div class="text-center space-y-0.5 sm:space-y-1">
-            <div class="inline-flex items-center gap-1 px-2.5 py-0.2 bg-emerald-400/20 border border-emerald-400/30 rounded-full text-[9.5px] sm:text-[10.5px] font-black text-emerald-300">
-              <span>🚀</span> <span>Launch in 2 Minutes</span>
-            </div>
-            <h3 class="text-base sm:text-xl font-black text-white tracking-tight flex items-center justify-center gap-1.5 pt-0.5 font-['Anek_Bangla','Hind_Siliguri',sans-serif] leading-tight">
-              <span>🏆</span> <span>আপনার নিজের টুর্নামেন্ট তৈরি করুন</span>
-            </h3>
-            <p class="text-[10.5px] sm:text-xs text-slate-300 font-medium">Create custom leagues with automated tools</p>
-          </div>
-
-          <!-- 2 Modes Side-by-Side in SAME ROW (grid-cols-2) -->
-          <div class="grid grid-cols-2 gap-2 sm:gap-3">
-            <!-- Mode A (Sunset Orange-Red Glow) -->
-            <div class="p-2 sm:p-3 bg-gradient-to-b from-rose-500/30 via-orange-500/20 to-slate-900/80 rounded-xl sm:rounded-2xl border border-rose-400/80 shadow-md shadow-rose-500/10 space-y-1 text-center flex flex-col items-center justify-between">
-              <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-tr from-rose-500 to-orange-400 text-white flex items-center justify-center text-xs sm:text-sm font-black shadow-xs shrink-0">
-                🔨
-              </div>
-              <h4 class="text-[10px] sm:text-xs font-black text-orange-300 uppercase tracking-tight leading-tight">AUCTION MODE</h4>
-              <p class="text-[8.5px] sm:text-[9.5px] text-orange-100/90 font-semibold leading-tight line-clamp-3">
-                Player Reg • Live Bidding • Squad • Fixture • Live Score
-              </p>
+          <!-- TODAY'S MATCHES (LIVE NOW) BOX -->
+          <div class="bg-white border-2 border-slate-200 rounded-2xl p-3 shadow-md space-y-2">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-1.5">
+              <h4 class="text-xs font-black text-slate-900 uppercase flex items-center gap-1.5">
+                <span class="w-2 h-2 rounded-full bg-red-600 animate-ping"></span>
+                <span>TODAY'S MATCHES</span>
+              </h4>
+              <span class="px-2 py-0.5 bg-red-100 text-red-700 text-[9px] font-black rounded-full uppercase border border-red-200">LIVE NOW</span>
             </div>
 
-            <!-- Mode B (Emerald Green Glow) -->
-            <div class="p-2 sm:p-3 bg-gradient-to-b from-emerald-500/30 via-teal-500/20 to-slate-900/80 rounded-xl sm:rounded-2xl border border-emerald-400/80 shadow-md shadow-emerald-500/10 space-y-1 text-center flex flex-col items-center justify-between">
-              <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 text-white flex items-center justify-center text-xs sm:text-sm font-black shadow-xs shrink-0">
-                ⚡
+            <div class="p-2.5 bg-gradient-to-r from-slate-900 to-slate-950 text-white rounded-xl space-y-1.5 shadow-sm border border-slate-800">
+              <div class="flex items-center justify-between text-[11px] font-black text-amber-400">
+                <span>KNIGHTS</span>
+                <span>VS</span>
+                <span>STRIKERS</span>
               </div>
-              <h4 class="text-[10px] sm:text-xs font-black text-emerald-300 uppercase tracking-tight leading-tight">FIXTURE MODE</h4>
-              <p class="text-[8.5px] sm:text-[9.5px] text-emerald-100/90 font-semibold leading-tight line-clamp-3">
-                Direct Entry • Fixture • Live Score
-              </p>
+              <div class="flex items-center justify-between text-xs font-mono">
+                <span>188/4</span>
+                <span class="text-[10px] text-slate-400">18.2 ov</span>
+                <span>152/5</span>
+              </div>
+              <div class="text-[9.5px] text-emerald-400 font-bold text-center pt-1 border-t border-slate-800">
+                LIVE | Scorecard • Ball by Ball
+              </div>
             </div>
           </div>
 
-          <!-- Glowing Emerald CTA Button (Compact) -->
-          <button id="btn-home-create-tourney" class="w-full py-2.5 sm:py-3 bg-gradient-to-r from-emerald-400 via-teal-400 to-emerald-500 hover:from-emerald-500 hover:to-teal-500 text-slate-950 font-black text-xs sm:text-sm rounded-xl sm:rounded-2xl shadow-lg shadow-emerald-500/20 hover:scale-[1.01] active:scale-98 transition-all flex items-center justify-center gap-1.5 cursor-pointer">
-            <span>+ Create Tournament</span>
-            <span class="text-sm sm:text-base">➔</span>
-          </button>
+          <!-- ⏳ LIVE TOURNAMENT COUNTDOWN TIMER -->
+          <div id="tournament-countdown-card" class="w-full bg-white border border-amber-400/90 p-2.5 sm:p-3.5 rounded-2xl sm:rounded-3xl shadow-lg text-slate-900 animate-fade-in relative overflow-hidden">
+            <div class="flex flex-col items-center justify-between gap-2.5 text-center">
+              <div class="space-y-0.5">
+                <div class="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded-full text-[9px] sm:text-[10px] font-black tracking-wider uppercase shadow-2xs">
+                  <span class="w-1.5 h-1.5 rounded-full bg-red-600 animate-ping"></span>
+                  <span>🏆 MEGA TOURNAMENT KICKOFF</span>
+                </div>
+                <h3 class="text-xs sm:text-sm font-black text-slate-900 tracking-tight leading-tight">${allTournaments[0]?.kickoffDate ? new Date(allTournaments[0].kickoffDate + 'T09:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase() + ' • 9:00 AM IST' : 'COMING SOON'}</h3>
+              </div>
+
+              <!-- 4-Unit Countdown Clock -->
+              <div class="grid grid-cols-4 gap-1 text-center w-full">
+                <div class="bg-blue-50 border border-blue-200 rounded-xl p-1 text-center">
+                  <div id="cd-days" class="text-sm font-black text-blue-700 font-mono">00</div>
+                  <div class="text-[8px] font-bold text-blue-600 uppercase">Days</div>
+                </div>
+                <div class="bg-purple-50 border border-purple-200 rounded-xl p-1 text-center">
+                  <div id="cd-hours" class="text-sm font-black text-purple-700 font-mono">00</div>
+                  <div class="text-[8px] font-bold text-purple-600 uppercase">Hours</div>
+                </div>
+                <div class="bg-emerald-50 border border-emerald-200 rounded-xl p-1 text-center">
+                  <div id="cd-mins" class="text-sm font-black text-emerald-700 font-mono">00</div>
+                  <div class="text-[8px] font-bold text-emerald-600 uppercase">Mins</div>
+                </div>
+                <div class="bg-rose-50 border border-rose-200 rounded-xl p-1 text-center">
+                  <div id="cd-secs" class="text-sm font-black text-rose-600 font-mono animate-pulse">00</div>
+                  <div class="text-[8px] font-bold text-rose-600 uppercase">Secs</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- BROWSE TOURNAMENTS -->
+          <div class="w-full space-y-2">
+            <div class="flex items-center justify-between gap-2">
+              <h3 class="text-xs sm:text-sm font-black text-slate-900 flex items-center gap-1.5">
+                <i data-lucide="trophy" class="w-3.5 h-3.5 text-amber-600"></i>
+                Tournaments
+                <span class="px-1.5 py-0.5 bg-emerald-100 text-emerald-800 text-[9px] font-black rounded-full border border-emerald-200">${allTournaments.length}</span>
+              </h3>
+              <div class="relative">
+                <input type="text" id="landing-tournament-search" placeholder="Search..." class="bg-white border border-slate-200 text-slate-900 text-[11px] rounded-lg py-1.5 pl-7 pr-2 focus:outline-none focus:border-emerald-400 w-32 shadow-xs" />
+                <i data-lucide="search" class="w-3 h-3 text-slate-400 absolute left-2 top-1/2 -translate-y-1/2 pointer-events-none"></i>
+              </div>
+            </div>
+
+            ${allTournaments.length === 0 ? '<div class="text-center py-8 bg-white border-2 border-dashed border-slate-200 rounded-xl"><div class="text-3xl mb-1">🏏</div><h4 class="text-xs font-black text-slate-900">No Tournaments Yet</h4><p class="text-[10px] text-slate-500 mt-0.5">Be the first to host a tournament!</p></div>' : buildTournamentCarouselHTML(allTournaments)}
+          </div>
         </div>
+
+        <!-- RIGHT COLUMN (col-span-3): SPOTLIGHT & STANDINGS -->
+        <div class="lg:col-span-3 space-y-4">
+          
+          <!-- PLAYER SPOTLIGHT CARD -->
+          <div class="bg-white border-2 border-slate-200 rounded-2xl p-3 shadow-md space-y-2 text-center">
+            <div class="text-[10px] font-black text-orange-600 uppercase tracking-wider">
+              ⭐ PLAYER SPOTLIGHT
+            </div>
+            <div class="w-16 h-16 rounded-full bg-gradient-to-tr from-amber-400 to-orange-500 mx-auto p-0.5 shadow-md overflow-hidden">
+              <img src="assets/user_cartoon_cards_full.png" alt="Player Spotlight" class="w-full h-full object-cover rounded-full" />
+            </div>
+            <div>
+              <h4 class="text-xs font-black text-slate-900 uppercase">Rashid Khan</h4>
+              <p class="text-[10.5px] text-slate-500 font-bold">Leg Spinner • Warriors</p>
+            </div>
+            <div class="px-2 py-1 bg-amber-50 text-amber-800 border border-amber-200 rounded-xl text-[10px] font-bold">
+              🔥 4-12 in last match • MVP
+            </div>
+          </div>
+
+          <!-- TEAM STANDINGS SUMMARY -->
+          <div class="bg-white border-2 border-slate-200 rounded-2xl p-3 shadow-md space-y-2">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-1.5">
+              <h4 class="text-xs font-black text-slate-900 uppercase">TEAM STANDINGS</h4>
+              <span class="text-[9px] text-emerald-700 font-bold hover:underline cursor-pointer" onclick="navigate('tournament-hub')">FULL TABLE ➔</span>
+            </div>
+
+            <div class="space-y-1.5 text-xs font-bold text-slate-800">
+              <div class="flex items-center justify-between p-1.5 bg-emerald-50 rounded-lg border border-emerald-200">
+                <span>1. Royals</span>
+                <span class="font-mono text-emerald-800">18 pts</span>
+              </div>
+              <div class="flex items-center justify-between p-1.5 bg-slate-50 rounded-lg border border-slate-200">
+                <span>2. Strikers</span>
+                <span class="font-mono text-slate-700">16 pts</span>
+              </div>
+              <div class="flex items-center justify-between p-1.5 bg-slate-50 rounded-lg border border-slate-200">
+                <span>3. Knights</span>
+                <span class="font-mono text-slate-700">14 pts</span>
+              </div>
+              <div class="flex items-center justify-between p-1.5 bg-slate-50 rounded-lg border border-slate-200">
+                <span>4. Lions</span>
+                <span class="font-mono text-slate-700">12 pts</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+
       </div>
 
     </div>
@@ -3972,7 +4090,7 @@ export function renderCustomTournamentHub(container, tourney) {
   // 4. Interactive Direct Registration Link Handlers
   document.getElementById('btn-share-direct-reg-wa')?.addEventListener('click', (e) => {
     e.stopPropagation();
-    const directRegUrl = `${window.location.origin}${window.location.pathname}#register/${tourney.slug || 'jsl-2026'}`;
+    const directRegUrl = `${window.location.origin}${window.location.pathname}#reg-${tourney.slug || 'jsl-2026'}`;
     if (navigator.share) {
       navigator.share({
         title: `Register for ${tourney.name}`,
@@ -4973,7 +5091,7 @@ function renderTournamentHub(containerEl) {
   const regSettings = store.getRegistrationSettings();
 
   containerEl.innerHTML = `
-    <div class="space-y-3 sm:space-y-4 animate-fade-in max-w-4xl mx-auto py-1 sm:py-2">
+    <div class="space-y-3 sm:space-y-6 animate-fade-in max-w-7xl mx-auto py-1 sm:py-4">
       
       <!-- GRAND STADIUM POSTER STRIP (PURE WHITE BACKGROUND - POSTER PICTURE & CONTACT INFO) -->
       <div class="tournament-header-strip p-2 sm:p-3 bg-white border-2 border-slate-200 rounded-2xl shadow-md space-y-2">
@@ -7932,7 +8050,7 @@ function renderFixturesView(container) {
                   ${liveMatches.length} LIVE NOW
                 </span>
               </div>
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
                 ${liveMatches.map((m, idx) => renderSingleMatchCard(m, idx)).join('')}
               </div>
             </div>
@@ -7966,7 +8084,7 @@ function renderFixturesView(container) {
                   ${filteredFixtures.length} TOTAL
                 </span>
               </div>
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
                 ${filteredFixtures.map((m, idx) => renderSingleMatchCard(m, idx)).join('')}
               </div>
             </div>
@@ -8006,7 +8124,7 @@ function renderFixturesView(container) {
                 </div>
 
                 <!-- Matches in this Tournament -->
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
                   ${tMatches.map((m, idx) => renderSingleMatchCard(m, idx)).join('')}
                 </div>
               </div>
@@ -9903,7 +10021,7 @@ function renderLiveAuctionView(container) {
     const allTourneys = store.getCustomTournaments();
 
     container.innerHTML = `
-      <div id="auction-concluded-standby-view" class="space-y-6 animate-fade-in pb-16 max-w-4xl mx-auto px-2 sm:px-4 text-slate-900">
+      <div id="auction-concluded-standby-view" class="space-y-6 animate-fade-in pb-16 w-full max-w-none mx-auto px-2 sm:px-4 text-slate-900">
         
         <!-- Top Status Bar -->
         <div class="bg-white border-2 border-slate-200/90 rounded-2xl sm:rounded-3xl p-4 shadow-xs flex items-center justify-between flex-wrap gap-3">
