@@ -489,6 +489,45 @@ export function initRealtimePushListener(onUpdateCallback, tournamentId) {
           }
         }
       })
+      .on('broadcast', { event: 'fixture_update' }, (msg) => {
+        if (typeof window === 'undefined' || !window.store) return;
+        const p = msg?.payload;
+        if (!p) return;
+        const s = window.store;
+        if (p.action === 'upsert' && p.fixture) {
+          const fixtures = s.getFixtures();
+          const idx = fixtures.findIndex(f => f.id === p.fixture.id || (toUUID(f.id) && toUUID(f.id) === toUUID(p.fixture.id)));
+          if (idx !== -1) {
+            fixtures[idx] = { ...fixtures[idx], ...p.fixture, updated_at: Date.now() };
+          } else {
+            const fTid = p.fixture.tournament_id || p.fixture.leagueId || p.tournament_id;
+            if (fTid === s.activeTournamentId || toUUID(fTid) === toUUID(s.activeTournamentId)) {
+              fixtures.push(p.fixture);
+            }
+          }
+          s._invalidateCache('fixtures');
+          try { localStorage.setItem(s._scopedKey('FIXTURES'), JSON.stringify(fixtures)); } catch (e) {}
+          s.notify('fixtures_updated');
+          window.dispatchEvent(new CustomEvent('cpl_fixtures_realtime', { detail: p }));
+          console.log('[REALTIME] Fixture upsert:', p.fixture.teamAName, 'vs', p.fixture.teamBName);
+        } else if (p.action === 'delete' && p.fixture_id) {
+          const fixtures = s.getFixtures().filter(f => f.id !== p.fixture_id && toUUID(f.id) !== toUUID(p.fixture_id));
+          s._invalidateCache('fixtures');
+          try { localStorage.setItem(s._scopedKey('FIXTURES'), JSON.stringify(fixtures)); } catch (e) {}
+          s.notify('fixtures_updated');
+          window.dispatchEvent(new CustomEvent('cpl_fixtures_realtime', { detail: p }));
+          console.log('[REALTIME] Fixture deleted:', p.fixture_id);
+        } else if (p.action === 'clear_all') {
+          const tId = p.tournament_id;
+          if (!tId || tId === s.activeTournamentId || toUUID(tId) === toUUID(s.activeTournamentId)) {
+            s._invalidateCache('fixtures');
+            try { localStorage.setItem(s._scopedKey('FIXTURES'), JSON.stringify([])); } catch (e) {}
+            s.notify('fixtures_updated');
+            window.dispatchEvent(new CustomEvent('cpl_fixtures_realtime', { detail: p }));
+            console.log('[REALTIME] All fixtures cleared for tournament:', tId);
+          }
+        }
+      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, (payload) => {
         if (typeof onUpdateCallback === 'function') onUpdateCallback(payload);
       })
@@ -1253,6 +1292,14 @@ export async function syncFixtureToSupabase(fixtureData, tournamentId = null) {
       console.warn("[SUPABASE] tournament format_config match save notice:", cfgErr);
     }
 
+    if (activeRealtimeChannel) {
+      activeRealtimeChannel.send({
+        type: 'broadcast',
+        event: 'fixture_update',
+        payload: { action: 'upsert', tournament_id: tournamentUUID, fixture: fixtureData }
+      }).catch(() => {});
+    }
+
     return fixtureData;
   } catch (err) {
     console.warn("[SUPABASE] syncFixtureToSupabase notice:", err);
@@ -1290,6 +1337,14 @@ export async function deleteFixtureFromSupabase(fixtureId, tournamentId = null) 
       }
     } catch (e) {}
 
+    if (activeRealtimeChannel) {
+      activeRealtimeChannel.send({
+        type: 'broadcast',
+        event: 'fixture_update',
+        payload: { action: 'delete', fixture_id: fixtureId }
+      }).catch(() => {});
+    }
+
     return true;
   } catch (err) {
     console.warn("[SUPABASE] deleteFixtureFromSupabase notice:", err);
@@ -1325,6 +1380,14 @@ export async function clearAllFixturesFromSupabase(tournamentId = null) {
         }
       }
     } catch (e) {}
+
+    if (activeRealtimeChannel) {
+      activeRealtimeChannel.send({
+        type: 'broadcast',
+        event: 'fixture_update',
+        payload: { action: 'clear_all', tournament_id: tId }
+      }).catch(() => {});
+    }
 
     console.log("[SUPABASE] Cleared all matches for tournament:", tId);
     return true;
