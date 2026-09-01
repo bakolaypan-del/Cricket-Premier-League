@@ -7939,9 +7939,13 @@ function renderFixturesView(container) {
         const tourneysWithMatches = allTourneys.filter(l => {
           const code = (l.code || l.category || l.category_code || l.shortCode || l.slug || 'T').toUpperCase();
           const tid = l.supabaseId || l.id;
+          const tidUUID = toUUID(tid);
           return filteredFixtures.some(f => {
+            const fTid = f.tournamentId || f.tournament_id || f.leagueId;
+            if (fTid && (fTid === tid || fTid === tidUUID || toUUID(fTid) === tidUUID)) return true;
             const fCode = (f.leagueCode || '').toUpperCase();
-            return (fCode === code) || (code === 'KPL' && (fCode === 'K2026' || fCode === 'KPL')) || (code === 'K2026' && (fCode === 'KPL' || fCode === 'K2026')) || (code === 'JSL' && fCode === 'JSL') || f.tournamentId === tid || f.tournament_id === tid;
+            if (!fTid && fCode && fCode === code) return true;
+            return false;
           });
         });
 
@@ -7966,9 +7970,13 @@ function renderFixturesView(container) {
           tourneysWithMatches.forEach(l => {
             const code = (l.code || l.category || l.category_code || l.shortCode || l.slug || 'T').toUpperCase();
             const tid = l.supabaseId || l.id;
+            const tidUUID = toUUID(tid);
             const tMatches = filteredFixtures.filter(f => {
+              const fTid = f.tournamentId || f.tournament_id || f.leagueId;
+              if (fTid && (fTid === tid || fTid === tidUUID || toUUID(fTid) === tidUUID)) return true;
               const fCode = (f.leagueCode || '').toUpperCase();
-              return (fCode === code) || (code === 'KPL' && (fCode === 'K2026' || fCode === 'KPL')) || (code === 'K2026' && (fCode === 'KPL' || fCode === 'K2026')) || (code === 'JSL' && fCode === 'JSL') || f.tournamentId === tid || f.tournament_id === tid;
+              if (!fTid && fCode && fCode === code) return true;
+              return false;
             });
             if (tMatches.length === 0) return;
 

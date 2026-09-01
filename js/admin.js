@@ -2388,7 +2388,12 @@ export function renderAdminDashboard(containerEl) {
     let targetTid = activeTid;
     if (teamA && (teamA.tournament_id || teamA.leagueId)) {
       targetTid = teamA.tournament_id || teamA.leagueId;
-      if (teamA.leagueCode) lCode = teamA.leagueCode;
+      const resolvedTourney = store.getCustomTournamentById && store.getCustomTournamentById(targetTid);
+      if (resolvedTourney) {
+        lCode = resolvedTourney.category_code || resolvedTourney.code || resolvedTourney.slug || lCode;
+      } else if (teamA.leagueCode) {
+        lCode = teamA.leagueCode;
+      }
     }
     const matchNoInput = document.getElementById('fixture-match-no')?.value;
     const existingLeagueFix = store.getFixtures().filter(f => (f.leagueCode || 'T').toUpperCase() === lCode.toUpperCase() || f.tournament_id === targetTid || f.leagueId === targetTid);

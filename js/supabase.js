@@ -790,7 +790,7 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
         id: cm.id,
         tournament_id: cm.tournament_id || cm.leagueId || tId,
         leagueId: cm.tournament_id || cm.leagueId || tId,
-        leagueCode: cm.leagueCode || tourneyMeta.category_code || 'T',
+        leagueCode: tourneyMeta.category_code || tourneyMeta.slug || cm.leagueCode || 'T',
         matchNo: cm.matchNo || cm.match_no || existing?.matchNo || 1,
         stage: cm.stage || existing?.stage || 'GROUP_A',
         groupCode: cm.groupCode || cm.group_code || existing?.groupCode || 'A',

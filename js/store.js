@@ -2292,8 +2292,9 @@ class Store {
         }) || (fTid ? allTourneys.find(t => (t.supabaseId || t.id) === fTid) : null) || {};
 
         const effectiveTid = tourney.supabaseId || tourney.id || fTid || activeTid;
-        const effectiveName = tourney.name || f.tournamentName || (fCode === 'JSL' ? 'Jhankra Super League 2026' : ((fCode === 'KPL' || fCode === 'K2026' || fCode === 'T2') ? 'Kuapur Premier League' : 'Cricket Premier League'));
-        const effectiveCode = (fCode || tourney.category_code || tourney.slug || 'T').toUpperCase();
+        const tourneyCode = (tourney.category_code || tourney.code || tourney.slug || '').toUpperCase();
+        const effectiveCode = (tourneyCode || fCode || 'T').toUpperCase();
+        const effectiveName = tourney.name || f.tournamentName || (effectiveCode === 'JSL' ? 'Jhankra Super League 2026' : ((effectiveCode === 'KPL' || effectiveCode === 'K2026' || effectiveCode === 'T2') ? 'Kuapur Premier League' : 'Cricket Premier League'));
         const effectiveLogo = tourney.logo_url || tourney.banner_url || 'assets/jsl_logo.jpg';
 
         map.set(f.id, {
@@ -2327,7 +2328,7 @@ class Store {
             ...cm,
             tournamentId: tid,
             tournamentName: t.name || `${t.slug} Premier League`,
-            leagueCode: (cm.leagueCode || t.category_code || t.slug || 'T').toUpperCase(),
+            leagueCode: (t.category_code || t.code || t.slug || cm.leagueCode || 'T').toUpperCase(),
             logoUrl: t.logo_url || t.banner_url || 'assets/jsl_logo.jpg'
           });
         }
