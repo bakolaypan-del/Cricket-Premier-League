@@ -1297,6 +1297,8 @@ export async function syncFixtureToSupabase(fixtureData, tournamentId = null) {
       overs_limit: fixtureData.oversLimit || fixtureData.overs_limit || null,
       status: fixtureData.status || 'SCHEDULED',
       result: fixtureData.result || null,
+      winner_team_id: (fixtureData.winnerTeamId || fixtureData.winner_team_id) ? toUUID(fixtureData.winnerTeamId || fixtureData.winner_team_id) : null,
+      mom_player_id: (fixtureData.momPlayerId || fixtureData.mom_player_id) ? toUUID(fixtureData.momPlayerId || fixtureData.mom_player_id) : null,
       live_state: fixtureData.liveMatchState || fixtureData.liveState || fixtureData.live_state || null
     };
 
@@ -1351,6 +1353,75 @@ export async function syncFixtureToSupabase(fixtureData, tournamentId = null) {
     return fixtureData;
   } catch (err) {
     console.warn("[SUPABASE] syncFixtureToSupabase notice:", err);
+    return null;
+  }
+}
+
+export async function saveScorecardsToSupabase(fixture, tournamentId = null) {
+  if (!supabase || !fixture || !fixture.liveMatchState?.playerStats) return null;
+  try {
+    const tid = tournamentId || fixture.tournament_id || fixture.leagueId || (typeof window !== 'undefined' && window.store?.activeTournamentId) || 'leg-jsl';
+    const tournamentUUID = (await resolveTournamentUUID(tid)) || toUUID(tid);
+    const matchUUID = toUUID(fixture.id);
+
+    const playerStats = fixture.liveMatchState.playerStats;
+    const allPlayers = (typeof window !== 'undefined' && window.store) ? window.store.getPlayers() : [];
+
+    const rows = [];
+    for (const [playerId, stats] of Object.entries(playerStats)) {
+      if (!playerId || (!stats.runs && !stats.balls && !stats.ballsBowled && !stats.wickets && !stats.catches)) continue;
+
+      const playerUUID = toUUID(playerId);
+      const playerObj = allPlayers.find(p => p.id === playerId || toUUID(p.id) === playerUUID);
+      const teamId = playerObj?.teamId ? toUUID(playerObj.teamId) : null;
+
+      const ballsFaced = Number(stats.balls) || 0;
+      const strikeRate = ballsFaced > 0 ? parseFloat(((Number(stats.runs) || 0) / ballsFaced * 100).toFixed(2)) : 0;
+      const ballsBowled = Number(stats.ballsBowled) || 0;
+      const oversBowled = ballsBowled > 0 ? parseFloat((Math.floor(ballsBowled / 6) + (ballsBowled % 6) / 10).toFixed(1)) : 0;
+      const runsConceded = Number(stats.runsConceded) || 0;
+      const economy = oversBowled > 0 ? parseFloat((runsConceded / (ballsBowled / 6)).toFixed(2)) : 0;
+
+      rows.push({
+        tournament_id: tournamentUUID,
+        match_id: matchUUID,
+        player_id: playerUUID,
+        team_id: teamId,
+        innings: 1,
+        runs: Number(stats.runs) || 0,
+        balls: ballsFaced,
+        fours: Number(stats.fours) || 0,
+        sixes: Number(stats.sixes) || 0,
+        strike_rate: strikeRate,
+        is_out: !!stats.dismissed,
+        dismissal_type: stats.dismissalInfo || null,
+        bowler_id: null,
+        fielder_id: null,
+        overs_bowled: oversBowled,
+        balls_bowled: ballsBowled,
+        runs_conceded: runsConceded,
+        wickets: Number(stats.wickets) || 0,
+        maidens: Number(stats.maidens) || 0,
+        economy: economy,
+        catches: Number(stats.catches) || 0,
+        stumpings: Number(stats.stumpings) || 0,
+        run_outs: Number(stats.runOuts) || 0
+      });
+    }
+
+    if (rows.length === 0) return null;
+
+    // Delete old scorecards for this match before inserting fresh ones
+    await supabase.from('scorecards').delete().eq('match_id', matchUUID);
+    const { error } = await supabase.from('scorecards').insert(rows);
+    if (error) {
+      console.warn("[SUPABASE] scorecards insert error:", error);
+    } else {
+      console.log(`[SUPABASE] Saved ${rows.length} scorecard rows for match ${fixture.matchNo || fixture.match_no || matchUUID}`);
+    }
+    return rows;
+  } catch (err) {
+    console.warn("[SUPABASE] saveScorecardsToSupabase notice:", err);
     return null;
   }
 }

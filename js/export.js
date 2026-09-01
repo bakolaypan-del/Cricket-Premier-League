@@ -1690,6 +1690,505 @@ export function exportMatchScorecardPDF(fixture, tourney) {
     }, 400);
   };
 }
+
+// ==============================================================================
+// QUICK SCORECARD PNG (Basic Batting/Bowling Tables)
+// ==============================================================================
+export function exportMatchScorecardPNG(fixture, tourney) {
+  if (!fixture) return alert("Match fixture data not found.");
+
+  const tourneyName = (tourney?.name || fixture.leagueCode || 'CPL').toUpperCase();
+  const teamA = fixture.teamAName || 'Team A';
+  const teamB = fixture.teamBName || 'Team B';
+  const matchNo = fixture.matchNo || 1;
+  const result = fixture.result || 'Match Completed';
+  const state = fixture.liveMatchState || {};
+  const pStats = state.playerStats || {};
+  const ballHistory = state.ballLog || state.ballHistory || [];
+  const inn1Score = fixture.teamAScore || { runs: 0, wickets: 0, overs: 0, balls: 0 };
+  const inn2Score = fixture.teamBScore || { runs: 0, wickets: 0, overs: 0, balls: 0 };
+
+  const allPlayers = (typeof store !== 'undefined' && store.getPlayers) ? store.getPlayers() : [];
+  const teamAPlayers = allPlayers.filter(p => p.teamId === fixture.teamAId);
+  const teamBPlayers = allPlayers.filter(p => p.teamId === fixture.teamBId);
+  const pxiA = fixture.playingXI?.[fixture.teamAId]?.playing11Ids || teamAPlayers.map(p => p.id);
+  const pxiB = fixture.playingXI?.[fixture.teamBId]?.playing11Ids || teamBPlayers.map(p => p.id);
+  const squadA = teamAPlayers.length > 0 ? teamAPlayers.filter(p => pxiA.includes(p.id)) : [];
+  const squadB = teamBPlayers.length > 0 ? teamBPlayers.filter(p => pxiB.includes(p.id)) : [];
+
+  const getBatters = (playersList) => {
+    const firstSeen = {};
+    ballHistory.forEach((b, idx) => {
+      if (b.strikerId && firstSeen[b.strikerId] === undefined) firstSeen[b.strikerId] = idx;
+      if (b.nonStrikerId && firstSeen[b.nonStrikerId] === undefined) firstSeen[b.nonStrikerId] = idx;
+    });
+    return [...(playersList || [])].filter(p => {
+      const s = pStats[p.id] || {};
+      return s.balls > 0 || s.runs > 0 || s.dismissed;
+    }).sort((a, b) => (firstSeen[a.id] ?? 9999) - (firstSeen[b.id] ?? 9999)).map(p => {
+      const s = pStats[p.id] || {};
+      return { name: p.name, runs: s.runs || 0, balls: s.balls || 0, fours: s.fours || 0, sixes: s.sixes || 0, out: !!s.dismissed, dismissal: s.dismissed ? (s.dismissalInfo || 'out') : 'not out' };
+    });
+  };
+
+  const getBowlers = (playersList) => {
+    return (playersList || []).filter(p => {
+      const s = pStats[p.id] || {};
+      return s.ballsBowled > 0 || s.wickets > 0;
+    }).map(p => {
+      const s = pStats[p.id] || {};
+      const bb = s.ballsBowled || 0;
+      return { name: p.name, overs: `${Math.floor(bb/6)}.${bb%6}`, runs: s.runsConceded || 0, wickets: s.wickets || 0, maidens: s.maidens || 0, econ: bb > 0 ? (s.runsConceded / (bb/6)).toFixed(1) : '0.0' };
+    });
+  };
+
+  const inn1Bat = getBatters(squadA);
+  const inn1Bowl = getBowlers(squadB);
+  const inn2Bat = getBatters(squadB);
+  const inn2Bowl = getBowlers(squadA);
+
+  const canvas = document.createElement('canvas');
+  const W = 800, rowH = 24, headerH = 32, padding = 20;
+  const totalRows = 4 + inn1Bat.length + 1 + inn1Bowl.length + 2 + inn2Bat.length + 1 + inn2Bowl.length + 3;
+  const H = padding * 2 + 80 + totalRows * rowH;
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, W, H);
+
+  let y = padding;
+
+  // Title
+  ctx.fillStyle = '#0F172A';
+  ctx.font = 'bold 18px -apple-system, Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(`${tourneyName} - Match #${matchNo}`, W/2, y + 20);
+  ctx.font = 'bold 14px -apple-system, Arial, sans-serif';
+  ctx.fillStyle = '#047857';
+  ctx.fillText(`${teamA} vs ${teamB}`, W/2, y + 42);
+  ctx.font = 'bold 12px -apple-system, Arial, sans-serif';
+  ctx.fillStyle = '#064E3B';
+  ctx.fillText(result, W/2, y + 60);
+  y += 80;
+  ctx.textAlign = 'left';
+
+  const drawInnings = (label, score, batters, bowlers, bowlTeam) => {
+    ctx.fillStyle = '#0F172A';
+    ctx.fillRect(padding, y, W - padding*2, headerH);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = 'bold 12px -apple-system, Arial, sans-serif';
+    ctx.fillText(label, padding + 10, y + 20);
+    ctx.textAlign = 'right';
+    ctx.fillText(`${score.runs||0}/${score.wickets||0} (${score.overs||0}.${score.balls||0} ov)`, W - padding - 10, y + 20);
+    ctx.textAlign = 'left';
+    y += headerH;
+
+    // Batting header
+    ctx.fillStyle = '#F1F5F9';
+    ctx.fillRect(padding, y, W - padding*2, rowH);
+    ctx.fillStyle = '#475569';
+    ctx.font = 'bold 10px -apple-system, Arial, sans-serif';
+    const cols = [padding+10, 280, 380, 440, 500, 560, 640, 720];
+    ['BATTER', 'DISMISSAL', 'R', 'B', '4s', '6s', 'SR'].forEach((h, i) => {
+      ctx.textAlign = i >= 2 ? 'right' : 'left';
+      ctx.fillText(h, cols[i], y + 16);
+    });
+    y += rowH;
+
+    batters.forEach(b => {
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(padding, y, W - padding*2, rowH);
+      ctx.strokeStyle = '#E2E8F0';
+      ctx.strokeRect(padding, y, W - padding*2, rowH);
+      ctx.font = 'bold 11px -apple-system, Arial, sans-serif';
+      ctx.fillStyle = '#0F172A';
+      ctx.textAlign = 'left';
+      ctx.fillText(b.name, cols[0], y + 16);
+      ctx.font = '10px -apple-system, Arial, sans-serif';
+      ctx.fillStyle = '#64748B';
+      ctx.fillText(b.dismissal, cols[1], y + 16);
+      ctx.fillStyle = '#0F172A';
+      ctx.font = 'bold 11px monospace';
+      const sr = b.balls > 0 ? ((b.runs / b.balls) * 100).toFixed(1) : '0.0';
+      [b.runs, b.balls, b.fours, b.sixes, sr].forEach((v, i) => {
+        ctx.textAlign = 'right';
+        ctx.fillText(String(v), cols[i+2], y + 16);
+      });
+      y += rowH;
+    });
+
+    // Bowling header
+    y += 4;
+    ctx.fillStyle = '#334155';
+    ctx.fillRect(padding, y, W - padding*2, rowH);
+    ctx.fillStyle = '#FFFFFF';
+    ctx.font = 'bold 11px -apple-system, Arial, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(`BOWLING: ${bowlTeam.toUpperCase()}`, padding + 10, y + 16);
+    y += rowH;
+
+    ctx.fillStyle = '#F1F5F9';
+    ctx.fillRect(padding, y, W - padding*2, rowH);
+    ctx.fillStyle = '#475569';
+    ctx.font = 'bold 10px -apple-system, Arial, sans-serif';
+    ['BOWLER', '', 'O', 'M', 'R', 'W', 'ECON'].forEach((h, i) => {
+      ctx.textAlign = i >= 2 ? 'right' : 'left';
+      ctx.fillText(h, cols[i], y + 16);
+    });
+    y += rowH;
+
+    bowlers.forEach(bw => {
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(padding, y, W - padding*2, rowH);
+      ctx.strokeStyle = '#E2E8F0';
+      ctx.strokeRect(padding, y, W - padding*2, rowH);
+      ctx.font = 'bold 11px -apple-system, Arial, sans-serif';
+      ctx.fillStyle = '#0F172A';
+      ctx.textAlign = 'left';
+      ctx.fillText(bw.name, cols[0], y + 16);
+      ctx.font = 'bold 11px monospace';
+      ctx.textAlign = 'right';
+      [bw.overs, bw.maidens, bw.runs, bw.wickets, bw.econ].forEach((v, i) => {
+        ctx.fillStyle = i === 3 ? '#047857' : '#0F172A';
+        ctx.fillText(String(v), cols[i+2], y + 16);
+      });
+      y += rowH;
+    });
+
+    y += 10;
+  };
+
+  drawInnings(`1ST INNINGS: ${teamA.toUpperCase()}`, inn1Score, inn1Bat, inn1Bowl, teamB);
+  drawInnings(`2ND INNINGS: ${teamB.toUpperCase()}`, inn2Score, inn2Bat, inn2Bowl, teamA);
+
+  canvas.toBlob((blob) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `scorecard_match${matchNo}_${teamA}_vs_${teamB}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 'image/png');
+}
+
+// ==============================================================================
+// FULL MATCH SUMMARY PDF (Detailed Report with FOW, Partnerships, Dismissals)
+// ==============================================================================
+export function exportFullMatchSummaryPDF(fixture, tourney) {
+  if (!fixture) return alert("Match fixture data not found.");
+
+  const printWindow = window.open('', '_blank');
+  if (!printWindow) return alert("Please allow popups to view the Full Match Summary.");
+
+  const tourneyName = (tourney?.name || fixture.leagueCode || 'Cricket Premier League').toUpperCase();
+  const venue = fixture.venue || tourney?.venue || '';
+  const matchNo = fixture.matchNo || 1;
+  const stage = (fixture.stage || 'LEAGUE MATCH').replace(/_/g, ' ').toUpperCase();
+  const date = fixture.date || '';
+  const time = fixture.time || '';
+  const teamA = fixture.teamAName || 'Team A';
+  const teamB = fixture.teamBName || 'Team B';
+  const toss = fixture.tossDetails || '';
+  const result = fixture.result || 'Match Completed';
+
+  const state = fixture.liveMatchState || {};
+  const pStats = state.playerStats || {};
+  const ballHistory = (state.ballHistory || []).slice().reverse();
+
+  const allPlayers = (typeof store !== 'undefined' && store.getPlayers) ? store.getPlayers() : [];
+  const teamAPlayers = allPlayers.filter(p => p.teamId === fixture.teamAId);
+  const teamBPlayers = allPlayers.filter(p => p.teamId === fixture.teamBId);
+  const pxiA = fixture.playingXI?.[fixture.teamAId]?.playing11Ids || teamAPlayers.map(p => p.id);
+  const pxiB = fixture.playingXI?.[fixture.teamBId]?.playing11Ids || teamBPlayers.map(p => p.id);
+  const squadA = teamAPlayers.filter(p => pxiA.includes(p.id));
+  const squadB = teamBPlayers.filter(p => pxiB.includes(p.id));
+  const inn1Score = fixture.teamAScore || { runs: 0, wickets: 0, overs: 0, balls: 0 };
+  const inn2Score = fixture.teamBScore || { runs: 0, wickets: 0, overs: 0, balls: 0 };
+
+  const getPlayerName = (id) => {
+    if (!id) return '';
+    const p = allPlayers.find(x => x.id === id);
+    return p ? p.name : '';
+  };
+
+  // Build dismissal description from ballHistory wicket entries
+  const buildDismissalDesc = (playerId) => {
+    const s = pStats[playerId];
+    if (!s || !s.dismissed) return 'not out';
+    const type = s.dismissalInfo || 'out';
+    const wktBall = ballHistory.find(b => b.type === 'wicket' && b.batterName === getPlayerName(playerId));
+    if (!wktBall) return type.toLowerCase().replace('_', ' ');
+
+    const bowler = wktBall.bowlerName || '';
+    const commentary = wktBall.commentary || '';
+    // Extract fielder from commentary pattern "caught by X off Y"
+    const caughtMatch = commentary.match(/caught by ([^ ]+(?:\s[^ ]+)*) off/i);
+    const fielder = caughtMatch ? caughtMatch[1] : '';
+
+    switch (type) {
+      case 'CAUGHT': return fielder ? `c ${fielder} b ${bowler}` : `c & b ${bowler}`;
+      case 'BOWLED': return `b ${bowler}`;
+      case 'LBW': return `lbw b ${bowler}`;
+      case 'RUN_OUT': return fielder ? `run out (${fielder})` : 'run out';
+      case 'STUMPED': return fielder ? `st ${fielder} b ${bowler}` : `st b ${bowler}`;
+      case 'HIT_WICKET': return `hit wicket b ${bowler}`;
+      default: return type.toLowerCase().replace('_', ' ');
+    }
+  };
+
+  // Fall of wickets extraction
+  const buildFOW = (innings) => {
+    const wicketBalls = ballHistory.filter(b => b.type === 'wicket' && (b.innings || 1) === innings);
+    let runningScore = 0;
+    return wicketBalls.map((b, idx) => {
+      runningScore += (b.runs || 0);
+      // Get cumulative score at this wicket from ball position
+      const batName = b.batterName || 'Unknown';
+      return `${idx + 1}-${b.overNum || '?'} (${batName})`;
+    });
+  };
+
+  // Over-by-over progression
+  const buildOverProgression = (innings) => {
+    const innBalls = ballHistory.filter(b => (b.innings || 1) === innings);
+    const overMap = {};
+    let cumRuns = 0;
+    let cumWkts = 0;
+    innBalls.forEach(b => {
+      cumRuns += (b.runs || 0);
+      if (b.type === 'wicket') cumWkts++;
+      const overNo = parseInt(b.overNum) || 0;
+      overMap[overNo] = { runs: cumRuns, wickets: cumWkts };
+    });
+    return Object.entries(overMap).map(([ov, data]) => `After ${Number(ov)+1} ov: ${data.runs}/${data.wickets}`);
+  };
+
+  // Extract batters with proper dismissal descriptions
+  const getBattersDetailed = (playersList, innings) => {
+    const firstSeen = {};
+    ballHistory.forEach((b, idx) => {
+      if ((b.innings || 1) === innings) {
+        if (b.strikerId && firstSeen[b.strikerId] === undefined) firstSeen[b.strikerId] = idx;
+        if (b.nonStrikerId && firstSeen[b.nonStrikerId] === undefined) firstSeen[b.nonStrikerId] = idx;
+      }
+    });
+    return [...(playersList || [])].sort((a, b) => {
+      const sA = pStats[a.id] || {}, sB = pStats[b.id] || {};
+      const bA = sA.balls > 0 || sA.runs > 0 || sA.dismissed;
+      const bB = sB.balls > 0 || sB.runs > 0 || sB.dismissed;
+      if (bA && !bB) return -1;
+      if (!bA && bB) return 1;
+      return (firstSeen[a.id] ?? 9999) - (firstSeen[b.id] ?? 9999);
+    }).map(p => {
+      const s = pStats[p.id] || {};
+      const hasBatted = s.balls > 0 || s.runs > 0 || s.dismissed;
+      const sr = s.balls > 0 ? ((s.runs / s.balls) * 100).toFixed(1) : '0.0';
+      return {
+        name: p.name, runs: hasBatted ? (s.runs || 0) : '-', balls: hasBatted ? (s.balls || 0) : '-',
+        fours: s.fours || 0, sixes: s.sixes || 0, sr, hasBatted,
+        dismissal: hasBatted ? buildDismissalDesc(p.id) : 'did not bat'
+      };
+    });
+  };
+
+  const getBowlersDetailed = (playersList) => {
+    return (playersList || []).filter(p => {
+      const s = pStats[p.id] || {};
+      return s.ballsBowled > 0 || s.wickets > 0;
+    }).map(p => {
+      const s = pStats[p.id] || {};
+      const bb = s.ballsBowled || 0;
+      return {
+        name: p.name, overs: `${Math.floor(bb/6)}.${bb%6}`, maidens: s.maidens || 0,
+        runs: s.runsConceded || 0, wickets: s.wickets || 0,
+        econ: bb > 0 ? ((s.runsConceded) / (bb/6)).toFixed(2) : '0.00', dots: s.dots || 0
+      };
+    });
+  };
+
+  // MVP auto-calculation
+  let potm = fixture.momPlayerName || '';
+  if (!potm) {
+    let bestMvp = -1;
+    Object.keys(pStats).forEach(pid => {
+      const s = pStats[pid] || {};
+      const mvp = (s.runs||0) + (s.fours||0) + (s.sixes||0)*2 + (s.wickets||0)*20 + (s.maidens||0)*8 + (s.catches||0)*8 + (s.stumpings||0)*10 + (s.runOuts||0)*8;
+      if (mvp > bestMvp && mvp > 0) {
+        bestMvp = mvp;
+        const pObj = allPlayers.find(x => String(x.id) === String(pid));
+        const parts = [];
+        if (s.runs > 0) parts.push(`${s.runs} (${s.balls||0}b, ${s.fours||0}x4, ${s.sixes||0}x6)`);
+        if (s.wickets > 0) parts.push(`${s.wickets}/${s.runsConceded||0}`);
+        if (s.catches > 0) parts.push(`${s.catches} ct`);
+        potm = `${pObj?.name || 'MVP'} — ${parts.join(', ')}`;
+      }
+    });
+  }
+  if (!potm) potm = '—';
+
+  const inn1Bat = getBattersDetailed(squadA, 1);
+  const inn1Bowl = getBowlersDetailed(squadB);
+  const inn2Bat = getBattersDetailed(squadB, 2);
+  const inn2Bowl = getBowlersDetailed(squadA);
+  const fow1 = buildFOW(1);
+  const fow2 = buildFOW(2);
+  const prog1 = buildOverProgression(1);
+  const prog2 = buildOverProgression(2);
+
+  const renderInnings = (label, score, batters, bowlers, bowlTeam, fow, progression) => `
+    <div class="innings-section">
+      <div class="innings-header">
+        <span>${label}</span>
+        <span>${score.runs||0}/${score.wickets||0} (${score.overs||0}.${score.balls||0} OVERS)</span>
+      </div>
+      <table>
+        <thead><tr>
+          <th style="text-align:left">Batter</th><th style="text-align:left">Dismissal</th>
+          <th class="text-right">R</th><th class="text-right">B</th><th class="text-right">4s</th><th class="text-right">6s</th><th class="text-right">SR</th>
+        </tr></thead>
+        <tbody>${batters.map((b, i) => `<tr>
+          <td class="font-bold">${i+1}. ${b.name}</td>
+          <td style="color:#64748B; font-style:italic;">${b.dismissal}</td>
+          <td class="text-right font-bold font-mono">${b.runs}</td>
+          <td class="text-right font-mono">${b.balls}</td>
+          <td class="text-right font-mono">${b.fours}</td>
+          <td class="text-right font-mono">${b.sixes}</td>
+          <td class="text-right font-mono">${b.hasBatted ? b.sr : '-'}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+      <div class="extras-row"><span>Extras</span><span>${score.extras || 0}</span></div>
+
+      ${fow.length > 0 ? `<div class="fow-box"><strong>Fall of Wickets:</strong> ${fow.join(', ')}</div>` : ''}
+
+      <div class="innings-header" style="background:#334155; font-size:11px; margin-top:8px;">
+        <span>BOWLING: ${bowlTeam.toUpperCase()}</span>
+      </div>
+      <table>
+        <thead><tr>
+          <th style="text-align:left">Bowler</th><th class="text-right">O</th><th class="text-right">M</th>
+          <th class="text-right">R</th><th class="text-right">W</th><th class="text-right">Econ</th>
+        </tr></thead>
+        <tbody>${bowlers.map(bw => `<tr>
+          <td class="font-bold">${bw.name}</td>
+          <td class="text-right font-mono">${bw.overs}</td>
+          <td class="text-right font-mono">${bw.maidens}</td>
+          <td class="text-right font-bold font-mono">${bw.runs}</td>
+          <td class="text-right font-bold font-mono" style="color:#047857;">${bw.wickets}</td>
+          <td class="text-right font-mono">${bw.econ}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+
+      ${progression.length > 0 ? `<div class="progression-box"><strong>Run Progression:</strong> ${progression.join(' | ')}</div>` : ''}
+    </div>
+  `;
+
+  // Ball-by-ball commentary log (last 30 entries)
+  const recentBalls = ballHistory.slice(-30).reverse();
+  const commentaryHtml = recentBalls.length > 0 ? `
+    <div class="commentary-section">
+      <div class="innings-header" style="background:#1E293B;"><span>BALL-BY-BALL COMMENTARY</span></div>
+      <div class="commentary-list">
+        ${recentBalls.map(b => `
+          <div class="commentary-item ${b.type === 'wicket' ? 'wicket-item' : ''} ${b.type === 'four' || b.type === 'six' ? 'boundary-item' : ''}">
+            <span class="over-badge">${b.overNum || '?'}</span>
+            <span class="commentary-text">${b.commentary || `${b.bowlerName} to ${b.batterName} — ${b.label}`}</span>
+          </div>
+        `).join('')}
+      </div>
+    </div>
+  ` : '';
+
+  const html = `<!DOCTYPE html><html lang="en"><head><meta charset="UTF-8" />
+    <title>Full Match Report - Match #${matchNo} (${teamA} vs ${teamB})</title>
+    <style>
+      * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; }
+      body { background: #F8FAFC; color: #0F172A; padding: 15px; }
+      .toolbar { max-width: 900px; margin: 0 auto 15px auto; display: flex; justify-content: space-between; align-items: center; background: #0F172A; color: white; padding: 12px 20px; border-radius: 12px; }
+      .toolbar-btn { background: #10B981; color: white; border: none; padding: 8px 16px; border-radius: 8px; font-weight: bold; cursor: pointer; margin-left: 8px; }
+      .report-container { max-width: 900px; margin: 0 auto; background: white; border: 2px solid #0F172A; border-radius: 16px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.06); }
+      .header-box { text-align: center; border-bottom: 2px solid #0F172A; padding-bottom: 12px; margin-bottom: 15px; }
+      .tourney-title { font-size: 20px; font-weight: 900; color: #0F172A; }
+      .match-subtitle { font-size: 13px; font-weight: 800; color: #047857; margin-top: 2px; }
+      .meta-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; background: #F1F5F9; padding: 8px 12px; border-radius: 8px; font-size: 11px; margin-top: 8px; }
+      .meta-item strong { color: #475569; display: block; font-size: 9.5px; text-transform: uppercase; }
+      .result-banner { background: #ECFDF5; border: 1.5px solid #10B981; color: #064E3B; font-weight: 900; font-size: 14px; text-align: center; padding: 10px; border-radius: 8px; margin: 12px 0; }
+      .innings-section { margin-bottom: 18px; }
+      .innings-header { background: #0F172A; color: white; padding: 6px 12px; font-size: 12px; font-weight: 800; border-radius: 6px 6px 0 0; display: flex; justify-content: space-between; }
+      table { width: 100%; border-collapse: collapse; font-size: 11px; margin-bottom: 4px; }
+      th { background: #F8FAFC; border: 1px solid #E2E8F0; padding: 5px 8px; font-size: 10px; font-weight: 800; color: #475569; text-transform: uppercase; }
+      td { border: 1px solid #E2E8F0; padding: 5px 8px; }
+      .text-right { text-align: right; }
+      .font-mono { font-family: ui-monospace, SFMono-Regular, monospace; }
+      .font-bold { font-weight: bold; }
+      .extras-row { background: #F8FAFC; font-size: 11px; padding: 6px 10px; border: 1px solid #E2E8F0; border-top: none; display: flex; justify-content: space-between; font-weight: bold; }
+      .fow-box { background: #FEF3C7; border: 1px solid #F59E0B; padding: 8px 12px; border-radius: 6px; font-size: 11px; margin-top: 6px; line-height: 1.6; }
+      .progression-box { background: #EFF6FF; border: 1px solid #3B82F6; padding: 8px 12px; border-radius: 6px; font-size: 10px; margin-top: 6px; color: #1E40AF; line-height: 1.6; }
+      .potm-box { background: #FFFBEB; border: 1.5px solid #F59E0B; padding: 10px 14px; border-radius: 8px; font-size: 12px; font-weight: bold; margin: 14px 0; display: flex; justify-content: space-between; }
+      .commentary-section { margin-top: 16px; }
+      .commentary-list { border: 1px solid #E2E8F0; border-top: none; max-height: none; }
+      .commentary-item { padding: 6px 12px; border-bottom: 1px solid #F1F5F9; font-size: 11px; display: flex; align-items: center; gap: 10px; }
+      .commentary-item:nth-child(even) { background: #F8FAFC; }
+      .wicket-item { background: #FEF2F2 !important; border-left: 3px solid #EF4444; }
+      .boundary-item { background: #F0FDF4 !important; border-left: 3px solid #22C55E; }
+      .over-badge { background: #0F172A; color: white; font-size: 9px; font-weight: 900; padding: 2px 6px; border-radius: 4px; font-family: monospace; min-width: 32px; text-align: center; }
+      .commentary-text { flex: 1; }
+      .signatures-row { display: flex; justify-content: space-between; margin-top: 20px; padding: 10px 20px 0 20px; border-top: 1px solid #E2E8F0; }
+      .sig-box { width: 180px; text-align: center; font-size: 10px; font-weight: bold; color: #64748B; }
+      .sig-line { border-bottom: 1px solid #0F172A; height: 30px; margin-bottom: 4px; }
+      @media print {
+        body { padding: 0; background: white; }
+        .toolbar { display: none !important; }
+        @page { size: A4 portrait; margin: 8mm; }
+        .report-container { border: 1px solid #000; box-shadow: none; padding: 12px; }
+        tr { page-break-inside: avoid; }
+      }
+    </style>
+  </head><body>
+    <div class="toolbar">
+      <div>🏏 <strong>Full Match Report</strong> • Match #${matchNo}</div>
+      <div><button class="toolbar-btn" onclick="window.print()">🖨️ Print / Save PDF</button></div>
+    </div>
+    <div class="report-container">
+      <div class="header-box">
+        <div class="tourney-title">${tourneyName}</div>
+        <div class="match-subtitle">FULL MATCH REPORT & DETAILED SUMMARY • MATCH #${matchNo} (${stage})</div>
+        <div class="meta-grid">
+          <div class="meta-item"><strong>Date</strong> ${date}</div>
+          <div class="meta-item"><strong>Time</strong> ${time}</div>
+          <div class="meta-item"><strong>Venue</strong> ${venue}</div>
+          <div class="meta-item"><strong>Toss</strong> ${toss}</div>
+        </div>
+      </div>
+      <div class="result-banner">${result}</div>
+
+      ${renderInnings(`1ST INNINGS: ${teamA.toUpperCase()}`, inn1Score, inn1Bat, inn1Bowl, teamB, fow1, prog1)}
+      ${renderInnings(`2ND INNINGS: ${teamB.toUpperCase()}`, inn2Score, inn2Bat, inn2Bowl, teamA, fow2, prog2)}
+
+      <div class="potm-box">
+        <span>🏅 PLAYER OF THE MATCH</span>
+        <span>${potm}</span>
+      </div>
+
+      ${commentaryHtml}
+
+      <div class="signatures-row">
+        <div class="sig-box"><div class="sig-line"></div><div>ON-FIELD UMPIRE 1</div></div>
+        <div class="sig-box"><div class="sig-line"></div><div>ON-FIELD UMPIRE 2</div></div>
+        <div class="sig-box"><div class="sig-line"></div><div>OFFICIAL SCORER</div></div>
+      </div>
+    </div>
+  </body></html>`;
+
+  printWindow.document.open();
+  printWindow.document.write(html);
+  printWindow.document.close();
+  printWindow.onload = () => setTimeout(() => { printWindow.focus(); printWindow.print(); }, 400);
+}
+
 // ==============================================================================
 // 🔨 OFFICIAL AUCTION ROSTER & SUMMARY PDF (A4 PORTRAIT)
 // ==============================================================================

@@ -1,8 +1,8 @@
 // Admin Master Data & Payment Verification Panel with Single Source Cloud Control (Developer: Suman Kolay)
 
 import { store } from './store.js?v=13.0.53';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.53';
-import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID, compressImageToTarget } from './supabase.js?v=13.0.53';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportMatchScorecardPNG, exportFullMatchSummaryPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.53';
+import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID, compressImageToTarget, saveScorecardsToSupabase } from './supabase.js?v=13.0.53';
 import { shops } from './shopsData.js?v=12.0.2';
 
 let activeAdminTab = (() => { try { return sessionStorage.getItem('cpl_admin_tab') || (store.isMasterAdmin() ? 'payments' : 'overview'); } catch(e) { return 'payments'; } })();
@@ -1314,6 +1314,18 @@ export function renderAdminDashboard(containerEl) {
                 </div>
               </div>
             </div>
+          </div>
+
+          <!-- COMPLETED MATCHES HISTORY & MANAGEMENT -->
+          <div class="p-4 sm:p-5 bg-white border-2 border-slate-200 rounded-3xl shadow-sm space-y-3.5">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-2 flex-wrap gap-2">
+              <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
+                <i data-lucide="trophy" class="w-5 h-5 text-amber-600"></i>
+                <span>Completed Matches</span>
+              </h3>
+              <span id="completed-matches-count" class="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider">0 Matches</span>
+            </div>
+            <div id="completed-matches-container" class="space-y-2"></div>
           </div>
         </div>
 
@@ -4125,7 +4137,201 @@ function renderScorerMatchesList() {
       alert(`🚀 Match Started!\n\n${fixture.teamAName} vs ${fixture.teamBName} is now LIVE!\nBall-by-ball scoring actions are active below.`);
     };
   }
+
+  renderCompletedMatchesList();
 }
+
+function renderCompletedMatchesList() {
+  const container = document.getElementById('completed-matches-container');
+  const countEl = document.getElementById('completed-matches-count');
+  if (!container) return;
+
+  const curTid = store.activeTournamentId;
+  const curUUID = toUUID(curTid);
+  const activeTeams = store.getTeams() || [];
+  const activeTeamIds = new Set(activeTeams.map(t => String(t.id)));
+  const allPlayers = store.getPlayers() || [];
+
+  const fixtures = store.getFixtures().filter(f => {
+    if (!f || f.status !== 'COMPLETED') return false;
+    const fTeamA = f.teamAId ? String(f.teamAId) : '';
+    const fTeamB = f.teamBId ? String(f.teamBId) : '';
+    const fTid = f.tournament_id || f.tournamentId || f.leagueId;
+    if (activeTeamIds.size > 0 && (activeTeamIds.has(fTeamA) || activeTeamIds.has(fTeamB))) return true;
+    if (fTid && (fTid === curTid || toUUID(fTid) === curUUID)) return true;
+    return false;
+  });
+
+  if (countEl) countEl.textContent = `${fixtures.length} Match${fixtures.length !== 1 ? 'es' : ''}`;
+
+  if (fixtures.length === 0) {
+    container.innerHTML = '<p class="text-xs text-slate-400 text-center py-6 font-bold">No completed matches yet. Matches will appear here after completion.</p>';
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="overflow-x-auto rounded-2xl border border-slate-200">
+      <table class="w-full text-left">
+        <thead class="bg-slate-100 text-[10px] font-black uppercase tracking-wider text-slate-700 border-b border-slate-200">
+          <tr>
+            <th class="py-2.5 px-3">#</th>
+            <th class="py-2.5 px-3">Match</th>
+            <th class="py-2.5 px-3">Result</th>
+            <th class="py-2.5 px-3">MOM</th>
+            <th class="py-2.5 px-3 text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-slate-100">
+          ${fixtures.map((f, idx) => {
+            const momPlayer = f.momPlayerId ? allPlayers.find(p => p.id === f.momPlayerId || toUUID(p.id) === toUUID(f.momPlayerId)) : null;
+            const momName = momPlayer ? momPlayer.name : (f.momPlayerName || '—');
+            const teamAScore = f.teamAScore || {};
+            const teamBScore = f.teamBScore || {};
+            return `
+              <tr class="hover:bg-slate-50/80 transition-colors">
+                <td class="py-2.5 px-3 font-mono font-black text-xs text-slate-500">${f.matchNo || idx + 1}</td>
+                <td class="py-2.5 px-3">
+                  <div class="font-black text-slate-900 text-xs">${f.teamAName || 'Team A'} vs ${f.teamBName || 'Team B'}</div>
+                  <div class="text-[9px] text-slate-500">${f.date || ''} ${f.time || ''} • ${f.stage || 'League'}</div>
+                  <div class="text-[10px] font-bold text-slate-600 mt-0.5">${teamAScore.runs ?? '?'}/${teamAScore.wickets ?? '?'} vs ${teamBScore.runs ?? '?'}/${teamBScore.wickets ?? '?'}</div>
+                </td>
+                <td class="py-2.5 px-3">
+                  <span class="text-xs font-bold text-emerald-700">${f.result || 'No result'}</span>
+                </td>
+                <td class="py-2.5 px-3">
+                  <span class="text-xs font-bold ${momPlayer ? 'text-amber-700' : 'text-slate-400'}">${momPlayer ? '⭐ ' : ''}${momName}</span>
+                </td>
+                <td class="py-2.5 px-3 text-right">
+                  <div class="flex items-center justify-end gap-1.5 flex-wrap">
+                    <button onclick="window.openEditCompletedMatchModal('${f.id}')" class="px-2.5 py-1.5 bg-sky-100 hover:bg-sky-200 text-sky-900 font-black text-[10px] rounded-lg border border-sky-200 cursor-pointer transition-all">✏️ Edit</button>
+                    <button onclick="window.exportCompletedMatchPNG('${f.id}')" class="px-2.5 py-1.5 bg-emerald-100 hover:bg-emerald-200 text-emerald-900 font-black text-[10px] rounded-lg border border-emerald-200 cursor-pointer transition-all">🖼️ PNG</button>
+                    <button onclick="window.exportCompletedMatchFullPDF('${f.id}')" class="px-2.5 py-1.5 bg-amber-100 hover:bg-amber-200 text-amber-900 font-black text-[10px] rounded-lg border border-amber-200 cursor-pointer transition-all">📄 Full PDF</button>
+                  </div>
+                </td>
+              </tr>
+            `;
+          }).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+window.openEditCompletedMatchModal = function(fixtureId) {
+  const fixture = store.getFixtures().find(f => f.id === fixtureId);
+  if (!fixture) return alert('Match not found.');
+
+  const allPlayers = store.getPlayers() || [];
+  const teamAPlayers = allPlayers.filter(p => p.teamId === fixture.teamAId);
+  const teamBPlayers = allPlayers.filter(p => p.teamId === fixture.teamBId);
+  const allMatchPlayers = [...teamAPlayers, ...teamBPlayers];
+
+  const playerStats = fixture.liveMatchState?.playerStats || {};
+  const participantIds = Object.keys(playerStats).filter(id => {
+    const s = playerStats[id];
+    return s && (s.runs || s.balls || s.ballsBowled || s.wickets || s.catches);
+  });
+  const participantPlayers = participantIds.map(id => allPlayers.find(p => p.id === id || toUUID(p.id) === toUUID(id))).filter(Boolean);
+  const momOptions = participantPlayers.length > 0 ? participantPlayers : allMatchPlayers;
+
+  const currentMom = fixture.momPlayerId || '';
+  const currentResult = fixture.result || '';
+  const currentWinner = fixture.winnerTeamId || '';
+
+  const modal = document.createElement('div');
+  modal.id = 'edit-completed-match-modal';
+  modal.className = 'fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 p-4';
+  modal.innerHTML = `
+    <div class="bg-white rounded-3xl shadow-2xl w-full max-w-lg p-5 space-y-4 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="text-base font-black text-slate-900 flex items-center gap-2">
+          <i data-lucide="edit-3" class="w-5 h-5 text-sky-600"></i>
+          Edit Completed Match
+        </h3>
+        <button onclick="document.getElementById('edit-completed-match-modal')?.remove()" class="p-1.5 hover:bg-slate-100 rounded-xl cursor-pointer transition-colors">
+          <i data-lucide="x" class="w-5 h-5 text-slate-500"></i>
+        </button>
+      </div>
+
+      <div class="text-sm font-black text-slate-800">${fixture.teamAName} vs ${fixture.teamBName}</div>
+      <div class="text-xs text-slate-500">${fixture.date || ''} • ${fixture.stage || 'League'} • Match #${fixture.matchNo || '?'}</div>
+
+      <div class="space-y-3">
+        <div>
+          <label class="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1">Match Result</label>
+          <input type="text" id="edit-match-result" value="${currentResult}" class="w-full bg-slate-50 border-2 border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold focus:border-sky-500 focus:outline-none" placeholder="e.g. Team A won by 25 runs" />
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1">Winner Team</label>
+          <select id="edit-match-winner" class="w-full bg-slate-50 border-2 border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold cursor-pointer focus:border-sky-500 focus:outline-none">
+            <option value="">-- No Winner (Tie/Draw) --</option>
+            <option value="${fixture.teamAId}" ${currentWinner === fixture.teamAId ? 'selected' : ''}>${fixture.teamAName}</option>
+            <option value="${fixture.teamBId}" ${currentWinner === fixture.teamBId ? 'selected' : ''}>${fixture.teamBName}</option>
+          </select>
+        </div>
+
+        <div>
+          <label class="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1">Man of the Match</label>
+          <select id="edit-match-mom" class="w-full bg-slate-50 border-2 border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold cursor-pointer focus:border-sky-500 focus:outline-none">
+            <option value="">-- Select MOM --</option>
+            ${momOptions.map(p => `<option value="${p.id}" ${currentMom === p.id ? 'selected' : ''}>${p.name} (${p.teamId === fixture.teamAId ? fixture.teamAName : fixture.teamBName})</option>`).join('')}
+          </select>
+        </div>
+      </div>
+
+      <div class="flex items-center justify-end gap-2 pt-3 border-t border-slate-100">
+        <button onclick="document.getElementById('edit-completed-match-modal')?.remove()" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl cursor-pointer transition-all">Cancel</button>
+        <button id="save-edit-completed-match-btn" class="px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs rounded-xl shadow cursor-pointer transition-all flex items-center gap-1.5">
+          <i data-lucide="save" class="w-3.5 h-3.5"></i> Save Changes
+        </button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  if (window.lucide) lucide.createIcons();
+
+  document.getElementById('save-edit-completed-match-btn').addEventListener('click', () => {
+    const newResult = document.getElementById('edit-match-result').value.trim();
+    const newWinner = document.getElementById('edit-match-winner').value;
+    const newMom = document.getElementById('edit-match-mom').value;
+    const momPlayer = newMom ? allPlayers.find(p => p.id === newMom) : null;
+
+    fixture.result = newResult || fixture.result;
+    fixture.winnerTeamId = newWinner || null;
+    fixture.winner_team_id = newWinner ? toUUID(newWinner) : null;
+    fixture.momPlayerId = newMom || null;
+    fixture.mom_player_id = newMom ? toUUID(newMom) : null;
+    fixture.momPlayerName = momPlayer?.name || null;
+
+    store.updateFixture(fixture);
+    document.getElementById('edit-completed-match-modal')?.remove();
+    renderCompletedMatchesList();
+    if (window.renderActiveMatchCenter) window.renderActiveMatchCenter();
+    if (window.refreshFixturesViewContent) window.refreshFixturesViewContent();
+    alert('Match details updated successfully!');
+  });
+};
+
+window.exportCompletedMatchPNG = function(fixtureId) {
+  const fixture = store.getFixtures().find(f => f.id === fixtureId);
+  if (!fixture) return alert('Match not found.');
+  const tourneys = store.getCustomTournaments() || [];
+  const curTid = store.activeTournamentId;
+  const curUUID = toUUID(curTid);
+  const tourney = tourneys.find(t => (t.supabaseId || t.id) === curTid || toUUID(t.id) === curUUID || toUUID(t.supabaseId) === curUUID) || {};
+  exportMatchScorecardPNG(fixture, tourney);
+};
+
+window.exportCompletedMatchFullPDF = function(fixtureId) {
+  const fixture = store.getFixtures().find(f => f.id === fixtureId);
+  if (!fixture) return alert('Match not found.');
+  const tourneys = store.getCustomTournaments() || [];
+  const curTid = store.activeTournamentId;
+  const curUUID = toUUID(curTid);
+  const tourney = tourneys.find(t => (t.supabaseId || t.id) === curTid || toUUID(t.id) === curUUID || toUUID(t.supabaseId) === curUUID) || {};
+  exportFullMatchSummaryPDF(fixture, tourney);
+};
 
 function renderScorerActivePanel() {
   const fixture = store.getFixtures().find(f => f.id === activeScoringMatchId);
@@ -4466,8 +4672,9 @@ function renderScorerActivePanel() {
         fixture.endedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         fixture.result = resultTxt;
         fixture.winnerTeamId = winnerId;
-        
+
         store.updateFixture(fixture);
+        saveScorecardsToSupabase(fixture);
         document.getElementById('scorer-active-panel')?.classList.add('hidden');
         renderScorerMatchesList();
         renderAdminFixturesList();
@@ -4586,6 +4793,7 @@ function finalizeMatchAsTie(fixture, resultTxt) {
 
   document.getElementById('scorer-active-panel')?.classList.add('hidden');
   store.updateFixture(fixture);
+  saveScorecardsToSupabase(fixture);
   renderScorerMatchesList();
   renderAdminFixturesList();
   if (window.renderActiveMatchCenter) window.renderActiveMatchCenter();
@@ -4716,6 +4924,7 @@ function handleSuperOverInningsEnd(fixture) {
   if (selMatch) selMatch.value = '';
   document.getElementById('scorer-active-panel')?.classList.add('hidden');
   store.updateFixture(fixture);
+  saveScorecardsToSupabase(fixture);
   renderScorerMatchesList();
   renderAdminFixturesList();
   if (window.renderActiveMatchCenter) window.renderActiveMatchCenter();
@@ -4871,6 +5080,7 @@ function endInningsOrFinishMatch(fixture) {
   if (selMatch) selMatch.value = '';
 
   store.updateFixture(fixture);
+  saveScorecardsToSupabase(fixture);
 
   document.getElementById('scorer-active-panel')?.classList.add('hidden');
   const startBtnTxt = document.getElementById('scorer-start-match-btn-txt');
@@ -8962,6 +9172,7 @@ window.finishMatchManually = function() {
     if (selMatch) selMatch.value = '';
 
     store.updateFixture(fixture);
+    saveScorecardsToSupabase(fixture);
 
     document.getElementById('scorer-active-panel')?.classList.add('hidden');
     const startBtnTxt = document.getElementById('scorer-start-match-btn-txt');
