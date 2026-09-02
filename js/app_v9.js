@@ -2882,98 +2882,126 @@ export function renderCustomTournamentHub(container, tourney) {
           </div>
         ` : ''}
 
-        <!-- 3. ICON GRID NAVIGATION (EXPLORE-STYLE WHITE SHADOW CARDS) -->
-        <div class="rounded-3xl p-3 sm:p-4">
-          <div class="grid grid-cols-3 gap-3 sm:gap-3.5">
+        <!-- 3. ICON GRID NAVIGATION (SQUARE WHITE SHADOW CARDS) -->
+        <div class="rounded-3xl p-2.5 sm:p-3.5">
+          <div class="grid grid-cols-3 gap-2.5 sm:gap-3">
 
             <!-- 1. DETAILS -->
-            <button type="button" data-hub-section="home" class="hub-grid-btn group flex flex-col items-center gap-2 py-4 px-2 rounded-2xl bg-white shadow-[0_1px_8px_rgba(0,0,0,0.08)] hover:shadow-[0_2px_16px_rgba(0,0,0,0.12)] transition-all duration-200 cursor-pointer active:scale-95">
-              <div class="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <svg class="w-6 h-6 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
-                  <polyline points="9 22 9 12 15 12 15 22"/>
+            <button type="button" data-hub-section="home" class="hub-grid-btn group flex flex-col items-center rounded-2xl bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] hover:shadow-[0_4px_20px_rgba(0,0,0,0.13)] transition-all duration-200 cursor-pointer active:scale-95 overflow-hidden">
+              <div class="w-full aspect-square flex items-center justify-center bg-gradient-to-br from-blue-50 to-slate-50">
+                <svg class="w-10 h-10 sm:w-12 sm:h-12 text-blue-400" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M6 18L24 4l18 14v22a4 4 0 01-4 4H10a4 4 0 01-4-4z"/>
+                  <polyline points="18 44 18 28 30 28 30 44"/>
+                  <circle cx="24" cy="18" r="3" fill="currentColor" opacity="0.3"/>
                 </svg>
               </div>
-              <span class="text-[11px] font-semibold text-slate-700 text-center leading-tight">Details</span>
+              <span class="text-[10.5px] sm:text-xs font-semibold text-slate-600 text-center py-2 leading-tight">Details</span>
             </button>
 
             <!-- 2. TEAMS -->
-            <button type="button" data-hub-section="teams" class="hub-grid-btn group flex flex-col items-center gap-2 py-4 px-2 rounded-2xl bg-white shadow-[0_1px_8px_rgba(0,0,0,0.08)] hover:shadow-[0_2px_16px_rgba(0,0,0,0.12)] transition-all duration-200 cursor-pointer active:scale-95">
-              <div class="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <svg class="w-6 h-6 text-emerald-500" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
-                  <circle cx="19" cy="8" r="2.5"/>
-                  <circle cx="5" cy="8" r="2.5"/>
+            <button type="button" data-hub-section="teams" class="hub-grid-btn group flex flex-col items-center rounded-2xl bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] hover:shadow-[0_4px_20px_rgba(0,0,0,0.13)] transition-all duration-200 cursor-pointer active:scale-95 overflow-hidden">
+              <div class="w-full aspect-square flex items-center justify-center bg-gradient-to-br from-emerald-50 to-slate-50">
+                <svg class="w-10 h-10 sm:w-12 sm:h-12 text-emerald-400" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="24" cy="16" r="7" fill="currentColor" opacity="0.2"/>
+                  <circle cx="10" cy="20" r="5" fill="currentColor" opacity="0.15"/>
+                  <circle cx="38" cy="20" r="5" fill="currentColor" opacity="0.15"/>
+                  <path d="M6 42c0-6 6-10 18-10s18 4 18 10" stroke-linecap="round"/>
+                  <path d="M24 16v-4M20 14l4-4 4 4" stroke-width="1.5" opacity="0.4"/>
                 </svg>
               </div>
-              <span class="text-[11px] font-semibold text-slate-700 text-center leading-tight">Teams</span>
+              <span class="text-[10.5px] sm:text-xs font-semibold text-slate-600 text-center py-2 leading-tight">Teams</span>
             </button>
 
             <!-- 3. REGISTER PLAYERS (auction mode) / FIXTURES (fixture mode) -->
             ${isAuction ? `
-            <button type="button" data-hub-section="players" class="hub-grid-btn group flex flex-col items-center gap-2 py-4 px-2 rounded-2xl bg-white shadow-[0_1px_8px_rgba(0,0,0,0.08)] hover:shadow-[0_2px_16px_rgba(0,0,0,0.12)] transition-all duration-200 cursor-pointer active:scale-95">
-              <div class="w-12 h-12 rounded-xl bg-violet-50 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <svg class="w-6 h-6 text-violet-500" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M15 14c-2.67 0-8 1.33-8 4v2h16v-2c0-2.67-5.33-4-8-4zm0-2c1.93 0 3.5-1.57 3.5-3.5S16.93 5 15 5s-3.5 1.57-3.5 3.5S13.07 12 15 12z"/>
-                  <path d="M6 15v-3h3v-2H6V7H4v3H1v2h3v3z"/>
+            <button type="button" data-hub-section="players" class="hub-grid-btn group flex flex-col items-center rounded-2xl bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] hover:shadow-[0_4px_20px_rgba(0,0,0,0.13)] transition-all duration-200 cursor-pointer active:scale-95 overflow-hidden">
+              <div class="w-full aspect-square flex items-center justify-center bg-gradient-to-br from-violet-50 to-slate-50">
+                <svg class="w-10 h-10 sm:w-12 sm:h-12 text-violet-400" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="28" cy="16" r="7" fill="currentColor" opacity="0.2"/>
+                  <path d="M14 42v-4c0-5 5-8 14-8s14 3 14 8v4" stroke-linecap="round"/>
+                  <line x1="10" y1="20" x2="10" y2="32" stroke-width="2.5" stroke-linecap="round"/>
+                  <line x1="4" y1="26" x2="16" y2="26" stroke-width="2.5" stroke-linecap="round"/>
                 </svg>
               </div>
-              <span class="text-[11px] font-semibold text-slate-700 text-center leading-tight">Register<br/>Players</span>
+              <span class="text-[10.5px] sm:text-xs font-semibold text-slate-600 text-center py-2 leading-tight">Register<br/>Players</span>
             </button>
             ` : `
-            <button type="button" data-hub-section="matches" data-subtab="fixtures" class="hub-grid-btn group flex flex-col items-center gap-2 py-4 px-2 rounded-2xl bg-white shadow-[0_1px_8px_rgba(0,0,0,0.08)] hover:shadow-[0_2px_16px_rgba(0,0,0,0.12)] transition-all duration-200 cursor-pointer active:scale-95">
-              <div class="w-12 h-12 rounded-xl bg-violet-50 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <svg class="w-6 h-6 text-violet-500" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20a2 2 0 002 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zM5 8V6h14v2H5zm2 4h10v2H7v-2zm0 4h7v2H7v-2z"/>
+            <button type="button" data-hub-section="matches" data-subtab="fixtures" class="hub-grid-btn group flex flex-col items-center rounded-2xl bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] hover:shadow-[0_4px_20px_rgba(0,0,0,0.13)] transition-all duration-200 cursor-pointer active:scale-95 overflow-hidden">
+              <div class="w-full aspect-square flex items-center justify-center bg-gradient-to-br from-violet-50 to-slate-50">
+                <svg class="w-10 h-10 sm:w-12 sm:h-12 text-violet-400" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="8" y="8" width="32" height="32" rx="4" fill="currentColor" opacity="0.1"/>
+                  <line x1="8" y1="16" x2="40" y2="16"/>
+                  <line x1="16" y1="8" x2="16" y2="40" stroke-dasharray="2 3" opacity="0.4"/>
+                  <line x1="24" y1="8" x2="24" y2="40" stroke-dasharray="2 3" opacity="0.4"/>
+                  <line x1="32" y1="8" x2="32" y2="40" stroke-dasharray="2 3" opacity="0.4"/>
+                  <circle cx="20" cy="26" r="2.5" fill="currentColor"/>
+                  <circle cx="28" cy="32" r="2.5" fill="currentColor" opacity="0.5"/>
                 </svg>
               </div>
-              <span class="text-[11px] font-semibold text-slate-700 text-center leading-tight">Fixtures</span>
+              <span class="text-[10.5px] sm:text-xs font-semibold text-slate-600 text-center py-2 leading-tight">Fixtures</span>
             </button>
             `}
 
             <!-- 4. AUCTION (auction mode) / POINTS TABLE (fixture mode) -->
             ${isAuction ? `
-            <button type="button" data-hub-section="auction" class="hub-grid-btn group flex flex-col items-center gap-2 py-4 px-2 rounded-2xl bg-white shadow-[0_1px_8px_rgba(0,0,0,0.08)] hover:shadow-[0_2px_16px_rgba(0,0,0,0.12)] transition-all duration-200 cursor-pointer active:scale-95 relative">
-              <span class="absolute top-1.5 right-1.5 px-1.5 py-0.5 bg-red-500 text-white text-[7px] font-black rounded-full uppercase leading-none shadow-sm animate-pulse">Live</span>
-              <div class="w-12 h-12 rounded-xl bg-rose-50 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <svg class="w-6 h-6 text-rose-500" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M17.66 2.34a1.41 1.41 0 00-2 0l-3.54 3.54 2 2 3.54-3.54a1.41 1.41 0 000-2zM10.12 7.88l-7.07 7.07a1 1 0 000 1.41l4.59 4.59a1 1 0 001.41 0l7.07-7.07-6-6z"/>
-                  <path d="M3 21h4v-1H4.5l2-2H3v3z"/>
+            <button type="button" data-hub-section="auction" class="hub-grid-btn group flex flex-col items-center rounded-2xl bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] hover:shadow-[0_4px_20px_rgba(0,0,0,0.13)] transition-all duration-200 cursor-pointer active:scale-95 overflow-hidden relative">
+              <span class="absolute top-1.5 right-1.5 z-10 px-1.5 py-0.5 bg-red-500 text-white text-[7px] font-black rounded-full uppercase leading-none shadow-sm animate-pulse">Live</span>
+              <div class="w-full aspect-square flex items-center justify-center bg-gradient-to-br from-rose-50 to-slate-50">
+                <svg class="w-10 h-10 sm:w-12 sm:h-12 text-rose-400" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M30 6L18 18l4 4L34 10" fill="currentColor" opacity="0.15"/>
+                  <path d="M30 6l4 4-12 12-4-4L30 6z" stroke-linejoin="round"/>
+                  <path d="M18 18L8 28a3 3 0 000 4.24l7.76 7.76a3 3 0 004.24 0L30 30" stroke-linejoin="round"/>
+                  <path d="M14 34l-4 8h6l-2 4" stroke-width="1.5" opacity="0.4" stroke-linecap="round"/>
+                  <circle cx="36" cy="8" r="3" fill="currentColor" opacity="0.2"/>
                 </svg>
               </div>
-              <span class="text-[11px] font-semibold text-slate-700 text-center leading-tight">Auction</span>
+              <span class="text-[10.5px] sm:text-xs font-semibold text-slate-600 text-center py-2 leading-tight">Auction</span>
             </button>
             ` : `
-            <button type="button" data-hub-section="matches" data-subtab="points" class="hub-grid-btn group flex flex-col items-center gap-2 py-4 px-2 rounded-2xl bg-white shadow-[0_1px_8px_rgba(0,0,0,0.08)] hover:shadow-[0_2px_16px_rgba(0,0,0,0.12)] transition-all duration-200 cursor-pointer active:scale-95">
-              <div class="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <svg class="w-6 h-6 text-amber-500" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M3 3v18h18V3H3zm16 16H5V5h14v14zM7 7h4v4H7V7zm6 0h4v4h-4V7zm-6 6h4v4H7v-4zm6 0h4v4h-4v-4z"/>
+            <button type="button" data-hub-section="matches" data-subtab="points" class="hub-grid-btn group flex flex-col items-center rounded-2xl bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] hover:shadow-[0_4px_20px_rgba(0,0,0,0.13)] transition-all duration-200 cursor-pointer active:scale-95 overflow-hidden">
+              <div class="w-full aspect-square flex items-center justify-center bg-gradient-to-br from-amber-50 to-slate-50">
+                <svg class="w-10 h-10 sm:w-12 sm:h-12 text-amber-400" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="6" y="6" width="36" height="36" rx="4" fill="currentColor" opacity="0.1"/>
+                  <path d="M6 14h36M14 6v36M30 6v36" opacity="0.3"/>
+                  <path d="M10 20h6v18h-6zM18 26h6v12h-6zM26 16h6v22h-6zM34 22h6v16h-6z" fill="currentColor" opacity="0.25" stroke="none"/>
+                  <path d="M8 10l8 6 8-4 8 8 8-6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
                 </svg>
               </div>
-              <span class="text-[11px] font-semibold text-slate-700 text-center leading-tight">Points<br/>Table</span>
+              <span class="text-[10.5px] sm:text-xs font-semibold text-slate-600 text-center py-2 leading-tight">Points<br/>Table</span>
             </button>
             `}
 
-            <!-- 5. MATCH CORNER -->
-            <button type="button" data-hub-section="matches" data-subtab="fixtures" class="hub-grid-btn group flex flex-col items-center gap-2 py-4 px-2 rounded-2xl bg-white shadow-[0_1px_8px_rgba(0,0,0,0.08)] hover:shadow-[0_2px_16px_rgba(0,0,0,0.12)] transition-all duration-200 cursor-pointer active:scale-95">
-              <div class="w-12 h-12 rounded-xl bg-orange-50 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <svg class="w-6 h-6 text-orange-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <circle cx="12" cy="12" r="10"/>
-                  <path d="M12 6v6l4 2"/>
-                  <path d="M8 2l1.5 3M16 2l-1.5 3" stroke-width="1.5"/>
+            <!-- 5. MATCH CORNER (Bat vs Ball Battle) -->
+            <button type="button" data-hub-section="matches" data-subtab="fixtures" class="hub-grid-btn group flex flex-col items-center rounded-2xl bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] hover:shadow-[0_4px_20px_rgba(0,0,0,0.13)] transition-all duration-200 cursor-pointer active:scale-95 overflow-hidden">
+              <div class="w-full aspect-square flex items-center justify-center bg-gradient-to-br from-orange-50 to-slate-50">
+                <svg class="w-10 h-10 sm:w-12 sm:h-12 text-orange-400" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2">
+                  <!-- Bat -->
+                  <rect x="8" y="10" width="8" height="22" rx="3" transform="rotate(-20 12 21)" fill="currentColor" opacity="0.15" stroke="currentColor"/>
+                  <rect x="10" y="30" width="4" height="10" rx="2" transform="rotate(-20 12 35)" fill="currentColor" opacity="0.3" stroke="none"/>
+                  <!-- Ball -->
+                  <circle cx="34" cy="18" r="7" fill="currentColor" opacity="0.15" stroke="currentColor"/>
+                  <path d="M30 12c3 2 3 10 0 12" stroke-width="1.5" opacity="0.6"/>
+                  <path d="M38 12c-3 2-3 10 0 12" stroke-width="1.5" opacity="0.6"/>
+                  <!-- VS spark -->
+                  <path d="M22 22l2-3 2 3" stroke-width="1.5" stroke-linecap="round" opacity="0.4"/>
+                  <path d="M22 28l2 3 2-3" stroke-width="1.5" stroke-linecap="round" opacity="0.4"/>
                 </svg>
               </div>
-              <span class="text-[11px] font-semibold text-slate-700 text-center leading-tight">Match<br/>Corner</span>
+              <span class="text-[10.5px] sm:text-xs font-semibold text-slate-600 text-center py-2 leading-tight">Match<br/>Corner</span>
             </button>
 
             <!-- 6. STATISTICS -->
-            <button type="button" data-hub-section="stats" class="hub-grid-btn group flex flex-col items-center gap-2 py-4 px-2 rounded-2xl bg-white shadow-[0_1px_8px_rgba(0,0,0,0.08)] hover:shadow-[0_2px_16px_rgba(0,0,0,0.12)] transition-all duration-200 cursor-pointer active:scale-95">
-              <div class="w-12 h-12 rounded-xl bg-cyan-50 flex items-center justify-center group-hover:scale-110 transition-transform">
-                <svg class="w-6 h-6 text-cyan-500" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M5 9.2h3V19H5V9.2zM10.6 5h2.8v14h-2.8V5zm5.6 8H19v6h-2.8v-6z"/>
+            <button type="button" data-hub-section="stats" class="hub-grid-btn group flex flex-col items-center rounded-2xl bg-white shadow-[0_2px_12px_rgba(0,0,0,0.07)] hover:shadow-[0_4px_20px_rgba(0,0,0,0.13)] transition-all duration-200 cursor-pointer active:scale-95 overflow-hidden">
+              <div class="w-full aspect-square flex items-center justify-center bg-gradient-to-br from-cyan-50 to-slate-50">
+                <svg class="w-10 h-10 sm:w-12 sm:h-12 text-cyan-400" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2">
+                  <rect x="6" y="24" width="8" height="18" rx="2" fill="currentColor" opacity="0.2" stroke="currentColor"/>
+                  <rect x="18" y="14" width="8" height="28" rx="2" fill="currentColor" opacity="0.3" stroke="currentColor"/>
+                  <rect x="30" y="8" width="8" height="34" rx="2" fill="currentColor" opacity="0.15" stroke="currentColor"/>
+                  <path d="M8 20l10-8 12 4 10-10" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.6"/>
+                  <circle cx="40" cy="6" r="2.5" fill="currentColor" opacity="0.4"/>
                 </svg>
               </div>
-              <span class="text-[11px] font-semibold text-slate-700 text-center leading-tight">Statistics</span>
+              <span class="text-[10.5px] sm:text-xs font-semibold text-slate-600 text-center py-2 leading-tight">Statistics</span>
             </button>
 
           </div>
