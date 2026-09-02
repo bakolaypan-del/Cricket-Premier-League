@@ -2144,7 +2144,7 @@ function buildTournamentCarouselHTML(allTournaments) {
       + '</div>';
   }).join('');
 
-  return '<div id="tourney-carousel-wrapper" class="relative overflow-hidden rounded-2xl p-1 max-w-[480px] sm:max-w-3xl md:max-w-4xl mx-auto w-full">'
+  return '<div id="tourney-carousel-wrapper" class="relative overflow-hidden rounded-2xl max-w-[480px] sm:max-w-3xl md:max-w-4xl mx-auto w-full">'
     + '<div id="tourney-carousel" class="flex gap-0" style="will-change:transform;">' + carouselCards + '</div>'
     + '<div id="tourney-carousel-dots" class="flex items-center justify-center gap-1.5 py-1.5 bg-transparent">' + dots + '</div>'
     + '</div>'
