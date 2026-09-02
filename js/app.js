@@ -2119,7 +2119,10 @@ function openPlayerRegisterFormModal() {
           <!-- 6. Team Preference -->
           <div>
             <label class="block text-[8px] font-bold text-slate-700 uppercase mb-0.5">Team Preference (Optional)</label>
-            <input type="text" id="ply-team-pref" placeholder="Preferred Franchise Team Name (Optional)" class="w-full bg-slate-50 border border          <!-- 7. HD Player Photo (Square 1:1 Crop with Camera & Gallery Options) -->
+            <input type="text" id="ply-team-pref" placeholder="Preferred Franchise Team Name (Optional)" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-2 focus:outline-none focus:border-emerald-500" />
+          </div>
+
+          <!-- 7. HD Player Photo (Square 1:1 Crop with Camera & Gallery Options) -->
           <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-2 shadow-sm">
             <div class="flex items-center justify-between">
               <label class="block text-[9px] font-black text-slate-800 uppercase">Player Photo (Square Shape 1:1) *</label>
