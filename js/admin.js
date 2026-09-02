@@ -9,6 +9,42 @@ let activeAdminTab = (() => { try { return sessionStorage.getItem('cpl_admin_tab
 let adminAuctionSubTab = 'sold';
 const todayStr = new Date().toISOString().split('T')[0];
 
+async function handlePhotoSelectAndCDNUpload(fileInputEl, previewImgEl, statusEl, folder, cropTitle, onUploaded, aspectRatio = 1) {
+  const file = fileInputEl.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (ev) => {
+    const rawSrc = ev.target.result;
+    const cropModalFn = window.openSquareImageCropModal;
+    if (typeof cropModalFn === 'function') {
+      cropModalFn(rawSrc, async (croppedDataUrl) => {
+        if (previewImgEl) previewImgEl.src = croppedDataUrl;
+        if (statusEl) {
+          statusEl.innerHTML = `<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-300 font-bold text-[9.5px] animate-pulse"><span class="w-3 h-3 border-2 border-amber-600 border-t-transparent rounded-full animate-spin"></span><span>Uploading HD to Cloudinary CDN...</span></span>`;
+        }
+        try {
+          const targetW = aspectRatio > 1 ? 1280 : 600;
+          const compressedDataUrl = (typeof compressImageToTarget === 'function') ? await compressImageToTarget(croppedDataUrl, 200, targetW) : croppedDataUrl;
+          if (previewImgEl) previewImgEl.src = compressedDataUrl;
+          const cdnUrl = await uploadHDImage(compressedDataUrl, folder);
+          const finalUrl = cdnUrl || compressedDataUrl;
+          onUploaded(finalUrl);
+          if (statusEl) {
+            statusEl.innerHTML = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300 font-black text-[10px]"><span>✅ Cloudinary CDN Saved</span></span>`;
+          }
+        } catch (err) {
+          console.warn('CDN upload fallback:', err);
+          onUploaded(croppedDataUrl);
+          if (statusEl) {
+            statusEl.innerHTML = `<span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-sky-100 text-sky-800 border border-sky-300 font-black text-[10px]"><span>✅ Cropped & Ready</span></span>`;
+          }
+        }
+      }, cropTitle || "Crop Image", aspectRatio);
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
 export function renderAdminDashboard(containerEl) {
   // STRICT ADMIN AUTHENTICATION LOCK (Supabase Auth)
   if (!store.isAdminAuthenticated()) {
@@ -1373,7 +1409,7 @@ export function renderAdminDashboard(containerEl) {
                   </div>
                   <!-- Preview Banner & Re-crop button -->
                   <div class="w-full h-28 rounded-xl border border-slate-300 bg-slate-900 overflow-hidden relative shadow-2xs group">
-                    <img id="tourney-banner-preview" src="${curTourneyObj.bannerUrl || curTourneyObj.posterUrl || curTourneyObj.banner_url || 'assets/jsl_poster.jpg'}" class="w-full h-full object-cover" onerror="this.src='assets/jsl_poster.jpg'" />
+                    <img id="tourney-banner-preview" src="${curTourneyObj.bannerUrl || curTourneyObj.posterUrl || curTourneyObj.banner_url || 'assets/default_banner_1.svg'}" class="w-full h-full object-cover" onerror="this.src='assets/default_banner_1.svg'" />
                     <button type="button" id="recrop-tourney-banner-btn" class="absolute bottom-2 right-2 px-2.5 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[10px] rounded-lg shadow border border-amber-400 flex items-center gap-1 opacity-90 group-hover:opacity-100 transition-all cursor-pointer">
                       <i data-lucide="crop" class="w-3 h-3"></i> Crop 16:9
                     </button>
@@ -1396,7 +1432,7 @@ export function renderAdminDashboard(containerEl) {
                   <!-- Preview Logo & Re-crop button -->
                   <div class="flex items-center gap-3">
                     <div class="w-24 h-24 rounded-2xl border border-slate-300 bg-slate-900 overflow-hidden relative shadow-2xs shrink-0 group">
-                      <img id="tourney-logo-preview" src="${curTourneyObj.logoUrl || curTourneyObj.logo_url || 'assets/jsl_logo.jpg'}" class="w-full h-full object-cover" onerror="this.src='assets/jsl_logo.jpg'" />
+                      <img id="tourney-logo-preview" src="${curTourneyObj.logoUrl || curTourneyObj.logo_url || 'assets/default_banner_3.svg'}" class="w-full h-full object-cover" onerror="this.src='assets/default_banner_3.svg'" />
                       <button type="button" id="recrop-tourney-logo-btn" class="absolute bottom-1 right-1 px-1.5 py-0.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-[9px] rounded shadow flex items-center gap-0.5 cursor-pointer">
                         <i data-lucide="crop" class="w-2.5 h-2.5"></i> 1:1
                       </button>
