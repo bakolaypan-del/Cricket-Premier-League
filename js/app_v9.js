@@ -1578,70 +1578,9 @@ function renderNavbar() {
   const navbarEl = document.getElementById('app-navbar');
   if (!navbarEl) return;
 
-  navbarEl.classList.remove('hidden');
-  navbarEl.className = "sticky top-0 z-40 bg-gradient-to-r from-blue-700 via-blue-800 to-indigo-950 text-white rounded-b-2xl sm:rounded-b-3xl shadow-2xl border-b-2 border-blue-400/40 px-2 sm:px-4";
-
-  navbarEl.innerHTML = `
-    <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between gap-2 relative z-10">
-      
-      <!-- Left Side: Uploaded White Batsman Picture SVG Only -->
-      <div class="flex items-center cursor-pointer flex-shrink-0" id="brand-header-logo" title="Cricket Premier League Home">
-        <div class="w-10 h-10 sm:w-11 sm:h-11 rounded-2xl bg-white/10 border border-white/30 flex items-center justify-center shadow-lg transition-transform hover:scale-105">
-          <!-- Sleek White Batsman SVG Silhouette -->
-          <svg class="w-7 h-7 sm:w-8 sm:h-8 flex-shrink-0" viewBox="0 0 100 100" fill="none">
-            <circle cx="42" cy="22" r="8" fill="#FFFFFF"/>
-            <path d="M46 20 H54" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"/>
-            <path d="M36 32 L56 32 L48 54 L32 54 Z" fill="#FFFFFF"/>
-            <path d="M48 34 L64 42 L72 36" stroke="#FFFFFF" stroke-width="4.5" stroke-linecap="round"/>
-            <path d="M36 54 L28 78 L22 94" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round"/>
-            <path d="M48 54 L64 78 L74 92" stroke="#FFFFFF" stroke-width="6" stroke-linecap="round"/>
-            <path d="M68 34 L92 10 L98 16 L74 40 Z" fill="#FFFFFF" stroke="#E2E8F0" stroke-width="1.5"/>
-          </svg>
-        </div>
-      </div>
-
-      <!-- Middle Portion: Written CRICKET PREMIER LEAGUE -->
-      <div class="flex flex-col items-center justify-center text-center cursor-pointer flex-1 px-2" id="brand-header-title">
-        <h1 class="font-black text-white text-sm sm:text-base md:text-xl tracking-wider uppercase drop-shadow-md">CRICKET PREMIER LEAGUE</h1>
-      </div>
-
-      <!-- Desktop Navigation links -->
-      <div class="hidden lg:flex items-center gap-3 xl:gap-5 text-xs font-bold tracking-widest text-emerald-100">
-        <button id="nav-home-btn" class="hover:text-white transition-colors py-1 ${currentRoute === 'landing' ? 'text-white border-b-2 border-emerald-300 font-black' : ''}">HOME</button>
-        <button id="nav-tournaments-btn" class="hover:text-white transition-colors py-1">TOURNAMENTS</button>
-        <button id="nav-schedule-btn" class="hover:text-white transition-colors py-1 ${currentRoute === 'fixtures' ? 'text-white border-b-2 border-emerald-300 font-black' : ''}">MATCH CORNER</button>
-        <button id="nav-auction-btn" class="hover:text-amber-300 transition-colors py-1 flex items-center gap-1 ${currentRoute === 'auction' ? 'text-amber-300 border-b-2 border-amber-300 font-black' : ''}">🔨 AUCTION</button>
-        <button id="nav-career-btn" class="hover:text-emerald-300 transition-colors py-1 flex items-center gap-1 ${currentRoute === 'career' ? 'text-emerald-300 border-b-2 border-emerald-300 font-black' : ''}">📊 PLAYER STATS</button>
-        <button id="nav-host-saas-btn" class="px-2.5 py-1 bg-amber-400 text-slate-950 hover:bg-amber-300 rounded-lg font-black text-[11px] uppercase tracking-normal shadow-xs flex items-center gap-1 transition-all cursor-pointer">
-          <span>🏆 Host Tournament</span>
-        </button>
-      </div>
-
-      <!-- Right Side: Live Notifications Bell, Download Button & Single Desktop-Only Account Pill -->
-      <div class="flex items-center gap-1.5 sm:gap-2 flex-shrink-0">
-        <!-- Live Match Alerts Push Notification Toggle Button -->
-        <button id="nav-notifs-toggle-btn" title="Live Match Push Notifications" class="p-2 sm:p-2.5 bg-white/10 hover:bg-white/20 text-amber-300 hover:text-amber-200 transition-all rounded-full border border-white/20 flex items-center justify-center cursor-pointer relative active:scale-95">
-          <span class="text-sm sm:text-base">🔔</span>
-          <span id="nav-notif-dot" class="w-2.5 h-2.5 rounded-full bg-emerald-400 absolute top-0.5 right-0.5 border-2 border-slate-900 ${isNotificationsEnabled() ? '' : 'hidden'}"></span>
-        </button>
-
-        <!-- Apps Download Option -->
-        <button id="nav-install-app-btn" title="Download Web App (PWA)" class="p-2 sm:p-2.5 bg-gradient-to-r from-amber-400 via-emerald-500 to-teal-500 hover:scale-105 transition-all rounded-full shadow-xl border border-white/60 flex items-center justify-center cursor-pointer">
-          <svg class="w-5 h-5 text-slate-950 flex-shrink-0" viewBox="0 0 24 24" fill="none">
-            <path d="M12 3v11m0 0l-5-5m5 5l5-5M4 19h16" stroke="#0F172A" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </button>
-
-        <!-- Desktop-Only Single Login/Profile Button (Hidden on Mobile) -->
-        <button id="nav-admin-btn" title="Login / Profile" class="hidden lg:flex px-3.5 py-1.5 bg-white hover:bg-slate-100 text-slate-950 text-xs font-black rounded-full transition-all shadow-lg items-center gap-1.5 cursor-pointer">
-          <span class="text-[10px] uppercase font-black tracking-wider">${store.getCurrentUser() ? `👤 ${store.getCurrentUser().name ? store.getCurrentUser().name.split(' ')[0].toUpperCase() : 'PROFILE'}` : '🔐 LOGIN'}</span>
-        </button>
-      </div>
-    </div>
-  `;
-
-  document.getElementById('brand-header-logo')?.addEventListener('click', () => navigate('landing'));
-  document.getElementById('brand-header-title')?.addEventListener('click', () => navigate('landing'));
+  navbarEl.classList.add('hidden');
+  navbarEl.innerHTML = '';
+  return;
   document.getElementById('nav-notifs-toggle-btn')?.addEventListener('click', async () => {
     const enabled = await toggleNotificationSetting();
     const dot = document.getElementById('nav-notif-dot');

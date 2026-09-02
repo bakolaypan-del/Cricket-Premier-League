@@ -56,9 +56,13 @@ body::before {
 }
 
 /* TOP NAVBAR - VIBRANT EMERALD GREEN HEADER */
-#app-navbar, #main-content, #mobile-bottom-nav {
+#app-navbar, #main-content {
   position: relative;
   z-index: 1;
+}
+
+#mobile-bottom-nav {
+  z-index: 40;
 }
 
 #app-navbar {
