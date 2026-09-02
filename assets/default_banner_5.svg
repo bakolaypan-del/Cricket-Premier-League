@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 360">
+  <defs>
+    <linearGradient id="bg5" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0c4a6e"/>
+      <stop offset="40%" stop-color="#0369a1"/>
+      <stop offset="100%" stop-color="#082f49"/>
+    </linearGradient>
+    <radialGradient id="ball5" cx="40%" cy="35%" r="50%">
+      <stop offset="0%" stop-color="#fca5a5"/>
+      <stop offset="50%" stop-color="#ef4444"/>
+      <stop offset="100%" stop-color="#7f1d1d"/>
+    </radialGradient>
+    <linearGradient id="bat5" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#d4a76a"/>
+      <stop offset="50%" stop-color="#f0d090"/>
+      <stop offset="100%" stop-color="#b8864a"/>
+    </linearGradient>
+    <radialGradient id="spot5" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#38bdf8" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="sky5" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#0ea5e9" stop-opacity="0.15"/>
+      <stop offset="100%" stop-color="#0ea5e9" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="360" fill="url(#bg5)"/>
+  <!-- Night sky gradient overlay -->
+  <rect width="800" height="180" fill="url(#sky5)"/>
+  <!-- Spotlights -->
+  <circle cx="200" cy="0" r="200" fill="url(#spot5)"/>
+  <circle cx="600" cy="0" r="200" fill="url(#spot5)"/>
+  <!-- Stadium silhouette -->
+  <path d="M 0 320 L 0 280 Q 100 240 200 270 Q 300 250 400 260 Q 500 250 600 270 Q 700 240 800 280 L 800 320 Z" fill="#0a2540" opacity="0.5"/>
+  <!-- Bat leaning against stumps -->
+  <g transform="translate(350, 100)">
+    <!-- Stumps -->
+    <rect x="80" y="20" width="5" height="140" fill="#d4a76a" rx="2"/>
+    <rect x="94" y="20" width="5" height="140" fill="#d4a76a" rx="2"/>
+    <rect x="108" y="20" width="5" height="140" fill="#d4a76a" rx="2"/>
+    <rect x="78" y="16" width="16" height="4" rx="2" fill="#fbbf24"/>
+    <rect x="96" y="16" width="16" height="4" rx="2" fill="#fbbf24"/>
+    <!-- Bat leaning -->
+    <g transform="rotate(-15, 60, 160)">
+      <rect x="44" y="10" width="32" height="130" rx="8" fill="url(#bat5)" stroke="#a0764a" stroke-width="1.5"/>
+      <rect x="48" y="140" width="24" height="50" rx="4" fill="#6d4c2a"/>
+      <rect x="52" y="182" width="16" height="14" rx="3" fill="#059669"/>
+    </g>
+  </g>
+  <!-- Ball bouncing with trail -->
+  <g transform="translate(260, 200)">
+    <ellipse cx="0" cy="50" rx="20" ry="5" fill="#000" opacity="0.15"/>
+    <circle cx="0" cy="0" r="28" fill="url(#ball5)"/>
+    <path d="M -8 -26 C 8 -12, 8 12, -8 26" stroke="#fff" stroke-width="2" fill="none" opacity="0.8"/>
+    <path d="M 8 -26 C -8 -12, -8 12, 8 26" stroke="#fff" stroke-width="2" fill="none" opacity="0.8"/>
+    <circle cx="-6" cy="-6" r="5" fill="#fff" opacity="0.15"/>
+    <!-- Bounce arc -->
+    <path d="M 0 28 Q -30 60 -50 50 Q -70 40 -90 55" stroke="#38bdf8" stroke-width="1.5" fill="none" stroke-dasharray="4,4" opacity="0.3"/>
+  </g>
+  <!-- Stars -->
+  <circle cx="100" cy="30" r="2" fill="#fff" opacity="0.5"/>
+  <circle cx="300" cy="20" r="1.5" fill="#fff" opacity="0.4"/>
+  <circle cx="500" cy="35" r="2" fill="#fff" opacity="0.5"/>
+  <circle cx="700" cy="25" r="1.5" fill="#fff" opacity="0.4"/>
+  <circle cx="150" cy="60" r="1" fill="#fff" opacity="0.3"/>
+  <circle cx="650" cy="55" r="1" fill="#fff" opacity="0.3"/>
+  <!-- Accent line -->
+  <line x1="100" y1="340" x2="700" y2="340" stroke="#38bdf8" stroke-width="2" opacity="0.3"/>
+</svg>

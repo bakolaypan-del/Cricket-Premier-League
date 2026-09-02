@@ -2021,8 +2021,23 @@ function getTournamentThumbnail(name) {
   return CRICKET_THUMBNAILS[Math.abs(hash) % CRICKET_THUMBNAILS.length];
 }
 
+const DEFAULT_BANNERS = [
+  'assets/default_banner_1.svg',
+  'assets/default_banner_2.svg',
+  'assets/default_banner_3.svg',
+  'assets/default_banner_4.svg',
+  'assets/default_banner_5.svg'
+];
+
+function getDefaultBannerForTournament(ct) {
+  let hash = 0;
+  const key = ct.id || ct.slug || ct.name || '';
+  for (let i = 0; i < key.length; i++) hash = ((hash << 5) - hash) + key.charCodeAt(i);
+  return DEFAULT_BANNERS[Math.abs(hash) % DEFAULT_BANNERS.length];
+}
+
 function renderTournamentFallbackPoster(ct) {
-  const thumb = getTournamentThumbnail(ct.name || ct.slug || '');
+  const bannerSvg = getDefaultBannerForTournament(ct);
   const venue = ct.venue ? `
     <span class="inline-flex items-center gap-1 px-2.5 py-0.5 sm:px-3 sm:py-1 bg-black/40 backdrop-blur-xs rounded-full text-[9px] sm:text-xs text-white font-bold border border-white/20 shadow-xs max-w-full truncate">
       <svg class="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-300 shrink-0" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
@@ -2041,23 +2056,17 @@ function renderTournamentFallbackPoster(ct) {
     </span>` : '';
 
   return `
-    <div class="absolute inset-0 bg-gradient-to-br ${thumb.gradient} flex flex-col items-center justify-center text-white p-2.5 sm:p-4 text-center space-y-1 sm:space-y-2">
-      <!-- Centered Emoji Icon -->
-      <div class="text-xl sm:text-2xl md:text-3xl drop-shadow-lg leading-none">${thumb.emoji}</div>
-      
-      <!-- Tournament Name: Middle Alignment -->
-      <h3 class="text-xs sm:text-base md:text-lg font-black uppercase tracking-wider text-white drop-shadow-md line-clamp-2 max-w-lg px-1.5 leading-tight">
+    <div class="absolute inset-0 flex flex-col items-center justify-center text-white p-2.5 sm:p-4 text-center space-y-1 sm:space-y-2">
+      <img src="${bannerSvg}" class="absolute inset-0 w-full h-full object-cover" alt="" />
+
+      <h3 class="relative z-10 text-xs sm:text-base md:text-lg font-black uppercase tracking-wider text-white drop-shadow-md line-clamp-2 max-w-lg px-1.5 leading-tight" style="text-shadow: 0 2px 8px rgba(0,0,0,0.7);">
         ${ct.name || 'Tournament'}
       </h3>
-      
-      <!-- Just Lower: Venue Place with SVG & Prize Badge -->
-      <div class="flex items-center justify-center gap-1.5 flex-wrap pt-0.5">
+
+      <div class="relative z-10 flex items-center justify-center gap-1.5 flex-wrap pt-0.5">
         ${venue}
         ${prize}
       </div>
-
-      <!-- Subtle background grid pattern -->
-      <div class="absolute inset-0 opacity-10 pointer-events-none" style="background-image: radial-gradient(circle at 20% 80%, white 1px, transparent 1px), radial-gradient(circle at 80% 20%, white 1px, transparent 1px); background-size: 32px 32px, 48px 48px;"></div>
     </div>
   `;
 }

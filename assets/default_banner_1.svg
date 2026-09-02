@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 360">
+  <defs>
+    <linearGradient id="bg1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0F2C59"/>
+      <stop offset="50%" stop-color="#1a3a6e"/>
+      <stop offset="100%" stop-color="#0a1f3d"/>
+    </linearGradient>
+    <linearGradient id="gold1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#fbbf24"/>
+      <stop offset="100%" stop-color="#f59e0b"/>
+    </linearGradient>
+    <radialGradient id="ball1" cx="50%" cy="40%" r="50%">
+      <stop offset="0%" stop-color="#ff4444"/>
+      <stop offset="70%" stop-color="#cc0000"/>
+      <stop offset="100%" stop-color="#8b0000"/>
+    </radialGradient>
+    <radialGradient id="glow1" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#fbbf24" stop-opacity="0.3"/>
+      <stop offset="100%" stop-color="#fbbf24" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <!-- Background -->
+  <rect width="800" height="360" fill="url(#bg1)"/>
+  <!-- Stadium lights pattern -->
+  <circle cx="100" cy="40" r="80" fill="url(#glow1)" opacity="0.4"/>
+  <circle cx="700" cy="40" r="80" fill="url(#glow1)" opacity="0.4"/>
+  <!-- Decorative lines -->
+  <line x1="0" y1="300" x2="800" y2="300" stroke="#fbbf24" stroke-width="2" opacity="0.3"/>
+  <line x1="0" y1="310" x2="800" y2="310" stroke="#fbbf24" stroke-width="1" opacity="0.15"/>
+  <!-- Cricket Bat -->
+  <g transform="translate(520, 60) rotate(25)">
+    <rect x="-18" y="0" width="36" height="140" rx="8" fill="#d4a056" stroke="#b8860b" stroke-width="2"/>
+    <rect x="-18" y="0" width="36" height="140" rx="8" fill="url(#gold1)" opacity="0.3"/>
+    <rect x="-12" y="140" width="24" height="60" rx="4" fill="#8B4513"/>
+    <rect x="-8" y="190" width="16" height="20" rx="3" fill="#cc0000"/>
+    <!-- Bat grain lines -->
+    <line x1="-8" y1="20" x2="-8" y2="130" stroke="#b8860b" stroke-width="0.8" opacity="0.5"/>
+    <line x1="0" y1="15" x2="0" y2="135" stroke="#b8860b" stroke-width="0.8" opacity="0.5"/>
+    <line x1="8" y1="20" x2="8" y2="130" stroke="#b8860b" stroke-width="0.8" opacity="0.5"/>
+  </g>
+  <!-- Cricket Ball -->
+  <g transform="translate(620, 240)">
+    <circle cx="0" cy="0" r="35" fill="url(#ball1)"/>
+    <path d="M -10 -33 C 10 -15, 10 15, -10 33" stroke="#fff" stroke-width="2.5" fill="none" opacity="0.9"/>
+    <path d="M 10 -33 C -10 -15, -10 15, 10 33" stroke="#fff" stroke-width="2.5" fill="none" opacity="0.9"/>
+    <!-- Seam stitches -->
+    <line x1="-12" y1="-30" x2="-8" y2="-28" stroke="#fff" stroke-width="1" opacity="0.6"/>
+    <line x1="-14" y1="-24" x2="-10" y2="-22" stroke="#fff" stroke-width="1" opacity="0.6"/>
+    <line x1="-14" y1="-18" x2="-10" y2="-16" stroke="#fff" stroke-width="1" opacity="0.6"/>
+    <line x1="-14" y1="-12" x2="-10" y2="-10" stroke="#fff" stroke-width="1" opacity="0.6"/>
+    <circle cx="-12" cy="0" r="1.5" fill="#fff" opacity="0.3"/>
+  </g>
+  <!-- Stumps -->
+  <g transform="translate(180, 120)">
+    <rect x="-2" y="0" width="4" height="120" fill="#d4a056" rx="2"/>
+    <rect x="10" y="0" width="4" height="120" fill="#d4a056" rx="2"/>
+    <rect x="22" y="0" width="4" height="120" fill="#d4a056" rx="2"/>
+    <!-- Bails -->
+    <rect x="-4" y="-4" width="12" height="4" rx="2" fill="#fbbf24"/>
+    <rect x="12" y="-4" width="12" height="4" rx="2" fill="#fbbf24"/>
+  </g>
+  <!-- Stars decoration -->
+  <polygon points="400,30 403,40 413,40 405,46 408,56 400,50 392,56 395,46 387,40 397,40" fill="#fbbf24" opacity="0.6"/>
+  <polygon points="350,60 352,66 358,66 353,70 355,76 350,72 345,76 347,70 342,66 348,66" fill="#fbbf24" opacity="0.3"/>
+  <polygon points="450,55 452,61 458,61 453,65 455,71 450,67 445,71 447,65 442,61 448,61" fill="#fbbf24" opacity="0.3"/>
+  <!-- Dotted arc -->
+  <path d="M 50 340 Q 400 200 750 340" stroke="#fbbf24" stroke-width="1.5" fill="none" stroke-dasharray="6,8" opacity="0.2"/>
+</svg>

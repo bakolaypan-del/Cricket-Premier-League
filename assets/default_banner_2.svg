@@ -1,0 +1,66 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 360">
+  <defs>
+    <linearGradient id="bg2" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#065f46"/>
+      <stop offset="50%" stop-color="#047857"/>
+      <stop offset="100%" stop-color="#064e3b"/>
+    </linearGradient>
+    <radialGradient id="ball2" cx="45%" cy="35%" r="50%">
+      <stop offset="0%" stop-color="#fef3c7"/>
+      <stop offset="40%" stop-color="#d6f31f"/>
+      <stop offset="100%" stop-color="#65a30d"/>
+    </radialGradient>
+    <linearGradient id="bat2" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#c2885c"/>
+      <stop offset="50%" stop-color="#dda15e"/>
+      <stop offset="100%" stop-color="#bc6c25"/>
+    </linearGradient>
+    <radialGradient id="flare2" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#10b981" stop-opacity="0.5"/>
+      <stop offset="100%" stop-color="#10b981" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="800" height="360" fill="url(#bg2)"/>
+  <!-- Grass field lines -->
+  <rect x="0" y="280" width="800" height="80" fill="#064e3b" opacity="0.5"/>
+  <path d="M 0 280 Q 200 260 400 280 Q 600 300 800 280" stroke="#10b981" stroke-width="2" fill="none" opacity="0.3"/>
+  <!-- Pitch rectangle -->
+  <rect x="320" y="200" width="160" height="140" rx="4" fill="#a3e635" opacity="0.1" stroke="#a3e635" stroke-width="1" stroke-dasharray="8,4" opacity="0.3"/>
+  <!-- Flare -->
+  <circle cx="400" cy="180" r="150" fill="url(#flare2)"/>
+  <!-- Bat - angled dynamically -->
+  <g transform="translate(340, 80) rotate(-30)">
+    <rect x="-20" y="0" width="40" height="150" rx="10" fill="url(#bat2)" stroke="#8B4513" stroke-width="1.5"/>
+    <rect x="-14" y="150" width="28" height="55" rx="5" fill="#6d4c2a"/>
+    <rect x="-10" y="195" width="20" height="18" rx="4" fill="#dc2626"/>
+    <line x1="-10" y1="25" x2="-10" y2="140" stroke="#a0845c" stroke-width="0.7" opacity="0.6"/>
+    <line x1="0" y1="20" x2="0" y2="145" stroke="#a0845c" stroke-width="0.7" opacity="0.6"/>
+    <line x1="10" y1="25" x2="10" y2="140" stroke="#a0845c" stroke-width="0.7" opacity="0.6"/>
+    <!-- Sweet spot highlight -->
+    <ellipse cx="0" cy="70" rx="14" ry="30" fill="#fff" opacity="0.08"/>
+  </g>
+  <!-- Tennis Ball -->
+  <g transform="translate(520, 160)">
+    <circle cx="0" cy="0" r="40" fill="url(#ball2)"/>
+    <path d="M -15 -37 C 15 -18, 15 18, -15 37" stroke="#fff" stroke-width="3" fill="none" opacity="0.7"/>
+    <path d="M 15 -37 C -15 -18, -15 18, 15 37" stroke="#fff" stroke-width="3" fill="none" opacity="0.7"/>
+    <circle cx="-5" cy="-10" r="8" fill="#fff" opacity="0.15"/>
+  </g>
+  <!-- Stumps right side -->
+  <g transform="translate(650, 140)">
+    <rect x="0" y="0" width="4" height="130" fill="#e5c07b" rx="2"/>
+    <rect x="12" y="0" width="4" height="130" fill="#e5c07b" rx="2"/>
+    <rect x="24" y="0" width="4" height="130" fill="#e5c07b" rx="2"/>
+    <rect x="-2" y="-4" width="14" height="4" rx="2" fill="#fbbf24"/>
+    <rect x="14" y="-4" width="14" height="4" rx="2" fill="#fbbf24"/>
+  </g>
+  <!-- Motion trail for ball -->
+  <circle cx="560" cy="170" r="6" fill="#a3e635" opacity="0.15"/>
+  <circle cx="590" cy="178" r="4" fill="#a3e635" opacity="0.1"/>
+  <circle cx="610" cy="184" r="3" fill="#a3e635" opacity="0.05"/>
+  <!-- Decorative dots -->
+  <circle cx="80" cy="50" r="3" fill="#10b981" opacity="0.4"/>
+  <circle cx="120" cy="80" r="2" fill="#10b981" opacity="0.3"/>
+  <circle cx="720" cy="60" r="3" fill="#10b981" opacity="0.4"/>
+  <circle cx="750" cy="90" r="2" fill="#10b981" opacity="0.3"/>
+</svg>

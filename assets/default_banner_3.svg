@@ -1,0 +1,68 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 360">
+  <defs>
+    <linearGradient id="bg3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#581c87"/>
+      <stop offset="50%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#4c1d95"/>
+    </linearGradient>
+    <radialGradient id="ball3" cx="40%" cy="35%" r="50%">
+      <stop offset="0%" stop-color="#ff6b6b"/>
+      <stop offset="60%" stop-color="#ee2222"/>
+      <stop offset="100%" stop-color="#991b1b"/>
+    </radialGradient>
+    <linearGradient id="bat3" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#e8c47c"/>
+      <stop offset="50%" stop-color="#f0d68a"/>
+      <stop offset="100%" stop-color="#c8a45a"/>
+    </linearGradient>
+    <radialGradient id="glow3" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="#a78bfa" stop-opacity="0.4"/>
+      <stop offset="100%" stop-color="#a78bfa" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="neon3" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f472b6"/>
+      <stop offset="50%" stop-color="#c084fc"/>
+      <stop offset="100%" stop-color="#60a5fa"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="360" fill="url(#bg3)"/>
+  <!-- Neon accent lines -->
+  <line x1="0" y1="340" x2="800" y2="340" stroke="url(#neon3)" stroke-width="3" opacity="0.6"/>
+  <line x1="0" y1="346" x2="800" y2="346" stroke="url(#neon3)" stroke-width="1" opacity="0.3"/>
+  <!-- Central glow -->
+  <circle cx="400" cy="180" r="200" fill="url(#glow3)"/>
+  <!-- Crossed Bats -->
+  <g transform="translate(400, 180)">
+    <!-- Left bat -->
+    <g transform="rotate(-25)">
+      <rect x="-18" y="-90" width="36" height="140" rx="8" fill="url(#bat3)" stroke="#b8860b" stroke-width="1.5"/>
+      <rect x="-12" y="50" width="24" height="55" rx="4" fill="#7c5a30"/>
+      <rect x="-8" y="95" width="16" height="16" rx="3" fill="#dc2626"/>
+      <ellipse cx="0" cy="-20" rx="12" ry="28" fill="#fff" opacity="0.06"/>
+    </g>
+    <!-- Right bat -->
+    <g transform="rotate(25)">
+      <rect x="-18" y="-90" width="36" height="140" rx="8" fill="url(#bat3)" stroke="#b8860b" stroke-width="1.5"/>
+      <rect x="-12" y="50" width="24" height="55" rx="4" fill="#7c5a30"/>
+      <rect x="-8" y="95" width="16" height="16" rx="3" fill="#2563eb"/>
+      <ellipse cx="0" cy="-20" rx="12" ry="28" fill="#fff" opacity="0.06"/>
+    </g>
+  </g>
+  <!-- Ball above crossed bats -->
+  <g transform="translate(400, 80)">
+    <circle cx="0" cy="0" r="32" fill="url(#ball3)"/>
+    <path d="M -10 -30 C 8 -14, 8 14, -10 30" stroke="#fff" stroke-width="2.5" fill="none" opacity="0.8"/>
+    <path d="M 10 -30 C -8 -14, -8 14, 10 30" stroke="#fff" stroke-width="2.5" fill="none" opacity="0.8"/>
+    <circle cx="-8" cy="-8" r="6" fill="#fff" opacity="0.2"/>
+  </g>
+  <!-- Sparkle effects -->
+  <polygon points="200,60 203,70 213,70 205,76 208,86 200,80 192,86 195,76 187,70 197,70" fill="#f472b6" opacity="0.5"/>
+  <polygon points="600,50 602,56 608,56 603,60 605,66 600,62 595,66 597,60 592,56 598,56" fill="#c084fc" opacity="0.5"/>
+  <polygon points="150,200 152,206 158,206 153,210 155,216 150,212 145,216 147,210 142,206 148,206" fill="#60a5fa" opacity="0.4"/>
+  <polygon points="650,180 652,186 658,186 653,190 655,196 650,192 645,196 647,190 642,186 648,186" fill="#f472b6" opacity="0.4"/>
+  <!-- Hexagonal pattern -->
+  <circle cx="100" cy="100" r="40" stroke="#a78bfa" stroke-width="1" fill="none" opacity="0.1"/>
+  <circle cx="700" cy="100" r="40" stroke="#a78bfa" stroke-width="1" fill="none" opacity="0.1"/>
+  <circle cx="100" cy="260" r="30" stroke="#a78bfa" stroke-width="1" fill="none" opacity="0.08"/>
+  <circle cx="700" cy="260" r="30" stroke="#a78bfa" stroke-width="1" fill="none" opacity="0.08"/>
+</svg>
