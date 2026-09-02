@@ -2048,8 +2048,8 @@ function buildTournamentCarouselHTML(allTournaments) {
       ? '<img src="' + bannerSrc + '" loading="lazy" class="w-full h-full object-cover object-center" onerror="this.style.display=\'none\'" />'
       : renderTournamentFallbackPoster(ct);
     const venueHtml = ct.venue ? `
-      <div class="flex items-center justify-center gap-1 text-[10.5px] sm:text-[11.5px] font-bold text-white/90 truncate max-w-full">
-        <svg class="w-3.5 h-3.5 text-rose-300 shrink-0 inline-block" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+      <div class="flex items-center justify-center gap-1 text-[10.5px] sm:text-[11.5px] font-bold text-slate-500 truncate max-w-full">
+        <svg class="w-3.5 h-3.5 text-rose-500 shrink-0 inline-block" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
           <circle cx="12" cy="9" r="2.5" fill="currentColor"/>
         </svg>
@@ -2061,8 +2061,8 @@ function buildTournamentCarouselHTML(allTournaments) {
       + poster
       + '<div class="absolute top-2 left-2 z-10"><span class="px-2 py-0.5 bg-emerald-500 text-white text-[8px] sm:text-[9px] font-black rounded-full uppercase shadow-md flex items-center gap-1"><span class="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span> LIVE</span></div>'
       + '</div>'
-      + '<div class="px-2.5 py-1.5 sm:py-2 text-center flex flex-col items-center justify-center space-y-0.5 border-t" style="background:' + colorTheme.bg + '; border-color:' + colorTheme.border + ';">'
-      + '<h4 class="text-xs sm:text-sm font-black text-white truncate max-w-full uppercase tracking-wide drop-shadow-xs">' + ct.name + '</h4>'
+      + '<div class="px-2.5 py-1.5 sm:py-2 text-center flex flex-col items-center justify-center space-y-0.5 bg-white">'
+      + '<h4 class="text-xs sm:text-sm font-black text-slate-800 truncate max-w-full uppercase tracking-wide">' + ct.name + '</h4>'
       + venueHtml
       + '</div>'
       + '</div>';
@@ -2084,21 +2084,21 @@ function buildTournamentCarouselHTML(allTournaments) {
       : '<span class="px-1.5 py-0.5 bg-slate-500 text-white text-[7px] font-black rounded-full uppercase">' + (ct.status || 'DRAFT') + '</span>';
     
     const searchVenueHtml = ct.venue ? `
-      <div class="flex items-center justify-center gap-0.5 text-[9px] sm:text-[10px] font-bold text-white/90 truncate max-w-full">
-        <svg class="w-3 h-3 text-rose-300 shrink-0 inline-block" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
+      <div class="flex items-center justify-center gap-0.5 text-[9px] sm:text-[10px] font-bold text-slate-500 truncate max-w-full">
+        <svg class="w-3 h-3 text-rose-500 shrink-0 inline-block" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24">
           <path stroke-linecap="round" stroke-linejoin="round" d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
           <circle cx="12" cy="9" r="2.5" fill="currentColor"/>
         </svg>
         <span class="truncate">${ct.venue}</span>
       </div>` : '';
 
-    return '<div data-nav-route="t/' + ct.slug + '" data-tourney-name="' + (ct.name || '').toLowerCase() + '" data-tourney-venue="' + (ct.venue || '').toLowerCase() + '" class="tourney-card-search bg-white rounded-xl shadow-sm hover:shadow-md overflow-hidden cursor-pointer transition-all group border border-slate-900 flex flex-col">'
+    return '<div data-nav-route="t/' + ct.slug + '" data-tourney-name="' + (ct.name || '').toLowerCase() + '" data-tourney-venue="' + (ct.venue || '').toLowerCase() + '" class="tourney-card-search bg-white rounded-xl shadow-sm hover:shadow-md overflow-hidden cursor-pointer transition-all group flex flex-col">'
       + '<div class="relative w-full aspect-[16/9] overflow-hidden bg-slate-900">'
       + poster
       + '<div class="absolute top-1 left-1">' + statusBadge + '</div>'
       + '</div>'
-      + '<div class="px-2 py-1.5 text-center flex flex-col items-center justify-center space-y-0.5 border-t" style="background:' + searchColorTheme.bg + '; border-color:' + searchColorTheme.border + ';">'
-      + '<h4 class="text-[11px] font-black text-white truncate max-w-full leading-tight uppercase drop-shadow-xs">' + ct.name + '</h4>'
+      + '<div class="px-2 py-1.5 text-center flex flex-col items-center justify-center space-y-0.5 bg-white">'
+      + '<h4 class="text-[11px] font-black text-slate-800 truncate max-w-full leading-tight uppercase">' + ct.name + '</h4>'
       + searchVenueHtml
       + '</div>'
       + '</div>';
@@ -2219,7 +2219,7 @@ function renderFirstPageLanding(containerEl) {
       </div>
 
       <!-- HOST YOUR OWN TOURNAMENT BANNER (CLEAN LIGHT CARD) -->
-      <div class="w-full max-w-2xl mx-auto px-1 pt-1">
+      <div class="w-full max-w-[480px] sm:max-w-3xl md:max-w-4xl mx-auto px-1 pt-1">
         <div class="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-sm border border-slate-200 space-y-3 sm:space-y-4 relative overflow-hidden">
 
           <!-- Top Tag & Bengali Header -->

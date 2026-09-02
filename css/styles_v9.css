@@ -77,16 +77,15 @@ body::before {
   display: none !important;
 }
 
-/* FINE SLIM BLACK BORDER FOR TOURNAMENT BANNER CARDS */
+/* TOURNAMENT BANNER CARDS — NO BORDER */
 .tourney-card {
-  border: 1.2px solid #000000 !important;
+  border: none !important;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08) !important;
   border-radius: 1.15rem !important;
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
 
 .tourney-card:hover {
-  border-color: #000000 !important;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.14) !important;
   transform: translateY(-2px);
 }
