@@ -2550,7 +2550,6 @@ export async function dbRegisterPlayer(playerData, docsData = null) {
       base_price: Number(playerData.base_price || playerData.basePrice) || 300,
       reg_number: playerData.reg_number || playerData.serialNo || null,
       verified: false,
-      jersey_size: playerData.jersey_size || playerData.jerseySize || null,
       status: 'available',
       source: 'registered',
       created_at: new Date().toISOString()
