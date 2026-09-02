@@ -21,6 +21,13 @@ const TOURNAMENT_BANNER_DEEP_COLORS = [
   { bg: 'linear-gradient(135deg, #0F172A 0%, #020617 100%)', border: '#334155', accent: '#CBD5E1' }, // 9. Deep Slate Charcoal
   { bg: 'linear-gradient(135deg, #701A75 0%, #3B0764 100%)', border: '#86198F', accent: '#F0ABFC' }, // 10. Deep Boysenberry Plum
 ];
+const DEFAULT_BANNERS = [
+  'assets/default_banner_1.svg',
+  'assets/default_banner_2.svg',
+  'assets/default_banner_3.svg',
+  'assets/default_banner_4.svg',
+  'assets/default_banner_5.svg'
+];
 let latestVisitorStats = { liveCount: 1, totalVisits: 259 };
 
 
@@ -2020,14 +2027,6 @@ function getTournamentThumbnail(name) {
   for (let i = 0; i < (name || '').length; i++) hash = ((hash << 5) - hash) + name.charCodeAt(i);
   return CRICKET_THUMBNAILS[Math.abs(hash) % CRICKET_THUMBNAILS.length];
 }
-
-const DEFAULT_BANNERS = [
-  'assets/default_banner_1.svg',
-  'assets/default_banner_2.svg',
-  'assets/default_banner_3.svg',
-  'assets/default_banner_4.svg',
-  'assets/default_banner_5.svg'
-];
 
 function getDefaultBannerForTournament(ct) {
   let hash = 0;
