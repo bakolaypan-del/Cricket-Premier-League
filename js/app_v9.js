@@ -2774,6 +2774,160 @@ export function renderCustomTournamentHub(container, tourney) {
   const topMVP = tournamentPlayerStats.filter(p => p.mvp > 0).sort((a, b) => b.mvp - a.mvp)[0] || null;
   const topTeam = allTeams[0] || null;
 
+  // --- INNINGS RECORDS & MILESTONES (Calculated dynamically from real match scorecards) ---
+  let recordHighestScore = null;    // { name, photoUrl, teamName, val: '101*' }
+  let recordFastest50 = null;       // { name, photoUrl, teamName, val: '19 Balls' }
+  let recordFastest100 = null;      // { name, photoUrl, teamName, val: '42 Balls' }
+  let recordBestPartnership = null; // { name, photoUrl, teamName, val: '124 Runs' }
+  let recordInningsSixes = null;    // { name, photoUrl, teamName, val: '8 Sixes' }
+  let recordInningsFours = null;    // { name, photoUrl, teamName, val: '14 Fours' }
+  let recordBestEconomy = null;     // { name, photoUrl, teamName, val: '2.50 RPO' }
+
+  allFixtures.forEach(f => {
+    if (!f) return;
+    const state = f.liveMatchState || f.liveState || {};
+    const pStats = state.playerStats || f.playerStats || {};
+
+    if (state.bestPartnership && Number(state.bestPartnership.runs || 0) > 0) {
+      const pRuns = Number(state.bestPartnership.runs || 0);
+      if (!recordBestPartnership || pRuns > recordBestPartnership.rawVal) {
+        recordBestPartnership = {
+          name: `${state.bestPartnership.player1Name || 'Striker'} & ${state.bestPartnership.player2Name || 'Partner'}`,
+          teamName: state.bestPartnership.teamName || tourney.name,
+          val: `${pRuns} Runs`,
+          rawVal: pRuns,
+          photoUrl: 'assets/card_jsl_user.png'
+        };
+      }
+    }
+
+    const matchBatters = [];
+
+    Object.keys(pStats).forEach(pid => {
+      const ps = pStats[pid];
+      if (!ps) return;
+      const playerObj = allPlayers.find(p => p.id === pid || (p.id && pid && toUUID(p.id) === toUUID(pid))) || {};
+      const teamObj = allTeams.find(t => t.id === playerObj.teamId || t.id === playerObj.team_id || (t.players && t.players.includes(pid)));
+      const teamName = teamObj?.name || playerObj.teamName || playerObj.team || tourney.name || 'Tournament';
+      const pPhoto = playerObj.photoUrl || playerObj.player_photo_url || ps.photoUrl || 'assets/card_jsl_user.png';
+      const pName = ps.name || playerObj.name || 'Player';
+
+      const runs = Number(ps.runs || ps.runsScored || 0);
+      const balls = Number(ps.balls || ps.ballsFaced || 0);
+      const fours = Number(ps.fours || ps['4s'] || 0);
+      const sixes = Number(ps.sixes || ps['6s'] || 0);
+      const isNotOut = !ps.dismissed && !ps.out;
+      
+      const ballsBowled = Number(ps.ballsBowled || ((ps.overs || 0) * 6 + (ps.oversBalls || 0)));
+      const runsConceded = Number(ps.runsConceded || ps.runsAgainst || 0);
+      const wickets = Number(ps.wickets || ps.wicketsTaken || 0);
+
+      if (runs > 0) {
+        matchBatters.push({ pid, name: pName, runs, teamName, photoUrl: pPhoto });
+
+        // Highest Score
+        if (!recordHighestScore || runs > recordHighestScore.rawVal) {
+          recordHighestScore = {
+            id: pid,
+            name: pName,
+            photoUrl: pPhoto,
+            teamName,
+            rawVal: runs,
+            val: `${runs}${isNotOut ? '*' : ''}`
+          };
+        }
+
+        // Fastest 50 (runs >= 50, lowest balls)
+        if (runs >= 50 && balls > 0) {
+          if (!recordFastest50 || balls < recordFastest50.rawVal) {
+            recordFastest50 = {
+              id: pid,
+              name: pName,
+              photoUrl: pPhoto,
+              teamName,
+              rawVal: balls,
+              val: `${balls} Balls`
+            };
+          }
+        }
+
+        // Fastest 100 (runs >= 100, lowest balls)
+        if (runs >= 100 && balls > 0) {
+          if (!recordFastest100 || balls < recordFastest100.rawVal) {
+            recordFastest100 = {
+              id: pid,
+              name: pName,
+              photoUrl: pPhoto,
+              teamName,
+              rawVal: balls,
+              val: `${balls} Balls`
+            };
+          }
+        }
+
+        // Innings Most Sixes
+        if (sixes > 0) {
+          if (!recordInningsSixes || sixes > recordInningsSixes.rawVal) {
+            recordInningsSixes = {
+              id: pid,
+              name: pName,
+              photoUrl: pPhoto,
+              teamName,
+              rawVal: sixes,
+              val: `${sixes} Sixes`
+            };
+          }
+        }
+
+        // Innings Most 4s
+        if (fours > 0) {
+          if (!recordInningsFours || fours > recordInningsFours.rawVal) {
+            recordInningsFours = {
+              id: pid,
+              name: pName,
+              photoUrl: pPhoto,
+              teamName,
+              rawVal: fours,
+              val: `${fours} Fours`
+            };
+          }
+        }
+      }
+
+      // Best Economy (minimum 6 balls bowled)
+      if (ballsBowled >= 6) {
+        const econ = (runsConceded / ballsBowled) * 6;
+        if (!recordBestEconomy || econ < recordBestEconomy.rawVal) {
+          recordBestEconomy = {
+            id: pid,
+            name: pName,
+            photoUrl: pPhoto,
+            teamName,
+            rawVal: econ,
+            val: `${econ.toFixed(2)} RPO`
+          };
+        }
+      }
+    });
+
+    // Best Partnership fallback from top 2 batters in same match
+    if (!recordBestPartnership && matchBatters.length >= 2) {
+      matchBatters.sort((a, b) => b.runs - a.runs);
+      const p1 = matchBatters[0];
+      const p2 = matchBatters[1];
+      const combined = p1.runs + p2.runs;
+      if (!recordBestPartnership || combined > recordBestPartnership.rawVal) {
+        recordBestPartnership = {
+          name: `${p1.name} & ${p2.name}`,
+          teamName: p1.teamName || tourney.name,
+          val: `${combined} Runs`,
+          rawVal: combined,
+          photoUrl: p1.photoUrl || 'assets/card_jsl_user.png'
+        };
+      }
+    }
+  });
+
   // DYNAMIC TABS CONFIGURATION:
   // Mode A (Auction): Home -> Teams -> Registered Players -> Auction -> Match Corner -> Statistics
   // Mode B (Fixtures): Home -> Teams -> Match Corner -> Statistics
@@ -2884,60 +3038,60 @@ export function renderCustomTournamentHub(container, tourney) {
 
         <!-- 3. ICON GRID NAVIGATION (SQUARE BOX + LABEL OUTSIDE BELOW) -->
         <div class="px-1 sm:px-2">
-          <div class="grid grid-cols-3 gap-x-5 gap-y-4 sm:gap-x-6 sm:gap-y-5 justify-items-center">
+          <div class="grid grid-cols-3 gap-x-3 sm:gap-x-5 gap-y-3.5 sm:gap-y-4.5 justify-items-center max-w-[340px] sm:max-w-[390px] mx-auto">
 
             <!-- 1. DETAILS -->
-            <button type="button" data-hub-section="home" class="hub-grid-btn group flex flex-col items-center gap-2 cursor-pointer active:scale-95 transition-transform">
-              <div class="w-[72px] h-[72px] sm:w-[82px] sm:h-[82px] rounded-2xl bg-white shadow-[0_2px_10px_rgba(0,0,0,0.08)] flex items-center justify-center group-hover:shadow-[0_4px_18px_rgba(0,0,0,0.14)] transition-shadow">
-                <svg class="w-11 h-11 sm:w-12 sm:h-12 text-blue-500 group-hover:scale-105 transition-transform" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+            <button type="button" data-hub-section="home" class="hub-grid-btn group flex flex-col items-center gap-1.5 cursor-pointer active:scale-95 transition-transform">
+              <div class="w-[84px] h-[84px] sm:w-[96px] sm:h-[96px] rounded-2xl sm:rounded-3xl bg-white shadow-[0_3px_12px_rgba(0,0,0,0.07)] border border-slate-100 flex items-center justify-center group-hover:shadow-[0_6px_20px_rgba(0,0,0,0.12)] group-hover:border-blue-200 transition-all">
+                <svg class="w-12 h-12 sm:w-14 sm:h-14 text-blue-700 group-hover:scale-105 transition-transform" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
                   <!-- Trophy Cup Body -->
-                  <path d="M12 9h24v12c0 6.6-5.4 12-12 12s-12-5.4-12-12V9z" stroke-width="2.8" fill="currentColor" fill-opacity="0.15"/>
+                  <path d="M12 9h24v12c0 6.6-5.4 12-12 12s-12-5.4-12-12V9z" stroke-width="2.8" fill="currentColor" fill-opacity="0.16"/>
                   <!-- Star on Trophy Cup -->
-                  <path d="M24 14l1.2 2.5 2.8.4-2 2 .5 2.8-2.5-1.4-2.5 1.4.5-2.8-2-2 2.8-.4z" stroke-width="1.2" fill="currentColor" fill-opacity="0.4"/>
+                  <path d="M24 14l1.2 2.5 2.8.4-2 2 .5 2.8-2.5-1.4-2.5 1.4.5-2.8-2-2 2.8-.4z" stroke-width="1.2" fill="currentColor" fill-opacity="0.45"/>
                   <!-- Left Handle -->
                   <path d="M12 12H7a4 4 0 00-4 4v2a6 6 0 006 6h3" stroke-width="2.6"/>
                   <!-- Right Handle -->
                   <path d="M36 12h5a4 4 0 014 4v2a6 6 0 01-6 6h-3" stroke-width="2.6"/>
                   <!-- Trophy Stem / Neck -->
-                  <path d="M21 33v4h6v-4" stroke-width="2.6" fill="currentColor" fill-opacity="0.2"/>
+                  <path d="M21 33v4h6v-4" stroke-width="2.6" fill="currentColor" fill-opacity="0.22"/>
                   <!-- Pedestal Base -->
                   <path d="M17 37h14" stroke-width="2.4"/>
                   <rect x="13" y="38" width="22" height="5.5" rx="1.5" stroke-width="2.6" fill="currentColor" fill-opacity="0.25"/>
                 </svg>
               </div>
-              <span class="text-[11px] sm:text-xs font-semibold text-slate-600 text-center leading-tight">Details</span>
+              <span class="text-xs sm:text-[13px] font-bold text-slate-800 text-center leading-tight">Details</span>
             </button>
 
             <!-- 2. TEAMS -->
-            <button type="button" data-hub-section="teams" class="hub-grid-btn group flex flex-col items-center gap-2 cursor-pointer active:scale-95 transition-transform">
-              <div class="w-[72px] h-[72px] sm:w-[82px] sm:h-[82px] rounded-2xl bg-white shadow-[0_2px_10px_rgba(0,0,0,0.08)] flex items-center justify-center group-hover:shadow-[0_4px_18px_rgba(0,0,0,0.14)] transition-shadow">
-                <svg class="w-11 h-11 sm:w-12 sm:h-12 text-emerald-500 group-hover:scale-105 transition-transform" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+            <button type="button" data-hub-section="teams" class="hub-grid-btn group flex flex-col items-center gap-1.5 cursor-pointer active:scale-95 transition-transform">
+              <div class="w-[84px] h-[84px] sm:w-[96px] sm:h-[96px] rounded-2xl sm:rounded-3xl bg-white shadow-[0_3px_12px_rgba(0,0,0,0.07)] border border-slate-100 flex items-center justify-center group-hover:shadow-[0_6px_20px_rgba(0,0,0,0.12)] group-hover:border-emerald-200 transition-all">
+                <svg class="w-12 h-12 sm:w-14 sm:h-14 text-emerald-700 group-hover:scale-105 transition-transform" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
                   <!-- Center Captain -->
-                  <circle cx="24" cy="13" r="6" stroke-width="2.8" fill="currentColor" fill-opacity="0.22"/>
-                  <path d="M13 39c0-6 4.9-11 11-11s11 5 11 11" stroke-width="2.8" fill="currentColor" fill-opacity="0.1"/>
+                  <circle cx="24" cy="13" r="6" stroke-width="2.8" fill="currentColor" fill-opacity="0.24"/>
+                  <path d="M13 39c0-6 4.9-11 11-11s11 5 11 11" stroke-width="2.8" fill="currentColor" fill-opacity="0.14"/>
                   <!-- Left Teammate -->
-                  <circle cx="11" cy="17" r="4.5" stroke-width="2.4" fill="currentColor" fill-opacity="0.15"/>
+                  <circle cx="11" cy="17" r="4.5" stroke-width="2.4" fill="currentColor" fill-opacity="0.18"/>
                   <path d="M5 41c0-4.5 3.5-8 7.5-8.5" stroke-width="2.4"/>
                   <!-- Right Teammate -->
-                  <circle cx="37" cy="17" r="4.5" stroke-width="2.4" fill="currentColor" fill-opacity="0.15"/>
+                  <circle cx="37" cy="17" r="4.5" stroke-width="2.4" fill="currentColor" fill-opacity="0.18"/>
                   <path d="M35.5 32.5c4 .5 7.5 4 7.5 8.5" stroke-width="2.4"/>
                 </svg>
               </div>
-              <span class="text-[11px] sm:text-xs font-semibold text-slate-600 text-center leading-tight">Teams</span>
+              <span class="text-xs sm:text-[13px] font-bold text-slate-800 text-center leading-tight">Teams</span>
             </button>
 
             <!-- 3. REGISTER PLAYERS / FIXTURES -->
             ${isAuction ? `
-            <button type="button" data-hub-section="players" class="hub-grid-btn group flex flex-col items-center gap-2 cursor-pointer active:scale-95 transition-transform">
-              <div class="w-[72px] h-[72px] sm:w-[82px] sm:h-[82px] rounded-2xl bg-white shadow-[0_2px_10px_rgba(0,0,0,0.08)] flex items-center justify-center group-hover:shadow-[0_4px_18px_rgba(0,0,0,0.14)] transition-shadow">
-                <svg class="w-11 h-11 sm:w-12 sm:h-12 text-violet-500 group-hover:scale-105 transition-transform" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+            <button type="button" data-hub-section="players" class="hub-grid-btn group flex flex-col items-center gap-1.5 cursor-pointer active:scale-95 transition-transform">
+              <div class="w-[84px] h-[84px] sm:w-[96px] sm:h-[96px] rounded-2xl sm:rounded-3xl bg-white shadow-[0_3px_12px_rgba(0,0,0,0.07)] border border-slate-100 flex items-center justify-center group-hover:shadow-[0_6px_20px_rgba(0,0,0,0.12)] group-hover:border-purple-200 transition-all">
+                <svg class="w-12 h-12 sm:w-14 sm:h-14 text-purple-700 group-hover:scale-105 transition-transform" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
                   <!-- Player Cap / Helmet -->
                   <circle cx="21" cy="9.5" r="4.8" stroke-width="2.6" fill="currentColor" fill-opacity="0.25"/>
-                  <path d="M21 6.5h5a1 1 0 011 1v1.2a1 1 0 01-1 1H21" stroke-width="1.8" fill="currentColor" fill-opacity="0.4"/>
+                  <path d="M21 6.5h5a1 1 0 011 1v1.2a1 1 0 01-1 1H21" stroke-width="1.8" fill="currentColor" fill-opacity="0.45"/>
                   <!-- Player Jersey / Body -->
-                  <path d="M13.5 19.5c0-2.5 3.2-4.5 7.5-4.5s7.5 2 7.5 4.5v11.5H13.5z" stroke-width="2.6" fill="currentColor" fill-opacity="0.12"/>
+                  <path d="M13.5 19.5c0-2.5 3.2-4.5 7.5-4.5s7.5 2 7.5 4.5v11.5H13.5z" stroke-width="2.6" fill="currentColor" fill-opacity="0.14"/>
                   <path d="M18.5 15l2.5 3.5 2.5-3.5" stroke-width="2"/>
-                  <circle cx="21" cy="23.5" r="2" fill="currentColor" fill-opacity="0.3"/>
+                  <circle cx="21" cy="23.5" r="2" fill="currentColor" fill-opacity="0.35"/>
                   <!-- Player Arms -->
                   <path d="M13.5 20.5l-4 5 3.5 2" stroke-width="2.4"/>
                   <path d="M28.5 20l4.5 4" stroke-width="2.4"/>
@@ -2947,17 +3101,17 @@ export function renderCustomTournamentHub(container, tourney) {
                   <rect x="30.8" y="24" width="4.4" height="18" rx="1.5" stroke-width="2.4" fill="currentColor" fill-opacity="0.28"/>
                   <line x1="33" y1="26" x2="33" y2="39" stroke-width="1.2" opacity="0.6"/>
                   <!-- Cricket Batting Pads / Legs -->
-                  <rect x="14.5" y="32" width="5.5" height="12" rx="2" stroke-width="2.2" fill="currentColor" fill-opacity="0.2"/>
-                  <rect x="22" y="32" width="5.5" height="12" rx="2" stroke-width="2.2" fill="currentColor" fill-opacity="0.2"/>
+                  <rect x="14.5" y="32" width="5.5" height="12" rx="2" stroke-width="2.2" fill="currentColor" fill-opacity="0.22"/>
+                  <rect x="22" y="32" width="5.5" height="12" rx="2" stroke-width="2.2" fill="currentColor" fill-opacity="0.22"/>
                 </svg>
               </div>
-              <span class="text-[11px] sm:text-xs font-semibold text-slate-600 text-center leading-tight">Register<br/>Players</span>
+              <span class="text-xs sm:text-[13px] font-bold text-slate-800 text-center leading-tight">Register<br/>Players</span>
             </button>
             ` : `
-            <button type="button" data-hub-section="matches" data-subtab="fixtures" class="hub-grid-btn group flex flex-col items-center gap-2 cursor-pointer active:scale-95 transition-transform">
-              <div class="w-[72px] h-[72px] sm:w-[82px] sm:h-[82px] rounded-2xl bg-white shadow-[0_2px_10px_rgba(0,0,0,0.08)] flex items-center justify-center group-hover:shadow-[0_4px_18px_rgba(0,0,0,0.14)] transition-shadow">
-                <svg class="w-11 h-11 sm:w-12 sm:h-12 text-violet-500 group-hover:scale-105 transition-transform" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="7" y="9" width="34" height="33" rx="5" stroke-width="2.8" fill="currentColor" fill-opacity="0.1"/>
+            <button type="button" data-hub-section="matches" data-subtab="fixtures" class="hub-grid-btn group flex flex-col items-center gap-1.5 cursor-pointer active:scale-95 transition-transform">
+              <div class="w-[84px] h-[84px] sm:w-[96px] sm:h-[96px] rounded-2xl sm:rounded-3xl bg-white shadow-[0_3px_12px_rgba(0,0,0,0.07)] border border-slate-100 flex items-center justify-center group-hover:shadow-[0_6px_20px_rgba(0,0,0,0.12)] group-hover:border-purple-200 transition-all">
+                <svg class="w-12 h-12 sm:w-14 sm:h-14 text-purple-700 group-hover:scale-105 transition-transform" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="7" y="9" width="34" height="33" rx="5" stroke-width="2.8" fill="currentColor" fill-opacity="0.14"/>
                   <line x1="7" y1="19" x2="41" y2="19" stroke-width="2.8"/>
                   <line x1="16" y1="5" x2="16" y2="11" stroke-width="3"/>
                   <line x1="32" y1="5" x2="32" y2="11" stroke-width="3"/>
@@ -2967,16 +3121,16 @@ export function renderCustomTournamentHub(container, tourney) {
                   <line x1="23" y1="34" x2="34" y2="34" stroke-width="2.4"/>
                 </svg>
               </div>
-              <span class="text-[11px] sm:text-xs font-semibold text-slate-600 text-center leading-tight">Fixtures</span>
+              <span class="text-xs sm:text-[13px] font-bold text-slate-800 text-center leading-tight">Fixtures</span>
             </button>
             `}
 
             <!-- 4. AUCTION / POINTS TABLE -->
             ${isAuction ? `
-            <button type="button" data-hub-section="auction" class="hub-grid-btn group flex flex-col items-center gap-2 cursor-pointer active:scale-95 transition-transform relative">
-              <div class="w-[72px] h-[72px] sm:w-[82px] sm:h-[82px] rounded-2xl bg-white shadow-[0_2px_10px_rgba(0,0,0,0.08)] flex items-center justify-center group-hover:shadow-[0_4px_18px_rgba(0,0,0,0.14)] transition-shadow relative">
-                <span class="absolute -top-1.5 -right-1.5 z-10 px-1.5 py-0.5 bg-red-500 text-white text-[7px] font-black rounded-full uppercase leading-none shadow-sm animate-pulse">Live</span>
-                <svg class="w-11 h-11 sm:w-12 sm:h-12 text-rose-500 group-hover:scale-105 transition-transform" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+            <button type="button" data-hub-section="auction" class="hub-grid-btn group flex flex-col items-center gap-1.5 cursor-pointer active:scale-95 transition-transform relative">
+              <div class="w-[84px] h-[84px] sm:w-[96px] sm:h-[96px] rounded-2xl sm:rounded-3xl bg-white shadow-[0_3px_12px_rgba(0,0,0,0.07)] border border-slate-100 flex items-center justify-center group-hover:shadow-[0_6px_20px_rgba(0,0,0,0.12)] group-hover:border-red-200 transition-all relative">
+                <span class="absolute -top-1.5 -right-1.5 z-10 px-2 py-0.5 bg-red-600 text-white text-[8px] font-black rounded-full uppercase leading-none shadow-sm animate-pulse">Live</span>
+                <svg class="w-12 h-12 sm:w-14 sm:h-14 text-red-700 group-hover:scale-105 transition-transform" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
                   <!-- Gavel Head (angled 45 degrees) -->
                   <path d="M23 7l14 14-4.5 4.5-14-14z" stroke-width="2.8" fill="currentColor" fill-opacity="0.22"/>
                   <line x1="27" y1="11" x2="33" y2="17" stroke-width="2"/>
@@ -2987,61 +3141,61 @@ export function renderCustomTournamentHub(container, tourney) {
                   <path d="M6 43h18" stroke-width="3.2"/>
                   <path d="M9 39h12v4H9z" stroke-width="2.2" fill="currentColor" fill-opacity="0.25"/>
                   <!-- Impact strike sparks -->
-                  <path d="M19 33l5-2M15 27l2-5" stroke-width="2.2" opacity="0.6"/>
+                  <path d="M19 33l5-2M15 27l2-5" stroke-width="2.2" opacity="0.65"/>
                 </svg>
               </div>
-              <span class="text-[11px] sm:text-xs font-semibold text-slate-600 text-center leading-tight">Auction</span>
+              <span class="text-xs sm:text-[13px] font-bold text-slate-800 text-center leading-tight">Auction</span>
             </button>
             ` : `
-            <button type="button" data-hub-section="matches" data-subtab="points" class="hub-grid-btn group flex flex-col items-center gap-2 cursor-pointer active:scale-95 transition-transform">
-              <div class="w-[72px] h-[72px] sm:w-[82px] sm:h-[82px] rounded-2xl bg-white shadow-[0_2px_10px_rgba(0,0,0,0.08)] flex items-center justify-center group-hover:shadow-[0_4px_18px_rgba(0,0,0,0.14)] transition-shadow">
-                <svg class="w-11 h-11 sm:w-12 sm:h-12 text-amber-500 group-hover:scale-105 transition-transform" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
-                  <path d="M7 24h10v18H7z" stroke-width="2.6" fill="currentColor" fill-opacity="0.15"/>
-                  <path d="M19 14h10v28H19z" stroke-width="2.8" fill="currentColor" fill-opacity="0.25"/>
-                  <path d="M31 20h10v22H31z" stroke-width="2.6" fill="currentColor" fill-opacity="0.15"/>
+            <button type="button" data-hub-section="matches" data-subtab="points" class="hub-grid-btn group flex flex-col items-center gap-1.5 cursor-pointer active:scale-95 transition-transform">
+              <div class="w-[84px] h-[84px] sm:w-[96px] sm:h-[96px] rounded-2xl sm:rounded-3xl bg-white shadow-[0_3px_12px_rgba(0,0,0,0.07)] border border-slate-100 flex items-center justify-center group-hover:shadow-[0_6px_20px_rgba(0,0,0,0.12)] group-hover:border-amber-200 transition-all">
+                <svg class="w-12 h-12 sm:w-14 sm:h-14 text-amber-700 group-hover:scale-105 transition-transform" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M7 24h10v18H7z" stroke-width="2.6" fill="currentColor" fill-opacity="0.16"/>
+                  <path d="M19 14h10v28H19z" stroke-width="2.8" fill="currentColor" fill-opacity="0.28"/>
+                  <path d="M31 20h10v22H31z" stroke-width="2.6" fill="currentColor" fill-opacity="0.16"/>
                   <path d="M24 20v6" stroke-width="2.4"/>
-                  <path d="M24 6l1.5 3.5 3.5.5-2.5 2.5.5 3.5-3-1.8-3 1.8.5-3.5-2.5-2.5 3.5-.5z" stroke-width="1.8" fill="currentColor" fill-opacity="0.4"/>
+                  <path d="M24 6l1.5 3.5 3.5.5-2.5 2.5.5 3.5-3-1.8-3 1.8.5-3.5-2.5-2.5 3.5-.5z" stroke-width="1.8" fill="currentColor" fill-opacity="0.45"/>
                 </svg>
               </div>
-              <span class="text-[11px] sm:text-xs font-semibold text-slate-600 text-center leading-tight">Points<br/>Table</span>
+              <span class="text-xs sm:text-[13px] font-bold text-slate-800 text-center leading-tight">Points<br/>Table</span>
             </button>
             `}
 
             <!-- 5. MATCH CORNER (Bat vs Ball) -->
-            <button type="button" data-hub-section="matches" data-subtab="fixtures" class="hub-grid-btn group flex flex-col items-center gap-2 cursor-pointer active:scale-95 transition-transform">
-              <div class="w-[72px] h-[72px] sm:w-[82px] sm:h-[82px] rounded-2xl bg-white shadow-[0_2px_10px_rgba(0,0,0,0.08)] flex items-center justify-center group-hover:shadow-[0_4px_18px_rgba(0,0,0,0.14)] transition-shadow">
-                <svg class="w-11 h-11 sm:w-12 sm:h-12 text-orange-500 group-hover:scale-105 transition-transform" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+            <button type="button" data-hub-section="matches" data-subtab="fixtures" class="hub-grid-btn group flex flex-col items-center gap-1.5 cursor-pointer active:scale-95 transition-transform">
+              <div class="w-[84px] h-[84px] sm:w-[96px] sm:h-[96px] rounded-2xl sm:rounded-3xl bg-white shadow-[0_3px_12px_rgba(0,0,0,0.07)] border border-slate-100 flex items-center justify-center group-hover:shadow-[0_6px_20px_rgba(0,0,0,0.12)] group-hover:border-orange-200 transition-all">
+                <svg class="w-12 h-12 sm:w-14 sm:h-14 text-orange-600 group-hover:scale-105 transition-transform" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
                   <!-- Bat Blade (Angled swing) -->
                   <path d="M14 30L22.5 9.5a2 2 0 012.8-.5l3.5 2.5a2 2 0 01.5 2.8L20.5 35l-6.5-5z" stroke-width="2.6" fill="currentColor" fill-opacity="0.22"/>
                   <!-- Bat Handle -->
                   <line x1="16" y1="33" x2="9" y2="42" stroke-width="3.4"/>
                   <circle cx="8" cy="43" r="1.8" fill="currentColor"/>
                   <!-- Cricket Ball -->
-                  <circle cx="34" cy="18" r="9" stroke-width="2.8" fill="currentColor" fill-opacity="0.15"/>
+                  <circle cx="34" cy="18" r="9" stroke-width="2.8" fill="currentColor" fill-opacity="0.18"/>
                   <!-- Ball Seam Curves -->
                   <path d="M28.5 13c3.5 3 4 8 1 12" stroke-width="2"/>
                   <path d="M39.5 12c-3.5 3-4 8-1 12" stroke-width="2"/>
                   <!-- Impact / Swing Motion Sparks -->
-                  <path d="M25 24l4-1M28 28l2 3" stroke-width="2" opacity="0.6"/>
+                  <path d="M25 24l4-1M28 28l2 3" stroke-width="2" opacity="0.65"/>
                 </svg>
               </div>
-              <span class="text-[11px] sm:text-xs font-semibold text-slate-600 text-center leading-tight">Match<br/>Corner</span>
+              <span class="text-xs sm:text-[13px] font-bold text-slate-800 text-center leading-tight">Match<br/>Corner</span>
             </button>
 
             <!-- 6. STATISTICS -->
-            <button type="button" data-hub-section="stats" class="hub-grid-btn group flex flex-col items-center gap-2 cursor-pointer active:scale-95 transition-transform">
-              <div class="w-[72px] h-[72px] sm:w-[82px] sm:h-[82px] rounded-2xl bg-white shadow-[0_2px_10px_rgba(0,0,0,0.08)] flex items-center justify-center group-hover:shadow-[0_4px_18px_rgba(0,0,0,0.14)] transition-shadow">
-                <svg class="w-11 h-11 sm:w-12 sm:h-12 text-sky-500 group-hover:scale-105 transition-transform" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+            <button type="button" data-hub-section="stats" class="hub-grid-btn group flex flex-col items-center gap-1.5 cursor-pointer active:scale-95 transition-transform">
+              <div class="w-[84px] h-[84px] sm:w-[96px] sm:h-[96px] rounded-2xl sm:rounded-3xl bg-white shadow-[0_3px_12px_rgba(0,0,0,0.07)] border border-slate-100 flex items-center justify-center group-hover:shadow-[0_6px_20px_rgba(0,0,0,0.12)] group-hover:border-teal-200 transition-all">
+                <svg class="w-12 h-12 sm:w-14 sm:h-14 text-teal-700 group-hover:scale-105 transition-transform" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
                   <!-- Bars with rounded caps -->
-                  <rect x="6" y="24" width="8" height="18" rx="2.5" stroke-width="2.4" fill="currentColor" fill-opacity="0.18"/>
-                  <rect x="18" y="16" width="8" height="26" rx="2.5" stroke-width="2.4" fill="currentColor" fill-opacity="0.26"/>
-                  <rect x="30" y="9" width="8" height="33" rx="2.5" stroke-width="2.4" fill="currentColor" fill-opacity="0.34"/>
+                  <rect x="6" y="24" width="8" height="18" rx="2.5" stroke-width="2.4" fill="currentColor" fill-opacity="0.2"/>
+                  <rect x="18" y="16" width="8" height="26" rx="2.5" stroke-width="2.4" fill="currentColor" fill-opacity="0.28"/>
+                  <rect x="30" y="9" width="8" height="33" rx="2.5" stroke-width="2.4" fill="currentColor" fill-opacity="0.36"/>
                   <!-- Rising trend line -->
                   <path d="M8 22l12-8 10 5 11-11" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"/>
                   <circle cx="41" cy="8" r="3" fill="currentColor"/>
                 </svg>
               </div>
-              <span class="text-[11px] sm:text-xs font-semibold text-slate-600 text-center leading-tight">Statistics</span>
+              <span class="text-xs sm:text-[13px] font-bold text-slate-800 text-center leading-tight">Statistics</span>
             </button>
 
           </div>
@@ -3937,140 +4091,172 @@ export function renderCustomTournamentHub(container, tourney) {
       <!-- ============================================================= -->
       <div id="hub-tab-stats" class="hidden space-y-3 animate-fade-in">
         
-        <!-- 1. BEST MVP PLAYER PODIUM BOX (CLEAN WHITE WITH ACCENT GLOW) -->
+        <!-- 1. BEST MVP PLAYER PODIUM BOX (IPL PRO CHAMPIONSHIP STYLE) -->
         ${topMVP ? `
-          <div class="p-3 sm:p-4 bg-gradient-to-r from-amber-500/10 via-amber-50 to-white rounded-2xl text-slate-900 shadow-xs border border-amber-300/80 flex items-center justify-between gap-3">
+          <div class="p-3.5 sm:p-4 bg-gradient-to-r from-amber-500/15 via-amber-50 to-white rounded-3xl text-slate-900 shadow-sm border border-amber-300/90 flex items-center justify-between gap-3 relative overflow-hidden">
             <div class="space-y-1 min-w-0">
               <div class="flex items-center gap-1.5">
-                <span class="px-2 py-0.5 bg-amber-500 text-slate-950 text-[8.5px] font-black rounded-md uppercase tracking-wider shadow-2xs">
-                  👑 TOURNAMENT MVP
+                <span class="px-2.5 py-0.5 bg-amber-500 text-slate-950 text-[8.5px] sm:text-[9px] font-black rounded-full uppercase tracking-wider shadow-2xs flex items-center gap-1">
+                  <span>👑</span> <span>TOURNAMENT MVP</span>
                 </span>
-                <span class="text-[9px] font-bold text-amber-900">Live Leader #1</span>
+                <span class="text-[9px] font-bold text-amber-900 font-mono">#1 Live Leader</span>
               </div>
               <h3 class="text-sm sm:text-base font-black text-slate-900 leading-tight uppercase truncate">${topMVP.name}</h3>
               <p class="text-[10.5px] text-slate-600 font-medium">
                 Runs: <strong class="text-slate-900 font-mono">${topMVP.totalRuns || 0}</strong> • Wkts: <strong class="text-slate-900 font-mono">${topMVP.totalWickets || 0}</strong> • 6s: <strong class="text-slate-900 font-mono">${topMVP.totalSixes || 0}</strong> • Pts: <strong class="text-amber-700 font-mono">${topMVP.mvp || 0}</strong>
               </p>
             </div>
-            <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-white border-2 border-amber-400 overflow-hidden shadow-sm shrink-0">
+            <div class="w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden border-2 border-amber-400 shadow-sm shrink-0 bg-white">
               <img src="${topMVP.photoUrl || topMVP.player_photo_url || 'assets/card_jsl_user.png'}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
             </div>
           </div>
         ` : `
-          <div class="p-3 sm:p-4 bg-gradient-to-r from-amber-500/10 via-amber-50 to-white rounded-2xl text-slate-900 shadow-xs border border-amber-300/80 flex items-center justify-between gap-3">
+          <div class="p-3.5 sm:p-4 bg-gradient-to-r from-amber-500/10 via-amber-50 to-white rounded-3xl text-slate-900 shadow-sm border border-amber-300/80 flex items-center justify-between gap-3 relative overflow-hidden">
             <div class="space-y-1 min-w-0">
               <div class="flex items-center gap-1.5">
-                <span class="px-2 py-0.5 bg-amber-500 text-slate-950 text-[8.5px] font-black rounded-md uppercase tracking-wider shadow-2xs">
-                  👑 TOURNAMENT MVP
+                <span class="px-2.5 py-0.5 bg-amber-500 text-slate-950 text-[8.5px] sm:text-[9px] font-black rounded-full uppercase tracking-wider shadow-2xs flex items-center gap-1">
+                  <span>👑</span> <span>TOURNAMENT MVP</span>
                 </span>
                 <span class="text-[9px] font-bold text-amber-900">Official Leaderboard</span>
               </div>
               <h3 class="text-xs sm:text-sm font-black text-slate-900 leading-tight uppercase">Tournament MVP Leaderboard</h3>
               <p class="text-[10px] text-slate-500 font-medium">Activates dynamically as match scorecards are recorded.</p>
             </div>
-            <div class="w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-amber-100 border border-amber-300 flex items-center justify-center text-xl shadow-2xs shrink-0">
+            <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-amber-100 border-2 border-amber-300 flex items-center justify-center text-2xl shadow-2xs shrink-0">
               🏆
             </div>
           </div>
         `}
 
-        <!-- 2. AWARDS LEADERBOARD GRID (IPL PRO CHAMPIONSHIP CARDS) -->
-        <div class="grid grid-cols-2 gap-2 sm:gap-2.5">
+        <!-- 2. AWARDS LEADERBOARD GRID (IPL PRO CHAMPIONSHIP CARDS - DESIGN 2) -->
+        <div class="grid grid-cols-2 gap-3 sm:gap-4">
           
           ${(() => {
             const categories = [
               {
                 id: 'runs',
-                badge: '🧢 ORANGE CAP',
-                title: 'MOST RUNS',
-                icon: '🏏',
-                iconBg: 'bg-amber-100 text-amber-900 border-amber-300',
-                borderTop: 'border-t-amber-500',
-                linkColor: 'text-amber-700',
+                badge: 'Orange Cap',
+                title: 'Most Runs',
+                icon: '🧢',
+                badgeBg: 'bg-amber-500 text-slate-950',
+                cardBorder: 'border-amber-200/80',
+                avatarBorder: 'border-amber-400 bg-amber-50',
+                statBoxBg: 'bg-amber-50/90 border-amber-100',
+                statNumColor: 'text-amber-950',
+                statLabelColor: 'text-amber-700',
+                rankColor: 'text-amber-700',
                 player: topBatsman,
                 val: topBatsman?.totalRuns || topBatsman?.runs || 0,
                 unit: 'Runs'
               },
               {
                 id: 'wickets',
-                badge: '🧢 PURPLE CAP',
-                title: 'MOST WICKETS',
+                badge: 'Purple Cap',
+                title: 'Most Wickets',
                 icon: '⚡',
-                iconBg: 'bg-purple-100 text-purple-900 border-purple-300',
-                borderTop: 'border-t-purple-600',
-                linkColor: 'text-purple-700',
+                badgeBg: 'bg-purple-600 text-white',
+                cardBorder: 'border-purple-200/80',
+                avatarBorder: 'border-purple-400 bg-purple-50',
+                statBoxBg: 'bg-purple-50/90 border-purple-100',
+                statNumColor: 'text-purple-950',
+                statLabelColor: 'text-purple-700',
+                rankColor: 'text-purple-700',
                 player: topBowler,
                 val: topBowler?.totalWickets || topBowler?.wickets || 0,
                 unit: 'Wkts'
               },
               {
                 id: 'sixes',
-                badge: '💥 SUPER SIXES',
-                title: 'MAXIMUM SIXES',
-                icon: '6️⃣',
-                iconBg: 'bg-rose-100 text-rose-900 border-rose-300',
-                borderTop: 'border-t-rose-500',
-                linkColor: 'text-rose-700',
+                badge: 'Max Sixes',
+                title: 'Most Sixes',
+                icon: '💥',
+                badgeBg: 'bg-rose-600 text-white',
+                cardBorder: 'border-rose-200/80',
+                avatarBorder: 'border-rose-400 bg-rose-50',
+                statBoxBg: 'bg-rose-50/90 border-rose-100',
+                statNumColor: 'text-rose-950',
+                statLabelColor: 'text-rose-700',
+                rankColor: 'text-rose-700',
                 player: topSixes,
                 val: topSixes?.totalSixes || topSixes?.sixes || 0,
                 unit: 'Sixes'
               },
               {
                 id: 'fours',
-                badge: '🎯 BOUNDARY KING',
-                title: 'MAXIMUM FOURS',
-                icon: '4️⃣',
-                iconBg: 'bg-cyan-100 text-cyan-900 border-cyan-300',
-                borderTop: 'border-t-cyan-500',
-                linkColor: 'text-cyan-700',
+                badge: 'Boundary King',
+                title: 'Most Fours',
+                icon: '🎯',
+                badgeBg: 'bg-teal-600 text-white',
+                cardBorder: 'border-teal-200/80',
+                avatarBorder: 'border-teal-400 bg-teal-50',
+                statBoxBg: 'bg-teal-50/90 border-teal-100',
+                statNumColor: 'text-teal-950',
+                statLabelColor: 'text-teal-700',
+                rankColor: 'text-teal-700',
                 player: topFours,
                 val: topFours?.totalFours || topFours?.fours || 0,
                 unit: 'Fours'
               },
               {
                 id: 'keeper',
-                badge: '🧤 GOLDEN GLOVE',
-                title: 'BEST WICKETKEEPER',
+                badge: 'Golden Glove',
+                title: 'Best Wicketkeeper',
                 icon: '🧤',
-                iconBg: 'bg-blue-100 text-blue-900 border-blue-300',
-                borderTop: 'border-t-blue-500',
-                linkColor: 'text-blue-700',
+                badgeBg: 'bg-blue-600 text-white',
+                cardBorder: 'border-blue-200/80',
+                avatarBorder: 'border-blue-400 bg-blue-50',
+                statBoxBg: 'bg-blue-50/90 border-blue-100',
+                statNumColor: 'text-blue-950',
+                statLabelColor: 'text-blue-700',
+                rankColor: 'text-blue-700',
                 player: topKeeper,
                 val: topKeeper?.dismissals || topKeeper?.catches || 0,
                 unit: 'Dismissals'
               },
               {
                 id: 'fielder',
-                badge: '🦅 BEST FIELDER',
-                title: 'TOP CATCHES',
-                icon: '👤',
-                iconBg: 'bg-emerald-100 text-emerald-900 border-emerald-300',
-                borderTop: 'border-t-emerald-500',
-                linkColor: 'text-emerald-700',
+                badge: 'Top Catches',
+                title: 'Best Fielder',
+                icon: '🦅',
+                badgeBg: 'bg-emerald-600 text-white',
+                cardBorder: 'border-emerald-200/80',
+                avatarBorder: 'border-emerald-400 bg-emerald-50',
+                statBoxBg: 'bg-emerald-50/90 border-emerald-100',
+                statNumColor: 'text-emerald-950',
+                statLabelColor: 'text-emerald-700',
+                rankColor: 'text-emerald-700',
                 player: topFielder,
                 val: topFielder?.catches || 0,
                 unit: 'Catches'
               },
               {
                 id: 'maidens',
-                badge: '🛡️ TIGHT BOWLING',
-                title: 'MAIDEN OVERS',
+                badge: 'Tight Bowling',
+                title: 'Maiden Overs',
                 icon: '🛡️',
-                iconBg: 'bg-slate-100 text-slate-900 border-slate-300',
-                borderTop: 'border-t-slate-700',
-                linkColor: 'text-slate-700',
+                badgeBg: 'bg-slate-700 text-white',
+                cardBorder: 'border-slate-200/80',
+                avatarBorder: 'border-slate-400 bg-slate-50',
+                statBoxBg: 'bg-slate-100/90 border-slate-200',
+                statNumColor: 'text-slate-900',
+                statLabelColor: 'text-slate-600',
+                rankColor: 'text-slate-700',
                 player: topMaidens,
                 val: topMaidens?.totalMaidens || topMaidens?.maidens || 0,
                 unit: 'Maidens'
               },
               {
                 id: 'dotballs',
-                badge: '🎯 DOT MASTER',
-                title: 'MOST DOT BALLS',
+                badge: 'Dot Master',
+                title: 'Most Dot Balls',
                 icon: '🎯',
-                iconBg: 'bg-teal-100 text-teal-900 border-teal-300',
-                borderTop: 'border-t-teal-500',
-                linkColor: 'text-teal-700',
+                badgeBg: 'bg-indigo-600 text-white',
+                cardBorder: 'border-indigo-200/80',
+                avatarBorder: 'border-indigo-400 bg-indigo-50',
+                statBoxBg: 'bg-indigo-50/90 border-indigo-100',
+                statNumColor: 'text-indigo-950',
+                statLabelColor: 'text-indigo-700',
+                rankColor: 'text-indigo-700',
                 player: topDotBalls,
                 val: topDotBalls?.totalDotBalls || topDotBalls?.dotBalls || 0,
                 unit: 'Dots'
@@ -4079,42 +4265,216 @@ export function renderCustomTournamentHub(container, tourney) {
 
             return categories.map(cat => {
               const hasActiveLeader = cat.player && (Number(cat.val) > 0);
+              const playerPhoto = cat.player?.photoUrl || cat.player?.player_photo_url || 'assets/card_jsl_user.png';
+              const playerObj = allPlayers.find(p => p.id === cat.player?.id || (p.id && cat.player?.id && toUUID(p.id) === toUUID(cat.player.id))) || {};
+              const playerTeam = allTeams.find(t => t.id === playerObj.teamId || t.id === playerObj.team_id || (t.players && t.players.includes(cat.player?.id)))?.name || playerObj.teamName || playerObj.team || cat.player?.teamName || cat.player?.team || tourney.name || 'Tournament';
 
               return `
-                <div class="bg-white rounded-2xl border border-slate-200/90 shadow-2xs hover:shadow-xs transition-all p-2.5 sm:p-3 space-y-1.5 flex flex-col justify-between border-t-4 ${cat.borderTop}">
+                <div class="bg-white rounded-3xl p-3.5 sm:p-4 shadow-sm border ${cat.cardBorder} flex flex-col items-center justify-between text-center relative overflow-hidden transition-all hover:shadow-md min-h-[225px]">
                   
-                  <!-- Top Badge + Category Header -->
-                  <div class="flex items-center justify-between gap-1">
-                    <span class="text-[8px] sm:text-[9px] font-black uppercase text-slate-800 tracking-wider truncate">
-                      ${cat.badge}
+                  <!-- Top Badge Row -->
+                  <div class="w-full flex items-center justify-between gap-1 mb-1">
+                    <span class="px-2 py-0.5 ${cat.badgeBg} font-black text-[8px] sm:text-[9px] rounded-full uppercase tracking-wider shadow-2xs flex items-center gap-1 shrink-0">
+                      <span>${cat.icon}</span> <span>${cat.badge}</span>
                     </span>
-                    <span class="w-5 h-5 rounded-md ${cat.iconBg} border flex items-center justify-center text-[10px] shrink-0">
-                      ${cat.icon}
-                    </span>
+                    <span class="text-[10px] font-black font-mono ${cat.rankColor}">#1</span>
                   </div>
 
-                  <!-- Leader Name or Awaiting Matches -->
-                  <div class="min-w-0 py-0.5">
-                    ${hasActiveLeader ? `
-                      <h4 class="text-xs sm:text-sm font-black text-slate-900 truncate leading-tight uppercase">${cat.player.name}</h4>
-                      <div class="text-xs sm:text-sm font-black font-mono ${cat.linkColor} mt-0.5">
-                        ${cat.val} <span class="text-[9px] font-bold text-slate-400 uppercase">${cat.unit}</span>
-                      </div>
-                    ` : `
-                      <h4 class="text-[11px] sm:text-xs font-bold text-slate-400">Awaiting matches</h4>
-                      <div class="text-[10px] font-mono font-bold text-slate-300">-</div>
-                    `}
+                  <!-- Circular Player Avatar -->
+                  <div class="relative my-1.5">
+                    <div class="w-16 h-16 sm:w-18 sm:h-18 rounded-full overflow-hidden border-2 ${cat.avatarBorder} shadow-sm bg-slate-50 shrink-0">
+                      <img src="${playerPhoto}" alt="${hasActiveLeader ? cat.player.name : 'Player'}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
+                    </div>
                   </div>
 
-                  <!-- Leaderboard Link -->
-                  <div class="${cat.linkColor} text-[9.5px] sm:text-[10px] font-black flex items-center justify-between pt-1 border-t border-slate-100 cursor-pointer hover:underline">
-                    <span>Leaderboard</span> <span>→</span>
+                  <!-- Hero Stat Container Box -->
+                  <div class="w-full ${cat.statBoxBg} rounded-2xl py-1.5 px-2 my-1 border">
+                    <div class="text-2xl sm:text-3xl font-black font-mono tracking-tight leading-none ${cat.statNumColor}">
+                      ${hasActiveLeader ? cat.val : '-'}
+                    </div>
+                    <div class="text-[9.5px] sm:text-[10px] font-bold uppercase tracking-wide mt-0.5 ${cat.statLabelColor}">
+                      ${cat.title}
+                    </div>
+                  </div>
+
+                  <!-- Player Name & Team -->
+                  <div class="min-w-0 w-full pt-1">
+                    <h4 class="text-xs sm:text-[13px] font-black text-slate-900 truncate uppercase leading-tight">
+                      ${hasActiveLeader ? cat.player.name : 'Awaiting matches'}
+                    </h4>
+                    <p class="text-[9.5px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate mt-0.5">
+                      ${hasActiveLeader ? playerTeam : (tourney.name || 'Tournament')}
+                    </p>
                   </div>
                 </div>
               `;
             }).join('');
           })()}
 
+        </div>
+
+        <!-- 3. VIEW MORE STATISTICS TOGGLE & 7 ADDITIONAL MILESTONE CARDS (DESIGN 2) -->
+        <div class="pt-2">
+          <button id="btn-toggle-more-stats" type="button" class="w-full py-3.5 px-4 bg-white hover:bg-slate-50 active:scale-[0.99] border border-slate-200/90 rounded-2xl shadow-2xs flex items-center justify-between text-xs sm:text-sm font-bold text-slate-900 transition-all cursor-pointer">
+            <span class="font-extrabold text-slate-900 text-xs sm:text-sm tracking-wide">More Statistics</span>
+            <svg id="more-stats-arrow" class="w-5 h-5 text-slate-600 transition-transform duration-300 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="6 9 12 15 18 9"></polyline>
+            </svg>
+          </button>
+
+          <div id="more-stats-grid" class="hidden grid grid-cols-2 gap-3 sm:gap-4 mt-3 animate-fade-in">
+            ${(() => {
+              const moreCategories = [
+                {
+                  id: 'highest_score',
+                  badge: 'Top Knock',
+                  title: 'Highest Score',
+                  icon: '👑',
+                  badgeBg: 'bg-amber-600 text-white',
+                  cardBorder: 'border-amber-200/80',
+                  avatarBorder: 'border-amber-400 bg-amber-50',
+                  statBoxBg: 'bg-amber-50/90 border-amber-100',
+                  statNumColor: 'text-amber-950',
+                  statLabelColor: 'text-amber-700',
+                  rankColor: 'text-amber-700',
+                  data: recordHighestScore
+                },
+                {
+                  id: 'fastest_50',
+                  badge: 'Rapid Fifty',
+                  title: 'Fastest 50',
+                  icon: '⚡',
+                  badgeBg: 'bg-orange-600 text-white',
+                  cardBorder: 'border-orange-200/80',
+                  avatarBorder: 'border-orange-400 bg-orange-50',
+                  statBoxBg: 'bg-orange-50/90 border-orange-100',
+                  statNumColor: 'text-orange-950',
+                  statLabelColor: 'text-orange-700',
+                  rankColor: 'text-orange-700',
+                  data: recordFastest50
+                },
+                {
+                  id: 'fastest_100',
+                  badge: 'Lightning 100',
+                  title: 'Fastest 100',
+                  icon: '🚀',
+                  badgeBg: 'bg-red-600 text-white',
+                  cardBorder: 'border-red-200/80',
+                  avatarBorder: 'border-red-400 bg-red-50',
+                  statBoxBg: 'bg-red-50/90 border-red-100',
+                  statNumColor: 'text-red-950',
+                  statLabelColor: 'text-red-700',
+                  rankColor: 'text-red-700',
+                  data: recordFastest100
+                },
+                {
+                  id: 'best_partnership',
+                  badge: 'Record Stand',
+                  title: 'Best Partnership',
+                  icon: '🤝',
+                  badgeBg: 'bg-emerald-600 text-white',
+                  cardBorder: 'border-emerald-200/80',
+                  avatarBorder: 'border-emerald-400 bg-emerald-50',
+                  statBoxBg: 'bg-emerald-50/90 border-emerald-100',
+                  statNumColor: 'text-emerald-950',
+                  statLabelColor: 'text-emerald-700',
+                  rankColor: 'text-emerald-700',
+                  data: recordBestPartnership
+                },
+                {
+                  id: 'innings_sixes',
+                  badge: 'Six Machine',
+                  title: 'Innings Most 6s',
+                  icon: '💥',
+                  badgeBg: 'bg-rose-600 text-white',
+                  cardBorder: 'border-rose-200/80',
+                  avatarBorder: 'border-rose-400 bg-rose-50',
+                  statBoxBg: 'bg-rose-50/90 border-rose-100',
+                  statNumColor: 'text-rose-950',
+                  statLabelColor: 'text-rose-700',
+                  rankColor: 'text-rose-700',
+                  data: recordInningsSixes
+                },
+                {
+                  id: 'innings_fours',
+                  badge: 'Boundary Storm',
+                  title: 'Innings Most 4s',
+                  icon: '🎯',
+                  badgeBg: 'bg-cyan-600 text-white',
+                  cardBorder: 'border-cyan-200/80',
+                  avatarBorder: 'border-cyan-400 bg-cyan-50',
+                  statBoxBg: 'bg-cyan-50/90 border-cyan-100',
+                  statNumColor: 'text-cyan-950',
+                  statLabelColor: 'text-cyan-700',
+                  rankColor: 'text-cyan-700',
+                  data: recordInningsFours
+                },
+                {
+                  id: 'best_economy',
+                  badge: 'Tight Spell',
+                  title: 'Best Economy',
+                  icon: '🛡️',
+                  badgeBg: 'bg-teal-600 text-white',
+                  cardBorder: 'border-teal-200/80',
+                  avatarBorder: 'border-teal-400 bg-teal-50',
+                  statBoxBg: 'bg-teal-50/90 border-teal-100',
+                  statNumColor: 'text-teal-950',
+                  statLabelColor: 'text-teal-700',
+                  rankColor: 'text-teal-700',
+                  data: recordBestEconomy
+                }
+              ];
+
+              return moreCategories.map(cat => {
+                const item = cat.data;
+                const hasLeader = !!item && !!item.val;
+                const photo = item?.photoUrl || 'assets/card_jsl_user.png';
+                const name = item?.name || 'Awaiting matches';
+                const team = item?.teamName || tourney.name || 'Tournament';
+                const val = item?.val || '-';
+
+                return `
+                  <div class="bg-white rounded-3xl p-3.5 sm:p-4 shadow-sm border ${cat.cardBorder} flex flex-col items-center justify-between text-center relative overflow-hidden transition-all hover:shadow-md min-h-[225px]">
+                    
+                    <!-- Top Badge Row -->
+                    <div class="w-full flex items-center justify-between gap-1 mb-1">
+                      <span class="px-2 py-0.5 ${cat.badgeBg} font-black text-[8px] sm:text-[9px] rounded-full uppercase tracking-wider shadow-2xs flex items-center gap-1 shrink-0">
+                        <span>${cat.icon}</span> <span>${cat.badge}</span>
+                      </span>
+                      <span class="text-[10px] font-black font-mono ${cat.rankColor}">#1</span>
+                    </div>
+
+                    <!-- Circular Player Avatar -->
+                    <div class="relative my-1.5">
+                      <div class="w-16 h-16 sm:w-18 sm:h-18 rounded-full overflow-hidden border-2 ${cat.avatarBorder} shadow-sm bg-slate-50 shrink-0">
+                        <img src="${photo}" alt="${name}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
+                      </div>
+                    </div>
+
+                    <!-- Hero Stat Container Box -->
+                    <div class="w-full ${cat.statBoxBg} rounded-2xl py-1.5 px-2 my-1 border">
+                      <div class="text-2xl sm:text-3xl font-black font-mono tracking-tight leading-none ${cat.statNumColor}">
+                        ${val}
+                      </div>
+                      <div class="text-[9.5px] sm:text-[10px] font-bold uppercase tracking-wide mt-0.5 ${cat.statLabelColor}">
+                        ${cat.title}
+                      </div>
+                    </div>
+
+                    <!-- Player Name & Team -->
+                    <div class="min-w-0 w-full pt-1">
+                      <h4 class="text-xs sm:text-[13px] font-black text-slate-900 truncate uppercase leading-tight">
+                        ${name}
+                      </h4>
+                      <p class="text-[9.5px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate mt-0.5">
+                        ${team}
+                      </p>
+                    </div>
+                  </div>
+                `;
+              }).join('');
+            })()}
+          </div>
         </div>
       </div>
 
@@ -4168,6 +4528,23 @@ export function renderCustomTournamentHub(container, tourney) {
   });
 
   document.getElementById('btn-hub-back-to-grid')?.addEventListener('click', backToGrid);
+
+  // More statistics toggle (Lower portion 7 milestone records)
+  const btnMoreStats = document.getElementById('btn-toggle-more-stats');
+  const moreStatsGrid = document.getElementById('more-stats-grid');
+  const moreStatsArrow = document.getElementById('more-stats-arrow');
+  if (btnMoreStats && moreStatsGrid) {
+    btnMoreStats.addEventListener('click', () => {
+      const isHidden = moreStatsGrid.classList.contains('hidden');
+      if (isHidden) {
+        moreStatsGrid.classList.remove('hidden');
+        moreStatsArrow?.classList.add('rotate-180');
+      } else {
+        moreStatsGrid.classList.add('hidden');
+        moreStatsArrow?.classList.remove('rotate-180');
+      }
+    });
+  }
 
   // If URL has a tab param, open that section directly
   if (hubTab && hubTab !== 'home') {
