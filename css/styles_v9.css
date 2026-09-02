@@ -66,9 +66,9 @@ body::before {
 }
 
 #app-navbar {
-  background: linear-gradient(135deg, #047857 0%, #065F46 50%, #022C22 100%) !important;
-  border-bottom: 3.5px solid #10B981 !important;
-  box-shadow: 0 8px 30px rgba(4, 120, 87, 0.35) !important;
+  background: #ffffff !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  box-shadow: none !important;
   position: relative;
   overflow: hidden;
 }

@@ -1578,9 +1578,35 @@ function renderNavbar() {
   const navbarEl = document.getElementById('app-navbar');
   if (!navbarEl) return;
 
-  navbarEl.classList.add('hidden');
-  navbarEl.innerHTML = '';
-  return;
+  navbarEl.classList.remove('hidden');
+  navbarEl.className = "relative z-40 bg-white border-b border-slate-200/80 px-3 sm:px-4";
+
+  navbarEl.innerHTML = `
+    <div class="max-w-7xl mx-auto h-14 sm:h-16 flex items-center justify-between gap-3">
+      <!-- Left: Header Image -->
+      <div class="cursor-pointer flex-1 min-w-0" id="brand-header-logo">
+        <img src="assets/header.png" alt="OnlineCrickets" class="h-10 sm:h-12 w-auto object-contain" />
+      </div>
+
+      <!-- Right: Profile Icon -->
+      <button id="nav-profile-btn" title="Login / Profile" class="w-10 h-10 sm:w-11 sm:h-11 rounded-full border-2 border-slate-200 bg-white hover:border-slate-300 flex items-center justify-center cursor-pointer transition-all active:scale-95 relative shrink-0">
+        <svg class="w-6 h-6 text-slate-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
+          <circle cx="12" cy="7" r="4"/>
+        </svg>
+        <span class="w-2.5 h-2.5 rounded-full bg-emerald-500 absolute bottom-0 right-0 border-2 border-white"></span>
+      </button>
+    </div>
+  `;
+
+  document.getElementById('brand-header-logo')?.addEventListener('click', () => navigate('landing'));
+  document.getElementById('nav-profile-btn')?.addEventListener('click', () => {
+    if (!store.getCurrentUser()) {
+      openPlayerLoginModal(() => navigate('profile'));
+    } else {
+      navigate('profile');
+    }
+  });
   document.getElementById('nav-notifs-toggle-btn')?.addEventListener('click', async () => {
     const enabled = await toggleNotificationSetting();
     const dot = document.getElementById('nav-notif-dot');
@@ -2061,9 +2087,12 @@ function buildTournamentCarouselHTML(allTournaments) {
       + poster
       + '<div class="absolute top-2 left-2 z-10"><span class="px-2 py-0.5 bg-emerald-500 text-white text-[8px] sm:text-[9px] font-black rounded-full uppercase shadow-md flex items-center gap-1"><span class="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span> LIVE</span></div>'
       + '</div>'
-      + '<div class="px-2.5 py-1.5 sm:py-2 text-center flex flex-col items-center justify-center space-y-0.5 bg-white">'
+      + '<div class="px-2.5 py-1.5 sm:py-2 flex items-center justify-between gap-2 bg-white">'
+      + '<div class="min-w-0 flex-1">'
       + '<h4 class="text-xs sm:text-sm font-black text-slate-800 truncate max-w-full uppercase tracking-wide">' + ct.name + '</h4>'
       + venueHtml
+      + '</div>'
+      + '<div class="inline-flex items-center gap-1 px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white text-[9px] sm:text-[10px] font-bold rounded-full transition-all shadow-sm shrink-0"><span>View</span><span class="text-xs">→</span></div>'
       + '</div>'
       + '</div>';
   }).join('');
@@ -2097,9 +2126,12 @@ function buildTournamentCarouselHTML(allTournaments) {
       + poster
       + '<div class="absolute top-1 left-1">' + statusBadge + '</div>'
       + '</div>'
-      + '<div class="px-2 py-1.5 text-center flex flex-col items-center justify-center space-y-0.5 bg-white">'
+      + '<div class="px-2 py-1.5 flex items-center justify-between gap-1.5 bg-white">'
+      + '<div class="min-w-0 flex-1">'
       + '<h4 class="text-[11px] font-black text-slate-800 truncate max-w-full leading-tight uppercase">' + ct.name + '</h4>'
       + searchVenueHtml
+      + '</div>'
+      + '<div class="inline-flex items-center gap-0.5 px-2 py-1 bg-emerald-700 hover:bg-emerald-800 text-white text-[8px] sm:text-[9px] font-bold rounded-full transition-all shadow-sm shrink-0"><span>View</span><span class="text-[10px]">→</span></div>'
       + '</div>'
       + '</div>';
   }).join('');
@@ -2842,23 +2874,23 @@ export function renderCustomTournamentHub(container, tourney) {
           </div>
         ` : ''}
 
-        <!-- 3. ICON GRID NAVIGATION (SQUARE CARDS — KPL STYLE) -->
-        <div class="bg-white/80 backdrop-blur-sm rounded-2xl p-3 sm:p-4 shadow-lg border border-white/60">
+        <!-- 3. ICON GRID NAVIGATION (SQUARE CARDS — WHITE + COLORED BORDER) -->
+        <div class="bg-white/90 backdrop-blur-sm rounded-2xl p-3 sm:p-4 shadow-lg border border-slate-200/60">
           <div class="grid grid-cols-3 gap-2.5 sm:gap-3">
 
-            <!-- 1. HOME -->
-            <button type="button" data-hub-section="home" class="hub-grid-btn group bg-gradient-to-br from-blue-50 to-blue-100/80 border-2 border-blue-200/70 rounded-2xl p-2.5 sm:p-3 flex flex-col items-center justify-center gap-2 aspect-square hover:shadow-lg hover:border-blue-400 hover:from-blue-100 hover:to-blue-200/80 transition-all duration-200 cursor-pointer active:scale-95">
+            <!-- 1. DETAILS -->
+            <button type="button" data-hub-section="home" class="hub-grid-btn group bg-white border border-blue-200 rounded-2xl p-2.5 sm:p-3 flex flex-col items-center justify-center gap-2 aspect-square hover:shadow-lg hover:border-blue-400 transition-all duration-200 cursor-pointer active:scale-95">
               <div class="w-11 h-11 sm:w-13 sm:h-13 rounded-xl bg-blue-600 flex items-center justify-center shadow-md group-hover:shadow-blue-400/40 transition-shadow">
                 <svg class="w-6 h-6 sm:w-7 sm:h-7 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
                   <polyline points="9 22 9 12 15 12 15 22"/>
                 </svg>
               </div>
-              <span class="text-[10px] sm:text-xs font-extrabold text-blue-900 text-center leading-tight tracking-wide uppercase">Home</span>
+              <span class="text-[10px] sm:text-xs font-extrabold text-slate-700 text-center leading-tight tracking-wide uppercase">Details</span>
             </button>
 
             <!-- 2. TEAMS -->
-            <button type="button" data-hub-section="teams" class="hub-grid-btn group bg-gradient-to-br from-emerald-50 to-emerald-100/80 border-2 border-emerald-200/70 rounded-2xl p-2.5 sm:p-3 flex flex-col items-center justify-center gap-2 aspect-square hover:shadow-lg hover:border-emerald-400 hover:from-emerald-100 hover:to-emerald-200/80 transition-all duration-200 cursor-pointer active:scale-95">
+            <button type="button" data-hub-section="teams" class="hub-grid-btn group bg-white border border-emerald-200 rounded-2xl p-2.5 sm:p-3 flex flex-col items-center justify-center gap-2 aspect-square hover:shadow-lg hover:border-emerald-400 transition-all duration-200 cursor-pointer active:scale-95">
               <div class="w-11 h-11 sm:w-13 sm:h-13 rounded-xl bg-emerald-600 flex items-center justify-center shadow-md group-hover:shadow-emerald-400/40 transition-shadow">
                 <svg class="w-6 h-6 sm:w-7 sm:h-7 text-white" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
@@ -2866,34 +2898,34 @@ export function renderCustomTournamentHub(container, tourney) {
                   <circle cx="5" cy="8" r="2.5"/>
                 </svg>
               </div>
-              <span class="text-[10px] sm:text-xs font-extrabold text-emerald-900 text-center leading-tight tracking-wide uppercase">Teams</span>
+              <span class="text-[10px] sm:text-xs font-extrabold text-slate-700 text-center leading-tight tracking-wide uppercase">Teams</span>
             </button>
 
             <!-- 3. REGISTER PLAYERS (auction mode) / FIXTURES (fixture mode) -->
             ${isAuction ? `
-            <button type="button" data-hub-section="players" class="hub-grid-btn group bg-gradient-to-br from-violet-50 to-violet-100/80 border-2 border-violet-200/70 rounded-2xl p-2.5 sm:p-3 flex flex-col items-center justify-center gap-2 aspect-square hover:shadow-lg hover:border-violet-400 hover:from-violet-100 hover:to-violet-200/80 transition-all duration-200 cursor-pointer active:scale-95">
+            <button type="button" data-hub-section="players" class="hub-grid-btn group bg-white border border-violet-200 rounded-2xl p-2.5 sm:p-3 flex flex-col items-center justify-center gap-2 aspect-square hover:shadow-lg hover:border-violet-400 transition-all duration-200 cursor-pointer active:scale-95">
               <div class="w-11 h-11 sm:w-13 sm:h-13 rounded-xl bg-violet-600 flex items-center justify-center shadow-md group-hover:shadow-violet-400/40 transition-shadow">
                 <svg class="w-6 h-6 sm:w-7 sm:h-7 text-white" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M15 14c-2.67 0-8 1.33-8 4v2h16v-2c0-2.67-5.33-4-8-4zm0-2c1.93 0 3.5-1.57 3.5-3.5S16.93 5 15 5s-3.5 1.57-3.5 3.5S13.07 12 15 12z"/>
                   <path d="M6 15v-3h3v-2H6V7H4v3H1v2h3v3z"/>
                 </svg>
               </div>
-              <span class="text-[10px] sm:text-xs font-extrabold text-violet-900 text-center leading-tight tracking-wide uppercase">Register<br/>Players</span>
+              <span class="text-[10px] sm:text-xs font-extrabold text-slate-700 text-center leading-tight tracking-wide uppercase">Register<br/>Players</span>
             </button>
             ` : `
-            <button type="button" data-hub-section="matches" data-subtab="fixtures" class="hub-grid-btn group bg-gradient-to-br from-violet-50 to-violet-100/80 border-2 border-violet-200/70 rounded-2xl p-2.5 sm:p-3 flex flex-col items-center justify-center gap-2 aspect-square hover:shadow-lg hover:border-violet-400 hover:from-violet-100 hover:to-violet-200/80 transition-all duration-200 cursor-pointer active:scale-95">
+            <button type="button" data-hub-section="matches" data-subtab="fixtures" class="hub-grid-btn group bg-white border border-violet-200 rounded-2xl p-2.5 sm:p-3 flex flex-col items-center justify-center gap-2 aspect-square hover:shadow-lg hover:border-violet-400 transition-all duration-200 cursor-pointer active:scale-95">
               <div class="w-11 h-11 sm:w-13 sm:h-13 rounded-xl bg-violet-600 flex items-center justify-center shadow-md group-hover:shadow-violet-400/40 transition-shadow">
                 <svg class="w-6 h-6 sm:w-7 sm:h-7 text-white" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20a2 2 0 002 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zM5 8V6h14v2H5zm2 4h10v2H7v-2zm0 4h7v2H7v-2z"/>
                 </svg>
               </div>
-              <span class="text-[10px] sm:text-xs font-extrabold text-violet-900 text-center leading-tight tracking-wide uppercase">Fixtures</span>
+              <span class="text-[10px] sm:text-xs font-extrabold text-slate-700 text-center leading-tight tracking-wide uppercase">Fixtures</span>
             </button>
             `}
 
             <!-- 4. AUCTION (auction mode) / POINTS TABLE (fixture mode) -->
             ${isAuction ? `
-            <button type="button" data-hub-section="auction" class="hub-grid-btn group bg-gradient-to-br from-rose-50 to-rose-100/80 border-2 border-rose-200/70 rounded-2xl p-2.5 sm:p-3 flex flex-col items-center justify-center gap-2 aspect-square hover:shadow-lg hover:border-rose-400 hover:from-rose-100 hover:to-rose-200/80 transition-all duration-200 cursor-pointer active:scale-95 relative">
+            <button type="button" data-hub-section="auction" class="hub-grid-btn group bg-white border border-rose-200 rounded-2xl p-2.5 sm:p-3 flex flex-col items-center justify-center gap-2 aspect-square hover:shadow-lg hover:border-rose-400 transition-all duration-200 cursor-pointer active:scale-95 relative">
               <span class="absolute top-1 right-1 px-1.5 py-0.5 bg-red-500 text-white text-[7px] font-black rounded-full uppercase leading-none shadow-sm animate-pulse">Live</span>
               <div class="w-11 h-11 sm:w-13 sm:h-13 rounded-xl bg-rose-600 flex items-center justify-center shadow-md group-hover:shadow-rose-400/40 transition-shadow">
                 <svg class="w-6 h-6 sm:w-7 sm:h-7 text-white" viewBox="0 0 24 24" fill="currentColor">
@@ -2901,21 +2933,21 @@ export function renderCustomTournamentHub(container, tourney) {
                   <path d="M3 21h4v-1H4.5l2-2H3v3z"/>
                 </svg>
               </div>
-              <span class="text-[10px] sm:text-xs font-extrabold text-rose-900 text-center leading-tight tracking-wide uppercase">Auction</span>
+              <span class="text-[10px] sm:text-xs font-extrabold text-slate-700 text-center leading-tight tracking-wide uppercase">Auction</span>
             </button>
             ` : `
-            <button type="button" data-hub-section="matches" data-subtab="points" class="hub-grid-btn group bg-gradient-to-br from-amber-50 to-amber-100/80 border-2 border-amber-200/70 rounded-2xl p-2.5 sm:p-3 flex flex-col items-center justify-center gap-2 aspect-square hover:shadow-lg hover:border-amber-400 hover:from-amber-100 hover:to-amber-200/80 transition-all duration-200 cursor-pointer active:scale-95">
+            <button type="button" data-hub-section="matches" data-subtab="points" class="hub-grid-btn group bg-white border border-amber-200 rounded-2xl p-2.5 sm:p-3 flex flex-col items-center justify-center gap-2 aspect-square hover:shadow-lg hover:border-amber-400 transition-all duration-200 cursor-pointer active:scale-95">
               <div class="w-11 h-11 sm:w-13 sm:h-13 rounded-xl bg-amber-600 flex items-center justify-center shadow-md group-hover:shadow-amber-400/40 transition-shadow">
                 <svg class="w-6 h-6 sm:w-7 sm:h-7 text-white" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M3 3v18h18V3H3zm16 16H5V5h14v14zM7 7h4v4H7V7zm6 0h4v4h-4V7zm-6 6h4v4H7v-4zm6 0h4v4h-4v-4z"/>
                 </svg>
               </div>
-              <span class="text-[10px] sm:text-xs font-extrabold text-amber-900 text-center leading-tight tracking-wide uppercase">Points<br/>Table</span>
+              <span class="text-[10px] sm:text-xs font-extrabold text-slate-700 text-center leading-tight tracking-wide uppercase">Points<br/>Table</span>
             </button>
             `}
 
             <!-- 5. MATCH CORNER -->
-            <button type="button" data-hub-section="matches" data-subtab="fixtures" class="hub-grid-btn group bg-gradient-to-br from-orange-50 to-orange-100/80 border-2 border-orange-200/70 rounded-2xl p-2.5 sm:p-3 flex flex-col items-center justify-center gap-2 aspect-square hover:shadow-lg hover:border-orange-400 hover:from-orange-100 hover:to-orange-200/80 transition-all duration-200 cursor-pointer active:scale-95">
+            <button type="button" data-hub-section="matches" data-subtab="fixtures" class="hub-grid-btn group bg-white border border-orange-200 rounded-2xl p-2.5 sm:p-3 flex flex-col items-center justify-center gap-2 aspect-square hover:shadow-lg hover:border-orange-400 transition-all duration-200 cursor-pointer active:scale-95">
               <div class="w-11 h-11 sm:w-13 sm:h-13 rounded-xl bg-orange-600 flex items-center justify-center shadow-md group-hover:shadow-orange-400/40 transition-shadow">
                 <svg class="w-6 h-6 sm:w-7 sm:h-7 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
                   <circle cx="12" cy="12" r="10"/>
@@ -2923,17 +2955,17 @@ export function renderCustomTournamentHub(container, tourney) {
                   <path d="M8 2l1.5 3M16 2l-1.5 3" stroke-width="1.5"/>
                 </svg>
               </div>
-              <span class="text-[10px] sm:text-xs font-extrabold text-orange-900 text-center leading-tight tracking-wide uppercase">Match<br/>Corner</span>
+              <span class="text-[10px] sm:text-xs font-extrabold text-slate-700 text-center leading-tight tracking-wide uppercase">Match<br/>Corner</span>
             </button>
 
             <!-- 6. STATISTICS -->
-            <button type="button" data-hub-section="stats" class="hub-grid-btn group bg-gradient-to-br from-cyan-50 to-cyan-100/80 border-2 border-cyan-200/70 rounded-2xl p-2.5 sm:p-3 flex flex-col items-center justify-center gap-2 aspect-square hover:shadow-lg hover:border-cyan-400 hover:from-cyan-100 hover:to-cyan-200/80 transition-all duration-200 cursor-pointer active:scale-95">
+            <button type="button" data-hub-section="stats" class="hub-grid-btn group bg-white border border-cyan-200 rounded-2xl p-2.5 sm:p-3 flex flex-col items-center justify-center gap-2 aspect-square hover:shadow-lg hover:border-cyan-400 transition-all duration-200 cursor-pointer active:scale-95">
               <div class="w-11 h-11 sm:w-13 sm:h-13 rounded-xl bg-cyan-600 flex items-center justify-center shadow-md group-hover:shadow-cyan-400/40 transition-shadow">
                 <svg class="w-6 h-6 sm:w-7 sm:h-7 text-white" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M5 9.2h3V19H5V9.2zM10.6 5h2.8v14h-2.8V5zm5.6 8H19v6h-2.8v-6z"/>
                 </svg>
               </div>
-              <span class="text-[10px] sm:text-xs font-extrabold text-cyan-900 text-center leading-tight tracking-wide uppercase">Statistics</span>
+              <span class="text-[10px] sm:text-xs font-extrabold text-slate-700 text-center leading-tight tracking-wide uppercase">Statistics</span>
             </button>
 
           </div>
