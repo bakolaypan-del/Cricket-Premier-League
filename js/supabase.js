@@ -2602,14 +2602,8 @@ export async function dbRegisterPlayer(playerData, docsData = null) {
 
     return player;
   } catch (err) {
-    console.warn("[POSTGRES] dbRegisterPlayer network notice, saving to offline queue:", err.message || err);
-    try {
-      await enqueueOfflineMutation({
-        type: 'REGISTER_PLAYER',
-        payload: { playerData, docsData }
-      });
-    } catch (qErr) {}
-    return null;
+    console.error("[POSTGRES] dbRegisterPlayer failed:", err.message || err);
+    throw new Error('Registration could not be saved to server. Please check your internet connection and try again.');
   }
 }
 

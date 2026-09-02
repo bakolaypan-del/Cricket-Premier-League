@@ -6979,116 +6979,291 @@ function openPhoneEntryModal() {
   setTimeout(() => document.getElementById('phone-entry-input')?.focus(), 100);
 }
 
-function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
-  if (!store.isPlayerRegistrationOpen()) {
-    openRegistrationClosedModal();
-    return;
+
+// =====================================================================
+// UNIFIED PLAYER REGISTRATION MODAL
+// One standard form used by ALL tournaments (default CPL + custom)
+// =====================================================================
+
+function buildTournamentConfig(tourneyIdOrSlug) {
+  if (!tourneyIdOrSlug) {
+    return {
+      id: 'default-cpl',
+      name: 'Cricket Premier League',
+      shortCode: 'CPL',
+      slug: 'cpl',
+      entryFee: 200,
+      upiId: 'pintusantra4166@nyes',
+      payeeName: 'Pintu Santra',
+      paymentQrUrl: 'assets/navi_qr_code.jpg',
+      supabaseId: null,
+      tournament_id: null,
+      enableSecurityPin: true,
+      enableJerseySize: true,
+      enableState: true,
+      isDefault: true
+    };
   }
-  const upiId = "pintusantra4166@nyes";
-  const payeeName = "Pintu Santra";
-  const amount = 200;
-  const note = "PlayerReg";
+  const t = store.getCustomTournamentById(tourneyIdOrSlug) || {};
+  return {
+    id: t.id || 'default',
+    name: t.name || 'Tournament',
+    shortCode: t.shortCode || (t.slug || 'T').toUpperCase(),
+    slug: t.slug || 'tourney',
+    entryFee: Number(t.entryFee || t.playerEntryFee || 300),
+    upiId: t.upiId || '',
+    payeeName: t.organizer?.name || t.name || 'Tournament',
+    paymentQrUrl: t.paymentQrUrl || '',
+    supabaseId: t.supabaseId || null,
+    tournament_id: t.tournament_id || t.id || null,
+    status: (t.status || 'ACTIVE').toUpperCase(),
+    enableSecurityPin: !!t.enableSecurityPin,
+    enableJerseySize: !!t.enableJerseySize,
+    enableState: !!t.enableState,
+    isDefault: false
+  };
+}
 
-  const prefilledPhone = verifiedPhone || (initialData ? initialData.phone : '') || '';
+function openUnifiedPlayerRegistrationModal(config, prefillData = null) {
+  // Set active tournament context first so all checks read the correct tournament's settings
+  const effectiveTid = config.supabaseId || config.tournament_id || config.id;
+  if (effectiveTid) store.setActiveTournament(effectiveTid);
 
-  const phonepeUrl = `phonepe://pay?pa=${upiId}&pn=${encodeURIComponent(payeeName)}&am=${amount}&cu=INR&tn=${note}`;
-  const gpayUrl = `tez://upi/pay?pa=${upiId}&pn=${encodeURIComponent(payeeName)}&am=${amount}&cu=INR&tn=${note}`;
-  const genericUpiUrl = `upi://pay?pa=${upiId}&pn=${encodeURIComponent(payeeName)}&am=${amount}&cu=INR&tn=${note}`;
-
-  const modalHtml = `
-    <div id="player-reg-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3 overflow-y-auto">
-      <div class="bg-white max-w-md w-full p-4 relative space-y-3 animate-fade-in rounded-2xl shadow-2xl border border-slate-200 modal-content-container max-h-[92vh] overflow-y-auto text-slate-900">
-        <button id="close-player-modal-btn" class="absolute top-3 right-3 text-slate-400 hover:text-slate-800 p-1">
-          <i data-lucide="x" class="w-4 h-4"></i>
-        </button>
-
-        <div>
-          <span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[9px] font-black rounded border border-emerald-300 uppercase">PLAYER REGISTER</span>
-          <h2 class="text-base font-black text-slate-900 mt-0.5">Player Registration Form</h2>
-          <p class="text-[10px] text-slate-500 font-medium mt-0.5">⚡ Serial No. & Registration ID are assigned sequentially upon final submission.</p>
-        </div>
-
-        <form id="player-registration-form" class="space-y-2.5">
-          <!-- 1. Player Name -->
-          <div>
-            <label class="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">Player Name *</label>
-            <input type="text" id="ply-name" required placeholder="Rahul Sharma" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-2 focus:outline-none focus:border-emerald-500" />
-          </div>
-
-          <!-- 2. Date of Birth & Auto-Calculated Age -->
-          <div class="grid grid-cols-2 gap-2">
-            <div>
-              <label class="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">Date of Birth (Select Calendar 📅) *</label>
-              <div class="relative flex items-center">
-                <input type="date" id="ply-dob" required class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-2 pr-8 focus:outline-none focus:border-emerald-500 cursor-pointer" />
+  // --- STATUS CHECKS (Pending / Closed) ---
+  if (config.status === 'PENDING_APPROVAL' || config.status === 'PENDING') {
+    const underReviewHtml = `
+      <div id="unified-reg-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4 animate-fade-in bg-slate-950/75 backdrop-blur-sm">
+        <div class="bg-white text-slate-900 max-w-md w-full rounded-2xl border-2 border-amber-300 shadow-2xl overflow-hidden font-sans">
+          <div class="p-4 bg-gradient-to-r from-amber-50 via-orange-50 to-yellow-50 border-b-2 border-amber-200 flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <span class="w-10 h-10 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center text-xl shrink-0 shadow-md font-black">⏳</span>
+              <div>
+                <h2 class="text-sm sm:text-base font-black text-slate-900 leading-tight">টুর্নামেন্ট যাচাই চলছে • Under Review</h2>
+                <span class="text-[10px] font-bold text-amber-800">Pending Master Admin Approval</span>
               </div>
             </div>
+            <button id="close-unified-reg-modal-btn" class="w-8 h-8 rounded-full bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-950 border border-slate-300 flex items-center justify-center text-sm font-black transition-all shadow-xs cursor-pointer">✕</button>
+          </div>
+          <div class="p-5 text-center space-y-3">
+            <p class="text-sm font-black text-slate-900">${config.name}</p>
+            <p class="text-xs text-slate-600 leading-relaxed" style="font-family: 'Hind Siliguri', 'Anek Bangla', sans-serif;">
+              এই টুর্নামেন্টটির আবেদন বর্তমানে প্ল্যাটফর্ম মাস্টার অ্যাডমিনের অনুমোদনের অপেক্ষায় রয়েছে। অনুমোদন পাওয়ার সাথে সাথে প্লেয়ার রেজিস্ট্রেশন পোর্টাল স্বয়ংক্রিয়ভাবে খুলে যাবে।
+            </p>
+            <div class="p-3 bg-gradient-to-r from-slate-900 to-indigo-950 text-white rounded-xl text-left text-xs space-y-1.5 border border-slate-700">
+              <span class="text-[10px] font-black text-amber-400 uppercase tracking-wider block">জরুরি হেল্পলাইন (Contact Support):</span>
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-[11px] font-bold text-slate-200">📞 Bumba: <a href="tel:8145313902" class="font-mono text-emerald-400 hover:underline">8145313902</a></span>
+                <a href="tel:8145313902" class="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[10px] font-bold">Call</a>
+              </div>
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-[11px] font-bold text-slate-200">✉️ Suman: <a href="mailto:jecanimcet@gmail.com" class="font-mono text-sky-400 hover:underline">jecanimcet@gmail.com</a></span>
+                <a href="mailto:jecanimcet@gmail.com" class="px-2 py-0.5 bg-sky-600 hover:bg-sky-500 text-white rounded text-[10px] font-bold">Mail</a>
+              </div>
+            </div>
+            <button id="close-unified-reg-ok-btn" class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-black rounded-xl transition-all cursor-pointer">ঠিক আছে, হোমপেজে ফিরে যান (Got It)</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.insertAdjacentHTML('beforeend', underReviewHtml);
+    const closeModal = () => document.getElementById('unified-reg-modal')?.remove();
+    document.getElementById('close-unified-reg-modal-btn')?.addEventListener('click', closeModal);
+    document.getElementById('close-unified-reg-ok-btn')?.addEventListener('click', closeModal);
+    return;
+  }
+
+  if (!store.isRegistrationOpen()) {
+    const regSettings = store.getRegistrationSettings();
+    const reason = regSettings.closedReason || 'Registration is currently closed by the Admin.';
+    const closedHtml = `
+      <div id="unified-reg-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4 animate-fade-in bg-slate-950/75 backdrop-blur-sm">
+        <div class="bg-white text-slate-900 max-w-md w-full rounded-2xl border-2 border-red-300 shadow-2xl overflow-hidden">
+          <div class="p-5 bg-gradient-to-r from-red-50 via-rose-50 to-red-50 border-b-2 border-red-200 flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+              <span class="w-10 h-10 rounded-2xl bg-red-600 text-white flex items-center justify-center text-xl shrink-0 shadow-md font-black">🚫</span>
+              <h2 class="text-lg font-black text-slate-900">Registration Closed</h2>
+            </div>
+            <button id="close-unified-reg-modal-btn" class="w-8 h-8 rounded-full bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-950 border border-slate-300 flex items-center justify-center text-sm font-black transition-all shadow-xs cursor-pointer">✕</button>
+          </div>
+          <div class="p-6 text-center space-y-4">
+            <p class="text-sm font-bold text-slate-700">${config.name}</p>
+            <p class="text-xs text-slate-500">${reason}</p>
+            <button id="close-unified-reg-ok-btn" class="px-6 py-2.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-black rounded-xl transition-all cursor-pointer">OK, Go Back</button>
+          </div>
+        </div>
+      </div>`;
+    document.body.insertAdjacentHTML('beforeend', closedHtml);
+    const closeModal = () => document.getElementById('unified-reg-modal')?.remove();
+    document.getElementById('close-unified-reg-modal-btn')?.addEventListener('click', closeModal);
+    document.getElementById('close-unified-reg-ok-btn')?.addEventListener('click', closeModal);
+    return;
+  }
+
+  // --- UPI DEEP LINKS ---
+  const upiId = config.upiId;
+  const payeeName = config.payeeName;
+  const amount = config.entryFee;
+  const phonepeUrl = upiId ? `phonepe://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(payeeName)}&am=${encodeURIComponent(amount)}&cu=INR` : '';
+  const gpayUrl = upiId ? `gpay://upi/pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(payeeName)}&am=${encodeURIComponent(amount)}&cu=INR` : '';
+  const genericUpiUrl = upiId ? `upi://pay?pa=${encodeURIComponent(upiId)}&pn=${encodeURIComponent(payeeName)}&am=${encodeURIComponent(amount)}&cu=INR` : '';
+
+  const prefilledPhone = prefillData?.phone || '';
+
+  // --- BUILD OPTIONAL FIELD HTML ---
+  const securityPinHtml = `
+    <div class="bg-emerald-50/70 border-2 border-emerald-200 p-2.5 rounded-2xl">
+      <div class="flex items-center justify-between mb-0.5">
+        <label class="block text-[10px] font-black text-emerald-900 uppercase tracking-wider">🔒 Account Security PIN (4-Digits) *</label>
+        <span class="text-[8px] text-emerald-700 font-bold">For Profile Login</span>
+      </div>
+      <input type="password" id="ureg-security-pin" required minlength="4" maxlength="10" placeholder="Set your secret 4-digit PIN (e.g. 1234)" class="w-full bg-white border-2 border-emerald-300 text-slate-900 font-mono text-xs rounded-xl p-2 focus:outline-none focus:border-emerald-600 font-bold placeholder-slate-400" value="${prefillData?.securityPin || ''}" />
+    </div>
+  `;
+
+  const stateHtml = `
+    <div>
+      <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">State *</label>
+      <select id="ureg-state" required class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-400">
+        <option value="" disabled>-- Select --</option>
+        <option value="Andhra Pradesh">Andhra Pradesh</option>
+        <option value="Arunachal Pradesh">Arunachal Pradesh</option>
+        <option value="Assam">Assam</option>
+        <option value="Bihar">Bihar</option>
+        <option value="Chhattisgarh">Chhattisgarh</option>
+        <option value="Goa">Goa</option>
+        <option value="Gujarat">Gujarat</option>
+        <option value="Haryana">Haryana</option>
+        <option value="Himachal Pradesh">Himachal Pradesh</option>
+        <option value="Jharkhand">Jharkhand</option>
+        <option value="Karnataka">Karnataka</option>
+        <option value="Kerala">Kerala</option>
+        <option value="Madhya Pradesh">Madhya Pradesh</option>
+        <option value="Maharashtra">Maharashtra</option>
+        <option value="Manipur">Manipur</option>
+        <option value="Meghalaya">Meghalaya</option>
+        <option value="Mizoram">Mizoram</option>
+        <option value="Nagaland">Nagaland</option>
+        <option value="Odisha">Odisha</option>
+        <option value="Punjab">Punjab</option>
+        <option value="Rajasthan">Rajasthan</option>
+        <option value="Sikkim">Sikkim</option>
+        <option value="Tamil Nadu">Tamil Nadu</option>
+        <option value="Telangana">Telangana</option>
+        <option value="Tripura">Tripura</option>
+        <option value="Uttar Pradesh">Uttar Pradesh</option>
+        <option value="Uttarakhand">Uttarakhand</option>
+        <option value="West Bengal" selected>West Bengal</option>
+      </select>
+    </div>
+  `;
+
+  const jerseySizeHtml = config.enableJerseySize ? `
+    <div>
+      <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Select Jersey Size *</label>
+      <select id="ureg-jersey-size" required class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-400">
+        <option value="" disabled selected>-- Select Jersey Size --</option>
+        <option value="S">S (Small)</option>
+        <option value="M">M (Medium)</option>
+        <option value="L">L (Large)</option>
+        <option value="XL">XL (Extra Large)</option>
+        <option value="XXL">XXL (Double XL)</option>
+        <option value="XXXL">XXXL (Triple XL)</option>
+      </select>
+    </div>
+  ` : '';
+
+  // --- QR + UPI SECTION ---
+  const qrSectionHtml = (config.paymentQrUrl || config.upiId) ? `
+    <div class="space-y-2.5">
+      ${config.paymentQrUrl ? `
+        <div class="w-full max-w-[280px] sm:max-w-[340px] aspect-square mx-auto bg-white p-2.5 sm:p-3.5 rounded-3xl shadow-2xl flex items-center justify-center relative overflow-hidden border-4 border-emerald-500/30">
+          <img src="${config.paymentQrUrl.startsWith('http') ? config.paymentQrUrl : (config.paymentQrUrl || `https://api.qrserver.com/v1/create-qr-code/?size=450x450&data=${encodeURIComponent(`upi://pay?pa=${upiId}&pn=${payeeName}&am=${amount}&cu=INR`)}`)}" class="w-full h-full object-contain rounded-2xl" alt="UPI QR Code" />
+        </div>
+      ` : `
+        <div class="w-full max-w-[280px] sm:max-w-[340px] aspect-square mx-auto bg-white p-2.5 sm:p-3.5 rounded-3xl shadow-2xl flex items-center justify-center border-4 border-emerald-500/30">
+          <img src="https://api.qrserver.com/v1/create-qr-code/?size=450x450&data=${encodeURIComponent(`upi://pay?pa=${upiId}&pn=${payeeName}&am=${amount}&cu=INR`)}" class="w-full h-full object-contain rounded-2xl" alt="UPI QR Code" />
+        </div>
+      `}
+      <div class="flex items-center justify-center gap-1.5 text-slate-300 text-xs font-bold bg-slate-800/60 py-1.5 px-3 rounded-full max-w-sm mx-auto">
+        <span class="text-sm">📸</span>
+        <span>Scan with GPay, PhonePe, Paytm, BHIM, or Any UPI App</span>
+      </div>
+    </div>
+  ` : '';
+
+  const upiCopySectionHtml = upiId ? `
+    <div class="space-y-2.5 pt-1">
+      <div class="flex items-center justify-between bg-slate-800/95 hover:bg-slate-800 px-4 py-2.5 rounded-2xl border border-slate-700 max-w-md mx-auto transition-all shadow-inner">
+        <div class="text-left min-w-0 pr-2">
+          <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Official Tournament UPI ID</span>
+          <span class="font-mono text-emerald-400 font-black text-xs sm:text-sm select-all truncate block">${upiId}</span>
+        </div>
+        <button type="button" onclick="navigator.clipboard.writeText('${upiId}'); this.textContent='✅ Copied!'; setTimeout(()=>this.textContent='📋 Copy', 2000)" class="px-3.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-[11px] font-black rounded-xl shadow-xs cursor-pointer transition-all shrink-0">
+          📋 Copy
+        </button>
+      </div>
+      <div class="grid grid-cols-3 gap-2 max-w-md mx-auto">
+        <a href="${gpayUrl}" class="flex flex-col items-center justify-center py-2.5 px-1 bg-white hover:bg-slate-100 text-slate-900 rounded-2xl font-black text-[10px] shadow-sm transition-transform active:scale-95 cursor-pointer">
+          <span class="text-base leading-none mb-0.5">🔵</span><span>Google Pay</span>
+        </a>
+        <a href="${phonepeUrl}" class="flex flex-col items-center justify-center py-2.5 px-1 bg-[#5f259f] hover:bg-[#521e8a] text-white rounded-2xl font-black text-[10px] shadow-sm transition-transform active:scale-95 cursor-pointer">
+          <span class="text-base leading-none mb-0.5">🟣</span><span>PhonePe</span>
+        </a>
+        <a href="${genericUpiUrl}" class="flex flex-col items-center justify-center py-2.5 px-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-2xl font-black text-[10px] shadow-sm transition-transform active:scale-95 cursor-pointer">
+          <span class="text-base leading-none mb-0.5">⚡</span><span>Paytm / UPI</span>
+        </a>
+      </div>
+    </div>
+  ` : '';
+
+  // --- MAIN MODAL HTML ---
+  const modalHtml = `
+    <div id="unified-reg-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-2 sm:p-4 animate-fade-in bg-slate-950/75 backdrop-blur-sm">
+      <div class="bg-white text-slate-900 max-w-xl w-full max-h-[92vh] flex flex-col rounded-2xl sm:rounded-3xl border-2 border-emerald-400 shadow-2xl overflow-hidden">
+
+        <!-- HEADER -->
+        <div class="p-3.5 sm:p-4 bg-gradient-to-r from-emerald-50 via-teal-50 to-green-50 border-b-2 border-emerald-200 flex items-center justify-between gap-2 shrink-0">
+          <div class="flex items-center gap-2.5">
+            <span class="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center text-xl shrink-0 shadow-md font-black">
+              🏏
+            </span>
             <div>
-              <label class="block text-[9px] font-bold text-emerald-700 uppercase mb-0.5">Age (Auto-Fetched)</label>
-              <input type="number" id="ply-age" required readonly placeholder="Auto-Calculated" class="w-full bg-slate-100 border border-slate-300 text-emerald-800 font-extrabold text-xs rounded-lg p-2 cursor-not-allowed" />
+              <span class="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-emerald-200/90 text-emerald-950 border border-emerald-300">
+                OFFICIAL PLAYER REGISTRATION
+              </span>
+              <h2 class="text-base sm:text-lg font-black text-slate-900 tracking-tight leading-tight mt-0.5">
+                ${config.name}
+              </h2>
+            </div>
+          </div>
+          <button id="close-unified-reg-modal-btn" class="w-8 h-8 rounded-full bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-950 border border-slate-300 flex items-center justify-center text-sm font-black transition-all shadow-xs cursor-pointer">
+            ✕
+          </button>
+        </div>
+
+        <!-- BODY -->
+        <form id="unified-reg-form" class="p-4 sm:p-5 overflow-y-auto flex-1 space-y-4 bg-white">
+
+          <!-- 1. SMART PHONE NUMBER WITH AUTO-FILL -->
+          <div class="bg-gradient-to-r from-blue-50 to-indigo-50/80 border-2 border-blue-200 p-3 rounded-2xl space-y-1.5">
+            <label class="block text-xs font-black text-blue-950 uppercase tracking-wider flex items-center justify-between">
+              <span>📱 10-Digit Mobile / WhatsApp Number *</span>
+              <span class="text-[9px] font-mono text-blue-700 font-bold bg-white px-2 py-0.5 rounded-full border border-blue-200">⚡ AUTO-FILL ENGINE</span>
+            </label>
+            <input type="tel" id="ureg-phone" maxlength="10" placeholder="Enter 10-digit mobile number..." class="w-full bg-white border-2 border-blue-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-mono font-black focus:outline-none focus:border-blue-500" required value="${prefilledPhone}" />
+            <div id="ureg-autofill-notice" class="text-[10px] font-bold text-blue-800 hidden flex items-center gap-1">
+              <span>✨ Welcome back! Your cricket profile has been auto-populated.</span>
             </div>
           </div>
 
-          <!-- 3. Account Security PIN (4-Digit Password for Login) -->
-          <div class="bg-emerald-50/70 border border-emerald-200 p-2 rounded-xl">
-            <div class="flex items-center justify-between mb-0.5">
-              <label class="block text-[9px] font-black text-emerald-900 uppercase">🔒 Account Security PIN (4-Digits) *</label>
-              <span class="text-[8px] text-emerald-700 font-bold">For Profile Login</span>
-            </div>
-            <input type="password" id="ply-security-pin" required minlength="4" maxlength="10" placeholder="Set your secret 4-digit PIN (e.g. 1234)" class="w-full bg-white border border-emerald-300 text-slate-900 font-mono text-xs rounded-lg p-1.5 focus:outline-none focus:border-emerald-600 font-bold placeholder-slate-400" />
-          </div>
-
-          <!-- 4. Village/Town, District, State -->
-          <div class="grid grid-cols-3 gap-1.5">
+          <!-- 2. Full Name & Playing Role -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label class="block text-[8px] font-bold text-slate-700 uppercase mb-0.5">Village/Town *</label>
-              <input type="text" id="ply-village" required placeholder="e.g. Jhankra" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-1.5 focus:outline-none focus:border-emerald-500" />
+              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Full Name *</label>
+              <input type="text" id="ureg-name" placeholder="Player Full Name" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-400" required value="${prefillData?.name || ''}" />
             </div>
             <div>
-              <label class="block text-[8px] font-bold text-slate-700 uppercase mb-0.5">District *</label>
-              <input type="text" id="ply-district" required placeholder="e.g. Paschim Medinipur" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-1.5 focus:outline-none focus:border-emerald-500" />
-            </div>
-            <div>
-              <label class="block text-[8px] font-bold text-slate-700 uppercase mb-0.5">State *</label>
-              <select id="ply-state" required class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-1.5 focus:outline-none focus:border-emerald-500">
-                <option value="" disabled>-- Select --</option>
-                <option value="Andhra Pradesh">Andhra Pradesh</option>
-                <option value="Arunachal Pradesh">Arunachal Pradesh</option>
-                <option value="Assam">Assam</option>
-                <option value="Bihar">Bihar</option>
-                <option value="Chhattisgarh">Chhattisgarh</option>
-                <option value="Goa">Goa</option>
-                <option value="Gujarat">Gujarat</option>
-                <option value="Haryana">Haryana</option>
-                <option value="Himachal Pradesh">Himachal Pradesh</option>
-                <option value="Jharkhand">Jharkhand</option>
-                <option value="Karnataka">Karnataka</option>
-                <option value="Kerala">Kerala</option>
-                <option value="Madhya Pradesh">Madhya Pradesh</option>
-                <option value="Maharashtra">Maharashtra</option>
-                <option value="Manipur">Manipur</option>
-                <option value="Meghalaya">Meghalaya</option>
-                <option value="Mizoram">Mizoram</option>
-                <option value="Nagaland">Nagaland</option>
-                <option value="Odisha">Odisha</option>
-                <option value="Punjab">Punjab</option>
-                <option value="Rajasthan">Rajasthan</option>
-                <option value="Sikkim">Sikkim</option>
-                <option value="Tamil Nadu">Tamil Nadu</option>
-                <option value="Telangana">Telangana</option>
-                <option value="Tripura">Tripura</option>
-                <option value="Uttar Pradesh">Uttar Pradesh</option>
-                <option value="Uttarakhand">Uttarakhand</option>
-                <option value="West Bengal" selected>West Bengal</option>
-              </select>
-            </div>
-          </div>
-
-          <!-- 5. Player Category, Batting & Bowling Style -->
-          <div class="grid grid-cols-3 gap-1.5">
-            <div>
-              <label class="block text-[8px] font-bold text-slate-700 uppercase mb-0.5">Player Category *</label>
-              <select id="ply-category" required class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-1.5 focus:outline-none focus:border-emerald-500">
+              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Playing Role *</label>
+              <select id="ureg-category" required class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-400">
                 <option value="" disabled selected>-- Select Category * --</option>
                 <option value="Batsman">Batsman</option>
                 <option value="Bowler">Bowler</option>
@@ -7096,227 +7271,199 @@ function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
                 <option value="Wicket Keeper">Wicket Keeper</option>
               </select>
             </div>
+          </div>
+
+          <!-- 3. DOB & Auto Age -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label class="block text-[8px] font-bold text-slate-700 uppercase mb-0.5">Batting Style *</label>
-              <select id="ply-batting-style" required class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-1.5 focus:outline-none focus:border-emerald-500">
+              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Date of Birth (DOB) *</label>
+              <input type="date" id="ureg-dob" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-400" required value="${prefillData?.dob || ''}" />
+            </div>
+            <div>
+              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1 flex items-center justify-between">
+                <span>Calculated Age</span>
+                <span class="text-[9px] font-mono text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">AUTO-FETCH</span>
+              </label>
+              <input type="text" id="ureg-age" placeholder="Age auto-computed" readonly class="w-full bg-slate-100 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono font-black select-none cursor-not-allowed" />
+            </div>
+          </div>
+
+          <!-- 4. Security PIN (Optional per tournament) -->
+          ${securityPinHtml}
+
+          <!-- 5. Batting & Bowling Style -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Batting Style *</label>
+              <select id="ureg-batting" required class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-400">
                 <option value="Right Hand Bat">Right Hand Bat</option>
                 <option value="Left Hand Bat">Left Hand Bat</option>
               </select>
             </div>
             <div>
-              <label class="block text-[8px] font-bold text-slate-700 uppercase mb-0.5">Bowling Style</label>
-              <select id="ply-bowling-style" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-1.5 focus:outline-none focus:border-emerald-500">
-                <option value="Right Hand Fast">Right Hand Fast</option>
-                <option value="Right Hand Spin">Right Hand Spin</option>
-                <option value="Left Hand Fast">Left Hand Fast</option>
-                <option value="Left Hand Spin">Left Hand Spin</option>
+              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Bowling Style</label>
+              <select id="ureg-bowling" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-400">
+                <option value="Right Arm Medium">Right Arm Medium</option>
+                <option value="Right Arm Fast">Right Arm Fast</option>
+                <option value="Right Arm Spin">Right Arm Spin</option>
+                <option value="Left Arm Fast">Left Arm Fast</option>
+                <option value="Left Arm Spin">Left Arm Spin</option>
                 <option value="None">None</option>
               </select>
             </div>
           </div>
 
-          <!-- 7. HD Player Photo (Square 1:1 Crop with Camera & Gallery Options) -->
-          <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-2 shadow-sm">
-            <div class="flex items-center justify-between">
-              <label class="block text-[9px] font-black text-slate-800 uppercase">Player Photo (Square Shape 1:1) *</label>
-              <span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 text-[8px] font-black rounded-full border border-emerald-300">1:1 SQUARE FORMAT</span>
+          <!-- 6. Village, District, State -->
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div>
+              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Village / Town *</label>
+              <input type="text" id="ureg-village" placeholder="e.g. Your City" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-400" required value="${prefillData?.village || ''}" />
             </div>
-
-            <div class="grid grid-cols-2 gap-2">
-              <!-- Gallery Option -->
-              <label class="px-2.5 py-2 bg-white hover:bg-emerald-50 text-slate-800 font-bold text-[10px] rounded-xl border border-slate-300 flex items-center justify-center gap-1.5 cursor-pointer shadow-sm transition-all hover:border-emerald-400">
-                <i data-lucide="image" class="w-4 h-4 text-emerald-600"></i>
-                <span>📁 Select Gallery</span>
-                <input type="file" id="ply-photo-file-gallery" accept="image/*" class="hidden" />
-              </label>
-
-              <!-- Camera Option -->
-              <label class="px-2.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-extrabold text-[10px] rounded-xl border border-emerald-400 flex items-center justify-center gap-1.5 cursor-pointer shadow-md transition-all">
-                <i data-lucide="camera" class="w-4 h-4 text-amber-300 animate-pulse"></i>
-                <span>📷 Take Live Photo</span>
-                <input type="file" id="ply-photo-file-camera" accept="image/*" capture="user" class="hidden" />
-              </label>
+            <div>
+              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">District</label>
+              <input type="text" id="ureg-district" value="${prefillData?.district || 'Paschim Medinipur'}" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-400" />
             </div>
-
-            <!-- Preview Box with Square Cropped Photo & Re-Crop Button -->
-            <div id="ply-photo-preview-box" class="hidden p-2 bg-white rounded-xl border border-emerald-300 flex items-center justify-between gap-2 shadow-sm">
-              <div class="flex items-center gap-2.5">
-                <img id="ply-photo-preview-img" class="w-12 h-12 rounded-xl object-cover border-2 border-emerald-500 shadow-sm" />
-                <div id="ply-photo-status-text">
-                  <div class="text-[10px] text-slate-900 font-black flex items-center gap-1">
-                    <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-600"></i> Square Photo Ready
-                  </div>
-                  <div class="text-[9px] text-slate-500 font-semibold">Cropped 1:1 Format</div>
-                </div>
-              </div>
-              <button type="button" id="re-crop-ply-photo-btn" class="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-amber-300 font-black text-[10px] rounded-lg border border-slate-700 flex items-center gap-1 shadow">
-                <i data-lucide="crop" class="w-3.5 h-3.5"></i> Re-Crop
-              </button>
-            </div>
+            ${stateHtml}
           </div>
 
-          <!-- 8a. Identity Card FRONT (Aadhaar/Voter/Etc) -->
-          <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-2 shadow-sm">
-            <div class="flex items-center justify-between">
-              <label class="block text-[9px] font-black text-slate-800 uppercase">Identity Card - FRONT Side *</label>
-              <span class="px-2 py-0.5 bg-sky-100 text-sky-800 text-[8px] font-black rounded-full border border-sky-300">AADHAAR / VOTER / ID</span>
-            </div>
+          <!-- 7. Jersey Size (Optional per tournament) -->
+          ${jerseySizeHtml}
 
-            <div class="grid grid-cols-2 gap-2">
-              <label class="px-2.5 py-2 bg-white hover:bg-sky-50 text-slate-800 font-bold text-[10px] rounded-xl border border-slate-300 flex items-center justify-center gap-1.5 cursor-pointer shadow-sm transition-all hover:border-sky-400">
-                <i data-lucide="file-text" class="w-4 h-4 text-sky-600"></i>
-                <span>📁 Select File</span>
-                <input type="file" id="ply-aadhar-file-gallery" accept="image/*" class="hidden" />
-              </label>
-
-              <label class="px-2.5 py-2 bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-500 hover:to-blue-600 text-white font-extrabold text-[10px] rounded-xl border border-sky-400 flex items-center justify-center gap-1.5 cursor-pointer shadow-md transition-all">
-                <i data-lucide="camera" class="w-4 h-4 text-white animate-pulse"></i>
-                <span>📷 Capture Camera</span>
-                <input type="file" id="ply-aadhar-file-camera" accept="image/*" capture="environment" class="hidden" />
-              </label>
-            </div>
-
-            <div id="ply-aadhar-preview-box" class="hidden p-2 bg-white rounded-xl border border-sky-300 flex items-center justify-between gap-2 shadow-sm">
-              <div class="flex items-center gap-2.5">
-                <img id="ply-aadhar-preview-img" class="w-12 h-9 rounded-lg object-cover border border-sky-500 shadow-sm" />
-                <div id="ply-aadhar-status-text">
-                  <div class="text-[10px] text-slate-900 font-black flex items-center gap-1">
-                    <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-sky-600"></i> ID Front Selected
-                  </div>
-                  <div class="text-[9px] text-slate-500 font-semibold">HD Proof Ready</div>
-                </div>
+          <!-- 8. Player Photo (Gallery + Camera + Zoom & Crop) -->
+          <div class="p-3 bg-slate-50 rounded-2xl border-2 border-slate-200 space-y-2">
+            <label class="block text-xs font-black text-slate-800 uppercase tracking-wider flex items-center justify-between">
+              <span>Player HD Passport Photo *</span>
+              <span class="text-[9px] font-mono text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">🔍 ZOOM & CROP</span>
+            </label>
+            <div class="flex items-center gap-3">
+              <div class="w-14 h-14 rounded-2xl bg-slate-200 overflow-hidden shrink-0 border-2 border-emerald-400 shadow-sm">
+                <img id="ureg-preview-photo" src="${prefillData?.photoUrl || 'assets/card_jsl_user.png'}" class="w-full h-full object-cover" />
               </div>
-            </div>
-          </div>
-
-          <!-- 8b. Identity Card BACK -->
-          <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-2 shadow-sm">
-            <div class="flex items-center justify-between">
-              <label class="block text-[9px] font-black text-slate-800 uppercase">Identity Card - BACK Side *</label>
-              <span class="px-2 py-0.5 bg-sky-100 text-sky-800 text-[8px] font-black rounded-full border border-sky-300">BACK SIDE</span>
-            </div>
-
-            <div class="grid grid-cols-2 gap-2">
-              <label class="px-2.5 py-2 bg-white hover:bg-sky-50 text-slate-800 font-bold text-[10px] rounded-xl border border-slate-300 flex items-center justify-center gap-1.5 cursor-pointer shadow-sm transition-all hover:border-sky-400">
-                <i data-lucide="file-text" class="w-4 h-4 text-sky-600"></i>
-                <span>📁 Select File</span>
-                <input type="file" id="ply-idback-file-gallery" accept="image/*" class="hidden" />
-              </label>
-
-              <label class="px-2.5 py-2 bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-500 hover:to-blue-600 text-white font-extrabold text-[10px] rounded-xl border border-sky-400 flex items-center justify-center gap-1.5 cursor-pointer shadow-md transition-all">
-                <i data-lucide="camera" class="w-4 h-4 text-white animate-pulse"></i>
-                <span>📷 Capture Camera</span>
-                <input type="file" id="ply-idback-file-camera" accept="image/*" capture="environment" class="hidden" />
-              </label>
-            </div>
-
-            <div id="ply-idback-preview-box" class="hidden p-2 bg-white rounded-xl border border-sky-300 flex items-center justify-between gap-2 shadow-sm">
-              <div class="flex items-center gap-2.5">
-                <img id="ply-idback-preview-img" class="w-12 h-9 rounded-lg object-cover border border-sky-500 shadow-sm" />
-                <div id="ply-idback-status-text">
-                  <div class="text-[10px] text-slate-900 font-black flex items-center gap-1">
-                    <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-sky-600"></i> ID Back Selected
-                  </div>
-                  <div class="text-[9px] text-slate-500 font-semibold">HD Proof Ready</div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 8c. Select Jersey Size -->
-          <div>
-            <label class="block text-[9px] font-bold text-slate-700 uppercase mb-0.5">Select Jersey Size *</label>
-            <select id="ply-jersey-size" required class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-lg p-2 focus:outline-none focus:border-emerald-500">
-              <option value="" disabled selected>-- Select Jersey Size --</option>
-              <option value="S">S (Small)</option>
-              <option value="M">M (Medium)</option>
-              <option value="L">L (Large)</option>
-              <option value="XL">XL (Extra Large)</option>
-              <option value="XXL">XXL (Double XL)</option>
-              <option value="XXXL">XXXL (Triple XL)</option>
-            </select>
-          </div>
-
-          <!-- 9. Entry Fee Payment & Receipt Upload -->
-          <div class="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-2 shadow-sm">
-            <div class="flex justify-between items-center border-b border-slate-200 pb-1.5">
-              <div>
-                <span class="font-extrabold text-slate-900 text-xs block">Entry Fee Payment</span>
-              </div>
-              <span class="text-lg font-black text-emerald-600">₹ 200</span>
-            </div>
-
-            <div class="bg-white p-2 rounded-xl border border-slate-200 text-center flex flex-col items-center space-y-1">
-              <div class="text-[9px] font-black text-slate-700 uppercase">Scan QR Code Below</div>
-              
-              <div class="overflow-hidden rounded-lg border border-slate-300 p-1 bg-white inline-block">
-                <img src="assets/navi_qr_code.jpg" alt="Pintu Santra Navi UPI QR Code" class="w-32 h-auto mx-auto object-contain rounded" />
-              </div>
-
-              <div class="font-mono font-bold text-[9px] text-emerald-800 bg-emerald-100 px-2 py-0.5 rounded border border-emerald-300 inline-block">
-                pintusantra4166@nyes
-              </div>
-            </div>
-
-            <div class="grid grid-cols-3 gap-1">
-              <a href="${phonepeUrl}" class="py-1 px-1 bg-purple-600 text-white font-extrabold text-[9px] rounded text-center shadow">
-                PhonePe
-              </a>
-              <a href="${gpayUrl}" class="py-1 px-1 bg-blue-600 text-white font-extrabold text-[9px] rounded text-center shadow">
-                GPay
-              </a>
-              <a href="${genericUpiUrl}" class="py-1 px-1 bg-emerald-600 text-white font-extrabold text-[9px] rounded text-center shadow">
-                Any UPI
-              </a>
-            </div>
-
-            <div class="space-y-1.5">
-              <div>
-                <label class="block text-[8px] font-bold text-slate-700 uppercase mb-0.5">UPI Transaction Number *</label>
-                <input type="text" id="ply-upi-ref" required placeholder="UPI/9812736451/PINTU" class="w-full bg-white border border-slate-300 text-emerald-700 font-mono text-[11px] rounded p-1.5 focus:outline-none" />
-              </div>
-
-              <div class="space-y-1">
-                <label class="block text-[8px] font-bold text-slate-700 uppercase mb-0.5">Upload Payment Receipt Screenshot *</label>
-                
+              <div class="flex-1 space-y-1">
                 <div class="grid grid-cols-2 gap-2">
-                  <label class="px-2 py-1.5 bg-white hover:bg-emerald-50 text-slate-800 font-bold text-[9px] rounded-lg border border-slate-300 flex items-center justify-center gap-1 cursor-pointer shadow-sm transition-all">
-                    <i data-lucide="file-image" class="w-3.5 h-3.5 text-emerald-600"></i>
-                    <span>📁 Select File</span>
-                    <input type="file" id="ply-proof-file-gallery" accept="image/*" class="hidden" />
+                  <label class="px-2.5 py-2 bg-white hover:bg-emerald-50 text-slate-800 font-bold text-[10px] rounded-xl border border-slate-300 flex items-center justify-center gap-1.5 cursor-pointer shadow-sm transition-all hover:border-emerald-400">
+                    <i data-lucide="image" class="w-4 h-4 text-emerald-600"></i>
+                    <span>📁 Gallery</span>
+                    <input type="file" id="ureg-photo-gallery" accept="image/*" class="hidden" />
                   </label>
-
-                  <label class="px-2 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[9px] rounded-lg border border-emerald-400 flex items-center justify-center gap-1 cursor-pointer shadow-sm transition-all">
-                    <i data-lucide="camera" class="w-3.5 h-3.5 text-amber-300"></i>
-                    <span>📷 From Camera</span>
-                    <input type="file" id="ply-proof-file-camera" accept="image/*" capture="environment" class="hidden" />
+                  <label class="px-2.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-extrabold text-[10px] rounded-xl border border-emerald-400 flex items-center justify-center gap-1.5 cursor-pointer shadow-md transition-all">
+                    <i data-lucide="camera" class="w-4 h-4 text-amber-300"></i>
+                    <span>📷 Camera</span>
+                    <input type="file" id="ureg-photo-camera" accept="image/*" capture="user" class="hidden" />
                   </label>
                 </div>
-
-                <div id="ply-proof-preview-box" class="hidden p-2 bg-white rounded-xl border border-emerald-300 flex items-center justify-between gap-2 shadow-sm mt-1">
-                  <div class="flex items-center gap-2">
-                    <img id="ply-proof-preview-img" class="w-10 h-7 rounded object-cover border border-emerald-500" />
-                    <div id="ply-proof-status-text">
-                      <span class="text-[9px] text-emerald-700 font-black flex items-center gap-1">
-                        <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-600"></i> Receipt Selected!
-                      </span>
-                    </div>
-                  </div>
-                </div>
+                <div id="ureg-photo-status" class="hidden"></div>
               </div>
             </div>
           </div>
 
+          <!-- 9. Identity Card (Front + Back) -->
+          <div class="p-3.5 bg-gradient-to-br from-slate-50 to-blue-50/50 rounded-2xl border-2 border-blue-200/80 space-y-3">
+            <div class="flex items-center justify-between">
+              <label class="block text-xs font-black text-blue-950 uppercase tracking-wider">
+                🪪 Identity Card Verification
+              </label>
+              <select id="ureg-doctype" class="text-[10px] font-black bg-white border border-blue-300 rounded-lg px-2 py-1 text-blue-900 focus:outline-none">
+                <option value="Aadhaar Card">Aadhaar Card</option>
+                <option value="Voter ID Card">Voter ID Card</option>
+                <option value="PAN Card">PAN Card</option>
+                <option value="Driving License">Driving License</option>
+              </select>
+            </div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div class="bg-white p-2.5 rounded-xl border border-blue-200 space-y-1">
+                <label class="block text-[10px] font-black text-slate-700 uppercase">1. ID Card Front Side *</label>
+                <div class="grid grid-cols-2 gap-1.5">
+                  <label class="px-2 py-1.5 bg-slate-50 hover:bg-sky-50 text-slate-800 font-bold text-[9px] rounded-lg border border-slate-300 flex items-center justify-center gap-1 cursor-pointer shadow-sm transition-all">
+                    <i data-lucide="file-text" class="w-3.5 h-3.5 text-sky-600"></i>
+                    <span>📁 File</span>
+                    <input type="file" id="ureg-id-front-gallery" accept="image/*" class="hidden" />
+                  </label>
+                  <label class="px-2 py-1.5 bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-500 hover:to-blue-600 text-white font-extrabold text-[9px] rounded-lg border border-sky-400 flex items-center justify-center gap-1 cursor-pointer shadow-sm transition-all">
+                    <i data-lucide="camera" class="w-3.5 h-3.5 text-white"></i>
+                    <span>📷 Cam</span>
+                    <input type="file" id="ureg-id-front-camera" accept="image/*" capture="environment" class="hidden" />
+                  </label>
+                </div>
+                <div id="ureg-id-front-status" class="hidden"></div>
+              </div>
+              <div class="bg-white p-2.5 rounded-xl border border-blue-200 space-y-1">
+                <label class="block text-[10px] font-black text-slate-700 uppercase">2. ID Card Back Side *</label>
+                <div class="grid grid-cols-2 gap-1.5">
+                  <label class="px-2 py-1.5 bg-slate-50 hover:bg-sky-50 text-slate-800 font-bold text-[9px] rounded-lg border border-slate-300 flex items-center justify-center gap-1 cursor-pointer shadow-sm transition-all">
+                    <i data-lucide="file-text" class="w-3.5 h-3.5 text-sky-600"></i>
+                    <span>📁 File</span>
+                    <input type="file" id="ureg-id-back-gallery" accept="image/*" class="hidden" />
+                  </label>
+                  <label class="px-2 py-1.5 bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-500 hover:to-blue-600 text-white font-extrabold text-[9px] rounded-lg border border-sky-400 flex items-center justify-center gap-1 cursor-pointer shadow-sm transition-all">
+                    <i data-lucide="camera" class="w-3.5 h-3.5 text-white"></i>
+                    <span>📷 Cam</span>
+                    <input type="file" id="ureg-id-back-camera" accept="image/*" capture="environment" class="hidden" />
+                  </label>
+                </div>
+                <div id="ureg-id-back-status" class="hidden"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 10. PAYMENT SECTION (Dark Theme) -->
+          <div class="rounded-3xl bg-slate-900 text-white p-4 sm:p-6 shadow-2xl border border-slate-800 space-y-4 text-center">
+            <div class="flex items-center justify-between bg-slate-800/90 px-4 py-3 rounded-2xl border border-slate-700/80">
+              <div class="text-left">
+                <span class="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Player Registration Fee</span>
+                <span class="text-xs font-bold text-slate-200">${config.name}</span>
+              </div>
+              <div class="text-right">
+                <span class="text-2xl font-black text-emerald-400 font-mono">₹ ${Number(amount).toLocaleString('en-IN')}</span>
+              </div>
+            </div>
+
+            ${qrSectionHtml}
+            ${upiCopySectionHtml}
+
+            <div class="text-left bg-slate-800/90 p-3.5 sm:p-4 rounded-2xl border border-slate-700 space-y-3">
+              <div>
+                <label class="block text-[11px] font-black text-slate-200 uppercase tracking-wider mb-1">
+                  1. UPI Payment ID / UTR / Transaction No. <span class="text-rose-400">*</span>
+                </label>
+                <input type="text" id="ureg-payment-ref" placeholder="e.g. 423456789012 (12-Digit UTR No.)" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-mono font-bold text-emerald-400 placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-all" required />
+              </div>
+              <div>
+                <label class="block text-[11px] font-black text-slate-200 uppercase tracking-wider mb-1">
+                  2. Payment Screenshot Proof <span class="text-rose-400">*</span>
+                </label>
+                <div class="grid grid-cols-2 gap-2">
+                  <label class="px-2.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-[10px] rounded-xl border border-slate-600 flex items-center justify-center gap-1.5 cursor-pointer shadow-sm transition-all">
+                    <i data-lucide="file-image" class="w-3.5 h-3.5 text-emerald-400"></i>
+                    <span>📁 Select File</span>
+                    <input type="file" id="ureg-receipt-gallery" accept="image/*" class="hidden" />
+                  </label>
+                  <label class="px-2.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-[10px] rounded-xl border border-emerald-400 flex items-center justify-center gap-1.5 cursor-pointer shadow-md transition-all">
+                    <i data-lucide="camera" class="w-3.5 h-3.5 text-amber-300"></i>
+                    <span>📷 Camera</span>
+                    <input type="file" id="ureg-receipt-camera" accept="image/*" capture="environment" class="hidden" />
+                  </label>
+                </div>
+                <div id="ureg-receipt-status" class="hidden mt-1"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 11. Terms & Conditions -->
           <div class="pt-1">
             <label class="flex items-start gap-2 text-[10px] text-slate-700 cursor-pointer">
-              <input type="checkbox" id="ply-terms" required class="w-4 h-4 mt-0.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 bg-white" />
+              <input type="checkbox" id="ureg-terms" required class="w-4 h-4 mt-0.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 bg-white" />
               <span>I hereby confirm all information provided is accurate and I agree to all League Terms & Conditions. *</span>
             </label>
           </div>
 
-          <button type="submit" id="submit-player-reg-btn" class="w-full py-2.5 bg-gradient-to-r from-emerald-600 via-teal-700 to-emerald-600 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-xs rounded-xl shadow-md border border-emerald-400 transition-all">
-            Submit Player Registration
-          </button>
+          <!-- 12. SUBMIT BUTTON -->
+          <div class="pt-2">
+            <button type="submit" id="ureg-submit-btn" class="w-full py-3.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-emerald-400">
+              <span>Submit Registration to ${config.shortCode || config.name} ➔</span>
+            </button>
+          </div>
+
         </form>
       </div>
     </div>
@@ -7325,396 +7472,273 @@ function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
   document.body.insertAdjacentHTML('beforeend', modalHtml);
   if (window.lucide) window.lucide.createIcons();
 
-  const removeModal = () => document.getElementById('player-reg-modal')?.remove();
-  document.getElementById('close-player-modal-btn')?.addEventListener('click', removeModal);
+  const removeModal = () => document.getElementById('unified-reg-modal')?.remove();
+  document.getElementById('close-unified-reg-modal-btn')?.addEventListener('click', removeModal);
 
-  // AUTOMATIC AGE CALCULATION FROM DATE OF BIRTH
-  const updateAgeFromDOB = () => {
-    const dobVal = document.getElementById('ply-dob')?.value;
+  // --- AUTO AGE CALCULATION ---
+  const dobInput = document.getElementById('ureg-dob');
+  const ageInput = document.getElementById('ureg-age');
+  const calcAge = () => {
+    const dobVal = dobInput?.value;
     if (dobVal) {
-      const birthDate = new Date(dobVal);
+      const birth = new Date(dobVal);
       const today = new Date();
-      let calculatedAge = today.getFullYear() - birthDate.getFullYear();
-      const m = today.getMonth() - birthDate.getMonth();
-      if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
-        calculatedAge--;
-      }
-      if (calculatedAge > 0) {
-        document.getElementById('ply-age').value = calculatedAge;
-      }
+      let age = today.getFullYear() - birth.getFullYear();
+      const m = today.getMonth() - birth.getMonth();
+      if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) age--;
+      if (ageInput && age >= 0 && age <= 120) ageInput.value = age;
     }
   };
+  dobInput?.addEventListener('change', calcAge);
+  dobInput?.addEventListener('input', calcAge);
+  if (prefillData?.dob) setTimeout(calcAge, 50);
 
-  document.getElementById('ply-dob')?.addEventListener('change', updateAgeFromDOB);
-
-  // AUTO-POPULATE RETURNING PLAYER DETAILS FROM LIFETIME PROFILE
-  if (initialData) {
-    if (initialData.name) document.getElementById('ply-name').value = initialData.name;
-    if (initialData.dob) {
-      document.getElementById('ply-dob').value = initialData.dob;
-      updateAgeFromDOB();
-    }
-    if (initialData.village) document.getElementById('ply-village').value = initialData.village;
-    if (initialData.district) document.getElementById('ply-district').value = initialData.district;
-    if (initialData.category || initialData.playingType) document.getElementById('ply-category').value = initialData.category || initialData.playingType;
-    if (initialData.battingStyle) document.getElementById('ply-batting-style').value = initialData.battingStyle;
-    if (initialData.bowlingStyle) document.getElementById('ply-bowling-style').value = initialData.bowlingStyle;
-    if (initialData.jerseySize) document.getElementById('ply-jersey-size').value = initialData.jerseySize;
-    if (initialData.securityPin) document.getElementById('ply-security-pin').value = initialData.securityPin;
+  // --- PREFILL CATEGORY/BATTING/BOWLING FROM DATA ---
+  if (prefillData?.category) {
+    const catEl = document.getElementById('ureg-category');
+    if (catEl) catEl.value = prefillData.category;
+  }
+  if (prefillData?.battingStyle) {
+    const batEl = document.getElementById('ureg-batting');
+    if (batEl) batEl.value = prefillData.battingStyle;
+  }
+  if (prefillData?.bowlingStyle) {
+    const bowlEl = document.getElementById('ureg-bowling');
+    if (bowlEl) bowlEl.value = prefillData.bowlingStyle;
+  }
+  if (prefillData?.state) {
+    const stateEl = document.getElementById('ureg-state');
+    if (stateEl) stateEl.value = prefillData.state;
+  }
+  if (prefillData?.jerseySize && config.enableJerseySize) {
+    const jerseyEl = document.getElementById('ureg-jersey-size');
+    if (jerseyEl) jerseyEl.value = prefillData.jerseySize;
   }
 
-  let plyPhotoFileObj = null;
-  let plyAadharFileObj = null;
-  let plyProofFileObj = null;
+  // --- PHONE AUTO-FILL ENGINE ---
+  let uploadedPhotoUrl = prefillData?.photoUrl || '';
+  let uploadedIdFrontUrl = '';
+  let uploadedIdBackUrl = '';
+  let uploadedReceiptUrl = '';
 
-  let plyPhotoDataUrl = (initialData && initialData.photoUrl) ? initialData.photoUrl : '';
-  let plyAadharDataUrl = '';
-  let plyIdBackDataUrl = '';
-  let plyProofDataUrl = '';
+  const resetFormFields = () => {
+    const fields = {
+      'ureg-name': '', 'ureg-category': '', 'ureg-dob': '', 'ureg-age': '',
+      'ureg-batting': 'Right Hand Bat', 'ureg-bowling': 'Right Arm Medium',
+      'ureg-village': '', 'ureg-district': 'Paschim Medinipur'
+    };
+    Object.entries(fields).forEach(([id, val]) => {
+      const el = document.getElementById(id);
+      if (el) el.value = val;
+    });
+    const previewEl = document.getElementById('ureg-preview-photo');
+    if (previewEl) previewEl.src = 'assets/card_jsl_user.png';
+    uploadedPhotoUrl = '';
+    document.getElementById('ureg-autofill-notice')?.classList.add('hidden');
+  };
 
-  let finalPhotoUrl = (initialData && initialData.photoUrl) ? initialData.photoUrl : '';
-  let finalAadharUrl = '';
-  let finalIdBackUrl = '';
-  let finalProofUrl = '';
-
-  if (initialData && initialData.photoUrl) {
-    setTimeout(() => {
-      const previewBox = document.getElementById('ply-photo-preview-box');
-      const previewImg = document.getElementById('ply-photo-preview-img');
-      const statusBox = document.getElementById('ply-photo-status-text');
-      if (previewBox) previewBox.classList.remove('hidden');
-      if (previewImg) previewImg.src = initialData.photoUrl;
-      if (statusBox) {
-        statusBox.innerHTML = `<span class="text-[9px] text-emerald-700 font-black flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-300"><i data-lucide="check-circle" class="w-3.5 h-3.5 text-emerald-600"></i> ✅ Photo Auto-Loaded from Lifetime Profile</span>`;
-        if (window.lucide) window.lucide.createIcons();
+  const phoneInput = document.getElementById('ureg-phone');
+  phoneInput?.addEventListener('input', async (e) => {
+    const val = e.target.value.trim().replace(/[^0-9]/g, '');
+    if (val.length === 10) {
+      let existing = store.getUniversalPlayerByPhone(val);
+      if (!existing) {
+        existing = await dbLookupPlayerByPhone(val);
       }
-    }, 50);
-  }
-
-  // PROCESS PLAYER PHOTO (REALTIME 100KB COMPRESSION + INSTANT CDN UPLOAD + GREEN CHECKMARK)
-  const processAndUploadPhoto = async (dataUrlOrFile) => {
-    const previewBox = document.getElementById('ply-photo-preview-box');
-    const previewImg = document.getElementById('ply-photo-preview-img');
-    const statusBox = document.getElementById('ply-photo-status-text');
-
-    if (previewBox) previewBox.classList.remove('hidden');
-    if (previewImg && typeof dataUrlOrFile === 'string') previewImg.src = dataUrlOrFile;
-
-    if (statusBox) {
-      statusBox.innerHTML = `
-        <span class="text-[9px] text-amber-600 font-extrabold flex items-center gap-1">
-          <i data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i> ⏳ Compressing (&lt;100KB) & Uploading to Cloud CDN...
-        </span>
-      `;
-      if (window.lucide) window.lucide.createIcons();
-    }
-
-    try {
-      const compressedDataUrl = typeof dataUrlOrFile === 'string' && dataUrlOrFile.startsWith('data:image') 
-        ? dataUrlOrFile 
-        : await compressImage(dataUrlOrFile, 800, 800, 0.75);
-
-      plyPhotoDataUrl = compressedDataUrl;
-      if (previewImg) previewImg.src = compressedDataUrl;
-
-      const cdnUrl = await uploadHDImage(compressedDataUrl, 'player_photos');
-      if (cdnUrl && (cdnUrl.startsWith('http://') || cdnUrl.startsWith('https://'))) {
-        finalPhotoUrl = cdnUrl;
-        const estKb = Math.round((compressedDataUrl.length - 22) * 0.75 / 1024);
-        if (statusBox) {
-          statusBox.innerHTML = `
-            <span class="text-[9px] text-emerald-700 font-black flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-300">
-              <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-600"></i> ✅ Player Photo Uploaded to CDN (${estKb} KB)
-            </span>
-          `;
-          if (window.lucide) window.lucide.createIcons();
+      if (existing) {
+        document.getElementById('ureg-name').value = existing.name || existing.full_name || '';
+        document.getElementById('ureg-category').value = existing.category || existing.role || 'All-rounder';
+        document.getElementById('ureg-batting').value = existing.battingStyle || existing.batting_style || 'Right Hand Bat';
+        document.getElementById('ureg-bowling').value = existing.bowlingStyle || existing.bowling_style || 'Right Arm Medium';
+        document.getElementById('ureg-village').value = existing.village || '';
+        document.getElementById('ureg-district').value = existing.district || 'Paschim Medinipur';
+        if (existing.dob) {
+          const dobEl = document.getElementById('ureg-dob');
+          if (dobEl) { dobEl.value = existing.dob; dobEl.dispatchEvent(new Event('change')); }
         }
+        const photo = existing.photoUrl || existing.photo_url;
+        if (photo) {
+          uploadedPhotoUrl = photo;
+          document.getElementById('ureg-preview-photo').src = photo;
+        }
+        if (existing.state) {
+          const stateEl = document.getElementById('ureg-state');
+          if (stateEl) stateEl.value = existing.state;
+        }
+        if (existing.security_pin || existing.securityPin) {
+          const pinEl = document.getElementById('ureg-security-pin');
+          if (pinEl) pinEl.value = existing.security_pin || existing.securityPin;
+        }
+        document.getElementById('ureg-autofill-notice')?.classList.remove('hidden');
       } else {
-        finalPhotoUrl = compressedDataUrl;
-        if (statusBox) {
-          statusBox.innerHTML = `<span class="text-[9px] text-emerald-700 font-bold">✅ Photo Compressed (&lt;100 KB Ready)</span>`;
-        }
+        resetFormFields();
       }
-    } catch (err) {
-      console.warn("Photo compression upload error:", err);
-    }
-  };
-
-  const handlePhotoSelection = (file) => {
-    if (!file) return;
-    plyPhotoFileObj = file;
-    const objectUrl = URL.createObjectURL(file);
-    openSquareImageCropModal(objectUrl, (croppedSquareDataUrl) => {
-      processAndUploadPhoto(croppedSquareDataUrl);
-    }, 'Crop Player Photo (Square 1:1)');
-  };
-
-  document.getElementById('ply-photo-file-gallery')?.addEventListener('change', (e) => handlePhotoSelection(e.target.files[0]));
-  document.getElementById('ply-photo-file-camera')?.addEventListener('change', (e) => handlePhotoSelection(e.target.files[0]));
-
-  document.getElementById('re-crop-ply-photo-btn')?.addEventListener('click', () => {
-    if (plyPhotoDataUrl) {
-      openSquareImageCropModal(plyPhotoDataUrl, (croppedSquareDataUrl) => {
-        processAndUploadPhoto(croppedSquareDataUrl);
-      }, 'Re-Crop Player Photo (Square 1:1)');
+    } else {
+      resetFormFields();
     }
   });
+  if (prefilledPhone && prefilledPhone.length === 10) {
+    setTimeout(() => phoneInput?.dispatchEvent(new Event('input')), 100);
+  }
 
-  // PROCESS AADHAAR CARD PROOF (REALTIME 100KB COMPRESSION + INSTANT CDN UPLOAD + GREEN CHECKMARK)
-  const handleAadharSelection = async (file) => {
+  // --- PHOTO UPLOAD WITH CROP + CDN ---
+  const handlePhotoSelect = (file) => {
     if (!file) return;
-    plyAadharFileObj = file;
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const rawSrc = ev.target.result;
+      openPlayerPhotoCropModal(rawSrc, async (croppedDataUrl) => {
+        uploadedPhotoUrl = croppedDataUrl;
+        document.getElementById('ureg-preview-photo').src = croppedDataUrl;
+        const statusEl = document.getElementById('ureg-photo-status');
+        if (statusEl) {
+          statusEl.innerHTML = `<div class="mt-1 p-1.5 bg-emerald-50 border border-emerald-300 rounded-lg flex items-center gap-1.5 text-emerald-800 text-[10px] font-black animate-pulse">
+            <span class="inline-block w-3 h-3 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></span>
+            <span>Compressing & uploading to CDN...</span>
+          </div>`;
+          statusEl.classList.remove('hidden');
+        }
+        try {
+          const compressed = await compressImageToTarget(croppedDataUrl, 95, 800);
+          const slugVal = (config.slug || 'cpl').toLowerCase();
+          const cdnUrl = await uploadHDImage(compressed || croppedDataUrl, `players/${slugVal}`);
+          if (cdnUrl) uploadedPhotoUrl = cdnUrl;
+          if (statusEl) statusEl.innerHTML = `<div class="mt-1 p-1 bg-emerald-50 border border-emerald-400 rounded-lg flex items-center gap-1 text-[10px] font-black text-emerald-950"><span class="w-3 h-3 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[8px]">✓</span> Photo Uploaded</div>`;
+        } catch (err) {
+          if (statusEl) statusEl.innerHTML = `<span class="text-[9.5px] font-black text-emerald-800">✓ Photo Ready (Local)</span>`;
+        }
+      });
+    };
+    reader.readAsDataURL(file);
+  };
+  document.getElementById('ureg-photo-gallery')?.addEventListener('change', (e) => handlePhotoSelect(e.target.files[0]));
+  document.getElementById('ureg-photo-camera')?.addEventListener('change', (e) => handlePhotoSelect(e.target.files[0]));
 
-    const previewBox = document.getElementById('ply-aadhar-preview-box');
-    const previewImg = document.getElementById('ply-aadhar-preview-img');
-    const statusBox = document.getElementById('ply-aadhar-status-text');
-
-    if (previewBox) previewBox.classList.remove('hidden');
-
-    if (statusBox) {
-      statusBox.innerHTML = `
-        <span class="text-[9px] text-amber-600 font-extrabold flex items-center gap-1">
-          <i data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i> ⏳ Compressing (&lt;100KB) & Uploading Aadhaar to Cloud CDN...
-        </span>
-      `;
-      if (window.lucide) window.lucide.createIcons();
+  // --- ID CARD FRONT UPLOAD + CDN ---
+  const handleIdUpload = async (file, statusId, folder, setter) => {
+    if (!file) return;
+    const statusEl = document.getElementById(statusId);
+    if (statusEl) {
+      statusEl.innerHTML = `<div class="mt-1 p-1 bg-blue-50 border border-blue-300 rounded-md flex items-center gap-1 text-blue-800 text-[9.5px] font-black animate-pulse">
+        <span class="inline-block w-2.5 h-2.5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></span>
+        <span>Compressing & uploading...</span>
+      </div>`;
+      statusEl.classList.remove('hidden');
     }
-
     try {
-      const compressedDataUrl = await compressImage(file, 800, 800, 0.75);
-      plyAadharDataUrl = compressedDataUrl;
-      if (previewImg) previewImg.src = compressedDataUrl;
-
-      const cdnUrl = await uploadHDImage(compressedDataUrl, 'aadhaar_docs');
-      if (cdnUrl && (cdnUrl.startsWith('http://') || cdnUrl.startsWith('https://'))) {
-        finalAadharUrl = cdnUrl;
-        const estKb = Math.round((compressedDataUrl.length - 22) * 0.75 / 1024);
-        if (statusBox) {
-          statusBox.innerHTML = `
-            <span class="text-[9px] text-emerald-700 font-black flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-300">
-              <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-600"></i> ✅ Aadhaar Document Uploaded to CDN (${estKb} KB)
-            </span>
-          `;
-          if (window.lucide) window.lucide.createIcons();
-        }
+      const compressed = await compressImageToTarget(file, 95, 1200);
+      const slugVal = (config.slug || 'cpl').toLowerCase();
+      const cdnUrl = await uploadHDImage(compressed || file, `${folder}/${slugVal}`);
+      if (cdnUrl) {
+        setter(cdnUrl);
       } else {
-        finalAadharUrl = compressedDataUrl;
-        if (statusBox) {
-          statusBox.innerHTML = `<span class="text-[9px] text-emerald-700 font-bold">✅ Aadhaar Document Ready (&lt;100 KB)</span>`;
-        }
+        const reader = new FileReader();
+        reader.onload = (ev) => setter(ev.target.result);
+        reader.readAsDataURL(compressed || file);
       }
-    } catch (err) {
-      console.warn("Aadhaar upload notice:", err);
+      if (statusEl) statusEl.innerHTML = `<div class="mt-1 p-0.5 bg-emerald-50 border border-emerald-400 rounded-md flex items-center gap-1 text-[9.5px] font-black text-emerald-950"><span class="w-3 h-3 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[8px]">✓</span> Uploaded</div>`;
+    } catch (e) {
+      const reader = new FileReader();
+      reader.onload = (ev) => setter(ev.target.result);
+      reader.readAsDataURL(file);
+      if (statusEl) statusEl.innerHTML = `<span class="text-[9px] font-black text-emerald-800">✓ Ready (Local)</span>`;
     }
   };
 
-  document.getElementById('ply-aadhar-file-gallery')?.addEventListener('change', (e) => handleAadharSelection(e.target.files[0]));
-  document.getElementById('ply-aadhar-file-camera')?.addEventListener('change', (e) => handleAadharSelection(e.target.files[0]));
+  document.getElementById('ureg-id-front-gallery')?.addEventListener('change', (e) => handleIdUpload(e.target.files[0], 'ureg-id-front-status', 'verification', (u) => { uploadedIdFrontUrl = u; }));
+  document.getElementById('ureg-id-front-camera')?.addEventListener('change', (e) => handleIdUpload(e.target.files[0], 'ureg-id-front-status', 'verification', (u) => { uploadedIdFrontUrl = u; }));
+  document.getElementById('ureg-id-back-gallery')?.addEventListener('change', (e) => handleIdUpload(e.target.files[0], 'ureg-id-back-status', 'id_card_back', (u) => { uploadedIdBackUrl = u; }));
+  document.getElementById('ureg-id-back-camera')?.addEventListener('change', (e) => handleIdUpload(e.target.files[0], 'ureg-id-back-status', 'id_card_back', (u) => { uploadedIdBackUrl = u; }));
 
-  // PROCESS ID CARD BACK (REALTIME 100KB COMPRESSION + INSTANT CDN UPLOAD + GREEN CHECKMARK)
-  const handleIdBackSelection = async (file) => {
+  // --- RECEIPT UPLOAD + CDN ---
+  const handleReceiptSelect = async (file) => {
     if (!file) return;
-
-    const previewBox = document.getElementById('ply-idback-preview-box');
-    const previewImg = document.getElementById('ply-idback-preview-img');
-    const statusBox = document.getElementById('ply-idback-status-text');
-
-    if (previewBox) previewBox.classList.remove('hidden');
-
-    if (statusBox) {
-      statusBox.innerHTML = `
-        <span class="text-[9px] text-amber-600 font-extrabold flex items-center gap-1">
-          <i data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i> ⏳ Compressing & Uploading ID Back to Cloud CDN...
-        </span>
-      `;
-      if (window.lucide) window.lucide.createIcons();
+    const statusEl = document.getElementById('ureg-receipt-status');
+    if (statusEl) {
+      statusEl.innerHTML = `<div class="mt-1 p-1 bg-emerald-50 border border-emerald-300 rounded-md flex items-center gap-1 text-emerald-800 text-[9.5px] font-black animate-pulse">
+        <span class="inline-block w-2.5 h-2.5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></span>
+        <span>Compressing receipt & uploading...</span>
+      </div>`;
+      statusEl.classList.remove('hidden');
     }
-
     try {
-      const compressedDataUrl = await compressImage(file, 800, 800, 0.75);
-      plyIdBackDataUrl = compressedDataUrl;
-      if (previewImg) previewImg.src = compressedDataUrl;
-
-      const cdnUrl = await uploadHDImage(compressedDataUrl, 'id_card_back');
-      if (cdnUrl && (cdnUrl.startsWith('http://') || cdnUrl.startsWith('https://'))) {
-        finalIdBackUrl = cdnUrl;
-        const estKb = Math.round((compressedDataUrl.length - 22) * 0.75 / 1024);
-        if (statusBox) {
-          statusBox.innerHTML = `
-            <span class="text-[9px] text-emerald-700 font-black flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-300">
-              <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-600"></i> ✅ ID Back Uploaded to CDN (${estKb} KB)
-            </span>
-          `;
-          if (window.lucide) window.lucide.createIcons();
-        }
+      const compressed = await compressImageToTarget(file, 95, 1200);
+      const slugVal = (config.slug || 'cpl').toLowerCase();
+      const cdnUrl = await uploadHDImage(compressed || file, `receipts/${slugVal}`);
+      if (cdnUrl) {
+        uploadedReceiptUrl = cdnUrl;
       } else {
-        finalIdBackUrl = compressedDataUrl;
-        if (statusBox) {
-          statusBox.innerHTML = `<span class="text-[9px] text-emerald-700 font-bold">✅ ID Back Ready (<100 KB)</span>`;
-        }
+        const reader = new FileReader();
+        reader.onload = (ev) => { uploadedReceiptUrl = ev.target.result; };
+        reader.readAsDataURL(compressed || file);
       }
-    } catch (err) {
-      console.warn("ID Back upload notice:", err);
+      if (statusEl) statusEl.innerHTML = `<div class="mt-1 p-0.5 bg-emerald-50 border border-emerald-400 rounded-md flex items-center gap-1 text-[9.5px] font-black text-emerald-950"><span class="w-3 h-3 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[8px]">✓</span> Receipt Uploaded</div>`;
+    } catch (e) {
+      const reader = new FileReader();
+      reader.onload = (ev) => { uploadedReceiptUrl = ev.target.result; };
+      reader.readAsDataURL(file);
+      if (statusEl) statusEl.innerHTML = `<span class="text-[9px] font-black text-emerald-800">✓ Receipt Ready (Local)</span>`;
     }
   };
+  document.getElementById('ureg-receipt-gallery')?.addEventListener('change', (e) => handleReceiptSelect(e.target.files[0]));
+  document.getElementById('ureg-receipt-camera')?.addEventListener('change', (e) => handleReceiptSelect(e.target.files[0]));
 
-  document.getElementById('ply-idback-file-gallery')?.addEventListener('change', (e) => handleIdBackSelection(e.target.files[0]));
-  document.getElementById('ply-idback-file-camera')?.addEventListener('change', (e) => handleIdBackSelection(e.target.files[0]));
-
-  // PROCESS PAYMENT RECEIPT SCREENSHOT (REALTIME 100KB COMPRESSION + INSTANT CDN UPLOAD + GREEN CHECKMARK)
-  const handleProofSelection = async (file) => {
-    if (!file) return;
-    plyProofFileObj = file;
-
-    const previewBox = document.getElementById('ply-proof-preview-box');
-    const previewImg = document.getElementById('ply-proof-preview-img');
-    const statusBox = document.getElementById('ply-proof-status-text');
-
-    if (previewBox) previewBox.classList.remove('hidden');
-
-    if (statusBox) {
-      statusBox.innerHTML = `
-        <span class="text-[9px] text-amber-600 font-extrabold flex items-center gap-1">
-          <i data-lucide="loader" class="w-3.5 h-3.5 animate-spin"></i> ⏳ Compressing (&lt;100KB) & Uploading Receipt to Cloud CDN...
-        </span>
-      `;
-      if (window.lucide) window.lucide.createIcons();
-    }
-
-    try {
-      const compressedDataUrl = await compressImage(file, 800, 800, 0.75);
-      plyProofDataUrl = compressedDataUrl;
-      if (previewImg) previewImg.src = compressedDataUrl;
-
-      const cdnUrl = await uploadHDImage(compressedDataUrl, 'payment_receipts');
-      if (cdnUrl && (cdnUrl.startsWith('http://') || cdnUrl.startsWith('https://'))) {
-        finalProofUrl = cdnUrl;
-        const estKb = Math.round((compressedDataUrl.length - 22) * 0.75 / 1024);
-        if (statusBox) {
-          statusBox.innerHTML = `
-            <span class="text-[9px] text-emerald-700 font-black flex items-center gap-1 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-300">
-              <i data-lucide="check-circle-2" class="w-3.5 h-3.5 text-emerald-600"></i> ✅ Payment Receipt Uploaded to CDN (${estKb} KB)
-            </span>
-          `;
-          if (window.lucide) window.lucide.createIcons();
-        }
-      } else {
-        finalProofUrl = compressedDataUrl;
-        if (statusBox) {
-          statusBox.innerHTML = `<span class="text-[9px] text-emerald-700 font-bold">✅ Payment Receipt Ready (&lt;100 KB)</span>`;
-        }
-      }
-    } catch (err) {
-      console.warn("Proof upload notice:", err);
-    }
-  };
-
-  document.getElementById('ply-proof-file-gallery')?.addEventListener('change', (e) => handleProofSelection(e.target.files[0]));
-  document.getElementById('ply-proof-file-camera')?.addEventListener('change', (e) => handleProofSelection(e.target.files[0]));
-
-  document.getElementById('player-registration-form')?.addEventListener('submit', async (e) => {
+  // --- FORM SUBMIT HANDLER ---
+  document.getElementById('unified-reg-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    if (!plyPhotoDataUrl) {
-      alert("Please select or capture your Player Photo!");
-      return;
-    }
-    if (!plyAadharDataUrl) {
-      alert("Please upload your Identity Card FRONT side!");
-      return;
-    }
-    if (!plyIdBackDataUrl) {
-      alert("Please upload your Identity Card BACK side!");
-      return;
-    }
-    if (!plyProofDataUrl) {
-      alert("Please upload or capture your Payment Receipt screenshot!");
-      return;
-    }
+    const phone = document.getElementById('ureg-phone').value.trim().replace(/[^0-9]/g, '');
+    const name = document.getElementById('ureg-name').value.trim();
+    const category = document.getElementById('ureg-category').value;
+    const dob = document.getElementById('ureg-dob')?.value || '';
+    const ageRaw = document.getElementById('ureg-age')?.value || '';
+    const age = parseInt(ageRaw, 10) || 0;
+    const battingStyle = document.getElementById('ureg-batting').value;
+    const bowlingStyle = document.getElementById('ureg-bowling').value;
+    const village = document.getElementById('ureg-village').value.trim();
+    const district = document.getElementById('ureg-district').value.trim();
+    const state = document.getElementById('ureg-state')?.value || 'West Bengal';
+    const securityPin = document.getElementById('ureg-security-pin')?.value.trim() || '';
+    const jerseySize = config.enableJerseySize ? (document.getElementById('ureg-jersey-size')?.value || '') : '';
+    const docType = document.getElementById('ureg-doctype')?.value || 'Aadhaar Card';
+    const paymentRef = document.getElementById('ureg-payment-ref')?.value.trim() || `UPI_${Date.now()}`;
+    const isWicketKeeper = (category === 'Wicket Keeper');
 
-    const submitBtn = document.getElementById('submit-player-reg-btn');
-    if (submitBtn) {
-      submitBtn.disabled = true;
-      submitBtn.innerHTML = `
-        <div class="flex items-center justify-center gap-2">
-          <div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-          <span>Saving Registration & Assigning Serial Number...</span>
-        </div>
-      `;
+    const btn = document.getElementById('ureg-submit-btn');
+
+    // --- VALIDATIONS ---
+    if (!phone || phone.length < 10) {
+      alert('⚠️ Please enter a valid 10-digit mobile number.'); return;
+    }
+    if (!name) { alert('⚠️ Please enter your full name.'); return; }
+    if (!category) { alert('⚠️ Please select your Playing Role.'); return; }
+    if (!dob) { alert('⚠️ Please select your Date of Birth.'); return; }
+    if (!uploadedPhotoUrl) { alert('⚠️ Please upload your Player Photo!'); return; }
+    if (!uploadedIdFrontUrl) { alert('⚠️ Please upload your ID Card Front Side!'); return; }
+    if (!uploadedIdBackUrl) { alert('⚠️ Please upload your ID Card Back Side!'); return; }
+    if (!uploadedReceiptUrl) { alert('⚠️ Please upload your Payment Receipt Screenshot!'); return; }
+    if (config.enableJerseySize && !jerseySize) { alert('⚠️ Please select your Jersey Size.'); return; }
+    if (!securityPin) { alert('⚠️ Please set your Security PIN for account login.'); return; }
+
+    if (btn) {
+      btn.disabled = true;
+      btn.innerHTML = `<div class="flex items-center justify-center gap-2">
+        <div class="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+        <span>Saving Registration & Assigning Serial Number...</span>
+      </div>`;
     }
 
     try {
-      const name = document.getElementById('ply-name').value;
-      const category = document.getElementById('ply-category').value;
-      if (!category) {
-        if (submitBtn) {
-          submitBtn.disabled = false;
-          submitBtn.innerText = "Submit Player Registration";
-        }
-        alert("⚠️ Please select your Player Category (Batsman, Bowler, All-rounder, or Wicket Keeper).");
-        return;
-      }
-      const dob = document.getElementById('ply-dob').value;
-      const age = parseInt(document.getElementById('ply-age').value, 10) || 22;
-      const phone = prefilledPhone;
-      const securityPin = document.getElementById('ply-security-pin')?.value.trim() || '';
-      const village = document.getElementById('ply-village').value;
-      const district = document.getElementById('ply-district').value;
-      const state = document.getElementById('ply-state').value || 'West Bengal';
-      const battingStyle = document.getElementById('ply-batting-style').value;
-      const bowlingStyle = document.getElementById('ply-bowling-style').value;
-      const isWicketKeeper = (category === 'Wicket Keeper');
-      const jerseySize = document.getElementById('ply-jersey-size').value;
-      if (!jerseySize) {
-        if (submitBtn) {
-          submitBtn.disabled = false;
-          submitBtn.innerText = "Submit Player Registration";
-        }
-        alert("⚠️ Please select your Jersey Size.");
-        return;
-      }
-      const upiRef = document.getElementById('ply-upi-ref').value;
-      const remarks = upiRef;
+      const effectiveTournamentId = config.supabaseId || config.tournament_id || config.id;
+      const atomicRegNo = await dbGetNextRegNumber(effectiveTournamentId);
 
-      // Ensure CDN URLs are finalized or fallback to compressed data URLs
-      const photoToSave = finalPhotoUrl || plyPhotoDataUrl;
-      const aadharToSave = finalAadharUrl || plyAadharDataUrl;
-      const idBackToSave = finalIdBackUrl || plyIdBackDataUrl;
-      const proofToSave = finalProofUrl || plyProofDataUrl;
-
-      // STRICT VALIDATION: ALL images MUST be uploaded to CDN before submission
-      const isCdnUrl = (u) => u && (u.startsWith('http://') || u.startsWith('https://'));
-      if (!isCdnUrl(finalPhotoUrl)) {
-        if (submitBtn) { submitBtn.disabled = false; submitBtn.innerText = "Submit Player Registration"; }
-        alert("⚠️ Player Photo not uploaded to CDN yet! Please wait for the upload to finish or check your internet connection.");
-        return;
-      }
-      if (!isCdnUrl(finalAadharUrl)) {
-        if (submitBtn) { submitBtn.disabled = false; submitBtn.innerText = "Submit Player Registration"; }
-        alert("⚠️ Identity Card FRONT not uploaded to CDN yet! Please wait for the upload to finish or check your internet connection.");
-        return;
-      }
-      if (!isCdnUrl(finalIdBackUrl)) {
-        if (submitBtn) { submitBtn.disabled = false; submitBtn.innerText = "Submit Player Registration"; }
-        alert("⚠️ Identity Card BACK not uploaded to CDN yet! Please wait for the upload to finish or check your internet connection.");
-        return;
-      }
-      if (!isCdnUrl(finalProofUrl)) {
-        if (submitBtn) { submitBtn.disabled = false; submitBtn.innerText = "Submit Player Registration"; }
-        alert("⚠️ Payment Receipt not uploaded to CDN yet! Please wait for the upload to finish or check your internet connection.");
-        return;
-      }
-
-      const newPlayer = await store.registerPlayer({
+      const playerData = {
+        id: generateUUID(),
         name,
+        phone,
         dob,
         age,
-        phone,
         securityPin,
-        village,
-        district,
-        state,
-        address: `${village}, ${district}`,
         category,
         role: category,
         playingType: category,
@@ -7722,38 +7746,92 @@ function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
         bowlingStyle,
         isWicketKeeper,
         jerseySize,
-        photoUrl: photoToSave || '',
-        player_photo_url: photoToSave || '',
-        aadharPhotoUrl: aadharToSave || '',
-        aadhaar_photo_url: aadharToSave || '',
-        idCardBackUrl: idBackToSave || '',
-        id_card_back_url: idBackToSave || '',
-        paymentReceiptUrl: proofToSave || '',
-        payment_receipt_url: proofToSave || '',
-        paymentRef: upiRef,
-        remarks,
+        village,
+        district,
+        state,
+        address: `${village}, ${district}`,
+        docType,
+        tournamentId: config.id,
+        tournament_id: effectiveTournamentId,
+        tournamentSlug: config.slug,
+        tournamentName: config.name,
+        photoUrl: uploadedPhotoUrl,
+        player_photo_url: uploadedPhotoUrl,
+        photo_url: uploadedPhotoUrl,
+        idCardFrontUrl: uploadedIdFrontUrl,
+        id_card_front_url: uploadedIdFrontUrl,
+        aadharPhotoUrl: uploadedIdFrontUrl,
+        aadhaar_photo_url: uploadedIdFrontUrl,
+        idCardBackUrl: uploadedIdBackUrl,
+        id_card_back_url: uploadedIdBackUrl,
+        aadharBackUrl: uploadedIdBackUrl,
+        paymentReceiptUrl: uploadedReceiptUrl,
+        payment_receipt_url: uploadedReceiptUrl,
+        paymentProofUrl: uploadedReceiptUrl,
+        payment_screenshot_url: uploadedReceiptUrl,
+        paymentRef,
+        remarks: paymentRef,
+        registrationStatus: 'PENDING_VERIFICATION',
+        paymentStatus: 'PENDING_VERIFICATION',
         phoneVerified: true,
-        basePrice: 300
-      });
+        reg_number: atomicRegNo,
+        serialNo: atomicRegNo || (store.getPlayers().length + 1),
+        basePrice: config.entryFee || 300,
+        createdAt: Date.now()
+      };
 
-      store.setUserRole('PLAYER', newPlayer.name, newPlayer);
+      const docsData = {
+        doc_type: docType,
+        aadhaar_url: uploadedIdFrontUrl,
+        id_card_front_url: uploadedIdFrontUrl,
+        id_card_back_url: uploadedIdBackUrl,
+        payment_screenshot_url: uploadedReceiptUrl,
+        payment_ref: paymentRef
+      };
+
+      const dbResult = await dbRegisterPlayer(playerData, docsData);
+      if (!dbResult) {
+        throw new Error('Server did not confirm registration. Please check your internet connection and try again.');
+      }
+
+      await store.saveUniversalPlayer(playerData);
+      store.registerPlayer(playerData);
+      store.setUserRole('PLAYER', playerData.name, playerData);
+      store.notify('players_updated');
+
       removeModal();
+
       openRegistrationSuccessModal({
-        name: newPlayer.name,
-        registrationId: newPlayer.registrationId || newPlayer.regNo,
-        displayRegistrationNumber: newPlayer.displayRegistrationNumber || newPlayer.serialNo,
+        name: playerData.name,
+        registrationId: `${(config.shortCode || 'CPL').toUpperCase()}-2026-${String(playerData.serialNo).padStart(4, '0')}`,
+        serialNo: playerData.serialNo,
+        displayRegistrationNumber: playerData.serialNo,
+        photoUrl: playerData.photoUrl,
+        category: playerData.category,
         isTeam: false,
-        playerData: newPlayer
+        playerData
       });
     } catch (err) {
       console.error("Player Registration Error:", err);
-      alert("Registration Error: " + err.message);
-      if (submitBtn) {
-        submitBtn.disabled = false;
-        submitBtn.innerText = "Submit Player Registration";
+      alert("⚠️ Registration Failed!\n\n" + (err.message || 'Something went wrong.') + "\n\nPlease check your internet connection and try again.");
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = `<span>Submit Registration to ${config.shortCode || config.name} ➔</span>`;
       }
     }
   });
+}
+
+
+function openPlayerRegisterFormModal(initialData = null, verifiedPhone = null) {
+  const config = buildTournamentConfig(null);
+  const prefill = initialData ? { ...initialData } : null;
+  if (verifiedPhone && prefill) prefill.phone = verifiedPhone;
+  else if (verifiedPhone) {
+    openUnifiedPlayerRegistrationModal(config, { phone: verifiedPhone });
+    return;
+  }
+  openUnifiedPlayerRegistrationModal(config, prefill);
 }
 
 window.getMatchPotm = function(m) {
@@ -14525,6 +14603,18 @@ export function openTournamentCreationWizard(isTrialMode = false) {
                 <div id="wiz-qr-preview-container" class="hidden"></div>
               </div>
             </div>
+
+            <!-- Registration Form Field Toggles -->
+            <div class="mt-3 p-3 bg-indigo-50/70 border border-indigo-200 rounded-xl space-y-2">
+              <label class="block text-[9px] font-black text-indigo-900 uppercase tracking-wider">Optional Registration Fields</label>
+              <div class="flex flex-wrap gap-3">
+                <label class="flex items-center gap-1.5 text-[10px] font-bold text-slate-700 cursor-pointer">
+                  <input type="checkbox" id="wiz-enable-jersey-size" class="w-3.5 h-3.5 rounded border-slate-300 text-indigo-600" />
+                  <span>Jersey Size</span>
+                </label>
+              </div>
+              <p class="text-[8.5px] text-slate-500">This field will appear in the player registration form for this tournament.</p>
+            </div>
           </div>
 
           <!-- Step 3: Organizer Account -->
@@ -14888,6 +14978,7 @@ export function openTournamentCreationWizard(isTrialMode = false) {
           phone: orgPhone,
           password: orgPass
         },
+        enableJerseySize: !!document.getElementById('wiz-enable-jersey-size')?.checked,
         status: 'PENDING_APPROVAL'
       };
 
@@ -15123,677 +15214,10 @@ export function openTournamentCreationWizard(isTrialMode = false) {
 }
 
 // --- DYNAMIC TOURNAMENT REGISTRATION MODAL WITH 1-SECOND UNIVERSAL PHONE AUTO-FILL ---
+
 export function openDynamicTournamentRegistrationModal(tourneyIdOrSlug) {
-  const tourney = store.getCustomTournamentById(tourneyIdOrSlug) || {
-    id: 'default',
-    name: 'Tournament',
-    entryFee: 300,
-    upiId: '',
-    paymentQrUrl: ''
-  };
-
-  const tourneyStatus = (tourney.status || 'ACTIVE').toUpperCase();
-  if (tourneyStatus === 'PENDING_APPROVAL' || tourneyStatus === 'PENDING') {
-    const underReviewHtml = `
-      <div id="dynamic-tournament-reg-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4 animate-fade-in bg-slate-950/75 backdrop-blur-sm">
-        <div class="bg-white text-slate-900 max-w-md w-full rounded-2xl border-2 border-amber-300 shadow-2xl overflow-hidden font-sans">
-          <div class="p-4 bg-gradient-to-r from-amber-50 via-orange-50 to-yellow-50 border-b-2 border-amber-200 flex items-center justify-between">
-            <div class="flex items-center gap-2.5">
-              <span class="w-10 h-10 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center text-xl shrink-0 shadow-md font-black">⏳</span>
-              <div>
-                <h2 class="text-sm sm:text-base font-black text-slate-900 leading-tight">টুর্নামেন্ট যাচাই চলছে • Under Review</h2>
-                <span class="text-[10px] font-bold text-amber-800">Pending Master Admin Approval</span>
-              </div>
-            </div>
-            <button id="close-reg-review-modal" class="w-8 h-8 rounded-full bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-950 border border-slate-300 flex items-center justify-center text-sm font-black transition-all shadow-xs cursor-pointer">✕</button>
-          </div>
-          <div class="p-5 text-center space-y-3">
-            <p class="text-sm font-black text-slate-900">${tourney.name}</p>
-            <p class="text-xs text-slate-600 leading-relaxed" style="font-family: 'Hind Siliguri', 'Anek Bangla', sans-serif;">
-              এই টুর্নামেন্টটির আবেদন বর্তমানে প্ল্যাটফর্ম মাস্টার অ্যাডমিনের অনুমোদনের অপেক্ষায় রয়েছে। অনুমোদন পাওয়ার সাথে সাথে প্লেয়ার রেজিস্ট্রেশন পোর্টাল স্বয়ংক্রিয়ভাবে খুলে যাবে।
-            </p>
-            
-            <div class="p-3 bg-gradient-to-r from-slate-900 to-indigo-950 text-white rounded-xl text-left text-xs space-y-1.5 border border-slate-700">
-              <span class="text-[10px] font-black text-amber-400 uppercase tracking-wider block">জরুরি হেল্পলাইন (Contact Support):</span>
-              <div class="flex items-center justify-between gap-2">
-                <span class="text-[11px] font-bold text-slate-200">📞 Bumba: <a href="tel:8145313902" class="font-mono text-emerald-400 hover:underline">8145313902</a></span>
-                <a href="tel:8145313902" class="px-2 py-0.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded text-[10px] font-bold">Call</a>
-              </div>
-              <div class="flex items-center justify-between gap-2">
-                <span class="text-[11px] font-bold text-slate-200">✉️ Suman: <a href="mailto:jecanimcet@gmail.com" class="font-mono text-sky-400 hover:underline">jecanimcet@gmail.com</a></span>
-                <a href="mailto:jecanimcet@gmail.com" class="px-2 py-0.5 bg-sky-600 hover:bg-sky-500 text-white rounded text-[10px] font-bold">Mail</a>
-              </div>
-            </div>
-
-            <button id="close-reg-review-btn" class="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white text-xs font-black rounded-xl transition-all cursor-pointer">ঠিক আছে, হোমপেজে ফিরে যান (Got It)</button>
-          </div>
-        </div>
-      </div>`;
-    document.body.insertAdjacentHTML('beforeend', underReviewHtml);
-    const closeModal = () => document.getElementById('dynamic-tournament-reg-modal')?.remove();
-    document.getElementById('close-reg-review-modal')?.addEventListener('click', closeModal);
-    document.getElementById('close-reg-review-btn')?.addEventListener('click', closeModal);
-    return;
-  }
-
-  if (!store.isRegistrationOpen()) {
-    const regSettings = store.getRegistrationSettings();
-    const reason = regSettings.closedReason || 'Registration is currently closed by the Admin.';
-    const closedHtml = `
-      <div id="dynamic-tournament-reg-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-4 animate-fade-in bg-slate-950/75 backdrop-blur-sm">
-        <div class="bg-white text-slate-900 max-w-md w-full rounded-2xl border-2 border-red-300 shadow-2xl overflow-hidden">
-          <div class="p-5 bg-gradient-to-r from-red-50 via-rose-50 to-red-50 border-b-2 border-red-200 flex items-center justify-between">
-            <div class="flex items-center gap-2.5">
-              <span class="w-10 h-10 rounded-2xl bg-red-600 text-white flex items-center justify-center text-xl shrink-0 shadow-md font-black">🚫</span>
-              <h2 class="text-lg font-black text-slate-900">Registration Closed</h2>
-            </div>
-            <button id="close-reg-closed-modal" class="w-8 h-8 rounded-full bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-950 border border-slate-300 flex items-center justify-center text-sm font-black transition-all shadow-xs cursor-pointer">✕</button>
-          </div>
-          <div class="p-6 text-center space-y-4">
-            <p class="text-sm font-bold text-slate-700">${tourney.name}</p>
-            <p class="text-xs text-slate-500">${reason}</p>
-            <button id="close-reg-closed-btn" class="px-6 py-2.5 bg-slate-800 hover:bg-slate-900 text-white text-xs font-black rounded-xl transition-all cursor-pointer">OK, Go Back</button>
-          </div>
-        </div>
-      </div>`;
-    document.body.insertAdjacentHTML('beforeend', closedHtml);
-    const closeModal = () => document.getElementById('dynamic-tournament-reg-modal')?.remove();
-    document.getElementById('close-reg-closed-modal')?.addEventListener('click', closeModal);
-    document.getElementById('close-reg-closed-btn')?.addEventListener('click', closeModal);
-    return;
-  }
-
-  let uploadedPhotoBase64 = '';
-  let uploadedReceiptBase64 = '';
-
-  const modalHtml = `
-    <div id="dynamic-tournament-reg-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-2 sm:p-4 animate-fade-in bg-slate-950/75 backdrop-blur-sm">
-      <div class="bg-white text-slate-900 max-w-xl w-full max-h-[92vh] flex flex-col rounded-2xl sm:rounded-3xl border-2 border-emerald-400 shadow-2xl overflow-hidden">
-        
-        <!-- HEADER -->
-        <div class="p-3.5 sm:p-4 bg-gradient-to-r from-emerald-50 via-teal-50 to-green-50 border-b-2 border-emerald-200 flex items-center justify-between gap-2 shrink-0">
-          <div class="flex items-center gap-2.5">
-            <span class="w-10 h-10 rounded-2xl bg-emerald-600 text-white flex items-center justify-center text-xl shrink-0 shadow-md font-black">
-              🏏
-            </span>
-            <div>
-              <span class="text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-emerald-200/90 text-emerald-950 border border-emerald-300">
-                OFFICIAL PLAYER REGISTRATION
-              </span>
-              <h2 class="text-base sm:text-lg font-black text-slate-900 tracking-tight leading-tight mt-0.5">
-                ${tourney.name}
-              </h2>
-            </div>
-          </div>
-          
-          <button id="close-dynamic-reg-modal-btn" class="w-8 h-8 rounded-full bg-white hover:bg-slate-100 text-slate-600 hover:text-slate-950 border border-slate-300 flex items-center justify-center text-sm font-black transition-all shadow-xs cursor-pointer">
-            ✕
-          </button>
-        </div>
-
-        <!-- BODY -->
-        <form id="dynamic-reg-form" class="p-4 sm:p-5 overflow-y-auto flex-1 space-y-4 bg-white">
-          
-          <!-- SMART 1-SECOND PHONE NUMBER LOOKUP -->
-          <div class="bg-gradient-to-r from-blue-50 to-indigo-50/80 border-2 border-blue-200 p-3 rounded-2xl space-y-1.5">
-            <label class="block text-xs font-black text-blue-950 uppercase tracking-wider flex items-center justify-between">
-              <span>📱 10-Digit Mobile / WhatsApp Number *</span>
-              <span class="text-[9px] font-mono text-blue-700 font-bold bg-white px-2 py-0.5 rounded-full border border-blue-200">⚡ AUTO-FILL ENGINE</span>
-            </label>
-            <input type="tel" id="dyn-reg-phone" maxlength="10" placeholder="Enter 10-digit mobile number..." class="w-full bg-white border-2 border-blue-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-mono font-black focus:outline-none focus:border-blue-500" required />
-            <div id="dyn-autofill-notice" class="text-[10px] font-bold text-blue-800 hidden flex items-center gap-1">
-              <span>✨ Welcome back! Your cricket profile has been auto-populated.</span>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Full Name *</label>
-              <input type="text" id="dyn-reg-name" placeholder="Player Full Name" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-400" required />
-            </div>
-            <div>
-              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Playing Role *</label>
-              <select id="dyn-reg-role" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-400">
-                <option value="All Rounder">All Rounder</option>
-                <option value="Batsman">Batsman</option>
-                <option value="Bowler">Bowler</option>
-                <option value="Wicket Keeper">Wicket Keeper</option>
-              </select>
-            </div>
-          </div>
-
-          <!-- DOB & AUTO-CALCULATED AGE -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Date of Birth (DOB) *</label>
-              <input type="date" id="dyn-reg-dob" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-400" required />
-            </div>
-            <div>
-              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1 flex items-center justify-between">
-                <span>Calculated Age</span>
-                <span class="text-[9px] font-mono text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">AUTO-FETCH</span>
-              </label>
-              <input type="text" id="dyn-reg-age" placeholder="Age auto-computed" readonly class="w-full bg-slate-100 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono font-black select-none cursor-not-allowed" />
-            </div>
-          </div>
-
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Batting Style</label>
-              <select id="dyn-reg-batting" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-400">
-                <option value="Right Hand Bat">Right Hand Bat</option>
-                <option value="Left Hand Bat">Left Hand Bat</option>
-              </select>
-            </div>
-            <div>
-              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Bowling Style</label>
-              <select id="dyn-reg-bowling" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-400">
-                <option value="Right Arm Medium">Right Arm Medium</option>
-                <option value="Right Arm Fast">Right Arm Fast</option>
-                <option value="Right Arm Spin">Right Arm Spin</option>
-                <option value="Left Arm Fast">Left Arm Fast</option>
-                <option value="Left Arm Spin">Left Arm Spin</option>
-              </select>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Village / Town *</label>
-              <input type="text" id="dyn-reg-village" placeholder="e.g. Your City" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-400" required />
-            </div>
-            <div>
-              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">District</label>
-              <input type="text" id="dyn-reg-district" value="Paschim Medinipur" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-400" />
-            </div>
-          </div>
-
-          <!-- PHOTO UPLOAD & PREVIEW WITH ZOOM & CROP -->
-          <div class="p-3 bg-slate-50 rounded-2xl border-2 border-slate-200 space-y-2">
-            <label class="block text-xs font-black text-slate-800 uppercase tracking-wider flex items-center justify-between">
-              <span>Player HD Passport Photo *</span>
-              <span class="text-[9px] font-mono text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">🔍 ZOOM & CROP</span>
-            </label>
-            <div class="flex items-center gap-3">
-              <div class="w-14 h-14 rounded-2xl bg-slate-200 overflow-hidden shrink-0 border-2 border-emerald-400 shadow-sm relative group">
-                <img id="dyn-preview-photo" src="assets/card_jsl_user.png" class="w-full h-full object-cover" />
-              </div>
-              <div class="flex-1 space-y-1">
-                <input type="file" id="dyn-photo-file" accept="image/*" class="w-full text-xs text-slate-600 file:mr-2.5 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-[10px] file:font-black file:bg-slate-900 file:text-white hover:file:bg-slate-800 cursor-pointer" />
-                <div id="dyn-photo-upload-status" class="hidden"></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- IDENTITY CARD (AADHAAR / VOTER / PAN) FRONT & BACK -->
-          <div class="p-3.5 bg-gradient-to-br from-slate-50 to-blue-50/50 rounded-2xl border-2 border-blue-200/80 space-y-3">
-            <div class="flex items-center justify-between">
-              <label class="block text-xs font-black text-blue-950 uppercase tracking-wider">
-                🪪 Identity Card Verification
-              </label>
-              <select id="dyn-reg-doctype" class="text-[10px] font-black bg-white border border-blue-300 rounded-lg px-2 py-1 text-blue-900 focus:outline-none">
-                <option value="Aadhaar Card">Aadhaar Card</option>
-                <option value="Voter ID Card">Voter ID Card</option>
-                <option value="PAN Card">PAN Card</option>
-                <option value="Driving License">Driving License</option>
-              </select>
-            </div>
-
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <!-- FRONT SIDE -->
-              <div class="bg-white p-2.5 rounded-xl border border-blue-200 space-y-1">
-                <label class="block text-[10px] font-black text-slate-700 uppercase">1. ID Card Front Side *</label>
-                <input type="file" id="dyn-id-front-file" accept="image/*" class="w-full text-[11px] text-slate-600 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-[9.5px] file:font-black file:bg-blue-600 file:text-white cursor-pointer" required />
-                <div id="dyn-id-front-status" class="hidden"></div>
-              </div>
-              <!-- BACK SIDE -->
-              <div class="bg-white p-2.5 rounded-xl border border-blue-200 space-y-1">
-                <label class="block text-[10px] font-black text-slate-700 uppercase">2. ID Card Back Side *</label>
-                <input type="file" id="dyn-id-back-file" accept="image/*" class="w-full text-[11px] text-slate-600 file:mr-2 file:py-1 file:px-2 file:rounded-lg file:border-0 file:text-[9.5px] file:font-black file:bg-blue-600 file:text-white cursor-pointer" required />
-                <div id="dyn-id-back-status" class="hidden"></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- TOURNAMENT UPI PAYMENT & QR CODE SECTION -->
-          <div class="rounded-3xl bg-slate-900 text-white p-4 sm:p-6 shadow-2xl border border-slate-800 space-y-4 text-center">
-            
-            <!-- Fee Header -->
-            <div class="flex items-center justify-between bg-slate-800/90 px-4 py-3 rounded-2xl border border-slate-700/80">
-              <div class="text-left">
-                <span class="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Player Registration Fee</span>
-                <span class="text-xs font-bold text-slate-200">${tourney.name || 'Tournament'}</span>
-              </div>
-              <div class="text-right">
-                <span class="text-2xl font-black text-emerald-400 font-mono">₹ ${Number(tourney.entryFee || tourney.playerEntryFee || 300).toLocaleString('en-IN')}</span>
-              </div>
-            </div>
-
-            <!-- MAXIMUM SIZE QR CODE DISPLAY (EDGE-TO-EDGE, NO TIGHT BORDERS) -->
-            ${(tourney.paymentQrUrl || tourney.upiId) ? `
-              <div class="space-y-2.5">
-                <div class="w-full max-w-[280px] sm:max-w-[340px] aspect-square mx-auto bg-white p-2.5 sm:p-3.5 rounded-3xl shadow-2xl flex items-center justify-center relative overflow-hidden group border-4 border-emerald-500/30">
-                  <img src="${tourney.paymentQrUrl || `https://api.qrserver.com/v1/create-qr-code/?size=450x450&data=${encodeURIComponent(`upi://pay?pa=${tourney.upiId}&pn=${tourney.name || 'Tournament'}&am=${tourney.entryFee || 300}&cu=INR`)}`}" class="w-full h-full object-contain rounded-2xl" alt="Tournament UPI QR Code" />
-                </div>
-                
-                <div class="flex items-center justify-center gap-1.5 text-slate-300 text-xs font-bold bg-slate-800/60 py-1.5 px-3 rounded-full max-w-sm mx-auto">
-                  <span class="text-sm">📸</span>
-                  <span>Scan with GPay, PhonePe, Paytm, BHIM, or Any UPI App</span>
-                </div>
-              </div>
-            ` : ''}
-
-            <!-- UPI ID & 1-TAP COPY -->
-            ${tourney.upiId ? `
-              <div class="space-y-2.5 pt-1">
-                <div class="flex items-center justify-between bg-slate-800/95 hover:bg-slate-800 px-4 py-2.5 rounded-2xl border border-slate-700 max-w-md mx-auto transition-all shadow-inner">
-                  <div class="text-left min-w-0 pr-2">
-                    <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Official Tournament UPI ID</span>
-                    <span class="font-mono text-emerald-400 font-black text-xs sm:text-sm select-all truncate block">${tourney.upiId}</span>
-                  </div>
-                  <button type="button" onclick="navigator.clipboard.writeText('${tourney.upiId}'); this.textContent='✅ Copied!'; setTimeout(()=>this.textContent='📋 Copy', 2000)" class="px-3.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-[11px] font-black rounded-xl shadow-xs cursor-pointer transition-all shrink-0">
-                    📋 Copy
-                  </button>
-                </div>
-
-                <!-- 1-TAP APP PAYMENT LAUNCH BUTTONS -->
-                <div class="grid grid-cols-3 gap-2 max-w-md mx-auto">
-                  <a href="gpay://upi/pay?pa=${encodeURIComponent(tourney.upiId)}&pn=${encodeURIComponent(tourney.name || 'Tournament')}&am=${encodeURIComponent(tourney.entryFee || 300)}&cu=INR" class="flex flex-col items-center justify-center py-2.5 px-1 bg-white hover:bg-slate-100 text-slate-900 rounded-2xl font-black text-[10px] shadow-sm transition-transform active:scale-95 cursor-pointer">
-                    <span class="text-base leading-none mb-0.5">🔵</span>
-                    <span>Google Pay</span>
-                  </a>
-
-                  <a href="phonepe://pay?pa=${encodeURIComponent(tourney.upiId)}&pn=${encodeURIComponent(tourney.name || 'Tournament')}&am=${encodeURIComponent(tourney.entryFee || 300)}&cu=INR" class="flex flex-col items-center justify-center py-2.5 px-1 bg-[#5f259f] hover:bg-[#521e8a] text-white rounded-2xl font-black text-[10px] shadow-sm transition-transform active:scale-95 cursor-pointer">
-                    <span class="text-base leading-none mb-0.5">🟣</span>
-                    <span>PhonePe</span>
-                  </a>
-
-                  <a href="upi://pay?pa=${encodeURIComponent(tourney.upiId)}&pn=${encodeURIComponent(tourney.name || 'Tournament')}&am=${encodeURIComponent(tourney.entryFee || 300)}&cu=INR" class="flex flex-col items-center justify-center py-2.5 px-1 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white rounded-2xl font-black text-[10px] shadow-sm transition-transform active:scale-95 cursor-pointer">
-                    <span class="text-base leading-none mb-0.5">⚡</span>
-                    <span>Paytm / UPI</span>
-                  </a>
-                </div>
-              </div>
-            ` : ''}
-
-            <!-- PAYMENT ID / UTR / TRANSACTION REF -->
-            <div class="text-left bg-slate-800/90 p-3.5 sm:p-4 rounded-2xl border border-slate-700 space-y-3">
-              <div>
-                <label class="block text-[11px] font-black text-slate-200 uppercase tracking-wider mb-1">
-                  1. UPI Payment ID / UTR / Transaction No. <span class="text-rose-400">*</span>
-                </label>
-                <input type="text" id="dyn-payment-ref" placeholder="e.g. 423456789012 (12-Digit UTR No.)" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-mono font-bold text-emerald-400 placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-all" required />
-              </div>
-
-              <div>
-                <label class="block text-[11px] font-black text-slate-200 uppercase tracking-wider mb-1">
-                  2. Payment Screenshot Proof <span class="text-rose-400">*</span>
-                </label>
-                <input type="file" id="dyn-receipt-file" accept="image/*" class="w-full text-xs text-slate-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-xl file:border-0 file:text-[10.5px] file:font-black file:bg-emerald-600 file:text-white hover:file:bg-emerald-500 cursor-pointer" required />
-                <div id="dyn-receipt-status" class="hidden"></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- SUBMIT BUTTON -->
-          <div class="pt-2">
-            <button type="submit" id="dyn-submit-reg-btn" class="w-full py-3.5 bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-700 hover:from-emerald-500 hover:to-teal-600 text-white font-black text-xs sm:text-sm rounded-xl shadow-lg flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-emerald-400">
-              <span>Submit Registration to ${tourney.shortCode || 'League'} ➔</span>
-            </button>
-          </div>
-
-        </form>
-
-      </div>
-    </div>
-  `;
-
-  document.body.insertAdjacentHTML('beforeend', modalHtml);
-
-  // Auto-Calculate Age from DOB on change
-  const dobInput = document.getElementById('dyn-reg-dob');
-  const ageInput = document.getElementById('dyn-reg-age');
-  dobInput?.addEventListener('change', (e) => {
-    const dobVal = e.target.value;
-    if (dobVal) {
-      const birth = new Date(dobVal);
-      const today = new Date();
-      let age = today.getFullYear() - birth.getFullYear();
-      const m = today.getMonth() - birth.getMonth();
-      if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
-        age--;
-      }
-      if (age >= 5 && age <= 100) {
-        if (ageInput) ageInput.value = `${age} Years Old`;
-      } else {
-        if (ageInput) ageInput.value = `${age} Years`;
-      }
-    }
-  });
-
-  // Helper to reset form fields to blank when phone is cleared or changed
-  const resetPlayerFormFields = () => {
-    const nameEl = document.getElementById('dyn-reg-name');
-    const roleEl = document.getElementById('dyn-reg-role');
-    const battingEl = document.getElementById('dyn-reg-batting');
-    const bowlingEl = document.getElementById('dyn-reg-bowling');
-    const villageEl = document.getElementById('dyn-reg-village');
-    const districtEl = document.getElementById('dyn-reg-district');
-    const dobEl = document.getElementById('dyn-reg-dob');
-    const ageEl = document.getElementById('dyn-reg-age');
-    const previewEl = document.getElementById('dyn-preview-photo');
-
-    if (nameEl) nameEl.value = '';
-    if (roleEl) roleEl.value = 'All Rounder';
-    if (battingEl) battingEl.value = 'Right Hand Bat';
-    if (bowlingEl) bowlingEl.value = 'Right Arm Medium';
-    if (villageEl) villageEl.value = '';
-    if (districtEl) districtEl.value = 'Paschim Medinipur';
-    if (dobEl) dobEl.value = '';
-    if (ageEl) ageEl.value = '';
-    if (previewEl) previewEl.src = 'assets/card_jsl_user.png';
-    uploadedPhotoBase64 = '';
-    document.getElementById('dyn-autofill-notice')?.classList.add('hidden');
-  };
-
-  // 1-Second Smart Auto-Fill on Mobile Input (Supabase Postgres + Universal Store)
-  const phoneInput = document.getElementById('dyn-reg-phone');
-  phoneInput?.addEventListener('input', async (e) => {
-    const val = e.target.value.trim().replace(/[^0-9]/g, '');
-    if (val.length === 10) {
-      let existing = store.getUniversalPlayerByPhone(val);
-      if (!existing) {
-        existing = await dbLookupPlayerByPhone(val);
-      }
-      if (existing) {
-        document.getElementById('dyn-reg-name').value = existing.name || existing.full_name || '';
-        document.getElementById('dyn-reg-role').value = existing.category || existing.role || 'All Rounder';
-        document.getElementById('dyn-reg-batting').value = existing.battingStyle || existing.batting_style || 'Right Hand Bat';
-        document.getElementById('dyn-reg-bowling').value = existing.bowlingStyle || existing.bowling_style || 'Right Arm Medium';
-        document.getElementById('dyn-reg-village').value = existing.village || '';
-        document.getElementById('dyn-reg-district').value = existing.district || 'Paschim Medinipur';
-        if (existing.dob) {
-          const dobEl = document.getElementById('dyn-reg-dob');
-          if (dobEl) {
-            dobEl.value = existing.dob;
-            dobEl.dispatchEvent(new Event('change'));
-          }
-        }
-        const photo = existing.photoUrl || existing.photo_url;
-        if (photo) {
-          uploadedPhotoBase64 = photo;
-          document.getElementById('dyn-preview-photo').src = photo;
-        }
-        document.getElementById('dyn-autofill-notice')?.classList.remove('hidden');
-      } else {
-        // 10 digits entered but no record found: keep blank
-        resetPlayerFormFields();
-      }
-    } else {
-      // If any digit is changed/deleted (less than 10 digits or mismatched): clear form immediately
-      resetPlayerFormFields();
-    }
-  });
-
-  // Photo change with Zoom & Crop Modal + Auto-Compression (~90-100 KB) + Cloudinary Upload
-  document.getElementById('dyn-photo-file')?.addEventListener('change', (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        const rawSrc = ev.target.result;
-        openPlayerPhotoCropModal(rawSrc, async (croppedDataUrl) => {
-          uploadedPhotoBase64 = croppedDataUrl;
-          document.getElementById('dyn-preview-photo').src = croppedDataUrl;
-
-          const statusEl = document.getElementById('dyn-photo-upload-status');
-          if (statusEl) {
-            statusEl.innerHTML = `
-              <div class="mt-1 p-1.5 bg-emerald-50 border border-emerald-300 rounded-lg flex items-center gap-1.5 text-emerald-800 text-[10px] font-black animate-pulse">
-                <span class="inline-block w-3 h-3 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></span>
-                <span>Compressing (~90 KB) & uploading to CDN...</span>
-              </div>
-            `;
-            statusEl.classList.remove('hidden');
-          }
-
-          try {
-            const compressed = await compressImageToTarget(croppedDataUrl, 95, 800);
-            const slugVal = (tourney.slug || 'tourney').toLowerCase();
-            const cdnUrl = await uploadHDImage(compressed || croppedDataUrl, `players/${slugVal}`);
-            if (cdnUrl) {
-              uploadedPhotoBase64 = cdnUrl;
-            }
-            if (statusEl) {
-              statusEl.innerHTML = `
-                <div class="mt-1 p-1 bg-emerald-50 border border-emerald-400 rounded-lg flex items-center gap-1 text-[10px] font-black text-emerald-950">
-                  <span class="w-3 h-3 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[8px]">✓</span> Photo Uploaded
-                </div>
-              `;
-            }
-          } catch(err) {
-            if (statusEl) {
-              statusEl.innerHTML = `<span class="text-[9.5px] font-black text-emerald-800">✓ Photo Ready</span>`;
-            }
-          }
-        });
-      };
-      reader.readAsDataURL(file);
-    }
-  });
-
-  // ID Card Front File Handler (~90-100 KB compression + CDN upload)
-  let uploadedIdFrontUrl = '';
-  document.getElementById('dyn-id-front-file')?.addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const statusEl = document.getElementById('dyn-id-front-status');
-      if (statusEl) {
-        statusEl.innerHTML = `
-          <div class="mt-1 p-1 bg-blue-50 border border-blue-300 rounded-md flex items-center gap-1 text-blue-800 text-[9.5px] font-black animate-pulse">
-            <span class="inline-block w-2.5 h-2.5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></span>
-            <span>Compressing & uploading...</span>
-          </div>
-        `;
-        statusEl.classList.remove('hidden');
-      }
-
-      try {
-        const compressed = await compressImageToTarget(file, 95, 1200);
-        const slugVal = (tourney.slug || 'tourney').toLowerCase();
-        const cdnUrl = await uploadHDImage(compressed || file, `verification/${slugVal}/front`);
-        if (cdnUrl) {
-          uploadedIdFrontUrl = cdnUrl;
-        } else {
-          const reader = new FileReader();
-          reader.onload = (ev) => { uploadedIdFrontUrl = ev.target.result; };
-          reader.readAsDataURL(compressed || file);
-        }
-        if (statusEl) {
-          statusEl.innerHTML = `
-            <div class="mt-1 p-0.5 bg-emerald-50 border border-emerald-400 rounded-md flex items-center gap-1 text-[9.5px] font-black text-emerald-950">
-              <span class="w-3 h-3 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[8px]">✓</span> Front Side Uploaded
-            </div>
-          `;
-        }
-      } catch(e2) {
-        if (statusEl) statusEl.innerHTML = `<span class="text-[9px] font-black text-emerald-800">✓ Front Ready</span>`;
-      }
-    }
-  });
-
-  // ID Card Back File Handler (~90-100 KB compression + CDN upload)
-  let uploadedIdBackUrl = '';
-  document.getElementById('dyn-id-back-file')?.addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const statusEl = document.getElementById('dyn-id-back-status');
-      if (statusEl) {
-        statusEl.innerHTML = `
-          <div class="mt-1 p-1 bg-blue-50 border border-blue-300 rounded-md flex items-center gap-1 text-blue-800 text-[9.5px] font-black animate-pulse">
-            <span class="inline-block w-2.5 h-2.5 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></span>
-            <span>Compressing & uploading...</span>
-          </div>
-        `;
-        statusEl.classList.remove('hidden');
-      }
-
-      try {
-        const compressed = await compressImageToTarget(file, 95, 1200);
-        const slugVal = (tourney.slug || 'tourney').toLowerCase();
-        const cdnUrl = await uploadHDImage(compressed || file, `verification/${slugVal}/back`);
-        if (cdnUrl) {
-          uploadedIdBackUrl = cdnUrl;
-        } else {
-          const reader = new FileReader();
-          reader.onload = (ev) => { uploadedIdBackUrl = ev.target.result; };
-          reader.readAsDataURL(compressed || file);
-        }
-        if (statusEl) {
-          statusEl.innerHTML = `
-            <div class="mt-1 p-0.5 bg-emerald-50 border border-emerald-400 rounded-md flex items-center gap-1 text-[9.5px] font-black text-emerald-950">
-              <span class="w-3 h-3 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[8px]">✓</span> Back Side Uploaded
-            </div>
-          `;
-        }
-      } catch(e2) {
-        if (statusEl) statusEl.innerHTML = `<span class="text-[9px] font-black text-emerald-800">✓ Back Ready</span>`;
-      }
-    }
-  });
-
-  // Receipt change with auto-compression (< 100 KB) + CDN upload
-  document.getElementById('dyn-receipt-file')?.addEventListener('change', async (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      const statusEl = document.getElementById('dyn-receipt-status');
-      if (statusEl) {
-        statusEl.innerHTML = `
-          <div class="mt-1 p-1 bg-emerald-50 border border-emerald-300 rounded-md flex items-center gap-1 text-emerald-800 text-[9.5px] font-black animate-pulse">
-            <span class="inline-block w-2.5 h-2.5 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin"></span>
-            <span>Compressing receipt & uploading...</span>
-          </div>
-        `;
-        statusEl.classList.remove('hidden');
-      }
-
-      try {
-        const compressed = await compressImageToTarget(file, 95, 1200);
-        const slugVal = (tourney.slug || 'tourney').toLowerCase();
-        const cdnUrl = await uploadHDImage(compressed || file, `receipts/${slugVal}`);
-        if (cdnUrl) {
-          uploadedReceiptBase64 = cdnUrl;
-        } else {
-          const reader = new FileReader();
-          reader.onload = (ev) => { uploadedReceiptBase64 = ev.target.result; };
-          reader.readAsDataURL(compressed || file);
-        }
-        if (statusEl) {
-          statusEl.innerHTML = `
-            <div class="mt-1 p-0.5 bg-emerald-50 border border-emerald-400 rounded-md flex items-center gap-1 text-[9.5px] font-black text-emerald-950">
-              <span class="w-3 h-3 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[8px]">✓</span> Receipt Uploaded
-            </div>
-          `;
-        }
-      } catch(e3) {
-        if (statusEl) statusEl.innerHTML = `<span class="text-[9px] font-black text-emerald-800">✓ Receipt Ready</span>`;
-      }
-    }
-  });
-
-  // Form submit
-  document.getElementById('dynamic-reg-form')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const btn = document.getElementById('dyn-submit-reg-btn');
-    if (btn) { btn.disabled = true; btn.textContent = 'Submitting Registration...'; }
-
-    const phone = document.getElementById('dyn-reg-phone').value.trim();
-    const name = document.getElementById('dyn-reg-name').value.trim();
-    const category = document.getElementById('dyn-reg-role').value;
-    const battingStyle = document.getElementById('dyn-reg-batting').value;
-    const bowlingStyle = document.getElementById('dyn-reg-bowling').value;
-    const village = document.getElementById('dyn-reg-village').value.trim();
-    const district = document.getElementById('dyn-reg-district').value.trim();
-    const dob = document.getElementById('dyn-reg-dob')?.value || null;
-    const age = document.getElementById('dyn-reg-age')?.value || '';
-    const docType = document.getElementById('dyn-reg-doctype')?.value || 'Aadhaar Card';
-    const paymentRef = document.getElementById('dyn-payment-ref')?.value.trim() || `UPI_${Date.now()}`;
-
-    // Use Supabase UUID for tournament_id (falls back to local ID)
-    const effectiveTournamentId = tourney.supabaseId || tourney.tournament_id || tourney.id;
-    const atomicRegNo = await dbGetNextRegNumber(effectiveTournamentId);
-
-    const playerData = {
-      id: generateUUID(),
-      name,
-      phone,
-      category,
-      role: category,
-      battingStyle,
-      bowlingStyle,
-      village,
-      district,
-      dob,
-      age,
-      docType,
-      tournamentId: tourney.id,
-      tournament_id: effectiveTournamentId,
-      tournamentSlug: tourney.slug,
-      tournamentName: tourney.name,
-      photoUrl: uploadedPhotoBase64 || '',
-      photo_url: uploadedPhotoBase64 || '',
-      idCardFrontUrl: uploadedIdFrontUrl || '',
-      idCardBackUrl: uploadedIdBackUrl || '',
-      aadharPhotoUrl: uploadedIdFrontUrl || '',
-      aadharBackUrl: uploadedIdBackUrl || '',
-      paymentReceiptUrl: uploadedReceiptBase64 || '',
-      paymentProofUrl: uploadedReceiptBase64 || '',
-      paymentRef: paymentRef,
-      remarks: paymentRef,
-      registrationStatus: 'PENDING_VERIFICATION',
-      paymentStatus: 'PENDING_VERIFICATION',
-      reg_number: atomicRegNo,
-      serialNo: atomicRegNo || (store.getPlayers().length + 1),
-      createdAt: Date.now()
-    };
-
-    const docsData = {
-      doc_type: docType,
-      aadhaar_url: uploadedIdFrontUrl || '',
-      id_card_front_url: uploadedIdFrontUrl || '',
-      id_card_back_url: uploadedIdBackUrl || '',
-      payment_screenshot_url: uploadedReceiptBase64 || '',
-      payment_ref: paymentRef
-    };
-
-    // 1. Save to Supabase Postgres (Multi-Tenant RLS Database)
-    await dbRegisterPlayer(playerData, docsData);
-
-    // 2. Set active tournament context and save to local store
-    if (effectiveTournamentId) {
-      store.setActiveTournament(effectiveTournamentId);
-    }
-    await store.saveUniversalPlayer(playerData);
-    store.registerPlayer(playerData);
-    store.notify('players_updated');
-
-    document.getElementById('dynamic-tournament-reg-modal')?.remove();
-
-    // Open Beautiful Success Modal
-    openRegistrationSuccessModal({
-      name: playerData.name,
-      registrationId: `${(tourney.shortCode || 'CPL').toUpperCase()}-2026-${String(playerData.serialNo).padStart(4, '0')}`,
-      serialNo: playerData.serialNo,
-      displayRegistrationNumber: playerData.serialNo,
-      photoUrl: playerData.photoUrl,
-      category: playerData.category
-    });
-  });
-
-  const handleClose = () => {
-    document.getElementById('dynamic-tournament-reg-modal')?.remove();
-  };
-  document.getElementById('close-dynamic-reg-modal-btn')?.addEventListener('click', handleClose);
+  const config = buildTournamentConfig(tourneyIdOrSlug);
+  openUnifiedPlayerRegistrationModal(config);
 }
 
 window.openTournamentCreationWizard = openTournamentCreationWizard;
