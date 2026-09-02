@@ -1698,52 +1698,56 @@ export function openHostTournamentIntroModal() {
   document.getElementById('host-tourney-intro-modal')?.remove();
 
   const modalHtml = `
-    <div id="host-tourney-intro-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3 animate-fade-in bg-slate-950/80 backdrop-blur-sm">
-      <div class="bg-gradient-to-br from-[#120B24] via-[#1A1438] to-[#0A0618] text-white max-w-md w-full p-4 sm:p-5 rounded-3xl border-2 border-purple-400/60 shadow-2xl space-y-3.5 relative overflow-hidden modal-content-container">
-        
+    <div id="host-tourney-intro-modal" class="fixed inset-0 z-50 modal-overlay flex items-center justify-center p-3 animate-fade-in bg-slate-900/60 backdrop-blur-sm">
+      <div class="bg-white max-w-md w-full p-4 sm:p-5 rounded-2xl sm:rounded-3xl border border-slate-200 shadow-2xl space-y-3.5 relative overflow-hidden modal-content-container">
+
         <!-- Close Button -->
-        <button id="close-host-intro-modal-btn" class="absolute top-3 right-3 w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 text-slate-300 hover:text-white flex items-center justify-center text-xs font-black transition-all cursor-pointer">
+        <button id="close-host-intro-modal-btn" class="absolute top-3 right-3 w-7 h-7 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-400 hover:text-slate-600 flex items-center justify-center text-xs font-bold transition-all cursor-pointer">
           ✕
         </button>
 
         <!-- Top Tag & Bengali Header -->
         <div class="text-center space-y-1 pt-1">
-          <div class="inline-flex items-center gap-1 px-2.5 py-0.5 bg-emerald-400/20 border border-emerald-400/30 rounded-full text-[10px] font-black text-emerald-300">
+          <div class="inline-flex items-center gap-1 px-2.5 py-0.5 bg-emerald-50 border border-emerald-200 rounded-full text-[10px] font-bold text-emerald-700">
             <span>🚀</span> <span>Launch in 2 Minutes</span>
           </div>
-          <h3 class="text-lg sm:text-xl font-black text-white tracking-tight flex items-center justify-center gap-1.5 pt-0.5 font-['Anek_Bangla','Hind_Siliguri',sans-serif] leading-tight">
+          <h3 class="text-lg sm:text-xl font-bold text-slate-900 tracking-tight flex items-center justify-center gap-1.5 pt-0.5 font-['Anek_Bangla','Hind_Siliguri',sans-serif] leading-tight">
             <span>🏆</span> <span>আপনার নিজের টুর্নামেন্ট তৈরি করুন</span>
           </h3>
-          <p class="text-[11px] text-slate-300 font-medium">Create custom leagues with automated tools</p>
+          <p class="text-[11px] text-slate-500 font-medium">Create custom leagues with automated tools</p>
         </div>
 
         <!-- 2 Modes Side-by-Side in SAME ROW -->
-        <div class="grid grid-cols-2 gap-2 sm:gap-2.5">
-          <!-- Mode A (Sunset Orange-Red Glow) -->
-          <div class="p-2.5 bg-gradient-to-b from-rose-500/30 via-orange-500/20 to-slate-900/80 rounded-2xl border border-rose-400/80 shadow-md shadow-rose-500/10 space-y-1 text-center flex flex-col items-center justify-between">
-            <div class="w-7 h-7 rounded-full bg-gradient-to-tr from-rose-500 to-orange-400 text-white flex items-center justify-center text-xs font-black shadow-xs shrink-0">
-              🔨
+        <div class="grid grid-cols-2 gap-2.5 sm:gap-3">
+          <!-- Mode A (Auction - Clockwise rotating border) -->
+          <div class="running-border-cw rounded-xl sm:rounded-2xl" style="background:rgba(255,237,213,0.4);">
+            <div class="mode-inner-box p-3 bg-orange-50 rounded-xl sm:rounded-2xl space-y-1.5 text-center flex flex-col items-center justify-between">
+              <div class="w-8 h-8 rounded-lg bg-orange-100 flex items-center justify-center text-lg shrink-0">
+                🔨
+              </div>
+              <h4 class="text-[11px] font-black text-orange-900 uppercase tracking-wide leading-tight">Auction Mode</h4>
+              <p class="text-[9px] text-orange-600 font-medium leading-tight">
+                Player Reg • Live Bidding • Squad • Fixture • Live Score
+              </p>
             </div>
-            <h4 class="text-[10.5px] font-black text-orange-300 uppercase tracking-tight leading-tight">AUCTION MODE</h4>
-            <p class="text-[9px] text-orange-100/90 font-semibold leading-tight">
-              Player Reg • Live Bidding • Squad • Fixture • Live Score
-            </p>
           </div>
 
-          <!-- Mode B (Emerald Green Glow) -->
-          <div class="p-2.5 bg-gradient-to-b from-emerald-500/30 via-teal-500/20 to-slate-900/80 rounded-2xl border border-emerald-400/80 shadow-md shadow-emerald-500/10 space-y-1 text-center flex flex-col items-center justify-between">
-            <div class="w-7 h-7 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 text-white flex items-center justify-center text-xs font-black shadow-xs shrink-0">
-              ⚡
+          <!-- Mode B (Fixture - Anti-clockwise rotating border) -->
+          <div class="running-border-ccw rounded-xl sm:rounded-2xl" style="background:rgba(204,251,241,0.4);">
+            <div class="mode-inner-box p-3 bg-teal-50 rounded-xl sm:rounded-2xl space-y-1.5 text-center flex flex-col items-center justify-between">
+              <div class="w-8 h-8 rounded-lg bg-teal-100 text-teal-600 flex items-center justify-center text-sm shrink-0">
+                ⚡
+              </div>
+              <h4 class="text-[11px] font-black text-teal-900 uppercase tracking-wide leading-tight">Fixture Mode</h4>
+              <p class="text-[9px] text-teal-600 font-medium leading-tight">
+                Direct Entry • Fixture • Live Score
+              </p>
             </div>
-            <h4 class="text-[10.5px] font-black text-emerald-300 uppercase tracking-tight leading-tight">FIXTURE MODE</h4>
-            <p class="text-[9px] text-emerald-100/90 font-semibold leading-tight">
-              Direct Entry • Fixture • Live Score
-            </p>
           </div>
         </div>
 
-        <!-- Glowing Emerald CTA Button -->
-        <button id="btn-intro-create-tourney" class="w-full py-3 bg-gradient-to-r from-emerald-400 via-teal-400 to-emerald-500 hover:from-emerald-500 hover:to-teal-500 text-slate-950 font-black text-xs sm:text-sm rounded-2xl shadow-xl shadow-emerald-500/25 hover:scale-[1.01] active:scale-98 transition-all flex items-center justify-center gap-1.5 cursor-pointer">
+        <!-- Navy CTA Button -->
+        <button id="btn-intro-create-tourney" class="glow-sliding-cta w-full py-3 bg-[#0F2C59] hover:bg-[#1A3A6B] text-white font-black text-xs sm:text-sm rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer">
           <span>+ Create Tournament</span>
           <span class="text-sm">➔</span>
         </button>
@@ -2275,52 +2279,52 @@ function renderFirstPageLanding(containerEl) {
         ${allTournaments.length === 0 ? '<div class="text-center py-8 bg-white border-2 border-dashed border-slate-200 rounded-xl"><div class="text-3xl mb-1">🏏</div><h4 class="text-xs font-black text-slate-900">No Tournaments Yet</h4><p class="text-[10px] text-slate-500 mt-0.5">Be the first to host a tournament!</p></div>' : buildTournamentCarouselHTML(allTournaments)}
       </div>
 
-      <!-- HOST YOUR OWN TOURNAMENT BANNER (SUNSET & EMERALD COMPACT BOX) -->
+      <!-- HOST YOUR OWN TOURNAMENT BANNER (CLEAN LIGHT CARD) -->
       <div class="w-full max-w-2xl mx-auto px-1 pt-1">
-        <div class="bg-gradient-to-br from-[#120B24] via-[#1A1438] to-[#0A0618] rounded-2xl sm:rounded-3xl p-3 sm:p-5 text-white shadow-xl border border-purple-400/40 space-y-2.5 sm:space-y-3.5 relative overflow-hidden">
-          
+        <div class="bg-white rounded-2xl sm:rounded-3xl p-4 sm:p-5 shadow-sm border border-slate-200 space-y-3 sm:space-y-4 relative overflow-hidden">
+
           <!-- Top Tag & Bengali Header -->
           <div class="text-center space-y-0.5 sm:space-y-1">
-            <div class="inline-flex items-center gap-1 px-2.5 py-0.2 bg-emerald-400/20 border border-emerald-400/30 rounded-full text-[9.5px] sm:text-[10.5px] font-black text-emerald-300">
+            <div class="inline-flex items-center gap-1 px-2.5 py-0.5 bg-emerald-50 border border-emerald-200 rounded-full text-[9.5px] sm:text-[10.5px] font-bold text-emerald-700">
               <span>🚀</span> <span>Launch in 2 Minutes</span>
             </div>
-            <h3 class="text-base sm:text-xl font-black text-white tracking-tight flex items-center justify-center gap-1.5 pt-0.5 font-['Anek_Bangla','Hind_Siliguri',sans-serif] leading-tight">
+            <h3 class="text-base sm:text-xl font-bold text-slate-900 tracking-tight flex items-center justify-center gap-1.5 pt-0.5 font-['Anek_Bangla','Hind_Siliguri',sans-serif] leading-tight">
               <span>🏆</span> <span>আপনার নিজের টুর্নামেন্ট তৈরি করুন</span>
             </h3>
-            <p class="text-[10.5px] sm:text-xs text-slate-300 font-medium">Create custom leagues with automated tools</p>
+            <p class="text-[10.5px] sm:text-xs text-slate-500 font-medium">Create custom leagues with automated tools</p>
           </div>
 
           <!-- 2 Modes Side-by-Side in SAME ROW (grid-cols-2) -->
-          <div class="grid grid-cols-2 gap-2 sm:gap-3">
-            <!-- Mode A (Sunset Rose-Orange Running Border Clockwise) -->
-            <div class="running-border-cw rounded-xl sm:rounded-2xl transition-all hover:scale-[1.02] shadow-[0_0_16px_rgba(244,63,94,0.32)]">
-              <div class="mode-inner-box p-2.5 sm:p-3.5 bg-gradient-to-b from-[#220B1A] via-[#181129] to-[#0D0818] rounded-xl sm:rounded-2xl space-y-1 text-center flex flex-col items-center justify-between">
-                <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-tr from-rose-500 to-orange-400 text-white flex items-center justify-center text-xs sm:text-sm font-black shadow-xs shrink-0">
+          <div class="grid grid-cols-2 gap-2.5 sm:gap-3">
+            <!-- Mode A (Auction - Clockwise rotating border) -->
+            <div class="running-border-cw rounded-xl sm:rounded-2xl" style="background:rgba(255,237,213,0.4);">
+              <div class="mode-inner-box p-3 sm:p-4 bg-orange-50 rounded-xl sm:rounded-2xl space-y-1.5 text-center flex flex-col items-center justify-between">
+                <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-orange-100 flex items-center justify-center text-lg sm:text-xl shrink-0">
                   🔨
                 </div>
-                <h4 class="text-[10.5px] sm:text-xs font-black text-orange-300 uppercase tracking-tight leading-tight">AUCTION MODE</h4>
-                <p class="text-[8.5px] sm:text-[9.5px] text-orange-100/90 font-semibold leading-tight line-clamp-3">
+                <h4 class="text-[11.5px] sm:text-sm font-black text-orange-900 uppercase tracking-wide leading-tight">Auction Mode</h4>
+                <p class="text-[8.5px] sm:text-[9.5px] text-orange-600 font-medium leading-tight line-clamp-3">
                   Player Reg • Live Bidding • Squad • Fixture • Live Score
                 </p>
               </div>
             </div>
 
-            <!-- Mode B (Electric Emerald-Teal Running Border Anti-Clockwise) -->
-            <div class="running-border-ccw rounded-xl sm:rounded-2xl transition-all hover:scale-[1.02] shadow-[0_0_16px_rgba(16,185,129,0.32)]">
-              <div class="mode-inner-box p-2.5 sm:p-3.5 bg-gradient-to-b from-[#08201A] via-[#0D1A27] to-[#0D0818] rounded-xl sm:rounded-2xl space-y-1 text-center flex flex-col items-center justify-between">
-                <div class="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-400 text-white flex items-center justify-center text-xs sm:text-sm font-black shadow-xs shrink-0">
+            <!-- Mode B (Fixture - Anti-clockwise rotating border) -->
+            <div class="running-border-ccw rounded-xl sm:rounded-2xl" style="background:rgba(204,251,241,0.4);">
+              <div class="mode-inner-box p-3 sm:p-4 bg-teal-50 rounded-xl sm:rounded-2xl space-y-1.5 text-center flex flex-col items-center justify-between">
+                <div class="w-8 h-8 sm:w-9 sm:h-9 rounded-lg bg-teal-100 text-teal-600 flex items-center justify-center text-sm sm:text-base shrink-0">
                   ⚡
                 </div>
-                <h4 class="text-[10.5px] sm:text-xs font-black text-emerald-300 uppercase tracking-tight leading-tight">FIXTURE MODE</h4>
-                <p class="text-[8.5px] sm:text-[9.5px] text-emerald-100/90 font-semibold leading-tight line-clamp-3">
+                <h4 class="text-[11.5px] sm:text-sm font-black text-teal-900 uppercase tracking-wide leading-tight">Fixture Mode</h4>
+                <p class="text-[8.5px] sm:text-[9.5px] text-teal-600 font-medium leading-tight line-clamp-3">
                   Direct Entry • Fixture • Live Score
                 </p>
               </div>
             </div>
           </div>
 
-          <!-- Glowing Emerald CTA Button with Looping Sliding Light Glow & Larger Font -->
-          <button id="btn-home-create-tourney" class="glow-sliding-cta w-full py-3 sm:py-3.5 bg-gradient-to-r from-emerald-400 via-teal-400 to-emerald-500 hover:from-emerald-300 hover:to-teal-300 text-slate-950 font-black text-sm sm:text-base md:text-lg rounded-xl sm:rounded-2xl shadow-xl shadow-emerald-500/35 hover:scale-[1.01] active:scale-98 transition-all flex items-center justify-center gap-2 cursor-pointer">
+          <!-- Navy CTA Button -->
+          <button id="btn-home-create-tourney" class="glow-sliding-cta w-full py-3 sm:py-3.5 bg-[#0F2C59] hover:bg-[#1A3A6B] text-white font-black text-sm sm:text-base rounded-xl sm:rounded-2xl shadow-lg hover:shadow-xl transition-all flex items-center justify-center gap-2 cursor-pointer">
             <span>+ Create Tournament</span>
             <span class="text-base sm:text-lg">➔</span>
           </button>
@@ -2851,21 +2855,10 @@ export function renderCustomTournamentHub(container, tourney) {
   container.innerHTML = `
     <div class="w-full max-w-3xl mx-auto animate-fade-in text-slate-900 px-2 py-2 sm:py-4 pb-16 space-y-3">
 
-      <!-- DYNAMIC TAB NAVIGATION (STYLISH WHITE CONTAINER WITH HORIZONTAL MOBILE SCROLL) -->
-      <div id="hub-tabs-scroll-bar" class="bg-white border border-slate-200/90 rounded-2xl p-1.5 shadow-xs flex items-center gap-1.5 overflow-x-auto scrollbar-hide select-none" style="touch-action: pan-x; -webkit-overflow-scrolling: touch;">
-        ${hubTabs.map(t => `
-          <button type="button" data-hub-tab="${t.id}" class="hub-tab-btn px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold tracking-wide transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 ${hubTab === t.id ? 'active-hub-tab bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-xs font-black' : 'bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-100/80'}">
-            ${t.label}
-          </button>
-        `).join('')}
-      </div>
+      <!-- MAIN HUB VIEW (icon grid + banner) -->
+      <div id="hub-main-view" class="${hubTab === 'home' ? '' : 'hidden'} space-y-3 animate-fade-in">
 
-      <!-- ========================================== -->
-      <!-- TAB 1: 🏠 HOME OVERVIEW                    -->
-      <!-- ========================================== -->
-      <div id="hub-tab-home" class="${hubTab === 'home' ? '' : 'hidden'} space-y-3 animate-fade-in">
-        
-        <!-- 1. HERO BANNER + 3-ACTION SOCIAL STRIP (JOINED TOGETHER IN ONE STYLISH WHITE CARD) -->
+        <!-- 1. HERO BANNER -->
         <div class="bg-white rounded-3xl p-2 sm:p-2.5 shadow-xs border border-slate-200/90 space-y-2">
           <div class="relative w-full aspect-[16/9] sm:aspect-[21/9] md:aspect-[24/9] max-h-[220px] sm:max-h-[260px] overflow-hidden bg-slate-900 rounded-2xl shadow-inner border border-slate-100">
             ${tourney.posterUrl ? `
@@ -2873,56 +2866,154 @@ export function renderCustomTournamentHub(container, tourney) {
             ` : renderTournamentFallbackPoster(tourney)}
           </div>
 
-          <!-- 3-OPTION SOCIAL & INTERACTION ACTION BAR (DIRECTLY JOINED UNDER BANNER SHAPE) -->
-          <div class="grid grid-cols-3 gap-1.5 text-center pt-0.5">
-            <!-- Left: Love / Like Reaction with Real Reactive Count -->
-            <button type="button" id="btn-hub-like-tourney" class="py-2 px-2 rounded-xl bg-rose-50/80 hover:bg-rose-100 text-rose-700 font-black text-xs border border-rose-200/80 flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95 group">
-              <span id="hub-like-icon" class="text-base transition-transform group-hover:scale-125">${isUserLiked ? '❤️' : '🤍'}</span>
-              <span id="hub-like-count" class="font-mono text-xs font-black">${likesCount}</span>
-              <span class="hidden sm:inline text-[10px] text-rose-900 uppercase">Likes</span>
-            </button>
-
-            <!-- Middle: Comments & Queries -->
-            <button type="button" id="btn-hub-open-comments" class="py-2 px-2 rounded-xl bg-sky-50/80 hover:bg-sky-100 text-sky-800 font-black text-xs border border-sky-200/80 flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95 group">
-              <svg class="w-4 h-4 text-sky-600 shrink-0 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"/>
-              </svg>
-              <span id="hub-comment-count" class="font-mono text-xs font-black">${commentsCount}</span>
-              <span class="text-[10px] text-sky-900 uppercase">Queries</span>
-            </button>
-
-            <!-- Right: Share Link -->
+          <!-- 2-BUTTON ACTION BAR: Share Tournament + Share Registration -->
+          <div class="grid grid-cols-2 gap-1.5 text-center pt-0.5">
             <button type="button" id="btn-hub-share-link" class="py-2 px-2 rounded-xl bg-emerald-50/80 hover:bg-emerald-100 text-emerald-800 font-black text-xs border border-emerald-200/80 flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95 group">
-              <svg class="w-4 h-4 text-emerald-600 shrink-0 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+              <svg class="w-4 h-4 text-emerald-600 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
                 <path stroke-linecap="round" stroke-linejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
               </svg>
-              <span class="text-[10px] sm:text-xs font-black text-emerald-900 uppercase">Share</span>
+              <span class="text-[10px] sm:text-xs font-black text-emerald-900 uppercase">Share Tournament</span>
+            </button>
+            <button type="button" id="btn-share-direct-reg-wa" class="py-2 px-2 rounded-xl bg-blue-50/80 hover:bg-blue-100 text-blue-800 font-black text-xs border border-blue-200/80 flex items-center justify-center gap-1.5 cursor-pointer transition-all active:scale-95 group">
+              <svg class="w-4 h-4 text-blue-600 shrink-0" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+              </svg>
+              <span class="text-[10px] sm:text-xs font-black text-blue-900 uppercase">Share Registration</span>
             </button>
           </div>
         </div>
 
-        <!-- 2. REGISTRATION BAR WITH INTEGRATED REGISTRATION SHARE SVG (IF REGISTRATION IS OPEN) -->
+        <!-- 2. REGISTRATION STATUS BAR -->
         ${isAuction && store.isRegistrationOpen() ? `
-          <div class="py-2.5 px-3 sm:px-4 bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 text-white rounded-2xl shadow-md border-2 border-rose-400 flex items-center justify-between gap-2 transition-all">
-            <!-- Left & Maximum Portion: Register Here Clickable Area -->
-            <div id="btn-home-hero-reg-link" class="flex-1 min-w-0 flex items-center gap-2 cursor-pointer group">
+          <div class="py-2.5 px-3 sm:px-4 bg-gradient-to-r from-rose-600 via-red-600 to-rose-700 text-white rounded-2xl shadow-md border-2 border-rose-400 flex items-center justify-between gap-2 transition-all cursor-pointer" id="btn-home-hero-reg-link">
+            <div class="flex-1 min-w-0 flex items-center gap-2">
               <span class="w-2.5 h-2.5 rounded-full bg-white animate-ping shrink-0"></span>
-              <span class="text-xs sm:text-sm font-black truncate tracking-wide group-hover:underline">
+              <span class="text-xs sm:text-sm font-black truncate tracking-wide">
                 🏏 Register Here for ${tourney.name}
               </span>
               <span class="px-2.5 py-0.5 bg-white text-rose-700 font-black text-[9.5px] sm:text-[10px] rounded-full uppercase tracking-wider shrink-0 shadow-xs hidden xs:inline-block">
                 Open ➔
               </span>
             </div>
-
-            <!-- Right: Small SVG Icon Button for Direct Share -->
-            <button type="button" id="btn-share-direct-reg-wa" title="Share Registration Link" class="p-1.5 sm:p-2 bg-white/20 hover:bg-white/35 active:scale-95 text-white rounded-xl border border-white/30 flex items-center justify-center shrink-0 cursor-pointer transition-all">
-              <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" stroke-width="2.3" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z"/>
-              </svg>
-            </button>
+          </div>
+        ` : isAuction ? `
+          <div class="py-2.5 px-3 sm:px-4 bg-slate-100 text-slate-600 rounded-2xl border border-slate-200 flex items-center gap-2">
+            <span class="text-sm">🏏</span>
+            <span class="text-xs sm:text-sm font-bold">Registration ${tourney.registrationStatus === 'coming_soon' ? 'Starting Soon' : 'Closed'}</span>
           </div>
         ` : ''}
+
+        <!-- 3. ICON GRID NAVIGATION (SQUARE CARDS — KPL STYLE) -->
+        <div class="bg-white/80 backdrop-blur-sm rounded-2xl p-3 sm:p-4 shadow-lg border border-white/60">
+          <div class="grid grid-cols-3 gap-2.5 sm:gap-3">
+
+            <!-- 1. HOME -->
+            <button type="button" data-hub-section="home" class="hub-grid-btn group bg-gradient-to-br from-blue-50 to-blue-100/80 border-2 border-blue-200/70 rounded-2xl p-2.5 sm:p-3 flex flex-col items-center justify-center gap-2 aspect-square hover:shadow-lg hover:border-blue-400 hover:from-blue-100 hover:to-blue-200/80 transition-all duration-200 cursor-pointer active:scale-95">
+              <div class="w-11 h-11 sm:w-13 sm:h-13 rounded-xl bg-blue-600 flex items-center justify-center shadow-md group-hover:shadow-blue-400/40 transition-shadow">
+                <svg class="w-6 h-6 sm:w-7 sm:h-7 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
+                  <polyline points="9 22 9 12 15 12 15 22"/>
+                </svg>
+              </div>
+              <span class="text-[10px] sm:text-xs font-extrabold text-blue-900 text-center leading-tight tracking-wide uppercase">Home</span>
+            </button>
+
+            <!-- 2. TEAMS -->
+            <button type="button" data-hub-section="teams" class="hub-grid-btn group bg-gradient-to-br from-emerald-50 to-emerald-100/80 border-2 border-emerald-200/70 rounded-2xl p-2.5 sm:p-3 flex flex-col items-center justify-center gap-2 aspect-square hover:shadow-lg hover:border-emerald-400 hover:from-emerald-100 hover:to-emerald-200/80 transition-all duration-200 cursor-pointer active:scale-95">
+              <div class="w-11 h-11 sm:w-13 sm:h-13 rounded-xl bg-emerald-600 flex items-center justify-center shadow-md group-hover:shadow-emerald-400/40 transition-shadow">
+                <svg class="w-6 h-6 sm:w-7 sm:h-7 text-white" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
+                  <circle cx="19" cy="8" r="2.5"/>
+                  <circle cx="5" cy="8" r="2.5"/>
+                </svg>
+              </div>
+              <span class="text-[10px] sm:text-xs font-extrabold text-emerald-900 text-center leading-tight tracking-wide uppercase">Teams</span>
+            </button>
+
+            <!-- 3. REGISTER PLAYERS (auction mode) / FIXTURES (fixture mode) -->
+            ${isAuction ? `
+            <button type="button" data-hub-section="players" class="hub-grid-btn group bg-gradient-to-br from-violet-50 to-violet-100/80 border-2 border-violet-200/70 rounded-2xl p-2.5 sm:p-3 flex flex-col items-center justify-center gap-2 aspect-square hover:shadow-lg hover:border-violet-400 hover:from-violet-100 hover:to-violet-200/80 transition-all duration-200 cursor-pointer active:scale-95">
+              <div class="w-11 h-11 sm:w-13 sm:h-13 rounded-xl bg-violet-600 flex items-center justify-center shadow-md group-hover:shadow-violet-400/40 transition-shadow">
+                <svg class="w-6 h-6 sm:w-7 sm:h-7 text-white" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M15 14c-2.67 0-8 1.33-8 4v2h16v-2c0-2.67-5.33-4-8-4zm0-2c1.93 0 3.5-1.57 3.5-3.5S16.93 5 15 5s-3.5 1.57-3.5 3.5S13.07 12 15 12z"/>
+                  <path d="M6 15v-3h3v-2H6V7H4v3H1v2h3v3z"/>
+                </svg>
+              </div>
+              <span class="text-[10px] sm:text-xs font-extrabold text-violet-900 text-center leading-tight tracking-wide uppercase">Register<br/>Players</span>
+            </button>
+            ` : `
+            <button type="button" data-hub-section="matches" data-subtab="fixtures" class="hub-grid-btn group bg-gradient-to-br from-violet-50 to-violet-100/80 border-2 border-violet-200/70 rounded-2xl p-2.5 sm:p-3 flex flex-col items-center justify-center gap-2 aspect-square hover:shadow-lg hover:border-violet-400 hover:from-violet-100 hover:to-violet-200/80 transition-all duration-200 cursor-pointer active:scale-95">
+              <div class="w-11 h-11 sm:w-13 sm:h-13 rounded-xl bg-violet-600 flex items-center justify-center shadow-md group-hover:shadow-violet-400/40 transition-shadow">
+                <svg class="w-6 h-6 sm:w-7 sm:h-7 text-white" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20a2 2 0 002 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zM5 8V6h14v2H5zm2 4h10v2H7v-2zm0 4h7v2H7v-2z"/>
+                </svg>
+              </div>
+              <span class="text-[10px] sm:text-xs font-extrabold text-violet-900 text-center leading-tight tracking-wide uppercase">Fixtures</span>
+            </button>
+            `}
+
+            <!-- 4. AUCTION (auction mode) / POINTS TABLE (fixture mode) -->
+            ${isAuction ? `
+            <button type="button" data-hub-section="auction" class="hub-grid-btn group bg-gradient-to-br from-rose-50 to-rose-100/80 border-2 border-rose-200/70 rounded-2xl p-2.5 sm:p-3 flex flex-col items-center justify-center gap-2 aspect-square hover:shadow-lg hover:border-rose-400 hover:from-rose-100 hover:to-rose-200/80 transition-all duration-200 cursor-pointer active:scale-95 relative">
+              <span class="absolute top-1 right-1 px-1.5 py-0.5 bg-red-500 text-white text-[7px] font-black rounded-full uppercase leading-none shadow-sm animate-pulse">Live</span>
+              <div class="w-11 h-11 sm:w-13 sm:h-13 rounded-xl bg-rose-600 flex items-center justify-center shadow-md group-hover:shadow-rose-400/40 transition-shadow">
+                <svg class="w-6 h-6 sm:w-7 sm:h-7 text-white" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M17.66 2.34a1.41 1.41 0 00-2 0l-3.54 3.54 2 2 3.54-3.54a1.41 1.41 0 000-2zM10.12 7.88l-7.07 7.07a1 1 0 000 1.41l4.59 4.59a1 1 0 001.41 0l7.07-7.07-6-6z"/>
+                  <path d="M3 21h4v-1H4.5l2-2H3v3z"/>
+                </svg>
+              </div>
+              <span class="text-[10px] sm:text-xs font-extrabold text-rose-900 text-center leading-tight tracking-wide uppercase">Auction</span>
+            </button>
+            ` : `
+            <button type="button" data-hub-section="matches" data-subtab="points" class="hub-grid-btn group bg-gradient-to-br from-amber-50 to-amber-100/80 border-2 border-amber-200/70 rounded-2xl p-2.5 sm:p-3 flex flex-col items-center justify-center gap-2 aspect-square hover:shadow-lg hover:border-amber-400 hover:from-amber-100 hover:to-amber-200/80 transition-all duration-200 cursor-pointer active:scale-95">
+              <div class="w-11 h-11 sm:w-13 sm:h-13 rounded-xl bg-amber-600 flex items-center justify-center shadow-md group-hover:shadow-amber-400/40 transition-shadow">
+                <svg class="w-6 h-6 sm:w-7 sm:h-7 text-white" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M3 3v18h18V3H3zm16 16H5V5h14v14zM7 7h4v4H7V7zm6 0h4v4h-4V7zm-6 6h4v4H7v-4zm6 0h4v4h-4v-4z"/>
+                </svg>
+              </div>
+              <span class="text-[10px] sm:text-xs font-extrabold text-amber-900 text-center leading-tight tracking-wide uppercase">Points<br/>Table</span>
+            </button>
+            `}
+
+            <!-- 5. MATCH CORNER -->
+            <button type="button" data-hub-section="matches" data-subtab="fixtures" class="hub-grid-btn group bg-gradient-to-br from-orange-50 to-orange-100/80 border-2 border-orange-200/70 rounded-2xl p-2.5 sm:p-3 flex flex-col items-center justify-center gap-2 aspect-square hover:shadow-lg hover:border-orange-400 hover:from-orange-100 hover:to-orange-200/80 transition-all duration-200 cursor-pointer active:scale-95">
+              <div class="w-11 h-11 sm:w-13 sm:h-13 rounded-xl bg-orange-600 flex items-center justify-center shadow-md group-hover:shadow-orange-400/40 transition-shadow">
+                <svg class="w-6 h-6 sm:w-7 sm:h-7 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <circle cx="12" cy="12" r="10"/>
+                  <path d="M12 6v6l4 2"/>
+                  <path d="M8 2l1.5 3M16 2l-1.5 3" stroke-width="1.5"/>
+                </svg>
+              </div>
+              <span class="text-[10px] sm:text-xs font-extrabold text-orange-900 text-center leading-tight tracking-wide uppercase">Match<br/>Corner</span>
+            </button>
+
+            <!-- 6. STATISTICS -->
+            <button type="button" data-hub-section="stats" class="hub-grid-btn group bg-gradient-to-br from-cyan-50 to-cyan-100/80 border-2 border-cyan-200/70 rounded-2xl p-2.5 sm:p-3 flex flex-col items-center justify-center gap-2 aspect-square hover:shadow-lg hover:border-cyan-400 hover:from-cyan-100 hover:to-cyan-200/80 transition-all duration-200 cursor-pointer active:scale-95">
+              <div class="w-11 h-11 sm:w-13 sm:h-13 rounded-xl bg-cyan-600 flex items-center justify-center shadow-md group-hover:shadow-cyan-400/40 transition-shadow">
+                <svg class="w-6 h-6 sm:w-7 sm:h-7 text-white" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M5 9.2h3V19H5V9.2zM10.6 5h2.8v14h-2.8V5zm5.6 8H19v6h-2.8v-6z"/>
+                </svg>
+              </div>
+              <span class="text-[10px] sm:text-xs font-extrabold text-cyan-900 text-center leading-tight tracking-wide uppercase">Statistics</span>
+            </button>
+
+          </div>
+        </div>
+
+      </div>
+
+      <!-- SECTION BACK BUTTON (shown when viewing a section) -->
+      <div id="hub-section-back" class="hidden">
+        <button type="button" id="btn-hub-back-to-grid" class="flex items-center gap-2 px-3 py-2 bg-white rounded-xl border border-slate-200 shadow-xs text-sm font-bold text-slate-700 hover:bg-slate-50 transition-all cursor-pointer active:scale-95">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7"/></svg>
+          <span>Back to ${tourney.name}</span>
+        </button>
+      </div>
+
+      <!-- ========================================== -->
+      <!-- SECTION: 🏠 HOME DETAILS                    -->
+      <!-- ========================================== -->
+      <div id="hub-tab-home" class="hidden space-y-3 animate-fade-in">
 
         <!-- 4. CORE 5-METRIC COLORFUL GRID ON CLEAN WHITE CARD -->
         <div class="bg-white rounded-2xl p-3 shadow-xs border border-slate-200/90 space-y-2">
@@ -3105,7 +3196,7 @@ export function renderCustomTournamentHub(container, tourney) {
       <!-- ========================================== -->
       <!-- TAB 2: 🛡️ TEAMS                             -->
       <!-- ========================================== -->
-      <div id="hub-tab-teams" class="${hubTab === 'teams' ? '' : 'hidden'} space-y-3 animate-fade-in">
+      <div id="hub-tab-teams" class="hidden space-y-3 animate-fade-in">
         
         <!-- Clean Header -->
         <div class="flex items-center justify-between px-1">
@@ -3219,7 +3310,7 @@ export function renderCustomTournamentHub(container, tourney) {
       <!-- TAB 3: 👥 REGISTERED PLAYERS (Classic Emerald Frame Design)    -->
       <!-- ============================================================= -->
       ${isAuction ? `
-        <div id="hub-tab-players" class="${hubTab === 'players' ? '' : 'hidden'} space-y-3 animate-fade-in">
+        <div id="hub-tab-players" class="hidden space-y-3 animate-fade-in">
           
           <!-- Header Strip -->
           <div class="flex items-center justify-between gap-2 px-1">
@@ -3328,7 +3419,7 @@ export function renderCustomTournamentHub(container, tourney) {
       <!-- TAB 4: 🔨 AUCTION ARCHIVE & SUMMARY PORTAL (FULL SQUAD & ROSTER) -->
       <!-- ============================================================= -->
       ${isAuction ? `
-        <div id="hub-tab-auction" class="${hubTab === 'auction' ? '' : 'hidden'} space-y-2.5 animate-fade-in">
+        <div id="hub-tab-auction" class="hidden space-y-2.5 animate-fade-in">
           
           <!-- AUCTION MASTER PORTAL HEADER BANNER (COMPACT & MOBILE-OPTIMIZED) -->
           <div class="bg-white p-2.5 sm:p-3.5 rounded-2xl border border-slate-200/90 shadow-xs space-y-2">
@@ -3595,7 +3686,7 @@ export function renderCustomTournamentHub(container, tourney) {
       <!-- ============================================================= -->
       <!-- TAB 5: 🏏 MATCH CORNER (Fixtures & Group A/B Points Table)     -->
       <!-- ============================================================= -->
-      <div id="hub-tab-matches" class="${hubTab === 'matches' ? '' : 'hidden'} space-y-4 animate-fade-in">
+      <div id="hub-tab-matches" class="hidden space-y-4 animate-fade-in">
         <!-- Subtabs: Fixtures vs Points Table Switcher -->
         <div class="flex items-center gap-2 p-1.5 bg-slate-100/90 rounded-2xl max-w-xs border border-slate-200/80 shadow-2xs">
           <button id="hub-match-subtab-fixtures" class="flex-1 py-2 rounded-xl text-xs font-black bg-white text-slate-900 shadow-xs transition-all cursor-pointer flex items-center justify-center gap-1.5">
@@ -3797,7 +3888,7 @@ export function renderCustomTournamentHub(container, tourney) {
       <!-- ============================================================= -->
       <!-- TAB 6: 📊 STATISTICS & AWARDS LEADERBOARD                     -->
       <!-- ============================================================= -->
-      <div id="hub-tab-stats" class="${hubTab === 'stats' ? '' : 'hidden'} space-y-3 animate-fade-in">
+      <div id="hub-tab-stats" class="hidden space-y-3 animate-fade-in">
         
         <!-- 1. BEST MVP PLAYER PODIUM BOX (CLEAN WHITE WITH ACCENT GLOW) -->
         ${topMVP ? `
@@ -3985,37 +4076,62 @@ export function renderCustomTournamentHub(container, tourney) {
 
   if (window.lucide) window.lucide.createIcons();
 
-  // Tab switching handler with clean active state reset and mobile smooth auto-scroll
-  container.querySelectorAll('.hub-tab-btn').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      const tab = e.currentTarget.dataset.hubTab;
-      try { sessionStorage.setItem('cpl_hub_tab_' + tourney.slug, tab); } catch(ex) {}
-      
-      const targetHash = tab === 'home' ? `t/${tourney.slug}` : `t/${tourney.slug}?tab=${tab}`;
-      currentRoute = targetHash;
-      try { sessionStorage.setItem('cpl_last_route', targetHash); } catch(ex) {}
-      if (history.replaceState) {
-        history.replaceState({ route: targetHash }, '', `#${targetHash}`);
+  // Icon grid navigation handler — show section, hide main view + other sections
+  const allSectionIds = ['home', 'teams', 'players', 'auction', 'matches', 'stats'];
+  const mainView = document.getElementById('hub-main-view');
+  const sectionBack = document.getElementById('hub-section-back');
+
+  const showSection = (sectionId, subtab) => {
+    mainView?.classList.add('hidden');
+    sectionBack?.classList.remove('hidden');
+    allSectionIds.forEach(id => document.getElementById('hub-tab-' + id)?.classList.add('hidden'));
+    document.getElementById('hub-tab-' + sectionId)?.classList.remove('hidden');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+
+    // Handle match corner subtabs
+    if (sectionId === 'matches' && subtab) {
+      if (subtab === 'points') {
+        document.getElementById('hub-match-subtab-points')?.click();
+      } else {
+        document.getElementById('hub-match-subtab-fixtures')?.click();
       }
+    }
 
-      // 1. Reset ALL buttons to clean inactive slate pill state
-      container.querySelectorAll('.hub-tab-btn').forEach(b => {
-        b.className = 'hub-tab-btn px-3.5 sm:px-4 py-2 rounded-xl text-xs font-bold tracking-wide transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 bg-slate-50 hover:bg-slate-100 text-slate-600 border border-slate-100/80';
-      });
+    try { sessionStorage.setItem('cpl_hub_tab_' + tourney.slug, sectionId); } catch(ex) {}
+    const targetHash = sectionId === 'home' ? `t/${tourney.slug}` : `t/${tourney.slug}?tab=${sectionId}`;
+    currentRoute = targetHash;
+    try { sessionStorage.setItem('cpl_last_route', targetHash); } catch(ex) {}
+    if (history.replaceState) history.replaceState({ route: targetHash }, '', `#${targetHash}`);
+  };
 
-      // 2. Set active styling ONLY on selected button
-      e.currentTarget.className = 'hub-tab-btn active-hub-tab px-3.5 sm:px-4 py-2 rounded-xl text-xs font-black tracking-wide transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 shrink-0 bg-gradient-to-r from-emerald-600 to-teal-700 text-white shadow-xs';
+  const backToGrid = () => {
+    allSectionIds.forEach(id => document.getElementById('hub-tab-' + id)?.classList.add('hidden'));
+    sectionBack?.classList.add('hidden');
+    mainView?.classList.remove('hidden');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    try { sessionStorage.removeItem('cpl_hub_tab_' + tourney.slug); } catch(ex) {}
+  };
 
-      // 3. Smoothly center selected tab on mobile horizontal scroll
-      e.currentTarget.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
-
-      // 4. Toggle tab views
-      hubTabs.forEach(t => {
-        document.getElementById('hub-tab-' + t.id)?.classList.add('hidden');
-      });
-      document.getElementById('hub-tab-' + tab)?.classList.remove('hidden');
+  container.querySelectorAll('.hub-grid-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const section = btn.getAttribute('data-hub-section');
+      const subtab = btn.getAttribute('data-subtab') || null;
+      if (section) showSection(section, subtab);
     });
   });
+
+  document.getElementById('btn-hub-back-to-grid')?.addEventListener('click', backToGrid);
+
+  // If URL has a tab param, open that section directly
+  if (hubTab && hubTab !== 'home') {
+    showSection(hubTab);
+  } else if (hubTab === 'home') {
+    // Check if the session had a saved tab
+    try {
+      const saved = sessionStorage.getItem('cpl_hub_tab_' + tourney.slug);
+      if (saved && saved !== 'home' && allSectionIds.includes(saved)) showSection(saved);
+    } catch(e) {}
+  }
 
   // Match corner subtabs switching
   document.getElementById('hub-match-subtab-fixtures')?.addEventListener('click', () => {
@@ -4041,37 +4157,6 @@ export function renderCustomTournamentHub(container, tourney) {
   document.getElementById('btn-tab-open-reg-empty')?.addEventListener('click', () => openDynamicTournamentRegistrationModal(tourney.slug));
   document.getElementById('btn-custom-hub-back')?.addEventListener('click', () => navigate('landing'));
   document.getElementById('btn-custom-hub-admin')?.addEventListener('click', () => navigate('admin'));
-
-  // 1. Interactive Like / Love Reaction Handler
-  const likeBtn = document.getElementById('btn-hub-like-tourney');
-  if (likeBtn) {
-    likeBtn.addEventListener('click', () => {
-      let liked = false;
-      try { liked = localStorage.getItem('cpl_liked_' + slugKey) === 'true'; } catch(e) {}
-      liked = !liked;
-      try { localStorage.setItem('cpl_liked_' + slugKey, String(liked)); } catch(e) {}
-      
-      const iconEl = document.getElementById('hub-like-icon');
-      const countEl = document.getElementById('hub-like-count');
-      const currentCount = Number(countEl?.textContent || rawLikes);
-      const newCount = liked ? currentCount + 1 : Math.max(0, currentCount - 1);
-      
-      if (iconEl) iconEl.textContent = liked ? '❤️' : '🤍';
-      if (countEl) countEl.textContent = String(newCount);
-
-      // Heart bounce animation
-      likeBtn.classList.add('scale-110');
-      setTimeout(() => likeBtn.classList.remove('scale-110'), 200);
-    });
-  }
-
-  // 2. Interactive Comments & Queries Modal Handler
-  document.getElementById('btn-hub-open-comments')?.addEventListener('click', () => {
-    openTournamentCommentsModal(tourney, (newCount) => {
-      const countEl = document.getElementById('hub-comment-count');
-      if (countEl) countEl.textContent = String(newCount);
-    });
-  });
 
   // 3. Interactive Share Link Handler
   const handleShare = () => {
