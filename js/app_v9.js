@@ -2882,98 +2882,98 @@ export function renderCustomTournamentHub(container, tourney) {
           </div>
         ` : ''}
 
-        <!-- 3. ICON GRID NAVIGATION (PROFESSIONAL EXPLORE-STYLE CARDS) -->
-        <div class="bg-white rounded-3xl p-4 sm:p-5 shadow-sm border border-slate-100">
-          <div class="grid grid-cols-3 sm:grid-cols-4 gap-3 sm:gap-4">
+        <!-- 3. ICON GRID NAVIGATION (EXPLORE-STYLE WHITE SHADOW CARDS) -->
+        <div class="rounded-3xl p-3 sm:p-4">
+          <div class="grid grid-cols-3 gap-3 sm:gap-3.5">
 
             <!-- 1. DETAILS -->
-            <button type="button" data-hub-section="home" class="hub-grid-btn group flex flex-col items-center gap-2.5 py-3 px-1 rounded-2xl bg-slate-50/80 border border-slate-100 hover:bg-white hover:shadow-md hover:border-slate-200 transition-all duration-200 cursor-pointer active:scale-95">
-              <div class="w-14 h-14 rounded-2xl bg-blue-50 flex items-center justify-center group-hover:scale-105 transition-transform">
-                <svg class="w-7 h-7 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <button type="button" data-hub-section="home" class="hub-grid-btn group flex flex-col items-center gap-2 py-4 px-2 rounded-2xl bg-white shadow-[0_1px_8px_rgba(0,0,0,0.08)] hover:shadow-[0_2px_16px_rgba(0,0,0,0.12)] transition-all duration-200 cursor-pointer active:scale-95">
+              <div class="w-12 h-12 rounded-xl bg-blue-50 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <svg class="w-6 h-6 text-blue-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                   <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/>
                   <polyline points="9 22 9 12 15 12 15 22"/>
                 </svg>
               </div>
-              <span class="text-[10.5px] sm:text-xs font-bold text-slate-600 text-center leading-tight">Details</span>
+              <span class="text-[11px] font-semibold text-slate-700 text-center leading-tight">Details</span>
             </button>
 
             <!-- 2. TEAMS -->
-            <button type="button" data-hub-section="teams" class="hub-grid-btn group flex flex-col items-center gap-2.5 py-3 px-1 rounded-2xl bg-slate-50/80 border border-slate-100 hover:bg-white hover:shadow-md hover:border-slate-200 transition-all duration-200 cursor-pointer active:scale-95">
-              <div class="w-14 h-14 rounded-2xl bg-emerald-50 flex items-center justify-center group-hover:scale-105 transition-transform">
-                <svg class="w-7 h-7 text-emerald-500" viewBox="0 0 24 24" fill="currentColor">
+            <button type="button" data-hub-section="teams" class="hub-grid-btn group flex flex-col items-center gap-2 py-4 px-2 rounded-2xl bg-white shadow-[0_1px_8px_rgba(0,0,0,0.08)] hover:shadow-[0_2px_16px_rgba(0,0,0,0.12)] transition-all duration-200 cursor-pointer active:scale-95">
+              <div class="w-12 h-12 rounded-xl bg-emerald-50 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <svg class="w-6 h-6 text-emerald-500" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 3c1.66 0 3 1.34 3 3s-1.34 3-3 3-3-1.34-3-3 1.34-3 3-3zm0 14.2c-2.5 0-4.71-1.28-6-3.22.03-1.99 4-3.08 6-3.08 1.99 0 5.97 1.09 6 3.08-1.29 1.94-3.5 3.22-6 3.22z"/>
                   <circle cx="19" cy="8" r="2.5"/>
                   <circle cx="5" cy="8" r="2.5"/>
                 </svg>
               </div>
-              <span class="text-[10.5px] sm:text-xs font-bold text-slate-600 text-center leading-tight">Teams</span>
+              <span class="text-[11px] font-semibold text-slate-700 text-center leading-tight">Teams</span>
             </button>
 
             <!-- 3. REGISTER PLAYERS (auction mode) / FIXTURES (fixture mode) -->
             ${isAuction ? `
-            <button type="button" data-hub-section="players" class="hub-grid-btn group flex flex-col items-center gap-2.5 py-3 px-1 rounded-2xl bg-slate-50/80 border border-slate-100 hover:bg-white hover:shadow-md hover:border-slate-200 transition-all duration-200 cursor-pointer active:scale-95">
-              <div class="w-14 h-14 rounded-2xl bg-violet-50 flex items-center justify-center group-hover:scale-105 transition-transform">
-                <svg class="w-7 h-7 text-violet-500" viewBox="0 0 24 24" fill="currentColor">
+            <button type="button" data-hub-section="players" class="hub-grid-btn group flex flex-col items-center gap-2 py-4 px-2 rounded-2xl bg-white shadow-[0_1px_8px_rgba(0,0,0,0.08)] hover:shadow-[0_2px_16px_rgba(0,0,0,0.12)] transition-all duration-200 cursor-pointer active:scale-95">
+              <div class="w-12 h-12 rounded-xl bg-violet-50 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <svg class="w-6 h-6 text-violet-500" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M15 14c-2.67 0-8 1.33-8 4v2h16v-2c0-2.67-5.33-4-8-4zm0-2c1.93 0 3.5-1.57 3.5-3.5S16.93 5 15 5s-3.5 1.57-3.5 3.5S13.07 12 15 12z"/>
                   <path d="M6 15v-3h3v-2H6V7H4v3H1v2h3v3z"/>
                 </svg>
               </div>
-              <span class="text-[10.5px] sm:text-xs font-bold text-slate-600 text-center leading-tight">Register<br/>Players</span>
+              <span class="text-[11px] font-semibold text-slate-700 text-center leading-tight">Register<br/>Players</span>
             </button>
             ` : `
-            <button type="button" data-hub-section="matches" data-subtab="fixtures" class="hub-grid-btn group flex flex-col items-center gap-2.5 py-3 px-1 rounded-2xl bg-slate-50/80 border border-slate-100 hover:bg-white hover:shadow-md hover:border-slate-200 transition-all duration-200 cursor-pointer active:scale-95">
-              <div class="w-14 h-14 rounded-2xl bg-violet-50 flex items-center justify-center group-hover:scale-105 transition-transform">
-                <svg class="w-7 h-7 text-violet-500" viewBox="0 0 24 24" fill="currentColor">
+            <button type="button" data-hub-section="matches" data-subtab="fixtures" class="hub-grid-btn group flex flex-col items-center gap-2 py-4 px-2 rounded-2xl bg-white shadow-[0_1px_8px_rgba(0,0,0,0.08)] hover:shadow-[0_2px_16px_rgba(0,0,0,0.12)] transition-all duration-200 cursor-pointer active:scale-95">
+              <div class="w-12 h-12 rounded-xl bg-violet-50 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <svg class="w-6 h-6 text-violet-500" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-1.99.9-1.99 2L3 20a2 2 0 002 2h14c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 16H5V10h14v10zM5 8V6h14v2H5zm2 4h10v2H7v-2zm0 4h7v2H7v-2z"/>
                 </svg>
               </div>
-              <span class="text-[10.5px] sm:text-xs font-bold text-slate-600 text-center leading-tight">Fixtures</span>
+              <span class="text-[11px] font-semibold text-slate-700 text-center leading-tight">Fixtures</span>
             </button>
             `}
 
             <!-- 4. AUCTION (auction mode) / POINTS TABLE (fixture mode) -->
             ${isAuction ? `
-            <button type="button" data-hub-section="auction" class="hub-grid-btn group flex flex-col items-center gap-2.5 py-3 px-1 rounded-2xl bg-slate-50/80 border border-slate-100 hover:bg-white hover:shadow-md hover:border-slate-200 transition-all duration-200 cursor-pointer active:scale-95 relative">
+            <button type="button" data-hub-section="auction" class="hub-grid-btn group flex flex-col items-center gap-2 py-4 px-2 rounded-2xl bg-white shadow-[0_1px_8px_rgba(0,0,0,0.08)] hover:shadow-[0_2px_16px_rgba(0,0,0,0.12)] transition-all duration-200 cursor-pointer active:scale-95 relative">
               <span class="absolute top-1.5 right-1.5 px-1.5 py-0.5 bg-red-500 text-white text-[7px] font-black rounded-full uppercase leading-none shadow-sm animate-pulse">Live</span>
-              <div class="w-14 h-14 rounded-2xl bg-rose-50 flex items-center justify-center group-hover:scale-105 transition-transform">
-                <svg class="w-7 h-7 text-rose-500" viewBox="0 0 24 24" fill="currentColor">
+              <div class="w-12 h-12 rounded-xl bg-rose-50 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <svg class="w-6 h-6 text-rose-500" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M17.66 2.34a1.41 1.41 0 00-2 0l-3.54 3.54 2 2 3.54-3.54a1.41 1.41 0 000-2zM10.12 7.88l-7.07 7.07a1 1 0 000 1.41l4.59 4.59a1 1 0 001.41 0l7.07-7.07-6-6z"/>
                   <path d="M3 21h4v-1H4.5l2-2H3v3z"/>
                 </svg>
               </div>
-              <span class="text-[10.5px] sm:text-xs font-bold text-slate-600 text-center leading-tight">Auction</span>
+              <span class="text-[11px] font-semibold text-slate-700 text-center leading-tight">Auction</span>
             </button>
             ` : `
-            <button type="button" data-hub-section="matches" data-subtab="points" class="hub-grid-btn group flex flex-col items-center gap-2.5 py-3 px-1 rounded-2xl bg-slate-50/80 border border-slate-100 hover:bg-white hover:shadow-md hover:border-slate-200 transition-all duration-200 cursor-pointer active:scale-95">
-              <div class="w-14 h-14 rounded-2xl bg-amber-50 flex items-center justify-center group-hover:scale-105 transition-transform">
-                <svg class="w-7 h-7 text-amber-500" viewBox="0 0 24 24" fill="currentColor">
+            <button type="button" data-hub-section="matches" data-subtab="points" class="hub-grid-btn group flex flex-col items-center gap-2 py-4 px-2 rounded-2xl bg-white shadow-[0_1px_8px_rgba(0,0,0,0.08)] hover:shadow-[0_2px_16px_rgba(0,0,0,0.12)] transition-all duration-200 cursor-pointer active:scale-95">
+              <div class="w-12 h-12 rounded-xl bg-amber-50 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <svg class="w-6 h-6 text-amber-500" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M3 3v18h18V3H3zm16 16H5V5h14v14zM7 7h4v4H7V7zm6 0h4v4h-4V7zm-6 6h4v4H7v-4zm6 0h4v4h-4v-4z"/>
                 </svg>
               </div>
-              <span class="text-[10.5px] sm:text-xs font-bold text-slate-600 text-center leading-tight">Points<br/>Table</span>
+              <span class="text-[11px] font-semibold text-slate-700 text-center leading-tight">Points<br/>Table</span>
             </button>
             `}
 
             <!-- 5. MATCH CORNER -->
-            <button type="button" data-hub-section="matches" data-subtab="fixtures" class="hub-grid-btn group flex flex-col items-center gap-2.5 py-3 px-1 rounded-2xl bg-slate-50/80 border border-slate-100 hover:bg-white hover:shadow-md hover:border-slate-200 transition-all duration-200 cursor-pointer active:scale-95">
-              <div class="w-14 h-14 rounded-2xl bg-orange-50 flex items-center justify-center group-hover:scale-105 transition-transform">
-                <svg class="w-7 h-7 text-orange-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <button type="button" data-hub-section="matches" data-subtab="fixtures" class="hub-grid-btn group flex flex-col items-center gap-2 py-4 px-2 rounded-2xl bg-white shadow-[0_1px_8px_rgba(0,0,0,0.08)] hover:shadow-[0_2px_16px_rgba(0,0,0,0.12)] transition-all duration-200 cursor-pointer active:scale-95">
+              <div class="w-12 h-12 rounded-xl bg-orange-50 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <svg class="w-6 h-6 text-orange-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
                   <circle cx="12" cy="12" r="10"/>
                   <path d="M12 6v6l4 2"/>
                   <path d="M8 2l1.5 3M16 2l-1.5 3" stroke-width="1.5"/>
                 </svg>
               </div>
-              <span class="text-[10.5px] sm:text-xs font-bold text-slate-600 text-center leading-tight">Match<br/>Corner</span>
+              <span class="text-[11px] font-semibold text-slate-700 text-center leading-tight">Match<br/>Corner</span>
             </button>
 
             <!-- 6. STATISTICS -->
-            <button type="button" data-hub-section="stats" class="hub-grid-btn group flex flex-col items-center gap-2.5 py-3 px-1 rounded-2xl bg-slate-50/80 border border-slate-100 hover:bg-white hover:shadow-md hover:border-slate-200 transition-all duration-200 cursor-pointer active:scale-95">
-              <div class="w-14 h-14 rounded-2xl bg-cyan-50 flex items-center justify-center group-hover:scale-105 transition-transform">
-                <svg class="w-7 h-7 text-cyan-500" viewBox="0 0 24 24" fill="currentColor">
+            <button type="button" data-hub-section="stats" class="hub-grid-btn group flex flex-col items-center gap-2 py-4 px-2 rounded-2xl bg-white shadow-[0_1px_8px_rgba(0,0,0,0.08)] hover:shadow-[0_2px_16px_rgba(0,0,0,0.12)] transition-all duration-200 cursor-pointer active:scale-95">
+              <div class="w-12 h-12 rounded-xl bg-cyan-50 flex items-center justify-center group-hover:scale-110 transition-transform">
+                <svg class="w-6 h-6 text-cyan-500" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M5 9.2h3V19H5V9.2zM10.6 5h2.8v14h-2.8V5zm5.6 8H19v6h-2.8v-6z"/>
                 </svg>
               </div>
-              <span class="text-[10.5px] sm:text-xs font-bold text-slate-600 text-center leading-tight">Statistics</span>
+              <span class="text-[11px] font-semibold text-slate-700 text-center leading-tight">Statistics</span>
             </button>
 
           </div>
