@@ -518,6 +518,17 @@ input[type="date"]::-webkit-calendar-picker-indicator:hover {
   to { opacity: 1; transform: translateY(0); }
 }
 
+/* Seamless continuous scrolling notice ticker */
+.notice-ticker-track {
+  display: inline-flex;
+  white-space: nowrap;
+  animation: notice-scroll-seamless 28s linear infinite;
+}
+@keyframes notice-scroll-seamless {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+
 .animate-fade-in {
   animation: fadeIn 0.25s ease-out forwards;
 }

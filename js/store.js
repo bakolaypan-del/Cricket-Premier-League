@@ -61,7 +61,9 @@ import {
   fetchGlobalLiveAuctionStatus,
   fetchVerificationDocs,
   fetchPersonProfiles,
-  fetchAllTournamentsFixtures
+  fetchAllTournamentsFixtures,
+  saveNoticeBoardToCloud,
+  fetchNoticeBoardFromCloud
 } from './supabase.js?v=13.0.55';
 
 const STORAGE_KEYS = {
@@ -2646,6 +2648,32 @@ class Store {
     const patch = { isRegistrationOpen: isOpen };
     if (closedReason) patch.closedReason = closedReason;
     return this.updateRegistrationSettings(patch);
+  }
+
+  // --- NOTICE BOARD ---
+  getNoticeBoard() {
+    try {
+      const raw = localStorage.getItem(this._scopedKey('NOTICE_BOARD'));
+      return raw ? JSON.parse(raw) : { text: '', active: false };
+    } catch(e) { return { text: '', active: false }; }
+  }
+
+  async updateNoticeBoard(noticeData) {
+    const current = this.getNoticeBoard();
+    const updated = { ...current, ...noticeData, updated_at: new Date().toISOString() };
+    safeSetLocalStorage(this._scopedKey('NOTICE_BOARD'), updated);
+    await saveNoticeBoardToCloud(updated, this.activeTournamentId);
+    this.notify('notice_board_updated');
+    return updated;
+  }
+
+  async syncNoticeBoardFromCloud() {
+    const cloud = await fetchNoticeBoardFromCloud(this.activeTournamentId);
+    if (cloud) {
+      safeSetLocalStorage(this._scopedKey('NOTICE_BOARD'), cloud);
+      return cloud;
+    }
+    return this.getNoticeBoard();
   }
 
   // --- LIVE AUCTION STATE ---

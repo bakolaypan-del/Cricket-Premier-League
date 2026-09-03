@@ -180,6 +180,7 @@ export function renderAdminDashboard(containerEl) {
     { tab: 'fixtures', icon: 'calendar', label: 'Scheduler', masterOnly: false },
     { tab: 'scorer', icon: 'gamepad-2', label: 'Live Scorer', masterOnly: false },
     { tab: 'tourney-details', icon: 'settings-2', label: 'Tournament Settings' },
+    { tab: 'notice-board', icon: 'scroll-text', label: 'Notice Board' },
     ...(!isMaster ? [{ tab: 'reg-settings', icon: 'power', label: 'Reg. Control' }] : []),
     ...(isMaster ? [
       { tab: 'reg-settings', icon: 'power', label: 'Reg. Control' },
@@ -1621,6 +1622,57 @@ export function renderAdminDashboard(containerEl) {
           </div>
         </div>
 
+        <!-- NOTICE BOARD TAB -->
+        <div id="tab-notice-board-view" class="${activeAdminTab === 'notice-board' ? '' : 'hidden'} space-y-4 animate-fade-in">
+          <div class="p-4 sm:p-5 bg-white border-2 border-slate-200 rounded-3xl shadow-sm space-y-4">
+            <div class="flex items-center justify-between pb-3 border-b border-slate-100 flex-wrap gap-3">
+              <div class="flex items-center gap-3">
+                <span class="p-2 bg-indigo-50 text-indigo-700 rounded-xl border border-indigo-200">
+                  <i data-lucide="scroll-text" class="w-5 h-5"></i>
+                </span>
+                <div>
+                  <h3 class="text-base font-black text-slate-900">📢 Notice Board — Scrolling Ticker</h3>
+                  <p class="text-xs text-slate-500">Write a notice and toggle it ON to display a scrolling ticker at the bottom of your tournament dashboard.</p>
+                </div>
+              </div>
+
+              <div id="notice-status-badge" class="flex items-center gap-2 px-3 py-1.5 rounded-xl border ${(function(){ try { return store.getNoticeBoard().active ? 'border-emerald-300 bg-emerald-50 text-emerald-800' : 'border-slate-300 bg-slate-50 text-slate-600'; } catch(e) { return 'border-slate-300 bg-slate-50 text-slate-600'; } })()}">
+                <span class="w-2.5 h-2.5 rounded-full ${(function(){ try { return store.getNoticeBoard().active ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'; } catch(e) { return 'bg-slate-400'; } })()}"></span>
+                <span class="text-xs font-black uppercase tracking-wider">${(function(){ try { return store.getNoticeBoard().active ? '🟢 Ticker Running' : '⚫ Ticker OFF'; } catch(e) { return '⚫ Ticker OFF'; } })()}</span>
+              </div>
+            </div>
+
+            <div class="space-y-3">
+              <div class="space-y-2">
+                <label class="block text-xs font-black text-slate-800 uppercase tracking-wide">Notice Message</label>
+                <textarea id="notice-board-text-input" rows="3" class="w-full bg-white border border-slate-300 rounded-xl p-3 text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-500" placeholder="e.g. Jhankra Super League (JSL) abandoned due to rain. Stay connected for latest updates...">${(function(){ try { return store.getNoticeBoard().text || ''; } catch(e) { return ''; } })()}</textarea>
+              </div>
+
+              <div class="flex flex-col sm:flex-row items-start sm:items-center gap-3">
+                <button id="notice-board-toggle-btn" class="px-5 py-2.5 rounded-xl font-black text-xs sm:text-sm shadow-sm flex items-center gap-2 transition-all cursor-pointer ${(function(){ try { return store.getNoticeBoard().active ? 'bg-red-600 hover:bg-red-500 text-white' : 'bg-emerald-600 hover:bg-emerald-500 text-white'; } catch(e) { return 'bg-emerald-600 hover:bg-emerald-500 text-white'; } })()}">
+                  <i data-lucide="${(function(){ try { return store.getNoticeBoard().active ? 'pause' : 'play'; } catch(e) { return 'play'; } })()}" class="w-4 h-4"></i>
+                  ${(function(){ try { return store.getNoticeBoard().active ? 'Stop Ticker' : 'Start Ticker'; } catch(e) { return 'Start Ticker'; } })()}
+                </button>
+
+                <button id="notice-board-save-btn" class="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-white font-bold text-xs sm:text-sm rounded-xl shadow-xs flex items-center gap-1.5 transition-all cursor-pointer">
+                  <i data-lucide="save" class="w-3.5 h-3.5 text-amber-400"></i> Save Notice
+                </button>
+              </div>
+            </div>
+
+            <div class="p-4 bg-slate-50 rounded-2xl border border-slate-200 space-y-2">
+              <div class="text-xs font-black text-slate-700 uppercase tracking-wide">Live Preview</div>
+              <div class="relative overflow-hidden bg-red-600 rounded-lg py-1.5 px-0" style="min-height:30px;">
+                <div class="notice-ticker-track">
+                  <span id="notice-board-preview-ticker" class="whitespace-nowrap text-[11px] sm:text-xs font-bold text-white tracking-wide">${(function(){ try { const nb = store.getNoticeBoard(); return nb.text ? ('  📢 ' + nb.text + '     •     ') : '  📢 Your notice will appear here...     •     '; } catch(e) { return '  📢 Your notice will appear here...     •     '; } })()}</span>
+                  <span class="whitespace-nowrap text-[11px] sm:text-xs font-bold text-white tracking-wide">${(function(){ try { const nb = store.getNoticeBoard(); return nb.text ? ('  📢 ' + nb.text + '     •     ') : '  📢 Your notice will appear here...     •     '; } catch(e) { return '  📢 Your notice will appear here...     •     '; } })()}</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+        </div>
+
         <!-- 7. Partner Shop Advertisement Tab -->
         <div id="tab-shop-ads-view" class="${activeAdminTab === 'shop-ads' ? '' : 'hidden'} space-y-4 animate-fade-in">
           <div class="p-4 sm:p-5 bg-white border-2 border-slate-200 rounded-3xl shadow-sm space-y-4">
@@ -1761,6 +1813,7 @@ export function renderAdminDashboard(containerEl) {
       document.getElementById('tab-scorer-view')?.classList.add('hidden');
       document.getElementById('tab-tourney-details-view')?.classList.add('hidden');
       document.getElementById('tab-reg-settings-view')?.classList.add('hidden');
+      document.getElementById('tab-notice-board-view')?.classList.add('hidden');
       document.getElementById('tab-shop-ads-view')?.classList.add('hidden');
       document.getElementById('tab-owners-view')?.classList.add('hidden');
       document.getElementById('tab-saas-tournaments-view')?.classList.add('hidden');
@@ -1791,6 +1844,9 @@ export function renderAdminDashboard(containerEl) {
       }
       if (activeAdminTab === 'reg-settings') {
         document.getElementById('tab-reg-settings-view')?.classList.remove('hidden');
+      }
+      if (activeAdminTab === 'notice-board') {
+        document.getElementById('tab-notice-board-view')?.classList.remove('hidden');
       }
       if (activeAdminTab === 'shop-ads') {
         document.getElementById('tab-shop-ads-view')?.classList.remove('hidden');
@@ -1863,6 +1919,40 @@ export function renderAdminDashboard(containerEl) {
     if (msg) {
       store.updateRegistrationSettings({ closedReason: msg });
       alert('✅ Closure notice message updated successfully!');
+    }
+  });
+
+  // --- NOTICE BOARD LISTENERS ---
+  document.getElementById('notice-board-save-btn')?.addEventListener('click', async () => {
+    const text = document.getElementById('notice-board-text-input')?.value?.trim() || '';
+    if (!text) return alert('⚠️ Please enter a notice message first!');
+    const current = store.getNoticeBoard();
+    await store.updateNoticeBoard({ text, active: current.active });
+    alert('✅ Notice saved successfully!');
+    activeAdminTab = 'notice-board';
+    renderAdminDashboard(containerEl);
+  });
+
+  document.getElementById('notice-board-toggle-btn')?.addEventListener('click', async () => {
+    const current = store.getNoticeBoard();
+    const text = document.getElementById('notice-board-text-input')?.value?.trim() || current.text || '';
+    if (!text && !current.active) return alert('⚠️ Please enter a notice message before starting the ticker!');
+    const newActive = !current.active;
+    await store.updateNoticeBoard({ text, active: newActive });
+    alert(newActive ? '✅ Notice ticker is now RUNNING on your tournament dashboard!' : '⏹️ Notice ticker has been STOPPED.');
+    activeAdminTab = 'notice-board';
+    renderAdminDashboard(containerEl);
+  });
+
+  // Update preview as admin types
+  document.getElementById('notice-board-text-input')?.addEventListener('input', (e) => {
+    const val = e.target.value.trim();
+    const msg = val ? ('  📢 ' + val + '     •     ') : '  📢 Your notice will appear here...     •     ';
+    const preview = document.getElementById('notice-board-preview-ticker');
+    if (preview) {
+      preview.textContent = msg;
+      const sibling = preview.nextElementSibling;
+      if (sibling) sibling.textContent = msg;
     }
   });
 

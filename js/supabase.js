@@ -1907,6 +1907,29 @@ export async function fetchRegistrationSettingsFromCloud(tournamentId = null) {
   } catch (e) { return defaults; }
 }
 
+// --- NOTICE BOARD (stored in format_config.notice_board) ---
+export async function saveNoticeBoardToCloud(noticeData, tournamentId = null) {
+  if (!supabase) return false;
+  try {
+    const tId = toUUID(tournamentId) || DEFAULT_TOURNAMENT_UUID;
+    let { data: currentTourney } = await supabase.from('tournaments').select('id, format_config').eq('id', tId).maybeSingle();
+    if (!currentTourney) return false;
+    const config = currentTourney.format_config || {};
+    config.notice_board = noticeData;
+    await supabase.from('tournaments').update({ format_config: config, updated_at: new Date().toISOString() }).eq('id', currentTourney.id);
+    return true;
+  } catch (e) { return false; }
+}
+
+export async function fetchNoticeBoardFromCloud(tournamentId = null) {
+  if (!supabase) return null;
+  try {
+    const tId = toUUID(tournamentId) || DEFAULT_TOURNAMENT_UUID;
+    const { data } = await supabase.from('tournaments').select('format_config').eq('id', tId).maybeSingle();
+    return data?.format_config?.notice_board || null;
+  } catch (e) { return null; }
+}
+
 // --- PUBLIC COMMUNITY QUERIES & REPLIES (community_queries table) ---
 export async function saveCommunityQueryToCloud(queryData, tournamentId = null) {
   if (!supabase || !queryData) return false;

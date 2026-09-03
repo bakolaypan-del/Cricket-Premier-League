@@ -2158,7 +2158,17 @@ function renderFirstPageLanding(containerEl) {
 
   containerEl.innerHTML = `
     <div class="w-full max-w-5xl mx-auto space-y-4 sm:space-y-6 animate-fade-in py-2 sm:py-4 text-slate-900">
-      
+
+      <!-- SCROLLING NOTICE TICKER (top of main dashboard) -->
+      <div id="landing-notice-ticker-bar" class="hidden w-full max-w-3xl mx-auto overflow-hidden">
+        <div class="bg-red-600 overflow-hidden py-1 sm:py-1.5 px-0 rounded-lg">
+          <div class="notice-ticker-track">
+            <span id="landing-notice-ticker-c1" class="whitespace-nowrap text-[10px] sm:text-[11px] font-bold text-white tracking-wide"></span>
+            <span id="landing-notice-ticker-c2" class="whitespace-nowrap text-[10px] sm:text-[11px] font-bold text-white tracking-wide"></span>
+          </div>
+        </div>
+      </div>
+
       <!-- 👥 REALTIME LIVE & TOTAL VISITOR TRAFFIC METRICS BAR -->
       <div class="w-full max-w-3xl mx-auto bg-white border border-slate-200/90 rounded-2xl p-2 sm:p-3 shadow-xs flex items-center justify-around gap-1.5 sm:gap-4 text-slate-800 animate-fade-in">
         <!-- Live Online Visitors -->
@@ -2467,6 +2477,24 @@ function renderFirstPageLanding(containerEl) {
   }
 
   document.getElementById('btn-home-create-tourney')?.addEventListener('click', () => openTournamentCreationRoadmapModal(false));
+
+  // --- NOTICE TICKER on main landing (top bar, smaller) ---
+  (async () => {
+    try {
+      const nb = await store.syncNoticeBoardFromCloud();
+      if (nb && nb.active && nb.text) {
+        const bar = document.getElementById('landing-notice-ticker-bar');
+        const c1 = document.getElementById('landing-notice-ticker-c1');
+        const c2 = document.getElementById('landing-notice-ticker-c2');
+        if (bar && c1) {
+          const msg = '  📢 ' + nb.text + '     •     ';
+          c1.textContent = msg;
+          if (c2) c2.textContent = msg;
+          bar.classList.remove('hidden');
+        }
+      }
+    } catch(e) {}
+  })();
 }
 
 // --- WHATSAPP 1-CLICK SHARING UTILITIES ---
@@ -4478,10 +4506,40 @@ export function renderCustomTournamentHub(container, tourney) {
         </div>
       </div>
 
+      <!-- SCROLLING NOTICE TICKER (bottom of dashboard) -->
+      <div id="hub-notice-ticker-bar" class="hidden fixed bottom-0 left-0 right-0 z-30 sm:relative sm:z-auto sm:mt-3" style="margin-bottom:env(safe-area-inset-bottom,0);">
+        <div class="bg-red-600 overflow-hidden py-1.5 sm:py-2 px-0">
+          <div class="notice-ticker-track">
+            <span id="hub-notice-ticker-content" class="whitespace-nowrap text-[11px] sm:text-xs font-bold text-white tracking-wide"></span>
+            <span id="hub-notice-ticker-content2" class="whitespace-nowrap text-[11px] sm:text-xs font-bold text-white tracking-wide"></span>
+          </div>
+        </div>
+      </div>
+
     </div>
   `;
 
   if (window.lucide) window.lucide.createIcons();
+
+  // --- NOTICE TICKER: Fetch and display if active ---
+  (async () => {
+    try {
+      const nb = await store.syncNoticeBoardFromCloud();
+      if (nb && nb.active && nb.text) {
+        const bar = document.getElementById('hub-notice-ticker-bar');
+        const c1 = document.getElementById('hub-notice-ticker-content');
+        const c2 = document.getElementById('hub-notice-ticker-content2');
+        if (bar && c1) {
+          const msg = '  📢 ' + nb.text + '     •     ';
+          c1.textContent = msg;
+          if (c2) c2.textContent = msg;
+          bar.classList.remove('hidden');
+          const mainDiv = container.querySelector('.pb-16');
+          if (mainDiv) mainDiv.classList.replace('pb-16', 'pb-24');
+        }
+      }
+    } catch(e) {}
+  })();
 
   // Icon grid navigation handler — show section, hide main view + other sections
   const allSectionIds = ['home', 'teams', 'players', 'auction', 'matches', 'stats'];
@@ -5717,6 +5775,16 @@ function renderTournamentHub(containerEl) {
         </div>
       </div>
 
+      <!-- SCROLLING NOTICE TICKER (bottom of dashboard) -->
+      <div id="jsl-notice-ticker-bar" class="hidden fixed bottom-0 left-0 right-0 z-30 sm:relative sm:z-auto sm:mt-3" style="margin-bottom:env(safe-area-inset-bottom,0);">
+        <div class="bg-red-600 overflow-hidden py-1.5 sm:py-2 px-0">
+          <div class="notice-ticker-track">
+            <span id="jsl-notice-ticker-content" class="whitespace-nowrap text-[11px] sm:text-xs font-bold text-white tracking-wide"></span>
+            <span id="jsl-notice-ticker-content2" class="whitespace-nowrap text-[11px] sm:text-xs font-bold text-white tracking-wide"></span>
+          </div>
+        </div>
+      </div>
+
     </div>
   `;
 
@@ -5725,6 +5793,24 @@ function renderTournamentHub(containerEl) {
   document.getElementById('open-auction-summary-modal-btn')?.addEventListener('click', openAuctionSummaryModal);
   document.getElementById('download-all-squads-pdf-hub-btn')?.addEventListener('click', () => exportAllTeamsFinalSquadsToPDF(teams, players));
   document.getElementById('download-json-archive-hub-btn')?.addEventListener('click', downloadAuctionArchiveJSON);
+
+  // --- NOTICE TICKER: Fetch and display if active ---
+  (async () => {
+    try {
+      const nb = await store.syncNoticeBoardFromCloud();
+      if (nb && nb.active && nb.text) {
+        const bar = document.getElementById('jsl-notice-ticker-bar');
+        const c1 = document.getElementById('jsl-notice-ticker-content');
+        const c2 = document.getElementById('jsl-notice-ticker-content2');
+        if (bar && c1) {
+          const msg = '  📢 ' + nb.text + '     •     ';
+          c1.textContent = msg;
+          if (c2) c2.textContent = msg;
+          bar.classList.remove('hidden');
+        }
+      }
+    } catch(e) {}
+  })();
 }
 
 // --- HELPER: DOWNLOAD OFFICIAL JSON ARCHIVE RECORD (FOR 5+ YEARS PRESERVATION) ---
