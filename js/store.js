@@ -1187,7 +1187,7 @@ class Store {
   }
 
   // --- REGISTER NEW PLAYER WITH ATOMIC TIMESTAMP QUEUE & ZERO DUPLICATES ---
-  registerPlayer(playerData) {
+  registerPlayer(playerData, { skipCloudSync = false } = {}) {
     if (!this.isPlayerRegistrationOpen()) {
       throw new Error(this.getRegistrationSettings().closedReason || "Player Registration is currently closed by the Admin.");
     }
@@ -1233,7 +1233,7 @@ class Store {
     const createdTime = Date.now();
 
     const newPlayer = {
-      id: uuid,
+      id: (playerData.id && playerData.id.length > 30) ? playerData.id : uuid,
       profileId: profile ? profile.id : null,
       createdTime,
       regTimestamp: createdTime,
@@ -1300,7 +1300,7 @@ class Store {
 
     this.createOrUpdatePlayerProfile(newPlayer);
     this.ensureUserAccountForPlayer(newPlayer, playerData.securityPin || playerData.password || null);
-    syncPlayerToSupabase(newPlayer);
+    if (!skipCloudSync) syncPlayerToSupabase(newPlayer);
     this.notify('players_updated');
     return newPlayer;
   }
@@ -2633,6 +2633,10 @@ class Store {
   isTeamRegistrationOpen() {
     const s = this.getRegistrationSettings();
     return s.isRegistrationOpen !== false && s.isTeamRegOpen !== false;
+  }
+
+  isJslRegistrationOpen() {
+    return this.isRegistrationOpen();
   }
 
   updateRegistrationSettings(settings) {

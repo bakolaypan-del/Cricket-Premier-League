@@ -939,7 +939,7 @@ export async function syncPlayerToSupabase(playerData) {
   if (!supabase || !playerData || !playerData.id) return null;
   try {
     const activeTid = (typeof window !== 'undefined' && window.store?.activeTournamentId) ? window.store.activeTournamentId : null;
-    const rawTid = playerData.tournament_id || playerData.tournamentId || playerData.leagueId || activeTid || '440f982b-6008-40f4-a6bc-0516a0985672';
+    const rawTid = playerData.tournament_id || playerData.tournamentId || playerData.leagueId || activeTid || DEFAULT_TOURNAMENT_UUID;
     const tournamentUUID = await resolveTournamentUUID(rawTid) || toUUID(rawTid) || DEFAULT_TOURNAMENT_UUID;
     const playerUUID = toUUID(playerData.id);
     const cleanPhone = (playerData.phone || playerData.mobile || '').replace(/[^0-9]/g, '');
@@ -2557,14 +2557,34 @@ export async function dbRegisterPlayer(playerData, docsData = null) {
     }
 
     if (!tid || typeof tid !== 'string' || tid.length < 30) {
-      console.warn('[POSTGRES] dbRegisterPlayer: invalid tournament_id after slug lookup, saving to offline queue');
+      console.warn('[POSTGRES] dbRegisterPlayer: invalid tournament_id after slug lookup, using default');
+      tid = DEFAULT_TOURNAMENT_UUID;
     }
+
+    // Duplicate check: same phone + same tournament = blocked
+    const cleanPhone = (playerData.phone || '').replace(/[^0-9]/g, '').slice(-10);
+    if (cleanPhone && tid) {
+      try {
+        const { data: existingPlayer } = await supabase
+          .from('players')
+          .select('id, name')
+          .eq('phone', cleanPhone)
+          .eq('tournament_id', tid)
+          .maybeSingle();
+        if (existingPlayer) {
+          throw new Error(`You are already registered for this tournament! (Name: ${existingPlayer.name})`);
+        }
+      } catch (dupErr) {
+        if (dupErr.message && dupErr.message.includes('already registered')) throw dupErr;
+      }
+    }
+
     const playerUUID = (playerData.id && UUID_FORMAT_RE.test(playerData.id)) ? playerData.id : generateUUID();
     playerData.id = playerUUID;
 
     const pPayload = {
       id: playerUUID,
-      tournament_id: tid || '033bfc04-6a0d-4009-b1d6-84883fe49258', // Falls back to default main league if unmapped
+      tournament_id: tid,
       name: playerData.name,
       phone: playerData.phone,
       photo_url: playerData.photo_url || playerData.photoUrl || null,
@@ -2618,6 +2638,7 @@ export async function dbRegisterPlayer(playerData, docsData = null) {
           district: playerData.district || null,
           state: playerData.state || null,
           jersey_size: playerData.jerseySize || playerData.jersey_size || null,
+          security_pin: playerData.securityPin || playerData.security_pin || null,
           updated_at: new Date().toISOString()
         }, { onConflict: 'phone' });
     }

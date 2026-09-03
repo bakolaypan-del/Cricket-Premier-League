@@ -8334,7 +8334,7 @@ function openUnifiedPlayerRegistrationModal(config, prefillData = null) {
       }
 
       await store.saveUniversalPlayer(playerData);
-      store.registerPlayer(playerData);
+      store.registerPlayer(playerData, { skipCloudSync: true });
       store.setUserRole('PLAYER', playerData.name, playerData);
       store.notify('players_updated');
 
