@@ -15438,9 +15438,14 @@ export function openTournamentCreationWizard(isTrialMode = false) {
       }
       if (!slug) {
         slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || ('tourney-' + Date.now());
-        const slugInput = document.getElementById('wiz-tourney-slug');
-        if (slugInput) slugInput.value = slug.toUpperCase();
       }
+      const existingSlugs = (store.getCustomTournaments() || []).map(t => (t.slug || '').toLowerCase());
+      let uniqueSlug = slug;
+      let counter = 2;
+      while (existingSlugs.includes(uniqueSlug)) { uniqueSlug = slug + '-' + counter; counter++; }
+      slug = uniqueSlug;
+      const slugInput = document.getElementById('wiz-tourney-slug');
+      if (slugInput) slugInput.value = slug.toUpperCase();
       currentStep = 2;
       updateStepsUI();
     } else if (currentStep === 2) {
@@ -15452,6 +15457,11 @@ export function openTournamentCreationWizard(isTrialMode = false) {
       if (!slug) {
         slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') || ('tourney-' + Date.now());
       }
+      const existingSlugs = (store.getCustomTournaments() || []).map(t => (t.slug || '').toLowerCase());
+      let uniqueSlug = slug;
+      let counter = 2;
+      while (existingSlugs.includes(uniqueSlug)) { uniqueSlug = slug + '-' + counter; counter++; }
+      slug = uniqueSlug;
       const venue = document.getElementById('wiz-tourney-venue')?.value.trim();
       const date = document.getElementById('wiz-tourney-date')?.value;
       const prize = document.getElementById('wiz-tourney-prize')?.value || 0;
