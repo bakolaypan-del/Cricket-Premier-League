@@ -1862,6 +1862,11 @@ export function renderAdminDashboard(containerEl) {
     });
   });
 
+  window.addEventListener('fixtures_updated', () => {
+    if (activeAdminTab === 'fixtures') renderAdminFixturesList();
+    if (activeAdminTab === 'scorer') renderScorerMatchesList();
+  });
+
   // --- OVERVIEW TAB LISTENERS ---
   document.getElementById('overview-toggle-reg-btn')?.addEventListener('click', () => {
     const currentOpen = store.isRegistrationOpen();
