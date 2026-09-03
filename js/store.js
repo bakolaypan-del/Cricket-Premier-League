@@ -651,13 +651,8 @@ class Store {
       if (!isUserFillingForm) {
         this.syncWithCloud();
       }
-    }, 60000);
+    }, 300000);
     this.syncCrossTournamentFixtures();
-    if (this._crossTourneyInterval) clearInterval(this._crossTourneyInterval);
-    this._crossTourneyInterval = setInterval(() => {
-      if (document.visibilityState === 'hidden') return;
-      this.syncCrossTournamentFixtures();
-    }, 120000);
   }
 
   async fetchDocsOnDemand() {
@@ -688,20 +683,26 @@ class Store {
       if (e.key === this._scopedKey('REGISTRATION_SETTINGS')) this.notify('registration_settings_updated');
     });
 
-    // Mobile Phone Wakeup & Tab Switch Instant Cloud Sync
+    // Mobile Phone Wakeup & Tab Switch Cloud Sync (debounced — skip if synced within 30s)
+    this._lastSyncTime = 0;
+    const debouncedSync = () => {
+      const now = Date.now();
+      if (now - this._lastSyncTime < 30000) return;
+      this._lastSyncTime = now;
+      this.syncWithCloud();
+    };
+
     document.addEventListener('visibilitychange', () => {
-      if (document.visibilityState === 'visible') {
-        this.syncWithCloud();
-      }
+      if (document.visibilityState === 'visible') debouncedSync();
     });
 
     window.addEventListener('online', () => {
       this.flushOfflineQueue();
-      this.syncWithCloud();
+      debouncedSync();
     });
 
     window.addEventListener('focus', () => {
-      this.syncWithCloud();
+      debouncedSync();
     });
 
     if ('BroadcastChannel' in window) {
@@ -1347,7 +1348,8 @@ class Store {
   async deletePlayer(playerId) {
     this._invalidateCache('players');
     let players = this.getPlayers();
-    const playerToDelete = players.find(p => p.id === playerId);
+    const deletedIdx = players.findIndex(p => p.id === playerId);
+    const playerToDelete = deletedIdx !== -1 ? players[deletedIdx] : null;
     const playerPhone = playerToDelete ? (playerToDelete.phone || playerToDelete.mobile) : null;
     const cleanPhone = playerPhone ? playerPhone.replace(/\D/g, '') : null;
     const tourneyId = playerToDelete?.tournament_id || this.activeTournamentId;
@@ -1408,12 +1410,11 @@ class Store {
 
     await deletePlayerFromSupabase(playerId, playerPhone, tourneyId);
 
-    // Sync re-indexed reg_numbers to Supabase
-    for (const p of players) {
-      if (p.id && p.serialNo != null) {
-        try {
-          await syncPlayerToSupabase(p);
-        } catch (e) {}
+    // Only sync players whose reg_number shifted (from deleted position onward)
+    if (deletedIdx >= 0) {
+      const shiftedPlayers = players.slice(deletedIdx);
+      for (const p of shiftedPlayers) {
+        try { await syncPlayerToSupabase(p); } catch (e) {}
       }
     }
 

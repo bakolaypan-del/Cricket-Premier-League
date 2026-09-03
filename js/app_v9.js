@@ -8170,17 +8170,12 @@ function openUnifiedPlayerRegistrationModal(config, prefillData = null) {
       const cdnUrl = await uploadHDImage(compressed || file, `${folder}/${slugVal}`);
       if (cdnUrl) {
         setter(cdnUrl);
+        if (statusEl) statusEl.innerHTML = `<div class="mt-1 p-0.5 bg-emerald-50 border border-emerald-400 rounded-md flex items-center gap-1 text-[9.5px] font-black text-emerald-950"><span class="w-3 h-3 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[8px]">✓</span> Uploaded</div>`;
       } else {
-        const reader = new FileReader();
-        reader.onload = (ev) => setter(ev.target.result);
-        reader.readAsDataURL(compressed || file);
+        if (statusEl) statusEl.innerHTML = `<div class="mt-1 p-0.5 bg-red-50 border border-red-400 rounded-md text-[9.5px] font-black text-red-700">Upload failed. Please retry.</div>`;
       }
-      if (statusEl) statusEl.innerHTML = `<div class="mt-1 p-0.5 bg-emerald-50 border border-emerald-400 rounded-md flex items-center gap-1 text-[9.5px] font-black text-emerald-950"><span class="w-3 h-3 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[8px]">✓</span> Uploaded</div>`;
     } catch (e) {
-      const reader = new FileReader();
-      reader.onload = (ev) => setter(ev.target.result);
-      reader.readAsDataURL(file);
-      if (statusEl) statusEl.innerHTML = `<span class="text-[9px] font-black text-emerald-800">✓ Ready (Local)</span>`;
+      if (statusEl) statusEl.innerHTML = `<div class="mt-1 p-0.5 bg-red-50 border border-red-400 rounded-md text-[9.5px] font-black text-red-700">Upload failed. Check internet & retry.</div>`;
     }
   };
 
@@ -8206,17 +8201,12 @@ function openUnifiedPlayerRegistrationModal(config, prefillData = null) {
       const cdnUrl = await uploadHDImage(compressed || file, `receipts/${slugVal}`);
       if (cdnUrl) {
         uploadedReceiptUrl = cdnUrl;
+        if (statusEl) statusEl.innerHTML = `<div class="mt-1 p-0.5 bg-emerald-50 border border-emerald-400 rounded-md flex items-center gap-1 text-[9.5px] font-black text-emerald-950"><span class="w-3 h-3 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[8px]">✓</span> Receipt Uploaded</div>`;
       } else {
-        const reader = new FileReader();
-        reader.onload = (ev) => { uploadedReceiptUrl = ev.target.result; };
-        reader.readAsDataURL(compressed || file);
+        if (statusEl) statusEl.innerHTML = `<div class="mt-1 p-0.5 bg-red-50 border border-red-400 rounded-md text-[9.5px] font-black text-red-700">Receipt upload failed. Please retry.</div>`;
       }
-      if (statusEl) statusEl.innerHTML = `<div class="mt-1 p-0.5 bg-emerald-50 border border-emerald-400 rounded-md flex items-center gap-1 text-[9.5px] font-black text-emerald-950"><span class="w-3 h-3 rounded-full bg-emerald-600 text-white flex items-center justify-center text-[8px]">✓</span> Receipt Uploaded</div>`;
     } catch (e) {
-      const reader = new FileReader();
-      reader.onload = (ev) => { uploadedReceiptUrl = ev.target.result; };
-      reader.readAsDataURL(file);
-      if (statusEl) statusEl.innerHTML = `<span class="text-[9px] font-black text-emerald-800">✓ Receipt Ready (Local)</span>`;
+      if (statusEl) statusEl.innerHTML = `<div class="mt-1 p-0.5 bg-red-50 border border-red-400 rounded-md text-[9.5px] font-black text-red-700">Receipt upload failed. Check internet & retry.</div>`;
     }
   };
   document.getElementById('ureg-receipt-gallery')?.addEventListener('change', (e) => handleReceiptSelect(e.target.files[0]));
@@ -10639,7 +10629,7 @@ export function openMatchCenterModal(fixtureId) {
     if (!document.getElementById('match-center-modal')) { removeModal(); return; }
     if (document.visibilityState === 'hidden') return;
     Promise.resolve(store.syncWithCloud()).then(() => renderMatchCenterContent()).catch(() => renderMatchCenterContent());
-  }, 30000);
+  }, 120000);
 
   renderMatchCenterContent();
 }
@@ -11781,7 +11771,7 @@ function renderLiveAuctionView(container) {
   auctionPollInterval = setInterval(() => {
     if (document.visibilityState === 'hidden') return;
     pollActiveAuctionState();
-  }, 10000);
+  }, 30000);
 
   const onAuctionChange = async () => {
     if (currentRoute === 'auction') {
@@ -12886,7 +12876,7 @@ export function openLiveAuctionProjectorView() {
   projectorPollInterval = setInterval(() => {
     if (document.visibilityState === 'hidden') return;
     pollProjector();
-  }, 5000);
+  }, 30000);
 
   const onProjAuctionChange = () => {
     if (document.getElementById('live-auction-projector-view-modal')) {
