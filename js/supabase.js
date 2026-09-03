@@ -2483,9 +2483,13 @@ export async function dbCreateTournament(tourneyData) {
 export async function dbGetNextRegNumber(tournamentId) {
   if (!supabase || !tournamentId) return Date.now() % 10000;
   try {
-    const { data, error } = await supabase.rpc('get_next_reg_number', { t_id: tournamentId });
-    if (!error && typeof data === 'number') {
-      return data;
+    const tid = await resolveTournamentUUID(tournamentId) || toUUID(tournamentId) || tournamentId;
+    const { count, error } = await supabase
+      .from('players')
+      .select('id', { count: 'exact', head: true })
+      .eq('tournament_id', tid);
+    if (!error && typeof count === 'number') {
+      return count + 1;
     }
   } catch (e) {}
   return null;
