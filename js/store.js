@@ -645,13 +645,7 @@ class Store {
 
   startCloudPolling() {
     if (this.cloudPollingInterval) clearInterval(this.cloudPollingInterval);
-    this.cloudPollingInterval = setInterval(() => {
-      if (document.visibilityState === 'hidden') return;
-      const isUserFillingForm = document.getElementById('player-reg-modal') || document.getElementById('team-reg-modal') || document.getElementById('edit-player-modal');
-      if (!isUserFillingForm) {
-        this.syncWithCloud();
-      }
-    }, 300000);
+    this.cloudPollingInterval = null;
     this.syncCrossTournamentFixtures();
   }
 
