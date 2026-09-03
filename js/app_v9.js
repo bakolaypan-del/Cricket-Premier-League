@@ -8332,6 +8332,11 @@ function openUnifiedPlayerRegistrationModal(config, prefillData = null) {
         throw new Error('Server did not confirm registration. Please check your internet connection and try again.');
       }
 
+      if (dbResult.created_at) {
+        playerData.created_at = dbResult.created_at;
+        playerData.createdAt = new Date(dbResult.created_at).getTime();
+      }
+
       await store.saveUniversalPlayer(playerData);
       store.registerPlayer(playerData, { skipCloudSync: true });
       store.setUserRole('PLAYER', playerData.name, playerData);
