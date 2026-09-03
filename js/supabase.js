@@ -937,6 +937,10 @@ function derivePlayerStatus(playerData) {
 
 export async function syncPlayerToSupabase(playerData) {
   if (!supabase || !playerData || !playerData.id) return null;
+  const ph = (playerData.phone || playerData.mobile || '').replace(/[^0-9]/g, '');
+  if (!ph || ph.length < 10 || /^0+$/.test(ph)) return null;
+  const nm = (playerData.name || '').trim().toUpperCase();
+  if (!nm || /\b(TEST|DELETE|DUMMY|SAMPLE)\b/.test(nm)) return null;
   try {
     const activeTid = (typeof window !== 'undefined' && window.store?.activeTournamentId) ? window.store.activeTournamentId : null;
     const rawTid = playerData.tournament_id || playerData.tournamentId || playerData.leagueId || activeTid || DEFAULT_TOURNAMENT_UUID;
@@ -2536,6 +2540,10 @@ export async function dbLookupPlayerByPhone(phone) {
 // --- PLAYER REGISTRATION (SCOPED TO TOURNAMENT) ---
 export async function dbRegisterPlayer(playerData, docsData = null) {
   if (!supabase) return null;
+  const ph = (playerData.phone || '').replace(/[^0-9]/g, '');
+  if (!ph || ph.length < 10 || /^0+$/.test(ph)) throw new Error('Invalid phone number.');
+  const nm = (playerData.name || '').trim().toUpperCase();
+  if (!nm || /\b(TEST|DELETE|DUMMY|SAMPLE)\b/.test(nm)) throw new Error('Invalid player name.');
   try {
     let tid = playerData.tournament_id;
 
