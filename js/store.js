@@ -1407,6 +1407,16 @@ class Store {
     this.notify('players_updated');
 
     await deletePlayerFromSupabase(playerId, playerPhone, tourneyId);
+
+    // Sync re-indexed reg_numbers to Supabase
+    for (const p of players) {
+      if (p.id && p.serialNo != null) {
+        try {
+          await syncPlayerToSupabase(p);
+        } catch (e) {}
+      }
+    }
+
     await this.syncGlobalPlayersCount();
     this.notify('players_updated');
   }

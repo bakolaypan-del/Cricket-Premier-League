@@ -2484,13 +2484,15 @@ export async function dbGetNextRegNumber(tournamentId) {
   if (!supabase || !tournamentId) return Date.now() % 10000;
   try {
     const tid = await resolveTournamentUUID(tournamentId) || toUUID(tournamentId) || tournamentId;
-    const { count, error } = await supabase
+    const { data, error } = await supabase.rpc('get_next_reg_number', { t_id: tid });
+    if (!error && typeof data === 'number') {
+      return data;
+    }
+    const { count } = await supabase
       .from('players')
       .select('id', { count: 'exact', head: true })
       .eq('tournament_id', tid);
-    if (!error && typeof count === 'number') {
-      return count + 1;
-    }
+    if (typeof count === 'number') return count + 1;
   } catch (e) {}
   return null;
 }
