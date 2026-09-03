@@ -8315,7 +8315,6 @@ function openUnifiedPlayerRegistrationModal(config, prefillData = null) {
         phoneVerified: true,
         reg_number: atomicRegNo,
         serialNo: atomicRegNo || (store.getPlayers().length + 1),
-        basePrice: config.entryFee || 300,
         createdAt: Date.now()
       };
 
