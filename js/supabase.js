@@ -460,7 +460,7 @@ export async function uploadHDImage(fileInput, folderName = 'documents') {
 // --- REALTIME PUSH EVENT LISTENER (SUPABASE REALTIME CHANNEL STUB) ---
 let activeRealtimeChannel = null;
 
-export function initRealtimePushListener(onUpdateCallback, tournamentId) {
+export async function initRealtimePushListener(onUpdateCallback, tournamentId) {
   if (!supabase) return null;
   try {
     if (activeRealtimeChannel) {
@@ -468,9 +468,11 @@ export function initRealtimePushListener(onUpdateCallback, tournamentId) {
       activeRealtimeChannel = null;
     }
 
+    const tId = tournamentId ? (await resolveTournamentUUID(tournamentId) || toUUID(tournamentId) || tournamentId) : null;
+    const tFilter = tId ? `tournament_id=eq.${tId}` : undefined;
     const userPresenceId = 'u_' + Math.random().toString(36).substring(2, 9);
     const channel = supabase
-      .channel('cpl_universal_realtime_stream')
+      .channel('cpl_realtime_' + (tId || 'global'))
       .on('presence', { event: 'sync' }, () => {
         const state = channel.presenceState();
         const liveCount = Math.max(1, Object.keys(state).length);
@@ -529,22 +531,19 @@ export function initRealtimePushListener(onUpdateCallback, tournamentId) {
           console.log('[REALTIME] All fixtures cleared for tournament:', fTid);
         }
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'players' }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'players', ...(tFilter && { filter: tFilter }) }, (payload) => {
         if (typeof onUpdateCallback === 'function') onUpdateCallback(payload);
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'teams' }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'teams', ...(tFilter && { filter: tFilter }) }, (payload) => {
         if (typeof onUpdateCallback === 'function') onUpdateCallback(payload);
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'matches' }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'matches', ...(tFilter && { filter: tFilter }) }, (payload) => {
         if (typeof onUpdateCallback === 'function') onUpdateCallback(payload);
       })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'tournaments' }, (payload) => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tournaments', ...(tId && { filter: `id=eq.${tId}` }) }, (payload) => {
         if (payload?.new?.format_config?.live_auction && typeof window !== 'undefined' && window.store) {
-          const tId = payload.new.id;
-          if (tId === window.store.activeTournamentId || toUUID(tId) === toUUID(window.store.activeTournamentId)) {
-            window.store.liveAuctionState = payload.new.format_config.live_auction;
-            window.dispatchEvent(new CustomEvent('cpl_live_auction_updated', { detail: payload.new.format_config.live_auction }));
-          }
+          window.store.liveAuctionState = payload.new.format_config.live_auction;
+          window.dispatchEvent(new CustomEvent('cpl_live_auction_updated', { detail: payload.new.format_config.live_auction }));
         }
         if (typeof onUpdateCallback === 'function') onUpdateCallback(payload);
       })
