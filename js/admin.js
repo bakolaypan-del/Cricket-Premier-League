@@ -1338,15 +1338,29 @@ export function renderAdminDashboard(containerEl) {
 
               <!-- Submit and Innings controls -->
               <div class="flex flex-wrap items-center justify-between gap-3 pt-2 border-t border-slate-200">
-                <button type="button" id="scorer-swap-strike-btn" onclick="window.swapStrikeManually()" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl border border-slate-300 cursor-pointer transition-all">
-                  🔄 Swap Strike manually
-                </button>
+                <div class="flex items-center gap-2">
+                  <button type="button" id="scorer-swap-strike-btn" onclick="window.swapStrikeManually()" class="px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs rounded-xl border border-slate-300 cursor-pointer transition-all">
+                    🔄 Swap Strike
+                  </button>
+                  <button type="button" onclick="window.retiredHurt()" class="px-3.5 py-2 bg-orange-100 hover:bg-orange-200 text-orange-900 font-bold text-xs rounded-xl border border-orange-300 cursor-pointer transition-all">
+                    🤕 Retired Hurt
+                  </button>
+                  <button type="button" onclick="window.undoLastBall()" class="px-3.5 py-2 bg-yellow-100 hover:bg-yellow-200 text-yellow-900 font-bold text-xs rounded-xl border border-yellow-300 cursor-pointer transition-all">
+                    ↩️ Undo Last Ball
+                  </button>
+                  <button type="button" onclick="window.penaltyRuns()" class="px-3.5 py-2 bg-red-100 hover:bg-red-200 text-red-900 font-bold text-xs rounded-xl border border-red-300 cursor-pointer transition-all">
+                    ⚠️ Penalty Runs
+                  </button>
+                </div>
                 <div class="flex items-center gap-2">
                   <button type="button" id="scorer-end-innings-btn" onclick="window.closeInningsManually()" class="px-3.5 py-2 bg-purple-100 hover:bg-purple-200 text-purple-900 font-black text-xs rounded-xl border border-purple-300 cursor-pointer transition-all">
                     🌓 Close Innings
                   </button>
                   <button type="button" id="scorer-finish-match-btn" onclick="window.finishMatchManually()" class="px-3.5 py-2 bg-rose-100 hover:bg-rose-200 text-rose-900 font-black text-xs rounded-xl border border-rose-300 cursor-pointer transition-all">
                     🏆 Finish Match & Set Winner
+                  </button>
+                  <button type="button" onclick="window.dlsRainDelay()" class="px-3.5 py-2 bg-sky-100 hover:bg-sky-200 text-sky-900 font-bold text-xs rounded-xl border border-sky-300 cursor-pointer transition-all">
+                    🌧️ DLS / Rain Delay
                   </button>
                 </div>
               </div>
@@ -5544,14 +5558,15 @@ function openScorerWicketModal() {
   const wDelivery = wIsNoBall ? 'NO_BALL' : (wIsWide ? 'WIDE' : (wIsBye ? 'BYE' : (wIsLegBye ? 'LEG_BYE' : 'LEGAL')));
   const ALL_DISMISSALS = [
     { v: 'BOWLED', t: 'Bowled' }, { v: 'CAUGHT', t: 'Caught Out' }, { v: 'LBW', t: 'L.B.W.' },
-    { v: 'RUN_OUT', t: 'Run Out' }, { v: 'STUMPED', t: 'Stumped' }, { v: 'HIT_WICKET', t: 'Hit Wicket' }
+    { v: 'RUN_OUT', t: 'Run Out' }, { v: 'STUMPED', t: 'Stumped' }, { v: 'HIT_WICKET', t: 'Hit Wicket' },
+    { v: 'TIMED_OUT', t: 'Timed Out' }, { v: 'OBSTRUCTING', t: 'Obstructing the Field' }
   ];
   const allowedByDelivery = {
-    LEGAL: ['BOWLED', 'CAUGHT', 'LBW', 'RUN_OUT', 'STUMPED', 'HIT_WICKET'],
-    WIDE: ['RUN_OUT', 'STUMPED', 'HIT_WICKET'],
-    NO_BALL: ['RUN_OUT'],
-    BYE: ['RUN_OUT', 'HIT_WICKET'],
-    LEG_BYE: ['RUN_OUT', 'HIT_WICKET']
+    LEGAL: ['BOWLED', 'CAUGHT', 'LBW', 'RUN_OUT', 'STUMPED', 'HIT_WICKET', 'TIMED_OUT', 'OBSTRUCTING'],
+    WIDE: ['RUN_OUT', 'STUMPED', 'HIT_WICKET', 'OBSTRUCTING'],
+    NO_BALL: ['RUN_OUT', 'OBSTRUCTING'],
+    BYE: ['RUN_OUT', 'HIT_WICKET', 'OBSTRUCTING'],
+    LEG_BYE: ['RUN_OUT', 'HIT_WICKET', 'OBSTRUCTING']
   };
   const wFreeHit = !!state.freeHit;
   // On a free hit the batsman can only be run out, whatever the delivery is
@@ -9243,6 +9258,318 @@ window.swapStrikeManually = function() {
   }
 };
 
+window.dlsRainDelay = function() {
+  const fixture = store.getFixtures().find(f => f.id === activeScoringMatchId);
+  if (!fixture || !fixture.liveMatchState) return alert("No active match!");
+  const state = fixture.liveMatchState;
+
+  if (state.isSuperOver) return alert("DLS cannot be applied during a Super Over.");
+
+  const DLS_TABLE = {
+    0:  {50:100,40:89.3,30:75.1,25:66.5,20:56.6,18:52.4,16:48.0,15:45.7,14:43.4,12:38.6,10:33.6,8:28.3,6:22.5,5:19.4,4:16.1,3:12.7,2:9.0,1:4.7},
+    1:  {50:93.4,40:84.2,30:71.8,25:63.9,20:54.8,18:50.9,16:46.7,15:44.5,14:42.2,12:37.6,10:32.9,8:27.8,6:22.2,5:19.2,4:16.0,3:12.6,2:9.0,1:4.7},
+    2:  {50:85.1,40:77.8,30:67.3,25:60.5,20:52.4,18:48.8,16:45.0,15:43.0,14:40.9,12:36.5,10:32.0,8:27.2,6:21.8,5:18.9,4:15.8,3:12.5,2:8.9,1:4.7},
+    3:  {50:74.9,40:69.6,30:61.6,25:55.8,20:49.1,18:46.0,16:42.7,15:40.9,14:39.1,12:35.1,10:30.9,8:26.4,6:21.3,5:18.5,4:15.5,3:12.3,2:8.8,1:4.7},
+    4:  {50:64.0,40:60.4,30:54.7,25:50.3,20:44.9,18:42.4,16:39.7,15:38.2,14:36.6,12:33.3,10:29.6,8:25.5,6:20.7,5:18.1,4:15.2,3:12.1,2:8.7,1:4.7},
+    5:  {50:53.2,40:51.0,30:47.2,25:44.0,20:40.0,18:38.1,16:35.9,15:34.7,14:33.5,12:30.8,10:27.8,8:24.3,6:20.0,5:17.6,4:14.9,3:11.9,2:8.6,1:4.7},
+    6:  {50:43.4,40:42.2,30:39.8,25:37.6,20:34.8,18:33.4,16:31.8,15:30.9,14:30.0,12:27.9,10:25.5,8:22.7,6:19.0,5:16.9,4:14.4,3:11.7,2:8.5,1:4.6},
+    7:  {50:34.9,40:34.3,30:32.8,25:31.4,20:29.5,18:28.6,16:27.5,15:26.9,14:26.2,12:24.7,10:22.9,8:20.7,6:17.7,5:15.9,4:13.8,3:11.3,2:8.3,1:4.6},
+    8:  {50:27.6,40:27.3,30:26.4,25:25.6,20:24.4,18:23.8,16:23.1,15:22.7,14:22.2,12:21.2,10:19.9,8:18.3,6:16.0,5:14.6,4:12.9,3:10.8,2:8.1,1:4.6},
+    9:  {50:21.2,40:21.1,30:20.6,25:20.2,20:19.5,18:19.1,16:18.7,15:18.4,14:18.1,12:17.4,10:16.6,8:15.5,6:13.9,5:12.9,4:11.6,3:10.0,2:7.7,1:4.5}
+  };
+
+  const matchOvers = parseInt(fixture.totalOvers || fixture.format_config?.overs || 20);
+  const wicketsLost = state.wickets || 0;
+
+  function getResource(overs, wkts) {
+    if (wkts > 9) wkts = 9;
+    const row = DLS_TABLE[wkts];
+    if (!row) return 0;
+    if (row[overs] !== undefined) return row[overs];
+    const keys = Object.keys(row).map(Number).sort((a, b) => a - b);
+    let lower = keys[0], upper = keys[keys.length - 1];
+    for (let i = 0; i < keys.length - 1; i++) {
+      if (keys[i] <= overs && keys[i + 1] >= overs) { lower = keys[i]; upper = keys[i + 1]; break; }
+    }
+    if (overs <= lower) return row[lower];
+    if (overs >= upper) return row[upper];
+    const ratio = (overs - lower) / (upper - lower);
+    return row[lower] + ratio * (row[upper] - row[lower]);
+  }
+
+  if (state.innings === 1) {
+    const newOvers = prompt('🌧️ RAIN DELAY — Innings 1 in progress\n\nTeam A: ' + (state.runs || 0) + '/' + wicketsLost + ' in ' + state.overs + '.' + state.balls + ' overs\n\nThis will CLOSE Innings 1 now and reduce Innings 2 overs.\n\nEnter NEW total overs for Innings 2:');
+    if (!newOvers || isNaN(parseInt(newOvers)) || parseInt(newOvers) < 1) return;
+    const reducedOvers = parseInt(newOvers);
+
+    const teamAOversUsed = state.overs + (state.balls > 0 ? 1 : 0);
+    const teamAResourceUsed = getResource(matchOvers, 0) - getResource(matchOvers - teamAOversUsed, wicketsLost);
+    const teamBResource = getResource(reducedOvers, 0);
+
+    let revisedTarget;
+    if (teamBResource < teamAResourceUsed) {
+      revisedTarget = Math.round(state.runs * teamBResource / teamAResourceUsed) + 1;
+    } else {
+      revisedTarget = state.runs + 1;
+    }
+
+    fixture.liveMatchState.innings = 2;
+    fixture.liveMatchState.target = revisedTarget;
+    fixture.liveMatchState.dlsApplied = true;
+    fixture.liveMatchState.dlsReducedOvers = reducedOvers;
+    fixture.liveMatchState.strikerId = '';
+    fixture.liveMatchState.nonStrikerId = '';
+    fixture.liveMatchState.bowlerId = '';
+    fixture.liveMatchState.runs = 0;
+    fixture.liveMatchState.wickets = 0;
+    fixture.liveMatchState.overs = 0;
+    fixture.liveMatchState.balls = 0;
+    fixture.liveMatchState.extras = 0;
+    fixture.liveMatchState.overBalls = [];
+    fixture.liveMatchState.freeHit = false;
+
+    if (!Array.isArray(fixture.liveMatchState.ballHistory)) fixture.liveMatchState.ballHistory = [];
+    fixture.liveMatchState.ballHistory.unshift({
+      type: 'info', label: 'DLS', runs: 0,
+      commentary: '🌧️ Rain delay! Innings 1 closed at ' + state.runs + '/' + wicketsLost + '. DLS revised target: ' + revisedTarget + ' in ' + reducedOvers + ' overs.'
+    });
+
+    store.updateFixture(fixture);
+    renderScorerActivePanel();
+    alert('🌧️ DLS Applied!\n\nInnings 1: ' + state.runs + '/' + wicketsLost + '\nInnings 2: ' + reducedOvers + ' overs\nRevised Target: ' + revisedTarget + ' runs');
+    return;
+  }
+
+  // Innings 2 — rain during chase
+  const oversUsed = state.overs + (state.balls > 0 ? 1 : 0);
+  const originalTarget = state.target || ((fixture.teamAScore?.runs || 0) + 1);
+  const teamAScore = fixture.teamAScore?.runs || 0;
+  const teamAOvers = fixture.teamAScore?.overs || matchOvers;
+
+  const newOvers = prompt('🌧️ RAIN DELAY — Innings 2 in progress\n\nChasing: ' + state.runs + '/' + wicketsLost + ' in ' + state.overs + '.' + state.balls + ' overs\nCurrent Target: ' + originalTarget + '\n\nEnter NEW total overs for Innings 2:');
+  if (!newOvers || isNaN(parseInt(newOvers)) || parseInt(newOvers) < 1) return;
+  const reducedOvers = parseInt(newOvers);
+
+  if (reducedOvers <= oversUsed) return alert('New overs (' + reducedOvers + ') must be more than overs already bowled (' + oversUsed + ')!');
+
+  const teamAResourceUsed = getResource(matchOvers, 0);
+  const originalTeamBResource = getResource(matchOvers, 0);
+  const resourceAtInterruption = getResource(matchOvers - oversUsed, wicketsLost);
+  const resourceAfterRestart = getResource(reducedOvers - oversUsed, wicketsLost);
+  const resourceLost = resourceAtInterruption - resourceAfterRestart;
+  const newTeamBResource = originalTeamBResource - resourceLost;
+
+  let revisedTarget;
+  if (newTeamBResource < teamAResourceUsed) {
+    revisedTarget = Math.round(teamAScore * newTeamBResource / teamAResourceUsed) + 1;
+  } else {
+    revisedTarget = teamAScore + Math.round((newTeamBResource - teamAResourceUsed) * teamAScore / 100) + 1;
+  }
+  if (revisedTarget < state.runs + 1) revisedTarget = state.runs + 1;
+
+  fixture.liveMatchState.target = revisedTarget;
+  fixture.liveMatchState.dlsApplied = true;
+  fixture.liveMatchState.dlsReducedOvers = reducedOvers;
+
+  if (!Array.isArray(fixture.liveMatchState.ballHistory)) fixture.liveMatchState.ballHistory = [];
+  fixture.liveMatchState.ballHistory.unshift({
+    type: 'info', label: 'DLS', runs: 0,
+    commentary: '🌧️ Rain delay! DLS revised target: ' + revisedTarget + ' in ' + reducedOvers + ' overs. Current: ' + state.runs + '/' + wicketsLost
+  });
+
+  store.updateFixture(fixture);
+  renderScorerActivePanel();
+  alert('🌧️ DLS Revised Target!\n\nNew Target: ' + revisedTarget + ' runs in ' + reducedOvers + ' overs\nCurrent Score: ' + state.runs + '/' + wicketsLost + ' (' + state.overs + '.' + state.balls + ' ov)');
+};
+
+window.penaltyRuns = function() {
+  const fixture = store.getFixtures().find(f => f.id === activeScoringMatchId);
+  if (!fixture || !fixture.liveMatchState) return alert("No active match!");
+  const state = fixture.liveMatchState;
+  const battingTeam = state.innings === 2 ? (fixture.teamB || 'Team B') : (fixture.teamA || 'Team A');
+  const fieldingTeam = state.innings === 2 ? (fixture.teamA || 'Team A') : (fixture.teamB || 'Team B');
+
+  const choice = prompt('⚠️ Penalty Runs (5 runs)\n\nWho gets the penalty?\n\n1 = Batting team (' + battingTeam + ')\n2 = Fielding team (' + fieldingTeam + ')\n\nEnter 1 or 2:');
+  if (choice !== '1' && choice !== '2') return;
+
+  const toBatting = choice === '1';
+  if (toBatting) {
+    state.runs = (state.runs || 0) + 5;
+    state.extras = (state.extras || 0) + 5;
+    const currentScore = { runs: state.runs, wickets: state.wickets, overs: state.overs, balls: state.balls, extras: state.extras };
+    if (state.innings === 2) fixture.teamBScore = currentScore;
+    else fixture.teamAScore = currentScore;
+  } else {
+    if (state.innings === 1) {
+      if (!fixture.teamBScore) fixture.teamBScore = { runs: 0, wickets: 0, overs: 0, balls: 0, extras: 0 };
+      fixture.teamBScore.runs = (fixture.teamBScore.runs || 0) + 5;
+      fixture.teamBScore.extras = (fixture.teamBScore.extras || 0) + 5;
+    } else {
+      if (!fixture.teamAScore) fixture.teamAScore = { runs: 0, wickets: 0, overs: 0, balls: 0, extras: 0 };
+      fixture.teamAScore.runs = (fixture.teamAScore.runs || 0) + 5;
+      fixture.teamAScore.extras = (fixture.teamAScore.extras || 0) + 5;
+    }
+  }
+
+  if (!Array.isArray(state.ballHistory)) state.ballHistory = [];
+  state.ballHistory.unshift({
+    type: 'penalty', label: 'PEN', runs: 5,
+    commentary: '⚠️ 5 Penalty runs awarded to ' + (toBatting ? battingTeam : fieldingTeam)
+  });
+
+  store.updateFixture(fixture);
+  renderScorerActivePanel();
+  alert('⚠️ 5 Penalty runs awarded to ' + (toBatting ? battingTeam : fieldingTeam));
+};
+
+window.undoLastBall = function() {
+  const fixture = store.getFixtures().find(f => f.id === activeScoringMatchId);
+  if (!fixture || !fixture.liveMatchState) return alert("No active match!");
+  const state = fixture.liveMatchState;
+  if (!Array.isArray(state.ballHistory) || state.ballHistory.length === 0) return alert("No deliveries to undo!");
+
+  const lastBall = state.ballHistory[0];
+  if (lastBall.type === 'wicket' || lastBall.type === 'retired') return alert("Cannot undo wickets or retired hurt. Use manual adjustments.");
+
+  const desc = lastBall.commentary || (lastBall.label + ' - ' + lastBall.runs + ' runs');
+  if (!confirm('↩️ Undo last delivery?\n\n' + desc + '\n\nThis will reverse runs, ball count, and extras from this delivery.')) return;
+
+  const runs = lastBall.runs || 0;
+  const isWide = lastBall.type === 'wide';
+  const isNoBall = lastBall.type === 'noball';
+  const isBye = lastBall.type === 'bye';
+  const isLegBye = lastBall.type === 'legbye';
+  const isValidBall = !isWide && !isNoBall;
+  const batRuns = isWide ? 0 : (isBye || isLegBye ? 0 : (isNoBall ? runs - 1 : runs));
+
+  state.runs -= runs;
+  if (state.runs < 0) state.runs = 0;
+
+  if (typeof state.extras === 'number') {
+    if (isWide) state.extras -= runs;
+    else if (isNoBall) state.extras -= 1;
+    else if (isBye || isLegBye) state.extras -= (runs - (isNoBall ? 1 : 0));
+    if (state.extras < 0) state.extras = 0;
+  }
+
+  if (isValidBall) {
+    if (state.balls === 0 && state.overs > 0) {
+      state.overs -= 1;
+      state.balls = 5;
+    } else if (state.balls > 0) {
+      state.balls -= 1;
+    }
+  }
+
+  if (isNoBall) state.freeHit = false;
+
+  const strikerId = state.strikerId;
+  if (strikerId && state.playerStats && state.playerStats[strikerId]) {
+    if (!isWide && !isBye && !isLegBye) {
+      state.playerStats[strikerId].runs = Math.max(0, (state.playerStats[strikerId].runs || 0) - batRuns);
+      if (batRuns === 4) state.playerStats[strikerId].fours = Math.max(0, (state.playerStats[strikerId].fours || 0) - 1);
+      if (batRuns === 6) state.playerStats[strikerId].sixes = Math.max(0, (state.playerStats[strikerId].sixes || 0) - 1);
+    }
+    if (!isWide) state.playerStats[strikerId].balls = Math.max(0, (state.playerStats[strikerId].balls || 0) - 1);
+  }
+
+  const bowlerId = state.bowlerId;
+  if (bowlerId && state.playerStats && state.playerStats[bowlerId]) {
+    if (isValidBall) state.playerStats[bowlerId].ballsBowled = Math.max(0, (state.playerStats[bowlerId].ballsBowled || 0) - 1);
+    if (!isBye && !isLegBye) state.playerStats[bowlerId].runsConceded = Math.max(0, (state.playerStats[bowlerId].runsConceded || 0) - runs);
+  }
+
+  if (Array.isArray(state.overBalls) && state.overBalls.length > 0) state.overBalls.pop();
+  state.ballHistory.shift();
+
+  const currentBattingScore = { runs: state.runs, wickets: state.wickets, overs: state.overs, balls: state.balls, extras: state.extras || 0 };
+  if (state.innings === 2) fixture.teamBScore = currentBattingScore;
+  else fixture.teamAScore = currentBattingScore;
+
+  store.updateFixture(fixture);
+  renderScorerActivePanel();
+  alert('↩️ Last delivery undone successfully!');
+};
+
+window.retiredHurt = function() {
+  const fixture = store.getFixtures().find(f => f.id === activeScoringMatchId);
+  if (!fixture || !fixture.liveMatchState) return alert("No active match!");
+  const state = fixture.liveMatchState;
+  const battingTeamId = state.innings === 2 ? fixture.teamBId : fixture.teamAId;
+  const batPlayers = store.getPlayers().filter(p => p.teamId === battingTeamId);
+  const striker = store.getPlayerById(state.strikerId);
+  const nonStriker = store.getPlayerById(state.nonStrikerId);
+
+  document.getElementById('scorer-retired-hurt-modal')?.remove();
+  const dismissedBatters = Object.entries(state.playerStats || {}).filter(([id, s]) => s.dismissed).map(([id]) => id);
+  const availableReplacements = batPlayers.filter(p => p.id !== state.strikerId && p.id !== state.nonStrikerId && !dismissedBatters.includes(p.id));
+
+  if (availableReplacements.length === 0) return alert("No replacement batsmen available!");
+
+  const modalHtml = `
+    <div id="scorer-retired-hurt-modal" class="fixed inset-0 z-[70] modal-overlay flex items-center justify-center p-3 bg-slate-950/80 backdrop-blur-md animate-fade-in">
+      <div class="bg-white border-2 border-orange-400 max-w-md w-full p-5 sm:p-6 relative space-y-4 animate-fade-in rounded-3xl shadow-2xl text-slate-900 text-left">
+        <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+          <h3 class="text-base font-black text-slate-900">🤕 Retired Hurt</h3>
+          <button id="cancel-retired-hurt-btn" class="p-1.5 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all cursor-pointer"><i data-lucide="x" class="w-5 h-5"></i></button>
+        </div>
+        <div>
+          <label class="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1">Which batsman is retiring?</label>
+          <select id="retired-hurt-who" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold shadow-2xs">
+            <option value="${state.strikerId}">Striker: ${striker?.name || 'Striker'}</option>
+            <option value="${state.nonStrikerId}">Non-Striker: ${nonStriker?.name || 'Non-Striker'}</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1">Replacement batsman</label>
+          <select id="retired-hurt-replacement" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold shadow-2xs">
+            ${availableReplacements.map(p => '<option value="' + p.id + '">' + p.name + '</option>').join('')}
+          </select>
+        </div>
+        <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
+          <button id="cancel-retired-hurt-btn2" type="button" class="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold rounded-xl cursor-pointer">Cancel</button>
+          <button id="confirm-retired-hurt-btn" type="button" class="px-5 py-2 bg-orange-500 hover:bg-orange-400 text-white font-black text-xs rounded-xl shadow-xs cursor-pointer">Confirm Retired</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  if (window.lucide) window.lucide.createIcons();
+
+  const removeModal = () => document.getElementById('scorer-retired-hurt-modal')?.remove();
+  document.getElementById('cancel-retired-hurt-btn')?.addEventListener('click', removeModal);
+  document.getElementById('cancel-retired-hurt-btn2')?.addEventListener('click', removeModal);
+  document.getElementById('confirm-retired-hurt-btn')?.addEventListener('click', () => {
+    const retiringId = document.getElementById('retired-hurt-who').value;
+    const replacementId = document.getElementById('retired-hurt-replacement').value;
+    const retiringName = store.getPlayerById(retiringId)?.name || 'Batsman';
+    const replacementName = store.getPlayerById(replacementId)?.name || 'Batsman';
+
+    if (!state.playerStats) state.playerStats = {};
+    if (!state.playerStats[retiringId]) state.playerStats[retiringId] = { runs: 0, balls: 0, fours: 0, sixes: 0, dismissed: false };
+    state.playerStats[retiringId].dismissalInfo = 'RETIRED_HURT';
+    if (!state.playerStats[replacementId]) state.playerStats[replacementId] = { runs: 0, balls: 0, fours: 0, sixes: 0, dismissed: false };
+
+    if (retiringId === state.strikerId) state.strikerId = replacementId;
+    else state.nonStrikerId = replacementId;
+
+    if (!Array.isArray(state.ballHistory)) state.ballHistory = [];
+    state.ballHistory.unshift({
+      innings: state.innings || 1,
+      overNum: state.overs + '.' + state.balls,
+      label: 'RH',
+      type: 'retired',
+      runs: 0,
+      commentary: retiringName + ' retired hurt. ' + replacementName + ' comes in to bat.',
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    });
+
+    store.updateFixture(fixture);
+    renderScorerActivePanel();
+    removeModal();
+    alert('🤕 ' + retiringName + ' retired hurt. ' + replacementName + ' is now batting.');
+  });
+};
+
 window.closeInningsManually = function() {
   const fixture = store.getFixtures().find(f => f.id === activeScoringMatchId);
   if (!fixture || !fixture.liveMatchState) return;
@@ -9272,26 +9599,27 @@ window.closeInningsManually = function() {
 window.finishMatchManually = function() {
   const fixture = store.getFixtures().find(f => f.id === activeScoringMatchId);
   if (!fixture) return;
+
   if (confirm("🏆 Are you sure you want to finalize this match and record the official result?")) {
     let winnerId = null;
     let resultTxt = 'Match Tied';
     const teamAScore = fixture.teamAScore || { runs: 0, wickets: 0 };
     const teamBScore = fixture.teamBScore || { runs: 0, wickets: 0 };
+    const isSuperOver = !!(fixture.liveMatchState && fixture.liveMatchState.isSuperOver);
 
     if (teamAScore.runs > teamBScore.runs) {
       winnerId = fixture.teamAId;
-      resultTxt = `${fixture.teamAName} won by ${teamAScore.runs - teamBScore.runs} runs`;
+      resultTxt = isSuperOver ? `${fixture.teamAName} won in Super Over` : `${fixture.teamAName} won by ${teamAScore.runs - teamBScore.runs} runs`;
     } else if (teamBScore.runs > teamAScore.runs) {
       winnerId = fixture.teamBId;
-      resultTxt = `${fixture.teamBName} won by ${10 - teamBScore.wickets} wickets`;
+      resultTxt = isSuperOver ? `${fixture.teamBName} won in Super Over` : `${fixture.teamBName} won by ${10 - teamBScore.wickets} wickets`;
     }
 
     fixture.status = 'COMPLETED';
     fixture.endedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     fixture.result = resultTxt;
     fixture.winnerTeamId = winnerId;
-    
-    // Clear active scoring session flags completely!
+
     window.__cplActiveScoringFixtureId = null;
     if (typeof localStorage !== 'undefined') {
       localStorage.removeItem('cpl_active_scoring_fixture_id');
@@ -9314,5 +9642,6 @@ window.finishMatchManually = function() {
     alert(`🎉 Match Completed!\n\nResult: ${resultTxt}`);
   }
 };
+
 
 
