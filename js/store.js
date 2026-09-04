@@ -1376,7 +1376,7 @@ class Store {
         const budget = Number(team.purseBudget || team.purse || 8000);
         team.remainingPurse = Math.max(0, budget - team.purseSpent);
         if (Array.isArray(team.playerIds)) {
-          team.playerIds = team.playerIds.filter(id => id !== playerId);
+          team.playerIds = team.playerIds.filter(id => String(id) !== String(playerId));
         }
         team.updated_at = Date.now();
         safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
@@ -1427,7 +1427,7 @@ class Store {
   updatePlayerStatus(playerId, paymentStatus, registrationStatus, remarks = '') {
     this._invalidateCache('players');
     const players = this.getPlayers();
-    const player = players.find(p => p.id === playerId);
+    const player = players.find(p => String(p.id) === String(playerId));
     if (player) {
       const now = Date.now();
       const s = (paymentStatus || 'APPROVED').toUpperCase();
@@ -1462,7 +1462,7 @@ class Store {
 
   purgePlayerSensitiveDocs(playerId) {
     const players = this.getPlayers();
-    const player = players.find(p => p.id === playerId);
+    const player = players.find(p => String(p.id) === String(playerId));
     if (player) {
       const now = Date.now();
       player.aadharPhotoUrl = '';
@@ -1612,6 +1612,9 @@ class Store {
           oldTeam.squadCount = Math.max(0, (oldTeam.squadCount || 1) - 1);
           oldTeam.purseSpent = Math.max(0, (oldTeam.purseSpent || 0) - (player.soldPrice || 0));
           oldTeam.remainingPurse = Math.max(0, (Number(oldTeam.purseBudget) || 8000) - oldTeam.purseSpent);
+          if (Array.isArray(oldTeam.playerIds)) {
+            oldTeam.playerIds = oldTeam.playerIds.filter(id => String(id) !== String(player.id));
+          }
           oldTeam.updated_at = Date.now();
           this._saveTeamAcrossAllKeys(oldTeam);
           syncTeamToSupabase(oldTeam);
@@ -1630,6 +1633,8 @@ class Store {
       team.squadCount = (Number(team.squadCount) || 0) + 1;
       team.purseSpent = (Number(team.purseSpent) || 0) + price;
       team.remainingPurse = Math.max(0, (Number(team.purseBudget) || 8000) - team.purseSpent);
+      if (!Array.isArray(team.playerIds)) team.playerIds = [];
+      if (!team.playerIds.includes(player.id)) team.playerIds.push(player.id);
       team.updated_at = Date.now();
 
       this._invalidateCache('players');
@@ -1676,25 +1681,47 @@ class Store {
   }
 
   unassignPlayerFromTeam(playerId) {
-    const players = this.getPlayers();
-    const teams = this.getTeams();
-    const player = players.find(p => p.id === playerId);
+    const findPlayer = (list) => list.find(p => String(p.id) === String(playerId) || (playerId && p.id && toUUID(p.id) === toUUID(playerId)));
+
+    let players = this.getPlayers();
+    let teams = this.getTeams();
+    let player = findPlayer(players);
+    let scopeSwitched = false;
+    let prevScope = this.activeTournamentId;
+
+    // If not found in current scope, search across all tournaments and switch scope
+    if (!player && this.getAllPlayersAcrossTournaments) {
+      const globalPlayer = findPlayer(this.getAllPlayersAcrossTournaments());
+      if (globalPlayer) {
+        const pTid = globalPlayer.tournament_id || globalPlayer.tournamentId || globalPlayer.leagueId;
+        if (pTid) {
+          this.activeTournamentId = pTid;
+          this._invalidateCache();
+          players = this.getPlayers();
+          teams = this.getTeams();
+          player = findPlayer(players);
+          scopeSwitched = true;
+        }
+      }
+    }
+
     if (!player) {
-      console.warn('[unassignPlayerFromTeam] Player not found in scoped list, id:', playerId);
+      if (scopeSwitched) { this.activeTournamentId = prevScope; this._invalidateCache(); }
+      console.warn('[unassignPlayerFromTeam] Player not found in any list, id:', playerId);
       return false;
     }
 
     const now = Date.now();
 
     if (player.teamId) {
-      const team = teams.find(t => t.id === player.teamId);
+      const team = teams.find(t => t.id === player.teamId || (t.id && toUUID(t.id) === toUUID(player.teamId)));
       if (team) {
         team.squadCount = Math.max(0, (Number(team.squadCount) || 1) - 1);
         team.purseSpent = Math.max(0, (Number(team.purseSpent) || 0) - (Number(player.soldPrice) || 0));
         const budget = Number(team.purseBudget || team.purse || 8000);
         team.remainingPurse = Math.max(0, budget - team.purseSpent);
         if (Array.isArray(team.playerIds)) {
-          team.playerIds = team.playerIds.filter(id => id !== playerId);
+          team.playerIds = team.playerIds.filter(id => String(id) !== String(playerId));
         }
         team.updated_at = now;
         safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
@@ -1713,7 +1740,6 @@ class Store {
     player.isIconPlayer = false;
     player.updated_at = now;
 
-    // Also update live auction state if this player was the last sold record
     if (this.liveAuctionState && this.liveAuctionState.last_sold_player_id === playerId) {
       this.updateLiveAuctionState({
         ...this.liveAuctionState,
@@ -1726,6 +1752,10 @@ class Store {
 
     safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
     syncPlayerToSupabase(player);
+
+    // Restore scope if we switched
+    if (scopeSwitched) { this.activeTournamentId = prevScope; this._invalidateCache(); }
+
     this.notify('players_updated');
     this.notify('teams_updated');
     this.notify('live_auction_updated');

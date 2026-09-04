@@ -1,4 +1,4 @@
-import { store } from './store.js?v=13.0.53';
+import { store } from './store.js?v=13.0.54';
 import { toUUID, getOptimizedImageUrl, compressImageToTarget } from './supabase.js?v=13.0.53';
 
 export async function preparePlayerPhotoForPDF(targetSrc, targetSizeKb = 30, maxDimension = 350) {
