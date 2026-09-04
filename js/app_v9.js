@@ -483,21 +483,18 @@ function navigate(route, pushState = true) {
 
   const container = document.getElementById('main-content');
 
-  // Smooth crossfade: fade out old content, swap, fade in new
+  // Instant swap with fade-in (no blink)
   if (container && prevRoute !== route) {
-    container.style.transition = 'opacity 0.15s ease-out';
     container.style.opacity = '0';
-    setTimeout(() => {
-      renderNavbar();
-      renderMobileBottomNav();
-      renderFooter();
-      renderCurrentView();
-      window.scrollTo({ top: 0 });
-      requestAnimationFrame(() => {
-        container.style.transition = 'opacity 0.2s ease-in';
-        container.style.opacity = '1';
-      });
-    }, 140);
+    renderNavbar();
+    renderMobileBottomNav();
+    renderFooter();
+    renderCurrentView();
+    window.scrollTo({ top: 0 });
+    requestAnimationFrame(() => {
+      container.style.transition = 'opacity 0.18s ease-in';
+      container.style.opacity = '1';
+    });
   } else {
     renderNavbar();
     renderMobileBottomNav();
