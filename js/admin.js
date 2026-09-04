@@ -1,8 +1,8 @@
 // Admin Master Data & Payment Verification Panel with Single Source Cloud Control (Developer: Suman Kolay)
 
-import { store } from './store.js?v=13.0.67';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportMatchScorecardPNG, exportFullMatchSummaryPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.67';
-import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID, compressImageToTarget, saveScorecardsToSupabase } from './supabase.js?v=13.0.67';
+import { store } from './store.js?v=13.0.68';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportMatchScorecardPNG, exportFullMatchSummaryPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.68';
+import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID, compressImageToTarget, saveScorecardsToSupabase } from './supabase.js?v=13.0.68';
 import { shops } from './shopsData.js?v=12.0.2';
 
 let activeAdminTab = (() => { try { return sessionStorage.getItem('cpl_admin_tab') || (store.isMasterAdmin() ? 'payments' : 'overview'); } catch(e) { return 'payments'; } })();
@@ -8293,11 +8293,7 @@ export function openAdminSquadManageModal(teamInput, onUpdated = null) {
 
   const teamIconName = (team.iconPlayerName || team.iconName || '').trim();
   const hasIcon = !!(teamIconName || (team.iconPlayerId && String(team.iconPlayerId).trim()));
-  const teamTourneyId = team.tournament_id || team.tournamentId || store.activeTournamentId;
-  const tourneyAuctionSettings = store.getAuctionSettings(teamTourneyId);
-  const defaultIconFee = Number(team.iconPlayerFee !== undefined && team.iconPlayerFee !== null
-    ? team.iconPlayerFee
-    : (team.iconFee !== undefined && team.iconFee !== null ? team.iconFee : tourneyAuctionSettings.defaultIconPrice)) || 1000;
+  const defaultIconFee = store.resolveTeamIconFee(team, teamTourneyId);
   const iconSpent = hasIcon ? defaultIconFee : 0;
 
   // Filter players currently assigned to THIS team (excluding icon player so icon has its dedicated card)
