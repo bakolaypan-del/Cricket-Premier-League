@@ -10154,8 +10154,9 @@ export function openMatchCenterModal(fixtureId) {
       let pshipBalls = 0;
       if (Array.isArray(state.ballHistory)) {
         for (const b of state.ballHistory) {
-          if (b.ballType === 'wicket' || b.label === 'W') break;
-          if (b.ballType !== 'wide' && b.ballType !== 'noball') pshipBalls++;
+          const bType = b.ballType || b.type || '';
+          if (bType === 'wicket' || b.label === 'W') break;
+          if (bType !== 'wide' && bType !== 'noball') pshipBalls++;
         }
       } else {
         pshipBalls = (state.overs || 0) * 6 + (state.balls || 0);
@@ -10717,6 +10718,24 @@ export function openMatchCenterModal(fixtureId) {
                 if (!overs[overKey]) overs[overKey] = [];
                 overs[overKey].push(b);
               });
+              // Deduplicate: if two entries share the same overNum, keep the wicket (or the first one)
+              for (const ok of Object.keys(overs)) {
+                const seen = {};
+                overs[ok] = overs[ok].filter(b => {
+                  const on = b.overNum || '0.0';
+                  if (!seen[on]) { seen[on] = b; return true; }
+                  const prevType = seen[on].type || seen[on].ballType || '';
+                  const curType = b.type || b.ballType || '';
+                  if (curType === 'wicket' && prevType !== 'wicket') {
+                    // Replace previous with wicket, keep wicket's runs + previous runs
+                    seen[on].label = b.label; seen[on].type = b.type; seen[on].ballType = b.ballType;
+                    seen[on].commentary = b.commentary; seen[on].batterName = b.batterName;
+                    seen[on].batterScore = b.batterScore; seen[on].runs = (parseInt(seen[on].runs)||0) + (parseInt(b.runs)||0);
+                    return false;
+                  }
+                  return false; // drop duplicate
+                });
+              }
 
               const overKeys = Object.keys(overs).sort((a, b) => Number(b) - Number(a));
 
