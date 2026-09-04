@@ -2182,16 +2182,6 @@ function renderFirstPageLanding(containerEl) {
   containerEl.innerHTML = `
     <div class="w-full max-w-5xl mx-auto space-y-4 sm:space-y-6 animate-fade-in py-2 sm:py-4 text-slate-900">
 
-      <!-- SCROLLING NOTICE TICKER (top of main dashboard) -->
-      <div id="landing-notice-ticker-bar" class="hidden w-full max-w-3xl mx-auto overflow-hidden">
-        <div class="bg-red-600 overflow-hidden py-1 sm:py-1.5 px-0 rounded-lg">
-          <div class="notice-ticker-track">
-            <span id="landing-notice-ticker-c1" class="whitespace-nowrap text-[10px] sm:text-[11px] font-bold text-white tracking-wide"></span>
-            <span id="landing-notice-ticker-c2" class="whitespace-nowrap text-[10px] sm:text-[11px] font-bold text-white tracking-wide"></span>
-          </div>
-        </div>
-      </div>
-
       <!-- 👥 REALTIME LIVE & TOTAL VISITOR TRAFFIC METRICS BAR -->
       <div class="w-full max-w-3xl mx-auto bg-white border border-slate-200/90 rounded-2xl p-2 sm:p-3 shadow-xs flex items-center justify-around gap-1.5 sm:gap-4 text-slate-800 animate-fade-in">
         <!-- Live Online Visitors -->
@@ -2518,23 +2508,7 @@ function renderFirstPageLanding(containerEl) {
 
   document.getElementById('btn-home-create-tourney')?.addEventListener('click', () => openTournamentCreationRoadmapModal(false));
 
-  // --- NOTICE TICKER on main landing (top bar, smaller) ---
-  (async () => {
-    try {
-      const nb = await store.syncNoticeBoardFromCloud();
-      if (nb && nb.active && nb.text) {
-        const bar = document.getElementById('landing-notice-ticker-bar');
-        const c1 = document.getElementById('landing-notice-ticker-c1');
-        const c2 = document.getElementById('landing-notice-ticker-c2');
-        if (bar && c1) {
-          const msg = '  📢 ' + nb.text + '     •     ';
-          c1.textContent = msg;
-          if (c2) c2.textContent = msg;
-          bar.classList.remove('hidden');
-        }
-      }
-    } catch(e) {}
-  })();
+  // Notice ticker removed from upper landing — notices now show in countdown showcase card
 }
 
 // --- WHATSAPP 1-CLICK SHARING UTILITIES ---
