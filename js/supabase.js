@@ -659,7 +659,7 @@ export async function fetchPersonProfiles(tournamentId) {
 export async function fetchAllTournamentsFixtures() {
   if (!supabase) return {};
   try {
-    const { data: tourneys } = await supabase.from('tournaments').select('id, name, category_code, slug, logo_url, banner_url, venue, format_config');
+    const { data: tourneys } = await supabase.from('tournaments').select('id, name, category_code, slug, logo_url, banner_url, venue_name, format_config');
     if (!Array.isArray(tourneys)) return {};
     const result = {};
     for (const t of tourneys) {
