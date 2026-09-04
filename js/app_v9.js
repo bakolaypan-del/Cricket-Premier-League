@@ -10763,8 +10763,8 @@ export function openMatchCenterModal(fixtureId) {
                     <!-- Individual Ball Entries -->
                     <div class="divide-y divide-slate-100">
                       ${reversedBalls.map(function(b, i) {
-                        const ballNum = sortedBalls.length - i;
-                        const displayOver = ok + '.' + ballNum;
+                        const parts = (b.overNum || '0.0').split('.');
+                        const displayOver = parts[0] + '.' + (parseInt(parts[1] || '0') + 1);
                         return `
                         <div class="flex items-start gap-3 py-3.5 px-1">
                           <span class="text-sm font-black text-slate-400 font-mono w-10 shrink-0 pt-0.5">${displayOver}</span>
