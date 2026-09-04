@@ -10151,7 +10151,15 @@ export function openMatchCenterModal(fixtureId) {
       const nonStrikerSR = (nonStrikerStat.balls > 0) ? (((nonStrikerStat.runs || 0) / nonStrikerStat.balls) * 100).toFixed(1) : '0.0';
 
       const pshipRuns = (strikerStat.runs || 0) + (nonStrikerStat.runs || 0);
-      const pshipBalls = (strikerStat.balls || 0) + (nonStrikerStat.balls || 0);
+      let pshipBalls = 0;
+      if (Array.isArray(state.ballHistory)) {
+        for (const b of state.ballHistory) {
+          if (b.ballType === 'wicket' || b.label === 'W') break;
+          if (b.ballType !== 'wide' && b.ballType !== 'noball') pshipBalls++;
+        }
+      } else {
+        pshipBalls = (state.overs || 0) * 6 + (state.balls || 0);
+      }
 
       contentArea.innerHTML = `
         <div class="space-y-3.5 animate-fade-in">
