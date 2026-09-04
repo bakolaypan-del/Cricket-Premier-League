@@ -464,12 +464,17 @@ function initApp() {
   });
 }
 
+let _navLock = 0;
 function navigate(route, pushState = true) {
   if (auctionPollInterval) {
     clearInterval(auctionPollInterval);
     auctionPollInterval = null;
   }
   const prevRoute = currentRoute;
+  const now = Date.now();
+  if (prevRoute === route && pushState) return;
+  if (pushState && now - _navLock < 300) return;
+  if (pushState) _navLock = now;
   currentRoute = route;
   try { sessionStorage.setItem('cpl_last_route', route); } catch(e) {}
   if (pushState && history.pushState) {
@@ -510,11 +515,8 @@ window.addEventListener('popstate', (e) => {
     modalOpen.remove();
     return;
   }
-  if (e.state && e.state.route) {
-    navigate(e.state.route, false);
-  } else {
-    navigate('landing', false);
-  }
+  const route = (e.state && e.state.route) || 'landing';
+  navigate(route, false);
 });
 
 window.addEventListener('hashchange', () => {
@@ -2357,8 +2359,9 @@ function renderFirstPageLanding(containerEl) {
     </div>
   `;
 
-  // Wire up tournament card clicks
+  // Wire up tournament card clicks (skip carousel cards — they have their own swipe-aware handler)
   document.querySelectorAll('[data-nav-route]').forEach(el => {
+    if (el.classList.contains('tourney-card')) return;
     el.addEventListener('click', () => navigate(el.dataset.navRoute));
   });
 
@@ -4585,7 +4588,7 @@ export function renderCustomTournamentHub(container, tourney) {
   const mainView = document.getElementById('hub-main-view');
   const sectionBack = document.getElementById('hub-section-back');
 
-  const showSection = (sectionId, subtab) => {
+  const showSection = (sectionId, subtab, usePush = true) => {
     mainView?.classList.add('hidden');
     sectionBack?.classList.remove('hidden');
     allSectionIds.forEach(id => document.getElementById('hub-tab-' + id)?.classList.add('hidden'));
@@ -4601,19 +4604,18 @@ export function renderCustomTournamentHub(container, tourney) {
       }
     }
 
-    try { sessionStorage.setItem('cpl_hub_tab_' + tourney.slug, sectionId); } catch(ex) {}
     const targetHash = sectionId === 'home' ? `t/${tourney.slug}` : `t/${tourney.slug}?tab=${sectionId}`;
     currentRoute = targetHash;
     try { sessionStorage.setItem('cpl_last_route', targetHash); } catch(ex) {}
-    if (history.replaceState) history.replaceState({ route: targetHash }, '', `#${targetHash}`);
+    if (usePush && history.pushState) {
+      history.pushState({ route: targetHash }, '', `#${targetHash}`);
+    } else if (history.replaceState) {
+      history.replaceState({ route: targetHash }, '', `#${targetHash}`);
+    }
   };
 
   const backToGrid = () => {
-    allSectionIds.forEach(id => document.getElementById('hub-tab-' + id)?.classList.add('hidden'));
-    sectionBack?.classList.add('hidden');
-    mainView?.classList.remove('hidden');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
-    try { sessionStorage.removeItem('cpl_hub_tab_' + tourney.slug); } catch(ex) {}
+    history.back();
   };
 
   container.querySelectorAll('.hub-grid-btn').forEach(btn => {
@@ -4645,7 +4647,7 @@ export function renderCustomTournamentHub(container, tourney) {
 
   // If URL has a tab param, open that section directly
   if (hubTab && hubTab !== 'home') {
-    showSection(hubTab);
+    showSection(hubTab, null, false);
   }
 
   // Match corner subtabs switching
