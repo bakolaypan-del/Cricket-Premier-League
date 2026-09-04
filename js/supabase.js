@@ -491,6 +491,44 @@ export async function initRealtimePushListener(onUpdateCallback, tournamentId) {
           }
         }
       })
+      .on('broadcast', { event: 'live_score_update' }, (msg) => {
+        if (typeof window === 'undefined' || !window.store) return;
+        const p = msg?.payload;
+        if (!p || !p.fixtureId) return;
+        const s = window.store;
+        const fTid = p.tournament_id;
+        const isActive = !fTid || fTid === s.activeTournamentId || toUUID(fTid) === toUUID(s.activeTournamentId);
+        const scopedFixKey = isActive ? s._scopedKey('FIXTURES') : ('cpl_fixtures_v8_' + (toUUID(fTid) || fTid));
+        try {
+          let fixtures = JSON.parse(localStorage.getItem(scopedFixKey)) || [];
+          const idx = fixtures.findIndex(f => f.id === p.fixtureId || (toUUID(f.id) && toUUID(f.id) === toUUID(p.fixtureId)));
+          if (idx !== -1) {
+            if (p.liveMatchState) {
+              const existing = fixtures[idx].liveMatchState || {};
+              const incoming = p.liveMatchState;
+              const mergedHistory = existing.ballHistory || [];
+              if (Array.isArray(incoming.ballHistory)) {
+                incoming.ballHistory.forEach(b => {
+                  if (!mergedHistory.some(h => h.overNum === b.overNum && h.ballType === b.ballType && h.timestamp === b.timestamp)) {
+                    mergedHistory.push(b);
+                  }
+                });
+              }
+              fixtures[idx].liveMatchState = { ...existing, ...incoming, ballHistory: mergedHistory };
+            }
+            if (p.status) fixtures[idx].status = p.status;
+            if (p.result) fixtures[idx].result = p.result;
+            if (p.winnerTeamId) fixtures[idx].winnerTeamId = p.winnerTeamId;
+            if (p.inningsTiming) fixtures[idx].inningsTiming = p.inningsTiming;
+            if (p.superOverData) fixtures[idx].superOverData = p.superOverData;
+            fixtures[idx].updated_at = Date.now();
+            localStorage.setItem(scopedFixKey, JSON.stringify(fixtures));
+            s._invalidateCache('fixtures');
+            s.notify('fixtures_updated');
+            console.log('[REALTIME] Live score update received for fixture:', p.fixtureId);
+          }
+        } catch (e) {}
+      })
       .on('broadcast', { event: 'fixture_update' }, (msg) => {
         if (typeof window === 'undefined' || !window.store) return;
         const p = msg?.payload;
@@ -1385,6 +1423,36 @@ export async function syncFixtureToSupabase(fixtureData, tournamentId = null) {
     console.warn("[SUPABASE] syncFixtureToSupabase notice:", err);
     return null;
   }
+}
+
+export function broadcastLiveScore(fixture, tournamentId) {
+  if (!activeRealtimeChannel || !fixture) return;
+  try {
+    const ls = fixture.liveMatchState;
+    const lite = ls ? {
+      currentInnings: ls.currentInnings, runs: ls.runs, wickets: ls.wickets, overs: ls.overs, balls: ls.balls,
+      target: ls.target, innings1: ls.innings1, extras: ls.extras,
+      currentBatterA: ls.currentBatterA, currentBatterB: ls.currentBatterB, currentBowler: ls.currentBowler,
+      isStrikerA: ls.isStrikerA, playerStats: ls.playerStats,
+      isSuperOver: ls.isSuperOver, superOverNum: ls.superOverNum,
+      soTeamAScore: ls.soTeamAScore, soTeamBScore: ls.soTeamBScore,
+      ballHistory: ls.ballHistory ? ls.ballHistory.slice(-12) : []
+    } : null;
+    activeRealtimeChannel.send({
+      type: 'broadcast',
+      event: 'live_score_update',
+      payload: {
+        fixtureId: fixture.id,
+        tournament_id: tournamentId || fixture.tournament_id || fixture.leagueId,
+        status: fixture.status,
+        result: fixture.result,
+        winnerTeamId: fixture.winnerTeamId,
+        inningsTiming: fixture.inningsTiming,
+        superOverData: fixture.superOverData,
+        liveMatchState: lite
+      }
+    }).catch(() => {});
+  } catch (e) {}
 }
 
 export async function saveScorecardsToSupabase(fixture, tournamentId = null) {

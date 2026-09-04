@@ -63,8 +63,9 @@ import {
   fetchPersonProfiles,
   fetchAllTournamentsFixtures,
   saveNoticeBoardToCloud,
-  fetchNoticeBoardFromCloud
-} from './supabase.js?v=13.0.55';
+  fetchNoticeBoardFromCloud,
+  broadcastLiveScore
+} from './supabase.js?v=13.0.56';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -2237,6 +2238,9 @@ class Store {
       safeSetLocalStorage(this._scopedKey('FIXTURES'), fixtures);
       const fixtureTid = fixtures[idx].tournament_id || fixtures[idx].leagueId || this.activeTournamentId;
       saveFixtureToCloud(fixtures[idx], fixtureTid);
+      if (fixtures[idx].status === 'LIVE' || fixtures[idx].liveMatchState) {
+        broadcastLiveScore(fixtures[idx], fixtureTid);
+      }
       this.notify('fixtures_updated');
       return fixtures[idx];
     }
