@@ -1781,8 +1781,8 @@ function renderMobileNav() {
           <svg class="w-5 h-5 flex-shrink-0 transition-transform ${opacity}" viewBox="0 0 24 24" fill="none">
             <defs>
               <linearGradient id="homeSvgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stop-color="#3B82F6"/>
-                <stop offset="100%" stop-color="#1D4ED8"/>
+                <stop offset="0%" stop-color="#2563EB"/>
+                <stop offset="100%" stop-color="#1E40AF"/>
               </linearGradient>
             </defs>
             <path d="M3 10.5L12 3l9 7.5V20a2 2 0 01-2 2H5a2 2 0 01-2-2v-9.5z" fill="url(#homeSvgGrad)"/>
@@ -1794,8 +1794,8 @@ function renderMobileNav() {
           <svg class="w-5 h-5 flex-shrink-0 transition-transform ${opacity}" viewBox="0 0 24 24" fill="none">
             <defs>
               <linearGradient id="matchSvgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stop-color="#F59E0B"/>
-                <stop offset="100%" stop-color="#D97706"/>
+                <stop offset="0%" stop-color="#E11D48"/>
+                <stop offset="100%" stop-color="#BE123C"/>
               </linearGradient>
             </defs>
             <rect x="3" y="4" width="18" height="17" rx="3" fill="url(#matchSvgGrad)"/>
@@ -1808,12 +1808,14 @@ function renderMobileNav() {
           <svg class="w-5 h-5 flex-shrink-0 transition-transform ${opacity}" viewBox="0 0 24 24" fill="none">
             <defs>
               <linearGradient id="auctionSvgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stop-color="#FBBF24"/>
-                <stop offset="100%" stop-color="#B45309"/>
+                <stop offset="0%" stop-color="#F59E0B"/>
+                <stop offset="100%" stop-color="#D97706"/>
               </linearGradient>
             </defs>
-            <path d="M14 3l7 7-2 2-7-7 2-2zM3 21l8-8 2 2-8 8H3v-2z" fill="url(#auctionSvgGrad)"/>
-            <circle cx="18" cy="6" r="3" fill="#F59E0B"/>
+            <circle cx="12" cy="8" r="5" fill="url(#auctionSvgGrad)"/>
+            <text x="12" y="10.5" text-anchor="middle" fill="#FFFFFF" font-size="7" font-weight="bold">₹</text>
+            <path d="M7 15h10l-2 6H9l-2-6z" fill="url(#auctionSvgGrad)"/>
+            <path d="M9.5 15v6M14.5 15v6" stroke="#FFFFFF" stroke-width="0.8" opacity="0.7"/>
           </svg>
         `;
       case 'career':
@@ -1835,8 +1837,8 @@ function renderMobileNav() {
           <svg class="w-5 h-5 flex-shrink-0 transition-transform ${opacity}" viewBox="0 0 24 24" fill="none">
             <defs>
               <linearGradient id="profSvgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stop-color="#6366F1"/>
-                <stop offset="100%" stop-color="#4338CA"/>
+                <stop offset="0%" stop-color="#7C3AED"/>
+                <stop offset="100%" stop-color="#5B21B6"/>
               </linearGradient>
             </defs>
             <circle cx="12" cy="8" r="4" fill="url(#profSvgGrad)"/>
@@ -1853,7 +1855,7 @@ function renderMobileNav() {
     return `
       <button id="${id}" class="flex flex-col items-center justify-center flex-1 py-1 px-0.5 transition-all cursor-pointer ${isActive ? 'bg-slate-100/90 rounded-2xl' : ''}">
         ${getSvgIcon(type, isActive)}
-        <span class="text-[9px] ${isActive ? 'font-black text-slate-900' : 'font-semibold text-slate-500'} mt-0.5">${label}</span>
+        <span class="text-[9px] ${isActive ? 'font-black text-slate-900' : 'font-bold text-slate-500'} mt-0.5">${label}</span>
       </button>
     `;
   };
@@ -3973,54 +3975,33 @@ export function renderCustomTournamentHub(container, tourney) {
                 const statusText = f.status || 'COMPLETED';
 
                 return `
-                  <div class="cpl-match-card bg-white p-4 sm:p-5 rounded-3xl border-2 ${isLive ? 'border-rose-500 shadow-md ring-2 ring-rose-500/20' : isCompleted ? 'border-slate-200 hover:border-emerald-500 shadow-2xs' : 'border-slate-200 hover:border-sky-500 shadow-2xs'} shadow-sm hover:shadow-lg transition-all space-y-3.5 cursor-pointer group" data-fixture-id="${f.id}" onclick="window.openMatchCenterModal('${f.id}')">
-                    <!-- Top Line: Match # & Status -->
-                    <div class="flex items-center justify-between gap-2">
-                      <span class="text-[11px] font-black uppercase text-slate-500 tracking-wider">
-                        MATCH #${f.matchNo || 1} • ${f.stage || f.groupCode || 'GROUP_A'}
-                      </span>
-                      <span class="px-2.5 py-0.5 rounded-full text-[9.5px] font-black border ${isLive ? 'bg-red-500 text-white animate-pulse border-red-600' : isCompleted ? 'bg-emerald-100 text-emerald-800 border-emerald-300' : 'bg-slate-100 text-slate-700 border-slate-200'}">
-                        ${statusText}
-                      </span>
+                  <div class="cpl-match-card bg-white rounded-2xl ${isLive ? 'border border-rose-300 shadow-md ring-1 ring-rose-500/20' : 'border border-slate-200 shadow-sm'} hover:shadow-lg transition-all cursor-pointer group" data-fixture-id="${f.id}" onclick="window.openMatchCenterModal('${f.id}')">
+                    <!-- Header: Match Info + Status -->
+                    <div class="flex items-center justify-between px-3.5 pt-3 pb-1">
+                      <span class="text-[10.5px] font-bold text-slate-500">${f.stage || f.groupCode || 'Series Match'}, T${f.oversLimit || 20}, ${f.date || 'Today'}</span>
+                      ${isLive ? `<span class="text-[10.5px] font-black text-rose-500">Live</span>` : isCompleted ? `<span class="text-[10.5px] font-bold text-slate-400">Completed</span>` : `<span class="text-[10.5px] font-bold text-sky-500">Scheduled</span>`}
                     </div>
-
-                    <!-- Middle Line: Team A vs Team B with Logos -->
-                    <div class="space-y-2.5 py-1">
-                      <div class="flex items-center justify-between gap-3">
-                        <div class="flex items-center gap-3 min-w-0">
-                          <img src="${(store.getTeamById(f.teamAId)?.logoUrl || store.getTeamById(f.teamAId)?.teamLogoUrl || 'assets/card_jsl_user.png')}" class="w-8 h-8 rounded-full object-cover border border-slate-200 bg-slate-50 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
-                          <h4 class="text-sm sm:text-base font-black text-slate-900 truncate uppercase group-hover:text-emerald-700 transition-colors">${f.teamAName || 'Team A'}</h4>
+                    <!-- Team Rows -->
+                    <div class="px-3.5 py-1.5 space-y-1.5">
+                      <div class="flex items-center justify-between gap-2">
+                        <div class="flex items-center gap-2.5 min-w-0">
+                          <img src="${(store.getTeamById(f.teamAId)?.logoUrl || store.getTeamById(f.teamAId)?.teamLogoUrl || 'assets/card_jsl_user.png')}" class="w-6 h-6 rounded-full object-cover border border-slate-200 bg-slate-50 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                          <span class="text-[13px] font-black text-slate-900 truncate uppercase">${f.teamAName || 'Team A'}</span>
                         </div>
-                        ${f.liveScoreTeamA ? `<div class="text-xs font-mono font-black text-slate-700 shrink-0">${f.liveScoreTeamA}</div>` : ''}
+                        ${f.liveScoreTeamA ? `<span class="text-[13px] font-black text-slate-800 shrink-0">${f.liveScoreTeamA}</span>` : ''}
                       </div>
-
-                      <div class="flex items-center justify-between gap-3">
-                        <div class="flex items-center gap-3 min-w-0">
-                          <img src="${(store.getTeamById(f.teamBId)?.logoUrl || store.getTeamById(f.teamBId)?.teamLogoUrl || 'assets/card_jsl_user.png')}" class="w-8 h-8 rounded-full object-cover border border-slate-200 bg-slate-50 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
-                          <h4 class="text-sm sm:text-base font-black text-slate-900 truncate uppercase group-hover:text-emerald-700 transition-colors">${f.teamBName || 'Team B'}</h4>
+                      <div class="flex items-center justify-between gap-2">
+                        <div class="flex items-center gap-2.5 min-w-0">
+                          <img src="${(store.getTeamById(f.teamBId)?.logoUrl || store.getTeamById(f.teamBId)?.teamLogoUrl || 'assets/card_jsl_user.png')}" class="w-6 h-6 rounded-full object-cover border border-slate-200 bg-slate-50 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                          <span class="text-[13px] font-black text-slate-900 truncate uppercase">${f.teamBName || 'Team B'}</span>
                         </div>
-                        ${f.liveScoreTeamB ? `<div class="text-xs font-mono font-black text-slate-700 shrink-0">${f.liveScoreTeamB}</div>` : ''}
+                        ${f.liveScoreTeamB ? `<span class="text-[13px] font-black text-slate-800 shrink-0">${f.liveScoreTeamB}</span>` : ''}
                       </div>
                     </div>
-
-                    <!-- Bottom Line: Date, Time, Venue & Action Link -->
-                    <div class="flex items-center justify-between gap-2 flex-wrap text-[10.5px] font-bold text-slate-500 pt-2.5 border-t border-slate-100">
-                      <div class="flex items-center gap-1.5 flex-wrap">
-                        <span>🗓️ ${f.date || '2026-08-26'}</span>
-                        <span>•</span>
-                        <span>⏰ ${f.time || '09:00'}</span>
-                        <span>•</span>
-                        <span>📍</span>
-                        <span class="uppercase truncate max-w-[140px]">${f.venue || tourney.venue || 'JHANKRA SCHOOL GROUND'}</span>
-                      </div>
-                      <div class="flex items-center gap-2 shrink-0">
-                        <div class="text-xs font-black text-emerald-700 group-hover:text-emerald-800 transition-colors flex items-center gap-1">
-                          ${isLive ? 'View Live Match Centre' : isCompleted ? 'View Full Scorecard' : 'View Match Preview'} <span class="text-emerald-600 font-bold transition-transform group-hover:translate-x-1">→</span>
-                        </div>
-                        <button type="button" class="btn-share-match-wa px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-xl border border-emerald-300 flex items-center gap-1 shadow-2xs hover:scale-105 active:scale-95 transition-all cursor-pointer shrink-0" data-fixture-id="${f.id}" onclick="event.stopPropagation(); window.shareMatchToWhatsApp(store.getFixtureById('${f.id}') || ${JSON.stringify(f).replace(/"/g, '&quot;')}, { name: '${tourney.name || 'CRICKET PREMIER LEAGUE'}', venue: '${f.venue || tourney.venue || 'JHANKRA SCHOOL GROUND'}' });">
-                          <span>💬</span> <span>Share</span>
-                        </button>
-                      </div>
+                    <!-- Footer: Venue + Result -->
+                    <div class="flex items-center justify-between px-3.5 pb-3 pt-1">
+                      <span class="text-[10px] font-bold text-slate-400 uppercase truncate max-w-[50%]">${f.venue || tourney.venue || 'VENUE'}</span>
+                      ${isCompleted && f.result ? `<span class="text-[10px] font-bold text-slate-500 truncate max-w-[50%] text-right">${f.result}</span>` : isLive ? `<span class="text-[10px] font-black text-rose-500">Match in progress</span>` : `<span class="text-[10px] font-bold text-slate-400">${f.time || ''}</span>`}
                     </div>
                   </div>
                 `;
@@ -8924,106 +8905,39 @@ function renderFixturesView(container) {
           const fullMatchTourneyName = (m.tournamentName || tMatchObj?.name || (m.leagueCode === 'JSL' ? 'JHANKRA SUPER LEAGUE 2026' : ((m.leagueCode === 'KPL' || m.leagueCode === 'K2026' || m.leagueCode === 'T2') ? 'KUAPUR PREMIER LEAGUE' : 'CRICKET PREMIER LEAGUE'))).toUpperCase();
 
           return `
-        <div class="cpl-match-card bg-white border-2 ${isLive ? 'border-rose-500 shadow-md ring-2 ring-rose-500/20' : isCompleted ? 'border-slate-200 hover:border-emerald-500 shadow-2xs' : 'border-slate-200 hover:border-sky-500 shadow-2xs'} rounded-3xl p-4 sm:p-5 shadow-xs hover:shadow-lg transition-all cursor-pointer flex flex-col justify-between space-y-3 relative group" data-fixture-id="${m.id}" onclick="window.openMatchCenterModal('${m.id}')">
-          <!-- Top Line: Stage, T20/T16, Time & Status -->
-          <div class="flex items-center justify-between gap-2 text-xs">
-            <div class="font-medium text-slate-600 truncate flex items-center gap-1.5 min-w-0">
-              <span class="font-black text-slate-900">${m.group ? `GROUP ${m.group} Match ${m.matchNo || idx + 1}` : `Match ${m.matchNo || idx + 1}`}</span>
-              <span>•</span>
-              <span class="font-bold text-slate-700">T${m.oversLimit || 16}</span>
-              <span>•</span>
-              <span class="text-slate-500 truncate">${isLive ? `⏱️ <span class="cpl-live-match-timer font-mono font-black text-rose-600" data-start="${startTs}">0m 0s</span>` : `🗓️ ${m.date || 'Today'} ${m.time ? `(${m.time})` : ''}`}</span>
+        <div class="cpl-match-card bg-white rounded-2xl ${isLive ? 'border border-rose-300 shadow-md ring-1 ring-rose-500/20' : 'border border-slate-200 shadow-sm'} hover:shadow-lg transition-all cursor-pointer group" data-fixture-id="${m.id}" onclick="window.openMatchCenterModal('${m.id}')">
+          <!-- Header: Match Info + Status -->
+          <div class="flex items-center justify-between px-3.5 pt-3 pb-1">
+            <span class="text-[10.5px] font-bold text-slate-500">${m.group ? `Group ${m.group} Match` : 'Series Match'}, T${m.oversLimit || 20}, ${isLive ? 'Today' : (m.date || 'Today')}</span>
+            ${isLive ? `<span class="text-[10.5px] font-black text-rose-500">Live</span>` : isCompleted ? `<span class="text-[10.5px] font-bold text-slate-400">Completed</span>` : `<span class="text-[10.5px] font-bold text-sky-500">Scheduled</span>`}
+          </div>
+          <!-- Team Rows -->
+          <div class="px-3.5 py-1.5 space-y-1.5">
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <img src="${logoA}" class="w-6 h-6 rounded-full object-cover border border-slate-200 bg-slate-50 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                <span class="text-[13px] font-black text-slate-900 truncate uppercase">${m.teamAName}</span>
+              </div>
+              <span class="text-[13px] font-black ${isLive ? 'text-rose-600' : 'text-slate-800'} shrink-0">${teamAScoreTxt !== '-' ? teamAScoreTxt : ''}</span>
             </div>
-            <div class="shrink-0">
-              ${isLive ? `
-                <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-black bg-rose-500 text-white animate-pulse shadow-xs">
-                  <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span> LIVE
-                </span>
-              ` : isCompleted ? `
-                <span class="text-emerald-700 font-black tracking-wider uppercase text-xs bg-emerald-50 border border-emerald-300 px-2 py-0.5 rounded-full">
-                  FINISHED
-                </span>
-              ` : `
-                <span class="text-sky-700 font-black tracking-wider uppercase text-xs bg-sky-50 border border-sky-200 px-2 py-0.5 rounded-full">
-                  SCHEDULED
-                </span>
-              `}
+            <div class="flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2.5 min-w-0">
+                <img src="${logoB}" class="w-6 h-6 rounded-full object-cover border border-slate-200 bg-slate-50 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
+                <span class="text-[13px] font-black text-slate-900 truncate uppercase">${m.teamBName}</span>
+              </div>
+              <span class="text-[13px] font-black ${isLive ? 'text-rose-600' : 'text-slate-800'} shrink-0">${teamBScoreTxt !== '-' ? teamBScoreTxt : ''}</span>
             </div>
           </div>
-
-          <!-- Teams List -->
-          <div class="space-y-2.5 py-1">
-            <div class="flex items-center justify-between gap-3">
-              <div class="flex items-center gap-3 min-w-0">
-                <img src="${logoA}" class="w-9 h-9 rounded-full object-cover border border-slate-200 bg-slate-50 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
-                <span class="font-black text-slate-900 text-sm sm:text-base tracking-wide uppercase truncate leading-tight group-hover:text-emerald-700 transition-colors">
-                  ${m.teamAName}
-                </span>
-              </div>
-              <div class="text-xs sm:text-sm font-black font-mono ${isLive ? 'text-rose-600 font-bold' : 'text-slate-900'} shrink-0">
-                ${teamAScoreTxt}
-              </div>
-            </div>
-
-            <div class="flex items-center justify-between gap-3">
-              <div class="flex items-center gap-3 min-w-0">
-                <img src="${logoB}" class="w-9 h-9 rounded-full object-cover border border-slate-200 bg-slate-50 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
-                <span class="font-black text-slate-900 text-sm sm:text-base tracking-wide uppercase truncate leading-tight group-hover:text-emerald-700 transition-colors">
-                  ${m.teamBName}
-                </span>
-              </div>
-              <div class="text-xs sm:text-sm font-black font-mono ${isLive ? 'text-rose-600 font-bold' : 'text-slate-900'} shrink-0">
-                ${teamBScoreTxt}
-              </div>
-            </div>
-          </div>
-
-          <!-- Toss / Target Equation or Result -->
+          <!-- Target equation for live 2nd innings -->
           ${isLive && liveState.innings === 2 && liveState.target ? `
-            <div class="bg-amber-50 border border-amber-200 text-amber-900 text-[11px] font-black p-2 rounded-xl text-center shadow-2xs">
-              🎯 Target: ${liveState.target} | Need ${liveState.target - (liveState.runs || 0)} runs off ${(m.oversLimit * 6) - (((liveState.overs || 0) * 6) + (liveState.balls || 0))} balls
-            </div>
-          ` : (isCompleted && m.result) ? `
-            <div class="space-y-1.5">
-              <div class="text-xs bg-emerald-50 border border-emerald-300 text-emerald-950 font-black p-2 rounded-xl text-center shadow-2xs uppercase tracking-wide flex items-center justify-center gap-1.5">
-                <span>🏆</span> <span>${m.result}</span>
-              </div>
-              ${(() => {
-                const potm = (typeof window.getMatchPotm === 'function') ? window.getMatchPotm(m) : null;
-                return potm ? `
-                  <div class="text-[11px] bg-amber-50 border border-amber-300 text-amber-950 font-black p-1.5 rounded-xl text-center shadow-2xs flex items-center justify-center gap-1.5 truncate">
-                    <span>🎖️</span> <span>MAN OF THE MATCH: <strong class="text-slate-900">${potm.name}</strong> (${potm.desc})</span>
-                  </div>
-                ` : '';
-              })()}
-            </div>
-          ` : (m.tossDetails || liveState.tossDetails) ? `
-            <div class="bg-slate-50 border border-slate-200 text-slate-700 text-[10px] font-bold p-1.5 rounded-xl truncate flex items-center gap-1">
-              <span>🪙</span> <span class="truncate">${m.tossDetails || liveState.tossDetails}</span>
+            <div class="mx-3.5 mb-1 bg-amber-50 border border-amber-200 text-amber-900 text-[10px] font-black px-2.5 py-1 rounded-lg text-center">
+              Need ${liveState.target - (liveState.runs || 0)} off ${(m.oversLimit * 6) - (((liveState.overs || 0) * 6) + (liveState.balls || 0))} balls
             </div>
           ` : ''}
-
-          <!-- Footer: Tournament Name & Click Action -->
-          <div class="pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2 flex-wrap">
-            <div class="min-w-0">
-              <div class="text-[10px] text-emerald-800 font-extrabold uppercase tracking-wider truncate flex items-center gap-1.5">
-                <span class="w-2 h-2 rounded-full ${isLive ? 'bg-rose-500 animate-pulse' : 'bg-emerald-500'} shrink-0"></span>
-                <span class="truncate">${fullMatchTourneyName}</span>
-                <span>•</span>
-                <span class="text-slate-500 font-bold truncate">${m.venue || 'JHANKRA SCHOOL GROUND'}</span>
-              </div>
-              <div class="text-xs font-black text-emerald-700 group-hover:text-emerald-800 transition-colors flex items-center gap-1 mt-0.5">
-                ${isLive ? 'View Live Match Centre' : isCompleted ? 'View Full Scorecard' : 'View Match Preview'} <span class="text-emerald-600 font-bold transition-transform group-hover:translate-x-1">→</span>
-              </div>
-            </div>
-            <div class="flex items-center gap-1.5 shrink-0">
-              <button type="button" class="btn-share-fixture-wa px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 text-[10px] font-black rounded-xl border border-emerald-300 flex items-center gap-1 shadow-2xs hover:scale-105 active:scale-95 transition-all cursor-pointer" data-fixture-id="${m.id}" onclick="event.stopPropagation(); window.shareMatchToWhatsApp(store.getFixtureById('${m.id}') || ${JSON.stringify(m).replace(/"/g, '&quot;')}, { name: '${fullMatchTourneyName}', venue: '${m.venue || 'JHANKRA SCHOOL GROUND'}' });">
-                <span>💬</span> <span>Share</span>
-              </button>
-              <span class="text-[11px] font-black ${isLive ? 'bg-rose-50 text-rose-800 border-rose-300' : 'bg-slate-100 text-slate-800 border-slate-300'} border px-3 py-1 rounded-xl shadow-2xs">
-                ${isLive ? '🔴 Live' : isCompleted ? '📊 Result' : '📊 Preview'}
-              </span>
-            </div>
+          <!-- Footer: Venue + Result/Time -->
+          <div class="flex items-center justify-between px-3.5 pb-3 pt-1">
+            <span class="text-[10px] font-bold text-slate-400 uppercase truncate max-w-[50%]">${m.venue || 'VENUE'}</span>
+            ${isCompleted && m.result ? `<span class="text-[10px] font-bold text-slate-500 truncate max-w-[50%] text-right">${m.result}</span>` : isLive ? `<span class="text-[10px] font-black text-rose-500">Match in progress</span>` : `<span class="text-[10px] font-bold text-slate-400">${m.time || ''}</span>`}
           </div>
         </div>
       `;
@@ -10518,35 +10432,82 @@ export function openMatchCenterModal(fixtureId) {
               <p class="text-[11px] text-slate-400">Balls delivered will appear here in real-time with ball-by-ball commentary.</p>
             </div>
           ` : `
-            <div class="space-y-2.5">
-              ${ballList.map(b => {
-                let badgeClass = 'bg-slate-100 text-slate-800 border-slate-300';
-                if (b.type === 'four') badgeClass = 'bg-blue-600 text-white border-blue-700';
-                if (b.type === 'six') badgeClass = 'bg-amber-400 text-slate-950 border-amber-500 font-black';
-                if (b.type === 'wicket') badgeClass = 'bg-rose-600 text-white border-rose-700 font-black';
-                if (b.type === 'wide' || b.type === 'noball') badgeClass = 'bg-amber-100 text-amber-900 border-amber-300';
+            ${(() => {
+              const getBallCircleClass = (b) => {
+                if (b.type === 'six') return 'bg-emerald-600 text-white';
+                if (b.type === 'four') return 'bg-teal-500 text-white';
+                if (b.type === 'wicket') return 'bg-rose-500 text-white';
+                if (b.type === 'wide' || b.type === 'noball') return 'bg-amber-400 text-white';
+                const r = parseInt(b.label) || 0;
+                if (r >= 2) return 'bg-blue-500 text-white';
+                if (r === 1) return 'border-2 border-teal-500 text-teal-700 bg-white';
+                return 'bg-slate-300 text-slate-600';
+              };
+
+              const overs = {};
+              ballList.forEach(b => {
+                const overKey = Math.floor(parseFloat(b.overNum || '0'));
+                if (!overs[overKey]) overs[overKey] = [];
+                overs[overKey].push(b);
+              });
+
+              const overKeys = Object.keys(overs).sort((a, b) => Number(b) - Number(a));
+
+              return overKeys.map(ok => {
+                const balls = overs[ok];
+                const overNum = Number(ok) + 1;
+                const overRuns = balls.reduce((s, b) => s + (parseInt(b.runs) || parseInt(b.label) || 0), 0);
+                const lastBall = balls[0];
+                const runningScore = lastBall.totalScore || lastBall.score || '';
+                const runningWickets = lastBall.totalWickets || lastBall.wickets || '';
+                const scoreTxt = runningScore ? `${runningScore}${runningWickets !== '' ? '-' + runningWickets : ''}` : '';
+
+                const sortedBalls = [...balls].sort((a, b) => parseFloat(b.overNum || '0') - parseFloat(a.overNum || '0'));
 
                 return `
-                  <div class="p-3 bg-white border border-slate-200 rounded-2xl shadow-2xs hover:border-slate-300 transition-all flex items-start gap-3">
-                    <div class="flex flex-col items-center shrink-0 w-12">
-                      <span class="text-[10px] font-black text-slate-400 font-mono">${b.overNum}</span>
-                      <span class="w-7 h-7 rounded-xl flex items-center justify-center font-black text-xs font-mono border ${badgeClass} shadow-2xs mt-0.5">
-                        ${b.label}
-                      </span>
-                    </div>
-                    <div class="flex-grow min-w-0">
-                      <div class="text-xs font-black text-slate-900 leading-tight">
-                        ${b.bowlerName || 'Bowler'} to ${b.batterName || 'Batter'}
+                  <div class="space-y-0">
+                    <!-- Over Summary Header -->
+                    <div class="bg-slate-50 border border-slate-200 rounded-2xl p-3 space-y-2.5">
+                      <div class="flex items-center gap-1.5 flex-wrap">
+                        ${sortedBalls.map(b => `<span class="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-black ${getBallCircleClass(b)}">${b.label}</span>`).join('')}
                       </div>
-                      <div class="text-[11px] text-slate-600 mt-1 font-medium leading-relaxed">
-                        ${b.commentary || 'Delivery bowled.'}
+                      <div class="flex items-center justify-between text-[11px] text-slate-700">
+                        <div class="flex items-center gap-4 min-w-0">
+                          <span class="font-black truncate">${lastBall.batterName || 'Batter'}</span>
+                          <span class="font-mono font-bold text-slate-500">${lastBall.batterScore || ''}</span>
+                        </div>
+                        <div class="flex items-center gap-4 min-w-0">
+                          <span class="font-black truncate">${lastBall.bowlerName || 'Bowler'}</span>
+                          <span class="font-mono font-bold text-slate-500">${lastBall.bowlerFigures || ''}</span>
+                        </div>
+                      </div>
+                      <div class="flex items-center justify-between text-[11px] font-bold">
+                        <span class="text-teal-700">Overs ${overNum}</span>
+                        <span class="text-teal-700">Runs ${overRuns}</span>
+                        ${scoreTxt ? `<span class="text-teal-700">Score ${scoreTxt}</span>` : ''}
                       </div>
                     </div>
-                    <span class="text-[9px] text-slate-400 font-mono shrink-0">${b.timestamp || ''}</span>
+                    <!-- Individual Ball Entries -->
+                    <div class="divide-y divide-slate-100">
+                      ${sortedBalls.map(b => `
+                        <div class="flex items-start gap-3 py-3.5 px-1">
+                          <span class="text-sm font-black text-slate-400 font-mono w-10 shrink-0 pt-0.5">${b.overNum}</span>
+                          <span class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${getBallCircleClass(b)}">${b.label}</span>
+                          <div class="flex-grow min-w-0">
+                            <div class="text-[13px] font-black text-slate-900 leading-tight">
+                              ${b.bowlerName || 'Bowler'} to ${b.batterName || 'Batter'}
+                            </div>
+                            <div class="text-[12px] text-slate-500 mt-0.5 font-medium">
+                              ${b.commentary || 'Delivery bowled.'}
+                            </div>
+                          </div>
+                        </div>
+                      `).join('')}
+                    </div>
                   </div>
                 `;
-              }).join('')}
-            </div>
+              }).join('');
+            })()}
           `}
         </div>
       `;
