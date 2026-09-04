@@ -3029,13 +3029,7 @@ export function renderCustomTournamentHub(container, tourney) {
     }
   } catch(e) {}
 
-  // 2. If not in URL, read from session storage
-  if (hubTab === 'home') {
-    try {
-      const saved = sessionStorage.getItem('cpl_hub_tab_' + tourney.slug);
-      if (saved && hubTabs.some(t => t.id === saved)) hubTab = saved;
-    } catch(e) {}
-  }
+  // Always start at hub grid when navigating from dashboard (no session restore)
 
   const currentUser = store.getCurrentUser ? store.getCurrentUser() : null;
   const userPhone = (currentUser?.phone || currentUser?.mobile || '').replace(/[^0-9]/g, '');
@@ -4652,12 +4646,6 @@ export function renderCustomTournamentHub(container, tourney) {
   // If URL has a tab param, open that section directly
   if (hubTab && hubTab !== 'home') {
     showSection(hubTab);
-  } else if (hubTab === 'home') {
-    // Check if the session had a saved tab
-    try {
-      const saved = sessionStorage.getItem('cpl_hub_tab_' + tourney.slug);
-      if (saved && saved !== 'home' && allSectionIds.includes(saved)) showSection(saved);
-    } catch(e) {}
   }
 
   // Match corner subtabs switching
