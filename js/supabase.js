@@ -12,6 +12,47 @@ export const SUPABASE_ANON_KEY = typeof window !== 'undefined' && localStorage.g
   : "sb_publishable_s_eZ15ii6ZFoFGODEU0AWg_-eVyzZcn";
 
 export let supabase = null;
+let activeRealtimeChannel = null;
+let globalBroadcastChannel = null;
+const localBroadcastChannel = (typeof window !== 'undefined' && 'BroadcastChannel' in window)
+  ? new BroadcastChannel('cpl_realtime_local_sync')
+  : null;
+
+if (localBroadcastChannel) {
+  localBroadcastChannel.onmessage = (event) => {
+    if (!event?.data) return;
+    if (event.data.type === 'live_score_update') {
+      processLiveScoreUpdate(event.data.payload);
+    } else if (event.data.type === 'fixture_update') {
+      processFixtureUpdate(event.data.payload);
+    }
+  };
+}
+
+export function ensureGlobalBroadcastChannel() {
+  if (!supabase) return null;
+  if (!globalBroadcastChannel) {
+    try {
+      globalBroadcastChannel = supabase.channel('cpl_realtime_global', {
+        config: { broadcast: { ack: false } }
+      });
+      globalBroadcastChannel
+        .on('broadcast', { event: 'live_score_update' }, (msg) => {
+          console.log('⚡ [REALTIME WS] Received live_score_update on global channel:', msg?.payload?.fixtureId);
+          processLiveScoreUpdate(msg?.payload);
+        })
+        .on('broadcast', { event: 'fixture_update' }, (msg) => {
+          processFixtureUpdate(msg?.payload);
+        })
+        .subscribe((status, err) => {
+          console.log('[SUPABASE REALTIME] Global channel status:', status, err || '');
+        });
+    } catch(e) {
+      console.warn('[SUPABASE REALTIME] ensureGlobalBroadcastChannel error:', e);
+    }
+  }
+  return globalBroadcastChannel;
+}
 
 export function initSupabaseClient(url = SUPABASE_URL, key = SUPABASE_ANON_KEY) {
   if (typeof window !== 'undefined' && window.supabase) {
@@ -24,6 +65,7 @@ export function initSupabaseClient(url = SUPABASE_URL, key = SUPABASE_ANON_KEY) 
         }
       });
       console.log("⚡ [SUPABASE] Realtime & Postgres Client connected successfully.");
+      ensureGlobalBroadcastChannel();
       return supabase;
     } catch (err) {
       console.warn("[SUPABASE] Init warning:", err);
@@ -458,22 +500,32 @@ export async function uploadHDImage(fileInput, folderName = 'documents') {
 }
 
 // --- REALTIME PUSH EVENT LISTENER (SUPABASE REALTIME CHANNEL STUB) ---
-let activeRealtimeChannel = null;
-let globalBroadcastChannel = null;
 
 export function processLiveScoreUpdate(p) {
-  if (typeof window === 'undefined' || !window.store || !p || !p.fixtureId) return;
+  if (typeof window === 'undefined' || !p || !p.fixtureId) return;
+
+  // 1. Store in memory registry for instant UI access anywhere in app
+  window.__cplLiveScores = window.__cplLiveScores || {};
+  if (p.liveMatchState) {
+    window.__cplLiveScores[p.fixtureId] = p.liveMatchState;
+    const uid = toUUID(p.fixtureId);
+    if (uid) window.__cplLiveScores[uid] = p.liveMatchState;
+  }
+
   const s = window.store;
   const fTid = p.tournament_id;
-  const isActive = !fTid || fTid === s.activeTournamentId || toUUID(fTid) === toUUID(s.activeTournamentId);
   const targetKeys = new Set();
-  if (isActive) {
+  if (s) {
+    const isActive = !fTid || fTid === s.activeTournamentId || toUUID(fTid) === toUUID(s.activeTournamentId);
     targetKeys.add(s._scopedKey('FIXTURES'));
-  } else {
-    if (fTid) targetKeys.add('cpl_fixtures_v8_' + (toUUID(fTid) || fTid));
-    targetKeys.add(s._scopedKey('FIXTURES')); // Also update active key so open match modal updates immediately
+    if (fTid) {
+      targetKeys.add('cpl_fixtures_v8_' + (toUUID(fTid) || fTid));
+      targetKeys.add('cpl_fixtures_v8_' + fTid);
+    }
   }
-  if (localStorage.getItem('cpl_fixtures_v8')) targetKeys.add('cpl_fixtures_v8');
+  if (typeof localStorage !== 'undefined' && localStorage.getItem('cpl_fixtures_v8')) {
+    targetKeys.add('cpl_fixtures_v8');
+  }
 
   let updatedAny = false;
 
@@ -517,16 +569,48 @@ export function processLiveScoreUpdate(p) {
         fixtures[idx].updated_at = Date.now();
         localStorage.setItem(fixKey, JSON.stringify(fixtures));
         updatedAny = true;
+      } else if (p.liveMatchState) {
+        // Fixture not yet in this scoped cache: append it so spectator sees it!
+        const placeholderFixture = {
+          id: p.fixtureId,
+          tournament_id: fTid,
+          leagueId: fTid,
+          status: p.status || 'LIVE',
+          result: p.result || null,
+          winnerTeamId: p.winnerTeamId || null,
+          teamAScore: p.teamAScore || null,
+          teamBScore: p.teamBScore || null,
+          oversLimit: p.oversLimit || 16,
+          liveMatchState: p.liveMatchState,
+          liveState: p.liveMatchState,
+          updated_at: Date.now(),
+          _fromBroadcast: true
+        };
+        fixtures.push(placeholderFixture);
+        localStorage.setItem(fixKey, JSON.stringify(fixtures));
+        updatedAny = true;
       }
     } catch (e) {}
   });
 
-  if (updatedAny) {
+  if (s) {
     s._invalidateCache('fixtures');
     s.notify('fixtures_updated');
-    window.dispatchEvent(new CustomEvent('cpl_live_score_updated', { detail: p }));
-    console.log('[REALTIME] Live score update applied for fixture:', p.fixtureId);
   }
+
+  // Dispatch custom events for live score listeners
+  window.dispatchEvent(new CustomEvent('cpl_live_score_updated', { detail: p }));
+  window.dispatchEvent(new CustomEvent('fixtures_updated', { detail: p }));
+
+  // Proactively re-render open Match Center or Fixtures tab without delay
+  if (typeof window.renderActiveMatchCenter === 'function') {
+    try { window.renderActiveMatchCenter(); } catch (e) {}
+  }
+  if (typeof window.refreshFixturesViewContent === 'function') {
+    try { window.refreshFixturesViewContent(); } catch (e) {}
+  }
+
+  console.log('⚡ [REALTIME RECEIVED] Live score update applied:', p.fixtureId, p.liveMatchState?.runs + '/' + p.liveMatchState?.wickets);
 }
 
 export function processFixtureUpdate(p) {
@@ -644,18 +728,7 @@ export async function initRealtimePushListener(onUpdateCallback, tournamentId) {
       });
 
     activeRealtimeChannel = channel;
-
-    // Keep a persistent global broadcast channel for cross-tournament notifications
-    if (!globalBroadcastChannel) {
-      try {
-        globalBroadcastChannel = supabase.channel('cpl_realtime_global');
-        globalBroadcastChannel
-          .on('broadcast', { event: 'live_score_update' }, (msg) => processLiveScoreUpdate(msg?.payload))
-          .on('broadcast', { event: 'fixture_update' }, (msg) => processFixtureUpdate(msg?.payload))
-          .subscribe(() => {});
-      } catch(e) {}
-    }
-
+    ensureGlobalBroadcastChannel();
     return channel;
   } catch (err) {
     console.warn("[SUPABASE] initRealtimePushListener notice:", err);
@@ -1474,11 +1547,15 @@ export async function syncFixtureToSupabase(fixtureData, tournamentId = null) {
     }
 
     const broadcastPayload = { action: 'upsert', tournament_id: tournamentUUID, fixture: fixtureData };
-    if (activeRealtimeChannel) {
-      activeRealtimeChannel.send({ type: 'broadcast', event: 'fixture_update', payload: broadcastPayload }).catch(() => {});
+    if (localBroadcastChannel) {
+      try { localBroadcastChannel.postMessage({ type: 'fixture_update', payload: broadcastPayload }); } catch (e) {}
     }
-    if (globalBroadcastChannel) {
-      globalBroadcastChannel.send({ type: 'broadcast', event: 'fixture_update', payload: broadcastPayload }).catch(() => {});
+    const gChanF = globalBroadcastChannel || ensureGlobalBroadcastChannel();
+    if (gChanF) {
+      gChanF.send({ type: 'broadcast', event: 'fixture_update', payload: broadcastPayload }).catch(() => {});
+    }
+    if (activeRealtimeChannel && activeRealtimeChannel !== gChanF) {
+      activeRealtimeChannel.send({ type: 'broadcast', event: 'fixture_update', payload: broadcastPayload }).catch(() => {});
     }
 
     return fixtureData;
@@ -1493,8 +1570,8 @@ export function broadcastLiveScore(fixture, tournamentId) {
   try {
     const ls = fixture.liveMatchState || fixture.liveState;
     const lite = ls ? {
-      innings: ls.innings || ls.currentInnings || 1,
-      currentInnings: ls.innings || ls.currentInnings || 1,
+      innings: Number(ls.innings || ls.currentInnings || 1),
+      currentInnings: Number(ls.innings || ls.currentInnings || 1),
       runs: Number(ls.runs) || 0,
       wickets: Number(ls.wickets) || 0,
       overs: Number(ls.overs) || 0,
@@ -1523,7 +1600,7 @@ export function broadcastLiveScore(fixture, tournamentId) {
     const scorePayload = {
       fixtureId: fixture.id,
       tournament_id: tournamentId || fixture.tournament_id || fixture.leagueId,
-      status: fixture.status,
+      status: fixture.status || 'LIVE',
       result: fixture.result || null,
       winnerTeamId: fixture.winnerTeamId || null,
       teamAScore: fixture.teamAScore || null,
@@ -1535,11 +1612,28 @@ export function broadcastLiveScore(fixture, tournamentId) {
       updated_at: Date.now()
     };
 
-    if (activeRealtimeChannel) {
-      activeRealtimeChannel.send({ type: 'broadcast', event: 'live_score_update', payload: scorePayload }).catch(() => {});
+    // 1. Same-device local BroadcastChannel (instant sub-1ms delivery to any other open tab)
+    if (localBroadcastChannel) {
+      try {
+        localBroadcastChannel.postMessage({ type: 'live_score_update', payload: scorePayload });
+      } catch (e) {}
     }
-    if (globalBroadcastChannel) {
-      globalBroadcastChannel.send({ type: 'broadcast', event: 'live_score_update', payload: scorePayload }).catch(() => {});
+
+    // 2. Global Supabase Realtime WebSocket broadcast (cross-device universal delivery)
+    const gChan = globalBroadcastChannel || ensureGlobalBroadcastChannel();
+    if (gChan) {
+      gChan.send({ type: 'broadcast', event: 'live_score_update', payload: scorePayload })
+        .then(res => {
+          console.log('⚡ [REALTIME WS SENT] Global live_score_update response:', res, 'for fixture:', fixture.id, lite?.runs + '/' + lite?.wickets);
+        })
+        .catch(err => {
+          console.warn('[REALTIME WS SENT] Global broadcast send failed:', err);
+        });
+    }
+
+    // 3. Tournament-specific Realtime channel
+    if (activeRealtimeChannel && activeRealtimeChannel !== gChan) {
+      activeRealtimeChannel.send({ type: 'broadcast', event: 'live_score_update', payload: scorePayload }).catch(() => {});
     }
   } catch (e) {
     console.warn('[SUPABASE] broadcastLiveScore error:', e);

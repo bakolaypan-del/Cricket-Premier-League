@@ -1,9 +1,9 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=13.0.59';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.59';
-import { renderAdminDashboard } from './admin.js?v=13.0.59';
-import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, fetchNoticeBoardFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.59';
+import { store } from './store.js?v=13.0.60';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.60';
+import { renderAdminDashboard } from './admin.js?v=13.0.60';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, fetchNoticeBoardFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.60';
 import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.53';
 import { shops } from './shopsData.js?v=12.0.2';
 
@@ -9081,11 +9081,11 @@ function renderFixturesView(container) {
       const logoA = teamAObj?.logoUrl || teamAObj?.teamLogoUrl || 'assets/card_jsl_user.png';
       const logoB = teamBObj?.logoUrl || teamBObj?.teamLogoUrl || 'assets/card_jsl_user.png';
 
-      const isLive = m.status === 'LIVE';
+      const liveState = window.__cplLiveScores?.[m.id] || (toUUID(m.id) ? window.__cplLiveScores?.[toUUID(m.id)] : null) || m.liveMatchState || m.liveState || {};
+      const isLive = m.status === 'LIVE' || (liveState && (liveState.runs > 0 || liveState.overs > 0 || liveState.balls > 0));
       const isCompleted = m.status === 'COMPLETED' || !!m.result;
       const aScore = m.teamAScore || {};
       const bScore = m.teamBScore || {};
-      const liveState = m.liveMatchState || {};
 
       let teamAScoreTxt = '-';
       let teamBScoreTxt = '-';
@@ -10108,10 +10108,10 @@ export function openMatchCenterModal(fixtureId) {
 
     // LIVE REFRESH: re-read the freshest fixture every render so spectators see
     // real-time score updates instead of a stale open-time snapshot.
-    const fixture = store.getFixtures().find(f => f.id === fixtureId) || (store.getAllFixturesAcrossTournaments ? store.getAllFixturesAcrossTournaments().find(f => f.id === fixtureId) : null) || {};
-    const state = fixture.liveMatchState || fixture.liveState || {};
+    const fixture = store.getFixtures().find(f => f.id === fixtureId || (toUUID(f.id) && toUUID(f.id) === toUUID(fixtureId))) || (store.getAllFixturesAcrossTournaments ? store.getAllFixturesAcrossTournaments().find(f => f.id === fixtureId || (toUUID(f.id) && toUUID(f.id) === toUUID(fixtureId))) : null) || {};
+    const state = window.__cplLiveScores?.[fixtureId] || (toUUID(fixtureId) ? window.__cplLiveScores?.[toUUID(fixtureId)] : null) || fixture.liveMatchState || fixture.liveState || {};
     const pStats = state.playerStats || {};
-    const isLive = fixture.status === 'LIVE';
+    const isLive = fixture.status === 'LIVE' || (state && (state.runs > 0 || state.overs > 0 || state.balls > 0));
     const isCompleted = fixture.status === 'COMPLETED';
     const teamAObj = store.getTeamById(fixture.teamAId) || {};
     const teamBObj = store.getTeamById(fixture.teamBId) || {};
@@ -10510,12 +10510,14 @@ export function openMatchCenterModal(fixtureId) {
               </div>
               <div class="flex items-center gap-1.5 flex-wrap">
                 ${(state.overBalls || []).length > 0 ? (state.overBalls || []).map(b => {
+                  const bLabel = (typeof b === 'object' && b !== null) ? (b.label ?? '') : String(b);
+                  const bType = (typeof b === 'object' && b !== null) ? (b.type || '') : '';
                   let pillClass = 'bg-slate-100 text-slate-800 border-slate-300';
-                  if (b.type === 'four') pillClass = 'bg-blue-600 text-white border-blue-700 font-black';
-                  if (b.type === 'six') pillClass = 'bg-amber-400 text-slate-950 border-amber-500 font-black';
-                  if (b.type === 'wicket') pillClass = 'bg-rose-600 text-white border-rose-700 font-black';
-                  if (b.type === 'wide' || b.type === 'noball') pillClass = 'bg-amber-100 text-amber-900 border-amber-300 font-semibold';
-                  return `<span class="px-2 py-1 rounded-xl border font-mono font-black text-xs shadow-2xs ${pillClass}">${b.label}</span>`;
+                  if (bType === 'four' || bLabel === '4') pillClass = 'bg-blue-600 text-white border-blue-700 font-black';
+                  else if (bType === 'six' || bLabel === '6') pillClass = 'bg-amber-400 text-slate-950 border-amber-500 font-black';
+                  else if (bType === 'wicket' || bLabel === 'W') pillClass = 'bg-rose-600 text-white border-rose-700 font-black';
+                  else if (bType === 'wide' || bType === 'noball' || String(bLabel).includes('WD') || String(bLabel).includes('NB')) pillClass = 'bg-amber-100 text-amber-900 border-amber-300 font-semibold';
+                  return `<span class="px-2 py-1 rounded-xl border font-mono font-black text-xs shadow-2xs ${pillClass}">${bLabel}</span>`;
                 }).join('') : '<span class="text-slate-400 italic text-xs">No balls in this over yet</span>'}
               </div>
             </div>
@@ -10695,7 +10697,7 @@ export function openMatchCenterModal(fixtureId) {
 
     // 3. BALLS TAB (COMMENTARY)
     else if (activeTab === 'balls') {
-      const ballList = (state.ballHistory || []).filter(b => b.innings === activeBallsInnings);
+      const ballList = (state.ballHistory || []).filter(b => Number(b.innings || 1) === Number(activeBallsInnings || 1));
 
       contentArea.innerHTML = `
         <div class="space-y-3.5 animate-fade-in">
@@ -11016,7 +11018,16 @@ export function openMatchCenterModal(fixtureId) {
 
   window.renderActiveMatchCenter = renderMatchCenterContent;
 
-  mcLiveHandler = () => { if (document.getElementById('match-center-modal')) renderMatchCenterContent(); };
+  mcLiveHandler = (e) => {
+    if (e?.detail?.liveMatchState) {
+      const matchId = e.detail.fixtureId;
+      if (matchId === fixtureId || (toUUID(matchId) && toUUID(matchId) === toUUID(fixtureId))) {
+        window.__cplLiveScores = window.__cplLiveScores || {};
+        window.__cplLiveScores[fixtureId] = e.detail.liveMatchState;
+      }
+    }
+    if (document.getElementById('match-center-modal')) renderMatchCenterContent();
+  };
   window.addEventListener('fixtures_updated', mcLiveHandler);
   window.addEventListener('cpl_live_score_updated', mcLiveHandler);
   window.addEventListener('live_auction_updated', mcLiveHandler);

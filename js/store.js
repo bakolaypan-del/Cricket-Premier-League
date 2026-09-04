@@ -65,7 +65,7 @@ import {
   saveNoticeBoardToCloud,
   fetchNoticeBoardFromCloud,
   broadcastLiveScore
-} from './supabase.js?v=13.0.59';
+} from './supabase.js?v=13.0.60';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -2203,22 +2203,18 @@ class Store {
       });
     }
 
-    // Auto-correct fixtures mistakenly marked 'LIVE' without active deliveries or toss
-    const activeScoringId = typeof localStorage !== 'undefined' ? localStorage.getItem('cpl_active_scoring_fixture_id') : null;
-    all.forEach(f => {
-      if (f && f.status === 'LIVE' && f.id !== activeScoringId) {
-        const s = f.liveMatchState || {};
-        const balls = (s.overs || 0) * 6 + (s.balls || 0);
-        const runs = s.runs || 0;
-        const wickets = s.wickets || 0;
-        const hasToss = !!s.tossDetails;
-
-        if (balls === 0 && runs === 0 && wickets === 0 && !hasToss) {
-          f.status = 'SCHEDULED';
-          f.liveMatchState = null;
+    // Real-time In-Memory Live Score Overlay (ensures freshest WebSocket state is immediately reflected)
+    if (typeof window !== 'undefined' && window.__cplLiveScores) {
+      all.forEach(f => {
+        if (!f || !f.id) return;
+        const liveMem = window.__cplLiveScores[f.id] || (toUUID(f.id) ? window.__cplLiveScores[toUUID(f.id)] : null);
+        if (liveMem) {
+          f.liveMatchState = liveMem;
+          f.liveState = liveMem;
+          if (f.status !== 'COMPLETED') f.status = 'LIVE';
         }
-      }
-    });
+      });
+    }
 
     this._cache.fixtures = all;
     return all;
@@ -2441,22 +2437,18 @@ class Store {
     const deletedSet = new Set(deletedIdsRaw ? JSON.parse(deletedIdsRaw) : []);
 
     const result = Array.from(map.values()).filter(f => f && f.id && !deletedSet.has(f.id) && (!toUUID(f.id) || !deletedSet.has(toUUID(f.id))));
-    const activeScoringId = typeof localStorage !== 'undefined' ? localStorage.getItem('cpl_active_scoring_fixture_id') : null;
-    result.forEach(f => {
-      if (f && f.status === 'LIVE' && f.id !== activeScoringId) {
-        const s = f.liveMatchState || f.liveState || {};
-        const balls = (s.overs || 0) * 6 + (s.balls || 0);
-        const runs = s.runs || 0;
-        const wickets = s.wickets || 0;
-        const hasToss = !!s.tossDetails;
-
-        if (balls === 0 && runs === 0 && wickets === 0 && !hasToss) {
-          f.status = 'SCHEDULED';
-          f.liveMatchState = null;
-          f.liveState = null;
+    // Real-time In-Memory Live Score Overlay (ensures freshest WebSocket state is immediately reflected)
+    if (typeof window !== 'undefined' && window.__cplLiveScores) {
+      result.forEach(f => {
+        if (!f || !f.id) return;
+        const liveMem = window.__cplLiveScores[f.id] || (toUUID(f.id) ? window.__cplLiveScores[toUUID(f.id)] : null);
+        if (liveMem) {
+          f.liveMatchState = liveMem;
+          f.liveState = liveMem;
+          if (f.status !== 'COMPLETED') f.status = 'LIVE';
         }
-      }
-    });
+      });
+    }
 
     return result.sort((a, b) => (Number(a.matchNo) || 0) - (Number(b.matchNo) || 0));
   }
