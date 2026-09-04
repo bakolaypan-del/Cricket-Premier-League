@@ -2012,6 +2012,8 @@ function renderCurrentView() {
         }
       });
     }
+  } else if (currentRoute === 'coin-toss') {
+    renderCoinTossView(container);
   } else {
     renderFirstPageLanding(container);
   }
@@ -2390,6 +2392,18 @@ function renderFirstPageLanding(containerEl) {
         </div>
       </div>
 
+      <!-- ONLINE TOSS LINK -->
+      <div class="w-full max-w-[480px] sm:max-w-3xl md:max-w-4xl mx-auto px-1 pt-2 pb-4">
+        <div onclick="window.location.hash='#coin-toss'" class="bg-gradient-to-r from-slate-50 to-slate-100 border border-slate-200 rounded-2xl p-3.5 sm:p-4 shadow-sm flex items-center gap-3 cursor-pointer hover:shadow-md hover:border-slate-300 transition-all group">
+          <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-gradient-to-br from-gray-200 to-gray-400 border-2 border-gray-400 flex items-center justify-center text-lg sm:text-xl shrink-0 group-hover:scale-110 transition-transform shadow-md font-black text-gray-600" style="font-family:serif">₹</div>
+          <div class="flex-1 min-w-0">
+            <h4 class="text-xs sm:text-sm font-black text-slate-800 uppercase tracking-wide">Online Toss</h4>
+            <p class="text-[9px] sm:text-[10px] text-slate-500 font-medium mt-0.5">Flip a ₹1 coin — fair & random</p>
+          </div>
+          <span class="text-slate-400 text-lg sm:text-xl group-hover:translate-x-1 transition-transform">➔</span>
+        </div>
+      </div>
+
     </div>
   `;
 
@@ -2575,6 +2589,91 @@ function renderFirstPageLanding(containerEl) {
       }
     } catch(e) {}
   })();
+}
+
+// --- ONLINE COIN TOSS (1 RUPEE COIN) ---
+function renderCoinTossView(container) {
+  container.innerHTML = `
+    <style>
+      .rupee-scene{perspective:800px;width:140px;height:140px;margin:0 auto;cursor:pointer}
+      .rupee-3d{width:100%;height:100%;position:relative;transform-style:preserve-3d;transition:none}
+      .rupee-3d.spinning{transition:transform 1.8s cubic-bezier(0.22,1,0.36,1)}
+      .rupee-face{position:absolute;width:100%;height:100%;border-radius:50%;backface-visibility:hidden;display:flex;align-items:center;justify-content:center;flex-direction:column;overflow:hidden}
+      .rupee-head{background:radial-gradient(ellipse at 38% 32%,#e8e8e8 0%,#c8c8c8 30%,#aaa 55%,#8a8a8a 100%);border:4px solid #777;box-shadow:inset 0 3px 10px rgba(255,255,255,0.5),inset 0 -3px 8px rgba(0,0,0,0.12),0 5px 15px rgba(0,0,0,0.3),0 2px 4px rgba(0,0,0,0.2)}
+      .rupee-tail{background:radial-gradient(ellipse at 38% 32%,#e8e8e8 0%,#c8c8c8 30%,#aaa 55%,#8a8a8a 100%);border:4px solid #777;transform:rotateY(180deg);box-shadow:inset 0 3px 10px rgba(255,255,255,0.5),inset 0 -3px 8px rgba(0,0,0,0.12),0 5px 15px rgba(0,0,0,0.3),0 2px 4px rgba(0,0,0,0.2)}
+      .rupee-head::before,.rupee-tail::before{content:'';position:absolute;inset:5px;border-radius:50%;border:1.5px solid rgba(160,160,160,0.5)}
+      .rupee-head::after,.rupee-tail::after{content:'';position:absolute;top:8%;left:15%;width:40%;height:25%;background:linear-gradient(135deg,rgba(255,255,255,0.25),transparent);border-radius:50%;pointer-events:none}
+      .rc-bharat{font-size:10px;color:#555;font-weight:800;letter-spacing:0.5px}
+      .rc-lion{font-size:32px;line-height:1;filter:grayscale(1) brightness(0.9)}
+      .rc-india{font-size:8px;color:#555;font-weight:800;letter-spacing:2.5px;margin-top:1px}
+      .rc-val{font-size:11px;color:#666;font-weight:900;font-family:serif;margin-top:0}
+      .rc-grain{font-size:16px;line-height:1}
+      .rc-big1{font-size:42px;font-weight:900;color:#555;line-height:1;font-family:'Georgia',serif;text-shadow:1px 1px 0 rgba(255,255,255,0.3)}
+      .rc-rs{font-size:13px;font-weight:900;color:#666;font-family:serif}
+      .rc-yr{font-size:8px;color:#777;font-weight:700;letter-spacing:1.5px;margin-top:1px}
+      .coin-pop{animation:cpop .5s ease-out}
+      @keyframes cpop{0%{transform:scale(.7);opacity:0}60%{transform:scale(1.1)}100%{transform:scale(1);opacity:1}}
+    </style>
+    <div class="w-full max-w-md mx-auto space-y-5 animate-fade-in py-4 px-3 text-slate-900">
+      <button onclick="window.location.hash='#landing'" class="flex items-center gap-1.5 text-xs font-bold text-slate-500 hover:text-slate-800 transition-colors cursor-pointer">
+        <span>←</span> Back to Home
+      </button>
+      <div class="text-center space-y-1">
+        <h2 class="text-lg sm:text-xl font-black text-slate-900">🪙 Online Toss</h2>
+        <p class="text-[10px] sm:text-xs text-slate-500 font-medium">Tap the coin or press the button to toss</p>
+      </div>
+      <div class="rupee-scene" id="rupee-scene">
+        <div class="rupee-3d" id="rupee-3d">
+          <div class="rupee-face rupee-head">
+            <span class="rc-bharat">भारत</span>
+            <span class="rc-lion">🦁</span>
+            <span class="rc-india">INDIA</span>
+            <span class="rc-val">₹ 1</span>
+          </div>
+          <div class="rupee-face rupee-tail">
+            <span class="rc-grain">🌾</span>
+            <span class="rc-big1">1</span>
+            <span class="rc-rs">₹</span>
+            <span class="rc-yr">2024</span>
+          </div>
+        </div>
+      </div>
+      <div id="toss-result" class="text-center min-h-[36px]"></div>
+      <button id="btn-toss" class="w-full py-3 bg-slate-800 hover:bg-slate-900 text-white font-black text-sm rounded-xl shadow-lg transition-all cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed">
+        Spin the Coin
+      </button>
+    </div>
+  `;
+
+  let flipping = false;
+  const coin = document.getElementById('rupee-3d');
+  const result = document.getElementById('toss-result');
+  const btn = document.getElementById('btn-toss');
+
+  const doToss = () => {
+    if (flipping) return;
+    flipping = true;
+    btn.disabled = true;
+    result.innerHTML = '';
+    const arr = new Uint32Array(1);
+    crypto.getRandomValues(arr);
+    const isHeads = arr[0] % 2 === 0;
+    const spins = 4 + (arr[0] % 4);
+    const deg = spins * 360 + (isHeads ? 0 : 180);
+    coin.classList.remove('spinning');
+    coin.style.transform = 'rotateY(0deg)';
+    void coin.offsetHeight;
+    coin.classList.add('spinning');
+    coin.style.transform = 'rotateY(' + deg + 'deg)';
+    setTimeout(() => {
+      flipping = false;
+      btn.disabled = false;
+      result.innerHTML = '<div class="coin-pop"><span class="text-xl font-black ' + (isHeads ? 'text-slate-800' : 'text-slate-600') + '">' + (isHeads ? 'HEAD ☝️' : 'TAIL ✌️') + '</span></div>';
+    }, 1900);
+  };
+
+  btn.addEventListener('click', doToss);
+  document.getElementById('rupee-scene')?.addEventListener('click', doToss);
 }
 
 // --- WHATSAPP 1-CLICK SHARING UTILITIES ---
