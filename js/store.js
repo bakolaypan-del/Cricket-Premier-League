@@ -65,7 +65,7 @@ import {
   saveNoticeBoardToCloud,
   fetchNoticeBoardFromCloud,
   broadcastLiveScore
-} from './supabase.js?v=13.0.65';
+} from './supabase.js?v=13.0.66';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -1361,55 +1361,130 @@ class Store {
   // --- AUTOMATIC CONTINUOUS RE-INDEXING ON DELETE PLAYER (NO GAPS IN NUMBERING) ---
   async deletePlayer(playerId) {
     this._invalidateCache('players');
+    this._invalidateCache('teams');
     let players = this.getPlayers();
-    const deletedIdx = players.findIndex(p => p.id === playerId);
+    const pidStr = String(playerId);
+    const pidUUID = toUUID(playerId);
+    const deletedIdx = players.findIndex(p => 
+      String(p.id) === pidStr || 
+      (pidUUID && p.id && toUUID(p.id) === pidUUID)
+    );
     const playerToDelete = deletedIdx !== -1 ? players[deletedIdx] : null;
     const playerPhone = playerToDelete ? (playerToDelete.phone || playerToDelete.mobile) : null;
     const cleanPhone = playerPhone ? playerPhone.replace(/\D/g, '') : null;
+    const playerNameNorm = playerToDelete?.name ? playerToDelete.name.trim().toLowerCase() : '';
     const tourneyId = playerToDelete?.tournament_id || this.activeTournamentId;
     
     // 1. Immediately record in local deleted IDs pool to prevent sync race conditions
     try {
-      const delKey = 'cpl_deleted_player_ids_' + (this.activeTournamentId || 'default');
-      const delList = JSON.parse(localStorage.getItem(delKey) || '[]');
-      if (!delList.includes(playerId)) delList.push(playerId);
-      if (cleanPhone && !delList.includes(cleanPhone)) delList.push(cleanPhone);
-      localStorage.setItem(delKey, JSON.stringify(delList));
+      const keys = [
+        'cpl_deleted_player_ids_' + (this.activeTournamentId || 'default'),
+        'cpl_deleted_player_ids_default',
+        'cpl_deleted_player_ids_global'
+      ];
+      keys.forEach(delKey => {
+        const delList = JSON.parse(localStorage.getItem(delKey) || '[]');
+        if (!delList.includes(pidStr)) delList.push(pidStr);
+        if (pidUUID && !delList.includes(pidUUID)) delList.push(pidUUID);
+        if (cleanPhone && !delList.includes(cleanPhone)) delList.push(cleanPhone);
+        localStorage.setItem(delKey, JSON.stringify(delList));
+      });
     } catch (e) {}
 
     // 2. Clean from local status overrides map
     try {
       const statusMapKey = 'cpl_player_status_overrides_' + (this.activeTournamentId || 'default');
       const overrides = JSON.parse(localStorage.getItem(statusMapKey) || '{}');
-      delete overrides[playerId];
+      delete overrides[pidStr];
+      if (pidUUID) delete overrides[pidUUID];
       if (cleanPhone) delete overrides[cleanPhone];
       localStorage.setItem(statusMapKey, JSON.stringify(overrides));
     } catch (e) {}
 
-    // 3. Remove from team squad if assigned
-    if (playerToDelete && playerToDelete.teamId) {
-      const teams = this.getTeams();
-      const team = teams.find(t => t.id === playerToDelete.teamId);
-      if (team) {
-        team.squadCount = Math.max(0, team.squadCount - 1);
-        team.purseSpent = Math.max(0, team.purseSpent - (playerToDelete.soldPrice || 0));
-        const budget = Number(team.purseBudget || team.purse || 8000);
-        team.remainingPurse = Math.max(0, budget - team.purseSpent);
-        if (Array.isArray(team.playerIds)) {
-          team.playerIds = team.playerIds.filter(id => String(id) !== String(playerId));
-        }
-        team.updated_at = Date.now();
-        safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
-        syncTeamToSupabase(team);
-        this.notify('teams_updated');
+    // 3. Remove from team squad and/or icon player if assigned
+    const teams = this.getTeams();
+    let teamsModified = false;
+    teams.forEach(team => {
+      let teamChanged = false;
+      const tIconName = (team.iconPlayerName || team.iconName || '').trim().toLowerCase();
+      const isIconMatch = (team.iconPlayerId && (String(team.iconPlayerId) === pidStr || (pidUUID && toUUID(team.iconPlayerId) === pidUUID))) ||
+                          (playerNameNorm && tIconName && tIconName === playerNameNorm);
+
+      if (isIconMatch) {
+        team.iconPlayerId = null;
+        team.iconPlayerName = '';
+        team.iconName = '';
+        team.iconPlayerPhotoUrl = null;
+        team.iconPhotoUrl = null;
+        team.iconPhoto = null;
+        team.hasIconPlayer = false;
+        teamChanged = true;
       }
+
+      if (Array.isArray(team.playerIds) && team.playerIds.some(id => String(id) === pidStr || (pidUUID && toUUID(id) === pidUUID))) {
+        team.playerIds = team.playerIds.filter(id => String(id) !== pidStr && (!pidUUID || toUUID(id) !== pidUUID));
+        teamChanged = true;
+      }
+
+      if (playerToDelete && playerToDelete.teamId && (team.id === playerToDelete.teamId || toUUID(team.id) === toUUID(playerToDelete.teamId))) {
+        team.purseSpent = Math.max(0, (Number(team.purseSpent) || 0) - (Number(playerToDelete.soldPrice) || 0));
+        teamChanged = true;
+      }
+
+      if (teamChanged) {
+        const defaultIconFee = Number(this.getAuctionSettings().defaultIconPrice) || 1000;
+        const iconDeduction = (team.iconPlayerName || team.iconName || team.iconPlayerId) ? defaultIconFee : 0;
+        const auctionSpent = Array.isArray(team.playerIds) ? (team.purseSpent || 0) : 0;
+        const budget = Number(team.purseBudget || team.purse || 8000);
+        team.purseSpent = Math.max(0, iconDeduction + auctionSpent);
+        team.remainingPurse = Math.max(0, budget - team.purseSpent);
+        team.squadCount = (iconDeduction > 0 ? 1 : 0) + (Array.isArray(team.playerIds) ? team.playerIds.length : 0);
+        team.updated_at = Date.now();
+        teamsModified = true;
+        this._saveTeamAcrossAllKeys(team);
+        syncTeamToSupabase(team);
+      }
+    });
+
+    if (teamsModified) {
+      safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
+      this._invalidateCache('teams');
+      this.notify('teams_updated');
     }
 
-    // 4. Filter out deleted player
-    players = players.filter(p => p.id !== playerId && (!cleanPhone || (p.phone || '').replace(/\D/g, '') !== cleanPhone));
+    // 4. Filter out deleted player across active scope and all localStorage keys
+    players = players.filter(p => 
+      String(p.id) !== pidStr && 
+      (!pidUUID || !p.id || toUUID(p.id) !== pidUUID) && 
+      (!cleanPhone || (p.phone || '').replace(/\D/g, '') !== cleanPhone)
+    );
 
     this._invalidateCache('players');
     safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
+
+    // Clean from all local storage player buckets
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith('cpl_players_v8_') || k === 'cpl_global_players')) {
+          const raw = localStorage.getItem(k);
+          if (raw) {
+            const list = JSON.parse(raw);
+            if (Array.isArray(list)) {
+              const cleaned = list.filter(p => 
+                String(p.id) !== pidStr && 
+                (!pidUUID || !p.id || toUUID(p.id) !== pidUUID) && 
+                (!cleanPhone || (p.phone || '').replace(/\D/g, '') !== cleanPhone)
+              );
+              if (cleaned.length !== list.length) {
+                localStorage.setItem(k, JSON.stringify(cleaned));
+              }
+            }
+          }
+        }
+      }
+    } catch(e) {}
+
     this.notify('players_updated');
 
     await deletePlayerFromSupabase(playerId, playerPhone, tourneyId);
@@ -1424,15 +1499,51 @@ class Store {
 
     await this.syncGlobalPlayersCount();
     this.notify('players_updated');
+    this.notify('teams_updated');
   }
 
   clearAllPlayers() {
     const timestamp = Date.now();
     localStorage.setItem('cpl_last_cleared_at', String(timestamp));
     this._invalidateCache('players');
+    this._invalidateCache('teams');
     safeSetLocalStorage(this._scopedKey('PLAYERS'), []);
+
+    // Clean all players from all localStorage player stores
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && (k.startsWith('cpl_players_v8_') || k === 'cpl_global_players')) {
+          localStorage.setItem(k, JSON.stringify([]));
+        }
+      }
+    } catch (e) {}
+
+    // Reset all teams: squad counts, purse spent, playerIds, and icon player associations
+    const teams = this.getTeams();
+    teams.forEach(team => {
+      team.squadCount = 0;
+      team.playersCount = 0;
+      team.playerIds = [];
+      team.purseSpent = 0;
+      team.remainingPurse = Number(team.purseBudget || team.purse || 8000);
+      team.iconPlayerId = null;
+      team.iconPlayerName = '';
+      team.iconName = '';
+      team.iconPlayerPhotoUrl = null;
+      team.iconPhotoUrl = null;
+      team.iconPhoto = null;
+      team.hasIconPlayer = false;
+      team.updated_at = timestamp;
+      this._saveTeamAcrossAllKeys(team);
+      syncTeamToSupabase(team);
+    });
+    safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
+    this._invalidateCache('teams');
+
     clearAllPlayersFromCloud();
     this.notify('players_updated');
+    this.notify('teams_updated');
   }
 
   clearAllTeams() {
@@ -1734,7 +1845,77 @@ class Store {
     return true;
   }
 
-  unassignPlayerFromTeam(playerId) {
+  removeTeamIconPlayer(teamId) {
+    if (!teamId) return false;
+    this._invalidateCache('teams');
+    this._invalidateCache('players');
+    const teams = this.getTeams();
+    const team = teams.find(t => t.id === teamId || (t.id && toUUID(t.id) === toUUID(teamId)));
+    if (!team) return false;
+
+    const oldIconName = (team.iconPlayerName || team.iconName || '').trim().toLowerCase();
+    const oldIconId = team.iconPlayerId;
+    const now = Date.now();
+
+    team.iconPlayerId = null;
+    team.iconPlayerName = '';
+    team.iconName = '';
+    team.iconPlayerPhotoUrl = null;
+    team.iconPhotoUrl = null;
+    team.iconPhoto = null;
+    team.hasIconPlayer = false;
+    team.iconPlayerFee = 0;
+
+    // Recalculate squad count & purse
+    const purchasedCount = Array.isArray(team.playerIds) ? team.playerIds.length : 0;
+    team.squadCount = purchasedCount;
+    const defaultIconFee = Number(this.getAuctionSettings().defaultIconPrice) || 1000;
+    const auctionSpent = Array.isArray(team.playerIds) ? (team.purseSpent || 0) : 0;
+    const budget = Number(team.purseBudget || team.purse || 8000);
+    // If purseSpent included icon fee, subtract it
+    team.purseSpent = Math.max(0, (Number(team.purseSpent) || 0) - defaultIconFee);
+    team.remainingPurse = Math.max(0, budget - team.purseSpent);
+    team.updated_at = now;
+
+    // If an approved player in registry was linked as icon, revert their icon flags
+    const players = this.getPlayers();
+    let playersChanged = false;
+    players.forEach(p => {
+      const isMatch = (oldIconId && (String(p.id) === String(oldIconId) || toUUID(p.id) === toUUID(oldIconId))) ||
+                      (oldIconName && (p.name || '').trim().toLowerCase() === oldIconName);
+      if (isMatch && (p.teamId === team.id || toUUID(p.teamId) === toUUID(team.id) || p.isIcon || p.isIconPlayer)) {
+        p.teamId = null;
+        p.team_id = null;
+        p.teamName = '';
+        p.isIcon = false;
+        p.isIconPlayer = false;
+        p.auctionStatus = 'PENDING';
+        p.soldPrice = 0;
+        p.sold_price = 0;
+        p.isSold = false;
+        p.boughtByTeamId = null;
+        p.updated_at = now;
+        playersChanged = true;
+        this._savePlayerAcrossAllKeys(p);
+        if (typeof syncPlayerToSupabase === 'function') syncPlayerToSupabase(p);
+      }
+    });
+
+    if (playersChanged) {
+      safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
+      this._invalidateCache('players');
+      this.notify('players_updated');
+    }
+
+    safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
+    this._saveTeamAcrossAllKeys(team);
+    this._invalidateCache('teams');
+    if (typeof syncTeamToSupabase === 'function') syncTeamToSupabase(team);
+    this.notify('teams_updated');
+    return true;
+  }
+
+  unassignPlayerFromTeam(playerId, teamId = null) {
     const findPlayer = (list) => list.find(p => String(p.id) === String(playerId) || (playerId && p.id && toUUID(p.id) === toUUID(playerId)));
 
     let players = this.getPlayers();
@@ -1760,6 +1941,18 @@ class Store {
     }
 
     if (!player) {
+      // Check if playerId matches any team's iconPlayerName, iconPlayerId, or teamId was provided
+      const teamWithIcon = teams.find(t => 
+        (teamId && (t.id === teamId || toUUID(t.id) === toUUID(teamId))) ||
+        (t.iconPlayerId && (String(t.iconPlayerId) === String(playerId) || toUUID(t.iconPlayerId) === toUUID(playerId))) ||
+        (t.iconPlayerName && t.iconPlayerName.trim().toLowerCase() === String(playerId).trim().toLowerCase()) ||
+        (t.iconName && t.iconName.trim().toLowerCase() === String(playerId).trim().toLowerCase())
+      );
+      if (teamWithIcon) {
+        if (scopeSwitched) { this.activeTournamentId = prevScope; this._invalidateCache(); }
+        return this.removeTeamIconPlayer(teamWithIcon.id);
+      }
+
       if (scopeSwitched) { this.activeTournamentId = prevScope; this._invalidateCache(); }
       console.warn('[unassignPlayerFromTeam] Player not found in any list, id:', playerId);
       return false;
@@ -1775,7 +1968,7 @@ class Store {
         const budget = Number(team.purseBudget || team.purse || 8000);
         team.remainingPurse = Math.max(0, budget - team.purseSpent);
         if (Array.isArray(team.playerIds)) {
-          team.playerIds = team.playerIds.filter(id => String(id) !== String(playerId));
+          team.playerIds = team.playerIds.filter(id => String(id) !== String(playerId) && (!toUUID(playerId) || toUUID(id) !== toUUID(playerId)));
         }
         team.updated_at = now;
         safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
@@ -1783,6 +1976,27 @@ class Store {
         syncTeamToSupabase(team);
       }
     }
+
+    // Check and clear if this player was an icon player of ANY team
+    const pNameNorm = (player.name || '').trim().toLowerCase();
+    teams.forEach(t => {
+      const tIconName = (t.iconPlayerName || t.iconName || '').trim().toLowerCase();
+      const isIconMatch = (t.iconPlayerId && (String(t.iconPlayerId) === String(playerId) || (playerId && toUUID(t.iconPlayerId) === toUUID(playerId)))) ||
+                          (pNameNorm && tIconName && tIconName === pNameNorm);
+      if (isIconMatch) {
+        t.iconPlayerId = null;
+        t.iconPlayerName = '';
+        t.iconName = '';
+        t.iconPlayerPhotoUrl = null;
+        t.iconPhotoUrl = null;
+        t.iconPhoto = null;
+        t.hasIconPlayer = false;
+        t.updated_at = now;
+        safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
+        this._saveTeamAcrossAllKeys(t);
+        syncTeamToSupabase(t);
+      }
+    });
 
     player.teamId = null;
     player.team_id = null;
@@ -1797,7 +2011,7 @@ class Store {
     player.isIconPlayer = false;
     player.updated_at = now;
 
-    if (this.liveAuctionState && this.liveAuctionState.last_sold_player_id === playerId) {
+    if (this.liveAuctionState && (this.liveAuctionState.last_sold_player_id === playerId || (playerId && toUUID(this.liveAuctionState.last_sold_player_id) === toUUID(playerId)))) {
       this.updateLiveAuctionState({
         ...this.liveAuctionState,
         last_sold_player_id: null,
@@ -2050,6 +2264,32 @@ class Store {
       });
     }
 
+    // 1b. If icon was removed completely from this team, update team purse and squad
+    if (oldTeam && (oldIconName || oldIconId) && (!newIconName && !newIconId)) {
+      const teams = this.getTeams();
+      const teamToUpdate = teams.find(t => t.id === (newTeam?.id || oldTeam.id));
+      if (teamToUpdate) {
+        const defaultIconFee = Number(this.getAuctionSettings().defaultIconPrice) || 1000;
+        teamToUpdate.hasIconPlayer = false;
+        teamToUpdate.iconPlayerId = null;
+        teamToUpdate.iconPlayerName = '';
+        teamToUpdate.iconName = '';
+        teamToUpdate.iconPlayerPhotoUrl = null;
+        teamToUpdate.iconPhotoUrl = null;
+        teamToUpdate.iconPhoto = null;
+        teamToUpdate.iconPlayerFee = 0;
+        teamToUpdate.squadCount = Array.isArray(teamToUpdate.playerIds) ? teamToUpdate.playerIds.length : 0;
+        teamToUpdate.purseSpent = Math.max(0, (Number(teamToUpdate.purseSpent) || 0) - defaultIconFee);
+        teamToUpdate.remainingPurse = Math.max(0, (Number(teamToUpdate.purseBudget) || 8000) - teamToUpdate.purseSpent);
+        teamToUpdate.updated_at = Date.now();
+        this._invalidateCache('teams');
+        safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
+        this._saveTeamAcrossAllKeys(teamToUpdate);
+        syncTeamToSupabase(teamToUpdate);
+        this.notify('teams_updated');
+      }
+    }
+
     // 2. Allocate newly assigned icon player from registration list
     if (newTeam && (newIconName || newIconId)) {
       const iconFee = Number(this.getAuctionSettings().defaultIconPrice) || 1000;
@@ -2102,13 +2342,17 @@ class Store {
     const players = this.getPlayers();
     let changed = false;
     const syncPromises = [];
+    const delKey = 'cpl_deleted_player_ids_' + (this.activeTournamentId || 'default');
+    const delList = JSON.parse(localStorage.getItem(delKey) || '[]');
 
     teams.forEach(t => {
       const iconName = (t.iconPlayerName || t.iconName || '').trim().toLowerCase();
       const iconId = t.iconPlayerId;
       if (iconName || iconId) {
+        if (iconId && delList.includes(String(iconId))) return;
         players.forEach(p => {
-          const isThisIcon = (iconId && p.id === iconId) || (iconName && (p.name || '').trim().toLowerCase() === iconName);
+          if (!p || (p.id && delList.includes(String(p.id)))) return;
+          const isThisIcon = (iconId && (p.id === iconId || toUUID(p.id) === toUUID(iconId))) || (iconName && (p.name || '').trim().toLowerCase() === iconName);
           if (isThisIcon && (p.teamId !== t.id || p.auctionStatus !== 'SOLD' || !p.isIcon)) {
             p.teamId = t.id;
             p.teamName = t.name;

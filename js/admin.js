@@ -1,8 +1,8 @@
 // Admin Master Data & Payment Verification Panel with Single Source Cloud Control (Developer: Suman Kolay)
 
-import { store } from './store.js?v=13.0.65';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportMatchScorecardPNG, exportFullMatchSummaryPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.65';
-import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID, compressImageToTarget, saveScorecardsToSupabase } from './supabase.js?v=13.0.65';
+import { store } from './store.js?v=13.0.66';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportMatchScorecardPNG, exportFullMatchSummaryPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.66';
+import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID, compressImageToTarget, saveScorecardsToSupabase } from './supabase.js?v=13.0.66';
 import { shops } from './shopsData.js?v=12.0.2';
 
 let activeAdminTab = (() => { try { return sessionStorage.getItem('cpl_admin_tab') || (store.isMasterAdmin() ? 'payments' : 'overview'); } catch(e) { return 'payments'; } })();
@@ -531,8 +531,15 @@ export function renderAdminDashboard(containerEl) {
                 <p class="text-xs text-slate-500">Search, filter, edit details, or remove players with automatic continuous serial re-indexing.</p>
               </div>
 
-              <div class="relative w-full sm:w-64">
-                <input type="text" id="admin-player-search" placeholder="🔍 Search by name, reg ID, phone..." class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 pl-3 focus:outline-none focus:border-emerald-500 placeholder-slate-400 font-medium" />
+              <div class="flex items-center gap-2 w-full sm:w-auto">
+                <div class="relative w-full sm:w-64">
+                  <input type="text" id="admin-player-search" placeholder="🔍 Search by name, reg ID, phone..." class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 pl-3 focus:outline-none focus:border-emerald-500 placeholder-slate-400 font-medium" />
+                </div>
+                ${isMaster ? `
+                  <button type="button" id="admin-clear-all-players-btn" class="px-3 py-2.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-xl text-xs font-black shadow-2xs transition-all flex items-center gap-1.5 shrink-0 cursor-pointer" title="Delete all players and reset all team squads">
+                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Clear All
+                  </button>
+                ` : ''}
               </div>
             </div>
 
@@ -3166,6 +3173,17 @@ function bindAdminTableActions(containerEl) {
       adminSearchInput.addEventListener(evt, filterAdminPlayers);
     });
   }
+
+  // Clear all players button listener
+  document.getElementById('admin-clear-all-players-btn')?.addEventListener('click', () => {
+    if (confirm("⚠️ DANGER ZONE: Are you sure you want to delete ALL player registrations?\n\n• This will permanently delete all registered players from this tournament.\n• All team squads will reset to 0 players.\n• All team purses will be fully refunded.\n• All team icon player assignments will be removed.")) {
+      if (confirm("⚠️ FINAL CONFIRMATION: This action CANNOT be undone.\n\nProceed with deleting ALL players?")) {
+        store.clearAllPlayers();
+        alert("✅ All player registrations have been deleted and team squads reset to 0!");
+        renderAdminDashboard(containerEl);
+      }
+    }
+  });
 
   // --- AUTOMATIC ACTIVE TAB RENDERING ON DASHBOARD LOAD ---
   if (activeAdminTab === 'auction') {
@@ -8273,14 +8291,25 @@ export function openAdminSquadManageModal(teamInput, onUpdated = null) {
     return pTid === teamTourneyId || toUUID(pTid) === tourneyUUID;
   });
 
-  // Filter players currently assigned to THIS team
+  const teamIconName = (team.iconPlayerName || team.iconName || '').trim();
+  const hasIcon = !!(teamIconName || (team.iconPlayerId && String(team.iconPlayerId).trim()));
+  const defaultIconFee = Number(store.getAuctionSettings().defaultIconPrice) || 1000;
+  const iconSpent = hasIcon ? defaultIconFee : 0;
+
+  // Filter players currently assigned to THIS team (excluding icon player so icon has its dedicated card)
   const squadPlayers = tourneyPlayers.filter(p => {
     if (!p) return false;
     const pTeamId = p.teamId || p.team_id;
     const matchesTeamId = pTeamId && (pTeamId === team.id || toUUID(pTeamId) === toUUID(team.id));
     const matchesTeamName = p.teamName && (p.teamName || '').trim().toLowerCase() === (team.name || '').trim().toLowerCase();
     const isSold = (p.auctionStatus === 'SOLD' || p.isSold === true || !!pTeamId);
-    return isSold && (matchesTeamId || matchesTeamName);
+    if (!isSold || (!matchesTeamId && !matchesTeamName)) return false;
+    const pNameNorm = (p.name || '').trim().toLowerCase();
+    const isIconPlayer = hasIcon && (
+      (team.iconPlayerId && (String(p.id) === String(team.iconPlayerId) || toUUID(p.id) === toUUID(team.iconPlayerId))) ||
+      (teamIconName && pNameNorm === teamIconName.toLowerCase())
+    );
+    return !isIconPlayer;
   });
 
   // Filter available/unsold players belonging ONLY to this tournament (excludes players already in any squad)
@@ -8291,8 +8320,10 @@ export function openAdminSquadManageModal(teamInput, onUpdated = null) {
     return !isSold;
   });
 
+  const totalSquadCount = (hasIcon ? 1 : 0) + squadPlayers.length;
   const maxPurse = Number(team.purse || team.purseBudget || 8000);
-  const spent = squadPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || 0), 0);
+  const auctionSpent = squadPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || 0), 0);
+  const spent = iconSpent + auctionSpent;
   const remPurse = Math.max(0, maxPurse - spent);
 
   const modalHtml = `
@@ -8306,7 +8337,7 @@ export function openAdminSquadManageModal(teamInput, onUpdated = null) {
             <div>
               <div class="flex items-center gap-2">
                 <h3 class="text-base sm:text-lg font-black text-slate-900">${team.name} Squad Roster</h3>
-                <span class="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 font-mono text-[10px] font-black rounded-full border border-emerald-300">${squadPlayers.length} Players</span>
+                <span class="px-2.5 py-0.5 bg-emerald-100 text-emerald-800 font-mono text-[10px] font-black rounded-full border border-emerald-300">${totalSquadCount} Players</span>
               </div>
               <p class="text-xs text-slate-500 font-medium">Owner: <strong>${team.ownerName || 'N/A'}</strong> (${team.ownerPhone || 'N/A'})</p>
             </div>
@@ -8363,15 +8394,41 @@ export function openAdminSquadManageModal(teamInput, onUpdated = null) {
         </div>
 
         <!-- Section 2: Current Team Squad List -->
-        <div class="space-y-2">
+        <div class="space-y-2.5">
           <div class="flex items-center justify-between">
             <h4 class="text-xs sm:text-sm font-black text-slate-900 flex items-center gap-2">
-              <span>📋 Official Purchased Roster</span>
-              <span class="px-2 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-bold rounded-lg border border-slate-200">${squadPlayers.length} Players</span>
+              <span>📋 Official Squad Roster</span>
+              <span class="px-2 py-0.5 bg-slate-100 text-slate-700 text-[10px] font-bold rounded-lg border border-slate-200">${totalSquadCount} Total</span>
             </h4>
           </div>
 
-          ${squadPlayers.length === 0 ? `
+          ${hasIcon ? `
+            <!-- Dedicated Icon Player Banner Card -->
+            <div class="p-3.5 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-100/60 border-2 border-amber-400 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+              <div class="flex items-center gap-3 min-w-0">
+                <div class="relative shrink-0">
+                  <img src="${team.iconPlayerPhotoUrl || team.iconPhotoUrl || team.iconPhoto || 'assets/card_jsl_user.png'}" class="w-12 h-12 rounded-2xl object-cover border-2 border-amber-500 shadow-xs" onerror="this.src='assets/card_jsl_user.png'" />
+                  <span class="absolute -top-1.5 -right-1.5 bg-amber-500 text-slate-950 font-black text-[9px] px-1.5 py-0.5 rounded-full border border-white shadow-xs">⭐</span>
+                </div>
+                <div class="min-w-0">
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <span class="font-black text-sm text-slate-900 truncate">${teamIconName || 'Official Icon Player'}</span>
+                    <span class="px-2 py-0.5 bg-amber-400 text-slate-950 font-black text-[9px] rounded-full uppercase tracking-wider">⭐ OFFICIAL ICON</span>
+                  </div>
+                  <div class="text-[11px] font-bold text-slate-600 mt-0.5">
+                    Pre-Assigned Marquee • Deduction: <span class="font-mono text-amber-800 font-black">₹${defaultIconFee.toLocaleString('en-IN')}</span> from Purse
+                  </div>
+                </div>
+              </div>
+              <div class="flex items-center gap-2 shrink-0 self-end sm:self-center">
+                <button type="button" id="remove-team-icon-btn" data-team-id="${team.id}" data-icon-name="${teamIconName || 'Icon Player'}" class="px-3 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border-2 border-rose-300 font-black text-xs rounded-xl shadow-xs transition-all flex items-center gap-1.5 cursor-pointer">
+                  <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Remove Icon
+                </button>
+              </div>
+            </div>
+          ` : ''}
+
+          ${squadPlayers.length === 0 && !hasIcon ? `
             <div class="text-center py-8 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50 space-y-2">
               <div class="text-2xl">🏏</div>
               <p class="text-xs font-bold text-slate-600">No players assigned to ${team.name} squad yet.</p>
@@ -8423,6 +8480,18 @@ export function openAdminSquadManageModal(teamInput, onUpdated = null) {
   const removeModal = () => document.getElementById('admin-manage-squad-modal')?.remove();
   document.getElementById('close-admin-squad-modal-btn')?.addEventListener('click', removeModal);
 
+  // Remove Icon Player Handler
+  document.getElementById('remove-team-icon-btn')?.addEventListener('click', (e) => {
+    const tId = e.currentTarget.getAttribute('data-team-id');
+    const iName = e.currentTarget.getAttribute('data-icon-name') || 'Icon Player';
+    if (confirm(`⚠️ Are you sure you want to remove Icon Player "${iName}" from ${team.name}?\n\n• Icon player will be removed from the team.\n• ₹${defaultIconFee.toLocaleString('en-IN')} will be refunded to ${team.name}'s purse.\n• Squad count will decrease to ${Math.max(0, squadPlayers.length)} players.`)) {
+      withTeamScope(() => store.removeTeamIconPlayer(tId));
+      alert(`🗑️ Removed Icon Player "${iName}" from ${team.name} squad!`);
+      removeModal();
+      refreshModal();
+    }
+  });
+
   // Add Player Handler
   document.getElementById('confirm-add-player-to-squad-btn')?.addEventListener('click', () => {
     const selPlayerId = document.getElementById('squad-add-player-select').value;
@@ -8468,7 +8537,7 @@ export function openAdminSquadManageModal(teamInput, onUpdated = null) {
       const pid = e.currentTarget.getAttribute('data-remove-player-id');
       const pname = e.currentTarget.getAttribute('data-player-name');
       if (confirm(`Are you sure you want to remove "${pname}" from ${team.name} squad?\n\nThis will return the player to the Available/Unsold pool and refund their price back to the team purse.`)) {
-        const result = withTeamScope(() => store.unassignPlayerFromTeam(pid));
+        const result = withTeamScope(() => store.unassignPlayerFromTeam(pid, team.id));
         if (result === false) {
           alert(`⚠️ Could not remove "${pname}". Player not found in the registry. Try refreshing the page.`);
           return;
@@ -8944,14 +9013,27 @@ export function openEditTeamModal(team = null, onSaved = null) {
 
     try {
       const iconSelect = document.getElementById('edit-icon-select');
-      const iconPlayerIdVal = (iconSelect?.value !== '__CUSTOM__' && iconSelect?.value) || (!isNew ? team.iconPlayerId : '') || '';
-      const iconNameVal = (() => {
-        if (!iconSelect) return '';
-        if (iconSelect.value === '__CUSTOM__') return (document.getElementById('edit-icon-name')?.value || '').trim();
-        if (iconSelect.value === '') return '';
-        const opt = iconSelect.options[iconSelect.selectedIndex];
-        return (opt?.getAttribute('data-name') || '').trim();
-      })();
+      let iconPlayerIdVal = null;
+      let iconNameVal = '';
+
+      if (iconSelect) {
+        if (iconSelect.value === '__CUSTOM__') {
+          iconPlayerIdVal = null;
+          iconNameVal = (document.getElementById('edit-icon-name')?.value || '').trim();
+        } else if (iconSelect.value === '') {
+          // Explicitly cleared / No icon player assigned
+          iconPlayerIdVal = null;
+          iconNameVal = '';
+        } else {
+          iconPlayerIdVal = iconSelect.value;
+          const opt = iconSelect.options[iconSelect.selectedIndex];
+          iconNameVal = (opt?.getAttribute('data-name') || '').trim();
+        }
+      }
+
+      if (!iconNameVal && !iconPlayerIdVal) {
+        iconPhotoData = '';
+      }
 
       if (isNew) {
         // --- NEW TEAM REGISTRATION ---
@@ -9020,6 +9102,7 @@ export function openEditTeamModal(team = null, onSaved = null) {
         iconPlayerPhotoUrl: iconPhotoData,
         iconPhotoUrl: iconPhotoData,
         iconPhoto: iconPhotoData,
+        hasIconPlayer: !!(iconNameVal || iconPlayerIdVal),
         logoUrl: teamLogoData,
         teamLogoUrl: teamLogoData,
         coOwnerName: document.getElementById('edit-coowner-name')?.value.trim() || '',
