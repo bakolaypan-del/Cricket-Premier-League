@@ -1,6 +1,6 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=13.0.58';
+import { store } from './store.js?v=13.0.59';
 import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.57';
 import { renderAdminDashboard } from './admin.js?v=13.0.57';
 import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, fetchNoticeBoardFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.53';
@@ -9972,6 +9972,12 @@ export function openMatchCenterModal(fixtureId) {
   const fixture = store.getFixtures().find(f => f.id === fixtureId) || (store.getAllFixturesAcrossTournaments ? store.getAllFixturesAcrossTournaments().find(f => f.id === fixtureId) : null);
   if (!fixture) return;
 
+  // Ensure viewer joins the correct tournament's realtime channel for live score updates
+  const fixtureTid = fixture.tournament_id || fixture.tournamentId || fixture.leagueId;
+  if (fixtureTid && store.activeTournamentId !== fixtureTid) {
+    store.setActiveTournament(fixtureTid);
+  }
+
   const teamAObj = store.getTeamById(fixture.teamAId) || {};
   const teamBObj = store.getTeamById(fixture.teamBId) || {};
   const logoA = teamAObj.logoUrl || teamAObj.teamLogoUrl || 'assets/card_jsl_user.png';
@@ -10710,25 +10716,38 @@ export function openMatchCenterModal(fixtureId) {
                 const balls = overs[ok];
                 const overNum = Number(ok) + 1;
                 const overRuns = balls.reduce((s, b) => s + (parseInt(b.runs) || parseInt(b.label) || 0), 0);
-                const lastBall = balls[0];
+
+                const sortedBalls = [...balls].sort((a, b) => parseFloat(a.overNum || '0') - parseFloat(b.overNum || '0'));
+
+                const lastBall = sortedBalls[sortedBalls.length - 1];
                 const runningScore = lastBall.totalScore || lastBall.score || '';
                 const runningWickets = lastBall.totalWickets || lastBall.wickets || '';
-                const scoreTxt = runningScore ? `${runningScore}${runningWickets !== '' ? '-' + runningWickets : ''}` : '';
+                const scoreTxt = runningScore ? `${runningScore}-${runningWickets !== '' ? runningWickets : '0'}` : '';
 
-                const sortedBalls = [...balls].sort((a, b) => parseFloat(b.overNum || '0') - parseFloat(a.overNum || '0'));
+                const battersInOver = {};
+                sortedBalls.forEach(b => {
+                  if (b.batterName) {
+                    battersInOver[b.batterName] = b.batterScore || '';
+                  }
+                  if (b.nonStrikerName) {
+                    battersInOver[b.nonStrikerName] = b.nonStrikerScore || '';
+                  }
+                });
+                const partnerNames = Object.keys(battersInOver);
+                const partnerHtml = partnerNames.map(n => `<span class="font-black truncate">${n}</span><span class="font-mono font-bold text-slate-500 ml-1">${battersInOver[n]}</span>`).join('<span class="text-slate-400 mx-1">&</span>');
+
+                const reversedBalls = [...sortedBalls].reverse();
 
                 return `
                   <div class="space-y-0">
                     <!-- Over Summary Header -->
                     <div class="bg-slate-50 border border-slate-200 rounded-2xl p-3 space-y-2.5">
                       <div class="flex items-center gap-1.5 flex-wrap">
-                        ${sortedBalls.map(b => `<span class="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-black ${getBallCircleClass(b)}">${b.label}</span>`).join('')}
+                        ${reversedBalls.map(b => `<span class="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-black ${getBallCircleClass(b)}">${b.label}</span>`).join('')}
                       </div>
                       <div class="flex items-center justify-between text-[11px] text-slate-700">
                         <div class="min-w-0">
-                          <span class="font-black truncate">${lastBall.batterName || 'Batter'}</span>
-                          <span class="font-mono font-bold text-slate-500 ml-1">${lastBall.batterScore || ''}</span>
-                          ${lastBall.nonStrikerName ? `<span class="text-slate-400 mx-1">&</span><span class="font-black truncate">${lastBall.nonStrikerName}</span><span class="font-mono font-bold text-slate-500 ml-1">${lastBall.nonStrikerScore || ''}</span>` : ''}
+                          ${partnerHtml}
                         </div>
                         <div class="flex items-center gap-1 min-w-0 shrink-0">
                           <span class="font-black truncate">${lastBall.bowlerName || 'Bowler'}</span>
@@ -10738,14 +10757,14 @@ export function openMatchCenterModal(fixtureId) {
                       <div class="flex items-center justify-between text-[11px] font-bold">
                         <span class="text-teal-700">Overs ${overNum}</span>
                         <span class="text-teal-700">Runs ${overRuns}</span>
-                        ${scoreTxt ? `<span class="text-teal-700">Score ${scoreTxt}/${runningWickets}</span>` : ''}
+                        ${scoreTxt ? `<span class="text-teal-700">Score ${scoreTxt}</span>` : ''}
                       </div>
                     </div>
                     <!-- Individual Ball Entries -->
                     <div class="divide-y divide-slate-100">
-                      ${sortedBalls.map(b => {
-                        const parts = (b.overNum || '0.0').split('.');
-                        const displayOver = parts[0] + '.' + (parseInt(parts[1] || '0') + 1);
+                      ${reversedBalls.map(function(b, i) {
+                        const ballNum = sortedBalls.length - i;
+                        const displayOver = ok + '.' + ballNum;
                         return `
                         <div class="flex items-start gap-3 py-3.5 px-1">
                           <span class="text-sm font-black text-slate-400 font-mono w-10 shrink-0 pt-0.5">${displayOver}</span>

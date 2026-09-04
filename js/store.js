@@ -734,7 +734,7 @@ class Store {
           return;
         }
         this.syncWithCloud();
-      });
+      }, this.activeTournamentId || null);
     } catch (err) {
       console.warn("Realtime push setup notice:", err);
     }
