@@ -65,7 +65,7 @@ import {
   saveNoticeBoardToCloud,
   fetchNoticeBoardFromCloud,
   broadcastLiveScore
-} from './supabase.js?v=13.0.66';
+} from './supabase.js?v=13.0.67';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -1001,7 +1001,8 @@ class Store {
       const effectiveTeamId = matchingIconTeam ? matchingIconTeam.id : p.teamId;
       const effectiveTeamName = matchingIconTeam ? matchingIconTeam.name : (p.teamName || (matchedTeam ? matchedTeam.name : ''));
       const effectiveAuctionStatus = matchingIconTeam ? 'SOLD' : (p.auctionStatus || (p.teamId ? 'SOLD' : 'PENDING'));
-      const effectiveSoldPrice = matchingIconTeam ? (Number(p.soldPrice) || 1000) : (Number(p.soldPrice) || 0);
+      const iconPriceForTeam = this.resolveTeamIconFee(matchingIconTeam);
+      const effectiveSoldPrice = matchingIconTeam ? (Number(p.soldPrice) || iconPriceForTeam) : (Number(p.soldPrice) || 0);
 
       const prof = this.getPlayerProfileByPhone(p.phone) || {};
       const finalDob = p.dob || prof.dob || null;
@@ -1432,8 +1433,9 @@ class Store {
       }
 
       if (teamChanged) {
-        const defaultIconFee = Number(this.getAuctionSettings().defaultIconPrice) || 1000;
-        const iconDeduction = (team.iconPlayerName || team.iconName || team.iconPlayerId) ? defaultIconFee : 0;
+        const defaultIconFee = this.resolveTeamIconFee(team);
+        const hasIcon = !!(team.iconPlayerName || team.iconName || team.iconPlayerId);
+        const iconDeduction = hasIcon ? defaultIconFee : 0;
         const auctionSpent = Array.isArray(team.playerIds) ? (team.purseSpent || 0) : 0;
         const budget = Number(team.purseBudget || team.purse || 8000);
         team.purseSpent = Math.max(0, iconDeduction + auctionSpent);
@@ -1857,6 +1859,8 @@ class Store {
     const oldIconId = team.iconPlayerId;
     const now = Date.now();
 
+    const oldIconFee = this.resolveTeamIconFee(team);
+
     team.iconPlayerId = null;
     team.iconPlayerName = '';
     team.iconName = '';
@@ -1869,11 +1873,10 @@ class Store {
     // Recalculate squad count & purse
     const purchasedCount = Array.isArray(team.playerIds) ? team.playerIds.length : 0;
     team.squadCount = purchasedCount;
-    const defaultIconFee = Number(this.getAuctionSettings().defaultIconPrice) || 1000;
     const auctionSpent = Array.isArray(team.playerIds) ? (team.purseSpent || 0) : 0;
     const budget = Number(team.purseBudget || team.purse || 8000);
     // If purseSpent included icon fee, subtract it
-    team.purseSpent = Math.max(0, (Number(team.purseSpent) || 0) - defaultIconFee);
+    team.purseSpent = Math.max(0, (Number(team.purseSpent) || 0) - oldIconFee);
     team.remainingPurse = Math.max(0, budget - team.purseSpent);
     team.updated_at = now;
 
@@ -2063,8 +2066,9 @@ class Store {
     });
 
     const teams = (JSON.parse(localStorage.getItem(this._scopedKey('TEAMS'))) || []).map((t, idx) => {
-      const hasIcon = !!(t.iconPlayerName || t.iconName);
-      const iconDeduction = hasIcon ? 1000 : 0;
+      const hasIcon = !!(t.iconPlayerName || t.iconName || t.iconPlayerId);
+      const teamIconFee = this.resolveTeamIconFee(t);
+      const iconDeduction = hasIcon ? teamIconFee : 0;
       const budget = Number(t.purseBudget || t.purse || 8000);
       const resetT = {
         ...t,
@@ -2149,7 +2153,7 @@ class Store {
     const teamResult = filteredTeams.map((t, idx) => {
       const iconPlayerName = (t.iconPlayerName || t.iconName || '').trim().toLowerCase();
       const hasIcon = !!iconPlayerName || !!t.iconPlayerId;
-      const defaultIconFee = Number(this.getAuctionSettings().defaultIconPrice) || 1000;
+      const defaultIconFee = this.resolveTeamIconFee(t);
       const iconDeduction = hasIcon ? defaultIconFee : 0;
       
       // Calculate total spent on purchased auction players (excluding icon player to avoid double deduction)
@@ -2174,7 +2178,7 @@ class Store {
         ...t,
         serialNo: idx + 1,
         hasIconPlayer: hasIcon,
-        iconPlayerFee: iconDeduction,
+        iconPlayerFee: defaultIconFee,
         purseBudget: totalBudget,
         purseSpent: totalSpent,
         remainingPurse: remainingPurse,
@@ -2269,7 +2273,7 @@ class Store {
       const teams = this.getTeams();
       const teamToUpdate = teams.find(t => t.id === (newTeam?.id || oldTeam.id));
       if (teamToUpdate) {
-        const defaultIconFee = Number(this.getAuctionSettings().defaultIconPrice) || 1000;
+        const defaultIconFee = this.resolveTeamIconFee(oldTeam);
         teamToUpdate.hasIconPlayer = false;
         teamToUpdate.iconPlayerId = null;
         teamToUpdate.iconPlayerName = '';
@@ -2292,7 +2296,7 @@ class Store {
 
     // 2. Allocate newly assigned icon player from registration list
     if (newTeam && (newIconName || newIconId)) {
-      const iconFee = Number(this.getAuctionSettings().defaultIconPrice) || 1000;
+      const iconFee = this.resolveTeamIconFee(newTeam);
       players.forEach(p => {
         const isNew = (newIconId && p.id === newIconId) || (newIconName && (p.name || '').trim().toLowerCase() === newIconName);
         if (isNew) {
@@ -2327,6 +2331,18 @@ class Store {
           safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
           syncTeamToSupabase(teamToUpdate);
           this.notify('teams_updated');
+        } else {
+          // If icon was already present, but the fee was updated (e.g. from 1000 to 1500)
+          const oldFee = this.resolveTeamIconFee(oldTeam);
+          if (oldFee !== iconFee) {
+            teamToUpdate.purseSpent = Math.max(0, (Number(teamToUpdate.purseSpent) || 0) - oldFee + iconFee);
+            teamToUpdate.remainingPurse = Math.max(0, (Number(teamToUpdate.purseBudget) || 8000) - teamToUpdate.purseSpent);
+            teamToUpdate.updated_at = Date.now();
+            this._invalidateCache('teams');
+            safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
+            syncTeamToSupabase(teamToUpdate);
+            this.notify('teams_updated');
+          }
         }
       }
     }
@@ -2354,12 +2370,14 @@ class Store {
           if (!p || (p.id && delList.includes(String(p.id)))) return;
           const isThisIcon = (iconId && (p.id === iconId || toUUID(p.id) === toUUID(iconId))) || (iconName && (p.name || '').trim().toLowerCase() === iconName);
           if (isThisIcon && (p.teamId !== t.id || p.auctionStatus !== 'SOLD' || !p.isIcon)) {
+            const iconFee = this.resolveTeamIconFee(t);
             p.teamId = t.id;
             p.teamName = t.name;
             p.isIcon = true;
             p.isIconPlayer = true;
             p.auctionStatus = 'SOLD';
-            p.soldPrice = 1000;
+            p.soldPrice = iconFee;
+            p.sold_price = iconFee;
             p.isSold = true;
             p.boughtByTeamId = t.id;
             p.updated_at = Date.now();
@@ -2873,7 +2891,7 @@ class Store {
   }
 
   // --- AUCTION CONFIG ---
-  getAuctionSettings() {
+  getAuctionSettings(tournamentId = null) {
     const defaultSettings = {
       defaultBasePrice: 300,
       defaultPurseBudget: 8000,
@@ -2886,7 +2904,12 @@ class Store {
       ]
     };
     try {
-      const s = localStorage.getItem(this._scopedKey('AUCTION_SETTINGS'));
+      const canonicalTid = tournamentId ? (toUUID(tournamentId) || tournamentId) : (toUUID(this.activeTournamentId) || this.activeTournamentId);
+      const key = scopedKey(STORAGE_KEYS.AUCTION_SETTINGS, canonicalTid);
+      let s = localStorage.getItem(key);
+      if (!s && canonicalTid !== this.activeTournamentId) {
+        s = localStorage.getItem(this._scopedKey('AUCTION_SETTINGS'));
+      }
       if (!s) return defaultSettings;
       const parsed = JSON.parse(s);
       return {
@@ -2905,8 +2928,26 @@ class Store {
     }
   }
 
-  calculateNextBidIncrement(currentBid) {
-    const settings = this.getAuctionSettings();
+  resolveTeamIconFee(team = null, fallbackTourneyId = null) {
+    if (team) {
+      const rawFee = (team.iconPlayerFee !== undefined && team.iconPlayerFee !== null && team.iconPlayerFee !== '')
+        ? team.iconPlayerFee
+        : ((team.iconFee !== undefined && team.iconFee !== null && team.iconFee !== '') ? team.iconFee : null);
+      if (rawFee !== null && rawFee !== undefined && !isNaN(Number(rawFee))) {
+        return Number(rawFee);
+      }
+    }
+    const tourneyId = (team && (team.tournament_id || team.tournamentId)) || fallbackTourneyId || this.activeTournamentId;
+    const tourneySettings = this.getAuctionSettings(tourneyId);
+    const tourneyIconPrice = tourneySettings?.defaultIconPrice;
+    if (tourneyIconPrice !== null && tourneyIconPrice !== undefined && !isNaN(Number(tourneyIconPrice))) {
+      return Number(tourneyIconPrice);
+    }
+    return 1000;
+  }
+
+  calculateNextBidIncrement(currentBid, tournamentId = null) {
+    const settings = this.getAuctionSettings(tournamentId);
     const rawSlabs = settings.bidIncrementSlabs || [
       { maxLimit: 1000, increment: 50 },
       { maxLimit: 2000, increment: 100 },
@@ -2922,12 +2963,16 @@ class Store {
     return Number(slabs[slabs.length - 1]?.increment) || 200;
   }
 
-  updateAuctionSettings(settings) {
-    const current = this.getAuctionSettings();
+  updateAuctionSettings(settings, tournamentId = null) {
+    const canonicalTid = tournamentId ? (toUUID(tournamentId) || tournamentId) : (toUUID(this.activeTournamentId) || this.activeTournamentId);
+    const current = this.getAuctionSettings(canonicalTid);
     const merged = { ...current, ...settings };
-    safeSetLocalStorage(this._scopedKey('AUCTION_SETTINGS'), merged);
-    saveAuctionSettingsToCloud(merged);
+    const key = scopedKey(STORAGE_KEYS.AUCTION_SETTINGS, canonicalTid);
+    safeSetLocalStorage(key, merged);
+    saveAuctionSettingsToCloud(merged, canonicalTid);
+    this._invalidateCache('teams');
     this.notify('auction_settings_updated');
+    this.notify('teams_updated');
   }
 
   // --- REGISTRATION CONTROL CONFIG & MASTER TOGGLE ---
@@ -3158,6 +3203,8 @@ class Store {
       const iconPlayerId = team.iconPlayerId || '';
       const iconPlayerObj = allPlayers.find(p => (iconPlayerId && p.id === iconPlayerId) || (iconRawName && p.name && p.name.trim().toLowerCase() === iconRawName.toLowerCase()));
 
+      const iconFee = this.resolveTeamIconFee(team);
+
       let iconRecord = null;
       if (hasIcon || iconPlayerObj) {
         iconRecord = {
@@ -3169,8 +3216,8 @@ class Store {
           phone: (iconPlayerObj && (iconPlayerObj.phone || iconPlayerObj.mobile)) || team.iconPhone || 'N/A',
           village: (iconPlayerObj && (iconPlayerObj.village ? `${iconPlayerObj.village}${iconPlayerObj.district ? ', ' + iconPlayerObj.district : ''}` : iconPlayerObj.address)) || team.iconVillage || 'Paschim Medinipur',
           category: (iconPlayerObj && (iconPlayerObj.category || iconPlayerObj.playingType || iconPlayerObj.role)) || 'Icon Player',
-          price: 1000,
-          priceLabel: '₹ 1,000 (Icon Allocation)'
+          price: iconFee,
+          priceLabel: `₹ ${iconFee.toLocaleString('en-IN')} (Icon Allocation)`
         };
       }
 
@@ -3195,7 +3242,7 @@ class Store {
       }));
 
       const totalPurse = Number(team.purse || 8000);
-      const iconDeduction = iconRecord ? 1000 : 0;
+      const iconDeduction = iconRecord ? iconFee : 0;
       const auctionSpent = purchasedPlayers.reduce((sum, p) => sum + (p.soldPrice || 0), 0);
       const totalSpent = iconDeduction + auctionSpent;
       const remainingPurse = Math.max(0, totalPurse - totalSpent);
@@ -3226,7 +3273,7 @@ class Store {
           teamName: t.teamName,
           teamId: t.teamId,
           isIcon: true,
-          soldPrice: 1000
+          soldPrice: t.iconPlayer.price || 1000
         });
       }
       t.auctionedPlayers.forEach(p => {

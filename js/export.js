@@ -1,5 +1,5 @@
-import { store } from './store.js?v=13.0.66';
-import { toUUID, getOptimizedImageUrl, compressImageToTarget } from './supabase.js?v=13.0.66';
+import { store } from './store.js?v=13.0.67';
+import { toUUID, getOptimizedImageUrl, compressImageToTarget } from './supabase.js?v=13.0.67';
 
 export async function preparePlayerPhotoForPDF(targetSrc, targetSizeKb = 30, maxDimension = 350) {
   if (!targetSrc) return '';
@@ -755,7 +755,13 @@ async function convertImageToLightweightBase64(url, maxDim = 100, quality = 0.70
 
 // HELPER: Prepare structured squad data for a team
 export function getTeamFinalSquadData(team, allPlayers) {
-  const defaultIconFee = Number(store.getAuctionSettings().defaultIconPrice) || 1000;
+  const tourneyId = team.tournament_id || team.tournamentId || store.activeTournamentId;
+  const tourneySettings = store.getAuctionSettings(tourneyId);
+  const defaultIconFee = Number(team.iconPlayerFee !== undefined && team.iconPlayerFee !== null
+    ? team.iconPlayerFee
+    : (team.iconFee !== undefined && team.iconFee !== null
+      ? team.iconFee
+      : tourneySettings.defaultIconPrice)) || 1000;
   const hasIcon = !!((team.iconPlayerName && team.iconPlayerName.trim()) || (team.iconName && team.iconName.trim()) || (team.iconPlayerId && team.iconPlayerId.trim()));
   const iconRawName = (team.iconPlayerName || team.iconName || '').trim();
   const iconPlayerId = team.iconPlayerId || '';
@@ -831,8 +837,14 @@ function getFormattedPDFTimestamp() {
 // HELPER: Build single-page HTML for a team squad
 function generateTeamSinglePageHtml(team, allPlayers, processedIconItem, processedPlayers, teamIdx = 0, totalTeamsCount = 8, formattedTimestamp = '', tournamentName = '') {
   const tourneyName = tournamentName || getTournamentDocName();
-  const defaultIconFee = Number(store.getAuctionSettings().defaultIconPrice) || 1000;
-  const targetSquadSize = Number(store.getAuctionSettings().maxSquadSize) || 13;
+  const tourneyId = team.tournament_id || team.tournamentId || store.activeTournamentId;
+  const tourneySettings = store.getAuctionSettings(tourneyId);
+  const defaultIconFee = Number(team.iconPlayerFee !== undefined && team.iconPlayerFee !== null
+    ? team.iconPlayerFee
+    : (team.iconFee !== undefined && team.iconFee !== null
+      ? team.iconFee
+      : tourneySettings.defaultIconPrice)) || 1000;
+  const targetSquadSize = Number(tourneySettings.maxSquadSize) || 13;
   const squadData = getTeamFinalSquadData(team, allPlayers);
   const { totalPurse, iconDeduction, auctionSpent, totalSpent, remainingPurse } = squadData;
   const iconItem = processedIconItem;
