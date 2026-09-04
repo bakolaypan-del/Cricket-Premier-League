@@ -7601,12 +7601,35 @@ export async function renderAdminShopAdsPanel() {
                 <span>Live Tournament Countdown Banner (Homepage Top)</span>
                 <span class="px-2 py-0.5 bg-amber-100 text-amber-900 font-mono text-[9px] rounded-full border border-amber-300">TOP BANNER</span>
               </p>
-              <p class="text-[10px] text-slate-500 mt-0.5">SHOW or HIDE the 31 August 2026 Tournament Countdown Clock at the top of the homepage.</p>
+              <p class="text-[10px] text-slate-500 mt-0.5">SHOW or HIDE the rotating flip-clock countdown with tournament showcase on the homepage.</p>
             </div>
             <label class="relative inline-flex items-center cursor-pointer">
               <input type="checkbox" id="admin-countdown-banner-toggle" class="sr-only peer" ${settings.isCountdownEnabled === true ? 'checked' : ''}>
               <div class="w-10 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-amber-500"></div>
             </label>
+          </div>
+
+          <!-- Select Tournaments for Countdown Showcase -->
+          <div class="p-3.5 bg-blue-50/50 rounded-xl border border-blue-200 space-y-2">
+            <p class="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+              <span class="p-1 rounded bg-blue-600 text-white"><i data-lucide="list-checks" class="w-3.5 h-3.5"></i></span>
+              <span>Select Tournaments for Countdown Showcase</span>
+              <span class="px-2 py-0.5 bg-blue-100 text-blue-800 font-mono text-[9px] rounded-full border border-blue-300">FLIP CLOCK</span>
+            </p>
+            <p class="text-[10px] text-slate-500">Choose which tournaments to rotate in the flip-clock countdown. If none selected, latest 3 by date are shown automatically.</p>
+            <div id="admin-countdown-tourney-selector" class="space-y-1.5 bg-white p-3 rounded-xl border border-blue-100 max-h-48 overflow-y-auto">
+              ${(store.getCustomTournaments() || []).map(t => {
+                const isChecked = Array.isArray(settings.countdownTournamentSlugs) && settings.countdownTournamentSlugs.includes(t.slug);
+                return `
+                  <label class="flex items-center gap-2 p-2 rounded-lg hover:bg-blue-50 cursor-pointer transition-all">
+                    <input type="checkbox" class="admin-countdown-tourney-cb accent-blue-600 w-4 h-4 rounded" data-slug="${t.slug}" ${isChecked ? 'checked' : ''} />
+                    <div class="flex-1 min-w-0">
+                      <span class="text-xs font-bold text-slate-900 block truncate">${t.name || t.slug}</span>
+                      <span class="text-[9px] text-slate-500">${t.venue || 'No venue'} ${t.kickoffDate ? '• ' + new Date(t.kickoffDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : ''}</span>
+                    </div>
+                  </label>`;
+              }).join('')}
+            </div>
           </div>
 
           <!-- YouTube Digital Class Channel Promo Popup Controller -->
@@ -7769,6 +7792,17 @@ export async function renderAdminShopAdsPanel() {
 
   document.getElementById('admin-countdown-banner-toggle')?.addEventListener('change', (e) => {
     updatePopupSettingField('isCountdownEnabled', e.target.checked);
+  });
+
+  // Countdown tournament selector checkboxes
+  document.querySelectorAll('.admin-countdown-tourney-cb').forEach(cb => {
+    cb.addEventListener('change', () => {
+      const selectedSlugs = [];
+      document.querySelectorAll('.admin-countdown-tourney-cb:checked').forEach(el => {
+        selectedSlugs.push(el.dataset.slug);
+      });
+      updatePopupSettingField('countdownTournamentSlugs', selectedSlugs);
+    });
   });
 
   document.getElementById('admin-youtube-popup-toggle')?.addEventListener('change', (e) => {

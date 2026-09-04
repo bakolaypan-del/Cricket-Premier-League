@@ -469,15 +469,37 @@ function navigate(route, pushState = true) {
     clearInterval(auctionPollInterval);
     auctionPollInterval = null;
   }
+  const prevRoute = currentRoute;
   currentRoute = route;
   try { sessionStorage.setItem('cpl_last_route', route); } catch(e) {}
   if (pushState && history.pushState) {
     history.pushState({ route }, '', `#${route}`);
   }
-  renderNavbar();
-  renderMobileBottomNav();
-  renderFooter();
-  renderCurrentView();
+
+  const container = document.getElementById('main-content');
+
+  // Smooth crossfade: fade out old content, swap, fade in new
+  if (container && prevRoute !== route) {
+    container.style.transition = 'opacity 0.15s ease-out';
+    container.style.opacity = '0';
+    setTimeout(() => {
+      renderNavbar();
+      renderMobileBottomNav();
+      renderFooter();
+      renderCurrentView();
+      window.scrollTo({ top: 0 });
+      requestAnimationFrame(() => {
+        container.style.transition = 'opacity 0.2s ease-in';
+        container.style.opacity = '1';
+      });
+    }, 140);
+  } else {
+    renderNavbar();
+    renderMobileBottomNav();
+    renderFooter();
+    renderCurrentView();
+  }
+
   // Option 02: On-demand Cloud Data Sync on Navigation
   store.syncWithCloud().catch(err => console.warn("On-demand sync notice:", err));
 }
@@ -804,13 +826,14 @@ if (typeof window !== 'undefined') {
     const settings = e.detail;
     if (!settings) return;
     
-    // 1. Live Countdown Banner sync
+    // 1. Live Countdown Banner sync (re-init to pick up new tournament selection)
     const countdownCard = document.getElementById('tournament-countdown-card');
     if (countdownCard) {
       if (settings.isCountdownEnabled === false) {
         countdownCard.classList.add('hidden');
       } else {
         countdownCard.classList.remove('hidden');
+        initTournamentCountdown();
       }
     }
 
@@ -2206,49 +2229,60 @@ function renderFirstPageLanding(containerEl) {
         </div>
       </div>
 
-      <!-- ⏳ LIVE TOURNAMENT COUNTDOWN TIMER (COMPACT & MOBILE-OPTIMIZED) -->
-      <div id="tournament-countdown-card" class="w-full max-w-3xl mx-auto bg-white border border-amber-400/90 p-2.5 sm:p-3.5 rounded-2xl sm:rounded-3xl shadow-lg text-slate-900 animate-fade-in relative overflow-hidden">
-        <div class="absolute -right-8 -bottom-8 w-24 h-24 bg-amber-400/10 rounded-full blur-lg pointer-events-none"></div>
-        <div class="absolute -left-8 -top-8 w-24 h-24 bg-blue-500/10 rounded-full blur-lg pointer-events-none"></div>
-        
-        <div class="flex flex-col sm:flex-row items-center justify-between gap-2.5 sm:gap-3 relative z-10">
-          <div class="text-center sm:text-left space-y-0.5">
-            <div class="inline-flex items-center gap-1 px-2 py-0.5 bg-amber-50 text-amber-800 border border-amber-200 rounded-full text-[9px] sm:text-[10px] font-black tracking-wider uppercase shadow-2xs">
-              <span class="w-1.5 h-1.5 rounded-full bg-red-600 animate-ping"></span>
-              <span>🏆 MEGA TOURNAMENT KICKOFF</span>
-            </div>
-            <h3 class="text-xs sm:text-base font-black text-slate-900 tracking-tight leading-tight">${allTournaments[0]?.kickoffDate ? new Date(allTournaments[0].kickoffDate + 'T09:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase() + ' • 9:00 AM IST' : 'COMING SOON'}</h3>
-            <p class="text-[10px] sm:text-[11px] text-emerald-700 font-bold flex items-center justify-center sm:justify-start gap-1">
-              <span>📍 ${allTournaments[0]?.venue || 'Tournament Venue'}</span>
-              <span>•</span>
-              <span>${allTournaments[0]?.name || 'Cricket Premier League'}</span>
-            </p>
-          </div>
+      <!-- ⏳ ROTATING TOURNAMENT COUNTDOWN SHOWCASE (SPLIT-FLAP FLIP-CLOCK) -->
+      <div id="tournament-countdown-card" class="w-full max-w-sm mx-auto bg-gradient-to-b from-white to-slate-50/80 border border-slate-200/80 rounded-xl shadow-sm text-slate-900 animate-fade-in relative overflow-hidden">
 
-          <!-- 4-Unit Colourful Vibrant Countdown Clock Grid (Compact on Mobile) -->
-          <div class="grid grid-cols-4 gap-1.5 sm:gap-2 text-center">
-            <!-- Days: Blue -->
-            <div class="bg-gradient-to-b from-blue-50 to-blue-100/80 border border-blue-200 rounded-xl p-1.5 sm:p-2 min-w-[48px] sm:min-w-[60px] shadow-2xs">
-              <div id="cd-days" class="text-base sm:text-2xl font-black text-blue-700 font-mono leading-none">00</div>
-              <div class="text-[8px] sm:text-[9px] font-black text-blue-600 uppercase tracking-wider mt-0.5">Days</div>
+        <!-- Tournament Info (rotates) -->
+        <div id="showcase-tourney-info" class="tourney-showcase-slide fade-in px-2.5 pt-2 pb-0.5 relative z-10 text-center">
+          <div class="inline-flex items-center gap-0.5 px-1.5 py-px bg-amber-50 text-amber-800 border border-amber-200/80 rounded-full text-[7px] sm:text-[8px] font-black tracking-wider uppercase mb-0.5">
+            <span class="w-1 h-1 rounded-full bg-red-600 animate-ping"></span>
+            <span>🏆 UPCOMING</span>
+          </div>
+          <h3 id="showcase-tourney-name" class="text-[11px] sm:text-xs font-black text-[#0F2C59] tracking-tight leading-tight uppercase"></h3>
+          <p class="flex items-center justify-center gap-1 mt-0.5">
+            <span id="showcase-tourney-date" class="text-[8px] sm:text-[9px] font-bold text-slate-600"></span>
+            <span class="text-slate-300 text-[7px]">|</span>
+            <span class="text-[8px] sm:text-[9px] font-bold text-emerald-700 flex items-center gap-0.5">📍 <span id="showcase-venue-text"></span></span>
+          </p>
+        </div>
+
+        <!-- Split-Flap Flip Clock -->
+        <div class="flex items-center justify-center gap-1 sm:gap-2 px-2.5 py-1.5 relative z-10">
+          <div class="flip-clock-unit flip-days">
+            <div class="flip-digit-wrapper" id="flip-days">
+              <div class="flip-digit-top"><span>00</span></div>
+              <div class="flip-digit-bottom"><span>00</span></div>
             </div>
-            <!-- Hours: Purple -->
-            <div class="bg-gradient-to-b from-purple-50 to-purple-100/80 border border-purple-200 rounded-xl p-1.5 sm:p-2 min-w-[48px] sm:min-w-[60px] shadow-2xs">
-              <div id="cd-hours" class="text-base sm:text-2xl font-black text-purple-700 font-mono leading-none">00</div>
-              <div class="text-[8px] sm:text-[9px] font-black text-purple-600 uppercase tracking-wider mt-0.5">Hours</div>
+            <div class="text-[6px] sm:text-[7px] font-black text-blue-700 uppercase tracking-widest mt-0.5">Days</div>
+          </div>
+          <span class="text-xs font-black text-slate-300 mt-[-8px]">:</span>
+          <div class="flip-clock-unit flip-hours">
+            <div class="flip-digit-wrapper" id="flip-hours">
+              <div class="flip-digit-top"><span>00</span></div>
+              <div class="flip-digit-bottom"><span>00</span></div>
             </div>
-            <!-- Mins: Emerald -->
-            <div class="bg-gradient-to-b from-emerald-50 to-emerald-100/80 border border-emerald-200 rounded-xl p-1.5 sm:p-2 min-w-[48px] sm:min-w-[60px] shadow-2xs">
-              <div id="cd-mins" class="text-base sm:text-2xl font-black text-emerald-700 font-mono leading-none">00</div>
-              <div class="text-[8px] sm:text-[9px] font-black text-emerald-600 uppercase tracking-wider mt-0.5">Mins</div>
+            <div class="text-[6px] sm:text-[7px] font-black text-purple-700 uppercase tracking-widest mt-0.5">Hours</div>
+          </div>
+          <span class="text-xs font-black text-slate-300 mt-[-8px]">:</span>
+          <div class="flip-clock-unit flip-mins">
+            <div class="flip-digit-wrapper" id="flip-mins">
+              <div class="flip-digit-top"><span>00</span></div>
+              <div class="flip-digit-bottom"><span>00</span></div>
             </div>
-            <!-- Secs: Rose Pulse -->
-            <div class="bg-gradient-to-b from-rose-50 to-rose-100/80 border border-rose-200 rounded-xl p-1.5 sm:p-2 min-w-[48px] sm:min-w-[60px] shadow-2xs">
-              <div id="cd-secs" class="text-base sm:text-2xl font-black text-rose-600 font-mono leading-none animate-pulse">00</div>
-              <div class="text-[8px] sm:text-[9px] font-black text-rose-600 uppercase tracking-wider mt-0.5">Secs</div>
+            <div class="text-[6px] sm:text-[7px] font-black text-emerald-700 uppercase tracking-widest mt-0.5">Mins</div>
+          </div>
+          <span class="text-xs font-black text-slate-300 mt-[-8px]">:</span>
+          <div class="flip-clock-unit flip-secs">
+            <div class="flip-digit-wrapper" id="flip-secs">
+              <div class="flip-digit-top"><span>00</span></div>
+              <div class="flip-digit-bottom"><span>00</span></div>
             </div>
+            <div class="text-[6px] sm:text-[7px] font-black text-rose-700 uppercase tracking-widest mt-0.5">Secs</div>
           </div>
         </div>
+
+        <!-- Dot indicators -->
+        <div id="showcase-dots" class="flex items-center justify-center gap-1 pb-1.5 relative z-10"></div>
       </div>
 
       <!-- BROWSE TOURNAMENTS -->
@@ -5497,15 +5531,16 @@ function openFinalAuctionSummaryModal(tourney, allTeams, allPlayers) {
   renderContent();
 }
 
-// --- LIVE TOURNAMENT COUNTDOWN CLOCK (31 AUGUST 2026, 9:00 AM IST) ---
+// --- ROTATING TOURNAMENT COUNTDOWN WITH FLIP-CLOCK ANIMATION ---
 export async function initTournamentCountdown() {
   const card = document.getElementById('tournament-countdown-card');
   if (!card) return;
 
   // Check admin settings from cloud
+  let settings = {};
   try {
-    const settings = await fetchPopupSettingsFromCloud();
-    if (settings && settings.isCountdownEnabled === false) {
+    settings = (await fetchPopupSettingsFromCloud()) || {};
+    if (settings.isCountdownEnabled === false) {
       card.classList.add('hidden');
       return;
     } else {
@@ -5516,47 +5551,134 @@ export async function initTournamentCountdown() {
   }
 
   const allTourneys = store.getCustomTournaments ? store.getCustomTournaments() : [];
-  const featured = allTourneys.find(t => t.kickoffDate) || {};
-  const targetDateStr = featured.kickoffDate ? `${featured.kickoffDate}T09:00:00+05:30` : "2026-08-31T09:00:00+05:30";
-  const targetDate = new Date(targetDateStr).getTime();
+  if (!allTourneys.length) { card.classList.add('hidden'); return; }
 
-  const update = () => {
-    const now = Date.now();
-    const diff = targetDate - now;
+  // Filter: admin-selected tournaments, or fallback to latest 3 by kickoffDate
+  const selectedSlugs = settings.countdownTournamentSlugs || [];
+  let featured = [];
+  if (selectedSlugs.length > 0) {
+    featured = selectedSlugs.map(slug => allTourneys.find(t => t.slug === slug)).filter(Boolean);
+  }
+  if (featured.length === 0) {
+    featured = [...allTourneys].filter(t => t.kickoffDate).sort((a, b) => new Date(b.kickoffDate) - new Date(a.kickoffDate)).slice(0, 3);
+  }
+  if (featured.length === 0) {
+    featured = allTourneys.slice(0, 3);
+  }
 
-    const dEl = document.getElementById('cd-days');
-    const hEl = document.getElementById('cd-hours');
-    const mEl = document.getElementById('cd-mins');
-    const sEl = document.getElementById('cd-secs');
+  let currentIdx = 0;
+  const pad = (n) => String(n).padStart(2, '0');
+  let prevValues = { d: '--', h: '--', m: '--', s: '--' };
 
-    if (!dEl || !hEl || !mEl || !sEl) return;
+  // Flip animation helper
+  function flipDigit(wrapperId, newVal, colorClass) {
+    const wrapper = document.getElementById(wrapperId);
+    if (!wrapper) return;
+    const topEl = wrapper.querySelector('.flip-digit-top span');
+    const bottomEl = wrapper.querySelector('.flip-digit-bottom span');
+    const oldVal = topEl?.textContent || '00';
+    if (oldVal === newVal) return;
 
-    if (diff <= 0) {
-      dEl.textContent = "00";
-      hEl.textContent = "00";
-      mEl.textContent = "00";
-      sEl.textContent = "00";
-      return;
+    // Remove old flip cards
+    wrapper.querySelectorAll('.flip-card, .flip-card-bottom').forEach(el => el.remove());
+
+    // Create flipping top (shows old value, flips down)
+    const flipTop = document.createElement('div');
+    flipTop.className = 'flip-card flipping-top';
+    flipTop.innerHTML = `<span>${oldVal}</span>`;
+    wrapper.appendChild(flipTop);
+
+    // Create flipping bottom (shows new value, flips up)
+    const flipBot = document.createElement('div');
+    flipBot.className = 'flip-card-bottom flipping-bottom';
+    flipBot.innerHTML = `<span>${newVal}</span>`;
+    wrapper.appendChild(flipBot);
+
+    // Update base digits
+    topEl.textContent = newVal;
+    setTimeout(() => { bottomEl.textContent = newVal; }, 150);
+
+    // Cleanup animation elements
+    setTimeout(() => {
+      flipTop.remove();
+      flipBot.remove();
+    }, 600);
+  }
+
+  // Render tournament info
+  function showTourney(idx) {
+    const t = featured[idx];
+    if (!t) return;
+    const infoEl = document.getElementById('showcase-tourney-info');
+    if (!infoEl) return;
+
+    infoEl.classList.remove('fade-in');
+    infoEl.classList.add('fade-out');
+
+    setTimeout(() => {
+      const nameEl = document.getElementById('showcase-tourney-name');
+      const dateEl = document.getElementById('showcase-tourney-date');
+      const venueEl = document.getElementById('showcase-venue-text');
+      if (nameEl) nameEl.textContent = t.name || 'Tournament';
+      if (dateEl) dateEl.textContent = t.kickoffDate ? new Date(t.kickoffDate + 'T09:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase() + ' • 9 AM' : 'COMING SOON';
+      if (venueEl) venueEl.textContent = t.venue || 'TBA';
+
+      // Update dots
+      const dotsEl = document.getElementById('showcase-dots');
+      if (dotsEl && featured.length > 1) {
+        dotsEl.innerHTML = featured.map((_, i) => `<span class="showcase-dot ${i === idx ? 'active' : ''}" data-dot="${i}"></span>`).join('');
+        dotsEl.querySelectorAll('.showcase-dot').forEach(dot => {
+          dot.addEventListener('click', () => {
+            currentIdx = parseInt(dot.dataset.dot);
+            showTourney(currentIdx);
+          });
+        });
+      }
+
+      infoEl.classList.remove('fade-out');
+      infoEl.classList.add('fade-in');
+      prevValues = { d: '--', h: '--', m: '--', s: '--' };
+    }, 300);
+  }
+
+  // Update countdown for current tournament
+  function updateCountdown() {
+    const t = featured[currentIdx];
+    if (!t) return;
+    const targetDateStr = t.kickoffDate ? `${t.kickoffDate}T09:00:00+05:30` : "2026-12-31T09:00:00+05:30";
+    const diff = new Date(targetDateStr).getTime() - Date.now();
+
+    let d = '00', h = '00', m = '00', s = '00';
+    if (diff > 0) {
+      d = pad(Math.floor(diff / (1000 * 60 * 60 * 24)));
+      h = pad(Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60)));
+      m = pad(Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)));
+      s = pad(Math.floor((diff % (1000 * 60)) / 1000));
     }
 
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const hours = Math.floor((diff % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-    const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    const secs = Math.floor((diff % (1000 * 60)) / 1000);
-
-    const pad = (n) => String(n).padStart(2, '0');
-
-    dEl.textContent = pad(days);
-    hEl.textContent = pad(hours);
-    mEl.textContent = pad(mins);
-    sEl.textContent = pad(secs);
-  };
-
-  update();
-  if (window._tournamentCountdownInterval) {
-    clearInterval(window._tournamentCountdownInterval);
+    if (d !== prevValues.d) flipDigit('flip-days', d);
+    if (h !== prevValues.h) flipDigit('flip-hours', h);
+    if (m !== prevValues.m) flipDigit('flip-mins', m);
+    if (s !== prevValues.s) flipDigit('flip-secs', s);
+    prevValues = { d, h, m, s };
   }
-  window._tournamentCountdownInterval = setInterval(update, 1000);
+
+  // Initial render
+  showTourney(0);
+  updateCountdown();
+
+  // Tick every second
+  if (window._tournamentCountdownInterval) clearInterval(window._tournamentCountdownInterval);
+  window._tournamentCountdownInterval = setInterval(updateCountdown, 1000);
+
+  // Auto-rotate every 8 seconds if multiple tournaments
+  if (featured.length > 1) {
+    if (window._tournamentRotateInterval) clearInterval(window._tournamentRotateInterval);
+    window._tournamentRotateInterval = setInterval(() => {
+      currentIdx = (currentIdx + 1) % featured.length;
+      showTourney(currentIdx);
+    }, 8000);
+  }
 }
 
 // --- LIVE PLAYER AUCTION 3 PM COUNTDOWN CLOCK ---

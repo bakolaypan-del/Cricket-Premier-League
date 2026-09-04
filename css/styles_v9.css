@@ -1732,6 +1732,200 @@ body.no-anim .animate-fade-in {
   font-weight: 900 !important;
 }
 
+/* === SPLIT-FLAP FLIP-CLOCK COUNTDOWN & ROTATING TOURNAMENT SHOWCASE === */
+.flip-clock-unit {
+  perspective: 300px;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+}
+.flip-digit-wrapper {
+  position: relative;
+  width: 26px;
+  height: 34px;
+  border-radius: 4px;
+  background: #1a1a2e;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2), 0 1px 2px rgba(0,0,0,0.12);
+}
+@media (min-width: 640px) {
+  .flip-digit-wrapper { width: 34px; height: 44px; border-radius: 5px; }
+}
+
+/* Upper half - lighter shade */
+.flip-digit-top {
+  position: absolute;
+  left: 0; right: 0; top: 0; height: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  border-radius: 5px 5px 0 0;
+  border-bottom: 1.5px solid rgba(0,0,0,0.5);
+  font-family: 'Teko', 'Outfit', sans-serif;
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1;
+  color: #fff;
+}
+@media (min-width: 640px) {
+  .flip-digit-top { font-size: 28px; border-radius: 5px 5px 0 0; }
+}
+.flip-digit-top span { transform: translateY(50%); }
+
+/* Lower half - darker shade with subtle gradient */
+.flip-digit-bottom {
+  position: absolute;
+  left: 0; right: 0; bottom: 0; height: 50%;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  border-radius: 0 0 4px 4px;
+  font-family: 'Teko', 'Outfit', sans-serif;
+  font-weight: 700;
+  font-size: 22px;
+  line-height: 1;
+  color: rgba(255,255,255,0.88);
+}
+@media (min-width: 640px) {
+  .flip-digit-bottom { font-size: 28px; border-radius: 0 0 5px 5px; }
+}
+.flip-digit-bottom span { transform: translateY(-50%); }
+
+/* Center fold line — the mechanical hinge */
+.flip-digit-wrapper::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0;
+  top: 50%;
+  height: 2px;
+  background: linear-gradient(90deg, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.3) 40%, rgba(0,0,0,0.3) 60%, rgba(0,0,0,0.6) 100%);
+  z-index: 5;
+  pointer-events: none;
+}
+/* Subtle inner shadow on top half bottom edge */
+.flip-digit-top::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 6px;
+  background: linear-gradient(to top, rgba(0,0,0,0.15), transparent);
+  pointer-events: none;
+}
+/* Subtle highlight on bottom half top edge */
+.flip-digit-bottom::before {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: 6px;
+  background: linear-gradient(to bottom, rgba(255,255,255,0.06), transparent);
+  pointer-events: none;
+}
+
+/* Flipping page — top half folds down */
+.flip-card {
+  position: absolute;
+  left: 0; right: 0; top: 0;
+  height: 50%;
+  transform-origin: bottom center;
+  backface-visibility: hidden;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  border-radius: 4px 4px 0 0;
+  font-family: 'Teko', 'Outfit', sans-serif;
+  font-weight: 700;
+  font-size: 22px;
+  color: #fff;
+  z-index: 10;
+}
+@media (min-width: 640px) {
+  .flip-card { font-size: 28px; border-radius: 5px 5px 0 0; }
+}
+.flip-card span { transform: translateY(50%); }
+
+/* Bottom flap — unfolds from top */
+.flip-card-bottom {
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 50%;
+  transform-origin: top center;
+  transform: rotateX(90deg);
+  backface-visibility: hidden;
+  overflow: hidden;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  border-radius: 0 0 4px 4px;
+  font-family: 'Teko', 'Outfit', sans-serif;
+  font-weight: 700;
+  font-size: 22px;
+  color: rgba(255,255,255,0.88);
+  z-index: 10;
+}
+@media (min-width: 640px) {
+  .flip-card-bottom { font-size: 28px; border-radius: 0 0 5px 5px; }
+}
+.flip-card-bottom span { transform: translateY(-50%); }
+
+@keyframes flipTop {
+  0% { transform: rotateX(0deg); }
+  50% { transform: rotateX(-75deg); }
+  100% { transform: rotateX(-90deg); }
+}
+@keyframes flipBottom {
+  0% { transform: rotateX(90deg); }
+  50% { transform: rotateX(15deg); }
+  80% { transform: rotateX(-3deg); }
+  100% { transform: rotateX(0deg); }
+}
+.flip-card.flipping-top {
+  animation: flipTop 0.3s ease-in forwards;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+}
+.flip-card-bottom.flipping-bottom {
+  animation: flipBottom 0.4s 0.12s ease-out forwards;
+  box-shadow: 0 -2px 6px rgba(0,0,0,0.15);
+}
+
+/* Color themes — upper is lighter, lower is darker for depth */
+.flip-days .flip-digit-top, .flip-days .flip-card { background: #2563EB; }
+.flip-days .flip-digit-bottom, .flip-days .flip-card-bottom { background: #1E3A8A; }
+.flip-hours .flip-digit-top, .flip-hours .flip-card { background: #7C3AED; }
+.flip-hours .flip-digit-bottom, .flip-hours .flip-card-bottom { background: #4C1D95; }
+.flip-mins .flip-digit-top, .flip-mins .flip-card { background: #059669; }
+.flip-mins .flip-digit-bottom, .flip-mins .flip-card-bottom { background: #065F46; }
+.flip-secs .flip-digit-top, .flip-secs .flip-card { background: #BE123C; }
+.flip-secs .flip-digit-bottom, .flip-secs .flip-card-bottom { background: #881337; }
+
+/* Tournament rotate transition */
+.tourney-showcase-slide {
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+.tourney-showcase-slide.fade-out {
+  opacity: 0;
+  transform: translateY(-6px);
+}
+.tourney-showcase-slide.fade-in {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+/* Dot indicators for tournament rotation */
+.showcase-dot {
+  width: 5px; height: 5px;
+  border-radius: 50%;
+  background: #CBD5E1;
+  transition: all 0.3s ease;
+  cursor: pointer;
+}
+.showcase-dot.active {
+  background: #0F2C59;
+  width: 16px;
+  border-radius: 3px;
+}
+
 /* Mobile Bottom Nav Unified White Styling */
 #mobile-bottom-nav > nav {
   background-color: rgba(255, 255, 255, 0.96) !important;

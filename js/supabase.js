@@ -1785,6 +1785,7 @@ const DEFAULT_POPUP_SETTINGS = {
   isWhatsAppPopupEnabled: true,
   isRealtimePlayerToastEnabled: true,
   isCountdownEnabled: true,
+  countdownTournamentSlugs: [],
   isYouTubePromoEnabled: true,
   promotedShopIds: ['maa-laxmi-kitchen'],
   promotedShopId: 'maa-laxmi-kitchen',
