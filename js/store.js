@@ -1388,16 +1388,6 @@ class Store {
     // 4. Filter out deleted player
     players = players.filter(p => p.id !== playerId && (!cleanPhone || (p.phone || '').replace(/\D/g, '') !== cleanPhone));
 
-    // 5. CONTINUOUS DYNAMIC RE-INDEXING (1, 2, 3... REG-0001, REG-0002...)
-    players.forEach((p, idx) => {
-      const displayNo = idx + 1;
-      p.serialNo = displayNo;
-      p.displayRegistrationNumber = displayNo;
-      const prefix = (p.tournamentSlug || 'REG').toUpperCase().replace(/[^A-Z0-9]/g, '');
-      p.registrationId = `${prefix}-${String(displayNo).padStart(4, '0')}`;
-      p.regNo = p.registrationId;
-    });
-
     this._invalidateCache('players');
     safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
     this.notify('players_updated');

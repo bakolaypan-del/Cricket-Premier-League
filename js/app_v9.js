@@ -1537,9 +1537,6 @@ function openRegistrationSuccessModal(details) {
           ${!details.isTeam ? `<button id="download-pass-btn" class="w-full py-2.5 bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-slate-950 font-black text-xs rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all">
             🎫 Download Player Pass
           </button>` : ''}
-          <a href="${WHATSAPP_GROUP_LINK}" target="_blank" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-xs rounded-xl shadow-lg flex items-center justify-center gap-2 transition-all">
-            💬 Join Official WhatsApp Group
-          </a>
           <button id="close-reg-success-btn" class="w-full py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl shadow">
             View Registered List
           </button>
@@ -1565,6 +1562,9 @@ function openRegistrationSuccessModal(details) {
   document.getElementById('download-pass-btn')?.addEventListener('click', () => {
     const player = details.playerData;
     if (player) {
+      const allPlayers = store.getPlayers();
+      const listIdx = allPlayers.findIndex(p => p.id === player.id);
+      player.displaySerial = listIdx >= 0 ? listIdx + 1 : '';
       const league = store.getLeagueById(player.leagueId || store.activeTournamentId);
       const team = player.teamId ? store.getTeamById(player.teamId) : null;
       printDigitalPass(player, league, team);
@@ -3655,7 +3655,7 @@ export function renderCustomTournamentHub(container, tourney) {
           ${displayPlayers.length > 0 ? `
             <div id="hub-players-grid" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
               ${displayPlayers.map((p, idx) => {
-                const serial = String(p.displayRegistrationNumber || p.serialNo || (idx + 1)).padStart(2, '0');
+                const serial = String(idx + 1).padStart(2, '0');
                 const isApproved = (p.registrationStatus || p.paymentStatus || '').toUpperCase().includes('APPROVED') || (p.registrationStatus || p.paymentStatus || '').toUpperCase().includes('VERIFIED') || p.verified === true;
                 const photo = p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png';
                 const regCode = `${(tourney.shortCode || 'JSL').toUpperCase()}-2026-${String(serial).padStart(4, '0')}`;
@@ -3949,7 +3949,7 @@ export function renderCustomTournamentHub(container, tourney) {
                                   <span class="font-black text-slate-900 block leading-tight truncate">
                                     ${p.name} ${isIcon ? '<span class="text-amber-600 font-bold text-[9px]">(ICON)</span>' : ''}
                                   </span>
-                                  <span class="text-[9px] text-slate-400 font-mono">#${p.displayRegistrationNumber || p.serialNo || (idx + 1)}</span>
+                                  <span class="text-[9px] text-slate-400 font-mono">#${idx + 1}</span>
                                 </div>
                               </div>
                             </td>
@@ -4910,7 +4910,7 @@ export function renderCustomTournamentHub(container, tourney) {
           ${teamSquad.map((p, pIdx) => {
             const soldAmt = Number(p.soldPrice) || Number(p.boughtPrice) || Number(p.basePrice) || 300;
             const photo = p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png';
-            const serial = String(p.displayRegistrationNumber || p.serialNo || (pIdx + 1)).padStart(2, '0');
+            const serial = String(pIdx + 1).padStart(2, '0');
 
             return `
               <div class="p-3 bg-white border border-slate-200/90 rounded-2xl flex items-center justify-between gap-3 shadow-xs hover:border-emerald-400 transition-all">
@@ -6718,8 +6718,8 @@ function openRegisteredPlayersModal(allPlayers = store.getPlayers()) {
 function renderPlayerCardsWithSerial(playersList) {
   return playersList.map((p, idx) => {
     const isApproved = (p.registrationStatus || p.paymentStatus) === 'APPROVED';
-    const trueSerial = p.displayRegistrationNumber || p.serialNo || (idx + 1);
-    const shortSerialNo = String(trueSerial).padStart(2, '0');
+    const listPosition = idx + 1;
+    const shortSerialNo = String(listPosition).padStart(2, '0');
     const photoSrc = getOptimizedImageUrl(p.photoUrl || p.player_photo_url || '', 280, 280);
 
     return `
@@ -6890,6 +6890,9 @@ function openFullPlayerProfileModal(player) {
   });
 
   document.getElementById('print-pass-btn')?.addEventListener('click', () => {
+    const allPlayers = store.getPlayers();
+    const listIdx = allPlayers.findIndex(p => p.id === player.id);
+    player.displaySerial = listIdx >= 0 ? listIdx + 1 : '';
     printDigitalPass(player, store.getLeagueById(player.leagueId || store.activeTournamentId), store.getTeamById(player.teamId));
   });
 }

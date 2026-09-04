@@ -3342,10 +3342,6 @@ function openAdminEditPlayerModal(player, containerEl) {
             </div>
 
             <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <div>
-                <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">Father's Name</label>
-                <input type="text" id="edit-ply-father-name" value="${player.fatherName || player.father_name || ''}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs font-bold rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-2xs" placeholder="Father / Guardian Name" />
-              </div>
               <div class="grid grid-cols-2 gap-2">
                 <div>
                   <label class="block text-[10px] font-bold text-slate-700 uppercase mb-0.5">DOB</label>

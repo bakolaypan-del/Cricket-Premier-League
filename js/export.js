@@ -423,6 +423,7 @@ export async function printDigitalPass(player, league, team) {
   }
 
   const serialNo = player.registrationId || player.regNo || 'REG-0001';
+  const displaySerial = player.displaySerial || player.listPosition || '';
   const rawPhoto = player.photoUrl || player.player_photo_url || 'assets/jsl_logo_white.jpg';
   const photoSrc = await preparePlayerPhotoForPDF(rawPhoto, 30, 350);
 
@@ -594,7 +595,7 @@ export async function printDigitalPass(player, league, team) {
             <img src="${photoSrc}" alt="${player.name}" crossorigin="anonymous" />
           </div>
           <div class="info-col">
-            <div class="serial-badge">REG NO: ${serialNo}</div>
+            <div class="serial-badge">REG NO: ${serialNo}</div>${displaySerial ? `<div style="font-size:9px;font-weight:800;color:#64748B;margin-top:3px;letter-spacing:0.5px;">Sl. No: ${displaySerial}</div>` : ''}
             <div class="player-name">${player.name}</div>
             <div class="player-category">${player.category || player.playingType || 'All Rounder'}</div>
             <div class="player-phone">📱 ${maskedPhone}</div>
