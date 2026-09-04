@@ -8122,6 +8122,14 @@ export function openAdminSquadManageModal(teamInput, onUpdated = null) {
 
   const team = store.getTeamById(teamId) || teamInput;
   const teamTourneyId = team.tournament_id || team.tournamentId || store.activeTournamentId;
+
+  const withTeamScope = (fn) => {
+    const prev = store.activeTournamentId;
+    if (teamTourneyId && prev !== teamTourneyId) { store.activeTournamentId = teamTourneyId; store._invalidateCache(); }
+    try { return fn(); } finally {
+      if (prev !== store.activeTournamentId) { store.activeTournamentId = prev; store._invalidateCache(); }
+    }
+  };
   const tourneyUUID = toUUID(teamTourneyId);
   const activeScopedPlayers = store.getPlayers() || [];
   const globalPlayers = store.getAllPlayersAcrossTournaments ? store.getAllPlayersAcrossTournaments() : activeScopedPlayers;
@@ -8293,7 +8301,7 @@ export function openAdminSquadManageModal(teamInput, onUpdated = null) {
       return;
     }
 
-    const addResult = store.assignPlayerToTeam(selPlayerId, team.id, price);
+    const addResult = withTeamScope(() => store.assignPlayerToTeam(selPlayerId, team.id, price));
     if (addResult && addResult.error === 'SQUAD_FULL') {
       alert(`❌ ${team.name} squad is FULL (${addResult.currentSquad}/${addResult.maxSquad} players).`);
       return;
@@ -8302,7 +8310,7 @@ export function openAdminSquadManageModal(teamInput, onUpdated = null) {
       alert(`❌ Insufficient purse (₹${addResult.remainingPurse} left, needs ₹${addResult.price}).`);
       return;
     }
-    const addedPlayer = store.getPlayerById(selPlayerId);
+    const addedPlayer = withTeamScope(() => store.getPlayerById(selPlayerId));
     alert(`✅ Added "${addedPlayer?.name || 'Player'}" to ${team.name} squad for ₹${price}!`);
     removeModal();
     refreshModal();
@@ -8315,8 +8323,8 @@ export function openAdminSquadManageModal(teamInput, onUpdated = null) {
       const inputEl = document.getElementById(`squad-edit-price-${pid}`);
       const newPrice = Number(inputEl?.value) || 300;
 
-      store.assignPlayerToTeam(pid, team.id, newPrice);
-      const playerObj = store.getPlayerById(pid);
+      withTeamScope(() => store.assignPlayerToTeam(pid, team.id, newPrice));
+      const playerObj = withTeamScope(() => store.getPlayerById(pid));
       alert(`✅ Updated bought price for "${playerObj?.name || 'Player'}" to ₹${newPrice}!`);
       removeModal();
       refreshModal();
@@ -8329,7 +8337,11 @@ export function openAdminSquadManageModal(teamInput, onUpdated = null) {
       const pid = e.currentTarget.getAttribute('data-remove-player-id');
       const pname = e.currentTarget.getAttribute('data-player-name');
       if (confirm(`Are you sure you want to remove "${pname}" from ${team.name} squad?\n\nThis will return the player to the Available/Unsold pool and refund their price back to the team purse.`)) {
-        store.unassignPlayerFromTeam(pid);
+        const result = withTeamScope(() => store.unassignPlayerFromTeam(pid));
+        if (result === false) {
+          alert(`⚠️ Could not remove "${pname}". Player not found in the registry. Try refreshing the page.`);
+          return;
+        }
         alert(`🗑️ Removed "${pname}" from ${team.name} squad!`);
         removeModal();
         refreshModal();

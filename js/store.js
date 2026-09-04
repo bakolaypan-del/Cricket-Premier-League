@@ -1679,7 +1679,10 @@ class Store {
     const players = this.getPlayers();
     const teams = this.getTeams();
     const player = players.find(p => p.id === playerId);
-    if (!player) return false;
+    if (!player) {
+      console.warn('[unassignPlayerFromTeam] Player not found in scoped list, id:', playerId);
+      return false;
+    }
 
     const now = Date.now();
 
