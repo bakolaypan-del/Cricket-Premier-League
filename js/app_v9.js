@@ -1610,15 +1610,32 @@ function renderNavbar() {
   navbarEl.classList.remove('hidden');
   navbarEl.className = "relative z-40 bg-white border-b border-slate-200/80 px-3 sm:px-4";
 
+  const isLoggedIn = !!store.getCurrentUser();
+  const activeNav = currentRoute;
+
+  const desktopNavItem = (id, label, route) => {
+    const isActive = activeNav === route;
+    return `<button id="${id}" class="px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${isActive ? 'bg-slate-100 text-slate-900 font-black' : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'}">${label}</button>`;
+  };
+
   navbarEl.innerHTML = `
     <div class="max-w-7xl mx-auto h-14 sm:h-16 flex items-center justify-between gap-3">
       <!-- Left: Header Image -->
-      <div class="cursor-pointer flex-1 min-w-0" id="brand-header-logo">
+      <div class="cursor-pointer shrink-0" id="brand-header-logo">
         <img src="assets/header.png" alt="OnlineCrickets" class="h-10 sm:h-12 w-auto object-contain" />
       </div>
 
+      <!-- Center: Desktop Nav Links (hidden on mobile) -->
+      <nav class="hidden sm:flex items-center gap-1">
+        ${desktopNavItem('nav-home-btn', 'Home', 'landing')}
+        ${desktopNavItem('nav-schedule-btn', 'Match Corner', 'fixtures')}
+        ${desktopNavItem('nav-auction-btn', 'Auction', 'auction')}
+        ${desktopNavItem('nav-career-btn', 'Player Stats', 'career')}
+        <button id="nav-host-saas-btn" class="px-3 py-1.5 rounded-lg text-xs font-bold text-amber-700 hover:text-amber-900 hover:bg-amber-50 transition-all cursor-pointer">Host</button>
+      </nav>
+
       <!-- Right: Profile Icon -->
-      <button id="nav-profile-btn" title="Login / Profile" class="w-10 h-10 sm:w-11 sm:h-11 rounded-full border-2 border-slate-200 bg-white hover:border-slate-300 flex items-center justify-center cursor-pointer transition-all active:scale-95 relative shrink-0">
+      <button id="nav-profile-btn" title="${isLoggedIn ? 'Profile' : 'Login'}" class="w-10 h-10 sm:w-11 sm:h-11 rounded-full border-2 border-slate-200 bg-white hover:border-slate-300 flex items-center justify-center cursor-pointer transition-all active:scale-95 relative shrink-0">
         <svg class="w-6 h-6 text-slate-600" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
           <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2"/>
           <circle cx="12" cy="7" r="4"/>
@@ -11313,20 +11330,37 @@ function renderLiveAuctionView(container) {
     const liveTourneyId = store.activeTournamentId;
     const liveTourneyUUID = toUUID(liveTourneyId);
 
+    const liveTourneyObj2 = store.getCustomTournaments().find(t => (t.supabaseId || t.id) === liveTourneyId || toUUID(t.supabaseId || t.id) === liveTourneyUUID) || {};
+    const liveTourneyCode2 = (liveTourneyObj2.category_code || liveTourneyObj2.code || liveTourneyObj2.category || liveTourneyObj2.shortCode || liveTourneyObj2.slug || '').toUpperCase();
+
     const allPlayersRaw = (store.getAllPlayersAcrossTournaments ? store.getAllPlayersAcrossTournaments() : store.getPlayers()).filter(p => p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED');
     const allPlayers = allPlayersRaw.filter(p => {
       if (!p) return false;
       const pTid = p.tournament_id || p.tournamentId || p.leagueId;
+      const pCode = (p.leagueCode || p.category_code || '').toUpperCase();
+      if (pTid && (pTid === liveTourneyId || toUUID(pTid) === liveTourneyUUID)) return true;
+      if (pCode && liveTourneyCode2 && pCode !== 'T') {
+        if (pCode === liveTourneyCode2) return true;
+        if (liveTourneyCode2 === 'KPL' && (pCode === 'K2026' || pCode === 'KPL')) return true;
+        if (liveTourneyCode2 === 'JSL' && (pCode === 'J2026' || pCode === 'JSL')) return true;
+      }
       if (!pTid) return true;
-      return pTid === liveTourneyId || toUUID(pTid) === liveTourneyUUID;
+      return false;
     });
 
     const allTeamsRaw = (store.getAllTeamsAcrossTournaments ? store.getAllTeamsAcrossTournaments() : store.getTeams());
     const teams = allTeamsRaw.filter(t => {
       if (!t) return false;
       const tId = t.tournament_id || t.tournamentId || t.leagueId;
+      const tCode = (t.leagueCode || t.category_code || '').toUpperCase();
+      if (tId && (tId === liveTourneyId || toUUID(tId) === liveTourneyUUID)) return true;
+      if (tCode && liveTourneyCode2 && tCode !== 'T') {
+        if (tCode === liveTourneyCode2) return true;
+        if (liveTourneyCode2 === 'KPL' && (tCode === 'K2026' || tCode === 'KPL')) return true;
+        if (liveTourneyCode2 === 'JSL' && (tCode === 'J2026' || tCode === 'JSL')) return true;
+      }
       if (!tId) return true;
-      return tId === liveTourneyId || toUUID(tId) === liveTourneyUUID;
+      return false;
     });
 
     const soldList = allPlayers.filter(p => p.teamId || p.auctionStatus === 'SOLD');
@@ -11813,20 +11847,37 @@ function renderLiveAuctionView(container) {
     const liveTourneyId = globalInfo.liveTournament?.id || globalInfo.liveTournament?.supabaseId || store.activeTournamentId;
     const liveTourneyUUID = toUUID(liveTourneyId);
 
+    const liveTourneyObj = globalInfo.liveTournament || {};
+    const liveTourneyCode = (liveTourneyObj.category_code || liveTourneyObj.code || liveTourneyObj.category || liveTourneyObj.shortCode || liveTourneyObj.slug || '').toUpperCase();
+
     const allTeamsRaw = (store.getAllTeamsAcrossTournaments ? store.getAllTeamsAcrossTournaments() : store.getTeams());
     const teams = allTeamsRaw.filter(t => {
       if (!t) return false;
       const tId = t.tournament_id || t.tournamentId || t.leagueId;
+      const tCode = (t.leagueCode || t.category_code || '').toUpperCase();
+      if (tId && (tId === liveTourneyId || toUUID(tId) === liveTourneyUUID)) return true;
+      if (tCode && liveTourneyCode && tCode !== 'T') {
+        if (tCode === liveTourneyCode) return true;
+        if (liveTourneyCode === 'KPL' && (tCode === 'K2026' || tCode === 'KPL')) return true;
+        if (liveTourneyCode === 'JSL' && (tCode === 'J2026' || tCode === 'JSL')) return true;
+      }
       if (!tId) return true;
-      return tId === liveTourneyId || toUUID(tId) === liveTourneyUUID;
+      return false;
     });
 
     const allPlayersRaw = (store.getAllPlayersAcrossTournaments ? store.getAllPlayersAcrossTournaments() : store.getPlayers());
     const allPlayers = allPlayersRaw.filter(p => {
       if (!p) return false;
       const pTid = p.tournament_id || p.tournamentId || p.leagueId;
+      const pCode = (p.leagueCode || p.category_code || '').toUpperCase();
+      if (pTid && (pTid === liveTourneyId || toUUID(pTid) === liveTourneyUUID)) return true;
+      if (pCode && liveTourneyCode && pCode !== 'T') {
+        if (pCode === liveTourneyCode) return true;
+        if (liveTourneyCode === 'KPL' && (pCode === 'K2026' || pCode === 'KPL')) return true;
+        if (liveTourneyCode === 'JSL' && (pCode === 'J2026' || pCode === 'JSL')) return true;
+      }
       if (!pTid) return true;
-      return pTid === liveTourneyId || toUUID(pTid) === liveTourneyUUID;
+      return false;
     });
 
     // 1. Render / Update Active Bidding Block
