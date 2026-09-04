@@ -3,7 +3,7 @@
 import { store } from './store.js?v=13.0.53';
 import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.53';
 import { renderAdminDashboard } from './admin.js?v=13.0.53';
-import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.53';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, fetchNoticeBoardFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.53';
 import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.53';
 import { shops } from './shopsData.js?v=12.0.2';
 
@@ -2244,6 +2244,12 @@ function renderFirstPageLanding(containerEl) {
             <span class="text-slate-300 text-[7px]">|</span>
             <span class="text-[8px] sm:text-[9px] font-bold text-emerald-700 flex items-center gap-0.5">📍 <span id="showcase-venue-text"></span></span>
           </p>
+          <div id="showcase-tourney-notice" class="hidden mt-1 mx-auto max-w-[280px] sm:max-w-xs">
+            <div class="inline-flex items-center gap-1 px-2 py-0.5 bg-red-50 border border-red-200/80 rounded-lg text-[8px] sm:text-[9px] font-bold text-red-700 leading-tight">
+              <span>📢</span>
+              <span id="showcase-notice-text" class="line-clamp-1"></span>
+            </div>
+          </div>
         </div>
 
         <!-- Full Page-Turn Flip Clock -->
@@ -5566,6 +5572,20 @@ export async function initTournamentCountdown() {
     featured = allTourneys.slice(0, 3);
   }
 
+  // Fetch notice boards for each featured tournament
+  const tourneyNotices = {};
+  for (const t of featured) {
+    try {
+      const tid = t.supabaseId || t.tournament_id || t.id;
+      if (tid) {
+        const nb = await fetchNoticeBoardFromCloud(tid);
+        if (nb && nb.active && nb.text) {
+          tourneyNotices[t.slug] = nb.text;
+        }
+      }
+    } catch(e) {}
+  }
+
   let currentIdx = 0;
   const pad = (n) => String(n).padStart(2, '0');
   let prevValues = { d: '--', h: '--', m: '--', s: '--' };
@@ -5614,6 +5634,14 @@ export async function initTournamentCountdown() {
       if (nameEl) nameEl.textContent = t.name || 'Tournament';
       if (dateEl) dateEl.textContent = t.kickoffDate ? new Date(t.kickoffDate + 'T09:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase() + ' • 9 AM' : 'COMING SOON';
       if (venueEl) venueEl.textContent = t.venue || 'TBA';
+
+      const noticeWrap = document.getElementById('showcase-tourney-notice');
+      const noticeTextEl = document.getElementById('showcase-notice-text');
+      if (noticeWrap && noticeTextEl) {
+        const notice = tourneyNotices[t.slug];
+        if (notice) { noticeTextEl.textContent = notice; noticeWrap.classList.remove('hidden'); }
+        else { noticeWrap.classList.add('hidden'); }
+      }
 
       // Update dots
       const dotsEl = document.getElementById('showcase-dots');
