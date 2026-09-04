@@ -459,6 +459,7 @@ export async function uploadHDImage(fileInput, folderName = 'documents') {
 
 // --- REALTIME PUSH EVENT LISTENER (SUPABASE REALTIME CHANNEL STUB) ---
 let activeRealtimeChannel = null;
+let globalBroadcastChannel = null;
 
 export async function initRealtimePushListener(onUpdateCallback, tournamentId) {
   if (!supabase) return null;
@@ -598,6 +599,15 @@ export async function initRealtimePushListener(onUpdateCallback, tournamentId) {
       });
 
     activeRealtimeChannel = channel;
+
+    // Keep a persistent global broadcast channel for cross-tournament notifications
+    if (tId && !globalBroadcastChannel) {
+      try {
+        globalBroadcastChannel = supabase.channel('cpl_realtime_global');
+        globalBroadcastChannel.subscribe(() => {});
+      } catch(e) {}
+    }
+
     return channel;
   } catch (err) {
     console.warn("[SUPABASE] initRealtimePushListener notice:", err);
@@ -1410,12 +1420,12 @@ export async function syncFixtureToSupabase(fixtureData, tournamentId = null) {
       console.warn("[SUPABASE] tournament format_config match save notice:", cfgErr);
     }
 
+    const broadcastPayload = { action: 'upsert', tournament_id: tournamentUUID, fixture: fixtureData };
     if (activeRealtimeChannel) {
-      activeRealtimeChannel.send({
-        type: 'broadcast',
-        event: 'fixture_update',
-        payload: { action: 'upsert', tournament_id: tournamentUUID, fixture: fixtureData }
-      }).catch(() => {});
+      activeRealtimeChannel.send({ type: 'broadcast', event: 'fixture_update', payload: broadcastPayload }).catch(() => {});
+    }
+    if (globalBroadcastChannel) {
+      globalBroadcastChannel.send({ type: 'broadcast', event: 'fixture_update', payload: broadcastPayload }).catch(() => {});
     }
 
     return fixtureData;
@@ -1438,20 +1448,20 @@ export function broadcastLiveScore(fixture, tournamentId) {
       soTeamAScore: ls.soTeamAScore, soTeamBScore: ls.soTeamBScore,
       ballHistory: ls.ballHistory ? ls.ballHistory.slice(-12) : []
     } : null;
-    activeRealtimeChannel.send({
-      type: 'broadcast',
-      event: 'live_score_update',
-      payload: {
-        fixtureId: fixture.id,
-        tournament_id: tournamentId || fixture.tournament_id || fixture.leagueId,
-        status: fixture.status,
-        result: fixture.result,
-        winnerTeamId: fixture.winnerTeamId,
-        inningsTiming: fixture.inningsTiming,
-        superOverData: fixture.superOverData,
-        liveMatchState: lite
-      }
-    }).catch(() => {});
+    const scorePayload = {
+      fixtureId: fixture.id,
+      tournament_id: tournamentId || fixture.tournament_id || fixture.leagueId,
+      status: fixture.status,
+      result: fixture.result,
+      winnerTeamId: fixture.winnerTeamId,
+      inningsTiming: fixture.inningsTiming,
+      superOverData: fixture.superOverData,
+      liveMatchState: lite
+    };
+    activeRealtimeChannel.send({ type: 'broadcast', event: 'live_score_update', payload: scorePayload }).catch(() => {});
+    if (globalBroadcastChannel) {
+      globalBroadcastChannel.send({ type: 'broadcast', event: 'live_score_update', payload: scorePayload }).catch(() => {});
+    }
   } catch (e) {}
 }
 
