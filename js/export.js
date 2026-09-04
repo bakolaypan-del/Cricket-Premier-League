@@ -1,5 +1,5 @@
-import { store } from './store.js?v=13.0.63';
-import { toUUID, getOptimizedImageUrl, compressImageToTarget } from './supabase.js?v=13.0.63';
+import { store } from './store.js?v=13.0.64';
+import { toUUID, getOptimizedImageUrl, compressImageToTarget } from './supabase.js?v=13.0.64';
 
 export async function preparePlayerPhotoForPDF(targetSrc, targetSizeKb = 30, maxDimension = 350) {
   if (!targetSrc) return '';
@@ -1516,12 +1516,12 @@ export function exportMatchScorecardPDF(fixture, tourney) {
   };
 
   // Innings 1 data
-  const inn1Score = fixture.teamAScore || { runs: state.runs || 0, wickets: state.wickets || 0, overs: state.overs || 0, balls: state.balls || 0 };
+  const inn1Score = fixture.teamAScore || (state.innings === 1 ? { runs: state.runs || 0, wickets: state.wickets || 0, overs: state.overs || 0, balls: state.balls || 0 } : { runs: 0, wickets: 0, overs: 0, balls: 0 });
   const inn1Batters = (fixture.teamABatting && fixture.teamABatting.length > 0) ? fixture.teamABatting : extractRealBatters(squadA);
   const inn1Bowlers = (fixture.teamBBowling && fixture.teamBBowling.length > 0) ? fixture.teamBBowling : extractRealBowlers(squadB);
 
   // Innings 2 data
-  const inn2Score = fixture.teamBScore || { runs: 0, wickets: 0, overs: 0, balls: 0 };
+  const inn2Score = fixture.teamBScore || (state.innings === 2 ? { runs: state.runs || 0, wickets: state.wickets || 0, overs: state.overs || 0, balls: state.balls || 0 } : { runs: 0, wickets: 0, overs: 0, balls: 0 });
   const inn2Batters = (fixture.teamBBatting && fixture.teamBBatting.length > 0) ? fixture.teamBBatting : extractRealBatters(squadB);
   const inn2Bowlers = (fixture.teamABowling && fixture.teamABowling.length > 0) ? fixture.teamABowling : extractRealBowlers(squadA);
 
@@ -1647,7 +1647,7 @@ export function exportMatchScorecardPDF(fixture, tourney) {
               ${inn1Bowlers.map(bw => `
                 <tr>
                   <td class="font-bold">${bw.name}</td>
-                  <td class="text-right font-mono">${bw.overs || '4.0'}</td>
+                  <td class="text-right font-mono">${bw.overs || '0.0'}</td>
                   <td class="text-right font-mono">${bw.maidens || 0}</td>
                   <td class="text-right font-bold font-mono">${bw.runs || 0}</td>
                   <td class="text-right font-bold font-mono" style="color:#047857;">${bw.wickets || 0}</td>
@@ -1711,7 +1711,7 @@ export function exportMatchScorecardPDF(fixture, tourney) {
               ${inn2Bowlers.map(bw => `
                 <tr>
                   <td class="font-bold">${bw.name}</td>
-                  <td class="text-right font-mono">${bw.overs || '4.0'}</td>
+                  <td class="text-right font-mono">${bw.overs || '0.0'}</td>
                   <td class="text-right font-mono">${bw.maidens || 0}</td>
                   <td class="text-right font-bold font-mono">${bw.runs || 0}</td>
                   <td class="text-right font-bold font-mono" style="color:#047857;">${bw.wickets || 0}</td>

@@ -1,9 +1,9 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=13.0.63';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.63';
-import { renderAdminDashboard } from './admin.js?v=13.0.63';
-import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, fetchNoticeBoardFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.63';
+import { store } from './store.js?v=13.0.64';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.64';
+import { renderAdminDashboard } from './admin.js?v=13.0.64';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, fetchNoticeBoardFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.64';
 import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.53';
 import { shops } from './shopsData.js?v=12.0.2';
 
@@ -10179,15 +10179,18 @@ export function openMatchCenterModal(fixtureId) {
       const strikerSR = (strikerStat.balls > 0) ? (((strikerStat.runs || 0) / strikerStat.balls) * 100).toFixed(1) : '0.0';
       const nonStrikerSR = (nonStrikerStat.balls > 0) ? (((nonStrikerStat.runs || 0) / nonStrikerStat.balls) * 100).toFixed(1) : '0.0';
 
-      const pshipRuns = (strikerStat.runs || 0) + (nonStrikerStat.runs || 0);
+      let pshipRuns = 0;
       let pshipBalls = 0;
-      if (Array.isArray(state.ballHistory)) {
+      if (Array.isArray(state.ballHistory) && state.ballHistory.length > 0) {
         for (const b of state.ballHistory) {
+          if (Number(b.innings || 1) !== Number(state.innings || 1)) break;
           const bType = b.ballType || b.type || '';
           if (bType === 'wicket' || b.label === 'W') break;
+          pshipRuns += (Number(b.runs) || 0);
           if (bType !== 'wide' && bType !== 'noball') pshipBalls++;
         }
       } else {
+        pshipRuns = (strikerStat.runs || 0) + (nonStrikerStat.runs || 0);
         pshipBalls = (state.overs || 0) * 6 + (state.balls || 0);
       }
 
@@ -10253,7 +10256,7 @@ export function openMatchCenterModal(fixtureId) {
                       </div>
                       <span class="text-xs font-black font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">${inn1Score.runs || 0}/${inn1Score.wickets || 0} (${inn1Score.overs || 0}.${inn1Score.balls || 0} ov)</span>
                     </div>
-                    <div class="text-[11px] font-semibold text-slate-500">Run Rate: <strong class="font-mono text-slate-800">${inn1Score.overs ? ((inn1Score.runs / ((inn1Score.overs * 6) + (inn1Score.balls || 0))) * 6).toFixed(2) : '0.00'}</strong></div>
+                    <div class="text-[11px] font-semibold text-slate-500">Run Rate: <strong class="font-mono text-slate-800">${(((inn1Score.overs || 0) * 6) + (inn1Score.balls || 0)) > 0 ? ((inn1Score.runs / (((inn1Score.overs || 0) * 6) + (inn1Score.balls || 0))) * 6).toFixed(2) : '0.00'}</strong></div>
                   </div>
 
                   <!-- Innings 2 -->
@@ -10265,7 +10268,7 @@ export function openMatchCenterModal(fixtureId) {
                       </div>
                       <span class="text-xs font-black font-mono text-sky-700 bg-sky-50 px-2 py-0.5 rounded-lg border border-sky-200">${inn2Score.runs || 0}/${inn2Score.wickets || 0} (${inn2Score.overs || 0}.${inn2Score.balls || 0} ov)</span>
                     </div>
-                    <div class="text-[11px] font-semibold text-slate-500">Run Rate: <strong class="font-mono text-slate-800">${inn2Score.overs ? ((inn2Score.runs / ((inn2Score.overs * 6) + (inn2Score.balls || 0))) * 6).toFixed(2) : '0.00'}</strong></div>
+                    <div class="text-[11px] font-semibold text-slate-500">Run Rate: <strong class="font-mono text-slate-800">${(((inn2Score.overs || 0) * 6) + (inn2Score.balls || 0)) > 0 ? ((inn2Score.runs / (((inn2Score.overs || 0) * 6) + (inn2Score.balls || 0))) * 6).toFixed(2) : '0.00'}</strong></div>
                   </div>
                 </div>
 
@@ -10550,7 +10553,7 @@ export function openMatchCenterModal(fixtureId) {
       const battingPlayers = isTeamAInnings ? playing11A : playing11B;
       const bowlingPlayers = isTeamAInnings ? playing11B : playing11A;
 
-      const inningsScore = isTeamAInnings ? (fixture.teamAScore || state) : (fixture.teamBScore || state);
+      const inningsScore = isTeamAInnings ? (fixture.teamAScore || (state.innings === 1 ? state : { runs: 0, wickets: 0, overs: 0, balls: 0, extras: 0 })) : (fixture.teamBScore || (state.innings === 2 ? state : { runs: 0, wickets: 0, overs: 0, balls: 0, extras: 0 }));
 
       contentArea.innerHTML = `
         <div class="space-y-3.5 animate-fade-in">
@@ -10596,12 +10599,13 @@ export function openMatchCenterModal(fixtureId) {
                       if (b.nonStrikerId && firstSeenMap[b.nonStrikerId] === undefined) firstSeenMap[b.nonStrikerId] = idx;
                     });
 
+                    const isCurrentInningsActive = Number(state.innings || 1) === Number(activeScorecardInnings);
                     const orderedBatting = [...(battingPlayers || [])].sort((a, b) => {
                       const statA = pStats[a.id] || {};
                       const statB = pStats[b.id] || {};
 
-                      const hasBattedA = (statA.balls > 0 || statA.runs > 0 || statA.dismissed || state.strikerId === a.id || state.nonStrikerId === a.id);
-                      const hasBattedB = (statB.balls > 0 || statB.runs > 0 || statB.dismissed || state.strikerId === b.id || state.nonStrikerId === b.id);
+                      const hasBattedA = (statA.balls > 0 || statA.runs > 0 || statA.dismissed || (isCurrentInningsActive && (state.strikerId === a.id || state.nonStrikerId === a.id)));
+                      const hasBattedB = (statB.balls > 0 || statB.runs > 0 || statB.dismissed || (isCurrentInningsActive && (state.strikerId === b.id || state.nonStrikerId === b.id)));
 
                       if (hasBattedA && !hasBattedB) return -1;
                       if (!hasBattedA && hasBattedB) return 1;
@@ -10620,7 +10624,7 @@ export function openMatchCenterModal(fixtureId) {
 
                     return orderedBatting.map((p, idx) => {
                       const stat = pStats[p.id] || {};
-                      const hasBatted = (stat.balls > 0 || stat.runs > 0 || stat.dismissed || state.strikerId === p.id || state.nonStrikerId === p.id);
+                      const hasBatted = (stat.balls > 0 || stat.runs > 0 || stat.dismissed || (isCurrentInningsActive && (state.strikerId === p.id || state.nonStrikerId === p.id)));
                       const isOut = stat.dismissed;
                       const sr = stat.balls > 0 ? (((stat.runs || 0) / stat.balls) * 100).toFixed(1) : '-';
                       const dismissalTxt = isOut ? `out (${stat.dismissalInfo || 'Dismissed'})` : (hasBatted ? `<span class="text-emerald-700 font-bold">not out *</span>` : `<span class="text-slate-400 font-normal">did not bat</span>`);
@@ -10673,7 +10677,7 @@ export function openMatchCenterModal(fixtureId) {
                   </tr>
                 </thead>
                 <tbody class="divide-y divide-slate-100 font-bold">
-                  ${bowlingPlayers.filter(p => (pStats[p.id]?.ballsBowled > 0 || state.bowlerId === p.id)).map(p => {
+                  ${bowlingPlayers.filter(p => (pStats[p.id]?.ballsBowled > 0 || (Number(state.innings || 1) === Number(activeScorecardInnings) && state.bowlerId === p.id))).map(p => {
                     const stat = pStats[p.id] || {};
                     const bBalls = stat.ballsBowled || 0;
                     const bOvs = `${Math.floor(bBalls / 6)}.${bBalls % 6}`;

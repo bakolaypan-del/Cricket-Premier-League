@@ -1,8 +1,8 @@
 // Admin Master Data & Payment Verification Panel with Single Source Cloud Control (Developer: Suman Kolay)
 
-import { store } from './store.js?v=13.0.63';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportMatchScorecardPNG, exportFullMatchSummaryPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.63';
-import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID, compressImageToTarget, saveScorecardsToSupabase } from './supabase.js?v=13.0.63';
+import { store } from './store.js?v=13.0.64';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportMatchScorecardPNG, exportFullMatchSummaryPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.64';
+import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID, compressImageToTarget, saveScorecardsToSupabase } from './supabase.js?v=13.0.64';
 import { shops } from './shopsData.js?v=12.0.2';
 
 let activeAdminTab = (() => { try { return sessionStorage.getItem('cpl_admin_tab') || (store.isMasterAdmin() ? 'payments' : 'overview'); } catch(e) { return 'payments'; } })();
@@ -4856,20 +4856,8 @@ function renderScorerActivePanel() {
           return alert("Innings 2 is already in progress or completed!");
         }
         if (confirm(`Confirm Close Innings 1?\n\n${battingTeamName} scored ${state.runs}/${state.wickets} in ${state.overs}.${state.balls} overs.\nTarget for ${bowlingTeamName} will be ${state.runs + 1} runs.`)) {
-          fixture.liveMatchState.innings = 2;
-          fixture.liveMatchState.target = fixture.liveMatchState.runs + 1;
-          fixture.liveMatchState.strikerId = '';
-          fixture.liveMatchState.nonStrikerId = '';
-          fixture.liveMatchState.bowlerId = '';
-          fixture.liveMatchState.runs = 0;
-          fixture.liveMatchState.wickets = 0;
-          fixture.liveMatchState.overs = 0;
-          fixture.liveMatchState.balls = 0;
-          fixture.liveMatchState.overBalls = [];
-          fixture.liveMatchState.currentOverBowlerRuns = 0;
-          store.updateFixture(fixture);
-          renderScorerActivePanel();
-          alert(`✅ Innings 1 Closed! Target set to ${fixture.liveMatchState.target}. Now select new opening batsmen and bowler for Innings 2.`);
+          fixture.teamAScore = { runs: state.runs, wickets: state.wickets, overs: state.overs, balls: state.balls, extras: state.extras || 0 };
+          endInningsOrFinishMatch(fixture);
         }
       }
     };
@@ -4878,37 +4866,14 @@ function renderScorerActivePanel() {
   const finishMatchBtn = document.getElementById('scorer-finish-match-btn');
   if (finishMatchBtn) {
     finishMatchBtn.onclick = () => {
+      if (!fixture || !fixture.liveMatchState) return alert("No active match to finalize.");
       if (confirm("🏆 Are you sure you want to finalize this match and record the official result?")) {
-        let winnerId = null;
-        let resultTxt = 'Match Tied';
-
-        const teamAScore = fixture.teamAScore || { runs: 0, wickets: 0 };
-        const teamBScore = fixture.teamBScore || { runs: 0, wickets: 0 };
-
-        if (teamAScore.runs === teamBScore.runs && !fixture.liveMatchState?.isSuperOver) {
-          openTieResolutionModal(fixture, false, 1);
-          return;
+        if (fixture.liveMatchState.innings === 2) {
+          fixture.teamBScore = { runs: state.runs, wickets: state.wickets, overs: state.overs, balls: state.balls, extras: state.extras || 0 };
+        } else {
+          fixture.teamAScore = { runs: state.runs, wickets: state.wickets, overs: state.overs, balls: state.balls, extras: state.extras || 0 };
         }
-
-        if (teamAScore.runs > teamBScore.runs) {
-          winnerId = fixture.teamAId;
-          resultTxt = `${fixture.teamAName} won by ${teamAScore.runs - teamBScore.runs} runs`;
-        } else if (teamBScore.runs > teamAScore.runs) {
-          winnerId = fixture.teamBId;
-          resultTxt = `${fixture.teamBName} won by ${10 - teamBScore.wickets} wickets`;
-        }
-
-        fixture.status = 'COMPLETED';
-        fixture.endedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        fixture.result = resultTxt;
-        fixture.winnerTeamId = winnerId;
-
-        store.updateFixture(fixture);
-        saveScorecardsToSupabase(fixture);
-        document.getElementById('scorer-active-panel')?.classList.add('hidden');
-        renderScorerMatchesList();
-        renderAdminFixturesList();
-        alert(`🎉 Match Completed!\n\nResult: ${resultTxt}`);
+        endInningsOrFinishMatch(fixture);
       }
     };
   }
@@ -5333,10 +5298,12 @@ function endInningsOrFinishMatch(fixture) {
   let winnerId = null, resultTxt = 'Match Tied';
   if (teamAScore.runs > teamBScore.runs) {
     winnerId = fixture.teamAId;
-    resultTxt = `${fixture.teamAName} won by ${teamAScore.runs - teamBScore.runs} runs`;
+    const marginRuns = teamAScore.runs - teamBScore.runs;
+    resultTxt = `${fixture.teamAName} won by ${marginRuns} ${marginRuns === 1 ? 'run' : 'runs'}`;
   } else if (teamBScore.runs > teamAScore.runs) {
     winnerId = fixture.teamBId;
-    resultTxt = `${fixture.teamBName} won by ${10 - (teamBScore.wickets || 0)} wickets`;
+    const marginWickets = Math.max(1, 10 - (teamBScore.wickets || 0));
+    resultTxt = `${fixture.teamBName} won by ${marginWickets} ${marginWickets === 1 ? 'wicket' : 'wickets'}`;
   }
   // Capture innings 2 end time
   if (!fixture.inningsTiming) fixture.inningsTiming = {};
@@ -5596,9 +5563,18 @@ function processScorerBall(runsScored) {
       state.overBalls = [];   // fresh over -> empty "This Over Deliveries" ticker
       overJustCompleted = true;
 
-      const temp = state.strikerId;   // batsmen cross at the end of the over
-      state.strikerId = state.nonStrikerId;
-      state.nonStrikerId = temp;
+      // Cricket Rule for Over Completion:
+      // If odd runs (1 or 3) were run on the 6th delivery: batsmen crossed ends, and then
+      // the over ended (swapping ends again) -> net result: the batter who ran the single
+      // is at the striker's end for the new over!
+      // If even runs (0, 2, 4, 6) were scored: batsmen did NOT cross, but over ends ->
+      // non-striker faces the next over (ends swapped).
+      const isOddRuns = (runsScored === 1 || runsScored === 3);
+      if (!isOddRuns) {
+        const temp = state.strikerId;
+        state.strikerId = state.nonStrikerId;
+        state.nonStrikerId = temp;
+      }
     } else if (runsScored === 1 || runsScored === 3) {
       const temp = state.strikerId;
       state.strikerId = state.nonStrikerId;
@@ -5639,6 +5615,12 @@ function processScorerBall(runsScored) {
     label: ballLabel,
     type: ballType,
     runs: totalBallRuns,
+    strikerId: strikerId,
+    nonStrikerId: nonStrikerId,
+    bowlerId: bowlerId,
+    prevStrikerId: strikerId,
+    prevNonStrikerId: nonStrikerId,
+    prevBowlerId: bowlerId,
     bowlerName: bowlerName,
     batterName: strikerName,
     batterScore: `${strikerStat.runs || 0}(${strikerStat.balls || 0})`,
@@ -6007,6 +5989,13 @@ function openScorerWicketModal() {
     const maxWickets = state.isSuperOver ? 2 : 10;
     const oversLimit = state.isSuperOver ? 1 : (Number(fixture.oversLimit) || 16);
     if (state.wickets >= maxWickets || state.overs >= oversLimit) {
+      endInningsOrFinishMatch(fixture);
+      return;
+    }
+
+    // 2nd innings target chased on this ball (e.g. wide/no-ball or run completed before run out) -> finish match immediately
+    const isChasing = state.isSuperOver ? (state.superOverInnings === 2) : (state.innings === 2);
+    if (isChasing && state.target && state.runs >= state.target) {
       endInningsOrFinishMatch(fixture);
       return;
     }
@@ -9822,21 +9811,26 @@ window.undoLastBall = function() {
 
   if (isNoBall) state.freeHit = false;
 
-  const strikerId = state.strikerId;
-  if (strikerId && state.playerStats && state.playerStats[strikerId]) {
+  const targetStrikerId = lastBall.strikerId || state.strikerId;
+  if (targetStrikerId && state.playerStats && state.playerStats[targetStrikerId]) {
     if (!isWide && !isBye && !isLegBye) {
-      state.playerStats[strikerId].runs = Math.max(0, (state.playerStats[strikerId].runs || 0) - batRuns);
-      if (batRuns === 4) state.playerStats[strikerId].fours = Math.max(0, (state.playerStats[strikerId].fours || 0) - 1);
-      if (batRuns === 6) state.playerStats[strikerId].sixes = Math.max(0, (state.playerStats[strikerId].sixes || 0) - 1);
+      state.playerStats[targetStrikerId].runs = Math.max(0, (state.playerStats[targetStrikerId].runs || 0) - batRuns);
+      if (batRuns === 4) state.playerStats[targetStrikerId].fours = Math.max(0, (state.playerStats[targetStrikerId].fours || 0) - 1);
+      if (batRuns === 6) state.playerStats[targetStrikerId].sixes = Math.max(0, (state.playerStats[targetStrikerId].sixes || 0) - 1);
     }
-    if (isValidBall) state.playerStats[strikerId].balls = Math.max(0, (state.playerStats[strikerId].balls || 0) - 1);
+    if (isValidBall) state.playerStats[targetStrikerId].balls = Math.max(0, (state.playerStats[targetStrikerId].balls || 0) - 1);
   }
 
-  const bowlerId = state.bowlerId;
-  if (bowlerId && state.playerStats && state.playerStats[bowlerId]) {
-    if (isValidBall) state.playerStats[bowlerId].ballsBowled = Math.max(0, (state.playerStats[bowlerId].ballsBowled || 0) - 1);
-    if (!isBye && !isLegBye) state.playerStats[bowlerId].runsConceded = Math.max(0, (state.playerStats[bowlerId].runsConceded || 0) - runs);
+  const targetBowlerId = lastBall.bowlerId || state.bowlerId;
+  if (targetBowlerId && state.playerStats && state.playerStats[targetBowlerId]) {
+    if (isValidBall) state.playerStats[targetBowlerId].ballsBowled = Math.max(0, (state.playerStats[targetBowlerId].ballsBowled || 0) - 1);
+    if (!isBye && !isLegBye) state.playerStats[targetBowlerId].runsConceded = Math.max(0, (state.playerStats[targetBowlerId].runsConceded || 0) - runs);
   }
+
+  // Restore striker, non-striker, and bowler positions from before this delivery
+  if (lastBall.prevStrikerId) state.strikerId = lastBall.prevStrikerId;
+  if (lastBall.prevNonStrikerId) state.nonStrikerId = lastBall.prevNonStrikerId;
+  if (lastBall.prevBowlerId) state.bowlerId = lastBall.prevBowlerId;
 
   if (Array.isArray(state.overBalls) && state.overBalls.length > 0) state.overBalls.pop();
   if (Array.isArray(state.ballHistory) && state.ballHistory.length > 0) state.ballHistory.shift();

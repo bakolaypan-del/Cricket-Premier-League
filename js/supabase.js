@@ -1670,7 +1670,7 @@ export async function saveScorecardsToSupabase(fixture, tournamentId = null) {
         match_id: matchUUID,
         player_id: playerUUID,
         team_id: teamId,
-        innings: 1,
+        innings: (fixture.teamBId && (playerObj?.teamId === fixture.teamBId || (toUUID(playerObj?.teamId) && toUUID(playerObj?.teamId) === toUUID(fixture.teamBId)))) ? 2 : 1,
         runs: Number(stats.runs) || 0,
         balls: ballsFaced,
         fours: Number(stats.fours) || 0,
