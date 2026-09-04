@@ -797,12 +797,11 @@ export function renderAdminDashboard(containerEl) {
                 </h4>
                 <div>
                   <label class="block text-xs font-bold text-slate-600 mb-1">SELECT APPROVED PLAYER FROM QUEUE</label>
-                  <select id="auction-select-player" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold">
+                  <input type="text" id="auction-player-search" placeholder="🔍 Search player by name, role..." class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 mb-1.5 font-bold focus:border-amber-500 focus:outline-none shadow-sm" />
+                  <select id="auction-select-player" size="6" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-1 font-bold overflow-y-auto">
                     <option value="">-- Choose Player to Preview & Set Price --</option>
-                    ${players.filter(p => (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED') && !p.teamId && p.auctionStatus !== 'SOLD').map(p => {
-                      const sNo = p.displayRegistrationNumber || p.serialNo || '';
-                      const sNoPrefix = sNo ? `[#${String(sNo).padStart(2, '0')}] ` : '';
-                      return `<option value="${p.id}">${sNoPrefix}${p.name} (${p.category || 'All Rounder'})</option>`;
+                    ${players.filter(p => (p.registrationStatus === 'APPROVED' || p.paymentStatus === 'APPROVED') && !p.teamId && p.auctionStatus !== 'SOLD').map((p, idx) => {
+                      return `<option value="${p.id}">#${idx + 1} ${p.name} (${p.category || 'All Rounder'}) - ${p.village || 'Local'}</option>`;
                     }).join('')}
                   </select>
                 </div>
@@ -2411,6 +2410,17 @@ export function renderAdminDashboard(containerEl) {
   };
 
   window.addEventListener('cpl_players_updated', updateAuctionPlayerSelectDropdown);
+
+  // Auction player search filter
+  document.getElementById('auction-player-search')?.addEventListener('input', (e) => {
+    const query = e.target.value.trim().toLowerCase();
+    const select = document.getElementById('auction-select-player');
+    if (!select) return;
+    for (const opt of select.options) {
+      if (opt.value === '') { opt.hidden = false; continue; }
+      opt.hidden = query ? !opt.textContent.toLowerCase().includes(query) : false;
+    }
+  });
 
   // Bind Put Player on block player select change listener
   const playerSelectEl = document.getElementById('auction-select-player');
@@ -8464,15 +8474,19 @@ export function openEditTeamModal(team = null, onSaved = null) {
 
             <div>
               <label class="block text-[10px] font-bold text-slate-700 uppercase mb-1">Select Icon Player from Approved Registry</label>
-              <select id="edit-icon-select" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-sm">
+              <input type="text" id="edit-icon-search" placeholder="🔍 Search player by name, role, or village..." class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 mb-1.5 focus:border-emerald-500 focus:outline-none shadow-sm" />
+              <select id="edit-icon-select" size="8" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-1 focus:border-emerald-500 focus:outline-none shadow-sm overflow-y-auto">
                 <option value="">-- No Icon Player Assigned --</option>
                 <option value="__CUSTOM__" ${!isNew && team.iconPlayerName && !store.getPlayers().some(p => p.name === team.iconPlayerName) ? 'selected' : ''}>✍️ Custom Name / Outside Registry</option>
-                ${store.getPlayers().map(p => `
+                ${store.getPlayers().map((p, idx) => `
                   <option value="${p.id}" data-name="${p.name}" data-photo="${p.photoUrl || p.player_photo_url || ''}" ${!isNew && (team.iconPlayerId === p.id || team.iconPlayerName === p.name) ? 'selected' : ''}>
-                    ${p.name} (${p.category || 'All-Rounder'}) - ${p.village || 'Local'}
+                    #${idx + 1} ${p.name} (${p.category || 'All-Rounder'}) - ${p.village || 'Local'}
                   </option>
                 `).join('')}
               </select>
+              <div id="edit-icon-selected-display" class="mt-1 text-[10px] font-bold text-emerald-700 ${isNew ? 'hidden' : ''}">
+                ${!isNew && (team.iconPlayerName) ? `✅ Selected: ${team.iconPlayerName}` : ''}
+              </div>
             </div>
 
             <div id="custom-icon-name-wrapper" class="${(!isNew && team.iconPlayerName && !store.getPlayers().some(p => p.name === team.iconPlayerName)) ? '' : 'hidden'} space-y-2">
@@ -8681,6 +8695,17 @@ export function openEditTeamModal(team = null, onSaved = null) {
     );
   });
 
+  // Icon Player Search Filter
+  document.getElementById('edit-icon-search')?.addEventListener('input', (e) => {
+    const query = e.target.value.trim().toLowerCase();
+    const select = document.getElementById('edit-icon-select');
+    if (!select) return;
+    for (const opt of select.options) {
+      if (opt.value === '' || opt.value === '__CUSTOM__') { opt.hidden = false; continue; }
+      opt.hidden = query ? !opt.textContent.toLowerCase().includes(query) : false;
+    }
+  });
+
   // Icon Select Dropdown Change Handler
   document.getElementById('edit-icon-select')?.addEventListener('change', (e) => {
     const val = e.target.value;
@@ -8688,13 +8713,16 @@ export function openEditTeamModal(team = null, onSaved = null) {
     const nameInput = document.getElementById('edit-icon-name');
     const preview = document.getElementById('edit-icon-photo-preview');
 
+    const selectedDisplay = document.getElementById('edit-icon-selected-display');
     if (val === '__CUSTOM__') {
       if (customWrapper) customWrapper.classList.remove('hidden');
+      if (selectedDisplay) { selectedDisplay.textContent = '✍️ Custom player selected'; selectedDisplay.classList.remove('hidden'); }
     } else if (val === '') {
       if (customWrapper) customWrapper.classList.add('hidden');
       if (nameInput) nameInput.value = '';
       iconPhotoData = '';
       if (preview) preview.src = 'assets/player_jsl_hd.jpg';
+      if (selectedDisplay) selectedDisplay.classList.add('hidden');
     } else {
       if (customWrapper) customWrapper.classList.add('hidden');
       const selectedOption = e.target.options[e.target.selectedIndex];
@@ -8705,6 +8733,7 @@ export function openEditTeamModal(team = null, onSaved = null) {
         iconPhotoData = pPhoto;
         if (preview) preview.src = pPhoto;
       }
+      if (selectedDisplay) { selectedDisplay.textContent = '✅ Selected: ' + pName; selectedDisplay.classList.remove('hidden'); }
     }
   });
 
