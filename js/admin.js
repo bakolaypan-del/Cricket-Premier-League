@@ -1507,6 +1507,36 @@ export function renderAdminDashboard(containerEl) {
               </div>
             </div>
 
+            <!-- Payment & UPI Settings Card -->
+            <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3.5">
+              <div class="text-xs font-black text-slate-900 uppercase tracking-wide flex items-center gap-2">
+                <i data-lucide="credit-card" class="w-4 h-4 text-rose-500"></i> Registration Payment Settings (UPI & QR Code)
+              </div>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label class="text-[11px] font-extrabold text-slate-700 uppercase">UPI ID (Player Registration Payment)</label>
+                  <input type="text" id="tourney-upi-id-input" value="${curTourneyObj.upiId || ''}" placeholder="e.g. yourname@ybl" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-mono font-bold focus:border-emerald-500 focus:outline-none" />
+                </div>
+                <div>
+                  <label class="text-[11px] font-extrabold text-slate-700 uppercase">Payment QR Code Image URL</label>
+                  <div class="flex items-center gap-2">
+                    <input type="text" id="tourney-qr-url-input" value="${curTourneyObj.paymentQrUrl || ''}" placeholder="e.g. assets/qr.jpg or https://..." class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-mono font-bold focus:border-emerald-500 focus:outline-none" />
+                    <label class="px-3 py-2.5 bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold rounded-xl cursor-pointer shrink-0 flex items-center gap-1 transition-all">
+                      <i data-lucide="upload" class="w-3.5 h-3.5"></i> Upload
+                      <input type="file" id="tourney-qr-file-input" accept="image/*" class="hidden" />
+                    </label>
+                  </div>
+                </div>
+              </div>
+              <div id="tourney-qr-preview-container" class="${curTourneyObj.paymentQrUrl ? '' : 'hidden'} flex items-center gap-3 bg-white p-2.5 rounded-xl border border-slate-200">
+                <img id="tourney-qr-preview-img" src="${curTourneyObj.paymentQrUrl || ''}" class="w-20 h-20 rounded-lg object-contain border border-slate-200 bg-slate-50" />
+                <div class="text-[11px] text-slate-500 space-y-0.5">
+                  <p class="font-bold text-slate-700">Current Payment QR Code</p>
+                  <p>This QR is shown to players on the registration form for payment.</p>
+                </div>
+              </div>
+            </div>
+
             <!-- Venue, Dates & Rule Restrictions Card -->
             <div class="p-4 bg-slate-50 border border-slate-200 rounded-2xl space-y-3.5">
               <div class="text-xs font-black text-slate-900 uppercase tracking-wide flex items-center gap-2">
@@ -2011,6 +2041,8 @@ export function renderAdminDashboard(containerEl) {
       const venue = containerEl.querySelector('#tourney-venue-input')?.value?.trim() || '';
       const dates = containerEl.querySelector('#tourney-dates-input')?.value?.trim() || '';
       const ruleRestriction = containerEl.querySelector('#tourney-rules-input')?.value?.trim() || '';
+      const upiId = containerEl.querySelector('#tourney-upi-id-input')?.value?.trim() || '';
+      const paymentQrUrl = containerEl.querySelector('#tourney-qr-url-input')?.value?.trim() || '';
 
       const updatedData = {
         ...curTourneyObj,
@@ -2034,7 +2066,9 @@ export function renderAdminDashboard(containerEl) {
         prizeRunners,
         venue,
         dates,
-        ruleRestriction
+        ruleRestriction,
+        upiId,
+        paymentQrUrl
       };
 
       if (store.saveCustomTournament) {
@@ -2090,6 +2124,42 @@ export function renderAdminDashboard(containerEl) {
         },
         1
       );
+    });
+  }
+
+  // QR Code upload & live preview
+  const qrFileInput = containerEl.querySelector('#tourney-qr-file-input');
+  const qrUrlInput = containerEl.querySelector('#tourney-qr-url-input');
+  const qrPreviewImg = containerEl.querySelector('#tourney-qr-preview-img');
+  const qrPreviewContainer = containerEl.querySelector('#tourney-qr-preview-container');
+
+  if (qrFileInput && qrUrlInput) {
+    qrFileInput.addEventListener('change', () => {
+      handlePhotoSelectAndCDNUpload(
+        qrFileInput,
+        qrPreviewImg,
+        null,
+        'payment_qr',
+        `Upload Payment QR Code`,
+        (cdnUrl) => {
+          qrUrlInput.value = cdnUrl;
+          if (qrPreviewImg) qrPreviewImg.src = cdnUrl;
+          if (qrPreviewContainer) qrPreviewContainer.classList.remove('hidden');
+        },
+        1
+      );
+    });
+  }
+
+  if (qrUrlInput) {
+    qrUrlInput.addEventListener('input', () => {
+      const url = qrUrlInput.value.trim();
+      if (url) {
+        if (qrPreviewImg) qrPreviewImg.src = url;
+        if (qrPreviewContainer) qrPreviewContainer.classList.remove('hidden');
+      } else {
+        if (qrPreviewContainer) qrPreviewContainer.classList.add('hidden');
+      }
     });
   }
 
@@ -9189,6 +9259,49 @@ function openEditTournamentModal(tourney, onSaveCallback) {
           </div>
         </div>
 
+        <!-- Section 4: Registration & Payment Settings -->
+        <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-2xl space-y-3">
+          <div class="flex items-center gap-2 text-rose-800 font-black text-xs uppercase tracking-wider">
+            <span>📋</span> Registration & Payment Settings
+          </div>
+
+          <!-- Registration Toggle -->
+          <div class="flex items-center justify-between bg-white p-3 rounded-xl border border-slate-200">
+            <div>
+              <label class="block text-[11px] font-black text-slate-800">Player Registration Link</label>
+              <span class="text-[10px] text-slate-500 font-semibold">Turn OFF to close registration for this tournament</span>
+            </div>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="edit-tourney-reg-open" class="sr-only peer" ${(function(){ try { const tid = tourney.supabaseId || tourney.tournament_id || tourney.id; const key = 'cpl_' + tid + '_REGISTRATION_SETTINGS'; const s = JSON.parse(localStorage.getItem(key) || '{}'); return s.isRegistrationOpen !== false ? 'checked' : ''; } catch(e){ return 'checked'; } })()} />
+              <div class="w-11 h-6 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+            </label>
+          </div>
+
+          <!-- Closed Reason -->
+          <div>
+            <label class="block text-[11px] font-black text-slate-700 mb-1">Closed Message (shown when OFF)</label>
+            <input type="text" id="edit-tourney-closed-reason" value="${(function(){ try { const tid = tourney.supabaseId || tourney.tournament_id || tourney.id; const key = 'cpl_' + tid + '_REGISTRATION_SETTINGS'; const s = JSON.parse(localStorage.getItem(key) || '{}'); return s.closedReason || ''; } catch(e){ return ''; } })()}" placeholder="e.g. Registration is closed. Contact admin for details." class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-bold focus:border-rose-500 focus:outline-none" />
+          </div>
+
+          <!-- UPI ID -->
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[11px] font-black text-slate-700 mb-1">UPI ID (for registration payment)</label>
+              <input type="text" id="edit-tourney-upi-id" value="${tourney.upiId || ''}" placeholder="e.g. yourname@upi" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-mono font-bold focus:border-rose-500 focus:outline-none" />
+            </div>
+            <div>
+              <label class="block text-[11px] font-black text-slate-700 mb-1">Payment QR Code Image URL</label>
+              <input type="text" id="edit-tourney-qr-url" value="${tourney.paymentQrUrl || ''}" placeholder="e.g. https://... or assets/qr.jpg" class="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-slate-900 text-xs font-mono font-bold focus:border-rose-500 focus:outline-none" />
+            </div>
+          </div>
+
+          <!-- QR Preview -->
+          <div id="edit-tourney-qr-preview" class="${tourney.paymentQrUrl ? '' : 'hidden'} flex items-center gap-3 bg-white p-2 rounded-xl border border-slate-200">
+            <img id="edit-tourney-qr-preview-img" src="${tourney.paymentQrUrl || ''}" class="w-16 h-16 rounded-lg object-contain border border-slate-200 bg-slate-50" />
+            <span class="text-[10px] text-slate-500 font-bold">Current QR Code</span>
+          </div>
+        </div>
+
         <!-- Action Buttons Footer -->
         <div class="pt-2 flex items-center justify-end gap-2.5">
           <button type="button" id="cancel-edit-tourney-btn" class="px-4 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl text-xs cursor-pointer transition-colors">
@@ -9207,6 +9320,19 @@ function openEditTournamentModal(tourney, onSaveCallback) {
   const closeModal = () => modalEl.remove();
   document.getElementById('close-edit-tourney-modal-btn')?.addEventListener('click', closeModal);
   document.getElementById('cancel-edit-tourney-btn')?.addEventListener('click', closeModal);
+
+  // QR preview live update
+  document.getElementById('edit-tourney-qr-url')?.addEventListener('input', (e) => {
+    const url = e.target.value.trim();
+    const preview = document.getElementById('edit-tourney-qr-preview');
+    const img = document.getElementById('edit-tourney-qr-preview-img');
+    if (url) {
+      if (img) img.src = url;
+      if (preview) preview.classList.remove('hidden');
+    } else {
+      if (preview) preview.classList.add('hidden');
+    }
+  });
 
   document.getElementById('edit-tourney-form')?.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -9233,6 +9359,11 @@ function openEditTournamentModal(tourney, onSaveCallback) {
       return;
     }
 
+    const upiId = document.getElementById('edit-tourney-upi-id')?.value.trim() || '';
+    const paymentQrUrl = document.getElementById('edit-tourney-qr-url')?.value.trim() || '';
+    const regOpen = document.getElementById('edit-tourney-reg-open')?.checked !== false;
+    const closedReason = document.getElementById('edit-tourney-closed-reason')?.value.trim() || '';
+
     const updatedData = {
       ...tourney,
       name,
@@ -9243,6 +9374,8 @@ function openEditTournamentModal(tourney, onSaveCallback) {
       entryFee,
       teamPurse,
       ruleRestriction,
+      upiId,
+      paymentQrUrl,
       organizer: {
         ...(tourney.organizer || {}),
         name: orgNameInput || 'Tournament Organizer',
@@ -9253,6 +9386,19 @@ function openEditTournamentModal(tourney, onSaveCallback) {
 
     // Save update via store
     await store.saveCustomTournament(updatedData);
+
+    // Update registration settings for this tournament
+    const effectiveTid = updatedData.supabaseId || updatedData.tournament_id || updatedData.id;
+    if (effectiveTid) {
+      const prevTid = store.activeTournamentId;
+      store.activeTournamentId = effectiveTid;
+      store.updateRegistrationSettings({
+        isRegistrationOpen: regOpen,
+        isPlayerRegOpen: regOpen,
+        ...(closedReason ? { closedReason } : {})
+      });
+      store.activeTournamentId = prevTid;
+    }
 
     // If new password provided, also update in user account and tournament owners registry
     if (newPassword) {

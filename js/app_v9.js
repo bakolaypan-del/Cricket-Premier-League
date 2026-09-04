@@ -7687,7 +7687,7 @@ function buildTournamentConfig(tourneyIdOrSlug) {
     tournament_id: t.tournament_id || t.id || null,
     status: (t.status || 'ACTIVE').toUpperCase(),
     enableSecurityPin: !!t.enableSecurityPin,
-    enableJerseySize: !!t.enableJerseySize,
+    enableJerseySize: t.enableJerseySize !== false,
     enableState: !!t.enableState,
     isDefault: false
   };
@@ -7852,7 +7852,7 @@ function openUnifiedPlayerRegistrationModal(config, prefillData = null) {
           <img src="https://api.qrserver.com/v1/create-qr-code/?size=450x450&data=${encodeURIComponent(`upi://pay?pa=${upiId}&pn=${payeeName}&am=${amount}&cu=INR`)}" class="w-full h-full object-contain rounded-2xl" alt="UPI QR Code" />
         </div>
       `}
-      <div class="flex items-center justify-center gap-1.5 text-slate-300 text-xs font-bold bg-slate-800/60 py-1.5 px-3 rounded-full max-w-sm mx-auto">
+      <div class="flex items-center justify-center gap-1.5 text-slate-600 text-xs font-bold bg-slate-100 py-1.5 px-3 rounded-full max-w-sm mx-auto border border-slate-200">
         <span class="text-sm">📸</span>
         <span>Scan with GPay, PhonePe, Paytm, BHIM, or Any UPI App</span>
       </div>
@@ -7861,10 +7861,10 @@ function openUnifiedPlayerRegistrationModal(config, prefillData = null) {
 
   const upiCopySectionHtml = upiId ? `
     <div class="space-y-2.5 pt-1">
-      <div class="flex items-center justify-between bg-slate-800/95 hover:bg-slate-800 px-4 py-2.5 rounded-2xl border border-slate-700 max-w-md mx-auto transition-all shadow-inner">
+      <div class="flex items-center justify-between bg-emerald-50 hover:bg-emerald-100 px-4 py-2.5 rounded-2xl border-2 border-emerald-200 max-w-md mx-auto transition-all">
         <div class="text-left min-w-0 pr-2">
-          <span class="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Official Tournament UPI ID</span>
-          <span class="font-mono text-emerald-400 font-black text-xs sm:text-sm select-all truncate block">${upiId}</span>
+          <span class="text-[9px] font-bold text-slate-500 uppercase tracking-wider block">Official Tournament UPI ID</span>
+          <span class="font-mono text-emerald-700 font-black text-xs sm:text-sm select-all truncate block">${upiId}</span>
         </div>
         <button type="button" onclick="navigator.clipboard.writeText('${upiId}'); this.textContent='✅ Copied!'; setTimeout(()=>this.textContent='📋 Copy', 2000)" class="px-3.5 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-[11px] font-black rounded-xl shadow-xs cursor-pointer transition-all shrink-0">
           📋 Copy
@@ -7910,205 +7910,248 @@ function openUnifiedPlayerRegistrationModal(config, prefillData = null) {
         </div>
 
         <!-- BODY -->
-        <form id="unified-reg-form" class="p-4 sm:p-5 overflow-y-auto flex-1 space-y-4 bg-white">
+        <form id="unified-reg-form" class="p-4 sm:p-5 overflow-y-auto flex-1 space-y-5 bg-gradient-to-b from-slate-50 to-white">
 
-          <!-- 1. SMART PHONE NUMBER WITH AUTO-FILL -->
-          <div class="bg-gradient-to-r from-blue-50 to-indigo-50/80 border-2 border-blue-200 p-3 rounded-2xl space-y-1.5">
-            <label class="block text-xs font-black text-blue-950 uppercase tracking-wider flex items-center justify-between">
-              <span>📱 10-Digit Mobile / WhatsApp Number *</span>
-              <span class="text-[9px] font-mono text-blue-700 font-bold bg-white px-2 py-0.5 rounded-full border border-blue-200">⚡ AUTO-FILL ENGINE</span>
-            </label>
-            <input type="tel" id="ureg-phone" maxlength="10" placeholder="Enter 10-digit mobile number..." class="w-full bg-white border-2 border-blue-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-mono font-black focus:outline-none focus:border-blue-500" required value="${prefilledPhone}" />
-            <div id="ureg-autofill-notice" class="text-[10px] font-bold text-blue-800 hidden flex items-center gap-1">
-              <span>✨ Welcome back! Your cricket profile has been auto-populated.</span>
+          <!-- ═══════════════════════════════════════════ -->
+          <!-- SECTION 1: PERSONAL DETAILS                -->
+          <!-- ═══════════════════════════════════════════ -->
+          <div class="bg-white rounded-2xl border-2 border-emerald-200 shadow-sm overflow-hidden">
+            <div class="px-3.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-600 flex items-center gap-2">
+              <span class="text-white text-sm">👤</span>
+              <span class="text-[10px] font-black text-white uppercase tracking-widest">Personal Details</span>
             </div>
-          </div>
-
-          <!-- 2. Full Name & Playing Role -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Full Name *</label>
-              <input type="text" id="ureg-name" placeholder="Player Full Name" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-400" required value="${prefillData?.name || ''}" />
-            </div>
-            <div>
-              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Playing Role *</label>
-              <select id="ureg-category" required class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-400">
-                <option value="" disabled selected>-- Select Category * --</option>
-                <option value="Batsman">Batsman</option>
-                <option value="Bowler">Bowler</option>
-                <option value="All-rounder">All-rounder</option>
-                <option value="Wicket Keeper">Wicket Keeper</option>
-              </select>
-            </div>
-          </div>
-
-          <!-- 3. DOB & Auto Age -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Date of Birth (DOB) *</label>
-              <input type="date" id="ureg-dob" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-400" required value="${prefillData?.dob || ''}" />
-            </div>
-            <div>
-              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1 flex items-center justify-between">
-                <span>Calculated Age</span>
-                <span class="text-[9px] font-mono text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">AUTO-FETCH</span>
-              </label>
-              <input type="text" id="ureg-age" placeholder="Age auto-computed" readonly class="w-full bg-slate-100 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono font-black select-none cursor-not-allowed" />
-            </div>
-          </div>
-
-          <!-- 4. Security PIN (Optional per tournament) -->
-          ${securityPinHtml}
-
-          <!-- 5. Batting & Bowling Style -->
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <div>
-              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Batting Style *</label>
-              <select id="ureg-batting" required class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-400">
-                <option value="Right Hand Bat">Right Hand Bat</option>
-                <option value="Left Hand Bat">Left Hand Bat</option>
-              </select>
-            </div>
-            <div>
-              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Bowling Style</label>
-              <select id="ureg-bowling" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-400">
-                <option value="Right Arm Medium">Right Arm Medium</option>
-                <option value="Right Arm Fast">Right Arm Fast</option>
-                <option value="Right Arm Spin">Right Arm Spin</option>
-                <option value="Left Arm Fast">Left Arm Fast</option>
-                <option value="Left Arm Spin">Left Arm Spin</option>
-                <option value="None">None</option>
-              </select>
-            </div>
-          </div>
-
-          <!-- 6. Village, District, State -->
-          <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div>
-              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Village / Town *</label>
-              <input type="text" id="ureg-village" placeholder="e.g. Your City" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-400" required value="${prefillData?.village || ''}" />
-            </div>
-            <div>
-              <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">District</label>
-              <input type="text" id="ureg-district" value="${prefillData?.district || 'Paschim Medinipur'}" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-400" />
-            </div>
-            ${stateHtml}
-          </div>
-
-          <!-- 7. Jersey Size (Optional per tournament) -->
-          ${jerseySizeHtml}
-
-          <!-- 8. Player Photo (Gallery + Camera + Zoom & Crop) -->
-          <div class="p-3 bg-slate-50 rounded-2xl border-2 border-slate-200 space-y-2">
-            <label class="block text-xs font-black text-slate-800 uppercase tracking-wider flex items-center justify-between">
-              <span>Player HD Passport Photo *</span>
-              <span class="text-[9px] font-mono text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">🔍 ZOOM & CROP</span>
-            </label>
-            <div class="flex items-center gap-3">
-              <div class="w-14 h-14 rounded-2xl bg-slate-200 overflow-hidden shrink-0 border-2 border-emerald-400 shadow-sm">
-                <img id="ureg-preview-photo" src="${prefillData?.photoUrl || 'assets/card_jsl_user.png'}" class="w-full h-full object-cover" />
-              </div>
-              <div class="flex-1 space-y-1">
-                <div class="grid grid-cols-2 gap-2">
-                  <label class="px-2.5 py-2 bg-white hover:bg-emerald-50 text-slate-800 font-bold text-[10px] rounded-xl border border-slate-300 flex items-center justify-center gap-1.5 cursor-pointer shadow-sm transition-all hover:border-emerald-400">
-                    <i data-lucide="image" class="w-4 h-4 text-emerald-600"></i>
-                    <span>📁 Gallery</span>
-                    <input type="file" id="ureg-photo-gallery" accept="image/*" class="hidden" />
-                  </label>
-                  <label class="px-2.5 py-2 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white font-extrabold text-[10px] rounded-xl border border-emerald-400 flex items-center justify-center gap-1.5 cursor-pointer shadow-md transition-all">
-                    <i data-lucide="camera" class="w-4 h-4 text-amber-300"></i>
-                    <span>📷 Camera</span>
-                    <input type="file" id="ureg-photo-camera" accept="image/*" capture="user" class="hidden" />
-                  </label>
+            <div class="p-3.5 space-y-3">
+              <!-- Phone with Auto-Fill -->
+              <div class="bg-gradient-to-r from-blue-50 to-indigo-50/80 border-2 border-blue-200 p-3 rounded-2xl space-y-1.5">
+                <label class="block text-xs font-black text-blue-950 uppercase tracking-wider flex items-center justify-between">
+                  <span>📱 Mobile / WhatsApp Number *</span>
+                  <span class="text-[9px] font-mono text-blue-700 font-bold bg-white px-2 py-0.5 rounded-full border border-blue-200">⚡ AUTO-FILL</span>
+                </label>
+                <input type="tel" id="ureg-phone" maxlength="10" placeholder="Enter 10-digit mobile number..." class="w-full bg-white border-2 border-blue-300 rounded-xl px-3.5 py-2.5 text-xs text-slate-900 font-mono font-black focus:outline-none focus:border-blue-500" required value="${prefilledPhone}" />
+                <div id="ureg-autofill-notice" class="text-[10px] font-bold text-blue-800 hidden flex items-center gap-1">
+                  <span>✨ Welcome back! Your cricket profile has been auto-populated.</span>
                 </div>
-                <div id="ureg-photo-status" class="hidden"></div>
+              </div>
+
+              <!-- Full Name -->
+              <div>
+                <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Full Name *</label>
+                <input type="text" id="ureg-name" placeholder="Player Full Name" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-400" required value="${prefillData?.name || ''}" />
+              </div>
+
+              <!-- DOB & Age -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Date of Birth (DOB) *</label>
+                  <input type="date" id="ureg-dob" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-400" required value="${prefillData?.dob || ''}" />
+                </div>
+                <div>
+                  <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1 flex items-center justify-between">
+                    <span>Calculated Age</span>
+                    <span class="text-[9px] font-mono text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">AUTO-FETCH</span>
+                  </label>
+                  <input type="text" id="ureg-age" placeholder="Age auto-computed" readonly class="w-full bg-slate-100 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-mono font-black select-none cursor-not-allowed" />
+                </div>
+              </div>
+
+              <!-- Village, District, State -->
+              <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Village / Town *</label>
+                  <input type="text" id="ureg-village" placeholder="e.g. Your City" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-400" required value="${prefillData?.village || ''}" />
+                </div>
+                <div>
+                  <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">District</label>
+                  <input type="text" id="ureg-district" value="${prefillData?.district || 'Paschim Medinipur'}" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-emerald-400" />
+                </div>
+                ${stateHtml}
+              </div>
+
+              <!-- Security PIN -->
+              ${securityPinHtml}
+            </div>
+          </div>
+
+          <!-- ═══════════════════════════════════════════ -->
+          <!-- SECTION 2: CRICKET PROFILE                 -->
+          <!-- ═══════════════════════════════════════════ -->
+          <div class="bg-white rounded-2xl border-2 border-amber-200 shadow-sm overflow-hidden">
+            <div class="px-3.5 py-2 bg-gradient-to-r from-amber-500 to-orange-500 flex items-center gap-2">
+              <span class="text-white text-sm">🏏</span>
+              <span class="text-[10px] font-black text-white uppercase tracking-widest">Cricket Profile</span>
+            </div>
+            <div class="p-3.5 space-y-3">
+              <!-- Playing Role -->
+              <div>
+                <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Playing Role / Category *</label>
+                <select id="ureg-category" required class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400">
+                  <option value="" disabled selected>-- Select Category * --</option>
+                  <option value="Batsman">Batsman</option>
+                  <option value="Bowler">Bowler</option>
+                  <option value="All-rounder">All-rounder</option>
+                  <option value="Wicket Keeper">Wicket Keeper</option>
+                </select>
+              </div>
+
+              <!-- Batting & Bowling Style -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Batting Style *</label>
+                  <select id="ureg-batting" required class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400">
+                    <option value="Right Hand Bat">Right Hand Bat</option>
+                    <option value="Left Hand Bat">Left Hand Bat</option>
+                  </select>
+                </div>
+                <div>
+                  <label class="block text-xs font-black text-slate-700 uppercase tracking-wider mb-1">Bowling Style</label>
+                  <select id="ureg-bowling" class="w-full bg-slate-50 border-2 border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-900 font-bold focus:outline-none focus:border-amber-400">
+                    <option value="Right Arm Medium">Right Arm Medium</option>
+                    <option value="Right Arm Fast">Right Arm Fast</option>
+                    <option value="Right Arm Spin">Right Arm Spin</option>
+                    <option value="Left Arm Fast">Left Arm Fast</option>
+                    <option value="Left Arm Spin">Left Arm Spin</option>
+                    <option value="None">None</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Jersey Size -->
+              ${jerseySizeHtml}
+            </div>
+          </div>
+
+          <!-- ═══════════════════════════════════════════ -->
+          <!-- SECTION 3: PLAYER PHOTO                    -->
+          <!-- ═══════════════════════════════════════════ -->
+          <div class="bg-white rounded-2xl border-2 border-violet-200 shadow-sm overflow-hidden">
+            <div class="px-3.5 py-2 bg-gradient-to-r from-violet-600 to-purple-600 flex items-center gap-2">
+              <span class="text-white text-sm">📸</span>
+              <span class="text-[10px] font-black text-white uppercase tracking-widest">Player Photo</span>
+            </div>
+            <div class="p-3.5">
+              <div class="flex items-center gap-3">
+                <div class="w-14 h-14 rounded-2xl bg-slate-200 overflow-hidden shrink-0 border-2 border-violet-400 shadow-sm flex items-center justify-center">
+                  ${prefillData?.photoUrl ? `<img id="ureg-preview-photo" src="${prefillData.photoUrl}" class="w-full h-full object-cover" />` : `<div id="ureg-preview-photo-placeholder" class="text-slate-400 text-2xl">👤</div><img id="ureg-preview-photo" src="" class="w-full h-full object-cover hidden" />`}
+                </div>
+                <div class="flex-1 space-y-1">
+                  <div class="flex items-center justify-between mb-1">
+                    <label class="block text-xs font-black text-slate-800 uppercase tracking-wider">HD Passport Photo *</label>
+                    <span class="text-[9px] font-mono text-violet-700 font-bold bg-violet-50 px-2 py-0.5 rounded-full border border-violet-200">🔍 ZOOM & CROP</span>
+                  </div>
+                  <div class="grid grid-cols-2 gap-2">
+                    <label class="px-2.5 py-2 bg-white hover:bg-violet-50 text-slate-800 font-bold text-[10px] rounded-xl border border-slate-300 flex items-center justify-center gap-1.5 cursor-pointer shadow-sm transition-all hover:border-violet-400">
+                      <i data-lucide="image" class="w-4 h-4 text-violet-600"></i>
+                      <span>📁 Gallery</span>
+                      <input type="file" id="ureg-photo-gallery" accept="image/*" class="hidden" />
+                    </label>
+                    <label class="px-2.5 py-2 bg-gradient-to-r from-violet-600 to-purple-700 hover:from-violet-500 hover:to-purple-600 text-white font-extrabold text-[10px] rounded-xl border border-violet-400 flex items-center justify-center gap-1.5 cursor-pointer shadow-md transition-all">
+                      <i data-lucide="camera" class="w-4 h-4 text-amber-300"></i>
+                      <span>📷 Camera</span>
+                      <input type="file" id="ureg-photo-camera" accept="image/*" capture="user" class="hidden" />
+                    </label>
+                  </div>
+                  <div id="ureg-photo-status" class="hidden"></div>
+                </div>
               </div>
             </div>
           </div>
 
-          <!-- 9. Identity Card (Front + Back) -->
-          <div class="p-3.5 bg-gradient-to-br from-slate-50 to-blue-50/50 rounded-2xl border-2 border-blue-200/80 space-y-3">
-            <div class="flex items-center justify-between">
-              <label class="block text-xs font-black text-blue-950 uppercase tracking-wider">
-                🪪 Identity Card Verification
-              </label>
-              <select id="ureg-doctype" class="text-[10px] font-black bg-white border border-blue-300 rounded-lg px-2 py-1 text-blue-900 focus:outline-none">
-                <option value="Aadhaar Card">Aadhaar Card</option>
-                <option value="Voter ID Card">Voter ID Card</option>
-                <option value="PAN Card">PAN Card</option>
-                <option value="Driving License">Driving License</option>
-              </select>
+          <!-- ═══════════════════════════════════════════ -->
+          <!-- SECTION 4: IDENTITY VERIFICATION           -->
+          <!-- ═══════════════════════════════════════════ -->
+          <div class="bg-white rounded-2xl border-2 border-blue-200 shadow-sm overflow-hidden">
+            <div class="px-3.5 py-2 bg-gradient-to-r from-blue-600 to-sky-600 flex items-center gap-2">
+              <span class="text-white text-sm">🪪</span>
+              <span class="text-[10px] font-black text-white uppercase tracking-widest">Identity Verification</span>
             </div>
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-              <div class="bg-white p-2.5 rounded-xl border border-blue-200 space-y-1">
-                <label class="block text-[10px] font-black text-slate-700 uppercase">1. ID Card Front Side *</label>
-                <div class="grid grid-cols-2 gap-1.5">
-                  <label class="px-2 py-1.5 bg-slate-50 hover:bg-sky-50 text-slate-800 font-bold text-[9px] rounded-lg border border-slate-300 flex items-center justify-center gap-1 cursor-pointer shadow-sm transition-all">
-                    <i data-lucide="file-text" class="w-3.5 h-3.5 text-sky-600"></i>
-                    <span>📁 File</span>
-                    <input type="file" id="ureg-id-front-gallery" accept="image/*" class="hidden" />
-                  </label>
-                  <label class="px-2 py-1.5 bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-500 hover:to-blue-600 text-white font-extrabold text-[9px] rounded-lg border border-sky-400 flex items-center justify-center gap-1 cursor-pointer shadow-sm transition-all">
-                    <i data-lucide="camera" class="w-3.5 h-3.5 text-white"></i>
-                    <span>📷 Cam</span>
-                    <input type="file" id="ureg-id-front-camera" accept="image/*" capture="environment" class="hidden" />
-                  </label>
-                </div>
-                <div id="ureg-id-front-status" class="hidden"></div>
+            <div class="p-3.5 space-y-3">
+              <div class="flex items-center justify-between">
+                <label class="block text-xs font-black text-slate-700 uppercase tracking-wider">Select ID Type</label>
+                <select id="ureg-doctype" class="text-[10px] font-black bg-slate-50 border border-blue-300 rounded-lg px-2 py-1 text-blue-900 focus:outline-none">
+                  <option value="Aadhaar Card">Aadhaar Card</option>
+                  <option value="Voter ID Card">Voter ID Card</option>
+                  <option value="PAN Card">PAN Card</option>
+                  <option value="Driving License">Driving License</option>
+                </select>
               </div>
-              <div class="bg-white p-2.5 rounded-xl border border-blue-200 space-y-1">
-                <label class="block text-[10px] font-black text-slate-700 uppercase">2. ID Card Back Side *</label>
-                <div class="grid grid-cols-2 gap-1.5">
-                  <label class="px-2 py-1.5 bg-slate-50 hover:bg-sky-50 text-slate-800 font-bold text-[9px] rounded-lg border border-slate-300 flex items-center justify-center gap-1 cursor-pointer shadow-sm transition-all">
-                    <i data-lucide="file-text" class="w-3.5 h-3.5 text-sky-600"></i>
-                    <span>📁 File</span>
-                    <input type="file" id="ureg-id-back-gallery" accept="image/*" class="hidden" />
-                  </label>
-                  <label class="px-2 py-1.5 bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-500 hover:to-blue-600 text-white font-extrabold text-[9px] rounded-lg border border-sky-400 flex items-center justify-center gap-1 cursor-pointer shadow-sm transition-all">
-                    <i data-lucide="camera" class="w-3.5 h-3.5 text-white"></i>
-                    <span>📷 Cam</span>
-                    <input type="file" id="ureg-id-back-camera" accept="image/*" capture="environment" class="hidden" />
-                  </label>
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div class="bg-slate-50 p-2.5 rounded-xl border border-blue-200 space-y-1">
+                  <label class="block text-[10px] font-black text-slate-700 uppercase">1. ID Card Front Side *</label>
+                  <div class="grid grid-cols-2 gap-1.5">
+                    <label class="px-2 py-1.5 bg-white hover:bg-sky-50 text-slate-800 font-bold text-[9px] rounded-lg border border-slate-300 flex items-center justify-center gap-1 cursor-pointer shadow-sm transition-all">
+                      <i data-lucide="file-text" class="w-3.5 h-3.5 text-sky-600"></i>
+                      <span>📁 File</span>
+                      <input type="file" id="ureg-id-front-gallery" accept="image/*" class="hidden" />
+                    </label>
+                    <label class="px-2 py-1.5 bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-500 hover:to-blue-600 text-white font-extrabold text-[9px] rounded-lg border border-sky-400 flex items-center justify-center gap-1 cursor-pointer shadow-sm transition-all">
+                      <i data-lucide="camera" class="w-3.5 h-3.5 text-white"></i>
+                      <span>📷 Cam</span>
+                      <input type="file" id="ureg-id-front-camera" accept="image/*" capture="environment" class="hidden" />
+                    </label>
+                  </div>
+                  <div id="ureg-id-front-status" class="hidden"></div>
                 </div>
-                <div id="ureg-id-back-status" class="hidden"></div>
+                <div class="bg-slate-50 p-2.5 rounded-xl border border-blue-200 space-y-1">
+                  <label class="block text-[10px] font-black text-slate-700 uppercase">2. ID Card Back Side *</label>
+                  <div class="grid grid-cols-2 gap-1.5">
+                    <label class="px-2 py-1.5 bg-white hover:bg-sky-50 text-slate-800 font-bold text-[9px] rounded-lg border border-slate-300 flex items-center justify-center gap-1 cursor-pointer shadow-sm transition-all">
+                      <i data-lucide="file-text" class="w-3.5 h-3.5 text-sky-600"></i>
+                      <span>📁 File</span>
+                      <input type="file" id="ureg-id-back-gallery" accept="image/*" class="hidden" />
+                    </label>
+                    <label class="px-2 py-1.5 bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-500 hover:to-blue-600 text-white font-extrabold text-[9px] rounded-lg border border-sky-400 flex items-center justify-center gap-1 cursor-pointer shadow-sm transition-all">
+                      <i data-lucide="camera" class="w-3.5 h-3.5 text-white"></i>
+                      <span>📷 Cam</span>
+                      <input type="file" id="ureg-id-back-camera" accept="image/*" capture="environment" class="hidden" />
+                    </label>
+                  </div>
+                  <div id="ureg-id-back-status" class="hidden"></div>
+                </div>
               </div>
             </div>
           </div>
 
-          <!-- 10. PAYMENT SECTION (Dark Theme) -->
-          <div class="rounded-3xl bg-slate-900 text-white p-4 sm:p-6 shadow-2xl border border-slate-800 space-y-4 text-center">
-            <div class="flex items-center justify-between bg-slate-800/90 px-4 py-3 rounded-2xl border border-slate-700/80">
+          <!-- ═══════════════════════════════════════════ -->
+          <!-- SECTION 5: PAYMENT                         -->
+          <!-- ═══════════════════════════════════════════ -->
+          <div class="rounded-2xl bg-white shadow-sm border-2 border-rose-200 overflow-hidden">
+            <div class="px-3.5 py-2 bg-gradient-to-r from-rose-500 to-pink-500 flex items-center gap-2">
+              <span class="text-white text-sm">💳</span>
+              <span class="text-[10px] font-black text-white uppercase tracking-widest">Payment Details</span>
+            </div>
+            <div class="p-3.5 sm:p-5 space-y-4 text-center">
+            <div class="flex items-center justify-between bg-gradient-to-r from-emerald-50 to-teal-50 px-4 py-3 rounded-2xl border-2 border-emerald-200">
               <div class="text-left">
-                <span class="text-[10px] font-black text-slate-400 uppercase tracking-wider block">Player Registration Fee</span>
-                <span class="text-xs font-bold text-slate-200">${config.name}</span>
+                <span class="text-[10px] font-black text-slate-500 uppercase tracking-wider block">Player Registration Fee</span>
+                <span class="text-xs font-bold text-slate-800">${config.name}</span>
               </div>
               <div class="text-right">
-                <span class="text-2xl font-black text-emerald-400 font-mono">₹ ${Number(amount).toLocaleString('en-IN')}</span>
+                <span class="text-2xl font-black text-emerald-600 font-mono">₹ ${Number(amount).toLocaleString('en-IN')}</span>
               </div>
             </div>
 
             ${qrSectionHtml}
             ${upiCopySectionHtml}
 
-            <div class="text-left bg-slate-800/90 p-3.5 sm:p-4 rounded-2xl border border-slate-700 space-y-3">
+            <div class="text-left bg-slate-50 p-3.5 sm:p-4 rounded-2xl border-2 border-slate-200 space-y-3">
               <div>
-                <label class="block text-[11px] font-black text-slate-200 uppercase tracking-wider mb-1">
-                  1. UPI Payment ID / UTR / Transaction No. <span class="text-rose-400">*</span>
+                <label class="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1">
+                  1. UPI Payment ID / UTR / Transaction No. <span class="text-rose-500">*</span>
                 </label>
-                <input type="text" id="ureg-payment-ref" placeholder="e.g. 423456789012 (12-Digit UTR No.)" class="w-full bg-slate-950 border border-slate-700 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-mono font-bold text-emerald-400 placeholder-slate-500 focus:outline-none focus:border-emerald-500 transition-all" required />
+                <input type="text" id="ureg-payment-ref" placeholder="e.g. 423456789012 (12-Digit UTR No.)" class="w-full bg-white border-2 border-slate-300 rounded-xl px-3.5 py-2.5 text-xs sm:text-sm font-mono font-bold text-slate-900 placeholder-slate-400 focus:outline-none focus:border-emerald-500 transition-all" required />
               </div>
               <div>
-                <label class="block text-[11px] font-black text-slate-200 uppercase tracking-wider mb-1">
-                  2. Payment Screenshot Proof <span class="text-rose-400">*</span>
+                <label class="block text-[11px] font-black text-slate-700 uppercase tracking-wider mb-1">
+                  2. Payment Screenshot Proof <span class="text-rose-500">*</span>
                 </label>
                 <div class="grid grid-cols-2 gap-2">
-                  <label class="px-2.5 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold text-[10px] rounded-xl border border-slate-600 flex items-center justify-center gap-1.5 cursor-pointer shadow-sm transition-all">
-                    <i data-lucide="file-image" class="w-3.5 h-3.5 text-emerald-400"></i>
+                  <label class="px-2.5 py-2 bg-white hover:bg-slate-100 text-slate-800 font-bold text-[10px] rounded-xl border border-slate-300 flex items-center justify-center gap-1.5 cursor-pointer shadow-sm transition-all">
+                    <i data-lucide="file-image" class="w-3.5 h-3.5 text-rose-500"></i>
                     <span>📁 Select File</span>
                     <input type="file" id="ureg-receipt-gallery" accept="image/*" class="hidden" />
                   </label>
-                  <label class="px-2.5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white font-extrabold text-[10px] rounded-xl border border-emerald-400 flex items-center justify-center gap-1.5 cursor-pointer shadow-md transition-all">
-                    <i data-lucide="camera" class="w-3.5 h-3.5 text-amber-300"></i>
+                  <label class="px-2.5 py-2 bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-400 hover:to-pink-500 text-white font-extrabold text-[10px] rounded-xl border border-rose-400 flex items-center justify-center gap-1.5 cursor-pointer shadow-md transition-all">
+                    <i data-lucide="camera" class="w-3.5 h-3.5 text-amber-200"></i>
                     <span>📷 Camera</span>
                     <input type="file" id="ureg-receipt-camera" accept="image/*" capture="environment" class="hidden" />
                   </label>
@@ -8116,9 +8159,10 @@ function openUnifiedPlayerRegistrationModal(config, prefillData = null) {
                 <div id="ureg-receipt-status" class="hidden mt-1"></div>
               </div>
             </div>
+            </div>
           </div>
 
-          <!-- 11. Terms & Conditions -->
+          <!-- Terms & Conditions -->
           <div class="pt-1">
             <label class="flex items-start gap-2 text-[10px] text-slate-700 cursor-pointer">
               <input type="checkbox" id="ureg-terms" required class="w-4 h-4 mt-0.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 bg-white" />
@@ -8228,7 +8272,10 @@ function openUnifiedPlayerRegistrationModal(config, prefillData = null) {
         const photo = existing.photoUrl || existing.photo_url;
         if (photo) {
           uploadedPhotoUrl = photo;
-          document.getElementById('ureg-preview-photo').src = photo;
+          const prevImg = document.getElementById('ureg-preview-photo');
+          if (prevImg) { prevImg.src = photo; prevImg.classList.remove('hidden'); }
+          const prevPh = document.getElementById('ureg-preview-photo-placeholder');
+          if (prevPh) prevPh.classList.add('hidden');
         }
         if (existing.state) {
           const stateEl = document.getElementById('ureg-state');
@@ -8258,7 +8305,10 @@ function openUnifiedPlayerRegistrationModal(config, prefillData = null) {
       const rawSrc = ev.target.result;
       openPlayerPhotoCropModal(rawSrc, async (croppedDataUrl) => {
         uploadedPhotoUrl = croppedDataUrl;
-        document.getElementById('ureg-preview-photo').src = croppedDataUrl;
+        const pImg = document.getElementById('ureg-preview-photo');
+        if (pImg) { pImg.src = croppedDataUrl; pImg.classList.remove('hidden'); }
+        const pPh = document.getElementById('ureg-preview-photo-placeholder');
+        if (pPh) pPh.classList.add('hidden');
         const statusEl = document.getElementById('ureg-photo-status');
         if (statusEl) {
           statusEl.innerHTML = `<div class="mt-1 p-1.5 bg-emerald-50 border border-emerald-300 rounded-lg flex items-center gap-1.5 text-emerald-800 text-[10px] font-black animate-pulse">
