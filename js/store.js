@@ -490,12 +490,13 @@ class Store {
           });
 
         // Retain uncommitted locally scheduled fixtures (e.g. freshly added matches before cloud echo)
+        // and broadcast-received fixtures from other tournaments
         const cloudIds = new Set(cloudData.fixtures.map(f => f.id));
         const uncommittedLocals = localFixtures.filter(lf => lf && lf.id && !cloudIds.has(lf.id));
         if (uncommittedLocals.length > 0 && !(cloudData.matchesClearedAt > 0 && cloudData.fixtures.length === 0)) {
           nextFixtures = [...nextFixtures, ...uncommittedLocals];
-          // Proactively persist uncommitted local fixtures to cloud
-          uncommittedLocals.forEach(f => saveFixtureToCloud(f, this.activeTournamentId));
+          // Proactively persist uncommitted local fixtures to cloud (skip broadcast-received ones from other tournaments)
+          uncommittedLocals.filter(f => !f._fromBroadcast).forEach(f => saveFixtureToCloud(f, this.activeTournamentId));
         }
 
         // Shield: protect actively-scored fixture by window flag or persisted localStorage key

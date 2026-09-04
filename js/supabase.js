@@ -540,6 +540,7 @@ export async function initRealtimePushListener(onUpdateCallback, tournamentId) {
         const scopedFixKey = isActive ? s._scopedKey('FIXTURES') : ('cpl_fixtures_v8_' + (toUUID(fTid) || fTid));
 
         if (p.action === 'upsert' && p.fixture) {
+          // Save to the tournament-specific key
           let fixtures = [];
           try { fixtures = JSON.parse(localStorage.getItem(scopedFixKey)) || []; } catch(e) {}
           const idx = fixtures.findIndex(f => f.id === p.fixture.id || (toUUID(f.id) && toUUID(f.id) === toUUID(p.fixture.id)));
@@ -549,6 +550,20 @@ export async function initRealtimePushListener(onUpdateCallback, tournamentId) {
             fixtures.push(p.fixture);
           }
           try { localStorage.setItem(scopedFixKey, JSON.stringify(fixtures)); } catch (e) {}
+          // Also save to the viewer's active fixtures key if different, so it shows in current view
+          if (!isActive) {
+            const activeKey = s._scopedKey('FIXTURES');
+            try {
+              let activeFixtures = JSON.parse(localStorage.getItem(activeKey)) || [];
+              const aIdx = activeFixtures.findIndex(f => f.id === p.fixture.id || (toUUID(f.id) && toUUID(f.id) === toUUID(p.fixture.id)));
+              if (aIdx !== -1) {
+                activeFixtures[aIdx] = { ...activeFixtures[aIdx], ...p.fixture, updated_at: Date.now() };
+              } else {
+                activeFixtures.push({ ...p.fixture, _fromBroadcast: true });
+              }
+              localStorage.setItem(activeKey, JSON.stringify(activeFixtures));
+            } catch(e) {}
+          }
           s._invalidateCache('fixtures');
           s.notify('fixtures_updated');
           window.dispatchEvent(new CustomEvent('cpl_fixtures_realtime', { detail: p }));
