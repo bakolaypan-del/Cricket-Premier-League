@@ -65,7 +65,7 @@ import {
   saveNoticeBoardToCloud,
   fetchNoticeBoardFromCloud,
   broadcastLiveScore
-} from './supabase.js?v=13.0.64';
+} from './supabase.js?v=13.0.65';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -1611,22 +1611,28 @@ class Store {
     }
 
     if (player && team) {
-      // Enforce squad size limit
+      const isSameTeam = !!(player.teamId && (player.teamId === team.id || toUUID(player.teamId) === toUUID(team.id)));
+      const price = Number(soldPrice) || player.basePrice || 300;
+
+      // Enforce squad size limit (only if not already on this team)
       const maxSquad = Number(this.getAuctionSettings().maxSquadSize) || 13;
       const currentSquad = (Number(team.squadCount) || 0);
-      if (currentSquad >= maxSquad) {
+      if (!isSameTeam && currentSquad >= maxSquad) {
         console.warn(`[AUCTION] Squad full: ${team.name} has ${currentSquad}/${maxSquad} players`);
         return { error: 'SQUAD_FULL', team, maxSquad, currentSquad };
       }
 
-      // Enforce purse limit
-      const price = Number(soldPrice) || player.basePrice || 300;
-      if ((Number(team.remainingPurse) || 0) < price) {
-        console.warn(`[AUCTION] Insufficient purse: ${team.name} has ₹${team.remainingPurse}, needs ₹${price}`);
-        return { error: 'INSUFFICIENT_PURSE', team, remainingPurse: team.remainingPurse, price };
+      // Enforce purse limit (only check net additional cost if already on this team)
+      const oldPrice = isSameTeam ? (Number(player.soldPrice) || 0) : 0;
+      const additionalPurseNeeded = price - oldPrice;
+      const teamRemainingPurse = Number(team.remainingPurse) || 0;
+      if (teamRemainingPurse < additionalPurseNeeded) {
+        console.warn(`[AUCTION] Insufficient purse: ${team.name} has ₹${teamRemainingPurse}, needs ₹${additionalPurseNeeded}`);
+        return { error: 'INSUFFICIENT_PURSE', team, remainingPurse: teamRemainingPurse, price: additionalPurseNeeded };
       }
 
-      if (player.teamId) {
+      // If player was on a DIFFERENT team, refund the old team
+      if (player.teamId && !isSameTeam) {
         const oldTeam = teams.find(t => t.id === player.teamId || (player.teamId && t.id && toUUID(t.id) === toUUID(player.teamId))) || (this.getAllTeamsAcrossTournaments ? this.getAllTeamsAcrossTournaments().find(t => t.id === player.teamId || (player.teamId && t.id && toUUID(t.id) === toUUID(player.teamId))) : null);
         if (oldTeam) {
           oldTeam.squadCount = Math.max(0, (oldTeam.squadCount || 1) - 1);
@@ -1640,6 +1646,8 @@ class Store {
           syncTeamToSupabase(oldTeam);
         }
       }
+
+      const now = Date.now();
       player.teamId = team.id;
       player.team_id = team.id;
       player.soldPrice = price;
@@ -1648,14 +1656,18 @@ class Store {
       player.auctionStatus = 'SOLD';
       player.isSold = true;
       player.isUnsold = false;
-      player.updated_at = Date.now();
+      player.updated_at = now;
       
-      team.squadCount = (Number(team.squadCount) || 0) + 1;
-      team.purseSpent = (Number(team.purseSpent) || 0) + price;
+      if (!isSameTeam) {
+        team.squadCount = (Number(team.squadCount) || 0) + 1;
+        team.purseSpent = (Number(team.purseSpent) || 0) + price;
+      } else {
+        team.purseSpent = Math.max(0, (Number(team.purseSpent) || 0) + additionalPurseNeeded);
+      }
       team.remainingPurse = Math.max(0, (Number(team.purseBudget) || 8000) - team.purseSpent);
       if (!Array.isArray(team.playerIds)) team.playerIds = [];
       if (!team.playerIds.includes(player.id)) team.playerIds.push(player.id);
-      team.updated_at = Date.now();
+      team.updated_at = now;
 
       this._invalidateCache('players');
       this._invalidateCache('teams');
@@ -1677,10 +1689,31 @@ class Store {
     this._invalidateCache('players');
     this._invalidateCache('teams');
     const players = this.getPlayers();
+    const teams = this.getTeams();
     const player = players.find(p => p.id === playerId || (playerId && p.id && toUUID(p.id) === toUUID(playerId)));
     if (!player) return false;
 
     const now = Date.now();
+
+    // If player was previously assigned to a team, refund and remove from that team
+    if (player.teamId) {
+      const team = teams.find(t => t.id === player.teamId || (player.teamId && t.id && toUUID(t.id) === toUUID(player.teamId))) || (this.getAllTeamsAcrossTournaments ? this.getAllTeamsAcrossTournaments().find(t => t.id === player.teamId || (player.teamId && t.id && toUUID(t.id) === toUUID(player.teamId))) : null);
+      if (team) {
+        team.squadCount = Math.max(0, (Number(team.squadCount) || 1) - 1);
+        team.purseSpent = Math.max(0, (Number(team.purseSpent) || 0) - (Number(player.soldPrice) || 0));
+        const budget = Number(team.purseBudget || team.purse || 8000);
+        team.remainingPurse = Math.max(0, budget - team.purseSpent);
+        if (Array.isArray(team.playerIds)) {
+          team.playerIds = team.playerIds.filter(id => String(id) !== String(playerId));
+        }
+        team.updated_at = now;
+        safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
+        this._saveTeamAcrossAllKeys(team);
+        syncTeamToSupabase(team);
+        this.notify('teams_updated');
+      }
+    }
+
     player.teamId = null;
     player.team_id = null;
     player.teamName = null;
@@ -1694,6 +1727,7 @@ class Store {
     this._invalidateCache('players');
     this._invalidateCache('teams');
     safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
+    this._savePlayerAcrossAllKeys(player);
     syncPlayerToSupabase(player);
     this.notify('players_updated');
     this.notify('live_auction_updated');
@@ -1745,13 +1779,16 @@ class Store {
         }
         team.updated_at = now;
         safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
+        this._saveTeamAcrossAllKeys(team);
         syncTeamToSupabase(team);
       }
     }
 
     player.teamId = null;
+    player.team_id = null;
     player.teamName = null;
     player.soldPrice = 0;
+    player.sold_price = 0;
     player.auctionStatus = 'PENDING';
     player.isSold = false;
     player.isUnsold = false;
@@ -1771,6 +1808,9 @@ class Store {
     }
 
     safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
+    this._savePlayerAcrossAllKeys(player);
+    this._invalidateCache('players');
+    this._invalidateCache('teams');
     syncPlayerToSupabase(player);
 
     // Restore scope if we switched
@@ -2788,6 +2828,27 @@ class Store {
   }
 
   async getGlobalLiveAuctionInfo() {
+    const activeTourney = this.getCustomTournaments().find(t => (t.supabaseId || t.id) === this.activeTournamentId) || {};
+    const localState = this.getLiveAuctionStateSync();
+    const isLocalLive = localState && (localState.status === 'BIDDING' || localState.status === 'SOLD' || localState.status === 'UNSOLD') && localState.active_player_id && !localState.is_ended && localState.status !== 'ENDED';
+
+    // 1. If local state is ALREADY actively live (e.g. from sub-100ms WebSocket broadcast), return immediately to prevent network race conditions!
+    if (isLocalLive) {
+      return {
+        isLive: true,
+        liveTournament: activeTourney,
+        liveState: localState,
+        recentTournaments: this.getCustomTournaments().map(t => ({
+          id: t.supabaseId || t.id,
+          name: t.name,
+          slug: t.slug,
+          logoUrl: t.posterUrl || t.logoUrl || 'assets/jsl_logo.jpg',
+          customTeamsCount: t.teamsCount || 4,
+          auctionStatus: 'LIVE'
+        }))
+      };
+    }
+
     try {
       const globalInfo = await fetchGlobalLiveAuctionStatus();
       if (globalInfo && (globalInfo.isLive || globalInfo.recentTournaments?.length)) {
@@ -2796,13 +2857,10 @@ class Store {
     } catch(e) {}
     
     // Fallback using locally cached tournament metadata
-    const activeTourney = this.getCustomTournaments().find(t => (t.supabaseId || t.id) === this.activeTournamentId) || {};
-    const localState = this.getLiveAuctionStateSync();
-    const isLive = localState && (localState.status === 'BIDDING' || localState.status === 'SOLD' || localState.status === 'UNSOLD') && localState.active_player_id && !localState.is_ended && localState.status !== 'ENDED';
     return {
-      isLive: !!isLive,
-      liveTournament: isLive ? activeTourney : null,
-      liveState: isLive ? localState : null,
+      isLive: !!isLocalLive,
+      liveTournament: isLocalLive ? activeTourney : null,
+      liveState: isLocalLive ? localState : null,
       recentTournaments: this.getCustomTournaments().map(t => ({
         id: t.supabaseId || t.id,
         name: t.name,

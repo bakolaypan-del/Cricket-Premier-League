@@ -1,9 +1,9 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=13.0.64';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.64';
-import { renderAdminDashboard } from './admin.js?v=13.0.64';
-import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, fetchNoticeBoardFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.64';
+import { store } from './store.js?v=13.0.65';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.65';
+import { renderAdminDashboard } from './admin.js?v=13.0.65';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, fetchNoticeBoardFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.65';
 import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.53';
 import { shops } from './shopsData.js?v=12.0.2';
 
@@ -11355,6 +11355,7 @@ function renderLiveAuctionView(container) {
   let lastRenderedTableHash = '';
   let lastRenderedPursesHash = '';
   let lastRenderedLiveBid = null;
+  let lastActiveBidderTeamId = null;
 
   const renderConcludedView = (globalInfo) => {
     const recentTourneys = globalInfo.recentTournaments || [];
@@ -12184,7 +12185,12 @@ function renderLiveAuctionView(container) {
     const now = Date.now();
     const stateUpdatedAt = Number(state?.updated_at || state?.timestamp || 0);
 
-    const isNewActive = state && (state.active_player_id !== lastActivePlayerId || state.status !== lastActiveStatus);
+    const isNewActive = state && (
+      state.active_player_id !== lastActivePlayerId ||
+      state.status !== lastActiveStatus ||
+      Number(state.current_bid || 0) !== Number(lastRenderedLiveBid || 0) ||
+      (state.highest_bidder_team_id || null) !== (lastActiveBidderTeamId || null)
+    );
     if (!isNewActive && stateUpdatedAt < lastAuctionSyncTimestamp && stateUpdatedAt > 0) {
       return;
     }
@@ -12250,7 +12256,7 @@ function renderLiveAuctionView(container) {
   };
 
   // Immediate Initial Render — Realtime WebSocket handles instant updates;
-  // 10s fallback poll only as safety net, skips when tab is hidden
+  // 30s fallback poll only as safety net, skips when tab is hidden
   pollActiveAuctionState();
   auctionPollInterval = setInterval(() => {
     if (document.visibilityState === 'hidden') return;
@@ -12265,8 +12271,21 @@ function renderLiveAuctionView(container) {
       pollActiveAuctionState();
     }
   };
-  window.addEventListener('cpl_live_auction_updated', onAuctionChange);
-  window.addEventListener('cpl_players_updated', onAuctionChange);
+
+  const auctionEvents = [
+    'cpl_live_auction_updated',
+    'live_auction_updated',
+    'cpl_players_updated',
+    'players_updated',
+    'cpl_teams_updated',
+    'teams_updated'
+  ];
+
+  if (window.__cplAuctionChangeHandler) {
+    auctionEvents.forEach(ev => window.removeEventListener(ev, window.__cplAuctionChangeHandler));
+  }
+  window.__cplAuctionChangeHandler = onAuctionChange;
+  auctionEvents.forEach(ev => window.addEventListener(ev, onAuctionChange));
 }
 
 // --- 📽️ WORLD-CLASS LIVE AUCTION PROJECTOR SCREEN (ENHANCED OFF-WHITE THEME, AUTO-NAVIGATE & 2-PAGE SQUADS) ---
@@ -12678,6 +12697,11 @@ export function openLiveAuctionProjectorView() {
     if (projectorPollInterval) { clearInterval(projectorPollInterval); projectorPollInterval = null; }
     if (projectorClockInterval) { clearInterval(projectorClockInterval); projectorClockInterval = null; }
     if (projectorAutoTourTimer) { clearTimeout(projectorAutoTourTimer); projectorAutoTourTimer = null; }
+    if (window.__cplProjAuctionChangeHandler) {
+      const projEvents = ['cpl_live_auction_updated', 'live_auction_updated', 'cpl_players_updated', 'players_updated', 'cpl_teams_updated', 'teams_updated'];
+      projEvents.forEach(ev => window.removeEventListener(ev, window.__cplProjAuctionChangeHandler));
+      window.__cplProjAuctionChangeHandler = null;
+    }
     document.getElementById('live-auction-projector-view-modal')?.remove();
     window.removeEventListener('keydown', handleKeyShortcuts);
   };
@@ -13367,9 +13391,21 @@ export function openLiveAuctionProjectorView() {
       pollProjector();
     }
   };
-  window.addEventListener('cpl_live_auction_updated', onProjAuctionChange);
-  window.addEventListener('cpl_players_updated', onProjAuctionChange);
-  window.addEventListener('cpl_teams_updated', onProjAuctionChange);
+
+  const projEvents = [
+    'cpl_live_auction_updated',
+    'live_auction_updated',
+    'cpl_players_updated',
+    'players_updated',
+    'cpl_teams_updated',
+    'teams_updated'
+  ];
+
+  if (window.__cplProjAuctionChangeHandler) {
+    projEvents.forEach(ev => window.removeEventListener(ev, window.__cplProjAuctionChangeHandler));
+  }
+  window.__cplProjAuctionChangeHandler = onProjAuctionChange;
+  projEvents.forEach(ev => window.addEventListener(ev, onProjAuctionChange));
 }
 
 // --- FRANCHISE SQUAD & PURCHASED PLAYERS MODAL ---
