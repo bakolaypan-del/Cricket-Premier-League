@@ -650,7 +650,7 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
     const tId = await resolveTournamentUUID(tournamentId) || toUUID(tournamentId) || DEFAULT_TOURNAMENT_UUID;
 
     const [playersRes, teamsRes, matchesRes, tourneyRes] = await Promise.all([
-      supabase.from('players').select('id, tournament_id, name, phone, photo_url, role, category_name, base_price, is_icon, team_id, status, sold_price, verified, reg_number, updated_at').eq('tournament_id', tId),
+      supabase.from('players').select('id, tournament_id, name, phone, photo_url, role, category_name, base_price, is_icon, team_id, status, sold_price, verified, reg_number, updated_at').eq('tournament_id', tId).neq('status', 'deleted'),
       supabase.from('teams').select('id, tournament_id, name, short_name, owner_name, owner_phone, logo_url, budget_total, budget_remaining, updated_at').eq('tournament_id', tId),
       supabase.from('matches').select('*').eq('tournament_id', tId),
       supabase.from('tournaments').select('category_code, slug, name, registration_fee, total_team_budget, icon_price, registration_settings, format_config').eq('id', tId).maybeSingle()
@@ -684,7 +684,8 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
     const dedupedPlayersMap = new Map();
     dbPlayers.forEach(p => {
       if (!p) return;
-      const key = p.reg_number ? `reg_${p.reg_number}` : (p.phone ? `ph_${p.phone.replace(/[^0-9]/g, '')}` : `id_${p.id}`);
+      const cleanPhone = (p.phone || '').replace(/[^0-9]/g, '');
+      const key = (cleanPhone && cleanPhone !== '0000000000' && cleanPhone.length >= 7) ? `ph_${cleanPhone}` : `id_${p.id}`;
       const existing = dedupedPlayersMap.get(key);
       if (!existing) {
         dedupedPlayersMap.set(key, p);
@@ -1026,12 +1027,19 @@ export async function syncPlayerToSupabase(playerData) {
     // Also update players table directly by UUID and Phone
     try {
       const updatePayload = {
+        name: playerData.name || undefined,
+        phone: cleanPhone || undefined,
+        role: playerData.role || playerData.category || playerData.playingType || undefined,
+        category_name: playerData.category || playerData.category_name || undefined,
+        base_price: Number(playerData.basePrice || playerData.base_price) || 300,
+        photo_url: playerData.hdPhotoUrl || playerData.photoUrl || playerData.player_photo_url || undefined,
         verified: isApproved,
         status: isRejected ? 'rejected' : (isSoldVal ? 'sold' : (isUnsoldVal ? 'unsold' : derivePlayerStatus(playerData))),
         team_id: (playerData.teamId || playerData.team_id) ? toUUID(playerData.teamId || playerData.team_id) : null,
         sold_price: (soldPriceVal != null) ? soldPriceVal : 0,
         updated_at: new Date().toISOString()
       };
+      Object.keys(updatePayload).forEach(k => updatePayload[k] === undefined && delete updatePayload[k]);
       if (playerUUID) {
         const { error: pErr1 } = await supabase.from('players').update(updatePayload).eq('id', playerUUID);
         if (pErr1) console.error("[SUPABASE] players update by UUID failed:", pErr1.message, pErr1.details, "player:", playerData.name);
@@ -1089,13 +1097,25 @@ export async function deletePlayerFromSupabase(playerId, phone = null, tournamen
     const playerUUID = toUUID(playerId) || playerId;
     const cleanPhone = (phone || '').replace(/[^0-9]/g, '');
 
-    // 1. Attempt direct delete from players table
+    // 1. Attempt direct delete from players table, fallback to marking as deleted
+    let directDeleteWorked = false;
     try {
+      const { data: before } = await supabase.from('players').select('id').eq('id', playerUUID);
       await supabase.from('players').delete().eq('id', playerUUID);
       if (cleanPhone) {
         await supabase.from('players').delete().eq('phone', cleanPhone).eq('tournament_id', tId);
       }
+      const { data: after } = await supabase.from('players').select('id').eq('id', playerUUID);
+      directDeleteWorked = (before?.length > 0 && (!after || after.length === 0));
     } catch (delErr) {}
+    if (!directDeleteWorked) {
+      try {
+        await supabase.from('players').update({ status: 'deleted', updated_at: new Date().toISOString() }).eq('id', playerUUID);
+        if (cleanPhone) {
+          await supabase.from('players').update({ status: 'deleted', updated_at: new Date().toISOString() }).eq('phone', cleanPhone).eq('tournament_id', tId);
+        }
+      } catch (markErr) {}
+    }
 
     // 2. Remove from player_verification_docs
     try {

@@ -1918,8 +1918,20 @@ function renderCurrentView() {
   if (currentRoute === 'landing') {
     renderFirstPageLanding(container);
   } else if (currentRoute === 'tournament-hub') {
+    const jslTourney = (store.getCustomTournaments ? store.getCustomTournaments() : []).find(t => t.slug === 'jsl-2026' || t.slug === 'jsl' || (t.code || '').toUpperCase() === 'JSL' || (t.name || '').toUpperCase().includes('JHANKRA'));
+    const jslTid = jslTourney?.supabaseId || jslTourney?.tournament_id || jslTourney?.id || 'leg-jsl';
+    const resolvedJslId = toUUID(jslTid) || jslTid;
+    if (store.activeTournamentId !== resolvedJslId) {
+      store.activeTournamentId = resolvedJslId;
+      store._invalidateCache();
+      localStorage.setItem('cpl_active_tournament_id', resolvedJslId);
+    }
     renderTournamentHub(container);
     checkAndPromptWhatsAppGroup();
+    store._isSyncingWithCloud = false;
+    store.syncWithCloud().then(() => {
+      if (currentRoute === 'tournament-hub') renderTournamentHub(container);
+    }).catch(() => {});
   } else if (currentRoute === 'admin') {
     renderAdminDashboard(container);
   } else if (currentRoute === 'fixtures') {
