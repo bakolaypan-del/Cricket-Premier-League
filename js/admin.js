@@ -1,6 +1,6 @@
 // Admin Master Data & Payment Verification Panel with Single Source Cloud Control (Developer: Suman Kolay)
 
-import { store } from './store.js?v=13.0.54';
+import { store } from './store.js?v=13.0.57';
 import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportMatchScorecardPNG, exportFullMatchSummaryPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.53';
 import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID, compressImageToTarget, saveScorecardsToSupabase } from './supabase.js?v=13.0.53';
 import { shops } from './shopsData.js?v=12.0.2';
@@ -4338,6 +4338,7 @@ function renderScorerMatchesList() {
           playerStats: {}
         };
       }
+      if (!fixture.inningsTiming) fixture.inningsTiming = {};
 
       fixture.liveMatchState.strikerId = strikerId;
       fixture.liveMatchState.nonStrikerId = nonStrikerId;
@@ -5006,6 +5007,26 @@ function openTieResolutionModal(fixture, isSuperOverTie = false, superOverNum = 
 }
 
 function finalizeMatchAsTie(fixture, resultTxt) {
+  // Persist super over data if a super over was played
+  const s = fixture.liveMatchState || {};
+  if (s.isSuperOver && s.superOverNum) {
+    if (!fixture.superOverData) fixture.superOverData = [];
+    fixture.superOverData.push({
+      superOverNum: s.superOverNum,
+      teamAScore: { ...(s.soTeamAScore || {}) },
+      teamBScore: { ...(s.soTeamBScore || {}) },
+      teamAName: fixture.teamAName,
+      teamBName: fixture.teamBName,
+      result: resultTxt
+    });
+  }
+
+  // Capture final timing
+  if (!fixture.inningsTiming) fixture.inningsTiming = {};
+  if (fixture.startedAtTimestamp) {
+    fixture.inningsTiming.totalMatchDuration = Math.round((Date.now() - fixture.startedAtTimestamp) / 60000);
+  }
+
   fixture.status = 'COMPLETED';
   fixture.endedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   fixture.result = resultTxt;
@@ -5138,6 +5159,23 @@ function handleSuperOverInningsEnd(fixture) {
     return;
   }
 
+  // Persist super over data before clearing live state
+  if (!fixture.superOverData) fixture.superOverData = [];
+  fixture.superOverData.push({
+    superOverNum: s.superOverNum || 1,
+    teamAScore: { ...(s.soTeamAScore || {}) },
+    teamBScore: { ...(s.soTeamBScore || {}) },
+    teamAName: fixture.teamAName,
+    teamBName: fixture.teamBName,
+    result: resultTxt
+  });
+
+  // Capture final timing
+  if (!fixture.inningsTiming) fixture.inningsTiming = {};
+  if (fixture.startedAtTimestamp) {
+    fixture.inningsTiming.totalMatchDuration = Math.round((Date.now() - fixture.startedAtTimestamp) / 60000);
+  }
+
   fixture.status = 'COMPLETED';
   fixture.endedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   fixture.result = resultTxt;
@@ -5250,6 +5288,13 @@ function endInningsOrFinishMatch(fixture) {
 
   if (s.innings === 1) {
     const target = (s.runs || 0) + 1;
+    // Capture innings 1 end time
+    if (!fixture.inningsTiming) fixture.inningsTiming = {};
+    fixture.inningsTiming.innings1EndTs = Date.now();
+    fixture.inningsTiming.innings1EndTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (fixture.inningsTiming.innings1StartTs) {
+      fixture.inningsTiming.innings1Duration = Math.round((fixture.inningsTiming.innings1EndTs - fixture.inningsTiming.innings1StartTs) / 60000);
+    }
     // Innings-1 final total is already stored in teamAScore by the caller.
     s.innings = 2;
     s.target = target;
@@ -5293,6 +5338,17 @@ function endInningsOrFinishMatch(fixture) {
     winnerId = fixture.teamBId;
     resultTxt = `${fixture.teamBName} won by ${10 - (teamBScore.wickets || 0)} wickets`;
   }
+  // Capture innings 2 end time
+  if (!fixture.inningsTiming) fixture.inningsTiming = {};
+  fixture.inningsTiming.innings2EndTs = Date.now();
+  fixture.inningsTiming.innings2EndTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  if (fixture.inningsTiming.innings2StartTs) {
+    fixture.inningsTiming.innings2Duration = Math.round((fixture.inningsTiming.innings2EndTs - fixture.inningsTiming.innings2StartTs) / 60000);
+  }
+  if (fixture.startedAtTimestamp) {
+    fixture.inningsTiming.totalMatchDuration = Math.round((Date.now() - fixture.startedAtTimestamp) / 60000);
+  }
+
   fixture.status = 'COMPLETED';
   fixture.endedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   fixture.result = resultTxt;
@@ -5379,6 +5435,17 @@ function processScorerBall(runsScored) {
   }
   if (!fixture.startedAt) {
     fixture.startedAt = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+
+  // Capture innings timing on first ball of each innings
+  if (!fixture.inningsTiming) fixture.inningsTiming = {};
+  if (state.innings === 1 && !fixture.inningsTiming.innings1StartTs) {
+    fixture.inningsTiming.innings1StartTs = Date.now();
+    fixture.inningsTiming.innings1StartTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  }
+  if (state.innings === 2 && !fixture.inningsTiming.innings2StartTs) {
+    fixture.inningsTiming.innings2StartTs = Date.now();
+    fixture.inningsTiming.innings2StartTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   }
 
   const battingTeamId = state.innings === 2 ? fixture.teamBId : fixture.teamAId;
@@ -5557,6 +5624,9 @@ function processScorerBall(runsScored) {
   else if (runsScored === 4) commentaryDesc = `FOUR! Beautifully timed boundary by ${strikerName}!`;
   else if (runsScored === 6) commentaryDesc = `SIX! Huge maximum! ${strikerName} sends it soaring into the stands!`;
 
+  const strikerStat = state.playerStats[state.strikerId] || {};
+  const bowlerStat = state.playerStats[state.bowlerId] || {};
+  const bBowled = bowlerStat.ballsBowled || 0;
   state.ballHistory.unshift({
     innings: state.innings || 1,
     overNum: `${state.overs}.${state.balls}`,
@@ -5565,6 +5635,12 @@ function processScorerBall(runsScored) {
     runs: totalBallRuns,
     bowlerName: bowlerName,
     batterName: strikerName,
+    batterScore: `${strikerStat.runs || 0}(${strikerStat.balls || 0})`,
+    bowlerFigures: `${bowlerStat.wickets || 0}/${bowlerStat.runsConceded || 0} (${Math.floor(bBowled/6)}.${bBowled%6})`,
+    totalScore: state.runs,
+    totalWickets: state.wickets,
+    nonStrikerName: store.getPlayerById(state.nonStrikerId)?.name || '',
+    nonStrikerScore: `${(state.playerStats[state.nonStrikerId]?.runs || 0)}(${(state.playerStats[state.nonStrikerId]?.balls || 0)})`,
     commentary: `${bowlerName} to ${strikerName} — ${commentaryDesc}`,
     timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   });
@@ -5828,6 +5904,8 @@ function openScorerWicketModal() {
     let wktCommentary = `OUT! ${dismissedName} dismissed (${type.replace('_', ' ').toLowerCase()}).`;
     if (fielderName) wktCommentary = `OUT! ${dismissedName} caught by ${fielderName} off ${bowlerName}.`;
 
+    const wBowlerStat = state.playerStats[bowlerId] || {};
+    const wBBowled = wBowlerStat.ballsBowled || 0;
     state.ballHistory.unshift({
       innings: state.innings || 1,
       overNum: `${state.overs}.${state.balls}`,
@@ -5836,6 +5914,10 @@ function openScorerWicketModal() {
       runs: teamRunsToAdd,
       bowlerName: bowlerName,
       batterName: dismissedName,
+      batterScore: `${(state.playerStats[dismissedId]?.runs || 0)}(${(state.playerStats[dismissedId]?.balls || 0)})`,
+      bowlerFigures: `${wBowlerStat.wickets || 0}/${wBowlerStat.runsConceded || 0} (${Math.floor(wBBowled/6)}.${wBBowled%6})`,
+      totalScore: state.runs,
+      totalWickets: state.wickets,
       commentary: `${bowlerName} to ${dismissedName} — ${wktCommentary}`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     });

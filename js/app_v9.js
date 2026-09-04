@@ -1,8 +1,8 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=13.0.54';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.54';
-import { renderAdminDashboard } from './admin.js?v=13.0.54';
+import { store } from './store.js?v=13.0.57';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.57';
+import { renderAdminDashboard } from './admin.js?v=13.0.57';
 import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, fetchNoticeBoardFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.53';
 import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.53';
 import { shops } from './shopsData.js?v=12.0.2';
@@ -4008,13 +4008,14 @@ export function renderCustomTournamentHub(container, tourney) {
                 const isLive = f.status === 'LIVE';
                 const isCompleted = f.status === 'COMPLETED';
                 const statusText = f.status || 'COMPLETED';
+                const liveState = f.liveMatchState || {};
 
                 return `
                   <div class="cpl-match-card bg-white rounded-2xl ${isLive ? 'border border-rose-300 shadow-md ring-1 ring-rose-500/20' : 'border border-slate-200 shadow-sm'} hover:shadow-lg transition-all cursor-pointer group" data-fixture-id="${f.id}" onclick="window.openMatchCenterModal('${f.id}')">
                     <!-- Header: Match Info + Status -->
                     <div class="flex items-center justify-between px-3.5 pt-3 pb-1">
                       <span class="text-[10.5px] font-bold text-slate-500">${f.stage || f.groupCode || 'Series Match'}, T${f.oversLimit || 20}, ${f.date || 'Today'}</span>
-                      ${isLive ? `<span class="text-[10.5px] font-black text-rose-500">Live</span>` : isCompleted ? `<span class="text-[10.5px] font-bold text-slate-400">Completed</span>` : `<span class="text-[10.5px] font-bold text-sky-500">Scheduled</span>`}
+                      ${isLive && liveState.isSuperOver ? `<span class="text-[10.5px] font-black text-amber-600 animate-pulse">⚡ Super Over${liveState.superOverNum > 1 ? ' #' + liveState.superOverNum : ''}</span>` : isLive ? `<span class="text-[10.5px] font-black text-rose-500">Live</span>` : isCompleted ? `<span class="text-[10.5px] font-bold text-slate-400">Completed</span>` : `<span class="text-[10.5px] font-bold text-sky-500">Scheduled</span>`}
                     </div>
                     <!-- Team Rows -->
                     <div class="px-3.5 py-1.5 space-y-1.5">
@@ -4036,7 +4037,7 @@ export function renderCustomTournamentHub(container, tourney) {
                     <!-- Footer: Venue + Result -->
                     <div class="flex items-center justify-between px-3.5 pb-3 pt-1">
                       <span class="text-[10px] font-bold text-slate-400 uppercase truncate max-w-[50%]">${f.venue || tourney.venue || 'VENUE'}</span>
-                      ${isCompleted && f.result ? `<span class="text-[10px] font-bold text-slate-500 truncate max-w-[50%] text-right">${f.result}</span>` : isLive ? `<span class="text-[10px] font-black text-rose-500">Match in progress</span>` : `<span class="text-[10px] font-bold text-slate-400">${f.time || ''}</span>`}
+                      ${isCompleted && f.result ? `<span class="text-[10px] font-bold text-slate-500 truncate max-w-[50%] text-right">${f.result}</span>` : isLive ? `<span class="text-[10px] font-black text-rose-500">${liveState.isSuperOver ? '⚡ Super Over in progress' : 'Match in progress'}</span>` : `<span class="text-[10px] font-bold text-slate-400">${f.time || ''}</span>`}
                     </div>
                   </div>
                 `;
@@ -8997,7 +8998,7 @@ function renderFixturesView(container) {
           <!-- Header: Match Info + Status -->
           <div class="flex items-center justify-between px-3.5 pt-3 pb-1">
             <span class="text-[10.5px] font-bold text-slate-500">${m.group ? `Group ${m.group} Match` : 'Series Match'}, T${m.oversLimit || 20}, ${isLive ? 'Today' : (m.date || 'Today')}</span>
-            ${isLive ? `<span class="text-[10.5px] font-black text-rose-500">Live</span>` : isCompleted ? `<span class="text-[10.5px] font-bold text-slate-400">Completed</span>` : `<span class="text-[10.5px] font-bold text-sky-500">Scheduled</span>`}
+            ${isLive && liveState.isSuperOver ? `<span class="text-[10.5px] font-black text-amber-600 animate-pulse">⚡ Super Over${liveState.superOverNum > 1 ? ' #' + liveState.superOverNum : ''}</span>` : isLive ? `<span class="text-[10.5px] font-black text-rose-500">Live</span>` : isCompleted ? `<span class="text-[10.5px] font-bold text-slate-400">Completed</span>` : `<span class="text-[10.5px] font-bold text-sky-500">Scheduled</span>`}
           </div>
           <!-- Team Rows -->
           <div class="px-3.5 py-1.5 space-y-1.5">
@@ -9017,15 +9018,15 @@ function renderFixturesView(container) {
             </div>
           </div>
           <!-- Target equation for live 2nd innings -->
-          ${isLive && liveState.innings === 2 && liveState.target ? `
+          ${isLive && ((liveState.innings === 2 && liveState.target) || (liveState.isSuperOver && liveState.superOverInnings === 2 && liveState.target)) ? `
             <div class="mx-3.5 mb-1 bg-amber-50 border border-amber-200 text-amber-900 text-[10px] font-black px-2.5 py-1 rounded-lg text-center">
-              Need ${liveState.target - (liveState.runs || 0)} off ${(m.oversLimit * 6) - (((liveState.overs || 0) * 6) + (liveState.balls || 0))} balls
+              Need ${liveState.target - (liveState.runs || 0)} off ${((liveState.isSuperOver ? 1 : m.oversLimit) * 6) - (((liveState.overs || 0) * 6) + (liveState.balls || 0))} balls${liveState.isSuperOver ? ' (Super Over)' : ''}
             </div>
           ` : ''}
           <!-- Footer: Venue + Result/Time -->
           <div class="flex items-center justify-between px-3.5 pb-3 pt-1">
             <span class="text-[10px] font-bold text-slate-400 uppercase truncate max-w-[50%]">${m.venue || 'VENUE'}</span>
-            ${isCompleted && m.result ? `<span class="text-[10px] font-bold text-slate-500 truncate max-w-[50%] text-right">${m.result}</span>` : isLive ? `<span class="text-[10px] font-black text-rose-500">Match in progress</span>` : `<span class="text-[10px] font-bold text-slate-400">${m.time || ''}</span>`}
+            ${isCompleted && m.result ? `<span class="text-[10px] font-bold text-slate-500 truncate max-w-[50%] text-right">${m.result}</span>` : isLive ? `<span class="text-[10px] font-black text-rose-500">${liveState.isSuperOver ? '⚡ Super Over in progress' : 'Match in progress'}</span>` : `<span class="text-[10px] font-bold text-slate-400">${m.time || ''}</span>`}
           </div>
         </div>
       `;
@@ -9913,7 +9914,7 @@ export function openMatchCenterModal(fixtureId) {
                 <span class="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-mono font-black rounded-md uppercase shrink-0">
                   ${(fixture.tournamentName || (store.getCustomTournamentById(fixture.tournamentId || fixture.tournament_id)?.name) || 'CRICKET PREMIER LEAGUE').toUpperCase()} • MATCH ${fixture.matchNo || 1}
                 </span>
-                ${isLive ? `<span class="px-2 py-0.5 bg-red-500 text-white text-[9px] font-black rounded-md uppercase animate-pulse shrink-0">🔴 LIVE</span>` : (isCompleted ? `<span class="px-2 py-0.5 bg-emerald-500 text-slate-950 text-[9px] font-black rounded-md uppercase shrink-0">COMPLETED</span>` : `<span class="px-2 py-0.5 bg-amber-400 text-slate-950 text-[9px] font-black rounded-md uppercase shrink-0">SCHEDULED</span>`)}
+                ${isLive && state.isSuperOver ? `<span class="px-2 py-0.5 bg-amber-500 text-white text-[9px] font-black rounded-md uppercase animate-pulse shrink-0">⚡ SUPER OVER</span>` : isLive ? `<span class="px-2 py-0.5 bg-red-500 text-white text-[9px] font-black rounded-md uppercase animate-pulse shrink-0">🔴 LIVE</span>` : (isCompleted ? `<span class="px-2 py-0.5 bg-emerald-500 text-slate-950 text-[9px] font-black rounded-md uppercase shrink-0">COMPLETED</span>` : `<span class="px-2 py-0.5 bg-amber-400 text-slate-950 text-[9px] font-black rounded-md uppercase shrink-0">SCHEDULED</span>`)}
               </div>
               <h2 class="text-sm sm:text-base font-black text-white leading-tight mt-0.5 truncate">
                 ${fixture.teamAName} vs ${fixture.teamBName}
@@ -10125,6 +10126,42 @@ export function openMatchCenterModal(fixtureId) {
                   </div>
                 </div>
 
+                <!-- 3b. Super Over Summary (if played) -->
+                ${(() => {
+                  let soList = fixture.superOverData || [];
+                  // Fallback for older matches: reconstruct from liveMatchState
+                  if (soList.length === 0 && state.soTeamAScore && state.soTeamBScore && (state.superOverNum || (fixture.result && fixture.result.toLowerCase().includes('super over')))) {
+                    soList = [{
+                      superOverNum: state.superOverNum || 1,
+                      teamAScore: state.soTeamAScore,
+                      teamBScore: state.soTeamBScore,
+                      teamAName: fixture.teamAName,
+                      teamBName: fixture.teamBName,
+                      result: fixture.result || ''
+                    }];
+                  }
+                  return soList.length > 0 ? soList.map(so => `
+                  <div class="bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 rounded-3xl p-4 shadow-sm space-y-2">
+                    <div class="flex items-center justify-between border-b border-amber-200 pb-2">
+                      <span class="text-xs font-black text-amber-800 uppercase">⚡ Super Over${so.superOverNum > 1 ? ' #' + so.superOverNum : ''}</span>
+                      <span class="text-[10px] font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-lg border border-amber-200">${so.result || ''}</span>
+                    </div>
+                    <div class="grid grid-cols-2 gap-3">
+                      <div class="text-center">
+                        <div class="text-[10px] font-bold text-slate-500 uppercase">${so.teamAName || fixture.teamAName}</div>
+                        <div class="text-lg font-black font-mono text-amber-800">${so.teamAScore?.runs || 0}/${so.teamAScore?.wickets || 0}</div>
+                        <div class="text-[10px] font-mono text-slate-400">(${so.teamAScore?.balls || 0} balls)</div>
+                      </div>
+                      <div class="text-center">
+                        <div class="text-[10px] font-bold text-slate-500 uppercase">${so.teamBName || fixture.teamBName}</div>
+                        <div class="text-lg font-black font-mono text-amber-800">${so.teamBScore?.runs || 0}/${so.teamBScore?.wickets || 0}</div>
+                        <div class="text-[10px] font-mono text-slate-400">(${so.teamBScore?.balls || 0} balls)</div>
+                      </div>
+                    </div>
+                  </div>
+                `).join('') : '';
+                })()}
+
                 <!-- 4. Top Performers Cards -->
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   ${topBatter ? `
@@ -10150,7 +10187,35 @@ export function openMatchCenterModal(fixtureId) {
                   ` : ''}
                 </div>
 
-                <!-- 5. Match Meta Info Footer -->
+                <!-- 5. Match Timing -->
+                ${(() => {
+                  const t = fixture.inningsTiming || {};
+                  if (!t.innings1StartTime && !fixture.startedAt) return '';
+                  const fmtDur = (mins) => mins != null ? (mins >= 60 ? `${Math.floor(mins/60)}h ${mins%60}m` : `${mins}m`) : '-';
+                  return `
+                  <div class="bg-white border-2 border-slate-200 rounded-3xl p-4 shadow-sm space-y-2">
+                    <div class="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 pb-1.5">⏱️ Match Timing</div>
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-center">
+                      <div class="bg-emerald-50 border border-emerald-200 rounded-2xl p-2.5">
+                        <div class="text-[9px] font-bold text-emerald-600 uppercase">1st Innings</div>
+                        <div class="text-lg font-black text-emerald-700">${t.innings1Duration != null ? fmtDur(t.innings1Duration) : '-'}</div>
+                        <div class="text-[9px] text-slate-400 font-mono">${t.innings1StartTime || '-'} → ${t.innings1EndTime || '-'}</div>
+                      </div>
+                      <div class="bg-sky-50 border border-sky-200 rounded-2xl p-2.5">
+                        <div class="text-[9px] font-bold text-sky-600 uppercase">2nd Innings</div>
+                        <div class="text-lg font-black text-sky-700">${t.innings2Duration != null ? fmtDur(t.innings2Duration) : '-'}</div>
+                        <div class="text-[9px] text-slate-400 font-mono">${t.innings2StartTime || '-'} → ${t.innings2EndTime || '-'}</div>
+                      </div>
+                      <div class="bg-amber-50 border border-amber-200 rounded-2xl p-2.5">
+                        <div class="text-[9px] font-bold text-amber-600 uppercase">Total Match</div>
+                        <div class="text-lg font-black text-amber-700">${t.totalMatchDuration != null ? fmtDur(t.totalMatchDuration) : '-'}</div>
+                        <div class="text-[9px] text-slate-400 font-mono">${t.innings1StartTime || fixture.startedAt || '-'} → ${fixture.endedAt || '-'}</div>
+                      </div>
+                    </div>
+                  </div>`;
+                })()}
+
+                <!-- 6. Match Meta Info Footer -->
                 <div class="bg-slate-50 border border-slate-200 p-3.5 rounded-2xl text-xs font-bold text-slate-600 flex flex-wrap items-center justify-between gap-2">
                   <span>🪙 Toss: <strong class="text-slate-900">${fixture.tossDetails || 'Toss updated'}</strong></span>
                   <span>📍 Venue: <strong class="text-slate-900">${fixture.venue || 'JHANKRA SCHOOL GROUND'}</strong></span>
@@ -10165,7 +10230,8 @@ export function openMatchCenterModal(fixtureId) {
                   <img src="${batLogo}" class="w-10 h-10 rounded-2xl object-cover border border-slate-200 shadow-2xs bg-slate-50 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
                   <div class="truncate">
                     <h3 class="font-black text-slate-900 text-sm sm:text-base leading-tight truncate">${batTeamName}</h3>
-                    <span class="text-[10px] text-emerald-700 font-bold uppercase tracking-wider">Innings ${state.innings || 1} Batting</span>
+                    <span class="text-[10px] text-emerald-700 font-bold uppercase tracking-wider">${state.isSuperOver ? `⚡ Super Over #${state.superOverNum || 1} - Innings ${state.superOverInnings || 1}` : `Innings ${state.innings || 1}`} Batting</span>
+                    ${fixture.startedAtTimestamp ? `<span class="text-[9px] text-slate-400 font-mono">⏱️ ${Math.round((Date.now() - fixture.startedAtTimestamp) / 60000)}m elapsed</span>` : ''}
                   </div>
                 </div>
                 <div class="text-right">
@@ -10560,11 +10626,12 @@ export function openMatchCenterModal(fixtureId) {
                         ${sortedBalls.map(b => `<span class="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-black ${getBallCircleClass(b)}">${b.label}</span>`).join('')}
                       </div>
                       <div class="flex items-center justify-between text-[11px] text-slate-700">
-                        <div class="flex items-center gap-4 min-w-0">
+                        <div class="min-w-0">
                           <span class="font-black truncate">${lastBall.batterName || 'Batter'}</span>
-                          <span class="font-mono font-bold text-slate-500">${lastBall.batterScore || ''}</span>
+                          <span class="font-mono font-bold text-slate-500 ml-1">${lastBall.batterScore || ''}</span>
+                          ${lastBall.nonStrikerName ? `<span class="text-slate-400 mx-1">&</span><span class="font-black truncate">${lastBall.nonStrikerName}</span><span class="font-mono font-bold text-slate-500 ml-1">${lastBall.nonStrikerScore || ''}</span>` : ''}
                         </div>
-                        <div class="flex items-center gap-4 min-w-0">
+                        <div class="flex items-center gap-1 min-w-0 shrink-0">
                           <span class="font-black truncate">${lastBall.bowlerName || 'Bowler'}</span>
                           <span class="font-mono font-bold text-slate-500">${lastBall.bowlerFigures || ''}</span>
                         </div>
@@ -10572,14 +10639,17 @@ export function openMatchCenterModal(fixtureId) {
                       <div class="flex items-center justify-between text-[11px] font-bold">
                         <span class="text-teal-700">Overs ${overNum}</span>
                         <span class="text-teal-700">Runs ${overRuns}</span>
-                        ${scoreTxt ? `<span class="text-teal-700">Score ${scoreTxt}</span>` : ''}
+                        ${scoreTxt ? `<span class="text-teal-700">Score ${scoreTxt}/${runningWickets}</span>` : ''}
                       </div>
                     </div>
                     <!-- Individual Ball Entries -->
                     <div class="divide-y divide-slate-100">
-                      ${sortedBalls.map(b => `
+                      ${sortedBalls.map(b => {
+                        const parts = (b.overNum || '0.0').split('.');
+                        const displayOver = parts[0] + '.' + (parseInt(parts[1] || '0') + 1);
+                        return `
                         <div class="flex items-start gap-3 py-3.5 px-1">
-                          <span class="text-sm font-black text-slate-400 font-mono w-10 shrink-0 pt-0.5">${b.overNum}</span>
+                          <span class="text-sm font-black text-slate-400 font-mono w-10 shrink-0 pt-0.5">${displayOver}</span>
                           <span class="w-8 h-8 rounded-full flex items-center justify-center text-xs font-black shrink-0 ${getBallCircleClass(b)}">${b.label}</span>
                           <div class="flex-grow min-w-0">
                             <div class="text-[13px] font-black text-slate-900 leading-tight">
@@ -10590,7 +10660,7 @@ export function openMatchCenterModal(fixtureId) {
                             </div>
                           </div>
                         </div>
-                      `).join('')}
+                      `}).join('')}
                     </div>
                   </div>
                 `;
