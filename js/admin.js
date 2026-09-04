@@ -1,8 +1,8 @@
 // Admin Master Data & Payment Verification Panel with Single Source Cloud Control (Developer: Suman Kolay)
 
-import { store } from './store.js?v=13.0.62';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportMatchScorecardPNG, exportFullMatchSummaryPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.62';
-import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID, compressImageToTarget, saveScorecardsToSupabase } from './supabase.js?v=13.0.62';
+import { store } from './store.js?v=13.0.63';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportMatchScorecardPNG, exportFullMatchSummaryPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.63';
+import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID, compressImageToTarget, saveScorecardsToSupabase } from './supabase.js?v=13.0.63';
 import { shops } from './shopsData.js?v=12.0.2';
 
 let activeAdminTab = (() => { try { return sessionStorage.getItem('cpl_admin_tab') || (store.isMasterAdmin() ? 'payments' : 'overview'); } catch(e) { return 'payments'; } })();
@@ -5534,7 +5534,8 @@ function processScorerBall(runsScored) {
     if (runsScored === 4) state.playerStats[strikerId].fours = (state.playerStats[strikerId].fours || 0) + 1;
     if (runsScored === 6) state.playerStats[strikerId].sixes = (state.playerStats[strikerId].sixes || 0) + 1;
   }
-  if (!isWide) {
+  // Striker only faces a legal delivery (neither wides nor no-balls count as balls faced)
+  if (!isWide && !isNoBall) {
     state.playerStats[strikerId].balls += 1;
   }
 
@@ -5860,8 +5861,8 @@ function openScorerWicketModal() {
     if (wIsLegalDelivery && !wIsBye && !wIsLegBye && runsCompleted > 0 && wStrikerId) {
       state.playerStats[wStrikerId].runs += runsCompleted;
     }
-    // Striker faces a ball unless it is a wide
-    if (!wIsWide && wStrikerId) state.playerStats[wStrikerId].balls += 1;
+    // Striker only faces a legal ball (neither wides nor no-balls count as balls faced)
+    if (wIsLegalDelivery && wStrikerId) state.playerStats[wStrikerId].balls += 1;
 
     if (!state.playerStats) state.playerStats = {};
     if (!state.playerStats[dismissedId]) {
@@ -5965,6 +5966,13 @@ function openScorerWicketModal() {
       }
     }
 
+    // Free hit update: a no-ball grants free hit; a legal delivery clears it
+    if (wIsNoBall) {
+      state.freeHit = true;
+    } else if (!wIsWide) {
+      state.freeHit = false;
+    }
+
     // Remember which crease slot the dismissed batter vacated
     const vacantRole = (dismissedId === state.strikerId) ? 'striker' : 'nonStriker';
     if (vacantRole === 'striker') {
@@ -6004,14 +6012,18 @@ function openScorerWicketModal() {
     }
 
     // Prompt for the new incoming batter; if the over also ended, chain the bowler prompt.
-    openSelectNextBatterModal(fixture, vacantRole, () => {
+    openSelectNextBatterModal(fixture, vacantRole, overCompletedNow, () => {
       if (overCompletedNow) openSelectNextBowlerModal(fixture);
     });
   });
 }
 
 // --- SELECT NEXT INCOMING BATTER (after a wicket) ---
-function openSelectNextBatterModal(fixture, vacantRole, onDone) {
+function openSelectNextBatterModal(fixture, vacantRole, overCompletedNow, onDone) {
+  if (typeof overCompletedNow === 'function') {
+    onDone = overCompletedNow;
+    overCompletedNow = false;
+  }
   const state = fixture.liveMatchState;
   if (!state) { if (onDone) onDone(); return; }
   if (!state.playerStats || typeof state.playerStats !== 'object') state.playerStats = {};
@@ -6063,6 +6075,12 @@ function openSelectNextBatterModal(fixture, vacantRole, onDone) {
     if (vacantRole === 'striker') state.strikerId = newId; else state.nonStrikerId = newId;
     if (!state.playerStats[newId]) {
       state.playerStats[newId] = { runs: 0, balls: 0, fours: 0, sixes: 0, wickets: 0, runsConceded: 0, ballsBowled: 0, dismissed: false };
+    }
+    // If the over completed on this wicket ball, batsmen cross for the new over
+    if (overCompletedNow) {
+      const temp = state.strikerId;
+      state.strikerId = state.nonStrikerId;
+      state.nonStrikerId = temp;
     }
     fixture.liveMatchState = state;
     store.updateFixture(fixture);
@@ -9811,7 +9829,7 @@ window.undoLastBall = function() {
       if (batRuns === 4) state.playerStats[strikerId].fours = Math.max(0, (state.playerStats[strikerId].fours || 0) - 1);
       if (batRuns === 6) state.playerStats[strikerId].sixes = Math.max(0, (state.playerStats[strikerId].sixes || 0) - 1);
     }
-    if (!isWide) state.playerStats[strikerId].balls = Math.max(0, (state.playerStats[strikerId].balls || 0) - 1);
+    if (isValidBall) state.playerStats[strikerId].balls = Math.max(0, (state.playerStats[strikerId].balls || 0) - 1);
   }
 
   const bowlerId = state.bowlerId;
