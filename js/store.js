@@ -479,14 +479,32 @@ class Store {
             const localF = localFixtures.find(f => f.id === cf.id || (toUUID(f.id) && toUUID(f.id) === toUUID(cf.id)));
             if (!localF) return cf;
 
-            // Version-based protection: reject cloud state with lower version
+            // Version-based protection: reject cloud state with lower version only if local is actively scoring
+            const isLocalScorer = (typeof window !== 'undefined' && window.__cplActiveScoringFixtureId === cf.id) ||
+                                  (typeof localStorage !== 'undefined' && localStorage.getItem('cpl_active_scoring_fixture_id') === cf.id);
             const storedV = Number(localStorage.getItem(`cpl_active_scoring_${cf.id}_v`)) || 0;
             const localV = Math.max(localF.liveMatchState?._v || 0, localF.liveState?._v || 0, storedV);
-            const cloudV = cf.liveState?._v || 0;
-            if (localV >= cloudV && (localF.status === 'LIVE' || cf.status === 'LIVE')) {
-              return { ...cf, liveState: localF.liveMatchState || localF.liveState || cf.liveState };
+            const cloudLive = cf.liveMatchState || cf.liveState;
+            const cloudV = cloudLive?._v || 0;
+
+            if (isLocalScorer && localV >= cloudV && (localF.status === 'LIVE' || cf.status === 'LIVE')) {
+              const liveData = localF.liveMatchState || localF.liveState || cf.liveState;
+              return { ...cf, liveState: liveData, liveMatchState: liveData };
+            } else if (localV > cloudV && localV > 0 && (localF.status === 'LIVE' || cf.status === 'LIVE')) {
+              const liveData = localF.liveMatchState || localF.liveState || cf.liveState;
+              return { ...cf, liveState: liveData, liveMatchState: liveData };
             }
-            return { ...cf, teamAName: cf.teamAName || localF.teamAName, teamBName: cf.teamBName || localF.teamBName };
+
+            const freshestLive = cloudLive || localF.liveMatchState || localF.liveState || null;
+            return {
+              ...cf,
+              liveState: freshestLive,
+              liveMatchState: freshestLive,
+              teamAName: cf.teamAName || localF.teamAName,
+              teamBName: cf.teamBName || localF.teamBName,
+              teamAScore: cf.teamAScore || localF.teamAScore || null,
+              teamBScore: cf.teamBScore || localF.teamBScore || null
+            };
           });
 
         // Retain uncommitted locally scheduled fixtures (e.g. freshly added matches before cloud echo)
@@ -2234,6 +2252,10 @@ class Store {
     const fixtures = this.getFixtures();
     const idx = fixtures.findIndex(f => f.id === updatedFixture.id);
     if (idx !== -1) {
+      if (updatedFixture.liveMatchState) {
+        if (!updatedFixture.liveMatchState._v) updatedFixture.liveMatchState._v = Date.now();
+        updatedFixture.liveState = updatedFixture.liveMatchState;
+      }
       fixtures[idx] = { ...fixtures[idx], ...updatedFixture, updated_at: Date.now() };
       this._invalidateCache('fixtures');
       safeSetLocalStorage(this._scopedKey('FIXTURES'), fixtures);

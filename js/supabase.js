@@ -461,6 +461,127 @@ export async function uploadHDImage(fileInput, folderName = 'documents') {
 let activeRealtimeChannel = null;
 let globalBroadcastChannel = null;
 
+export function processLiveScoreUpdate(p) {
+  if (typeof window === 'undefined' || !window.store || !p || !p.fixtureId) return;
+  const s = window.store;
+  const fTid = p.tournament_id;
+  const isActive = !fTid || fTid === s.activeTournamentId || toUUID(fTid) === toUUID(s.activeTournamentId);
+  const targetKeys = new Set();
+  if (isActive) {
+    targetKeys.add(s._scopedKey('FIXTURES'));
+  } else {
+    if (fTid) targetKeys.add('cpl_fixtures_v8_' + (toUUID(fTid) || fTid));
+    targetKeys.add(s._scopedKey('FIXTURES')); // Also update active key so open match modal updates immediately
+  }
+  if (localStorage.getItem('cpl_fixtures_v8')) targetKeys.add('cpl_fixtures_v8');
+
+  let updatedAny = false;
+
+  targetKeys.forEach(fixKey => {
+    try {
+      let fixtures = JSON.parse(localStorage.getItem(fixKey)) || [];
+      const idx = fixtures.findIndex(f => f && (f.id === p.fixtureId || (toUUID(f.id) && toUUID(f.id) === toUUID(p.fixtureId))));
+      if (idx !== -1) {
+        if (p.liveMatchState) {
+          const existing = fixtures[idx].liveMatchState || fixtures[idx].liveState || {};
+          const incoming = p.liveMatchState;
+
+          // Merge ball history: incoming contains recent deliveries (newest-first).
+          // Keep newest-first order, prepend any newer deliveries not in existing.
+          const existingHistory = Array.isArray(existing.ballHistory) ? existing.ballHistory : [];
+          const incomingHistory = Array.isArray(incoming.ballHistory) ? incoming.ballHistory : [];
+          const mergedHistory = [...incomingHistory];
+          existingHistory.forEach(eb => {
+            if (!mergedHistory.some(mb => mb.overNum === eb.overNum && (mb.label === eb.label || mb.type === eb.type) && mb.timestamp === eb.timestamp)) {
+              mergedHistory.push(eb);
+            }
+          });
+
+          const mergedLive = {
+            ...existing,
+            ...incoming,
+            ballHistory: mergedHistory,
+            _v: Math.max(existing._v || 0, incoming._v || 0, Date.now())
+          };
+          fixtures[idx].liveMatchState = mergedLive;
+          fixtures[idx].liveState = mergedLive;
+        }
+        if (p.status) fixtures[idx].status = p.status;
+        if (p.result !== undefined) fixtures[idx].result = p.result;
+        if (p.winnerTeamId !== undefined) fixtures[idx].winnerTeamId = p.winnerTeamId;
+        if (p.teamAScore) fixtures[idx].teamAScore = p.teamAScore;
+        if (p.teamBScore) fixtures[idx].teamBScore = p.teamBScore;
+        if (p.oversLimit) fixtures[idx].oversLimit = p.oversLimit;
+        if (p.inningsTiming) fixtures[idx].inningsTiming = p.inningsTiming;
+        if (p.superOverData) fixtures[idx].superOverData = p.superOverData;
+        fixtures[idx].updated_at = Date.now();
+        localStorage.setItem(fixKey, JSON.stringify(fixtures));
+        updatedAny = true;
+      }
+    } catch (e) {}
+  });
+
+  if (updatedAny) {
+    s._invalidateCache('fixtures');
+    s.notify('fixtures_updated');
+    window.dispatchEvent(new CustomEvent('cpl_live_score_updated', { detail: p }));
+    console.log('[REALTIME] Live score update applied for fixture:', p.fixtureId);
+  }
+}
+
+export function processFixtureUpdate(p) {
+  if (typeof window === 'undefined' || !window.store || !p) return;
+  const s = window.store;
+  const fTid = p.fixture?.tournament_id || p.fixture?.leagueId || p.tournament_id;
+  const isActive = !fTid || fTid === s.activeTournamentId || toUUID(fTid) === toUUID(s.activeTournamentId);
+  const scopedFixKey = isActive ? s._scopedKey('FIXTURES') : ('cpl_fixtures_v8_' + (toUUID(fTid) || fTid));
+
+  if (p.action === 'upsert' && p.fixture) {
+    let fixtures = [];
+    try { fixtures = JSON.parse(localStorage.getItem(scopedFixKey)) || []; } catch(e) {}
+    const idx = fixtures.findIndex(f => f && (f.id === p.fixture.id || (toUUID(f.id) && toUUID(f.id) === toUUID(p.fixture.id))));
+    if (idx !== -1) {
+      fixtures[idx] = { ...fixtures[idx], ...p.fixture, updated_at: Date.now() };
+    } else {
+      fixtures.push(p.fixture);
+    }
+    try { localStorage.setItem(scopedFixKey, JSON.stringify(fixtures)); } catch (e) {}
+
+    if (!isActive) {
+      const activeKey = s._scopedKey('FIXTURES');
+      try {
+        let activeFixtures = JSON.parse(localStorage.getItem(activeKey)) || [];
+        const aIdx = activeFixtures.findIndex(f => f && (f.id === p.fixture.id || (toUUID(f.id) && toUUID(f.id) === toUUID(p.fixture.id))));
+        if (aIdx !== -1) {
+          activeFixtures[aIdx] = { ...activeFixtures[aIdx], ...p.fixture, updated_at: Date.now() };
+        } else {
+          activeFixtures.push({ ...p.fixture, _fromBroadcast: true });
+        }
+        localStorage.setItem(activeKey, JSON.stringify(activeFixtures));
+      } catch(e) {}
+    }
+    s._invalidateCache('fixtures');
+    s.notify('fixtures_updated');
+    window.dispatchEvent(new CustomEvent('cpl_fixtures_realtime', { detail: p }));
+    console.log('[REALTIME] Fixture upsert:', p.fixture.teamAName, 'vs', p.fixture.teamBName);
+  } else if (p.action === 'delete' && p.fixture_id) {
+    let fixtures = [];
+    try { fixtures = JSON.parse(localStorage.getItem(scopedFixKey)) || []; } catch(e) {}
+    fixtures = fixtures.filter(f => f && f.id !== p.fixture_id && toUUID(f.id) !== toUUID(p.fixture_id));
+    try { localStorage.setItem(scopedFixKey, JSON.stringify(fixtures)); } catch (e) {}
+    s._invalidateCache('fixtures');
+    s.notify('fixtures_updated');
+    window.dispatchEvent(new CustomEvent('cpl_fixtures_realtime', { detail: p }));
+    console.log('[REALTIME] Fixture deleted:', p.fixture_id);
+  } else if (p.action === 'clear_all') {
+    try { localStorage.setItem(scopedFixKey, JSON.stringify([])); } catch (e) {}
+    s._invalidateCache('fixtures');
+    s.notify('fixtures_updated');
+    window.dispatchEvent(new CustomEvent('cpl_fixtures_realtime', { detail: p }));
+    console.log('[REALTIME] All fixtures cleared for tournament:', fTid);
+  }
+}
+
 export async function initRealtimePushListener(onUpdateCallback, tournamentId) {
   if (!supabase) return null;
   try {
@@ -492,99 +613,8 @@ export async function initRealtimePushListener(onUpdateCallback, tournamentId) {
           }
         }
       })
-      .on('broadcast', { event: 'live_score_update' }, (msg) => {
-        if (typeof window === 'undefined' || !window.store) return;
-        const p = msg?.payload;
-        if (!p || !p.fixtureId) return;
-        const s = window.store;
-        const fTid = p.tournament_id;
-        const isActive = !fTid || fTid === s.activeTournamentId || toUUID(fTid) === toUUID(s.activeTournamentId);
-        const scopedFixKey = isActive ? s._scopedKey('FIXTURES') : ('cpl_fixtures_v8_' + (toUUID(fTid) || fTid));
-        try {
-          let fixtures = JSON.parse(localStorage.getItem(scopedFixKey)) || [];
-          const idx = fixtures.findIndex(f => f.id === p.fixtureId || (toUUID(f.id) && toUUID(f.id) === toUUID(p.fixtureId)));
-          if (idx !== -1) {
-            if (p.liveMatchState) {
-              const existing = fixtures[idx].liveMatchState || {};
-              const incoming = p.liveMatchState;
-              const mergedHistory = existing.ballHistory || [];
-              if (Array.isArray(incoming.ballHistory)) {
-                incoming.ballHistory.forEach(b => {
-                  if (!mergedHistory.some(h => h.overNum === b.overNum && h.ballType === b.ballType && h.timestamp === b.timestamp)) {
-                    mergedHistory.push(b);
-                  }
-                });
-              }
-              fixtures[idx].liveMatchState = { ...existing, ...incoming, ballHistory: mergedHistory };
-            }
-            if (p.status) fixtures[idx].status = p.status;
-            if (p.result) fixtures[idx].result = p.result;
-            if (p.winnerTeamId) fixtures[idx].winnerTeamId = p.winnerTeamId;
-            if (p.inningsTiming) fixtures[idx].inningsTiming = p.inningsTiming;
-            if (p.superOverData) fixtures[idx].superOverData = p.superOverData;
-            fixtures[idx].updated_at = Date.now();
-            localStorage.setItem(scopedFixKey, JSON.stringify(fixtures));
-            s._invalidateCache('fixtures');
-            s.notify('fixtures_updated');
-            console.log('[REALTIME] Live score update received for fixture:', p.fixtureId);
-          }
-        } catch (e) {}
-      })
-      .on('broadcast', { event: 'fixture_update' }, (msg) => {
-        if (typeof window === 'undefined' || !window.store) return;
-        const p = msg?.payload;
-        if (!p) return;
-        const s = window.store;
-        const fTid = p.fixture?.tournament_id || p.fixture?.leagueId || p.tournament_id;
-        const isActive = !fTid || fTid === s.activeTournamentId || toUUID(fTid) === toUUID(s.activeTournamentId);
-        const scopedFixKey = isActive ? s._scopedKey('FIXTURES') : ('cpl_fixtures_v8_' + (toUUID(fTid) || fTid));
-
-        if (p.action === 'upsert' && p.fixture) {
-          // Save to the tournament-specific key
-          let fixtures = [];
-          try { fixtures = JSON.parse(localStorage.getItem(scopedFixKey)) || []; } catch(e) {}
-          const idx = fixtures.findIndex(f => f.id === p.fixture.id || (toUUID(f.id) && toUUID(f.id) === toUUID(p.fixture.id)));
-          if (idx !== -1) {
-            fixtures[idx] = { ...fixtures[idx], ...p.fixture, updated_at: Date.now() };
-          } else {
-            fixtures.push(p.fixture);
-          }
-          try { localStorage.setItem(scopedFixKey, JSON.stringify(fixtures)); } catch (e) {}
-          // Also save to the viewer's active fixtures key if different, so it shows in current view
-          if (!isActive) {
-            const activeKey = s._scopedKey('FIXTURES');
-            try {
-              let activeFixtures = JSON.parse(localStorage.getItem(activeKey)) || [];
-              const aIdx = activeFixtures.findIndex(f => f.id === p.fixture.id || (toUUID(f.id) && toUUID(f.id) === toUUID(p.fixture.id)));
-              if (aIdx !== -1) {
-                activeFixtures[aIdx] = { ...activeFixtures[aIdx], ...p.fixture, updated_at: Date.now() };
-              } else {
-                activeFixtures.push({ ...p.fixture, _fromBroadcast: true });
-              }
-              localStorage.setItem(activeKey, JSON.stringify(activeFixtures));
-            } catch(e) {}
-          }
-          s._invalidateCache('fixtures');
-          s.notify('fixtures_updated');
-          window.dispatchEvent(new CustomEvent('cpl_fixtures_realtime', { detail: p }));
-          console.log('[REALTIME] Fixture upsert:', p.fixture.teamAName, 'vs', p.fixture.teamBName);
-        } else if (p.action === 'delete' && p.fixture_id) {
-          let fixtures = [];
-          try { fixtures = JSON.parse(localStorage.getItem(scopedFixKey)) || []; } catch(e) {}
-          fixtures = fixtures.filter(f => f.id !== p.fixture_id && toUUID(f.id) !== toUUID(p.fixture_id));
-          try { localStorage.setItem(scopedFixKey, JSON.stringify(fixtures)); } catch (e) {}
-          s._invalidateCache('fixtures');
-          s.notify('fixtures_updated');
-          window.dispatchEvent(new CustomEvent('cpl_fixtures_realtime', { detail: p }));
-          console.log('[REALTIME] Fixture deleted:', p.fixture_id);
-        } else if (p.action === 'clear_all') {
-          try { localStorage.setItem(scopedFixKey, JSON.stringify([])); } catch (e) {}
-          s._invalidateCache('fixtures');
-          s.notify('fixtures_updated');
-          window.dispatchEvent(new CustomEvent('cpl_fixtures_realtime', { detail: p }));
-          console.log('[REALTIME] All fixtures cleared for tournament:', fTid);
-        }
-      })
+      .on('broadcast', { event: 'live_score_update' }, (msg) => processLiveScoreUpdate(msg?.payload))
+      .on('broadcast', { event: 'fixture_update' }, (msg) => processFixtureUpdate(msg?.payload))
       .on('postgres_changes', { event: '*', schema: 'public', table: 'players', ...(tFilter && { filter: tFilter }) }, (payload) => {
         if (typeof onUpdateCallback === 'function') onUpdateCallback(payload);
       })
@@ -616,10 +646,13 @@ export async function initRealtimePushListener(onUpdateCallback, tournamentId) {
     activeRealtimeChannel = channel;
 
     // Keep a persistent global broadcast channel for cross-tournament notifications
-    if (tId && !globalBroadcastChannel) {
+    if (!globalBroadcastChannel) {
       try {
         globalBroadcastChannel = supabase.channel('cpl_realtime_global');
-        globalBroadcastChannel.subscribe(() => {});
+        globalBroadcastChannel
+          .on('broadcast', { event: 'live_score_update' }, (msg) => processLiveScoreUpdate(msg?.payload))
+          .on('broadcast', { event: 'fixture_update' }, (msg) => processFixtureUpdate(msg?.payload))
+          .subscribe(() => {});
       } catch(e) {}
     }
 
@@ -921,6 +954,7 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
         status: m.status || 'SCHEDULED',
         result: m.result,
         liveState: m.live_state,
+        liveMatchState: m.live_state,
         created_at: m.created_at,
         updated_at: m.updated_at
       });
@@ -933,6 +967,7 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
       if (!cm || !cm.id) return;
       if (deletedIdsSet.has(cm.id) || (toUUID(cm.id) && deletedIdsSet.has(toUUID(cm.id)))) return;
       const existing = matchesMap.get(cm.id);
+      const mLive = cm.liveMatchState || cm.liveState || existing?.liveMatchState || existing?.liveState || null;
       matchesMap.set(cm.id, {
         ...(existing || {}),
         ...cm,
@@ -953,7 +988,10 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
         oversLimit: cm.oversLimit || cm.overs_limit || existing?.oversLimit || 16,
         status: cm.status || existing?.status || 'SCHEDULED',
         result: cm.result || existing?.result || null,
-        liveState: cm.liveMatchState || cm.liveState || existing?.liveState || null,
+        liveState: mLive,
+        liveMatchState: mLive,
+        teamAScore: cm.teamAScore || existing?.teamAScore || null,
+        teamBScore: cm.teamBScore || existing?.teamBScore || null,
         created_at: cm.created_at || existing?.created_at || new Date().toISOString(),
         updated_at: cm.updated_at || Date.now()
       });
@@ -1451,33 +1489,61 @@ export async function syncFixtureToSupabase(fixtureData, tournamentId = null) {
 }
 
 export function broadcastLiveScore(fixture, tournamentId) {
-  if (!activeRealtimeChannel || !fixture) return;
+  if (!fixture) return;
   try {
-    const ls = fixture.liveMatchState;
+    const ls = fixture.liveMatchState || fixture.liveState;
     const lite = ls ? {
-      currentInnings: ls.currentInnings, runs: ls.runs, wickets: ls.wickets, overs: ls.overs, balls: ls.balls,
-      target: ls.target, innings1: ls.innings1, extras: ls.extras,
-      currentBatterA: ls.currentBatterA, currentBatterB: ls.currentBatterB, currentBowler: ls.currentBowler,
-      isStrikerA: ls.isStrikerA, playerStats: ls.playerStats,
-      isSuperOver: ls.isSuperOver, superOverNum: ls.superOverNum,
-      soTeamAScore: ls.soTeamAScore, soTeamBScore: ls.soTeamBScore,
-      ballHistory: ls.ballHistory ? ls.ballHistory.slice(-12) : []
+      innings: ls.innings || ls.currentInnings || 1,
+      currentInnings: ls.innings || ls.currentInnings || 1,
+      runs: Number(ls.runs) || 0,
+      wickets: Number(ls.wickets) || 0,
+      overs: Number(ls.overs) || 0,
+      balls: Number(ls.balls) || 0,
+      target: (ls.target !== undefined && ls.target !== null) ? Number(ls.target) : null,
+      extras: Number(ls.extras) || 0,
+      strikerId: ls.strikerId || '',
+      nonStrikerId: ls.nonStrikerId || '',
+      bowlerId: ls.bowlerId || '',
+      overBalls: Array.isArray(ls.overBalls) ? ls.overBalls : [],
+      freeHit: !!ls.freeHit,
+      playerStats: ls.playerStats || {},
+      isSuperOver: !!ls.isSuperOver,
+      superOverNum: ls.superOverNum || 1,
+      superOverInnings: ls.superOverInnings || 1,
+      firstBatTeamId: ls.firstBatTeamId || null,
+      firstBowlTeamId: ls.firstBowlTeamId || null,
+      soTeamAScore: ls.soTeamAScore || null,
+      soTeamBScore: ls.soTeamBScore || null,
+      currentOverBowlerRuns: ls.currentOverBowlerRuns || 0,
+      tossDetails: fixture.tossDetails || ls.tossDetails || null,
+      ballHistory: Array.isArray(ls.ballHistory) ? ls.ballHistory.slice(0, 40) : [],
+      _v: ls._v || Date.now()
     } : null;
+
     const scorePayload = {
       fixtureId: fixture.id,
       tournament_id: tournamentId || fixture.tournament_id || fixture.leagueId,
       status: fixture.status,
-      result: fixture.result,
-      winnerTeamId: fixture.winnerTeamId,
-      inningsTiming: fixture.inningsTiming,
-      superOverData: fixture.superOverData,
-      liveMatchState: lite
+      result: fixture.result || null,
+      winnerTeamId: fixture.winnerTeamId || null,
+      teamAScore: fixture.teamAScore || null,
+      teamBScore: fixture.teamBScore || null,
+      oversLimit: fixture.oversLimit || 16,
+      inningsTiming: fixture.inningsTiming || null,
+      superOverData: fixture.superOverData || null,
+      liveMatchState: lite,
+      updated_at: Date.now()
     };
-    activeRealtimeChannel.send({ type: 'broadcast', event: 'live_score_update', payload: scorePayload }).catch(() => {});
+
+    if (activeRealtimeChannel) {
+      activeRealtimeChannel.send({ type: 'broadcast', event: 'live_score_update', payload: scorePayload }).catch(() => {});
+    }
     if (globalBroadcastChannel) {
       globalBroadcastChannel.send({ type: 'broadcast', event: 'live_score_update', payload: scorePayload }).catch(() => {});
     }
-  } catch (e) {}
+  } catch (e) {
+    console.warn('[SUPABASE] broadcastLiveScore error:', e);
+  }
 }
 
 export async function saveScorecardsToSupabase(fixture, tournamentId = null) {

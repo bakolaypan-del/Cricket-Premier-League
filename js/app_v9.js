@@ -4107,7 +4107,19 @@ export function renderCustomTournamentHub(container, tourney) {
                 const isLive = f.status === 'LIVE';
                 const isCompleted = f.status === 'COMPLETED';
                 const statusText = f.status || 'COMPLETED';
-                const liveState = f.liveMatchState || {};
+                const liveState = f.liveMatchState || f.liveState || {};
+                const aScore = f.teamAScore || {};
+                const bScore = f.teamBScore || {};
+                let teamAScoreTxt = '';
+                let teamBScoreTxt = '';
+                if (isLive) {
+                  const isBattingTeamA = liveState.innings !== 2;
+                  teamAScoreTxt = isBattingTeamA ? `${liveState.runs || 0}/${liveState.wickets || 0} (${liveState.overs || 0}.${liveState.balls || 0})` : (f.teamAScore ? `${f.teamAScore.runs}/${f.teamAScore.wickets}` : '');
+                  teamBScoreTxt = !isBattingTeamA ? `${liveState.runs || 0}/${liveState.wickets || 0} (${liveState.overs || 0}.${liveState.balls || 0})` : (f.teamBScore ? `${f.teamBScore.runs}/${f.teamBScore.wickets}` : '');
+                } else if (isCompleted) {
+                  teamAScoreTxt = aScore.runs !== undefined ? `${aScore.runs}/${aScore.wickets || 0}` : '';
+                  teamBScoreTxt = bScore.runs !== undefined ? `${bScore.runs}/${bScore.wickets || 0}` : '';
+                }
 
                 return `
                   <div class="cpl-match-card bg-white rounded-2xl ${isLive ? 'border border-rose-300 shadow-md ring-1 ring-rose-500/20' : 'border border-slate-200 shadow-sm'} hover:shadow-lg transition-all cursor-pointer group" data-fixture-id="${f.id}" onclick="window.openMatchCenterModal('${f.id}')">
@@ -4123,14 +4135,14 @@ export function renderCustomTournamentHub(container, tourney) {
                           <img src="${(store.getTeamById(f.teamAId)?.logoUrl || store.getTeamById(f.teamAId)?.teamLogoUrl || 'assets/card_jsl_user.png')}" class="w-6 h-6 rounded-full object-cover border border-slate-200 bg-slate-50 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
                           <span class="text-[13px] font-black text-slate-900 truncate uppercase">${f.teamAName || 'Team A'}</span>
                         </div>
-                        ${f.liveScoreTeamA ? `<span class="text-[13px] font-black text-slate-800 shrink-0">${f.liveScoreTeamA}</span>` : ''}
+                        ${teamAScoreTxt ? `<span class="text-[13px] font-black ${isLive ? 'text-rose-600' : 'text-slate-800'} shrink-0">${teamAScoreTxt}</span>` : ''}
                       </div>
                       <div class="flex items-center justify-between gap-2">
                         <div class="flex items-center gap-2.5 min-w-0">
                           <img src="${(store.getTeamById(f.teamBId)?.logoUrl || store.getTeamById(f.teamBId)?.teamLogoUrl || 'assets/card_jsl_user.png')}" class="w-6 h-6 rounded-full object-cover border border-slate-200 bg-slate-50 shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
                           <span class="text-[13px] font-black text-slate-900 truncate uppercase">${f.teamBName || 'Team B'}</span>
                         </div>
-                        ${f.liveScoreTeamB ? `<span class="text-[13px] font-black text-slate-800 shrink-0">${f.liveScoreTeamB}</span>` : ''}
+                        ${teamBScoreTxt ? `<span class="text-[13px] font-black ${isLive ? 'text-rose-600' : 'text-slate-800'} shrink-0">${teamBScoreTxt}</span>` : ''}
                       </div>
                     </div>
                     <!-- Footer: Venue + Result -->
@@ -9993,7 +10005,7 @@ export function openMatchCenterModal(fixtureId) {
   const playing11A = teamAPlayers.filter(p => (pxiA.playing11Ids || []).includes(p.id));
   const playing11B = teamBPlayers.filter(p => (pxiB.playing11Ids || []).includes(p.id));
 
-  const state = fixture.liveMatchState || {};
+  const state = fixture.liveMatchState || fixture.liveState || {};
   const isLive = fixture.status === 'LIVE';
   const isCompleted = fixture.status === 'COMPLETED';
   const currentInnings = state.innings || (isCompleted ? 2 : 1);
@@ -10065,14 +10077,18 @@ export function openMatchCenterModal(fixtureId) {
   document.body.insertAdjacentHTML('beforeend', modalHtml);
   if (window.lucide) window.lucide.createIcons();
 
-  let mcPollTimer = null;
   let mcLiveHandler = null;
+  let mcVisibilityHandler = null;
   const removeModal = () => {
-    if (mcPollTimer) { clearInterval(mcPollTimer); mcPollTimer = null; }
     if (mcLiveHandler) {
       window.removeEventListener('fixtures_updated', mcLiveHandler);
+      window.removeEventListener('cpl_live_score_updated', mcLiveHandler);
       window.removeEventListener('live_auction_updated', mcLiveHandler);
       mcLiveHandler = null;
+    }
+    if (mcVisibilityHandler) {
+      document.removeEventListener('visibilitychange', mcVisibilityHandler);
+      mcVisibilityHandler = null;
     }
     if (window.renderActiveMatchCenter === renderMatchCenterContent) window.renderActiveMatchCenter = null;
     document.getElementById('match-center-modal')?.remove();
@@ -10093,7 +10109,7 @@ export function openMatchCenterModal(fixtureId) {
     // LIVE REFRESH: re-read the freshest fixture every render so spectators see
     // real-time score updates instead of a stale open-time snapshot.
     const fixture = store.getFixtures().find(f => f.id === fixtureId) || (store.getAllFixturesAcrossTournaments ? store.getAllFixturesAcrossTournaments().find(f => f.id === fixtureId) : null) || {};
-    const state = fixture.liveMatchState || {};
+    const state = fixture.liveMatchState || fixture.liveState || {};
     const pStats = state.playerStats || {};
     const isLive = fixture.status === 'LIVE';
     const isCompleted = fixture.status === 'COMPLETED';
@@ -11000,17 +11016,18 @@ export function openMatchCenterModal(fixtureId) {
 
   window.renderActiveMatchCenter = renderMatchCenterContent;
 
-  // --- REAL-TIME LIVE UPDATES while the Match Centre is open ---
-  // Redraw on every cloud fixture change (SSE → 'fixtures_updated'), and poll the
-  // cloud every few seconds as a reliable fallback for spectator devices.
   mcLiveHandler = () => { if (document.getElementById('match-center-modal')) renderMatchCenterContent(); };
   window.addEventListener('fixtures_updated', mcLiveHandler);
+  window.addEventListener('cpl_live_score_updated', mcLiveHandler);
   window.addEventListener('live_auction_updated', mcLiveHandler);
-  mcPollTimer = setInterval(() => {
-    if (!document.getElementById('match-center-modal')) { removeModal(); return; }
-    if (document.visibilityState === 'hidden') return;
-    Promise.resolve(store.syncWithCloud()).then(() => renderMatchCenterContent()).catch(() => renderMatchCenterContent());
-  }, 120000);
+
+  // Phone Wake-Up / Visibility Change: Do a 1-time sync if user wakes up phone screen or returns to tab
+  mcVisibilityHandler = () => {
+    if (document.visibilityState === 'visible' && document.getElementById('match-center-modal')) {
+      Promise.resolve(store.syncWithCloud()).then(() => renderMatchCenterContent()).catch(() => renderMatchCenterContent());
+    }
+  };
+  document.addEventListener('visibilitychange', mcVisibilityHandler);
 
   renderMatchCenterContent();
 }

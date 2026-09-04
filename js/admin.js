@@ -5651,6 +5651,10 @@ function processScorerBall(runsScored) {
   if (document.getElementById('scorer-extra-bye')) document.getElementById('scorer-extra-bye').checked = false;
   if (document.getElementById('scorer-extra-legbye')) document.getElementById('scorer-extra-legbye').checked = false;
 
+  state._v = Date.now();
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(`cpl_active_scoring_${fixture.id}_v`, String(state._v));
+  }
   fixture.liveMatchState = state;
   
   const currentBattingScore = { runs: state.runs, wickets: state.wickets, overs: state.overs, balls: state.balls, extras: state.extras || 0 };
@@ -5948,6 +5952,10 @@ function openScorerWicketModal() {
       state.nonStrikerId = '';
     }
 
+    state._v = Date.now();
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(`cpl_active_scoring_${fixture.id}_v`, String(state._v));
+    }
     fixture.liveMatchState = state;
     if (state.innings === 2) {
       fixture.teamBScore = { runs: state.runs, wickets: state.wickets, overs: state.overs, balls: state.balls, extras: state.extras || 0 };
@@ -9792,8 +9800,10 @@ window.undoLastBall = function() {
   }
 
   if (Array.isArray(state.overBalls) && state.overBalls.length > 0) state.overBalls.pop();
-  state.ballHistory.shift();
-
+  state._v = Date.now();
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(`cpl_active_scoring_${fixture.id}_v`, String(state._v));
+  }
   const currentBattingScore = { runs: state.runs, wickets: state.wickets, overs: state.overs, balls: state.balls, extras: state.extras || 0 };
   if (state.innings === 2) fixture.teamBScore = currentBattingScore;
   else fixture.teamAScore = currentBattingScore;
