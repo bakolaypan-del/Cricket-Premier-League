@@ -4564,10 +4564,12 @@ export function renderCustomTournamentHub(container, tourney) {
 
   if (window.lucide) window.lucide.createIcons();
 
-  // --- NOTICE TICKER: Fetch and display if active ---
+  // --- NOTICE TICKER: Only show if this tournament has an active notice ---
   (async () => {
     try {
-      const nb = await store.syncNoticeBoardFromCloud();
+      const tid = tourney.supabaseId || tourney.tournament_id || tourney.id;
+      if (!tid) return;
+      const nb = await fetchNoticeBoardFromCloud(tid);
       if (nb && nb.active && nb.text) {
         const bar = document.getElementById('hub-notice-ticker-bar');
         const c1 = document.getElementById('hub-notice-ticker-content');
@@ -5917,10 +5919,15 @@ function renderTournamentHub(containerEl) {
   document.getElementById('download-all-squads-pdf-hub-btn')?.addEventListener('click', () => exportAllTeamsFinalSquadsToPDF(teams, players));
   document.getElementById('download-json-archive-hub-btn')?.addEventListener('click', downloadAuctionArchiveJSON);
 
-  // --- NOTICE TICKER: Fetch and display if active ---
+  // --- NOTICE TICKER: Only show if JSL tournament has an active notice ---
   (async () => {
     try {
-      const nb = await store.syncNoticeBoardFromCloud();
+      const allT = store.getCustomTournaments ? store.getCustomTournaments() : [];
+      const jslT = allT.find(t => t.slug === 'jsl-2026' || t.slug === 'jsl' || (t.code || '').toUpperCase() === 'JSL' || (t.name || '').toUpperCase().includes('JHANKRA'));
+      if (!jslT) return;
+      const tid = jslT.supabaseId || jslT.tournament_id || jslT.id;
+      if (!tid) return;
+      const nb = await fetchNoticeBoardFromCloud(tid);
       if (nb && nb.active && nb.text) {
         const bar = document.getElementById('jsl-notice-ticker-bar');
         const c1 = document.getElementById('jsl-notice-ticker-content');
