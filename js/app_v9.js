@@ -342,11 +342,11 @@ function initApp() {
     const isUserFillingForm = document.getElementById('player-reg-modal') || document.getElementById('team-reg-modal') || document.getElementById('edit-player-modal');
     if (isUserFillingForm) return;
 
-    // IF ON HOME/LANDING PAGE, NEVER WIPE OR FLASH THE SCREEN: Smooth in-place updates only
+    // IF ON HOME/LANDING PAGE: Update counters in-place, but allow full re-render for fixture updates
     if (currentRoute === 'landing') {
       const regCountEl = document.getElementById('landing-registered-count');
       if (regCountEl) regCountEl.textContent = store.getTotalRegisteredPlayersCount ? store.getTotalRegisteredPlayersCount() : store.getPlayers().length;
-      return;
+      // Fall through to full re-render so new/live fixtures appear
     }
 
     // IF ON AUCTION TAB, NEVER WIPE THE AUCTION VIEW: Let pollActiveAuctionState() handle smooth in-place updates
@@ -378,7 +378,7 @@ function initApp() {
         `;
         if (window.lucide) window.lucide.createIcons();
       }
-      return;
+      // Fall through to full re-render so new/live fixtures appear on tournament hub
     }
 
     // IF ON ADMIN TAB: Smooth in-place real-time table refresh
