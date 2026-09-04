@@ -1,8 +1,8 @@
 // Admin Master Data & Payment Verification Panel with Single Source Cloud Control (Developer: Suman Kolay)
 
-import { store } from './store.js?v=13.0.60';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportMatchScorecardPNG, exportFullMatchSummaryPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.60';
-import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID, compressImageToTarget, saveScorecardsToSupabase } from './supabase.js?v=13.0.60';
+import { store } from './store.js?v=13.0.62';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportMatchScorecardPNG, exportFullMatchSummaryPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.62';
+import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID, compressImageToTarget, saveScorecardsToSupabase } from './supabase.js?v=13.0.62';
 import { shops } from './shopsData.js?v=12.0.2';
 
 let activeAdminTab = (() => { try { return sessionStorage.getItem('cpl_admin_tab') || (store.isMasterAdmin() ? 'payments' : 'overview'); } catch(e) { return 'payments'; } })();
@@ -5577,6 +5577,11 @@ function processScorerBall(runsScored) {
     type: ballType
   });
 
+  // Accurate over and ball number for this specific delivery (1.1 to 1.6 format)
+  const deliveryOver = state.overs || 0;
+  const deliveryBall = Math.min(6, (state.balls || 0) + 1);
+  const deliveryOverNum = `${deliveryOver}.${deliveryBall}`;
+
   if (isValidBall) {
     state.balls += 1;
     if (state.balls >= 6) {
@@ -5629,7 +5634,7 @@ function processScorerBall(runsScored) {
   const bBowled = bowlerStat.ballsBowled || 0;
   state.ballHistory.unshift({
     innings: state.innings || 1,
-    overNum: `${state.overs}.${state.balls}`,
+    overNum: deliveryOverNum,
     label: ballLabel,
     type: ballType,
     runs: totalBallRuns,
@@ -5917,11 +5922,16 @@ function openScorerWicketModal() {
     let wktCommentary = `OUT! ${dismissedName} dismissed (${type.replace('_', ' ').toLowerCase()}).`;
     if (fielderName) wktCommentary = `OUT! ${dismissedName} caught by ${fielderName} off ${bowlerName}.`;
 
+    const deliveryOver = state.overs || 0;
+    const deliveryBall = Math.min(6, (state.balls || 0) + 1);
+    const deliveryOverNum = `${deliveryOver}.${deliveryBall}`;
+
+    const otherCreaseId = (dismissedId === state.strikerId) ? state.nonStrikerId : state.strikerId;
     const wBowlerStat = state.playerStats[bowlerId] || {};
     const wBBowled = wBowlerStat.ballsBowled || 0;
     state.ballHistory.unshift({
       innings: state.innings || 1,
-      overNum: `${state.overs}.${state.balls}`,
+      overNum: deliveryOverNum,
       label: wktLabel,
       type: 'wicket',
       runs: teamRunsToAdd,
@@ -5931,6 +5941,8 @@ function openScorerWicketModal() {
       bowlerFigures: `${wBowlerStat.wickets || 0}/${wBowlerStat.runsConceded || 0} (${Math.floor(wBBowled/6)}.${wBBowled%6})`,
       totalScore: state.runs,
       totalWickets: state.wickets,
+      nonStrikerName: store.getPlayerById(otherCreaseId)?.name || '',
+      nonStrikerScore: `${(state.playerStats[otherCreaseId]?.runs || 0)}(${(state.playerStats[otherCreaseId]?.balls || 0)})`,
       commentary: `${bowlerName} to ${dismissedName} — ${wktCommentary}`,
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
     });
@@ -9809,6 +9821,7 @@ window.undoLastBall = function() {
   }
 
   if (Array.isArray(state.overBalls) && state.overBalls.length > 0) state.overBalls.pop();
+  if (Array.isArray(state.ballHistory) && state.ballHistory.length > 0) state.ballHistory.shift();
   state._v = Date.now();
   if (typeof localStorage !== 'undefined') {
     localStorage.setItem(`cpl_active_scoring_${fixture.id}_v`, String(state._v));

@@ -1,9 +1,9 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=13.0.60';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.60';
-import { renderAdminDashboard } from './admin.js?v=13.0.60';
-import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, fetchNoticeBoardFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.60';
+import { store } from './store.js?v=13.0.62';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.62';
+import { renderAdminDashboard } from './admin.js?v=13.0.62';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, fetchNoticeBoardFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.62';
 import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.53';
 import { shops } from './shopsData.js?v=12.0.2';
 
@@ -9052,9 +9052,17 @@ function renderFixturesView(container) {
       filteredFixtures = rawFixtures.filter(f => f.stage === 'SEMI_FINAL_1' || f.stage === 'SEMI_FINAL_2' || f.stage === 'FINAL' || f.stage === 'QUARTER_FINAL');
     }
 
-    const liveMatches = filteredFixtures.filter(f => f.status === 'LIVE');
-    const scheduledMatches = filteredFixtures.filter(f => f.status === 'SCHEDULED' || (!f.status && !f.result));
-    const completedMatches = filteredFixtures.filter(f => f.status === 'COMPLETED' || f.result);
+    const isFixtureLive = (f) => {
+      if (!f) return false;
+      if (f.status === 'COMPLETED' || f.result) return false;
+      if (f.status === 'LIVE') return true;
+      const ls = window.__cplLiveScores?.[f.id] || (toUUID(f.id) ? window.__cplLiveScores?.[toUUID(f.id)] : null) || f.liveMatchState || f.liveState;
+      return !!(ls && (ls.runs > 0 || ls.overs > 0 || ls.balls > 0 || (ls.innings && ls.innings > 1)));
+    };
+
+    const liveMatches = filteredFixtures.filter(isFixtureLive);
+    const scheduledMatches = filteredFixtures.filter(f => !isFixtureLive(f) && (f.status === 'SCHEDULED' || (!f.status && !f.result)));
+    const completedMatches = filteredFixtures.filter(f => f.status === 'COMPLETED' || !!f.result);
 
     // Filter teams strictly by selected tournament category
     const leagueTeams = (selectedCategory === 'ALL')
@@ -9179,13 +9187,16 @@ function renderFixturesView(container) {
           `);
         }
 
-        // 2. Group Remaining Matches By Tournament
-        // Find which tournaments actually have matches
+        // 2. Group Non-Live Matches By Tournament (Live matches are rendered exclusively in the top Live Scoreboard)
+        const liveMatchIds = new Set(liveMatches.map(lm => String(lm.id)));
+        const nonLiveFixtures = filteredFixtures.filter(f => !liveMatchIds.has(String(f.id)) && (!toUUID(f.id) || !liveMatchIds.has(toUUID(f.id))));
+
+        // Find which tournaments actually have scheduled/completed matches
         const tourneysWithMatches = allTourneys.filter(l => {
           const code = (l.code || l.category || l.category_code || l.shortCode || l.slug || 'T').toUpperCase();
           const tid = l.supabaseId || l.id;
           const tidUUID = toUUID(tid);
-          return filteredFixtures.some(f => {
+          return nonLiveFixtures.some(f => {
             const fTid = f.tournamentId || f.tournament_id || f.leagueId;
             if (fTid && (fTid === tid || fTid === tidUUID || toUUID(fTid) === tidUUID)) return true;
             const fCode = (f.leagueCode || '').toUpperCase();
@@ -9194,29 +9205,31 @@ function renderFixturesView(container) {
           });
         });
 
-        // If no custom tourney matches mapped, group by distinct tournament name/code on fixtures
+        // If no custom tourney matches mapped, group by distinct tournament name/code on non-live fixtures
         if (tourneysWithMatches.length === 0) {
-          sections.push(`
-            <div class="space-y-3">
-              <div class="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white px-4 py-2.5 rounded-2xl shadow-sm flex items-center justify-between">
-                <h2 class="text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-2">
-                  <span>📅</span> All Scheduled & Completed Matches
-                </h2>
-                <span class="px-3 py-0.5 bg-white/20 backdrop-blur-sm text-white font-mono text-[10px] font-black rounded-full border border-white/30">
-                  ${filteredFixtures.length} TOTAL
-                </span>
+          if (nonLiveFixtures.length > 0) {
+            sections.push(`
+              <div class="space-y-3">
+                <div class="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white px-4 py-2.5 rounded-2xl shadow-sm flex items-center justify-between">
+                  <h2 class="text-xs sm:text-sm font-black uppercase tracking-wider flex items-center gap-2">
+                    <span>📅</span> All Scheduled & Completed Matches
+                  </h2>
+                  <span class="px-3 py-0.5 bg-white/20 backdrop-blur-sm text-white font-mono text-[10px] font-black rounded-full border border-white/30">
+                    ${nonLiveFixtures.length} TOTAL
+                  </span>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
+                  ${nonLiveFixtures.map((m, idx) => renderSingleMatchCard(m, idx)).join('')}
+                </div>
               </div>
-              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 sm:gap-6">
-                ${filteredFixtures.map((m, idx) => renderSingleMatchCard(m, idx)).join('')}
-              </div>
-            </div>
-          `);
+            `);
+          }
         } else {
           tourneysWithMatches.forEach(l => {
             const code = (l.code || l.category || l.category_code || l.shortCode || l.slug || 'T').toUpperCase();
             const tid = l.supabaseId || l.id;
             const tidUUID = toUUID(tid);
-            const tMatches = filteredFixtures.filter(f => {
+            const tMatches = nonLiveFixtures.filter(f => {
               const fTid = f.tournamentId || f.tournament_id || f.leagueId;
               if (fTid && (fTid === tid || fTid === tidUUID || toUUID(fTid) === tidUUID)) return true;
               const fCode = (f.leagueCode || '').toUpperCase();
@@ -10730,30 +10743,54 @@ export function openMatchCenterModal(fixtureId) {
                 return 'bg-slate-300 text-slate-600';
               };
 
+              // Helper to parse ball over number safely and handle legacy formatting
+              const parseBallOver = (b) => {
+                const parts = String(b.overNum || '0.1').split('.');
+                let ov = parseInt(parts[0], 10);
+                if (isNaN(ov)) ov = 0;
+                let ball = parseInt(parts[1], 10);
+                if (isNaN(ball)) ball = 1;
+
+                // Handle legacy edge cases (e.g. '1.0' meant the 6th delivery of over 0)
+                if (ball === 0) {
+                  if (ov > 0) {
+                    ov = ov - 1;
+                    ball = 6;
+                  } else {
+                    ball = 1;
+                  }
+                }
+                return {
+                  overKey: ov,
+                  ballIndex: ball,
+                  displayOver: `${ov}.${ball}`
+                };
+              };
+
+              // Assign chronological index (ballList is newest-first, so reverse index is chronological)
+              const ballListWithChrono = ballList.map((b, idx) => ({
+                ...b,
+                _chronoIndex: ballList.length - 1 - idx
+              }));
+
+              // Deduplicate only exact duplicate snapshots from broadcast/sync retries
+              const seenKeys = new Set();
+              const cleanBallList = [];
+              for (const b of ballListWithChrono) {
+                const norm = parseBallOver(b);
+                const dedupKey = `${b.innings || 1}_${norm.displayOver}_${b.label || ''}_${b.type || ''}_${b.runs || 0}_${b.commentary || ''}_${b.timestamp || ''}`;
+                if (!seenKeys.has(dedupKey)) {
+                  seenKeys.add(dedupKey);
+                  cleanBallList.push({ ...b, _norm: norm });
+                }
+              }
+
               const overs = {};
-              ballList.forEach(b => {
-                const overKey = Math.floor(parseFloat(b.overNum || '0'));
+              cleanBallList.forEach(b => {
+                const overKey = b._norm.overKey;
                 if (!overs[overKey]) overs[overKey] = [];
                 overs[overKey].push(b);
               });
-              // Deduplicate: if two entries share the same overNum, keep the wicket (or the first one)
-              for (const ok of Object.keys(overs)) {
-                const seen = {};
-                overs[ok] = overs[ok].filter(b => {
-                  const on = b.overNum || '0.0';
-                  if (!seen[on]) { seen[on] = b; return true; }
-                  const prevType = seen[on].type || seen[on].ballType || '';
-                  const curType = b.type || b.ballType || '';
-                  if (curType === 'wicket' && prevType !== 'wicket') {
-                    // Replace previous with wicket, keep wicket's runs + previous runs
-                    seen[on].label = b.label; seen[on].type = b.type; seen[on].ballType = b.ballType;
-                    seen[on].commentary = b.commentary; seen[on].batterName = b.batterName;
-                    seen[on].batterScore = b.batterScore; seen[on].runs = (parseInt(seen[on].runs)||0) + (parseInt(b.runs)||0);
-                    return false;
-                  }
-                  return false; // drop duplicate
-                });
-              }
 
               const overKeys = Object.keys(overs).sort((a, b) => Number(b) - Number(a));
 
@@ -10762,15 +10799,15 @@ export function openMatchCenterModal(fixtureId) {
                 const overNum = Number(ok) + 1;
                 const overRuns = balls.reduce((s, b) => s + (parseInt(b.runs) || parseInt(b.label) || 0), 0);
 
-                const sortedBalls = [...balls].sort((a, b) => parseFloat(a.overNum || '0') - parseFloat(b.overNum || '0'));
-
-                const lastBall = sortedBalls[sortedBalls.length - 1];
+                // Chronological order: from first delivery bowled in this over to last delivery
+                const chronoBalls = [...balls].sort((a, b) => a._chronoIndex - b._chronoIndex);
+                const lastBall = chronoBalls[chronoBalls.length - 1] || {};
                 const runningScore = lastBall.totalScore || lastBall.score || '';
                 const runningWickets = lastBall.totalWickets || lastBall.wickets || '';
                 const scoreTxt = runningScore ? `${runningScore}-${runningWickets !== '' ? runningWickets : '0'}` : '';
 
                 const battersInOver = {};
-                sortedBalls.forEach(b => {
+                chronoBalls.forEach(b => {
                   if (b.batterName) {
                     battersInOver[b.batterName] = b.batterScore || '';
                   }
@@ -10781,14 +10818,15 @@ export function openMatchCenterModal(fixtureId) {
                 const partnerNames = Object.keys(battersInOver);
                 const partnerHtml = partnerNames.map(n => `<span class="font-black truncate">${n}</span><span class="font-mono font-bold text-slate-500 ml-1">${battersInOver[n]}</span>`).join('<span class="text-slate-400 mx-1">&</span>');
 
-                const reversedBalls = [...sortedBalls].reverse();
+                // Feed is in reverse-chronological order: newest ball at top
+                const feedBalls = [...chronoBalls].reverse();
 
                 return `
                   <div class="space-y-0">
                     <!-- Over Summary Header -->
                     <div class="bg-slate-50 border border-slate-200 rounded-2xl p-3 space-y-2.5">
                       <div class="flex items-center gap-1.5 flex-wrap">
-                        ${reversedBalls.map(b => `<span class="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-black ${getBallCircleClass(b)}">${b.label}</span>`).join('')}
+                        ${chronoBalls.map(b => `<span class="w-7 h-7 rounded-full flex items-center justify-center text-[11px] font-black ${getBallCircleClass(b)}">${b.label}</span>`).join('')}
                       </div>
                       <div class="flex items-center justify-between text-[11px] text-slate-700">
                         <div class="min-w-0">
@@ -10807,9 +10845,8 @@ export function openMatchCenterModal(fixtureId) {
                     </div>
                     <!-- Individual Ball Entries -->
                     <div class="divide-y divide-slate-100">
-                      ${reversedBalls.map(function(b, i) {
-                        const parts = (b.overNum || '0.0').split('.');
-                        const displayOver = parts[0] + '.' + (parseInt(parts[1] || '0') + 1);
+                      ${feedBalls.map(function(b) {
+                        const displayOver = b._norm.displayOver;
                         return `
                         <div class="flex items-start gap-3 py-3.5 px-1">
                           <span class="text-sm font-black text-slate-400 font-mono w-10 shrink-0 pt-0.5">${displayOver}</span>

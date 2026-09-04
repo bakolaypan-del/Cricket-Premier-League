@@ -1,5 +1,5 @@
-import { store } from './store.js?v=13.0.60';
-import { toUUID, getOptimizedImageUrl, compressImageToTarget } from './supabase.js?v=13.0.60';
+import { store } from './store.js?v=13.0.62';
+import { toUUID, getOptimizedImageUrl, compressImageToTarget } from './supabase.js?v=13.0.62';
 
 export async function preparePlayerPhotoForPDF(targetSrc, targetSizeKb = 30, maxDimension = 350) {
   if (!targetSrc) return '';
@@ -2008,6 +2008,21 @@ export function exportFullMatchSummaryPDF(fixture, tourney) {
     }
   };
 
+  // Helper to format delivery over number safely and normalize legacy values
+  const formatDeliveryOver = (overNum) => {
+    if (!overNum) return '?';
+    const parts = String(overNum).split('.');
+    let ov = parseInt(parts[0], 10);
+    if (isNaN(ov)) ov = 0;
+    let ball = parseInt(parts[1], 10);
+    if (isNaN(ball)) ball = 1;
+    if (ball === 0) {
+      if (ov > 0) { ov = ov - 1; ball = 6; }
+      else { ball = 1; }
+    }
+    return `${ov}.${ball}`;
+  };
+
   // Fall of wickets extraction
   const buildFOW = (innings) => {
     const wicketBalls = ballHistory.filter(b => b.type === 'wicket' && (b.innings || 1) === innings);
@@ -2016,7 +2031,7 @@ export function exportFullMatchSummaryPDF(fixture, tourney) {
       runningScore += (b.runs || 0);
       // Get cumulative score at this wicket from ball position
       const batName = b.batterName || 'Unknown';
-      return `${idx + 1}-${b.overNum || '?'} (${batName})`;
+      return `${idx + 1}-${formatDeliveryOver(b.overNum)} (${batName})`;
     });
   };
 
@@ -2029,7 +2044,7 @@ export function exportFullMatchSummaryPDF(fixture, tourney) {
     innBalls.forEach(b => {
       cumRuns += (b.runs || 0);
       if (b.type === 'wicket') cumWkts++;
-      const overNo = parseInt(b.overNum) || 0;
+      const overNo = parseInt(formatDeliveryOver(b.overNum)) || 0;
       overMap[overNo] = { runs: cumRuns, wickets: cumWkts };
     });
     return Object.entries(overMap).map(([ov, data]) => `After ${Number(ov)+1} ov: ${data.runs}/${data.wickets}`);
@@ -2162,7 +2177,7 @@ export function exportFullMatchSummaryPDF(fixture, tourney) {
       <div class="commentary-list">
         ${recentBalls.map(b => `
           <div class="commentary-item ${b.type === 'wicket' ? 'wicket-item' : ''} ${b.type === 'four' || b.type === 'six' ? 'boundary-item' : ''}">
-            <span class="over-badge">${b.overNum || '?'}</span>
+            <span class="over-badge">${formatDeliveryOver(b.overNum)}</span>
             <span class="commentary-text">${b.commentary || `${b.bowlerName} to ${b.batterName} — ${b.label}`}</span>
           </div>
         `).join('')}
