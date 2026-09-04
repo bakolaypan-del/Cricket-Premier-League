@@ -383,9 +383,15 @@ function initApp() {
 
     // IF ON ADMIN TAB: Smooth in-place real-time table refresh
     if (currentRoute === 'admin') {
-      const isModalOpen = document.getElementById('admin-edit-player-modal');
+      const hasAnyModal = document.querySelector('.modal-overlay') ||
+        document.getElementById('admin-edit-player-modal') ||
+        document.getElementById('toss-select-modal') ||
+        document.getElementById('playing-xi-modal') ||
+        document.getElementById('edit-match-modal') ||
+        document.getElementById('admin-team-edit-modal');
       const isUserEditing = document.querySelector('input:focus, select:focus, textarea:focus');
-      if (!isModalOpen && !isUserEditing) {
+      const isScorerTab = document.getElementById('tab-scorer-view') && !document.getElementById('tab-scorer-view').classList.contains('hidden');
+      if (!hasAnyModal && !isUserEditing && !isScorerTab) {
         const adminAppContainer = document.getElementById('app-admin');
         if (adminAppContainer) {
           renderAdminDashboard(adminAppContainer);

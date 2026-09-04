@@ -102,6 +102,7 @@ export function renderAdminDashboard(containerEl) {
     else store.activeTournamentId = activeTid;
   }
 
+  const leagues = store.getAccessibleLeagues();
   const curTourneyObj = (customTournaments.find(t => (t.supabaseId || t.id) === activeTid) || leagues.find(l => (l.id || l.code) === activeTid)) || {
     id: activeTid,
     name: 'Tournament',
@@ -117,7 +118,6 @@ export function renderAdminDashboard(containerEl) {
   };
 
   // 2. NOW query players, teams, leagues for the ACTIVE TOURNAMENT
-  const leagues = store.getAccessibleLeagues();
   const players = store.getPlayers();
   const teams = store.getTeams();
 
@@ -1907,7 +1907,12 @@ export function renderAdminDashboard(containerEl) {
 
   window.addEventListener('fixtures_updated', () => {
     if (activeAdminTab === 'fixtures') renderAdminFixturesList();
-    if (activeAdminTab === 'scorer') renderScorerMatchesList();
+    if (activeAdminTab === 'scorer') {
+      if (document.querySelector('.modal-overlay') || document.getElementById('toss-select-modal') || document.getElementById('playing-xi-modal')) {
+        return;
+      }
+      renderScorerMatchesList();
+    }
   });
 
   // --- OVERVIEW TAB LISTENERS ---
@@ -3807,6 +3812,7 @@ function openFullDocumentViewer(imgSrc, title = 'Document Proof Viewer') {
 // --- MASTER ADMIN CONFIGURATIONS, SCORING & AUCTION ENGINE ---
 let activeScoringMatchId = null;
 let currentScoringState = null;
+let isRenderingScorerMatches = false;
 
 
 
@@ -4076,212 +4082,215 @@ function renderAdminFixturesList() {
 function renderScorerMatchesList() {
   const selectEl = document.getElementById('scorer-select-match');
   if (!selectEl) return;
+  if (isRenderingScorerMatches) return;
+  isRenderingScorerMatches = true;
 
-  const curTid = store.activeTournamentId;
-  const curUUID = toUUID(curTid);
-  const tourneys = store.getCustomTournaments() || [];
-  const curTourney = tourneys.find(t => (t.supabaseId || t.id) === curTid || toUUID(t.id) === curUUID || toUUID(t.supabaseId) === curUUID);
+  try {
+    const curTid = store.activeTournamentId;
+    const curUUID = toUUID(curTid);
+    const tourneys = store.getCustomTournaments() || [];
+    const curTourney = tourneys.find(t => (t.supabaseId || t.id) === curTid || toUUID(t.id) === curUUID || toUUID(t.supabaseId) === curUUID);
 
-  const activeTeams = store.getTeams() || [];
-  const activeTeamIds = new Set(activeTeams.map(t => String(t.id)));
+    const activeTeams = store.getTeams() || [];
+    const activeTeamIds = new Set(activeTeams.map(t => String(t.id)));
 
-  const allRegisteredTeams = store.getAllTeamsAcrossTournaments ? store.getAllTeamsAcrossTournaments() : activeTeams;
-  const otherTourneyTeamIds = new Set(
-    allRegisteredTeams.filter(t => t && t.id && !activeTeamIds.has(String(t.id))).map(t => String(t.id))
-  );
+    const allRegisteredTeams = store.getAllTeamsAcrossTournaments ? store.getAllTeamsAcrossTournaments() : activeTeams;
+    const otherTourneyTeamIds = new Set(
+      allRegisteredTeams.filter(t => t && t.id && !activeTeamIds.has(String(t.id))).map(t => String(t.id))
+    );
 
-  const isFixtureMatchForAdmin = (f) => {
-    if (!f) return false;
-    const fTid = f.tournament_id || f.tournamentId || f.leagueId;
-    const fTeamA = f.teamAId ? String(f.teamAId) : '';
-    const fTeamB = f.teamBId ? String(f.teamBId) : '';
+    const isFixtureMatchForAdmin = (f) => {
+      if (!f) return false;
+      const fTid = f.tournament_id || f.tournamentId || f.leagueId;
+      const fTeamA = f.teamAId ? String(f.teamAId) : '';
+      const fTeamB = f.teamBId ? String(f.teamBId) : '';
 
-    if (otherTourneyTeamIds.has(fTeamA) || otherTourneyTeamIds.has(fTeamB)) {
+      if (otherTourneyTeamIds.has(fTeamA) || otherTourneyTeamIds.has(fTeamB)) {
+        return false;
+      }
+
+      if (activeTeamIds.size > 0 && (activeTeamIds.has(fTeamA) || activeTeamIds.has(fTeamB))) return true;
+      if (fTid && (fTid === curTid || toUUID(fTid) === curUUID)) return true;
+      if (curTourney && f.tournamentName && curTourney.name && f.tournamentName.toUpperCase() === curTourney.name.toUpperCase()) return true;
+
       return false;
-    }
+    };
 
-    if (activeTeamIds.size > 0 && (activeTeamIds.has(fTeamA) || activeTeamIds.has(fTeamB))) return true;
-    if (fTid && (fTid === curTid || toUUID(fTid) === curUUID)) return true;
-    if (curTourney && f.tournamentName && curTourney.name && f.tournamentName.toUpperCase() === curTourney.name.toUpperCase()) return true;
+    const fixtures = store.getFixtures().filter(isFixtureMatchForAdmin);
+    const selectables = fixtures.filter(f => f.status !== 'COMPLETED');
 
-    return false;
-  };
+    selectEl.innerHTML = `
+      <option value="">-- Choose Match to Score --</option>
+      ${selectables.map(f => {
+        const codeLabel = (f.leagueCode && f.leagueCode !== 'T') ? f.leagueCode : (store.activeTournamentId === '5cf4f50c-3930-486a-83c3-3f59414a7d6f' ? 'KPL' : 'JSL');
+        return `
+          <option value="${f.id}" ${activeScoringMatchId === f.id ? 'selected' : ''}>
+            [${codeLabel}] ${f.teamAName} vs ${f.teamBName} (${f.date} ${f.time}) • Status: ${f.status}
+          </option>
+        `;
+      }).join('')}
+    `;
 
-  const fixtures = store.getFixtures().filter(isFixtureMatchForAdmin);
-  const selectables = fixtures.filter(f => f.status !== 'COMPLETED');
+    const setupStepBlock = document.getElementById('scorer-lineup-step-block');
+    const matchCardEl = document.getElementById('scorer-selected-match-card');
+    const activePanelEl = document.getElementById('scorer-active-panel');
 
-  selectEl.innerHTML = `
-    <option value="">-- Choose Match to Score --</option>
-    ${selectables.map(f => {
-      const codeLabel = (f.leagueCode && f.leagueCode !== 'T') ? f.leagueCode : (store.activeTournamentId === '5cf4f50c-3930-486a-83c3-3f59414a7d6f' ? 'KPL' : 'JSL');
-      return `
-        <option value="${f.id}" ${activeScoringMatchId === f.id ? 'selected' : ''}>
-          [${codeLabel}] ${f.teamAName} vs ${f.teamBName} (${f.date} ${f.time}) • Status: ${f.status}
-        </option>
-      `;
-    }).join('')}
-  `;
+    const onMatchSelected = (matchId) => {
+      if (!matchId) {
+        if (setupStepBlock) setupStepBlock.classList.add('hidden');
+        if (matchCardEl) matchCardEl.classList.add('hidden');
+        if (activePanelEl) activePanelEl.classList.add('hidden');
+        return;
+      }
 
-  const setupStepBlock = document.getElementById('scorer-lineup-step-block');
-  const matchCardEl = document.getElementById('scorer-selected-match-card');
-  const activePanelEl = document.getElementById('scorer-active-panel');
+      activeScoringMatchId = matchId;
+      const fixture = store.getFixtures().find(f => f.id === matchId);
+      if (!fixture) {
+        // Match no longer exists (e.g. just deleted) — clear the whole scorer view
+        activeScoringMatchId = null;
+        if (selectEl) selectEl.value = '';
+        if (setupStepBlock) setupStepBlock.classList.add('hidden');
+        if (matchCardEl) matchCardEl.classList.add('hidden');
+        if (activePanelEl) activePanelEl.classList.add('hidden');
+        return;
+      }
 
-  const onMatchSelected = (matchId) => {
-    if (!matchId) {
-      if (setupStepBlock) setupStepBlock.classList.add('hidden');
-      if (matchCardEl) matchCardEl.classList.add('hidden');
-      if (activePanelEl) activePanelEl.classList.add('hidden');
-      return;
-    }
-
-    activeScoringMatchId = matchId;
-    const fixture = store.getFixtures().find(f => f.id === matchId);
-    if (!fixture) {
-      // Match no longer exists (e.g. just deleted) — clear the whole scorer view
-      activeScoringMatchId = null;
-      if (selectEl) selectEl.value = '';
-      if (setupStepBlock) setupStepBlock.classList.add('hidden');
-      if (matchCardEl) matchCardEl.classList.add('hidden');
-      if (activePanelEl) activePanelEl.classList.add('hidden');
-      return;
-    }
-
-    // Show Match Preview Card in Step 1
-    if (matchCardEl) {
-      matchCardEl.classList.remove('hidden');
-      matchCardEl.innerHTML = `
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-200 pb-2">
-          <div class="font-black text-slate-900 text-sm flex items-center gap-2">
-            <span>🛡️ ${fixture.teamAName}</span>
-            <span class="text-xs text-slate-500 font-semibold">vs</span>
-            <span>🛡️ ${fixture.teamBName}</span>
+      // Show Match Preview Card in Step 1
+      if (matchCardEl) {
+        matchCardEl.classList.remove('hidden');
+        matchCardEl.innerHTML = `
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-emerald-200 pb-2">
+            <div class="font-black text-slate-900 text-sm flex items-center gap-2">
+              <span>🛡️ ${fixture.teamAName}</span>
+              <span class="text-xs text-slate-500 font-semibold">vs</span>
+              <span>🛡️ ${fixture.teamBName}</span>
+            </div>
+            <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${fixture.status === 'LIVE' ? 'bg-rose-600 text-white animate-pulse' : 'bg-sky-100 text-sky-800 border border-sky-300'}">
+              ${fixture.status}
+            </span>
           </div>
-          <span class="px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase ${fixture.status === 'LIVE' ? 'bg-rose-600 text-white animate-pulse' : 'bg-sky-100 text-sky-800 border border-sky-300'}">
-            ${fixture.status}
-          </span>
-        </div>
-        <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-bold text-slate-700 pt-1">
-          <div><span class="text-[9px] text-slate-400 block uppercase">Format / Overs</span>⏱️ T${fixture.oversLimit || 16} (${fixture.oversLimit || 16} Overs)</div>
-          <div><span class="text-[9px] text-slate-400 block uppercase">Stage</span>🏆 ${fixture.stage || 'League Match'}</div>
-          <div><span class="text-[9px] text-slate-400 block uppercase">Schedule</span>🗓️ ${fixture.date} (${fixture.time || '09:00 AM'})</div>
-          <div><span class="text-[9px] text-slate-400 block uppercase">Toss Decision</span>🪙 ${fixture.tossDetails || 'Toss not updated'}</div>
-        </div>
-        <div class="pt-2 mt-1 border-t border-emerald-100 flex flex-wrap items-center gap-2">
-          <button type="button" id="scorer-set-toss-pxi-btn" class="px-3 py-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-[11px] rounded-xl shadow-2xs cursor-pointer flex items-center gap-1" title="Set toss winner + bat/bowl decision, then each team's Playing XI and 12th man">
-            🪙 Set Toss &amp; Playing XI ${fixture.tossDetails ? '<span class="text-[9px] font-bold text-emerald-800">(update)</span>' : '<span class="text-[9px] font-bold text-rose-700">(required)</span>'}
-          </button>
-          <span class="text-[10px] font-bold text-slate-500">Sets batting order + squads — shown live in Match Corner.</span>
-        </div>
-      `;
+          <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-bold text-slate-700 pt-1">
+            <div><span class="text-[9px] text-slate-400 block uppercase">Format / Overs</span>⏱️ T${fixture.oversLimit || 16} (${fixture.oversLimit || 16} Overs)</div>
+            <div><span class="text-[9px] text-slate-400 block uppercase">Stage</span>🏆 ${fixture.stage || 'League Match'}</div>
+            <div><span class="text-[9px] text-slate-400 block uppercase">Schedule</span>🗓️ ${fixture.date} (${fixture.time || '09:00 AM'})</div>
+            <div><span class="text-[9px] text-slate-400 block uppercase">Toss Decision</span>🪙 ${fixture.tossDetails || 'Toss not updated'}</div>
+          </div>
+          <div class="pt-2 mt-1 border-t border-emerald-100 flex flex-wrap items-center gap-2">
+            <button type="button" id="scorer-set-toss-pxi-btn" class="px-3 py-1.5 bg-amber-400 hover:bg-amber-300 text-slate-950 font-black text-[11px] rounded-xl shadow-2xs cursor-pointer flex items-center gap-1" title="Set toss winner + bat/bowl decision, then each team's Playing XI and 12th man">
+              🪙 Set Toss &amp; Playing XI ${fixture.tossDetails ? '<span class="text-[9px] font-bold text-emerald-800">(update)</span>' : '<span class="text-[9px] font-bold text-rose-700">(required)</span>'}
+            </button>
+            <span class="text-[10px] font-bold text-slate-500">Sets batting order + squads — shown live in Match Corner.</span>
+          </div>
+        `;
 
-      document.getElementById('scorer-set-toss-pxi-btn')?.addEventListener('click', () => {
-        // Toss modal sets winner/decision, reorders the batting side, then chains into
-        // the Playing XI + 12th man modal. All of it saves to the fixture (and cloud),
-        // which the public Match Corner already reads and displays.
-        const s = fixture.liveMatchState;
-        const hasProgress = s && (Number(s.runs) > 0 || Number(s.overs) > 0 ||
-          (Array.isArray(s.overBalls) && s.overBalls.length > 0) ||
-          (Array.isArray(s.ballHistory) && s.ballHistory.length > 0));
-        if (hasProgress && !confirm("⚠️ This match already has scoring in progress. Re-setting the toss will RESET the live score to 0/0. Continue?")) return;
-        openTossSelectionModal(fixture, () => {
-          onMatchSelected(fixture.id);
+        document.getElementById('scorer-set-toss-pxi-btn')?.addEventListener('click', () => {
+          // Toss modal sets winner/decision, reorders the batting side, then chains into
+          // the Playing XI + 12th man modal. All of it saves to the fixture (and cloud),
+          // which the public Match Corner already reads and displays.
+          const s = fixture.liveMatchState;
+          const hasProgress = s && (Number(s.runs) > 0 || Number(s.overs) > 0 ||
+            (Array.isArray(s.overBalls) && s.overBalls.length > 0) ||
+            (Array.isArray(s.ballHistory) && s.ballHistory.length > 0));
+          if (hasProgress && !confirm("⚠️ This match already has scoring in progress. Re-setting the toss will RESET the live score to 0/0. Continue?")) return;
+          openTossSelectionModal(fixture, () => {
+            onMatchSelected(fixture.id);
+          });
         });
-      });
+      }
+
+      // Reveal Step 2 Lineup Block
+      if (setupStepBlock) {
+        setupStepBlock.classList.remove('hidden');
+      }
+
+      // Populate Opening Batsmen and Bowler Dropdowns
+      const battingTeamId = fixture.liveMatchState?.innings === 2 ? fixture.teamBId : fixture.teamAId;
+      const bowlingTeamId = fixture.liveMatchState?.innings === 2 ? fixture.teamAId : fixture.teamBId;
+      const battingTeamName = battingTeamId === fixture.teamAId ? fixture.teamAName : fixture.teamBName;
+      const bowlingTeamName = bowlingTeamId === fixture.teamAId ? fixture.teamAName : fixture.teamBName;
+
+      const allBatPlayers = store.getPlayers().filter(p => String(p.teamId) === String(battingTeamId));
+      const allBowlPlayers = store.getPlayers().filter(p => String(p.teamId) === String(bowlingTeamId));
+
+      const batPXI = fixture.playingXI?.[battingTeamId]?.playing11Ids;
+      const bowlPXI = fixture.playingXI?.[bowlingTeamId]?.playing11Ids;
+
+      let batPlayers = (batPXI && batPXI.length > 0) ? allBatPlayers.filter(p => batPXI.includes(p.id)) : allBatPlayers;
+      let bowlPlayers = (bowlPXI && bowlPXI.length > 0) ? allBowlPlayers.filter(p => bowlPXI.includes(p.id)) : allBowlPlayers;
+
+      if (batPlayers.length === 0) {
+        batPlayers = Array.from({ length: 11 }, (_, i) => ({
+          id: `${battingTeamId}-ply-${i+1}`,
+          name: `${battingTeamName} Player ${i+1}`,
+          teamId: battingTeamId
+        }));
+      }
+      if (bowlPlayers.length === 0) {
+        bowlPlayers = Array.from({ length: 11 }, (_, i) => ({
+          id: `${bowlingTeamId}-ply-${i+1}`,
+          name: `${bowlingTeamName} Bowler ${i+1}`,
+          teamId: bowlingTeamId
+        }));
+      }
+
+      const state = fixture.liveMatchState || {};
+      const strikerId = state.strikerId || batPlayers[0]?.id;
+      const nonStrikerId = state.nonStrikerId || (batPlayers[1]?.id || batPlayers[0]?.id);
+      const bowlerId = state.bowlerId || bowlPlayers[0]?.id;
+
+      const strikerSel = document.getElementById('scorer-select-striker');
+      const nonStrikerSel = document.getElementById('scorer-select-non-striker');
+      const bowlerSel = document.getElementById('scorer-select-bowler');
+
+      if (strikerSel) {
+        strikerSel.innerHTML = batPlayers.map(p => `<option value="${p.id}" ${strikerId === p.id ? 'selected' : ''}>🏏 ${p.name}</option>`).join('');
+      }
+      if (nonStrikerSel) {
+        nonStrikerSel.innerHTML = batPlayers.map(p => `<option value="${p.id}" ${nonStrikerId === p.id ? 'selected' : ''}>🏏 ${p.name}</option>`).join('');
+      }
+      if (bowlerSel) {
+        bowlerSel.innerHTML = bowlPlayers.map(p => `<option value="${p.id}" ${bowlerId === p.id ? 'selected' : ''}>⚾ ${p.name}</option>`).join('');
+      }
+
+      const isMatchLive = fixture.status === 'LIVE';
+
+      const startBtnTxt = document.getElementById('scorer-start-match-btn-txt');
+      if (startBtnTxt) {
+        startBtnTxt.textContent = isMatchLive ? "✅ MATCH IS LIVE (SCORING PANEL ACTIVE)" : "🚀 START MATCH & OPEN LIVE SCORING PANEL";
+      }
+
+      if (isMatchLive) {
+        if (activePanelEl) activePanelEl.classList.remove('hidden');
+        renderScorerActivePanel();
+      } else {
+        if (activePanelEl) activePanelEl.classList.add('hidden');
+      }
+    };
+
+    selectEl.onchange = (e) => {
+      onMatchSelected(e.target.value);
+    };
+
+    // Auto-restore the scorer view: keep currently chosen match open, or auto-attach to
+    // an active LIVE match if none selected yet
+    const fixturesNow = store.getFixtures();
+    let restoreId = (activeScoringMatchId && fixturesNow.some(f => f.id === activeScoringMatchId))
+      ? activeScoringMatchId
+      : null;
+    if (!restoreId) {
+      const liveMatch = fixtures.find(f => f.status === 'LIVE');
+      if (liveMatch) restoreId = liveMatch.id;
     }
-
-    // Reveal Step 2 Lineup Block
-    if (setupStepBlock) {
-      setupStepBlock.classList.remove('hidden');
-    }
-
-    // Populate Opening Batsmen and Bowler Dropdowns
-    const battingTeamId = fixture.liveMatchState?.innings === 2 ? fixture.teamBId : fixture.teamAId;
-    const bowlingTeamId = fixture.liveMatchState?.innings === 2 ? fixture.teamAId : fixture.teamBId;
-    const battingTeamName = battingTeamId === fixture.teamAId ? fixture.teamAName : fixture.teamBName;
-    const bowlingTeamName = bowlingTeamId === fixture.teamAId ? fixture.teamAName : fixture.teamBName;
-
-    const allBatPlayers = store.getPlayers().filter(p => p.teamId === battingTeamId);
-    const allBowlPlayers = store.getPlayers().filter(p => p.teamId === bowlingTeamId);
-
-    const batPXI = fixture.playingXI?.[battingTeamId]?.playing11Ids;
-    const bowlPXI = fixture.playingXI?.[bowlingTeamId]?.playing11Ids;
-
-    let batPlayers = (batPXI && batPXI.length > 0) ? allBatPlayers.filter(p => batPXI.includes(p.id)) : allBatPlayers;
-    let bowlPlayers = (bowlPXI && bowlPXI.length > 0) ? allBowlPlayers.filter(p => bowlPXI.includes(p.id)) : allBowlPlayers;
-
-    if (batPlayers.length === 0) {
-      batPlayers = Array.from({ length: 11 }, (_, i) => ({
-        id: `${battingTeamId}-ply-${i+1}`,
-        name: `${battingTeamName} Player ${i+1}`,
-        teamId: battingTeamId
-      }));
-    }
-    if (bowlPlayers.length === 0) {
-      bowlPlayers = Array.from({ length: 11 }, (_, i) => ({
-        id: `${bowlingTeamId}-ply-${i+1}`,
-        name: `${bowlingTeamName} Bowler ${i+1}`,
-        teamId: bowlingTeamId
-      }));
-    }
-
-    const state = fixture.liveMatchState || {};
-    const strikerId = state.strikerId || batPlayers[0]?.id;
-    const nonStrikerId = state.nonStrikerId || (batPlayers[1]?.id || batPlayers[0]?.id);
-    const bowlerId = state.bowlerId || bowlPlayers[0]?.id;
-
-    const strikerSel = document.getElementById('scorer-select-striker');
-    const nonStrikerSel = document.getElementById('scorer-select-non-striker');
-    const bowlerSel = document.getElementById('scorer-select-bowler');
-
-    if (strikerSel) {
-      strikerSel.innerHTML = batPlayers.map(p => `<option value="${p.id}" ${strikerId === p.id ? 'selected' : ''}>🏏 ${p.name}</option>`).join('');
-    }
-    if (nonStrikerSel) {
-      nonStrikerSel.innerHTML = batPlayers.map(p => `<option value="${p.id}" ${nonStrikerId === p.id ? 'selected' : ''}>🏏 ${p.name}</option>`).join('');
-    }
-    if (bowlerSel) {
-      bowlerSel.innerHTML = bowlPlayers.map(p => `<option value="${p.id}" ${bowlerId === p.id ? 'selected' : ''}>⚾ ${p.name}</option>`).join('');
-    }
-
-    const isMatchLive = fixture.status === 'LIVE';
-
-    const startBtnTxt = document.getElementById('scorer-start-match-btn-txt');
-    if (startBtnTxt) {
-      startBtnTxt.textContent = isMatchLive ? "✅ MATCH IS LIVE (SCORING PANEL ACTIVE)" : "🚀 START MATCH & OPEN LIVE SCORING PANEL";
-    }
-
-    if (isMatchLive) {
-      if (activePanelEl) activePanelEl.classList.remove('hidden');
-      renderScorerActivePanel();
+    if (restoreId) {
+      activeScoringMatchId = restoreId;
+      selectEl.value = restoreId;
+      onMatchSelected(restoreId);
     } else {
-      if (activePanelEl) activePanelEl.classList.add('hidden');
+      activeScoringMatchId = null;
+      onMatchSelected('');
     }
-  };
-
-  selectEl.onchange = (e) => {
-    onMatchSelected(e.target.value);
-  };
-
-  // Auto-restore the scorer view: keep the last-scored match open if LIVE, or if none is
-  // active, auto-attach to any LIVE match so returning to this tab reopens it with
-  // the latest state — no manual reselect/reopen needed. An in-progress match stays
-  // open until the admin closes the innings or finishes/deletes the match.
-  const fixturesNow = store.getFixtures();
-  let restoreId = (activeScoringMatchId && fixturesNow.some(f => f.id === activeScoringMatchId && f.status === 'LIVE'))
-    ? activeScoringMatchId
-    : null;
-  if (!restoreId) {
-    const liveMatch = fixturesNow.find(f => f.status === 'LIVE' &&
-      (store.isMasterAdmin() || accessibleCodes.includes((f.leagueCode || 'T').toUpperCase())));
-    if (liveMatch) restoreId = liveMatch.id;
-  }
-  if (restoreId) {
-    activeScoringMatchId = restoreId;
-    selectEl.value = restoreId;
-    onMatchSelected(restoreId);
-  } else {
-    activeScoringMatchId = null;
-    onMatchSelected('');
+  } finally {
+    isRenderingScorerMatches = false;
   }
 
   // Bind Start Match Button (Step 2 -> Step 3)
@@ -4569,8 +4578,8 @@ function renderScorerActivePanel() {
   const battingTeamName = battingTeamId === fixture.teamAId ? fixture.teamAName : fixture.teamBName;
   const bowlingTeamName = bowlingTeamId === fixture.teamAId ? fixture.teamAName : fixture.teamBName;
 
-  const allBatPlayers = store.getPlayers().filter(p => p.teamId === battingTeamId);
-  const allBowlPlayers = store.getPlayers().filter(p => p.teamId === bowlingTeamId);
+  const allBatPlayers = store.getPlayers().filter(p => String(p.teamId) === String(battingTeamId));
+  const allBowlPlayers = store.getPlayers().filter(p => String(p.teamId) === String(bowlingTeamId));
 
   const batPXI = fixture.playingXI?.[battingTeamId]?.playing11Ids;
   const bowlPXI = fixture.playingXI?.[bowlingTeamId]?.playing11Ids;
@@ -4613,7 +4622,6 @@ function renderScorerActivePanel() {
   });
 
   fixture.liveMatchState = state;
-  store.updateFixture(fixture);
 
   // Sync in-play dropdowns in Step 3
   const activeStrikerSel = document.getElementById('scorer-active-striker-sel');
@@ -6100,7 +6108,7 @@ function openTossSelectionModal(fixture, onComplete) {
 
   function updateTossPreview() {
     const winnerId = tossWinnerSel.value;
-    const isTeamA = winnerId === originalTeamAId;
+    const isTeamA = String(winnerId) === String(originalTeamAId);
     const winnerName = isTeamA ? originalTeamAName : originalTeamBName;
     const loserName = isTeamA ? originalTeamBName : originalTeamAName;
 
@@ -6134,7 +6142,7 @@ function openTossSelectionModal(fixture, onComplete) {
 
   document.getElementById('confirm-toss-btn')?.addEventListener('click', () => {
     const tossWinnerId = tossWinnerSel.value;
-    const isTeamA = tossWinnerId === originalTeamAId;
+    const isTeamA = String(tossWinnerId) === String(originalTeamAId);
     const tossWinnerName = isTeamA ? originalTeamAName : originalTeamBName;
     const otherTeamId = isTeamA ? originalTeamBId : originalTeamAId;
     const otherTeamName = isTeamA ? originalTeamBName : originalTeamAName;
@@ -6164,28 +6172,33 @@ function openTossSelectionModal(fixture, onComplete) {
     fixture.teamBId = firstBowlingId;
     fixture.teamBName = firstBowlingName;
 
-    fixture.liveMatchState = {
-      strikerId: '',
-      nonStrikerId: '',
-      bowlerId: '',
-      runs: 0,
-      wickets: 0,
-      overs: 0,
-      balls: 0,
-      innings: 1,
-      target: null,
-      tossDetails: tossSummary,
-      overBalls: [],
-      recentBalls: [],
-      playerStats: {}
-    };
-    fixture.status = 'LIVE';
-    const nowTimeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
-    if (!fixture.startedAt) fixture.startedAt = nowTimeStr;
-    if (!fixture.startedAtISO) fixture.startedAtISO = new Date().toISOString();
+    if (!fixture.liveMatchState) {
+      fixture.liveMatchState = {
+        strikerId: '',
+        nonStrikerId: '',
+        bowlerId: '',
+        runs: 0,
+        wickets: 0,
+        overs: 0,
+        balls: 0,
+        innings: 1,
+        target: null,
+        tossDetails: tossSummary,
+        overBalls: [],
+        recentBalls: [],
+        playerStats: {}
+      };
+    } else {
+      fixture.liveMatchState.tossDetails = tossSummary;
+    }
+    if (fixture.status === 'LIVE') {
+      const nowTimeStr = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+      if (!fixture.startedAt) fixture.startedAt = nowTimeStr;
+      if (!fixture.startedAtISO) fixture.startedAtISO = new Date().toISOString();
+    }
     
-    store.updateFixture(fixture);
     removeModal();
+    store.updateFixture(fixture);
     openPlayingXIModal(fixture, onComplete);
   });
 }
@@ -6193,8 +6206,8 @@ function openTossSelectionModal(fixture, onComplete) {
 export function openPlayingXIModal(fixture, onComplete) {
   document.getElementById('playing-xi-modal')?.remove();
 
-  const teamAPlayers = store.getPlayers().filter(p => p.teamId === fixture.teamAId);
-  const teamBPlayers = store.getPlayers().filter(p => p.teamId === fixture.teamBId);
+  const teamAPlayers = store.getPlayers().filter(p => String(p.teamId) === String(fixture.teamAId));
+  const teamBPlayers = store.getPlayers().filter(p => String(p.teamId) === String(fixture.teamBId));
 
   if (!fixture.playingXI) fixture.playingXI = {};
   if (!fixture.playingXI[fixture.teamAId]) {
@@ -6431,8 +6444,8 @@ export function openPlayingXIModal(fixture, onComplete) {
       }
     };
 
-    store.updateFixture(fixture);
     removeModal();
+    store.updateFixture(fixture);
     if (typeof onComplete === 'function') onComplete();
   });
 }
@@ -6440,8 +6453,8 @@ export function openPlayingXIModal(fixture, onComplete) {
 export function openEditMatchModal(fixture, onComplete) {
   document.getElementById('edit-match-modal')?.remove();
 
-  const teamAPlayers = store.getPlayers().filter(p => p.teamId === fixture.teamAId);
-  const teamBPlayers = store.getPlayers().filter(p => p.teamId === fixture.teamBId);
+  const teamAPlayers = store.getPlayers().filter(p => String(p.teamId) === String(fixture.teamAId));
+  const teamBPlayers = store.getPlayers().filter(p => String(p.teamId) === String(fixture.teamBId));
 
   if (!fixture.playingXI) fixture.playingXI = {};
   if (!fixture.playingXI[fixture.teamAId]) {
