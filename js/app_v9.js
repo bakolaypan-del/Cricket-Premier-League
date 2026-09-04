@@ -2246,38 +2246,38 @@ function renderFirstPageLanding(containerEl) {
           </p>
         </div>
 
-        <!-- Split-Flap Flip Clock -->
-        <div class="flex items-center justify-center gap-1 sm:gap-2 px-2.5 py-1.5 relative z-10">
+        <!-- Full Page-Turn Flip Clock -->
+        <div class="flex items-center justify-center gap-1.5 sm:gap-2.5 px-2.5 py-1.5 relative z-10">
           <div class="flip-clock-unit flip-days">
             <div class="flip-digit-wrapper" id="flip-days">
-              <div class="flip-digit-top"><span>00</span></div>
-              <div class="flip-digit-bottom"><span>00</span></div>
+              <div class="flip-digit-base">00</div>
+              <div class="flip-page">00</div>
             </div>
-            <div class="text-[6px] sm:text-[7px] font-black text-blue-700 uppercase tracking-widest mt-0.5">Days</div>
+            <div class="text-[6px] sm:text-[7px] font-black text-blue-700 uppercase tracking-widest mt-1">Days</div>
           </div>
           <span class="text-xs font-black text-slate-300 mt-[-8px]">:</span>
           <div class="flip-clock-unit flip-hours">
             <div class="flip-digit-wrapper" id="flip-hours">
-              <div class="flip-digit-top"><span>00</span></div>
-              <div class="flip-digit-bottom"><span>00</span></div>
+              <div class="flip-digit-base">00</div>
+              <div class="flip-page">00</div>
             </div>
-            <div class="text-[6px] sm:text-[7px] font-black text-purple-700 uppercase tracking-widest mt-0.5">Hours</div>
+            <div class="text-[6px] sm:text-[7px] font-black text-purple-700 uppercase tracking-widest mt-1">Hours</div>
           </div>
           <span class="text-xs font-black text-slate-300 mt-[-8px]">:</span>
           <div class="flip-clock-unit flip-mins">
             <div class="flip-digit-wrapper" id="flip-mins">
-              <div class="flip-digit-top"><span>00</span></div>
-              <div class="flip-digit-bottom"><span>00</span></div>
+              <div class="flip-digit-base">00</div>
+              <div class="flip-page">00</div>
             </div>
-            <div class="text-[6px] sm:text-[7px] font-black text-emerald-700 uppercase tracking-widest mt-0.5">Mins</div>
+            <div class="text-[6px] sm:text-[7px] font-black text-emerald-700 uppercase tracking-widest mt-1">Mins</div>
           </div>
           <span class="text-xs font-black text-slate-300 mt-[-8px]">:</span>
           <div class="flip-clock-unit flip-secs">
             <div class="flip-digit-wrapper" id="flip-secs">
-              <div class="flip-digit-top"><span>00</span></div>
-              <div class="flip-digit-bottom"><span>00</span></div>
+              <div class="flip-digit-base">00</div>
+              <div class="flip-page">00</div>
             </div>
-            <div class="text-[6px] sm:text-[7px] font-black text-rose-700 uppercase tracking-widest mt-0.5">Secs</div>
+            <div class="text-[6px] sm:text-[7px] font-black text-rose-700 uppercase tracking-widest mt-1">Secs</div>
           </div>
         </div>
 
@@ -5570,39 +5570,31 @@ export async function initTournamentCountdown() {
   const pad = (n) => String(n).padStart(2, '0');
   let prevValues = { d: '--', h: '--', m: '--', s: '--' };
 
-  // Flip animation helper
-  function flipDigit(wrapperId, newVal, colorClass) {
+  // Full page-turn flip animation
+  function flipDigit(wrapperId, newVal) {
     const wrapper = document.getElementById(wrapperId);
     if (!wrapper) return;
-    const topEl = wrapper.querySelector('.flip-digit-top span');
-    const bottomEl = wrapper.querySelector('.flip-digit-bottom span');
-    const oldVal = topEl?.textContent || '00';
+    const baseEl = wrapper.querySelector('.flip-digit-base');
+    const pageEl = wrapper.querySelector('.flip-page');
+    if (!baseEl || !pageEl) return;
+    const oldVal = pageEl.textContent || '00';
     if (oldVal === newVal) return;
 
-    // Remove old flip cards
-    wrapper.querySelectorAll('.flip-card, .flip-card-bottom').forEach(el => el.remove());
+    // Set the new value on the base (revealed after page flips away)
+    baseEl.textContent = newVal;
 
-    // Create flipping top (shows old value, flips down)
-    const flipTop = document.createElement('div');
-    flipTop.className = 'flip-card flipping-top';
-    flipTop.innerHTML = `<span>${oldVal}</span>`;
-    wrapper.appendChild(flipTop);
+    // The page still shows old value and flips down
+    pageEl.textContent = oldVal;
+    pageEl.classList.remove('flipping');
+    void pageEl.offsetWidth; // force reflow
+    pageEl.classList.add('flipping');
 
-    // Create flipping bottom (shows new value, flips up)
-    const flipBot = document.createElement('div');
-    flipBot.className = 'flip-card-bottom flipping-bottom';
-    flipBot.innerHTML = `<span>${newVal}</span>`;
-    wrapper.appendChild(flipBot);
-
-    // Update base digits
-    topEl.textContent = newVal;
-    setTimeout(() => { bottomEl.textContent = newVal; }, 150);
-
-    // Cleanup animation elements
+    // After flip completes, reset the page to show new value (ready for next flip)
     setTimeout(() => {
-      flipTop.remove();
-      flipBot.remove();
-    }, 600);
+      pageEl.classList.remove('flipping');
+      pageEl.textContent = newVal;
+      pageEl.style.transform = '';
+    }, 580);
   }
 
   // Render tournament info

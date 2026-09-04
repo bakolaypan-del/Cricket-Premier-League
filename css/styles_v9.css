@@ -1732,172 +1732,100 @@ body.no-anim .animate-fade-in {
   font-weight: 900 !important;
 }
 
-/* === SPLIT-FLAP FLIP-CLOCK COUNTDOWN & ROTATING TOURNAMENT SHOWCASE === */
+/* === FULL PAGE-TURN FLIP-CLOCK & ROTATING TOURNAMENT SHOWCASE === */
 .flip-clock-unit {
-  perspective: 300px;
+  perspective: 250px;
   display: inline-flex;
   flex-direction: column;
   align-items: center;
 }
 .flip-digit-wrapper {
   position: relative;
-  width: 26px;
-  height: 34px;
-  border-radius: 4px;
-  background: #1a1a2e;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.2), 0 1px 2px rgba(0,0,0,0.12);
+  width: 30px;
+  height: 38px;
+  border-radius: 5px;
+  overflow: visible;
 }
 @media (min-width: 640px) {
-  .flip-digit-wrapper { width: 34px; height: 44px; border-radius: 5px; }
+  .flip-digit-wrapper { width: 38px; height: 48px; border-radius: 6px; }
 }
 
-/* Upper half - lighter shade */
-.flip-digit-top {
+/* Base static digit — always visible behind the flipping page */
+.flip-digit-base {
   position: absolute;
-  left: 0; right: 0; top: 0; height: 50%;
-  overflow: hidden;
+  inset: 0;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: center;
-  border-radius: 5px 5px 0 0;
-  border-bottom: 1.5px solid rgba(0,0,0,0.5);
+  border-radius: 5px;
   font-family: 'Teko', 'Outfit', sans-serif;
   font-weight: 700;
-  font-size: 22px;
+  font-size: 24px;
   line-height: 1;
   color: #fff;
+  z-index: 1;
 }
 @media (min-width: 640px) {
-  .flip-digit-top { font-size: 28px; border-radius: 5px 5px 0 0; }
+  .flip-digit-base { font-size: 32px; border-radius: 6px; }
 }
-.flip-digit-top span { transform: translateY(50%); }
 
-/* Lower half - darker shade with subtle gradient */
-.flip-digit-bottom {
+/* The flipping page — full height card that rotates top-to-bottom */
+.flip-page {
   position: absolute;
-  left: 0; right: 0; bottom: 0; height: 50%;
-  overflow: hidden;
+  inset: 0;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
-  border-radius: 0 0 4px 4px;
+  border-radius: 5px;
   font-family: 'Teko', 'Outfit', sans-serif;
   font-weight: 700;
-  font-size: 22px;
+  font-size: 24px;
   line-height: 1;
-  color: rgba(255,255,255,0.88);
-}
-@media (min-width: 640px) {
-  .flip-digit-bottom { font-size: 28px; border-radius: 0 0 5px 5px; }
-}
-.flip-digit-bottom span { transform: translateY(-50%); }
-
-/* Center fold line — the mechanical hinge */
-.flip-digit-wrapper::after {
-  content: '';
-  position: absolute;
-  left: 0; right: 0;
-  top: 50%;
-  height: 2px;
-  background: linear-gradient(90deg, rgba(0,0,0,0.6) 0%, rgba(0,0,0,0.3) 40%, rgba(0,0,0,0.3) 60%, rgba(0,0,0,0.6) 100%);
-  z-index: 5;
-  pointer-events: none;
-}
-/* Subtle inner shadow on top half bottom edge */
-.flip-digit-top::after {
-  content: '';
-  position: absolute;
-  left: 0; right: 0; bottom: 0;
-  height: 6px;
-  background: linear-gradient(to top, rgba(0,0,0,0.15), transparent);
-  pointer-events: none;
-}
-/* Subtle highlight on bottom half top edge */
-.flip-digit-bottom::before {
-  content: '';
-  position: absolute;
-  left: 0; right: 0; top: 0;
-  height: 6px;
-  background: linear-gradient(to bottom, rgba(255,255,255,0.06), transparent);
-  pointer-events: none;
-}
-
-/* Flipping page — top half folds down */
-.flip-card {
-  position: absolute;
-  left: 0; right: 0; top: 0;
-  height: 50%;
-  transform-origin: bottom center;
-  backface-visibility: hidden;
-  overflow: hidden;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  border-radius: 4px 4px 0 0;
-  font-family: 'Teko', 'Outfit', sans-serif;
-  font-weight: 700;
-  font-size: 22px;
   color: #fff;
-  z-index: 10;
-}
-@media (min-width: 640px) {
-  .flip-card { font-size: 28px; border-radius: 5px 5px 0 0; }
-}
-.flip-card span { transform: translateY(50%); }
-
-/* Bottom flap — unfolds from top */
-.flip-card-bottom {
-  position: absolute;
-  left: 0; right: 0; bottom: 0;
-  height: 50%;
+  z-index: 3;
   transform-origin: top center;
-  transform: rotateX(90deg);
   backface-visibility: hidden;
-  overflow: hidden;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  border-radius: 0 0 4px 4px;
-  font-family: 'Teko', 'Outfit', sans-serif;
-  font-weight: 700;
-  font-size: 22px;
-  color: rgba(255,255,255,0.88);
-  z-index: 10;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.18);
 }
 @media (min-width: 640px) {
-  .flip-card-bottom { font-size: 28px; border-radius: 0 0 5px 5px; }
-}
-.flip-card-bottom span { transform: translateY(-50%); }
-
-@keyframes flipTop {
-  0% { transform: rotateX(0deg); }
-  50% { transform: rotateX(-75deg); }
-  100% { transform: rotateX(-90deg); }
-}
-@keyframes flipBottom {
-  0% { transform: rotateX(90deg); }
-  50% { transform: rotateX(15deg); }
-  80% { transform: rotateX(-3deg); }
-  100% { transform: rotateX(0deg); }
-}
-.flip-card.flipping-top {
-  animation: flipTop 0.3s ease-in forwards;
-  box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-}
-.flip-card-bottom.flipping-bottom {
-  animation: flipBottom 0.4s 0.12s ease-out forwards;
-  box-shadow: 0 -2px 6px rgba(0,0,0,0.15);
+  .flip-page { font-size: 32px; border-radius: 6px; }
 }
 
-/* Color themes — upper is lighter, lower is darker for depth */
-.flip-days .flip-digit-top, .flip-days .flip-card { background: #2563EB; }
-.flip-days .flip-digit-bottom, .flip-days .flip-card-bottom { background: #1E3A8A; }
-.flip-hours .flip-digit-top, .flip-hours .flip-card { background: #7C3AED; }
-.flip-hours .flip-digit-bottom, .flip-hours .flip-card-bottom { background: #4C1D95; }
-.flip-mins .flip-digit-top, .flip-mins .flip-card { background: #059669; }
-.flip-mins .flip-digit-bottom, .flip-mins .flip-card-bottom { background: #065F46; }
-.flip-secs .flip-digit-top, .flip-secs .flip-card { background: #BE123C; }
-.flip-secs .flip-digit-bottom, .flip-secs .flip-card-bottom { background: #881337; }
+@keyframes pageFlipDown {
+  0% {
+    transform: rotateX(0deg);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.18);
+  }
+  30% {
+    transform: rotateX(-60deg);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.35);
+  }
+  60% {
+    transform: rotateX(-120deg);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+  }
+  80% {
+    transform: rotateX(-170deg);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+  }
+  100% {
+    transform: rotateX(-180deg);
+    box-shadow: none;
+  }
+}
+.flip-page.flipping {
+  animation: pageFlipDown 0.55s ease-in-out forwards;
+}
+
+/* Color themes — solid background per unit */
+.flip-days .flip-digit-base { background: linear-gradient(165deg, #3B82F6 0%, #1E3A8A 100%); }
+.flip-days .flip-page { background: linear-gradient(165deg, #2563EB 0%, #1D4ED8 100%); }
+.flip-hours .flip-digit-base { background: linear-gradient(165deg, #8B5CF6 0%, #4C1D95 100%); }
+.flip-hours .flip-page { background: linear-gradient(165deg, #7C3AED 0%, #5B21B6 100%); }
+.flip-mins .flip-digit-base { background: linear-gradient(165deg, #10B981 0%, #065F46 100%); }
+.flip-mins .flip-page { background: linear-gradient(165deg, #059669 0%, #047857 100%); }
+.flip-secs .flip-digit-base { background: linear-gradient(165deg, #F43F5E 0%, #881337 100%); }
+.flip-secs .flip-page { background: linear-gradient(165deg, #E11D48 0%, #BE123C 100%); }
 
 /* Tournament rotate transition */
 .tourney-showcase-slide {
