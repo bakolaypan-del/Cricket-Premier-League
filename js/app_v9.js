@@ -2234,12 +2234,6 @@ function renderFirstPageLanding(containerEl) {
             <span class="text-slate-300 text-[7px]">|</span>
             <span class="text-[8px] sm:text-[9px] font-bold text-emerald-700 flex items-center gap-0.5">📍 <span id="showcase-venue-text"></span></span>
           </p>
-          <div id="showcase-tourney-notice" class="hidden mt-1 mx-auto max-w-[280px] sm:max-w-xs">
-            <div class="inline-flex items-center gap-1 px-2 py-0.5 bg-red-50 border border-red-200/80 rounded-lg text-[8px] sm:text-[9px] font-bold text-red-700 leading-tight">
-              <span>📢</span>
-              <span id="showcase-notice-text" class="line-clamp-1"></span>
-            </div>
-          </div>
         </div>
 
         <!-- Full Page-Turn Flip Clock -->
@@ -2296,6 +2290,16 @@ function renderFirstPageLanding(containerEl) {
         </div>
 
         ${allTournaments.length === 0 ? '<div class="text-center py-8 bg-white border-2 border-dashed border-slate-200 rounded-xl"><div class="text-3xl mb-1">🏏</div><h4 class="text-xs font-black text-slate-900">No Tournaments Yet</h4><p class="text-[10px] text-slate-500 mt-0.5">Be the first to host a tournament!</p></div>' : buildTournamentCarouselHTML(allTournaments)}
+
+        <!-- NOTICE TICKER below tournament carousel -->
+        <div id="carousel-notice-ticker-bar" class="hidden w-full max-w-[480px] sm:max-w-3xl md:max-w-4xl mx-auto overflow-hidden mt-1.5 rounded-lg">
+          <div class="bg-red-600 overflow-hidden py-1 sm:py-1.5 px-0 rounded-lg">
+            <div class="notice-ticker-track">
+              <span id="carousel-notice-c1" class="whitespace-nowrap text-[10px] sm:text-[11px] font-bold text-white tracking-wide"></span>
+              <span id="carousel-notice-c2" class="whitespace-nowrap text-[10px] sm:text-[11px] font-bold text-white tracking-wide"></span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- HOST YOUR OWN TOURNAMENT BANNER (CLEAN LIGHT CARD) -->
@@ -2508,7 +2512,32 @@ function renderFirstPageLanding(containerEl) {
 
   document.getElementById('btn-home-create-tourney')?.addEventListener('click', () => openTournamentCreationRoadmapModal(false));
 
-  // Notice ticker removed from upper landing — notices now show in countdown showcase card
+  // Notice ticker below tournament carousel — shows all active notices
+  (async () => {
+    try {
+      const allT = store.getCustomTournaments ? store.getCustomTournaments() : [];
+      const msgs = [];
+      for (const t of allT) {
+        const tid = t.supabaseId || t.tournament_id || t.id;
+        if (!tid) continue;
+        try {
+          const nb = await fetchNoticeBoardFromCloud(tid);
+          if (nb && nb.active && nb.text) msgs.push('📢 ' + t.name + ': ' + nb.text);
+        } catch(e) {}
+      }
+      if (msgs.length > 0) {
+        const bar = document.getElementById('carousel-notice-ticker-bar');
+        const c1 = document.getElementById('carousel-notice-c1');
+        const c2 = document.getElementById('carousel-notice-c2');
+        if (bar && c1) {
+          const full = '   ' + msgs.join('     •     ') + '     •     ';
+          c1.textContent = full;
+          if (c2) c2.textContent = full;
+          bar.classList.remove('hidden');
+        }
+      }
+    } catch(e) {}
+  })();
 }
 
 // --- WHATSAPP 1-CLICK SHARING UTILITIES ---
@@ -5546,20 +5575,6 @@ export async function initTournamentCountdown() {
     featured = allTourneys.slice(0, 3);
   }
 
-  // Fetch notice boards for each featured tournament
-  const tourneyNotices = {};
-  for (const t of featured) {
-    try {
-      const tid = t.supabaseId || t.tournament_id || t.id;
-      if (tid) {
-        const nb = await fetchNoticeBoardFromCloud(tid);
-        if (nb && nb.active && nb.text) {
-          tourneyNotices[t.slug] = nb.text;
-        }
-      }
-    } catch(e) {}
-  }
-
   let currentIdx = 0;
   const pad = (n) => String(n).padStart(2, '0');
   let prevValues = { d: '--', h: '--', m: '--', s: '--' };
@@ -5608,14 +5623,6 @@ export async function initTournamentCountdown() {
       if (nameEl) nameEl.textContent = t.name || 'Tournament';
       if (dateEl) dateEl.textContent = t.kickoffDate ? new Date(t.kickoffDate + 'T09:00:00').toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' }).toUpperCase() + ' • 9 AM' : 'COMING SOON';
       if (venueEl) venueEl.textContent = t.venue || 'TBA';
-
-      const noticeWrap = document.getElementById('showcase-tourney-notice');
-      const noticeTextEl = document.getElementById('showcase-notice-text');
-      if (noticeWrap && noticeTextEl) {
-        const notice = tourneyNotices[t.slug];
-        if (notice) { noticeTextEl.textContent = notice; noticeWrap.classList.remove('hidden'); }
-        else { noticeWrap.classList.add('hidden'); }
-      }
 
       // Update dots
       const dotsEl = document.getElementById('showcase-dots');
