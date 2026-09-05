@@ -831,7 +831,12 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
           id, name, phone, photo_url, role, batting_style, bowling_style, dob, village, district, state, jersey_size
         )
       `).eq('tournament_id', tId).neq('status', 'deleted'),
-      supabase.from('teams').select('id, tournament_id, name, short_name, owner_name, owner_phone, logo_url, budget_total, budget_remaining, updated_at').eq('tournament_id', tId),
+      supabase.from('teams').select(`
+        id, tournament_id, name, short_name, owner_name, owner_phone, owner_photo_url,
+        captain_name, co_owner_name, mentor_name, logo_url, group_code,
+        budget_total, budget_remaining, icon_player_id, icon_player_name, icon_player_fee,
+        registration_status, payment_status, max_squad, created_at, updated_at
+      `).eq('tournament_id', tId),
       supabase.from('matches').select('*').eq('tournament_id', tId),
       supabase.from('tournaments').select(`
         id, category_code, slug, name, registration_fee, total_team_budget, icon_price,
@@ -997,55 +1002,75 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
 
     const configTeams = Array.isArray(tourneyMeta?.format_config?.custom_teams) ? tourneyMeta.format_config.custom_teams : [];
     
-    // Merge teams from Postgres table and tournament format_config
+    // Map teams from Postgres teams table (single source of truth)
     const teamsMap = new Map();
     dbTeams.forEach((t, idx) => {
       teamsMap.set(t.id, {
         id: t.id,
         tournament_id: t.tournament_id,
+        tournamentId: t.tournament_id,
         leagueId: t.tournament_id || tId,
         leagueCode: regPrefix,
-        group: (t.group_code || t.group || 'A').toUpperCase(),
-        groupCode: (t.group_code || t.group || 'A').toUpperCase(),
+        group: (t.group_code || 'A').toUpperCase(),
+        groupCode: (t.group_code || 'A').toUpperCase(),
         name: t.name,
-        shortCode: t.short_name || t.shortCode || (t.name ? t.name.substring(0, 3).toUpperCase() : 'TM'),
+        shortCode: t.short_name || (t.name ? t.name.substring(0, 3).toUpperCase() : 'TM'),
         ownerName: t.owner_name,
         ownerPhone: t.owner_phone,
-        logoUrl: t.logo_url,
-        teamLogoUrl: t.logo_url,
-        purse: Number(t.budget_total || 10000),
-        remainingPurse: Number(t.budget_remaining || t.budget_total || 10000),
+        ownerPhotoUrl: t.owner_photo_url || '',
+        ownerPhoto: t.owner_photo_url || '',
+        captainName: t.captain_name || t.owner_name || '',
+        coOwnerName: t.co_owner_name || '',
+        mentorName: t.mentor_name || '',
+        iconPlayerId: t.icon_player_id || null,
+        iconPlayerName: t.icon_player_name || null,
+        iconName: t.icon_player_name || null,
+        iconPlayerFee: Number(t.icon_player_fee) || 0,
+        iconFee: Number(t.icon_player_fee) || 0,
+        hasIconPlayer: !!t.icon_player_id,
+        registrationStatus: t.registration_status || 'APPROVED',
+        paymentStatus: t.payment_status || 'APPROVED',
+        status: t.registration_status || 'VERIFIED',
+        maxSquad: Number(t.max_squad) || 15,
+        logoUrl: t.logo_url || 'assets/jsl_logo.jpg',
+        teamLogoUrl: t.logo_url || 'assets/jsl_logo.jpg',
+        purse: Number(t.budget_total || 8000),
+        purseBudget: Number(t.budget_total || 8000),
+        remainingPurse: Number(t.budget_remaining != null ? t.budget_remaining : t.budget_total || 8000),
         serialNo: idx + 1,
         created_at: t.created_at,
         updated_at: t.updated_at
       });
     });
 
+    // Graceful backward-compatibility merge if format_config still has legacy custom_teams
     configTeams.forEach((ct) => {
       if (!ct || !ct.id) return;
       const existing = teamsMap.get(ct.id);
-      teamsMap.set(ct.id, {
-        ...(existing || {}),
-        ...ct,
-        id: ct.id,
-        tournament_id: ct.tournament_id || tId,
-        leagueId: ct.tournament_id || tId,
-        leagueCode: ct.leagueCode || regPrefix,
-        group: (ct.group || ct.groupCode || existing?.group || 'A').toUpperCase(),
-        groupCode: (ct.groupCode || ct.group || existing?.groupCode || 'A').toUpperCase(),
-        name: ct.name,
-        shortCode: ct.shortCode || ct.short_name,
-        ownerName: ct.ownerName || ct.owner_name,
-        ownerPhone: ct.ownerPhone || ct.owner_phone,
-        logoUrl: ct.logoUrl || ct.logo_url,
-        teamLogoUrl: ct.teamLogoUrl || ct.logoUrl,
-        purse: Number(ct.purse || ct.purseBudget || 10000),
-        purseBudget: Number(ct.purseBudget || ct.purse || 10000),
-        remainingPurse: Number(ct.remainingPurse || ct.purseBudget || ct.purse || 10000),
-        serialNo: existing?.serialNo || (teamsMap.size + 1),
-        created_at: ct.created_at || existing?.created_at || new Date().toISOString(),
-        updated_at: ct.updated_at || Date.now()
-      });
+      if (!existing) {
+        teamsMap.set(ct.id, {
+          ...ct,
+          id: ct.id,
+          tournament_id: ct.tournament_id || tId,
+          tournamentId: ct.tournament_id || tId,
+          leagueId: ct.tournament_id || tId,
+          leagueCode: ct.leagueCode || regPrefix,
+          group: (ct.group || ct.groupCode || 'A').toUpperCase(),
+          groupCode: (ct.groupCode || ct.group || 'A').toUpperCase(),
+          name: ct.name,
+          shortCode: ct.shortCode || ct.short_name,
+          ownerName: ct.ownerName || ct.owner_name,
+          ownerPhone: ct.ownerPhone || ct.owner_phone,
+          logoUrl: ct.logoUrl || ct.logo_url,
+          teamLogoUrl: ct.teamLogoUrl || ct.logoUrl,
+          purse: Number(ct.purse || ct.purseBudget || 8000),
+          purseBudget: Number(ct.purseBudget || ct.purse || 8000),
+          remainingPurse: Number(ct.remainingPurse || ct.purseBudget || ct.purse || 8000),
+          serialNo: teamsMap.size + 1,
+          created_at: ct.created_at || new Date().toISOString(),
+          updated_at: ct.updated_at || Date.now()
+        });
+      }
     });
 
     const teams = Array.from(teamsMap.values());
@@ -1437,63 +1462,62 @@ export async function syncTeamToSupabase(teamData) {
     const tournamentUUID = await resolveTournamentUUID(tid);
     const teamUUID = (teamData.id && UUID_FORMAT_RE.test(teamData.id)) ? teamData.id : generateUUID();
 
-    // 1. Direct PostgreSQL teams table upsert (always sync — no auth guard)
+    // Direct PostgreSQL teams table upsert (single source of truth)
     try {
       const remainingVal = (teamData.remainingPurse != null) ? Number(teamData.remainingPurse) : null;
       const budgetTotal = Number(teamData.purseBudget || teamData.purse) || 8000;
+      const iconFeeVal = Number(teamData.iconPlayerFee || teamData.iconFee || 0);
+      const iconPid = (teamData.iconPlayerId && UUID_FORMAT_RE.test(teamData.iconPlayerId)) ? teamData.iconPlayerId : null;
+
       const payload = {
         id: teamUUID,
         tournament_id: tournamentUUID,
         name: teamData.name,
-        short_name: teamData.shortCode || null,
+        short_name: teamData.shortCode || (teamData.name ? teamData.name.substring(0, 3).toUpperCase() : null),
         owner_name: teamData.ownerName || null,
         owner_phone: teamData.ownerPhone || null,
+        owner_photo_url: teamData.ownerPhotoUrl || teamData.ownerPhoto || null,
+        captain_name: teamData.captainName || teamData.ownerName || null,
+        co_owner_name: teamData.coOwnerName || teamData.coOwner1Name || null,
+        mentor_name: teamData.mentorName || null,
         logo_url: teamData.logoUrl || teamData.teamLogoUrl || null,
+        group_code: (teamData.groupCode || teamData.group || 'A').toUpperCase(),
         budget_total: budgetTotal,
         budget_remaining: (remainingVal != null) ? remainingVal : budgetTotal,
+        icon_player_id: iconPid,
+        icon_player_name: teamData.iconPlayerName || teamData.iconName || null,
+        icon_player_fee: iconFeeVal,
+        registration_status: teamData.registrationStatus || 'APPROVED',
+        payment_status: teamData.paymentStatus || 'APPROVED',
+        max_squad: Number(teamData.maxSquad) || 15,
         updated_at: new Date().toISOString()
       };
+
       const { error: teamUpsertErr } = await supabase.from('teams').upsert(payload);
       if (teamUpsertErr) {
-        console.error("[SUPABASE] teams upsert failed:", teamUpsertErr.message, teamUpsertErr.details);
+        // Fallback for legacy columns if migration has not run yet
+        if (teamUpsertErr.message && teamUpsertErr.message.includes('column')) {
+          const basicPayload = {
+            id: teamUUID,
+            tournament_id: tournamentUUID,
+            name: teamData.name,
+            short_name: teamData.shortCode || null,
+            owner_name: teamData.ownerName || null,
+            owner_phone: teamData.ownerPhone || null,
+            logo_url: teamData.logoUrl || teamData.teamLogoUrl || null,
+            budget_total: budgetTotal,
+            budget_remaining: (remainingVal != null) ? remainingVal : budgetTotal,
+            updated_at: new Date().toISOString()
+          };
+          await supabase.from('teams').upsert(basicPayload);
+        } else {
+          console.error("[SUPABASE] teams upsert failed:", teamUpsertErr.message, teamUpsertErr.details);
+        }
+      } else {
+        console.log("[SUPABASE] Synced team to teams table:", teamData.name);
       }
     } catch (tblErr) {
       console.error("[SUPABASE] teams upsert exception:", tblErr);
-    }
-
-    // 2. Persist team permanently in tournament format_config.custom_teams (guarantees zero RLS loss)
-    try {
-      let { data: currentTourney } = await supabase.from('tournaments').select('id, format_config').eq('id', tournamentUUID).maybeSingle();
-      if (!currentTourney && tid) {
-        const cleanSlug = String(tid).replace(/^t_/, '').trim();
-        const { data: bySlug } = await supabase.from('tournaments').select('id, format_config').or(`slug.ilike.${cleanSlug},category_code.ilike.${cleanSlug}`).maybeSingle();
-        if (bySlug) currentTourney = bySlug;
-      }
-      if (currentTourney?.id) {
-        const existingConfig = currentTourney.format_config || {};
-        const customTeams = Array.isArray(existingConfig.custom_teams) ? existingConfig.custom_teams : [];
-        const existingIdx = customTeams.findIndex(t => t.id === teamData.id || t.id === teamUUID || (t.name && t.name.toLowerCase() === teamData.name.toLowerCase()));
-        
-        const teamEntry = {
-          ...teamData,
-          id: teamUUID,
-          tournament_id: currentTourney.id,
-          tournamentId: currentTourney.id,
-          updated_at: Date.now()
-        };
-
-        if (existingIdx !== -1) {
-          customTeams[existingIdx] = { ...customTeams[existingIdx], ...teamEntry };
-        } else {
-          customTeams.push(teamEntry);
-        }
-        existingConfig.custom_teams = customTeams;
-
-        await supabase.from('tournaments').update({ format_config: existingConfig }).eq('id', currentTourney.id);
-        console.log("[SUPABASE] Synced team to tournament format_config:", teamData.name);
-      }
-    } catch (cfgErr) {
-      console.warn("[SUPABASE] tournament format_config team save notice:", cfgErr);
     }
 
     return teamData;
@@ -1507,32 +1531,7 @@ export async function deleteTeamFromSupabase(teamId, tournamentId = null) {
   if (!supabase || !teamId) return false;
   try {
     const teamUUID = toUUID(teamId);
-    try {
-      await supabase.from('teams').delete().eq('id', teamUUID);
-    } catch (e) {}
-
-    // Remove from tournament format_config.custom_teams
-    try {
-      const tId = tournamentId ? (await resolveTournamentUUID(tournamentId)) : null;
-      let tourneyQuery = supabase.from('tournaments').select('id, format_config');
-      if (tId) {
-        tourneyQuery = tourneyQuery.eq('id', tId);
-      }
-      const { data: tourneys } = await tourneyQuery;
-      if (Array.isArray(tourneys)) {
-        for (const t of tourneys) {
-          if (Array.isArray(t.format_config?.custom_teams)) {
-            const initialLen = t.format_config.custom_teams.length;
-            const updatedTeams = t.format_config.custom_teams.filter(item => item.id !== teamId && item.id !== teamUUID);
-            if (updatedTeams.length !== initialLen) {
-              const updatedConfig = { ...t.format_config, custom_teams: updatedTeams };
-              await supabase.from('tournaments').update({ format_config: updatedConfig }).eq('id', t.id);
-            }
-          }
-        }
-      }
-    } catch (e) {}
-
+    await supabase.from('teams').delete().eq('id', teamUUID);
     return true;
   } catch (err) {
     console.warn("[SUPABASE] deleteTeamFromSupabase notice:", err);
