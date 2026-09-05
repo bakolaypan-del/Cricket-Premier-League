@@ -1781,6 +1781,8 @@ class Store {
         }
       }
     } catch(e) {}
+  }
+
   recomputeTeamPurse(team, allPlayers = null) {
     if (!team) return null;
     const players = allPlayers || this.getPlayers();
