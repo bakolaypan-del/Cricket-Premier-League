@@ -1088,7 +1088,32 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
       }
     });
 
-    const teams = Array.from(teamsMap.values());
+    const teams = Array.from(teamsMap.values()).map(t => {
+      const tUUID = toUUID(t.id);
+      const assignedPlayers = players.filter(p => {
+        const pTid = p.teamId || p.team_id;
+        return pTid === t.id || (tUUID && toUUID(pTid) === tUUID);
+      });
+      const iconFee = (t.hasIconPlayer && t.iconPlayerFee) ? Number(t.iconPlayerFee) : 0;
+      const auctionSpent = assignedPlayers.reduce((sum, p) => {
+        if (p.isIcon || p.is_icon) return sum;
+        const pr = Number(p.soldPrice !== undefined ? p.soldPrice : (p.sold_price || 0));
+        return sum + (isNaN(pr) ? 0 : pr);
+      }, 0);
+      const totalSpent = iconFee + auctionSpent;
+      const budgetTotal = Number(t.purseBudget || t.purse || 8000);
+      const remaining = Math.max(0, budgetTotal - totalSpent);
+
+      return {
+        ...t,
+        purseSpent: totalSpent,
+        remainingPurse: remaining,
+        budget_remaining: remaining,
+        squadCount: assignedPlayers.length,
+        playersCount: assignedPlayers.length,
+        playerIds: assignedPlayers.map(p => p.id)
+      };
+    });
 
     const configMatches = Array.isArray(tourneyMeta?.format_config?.custom_matches) ? tourneyMeta.format_config.custom_matches : [];
     const matchesMap = new Map();

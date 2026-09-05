@@ -1781,6 +1781,43 @@ class Store {
         }
       }
     } catch(e) {}
+  recomputeTeamPurse(team, allPlayers = null) {
+    if (!team) return null;
+    const players = allPlayers || this.getPlayers();
+    const teamId = team.id;
+    const teamUUID = toUUID(teamId);
+
+    // Find all players assigned to this team
+    const teamPlayers = players.filter(p => {
+      if (!p) return false;
+      const pTid = p.teamId || p.team_id;
+      return pTid === teamId || (teamUUID && toUUID(pTid) === teamUUID);
+    });
+
+    const hasIcon = !!(team.iconPlayerId || team.icon_player_id || team.iconPlayerName || team.iconName);
+    const iconFee = (hasIcon && (team.iconPlayerFee || team.icon_player_fee || team.iconFee))
+      ? Number(team.iconPlayerFee || team.icon_player_fee || team.iconFee)
+      : (hasIcon ? (this.resolveTeamIconFee ? this.resolveTeamIconFee(team) : 0) : 0);
+
+    // Sum auction sold prices of players (avoid double counting icon fee if player is already icon)
+    const auctionSpent = teamPlayers.reduce((sum, p) => {
+      const isIconP = (p.isIcon || p.is_icon || p.isIconPlayer);
+      if (isIconP) return sum; // Icon price is accounted for in iconFee
+      const price = Number(p.soldPrice !== undefined ? p.soldPrice : (p.sold_price || 0));
+      return sum + (isNaN(price) ? 0 : price);
+    }, 0);
+
+    const totalSpent = iconFee + auctionSpent;
+    const budgetTotal = Number(team.budget_total || team.purseBudget || team.purse || 8000);
+    const remaining = Math.max(0, budgetTotal - totalSpent);
+
+    team.purseSpent = totalSpent;
+    team.remainingPurse = remaining;
+    team.budget_remaining = remaining;
+    team.squadCount = teamPlayers.length;
+    team.playersCount = teamPlayers.length;
+    team.playerIds = teamPlayers.map(p => p.id);
+    return team;
   }
 
   assignPlayerToTeam(playerId, teamId, soldPrice) {
@@ -1820,19 +1857,15 @@ class Store {
         return { error: 'INSUFFICIENT_PURSE', team, remainingPurse: teamRemainingPurse, price: additionalPurseNeeded };
       }
 
+      let oldTeam = null;
       // If player was on a DIFFERENT team, refund the old team
       if (player.teamId && !isSameTeam) {
-        const oldTeam = teams.find(t => t.id === player.teamId || (player.teamId && t.id && toUUID(t.id) === toUUID(player.teamId))) || (this.getAllTeamsAcrossTournaments ? this.getAllTeamsAcrossTournaments().find(t => t.id === player.teamId || (player.teamId && t.id && toUUID(t.id) === toUUID(player.teamId))) : null);
+        oldTeam = teams.find(t => t.id === player.teamId || (player.teamId && t.id && toUUID(t.id) === toUUID(player.teamId))) || (this.getAllTeamsAcrossTournaments ? this.getAllTeamsAcrossTournaments().find(t => t.id === player.teamId || (player.teamId && t.id && toUUID(t.id) === toUUID(player.teamId))) : null);
         if (oldTeam) {
-          oldTeam.squadCount = Math.max(0, (oldTeam.squadCount || 1) - 1);
-          oldTeam.purseSpent = Math.max(0, (oldTeam.purseSpent || 0) - (player.soldPrice || 0));
-          oldTeam.remainingPurse = Math.max(0, (Number(oldTeam.purseBudget) || 8000) - oldTeam.purseSpent);
           if (Array.isArray(oldTeam.playerIds)) {
             oldTeam.playerIds = oldTeam.playerIds.filter(id => String(id) !== String(player.id));
           }
           oldTeam.updated_at = Date.now();
-          this._saveTeamAcrossAllKeys(oldTeam);
-          syncTeamToSupabase(oldTeam);
         }
       }
 
@@ -1847,15 +1880,9 @@ class Store {
       player.isUnsold = false;
       player.updated_at = now;
       
-      if (!isSameTeam) {
-        team.squadCount = (Number(team.squadCount) || 0) + 1;
-        team.purseSpent = (Number(team.purseSpent) || 0) + price;
-      } else {
-        team.purseSpent = Math.max(0, (Number(team.purseSpent) || 0) + additionalPurseNeeded);
-      }
-      team.remainingPurse = Math.max(0, (Number(team.purseBudget) || 8000) - team.purseSpent);
-      if (!Array.isArray(team.playerIds)) team.playerIds = [];
-      if (!team.playerIds.includes(player.id)) team.playerIds.push(player.id);
+      // Dynamically recompute squad & remaining purse from players list
+      this.recomputeTeamPurse(team, players);
+      if (oldTeam) this.recomputeTeamPurse(oldTeam, players);
       team.updated_at = now;
 
       this._invalidateCache('players');
@@ -1864,6 +1891,10 @@ class Store {
       safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
       this._savePlayerAcrossAllKeys(player);
       this._saveTeamAcrossAllKeys(team);
+      if (oldTeam) {
+        this._saveTeamAcrossAllKeys(oldTeam);
+        syncTeamToSupabase(oldTeam);
+      }
       syncPlayerToSupabase(player);
       syncTeamToSupabase(team);
       this.notify('players_updated');
@@ -1885,24 +1916,7 @@ class Store {
     const now = Date.now();
 
     // If player was previously assigned to a team, refund and remove from that team
-    if (player.teamId) {
-      const team = teams.find(t => t.id === player.teamId || (player.teamId && t.id && toUUID(t.id) === toUUID(player.teamId))) || (this.getAllTeamsAcrossTournaments ? this.getAllTeamsAcrossTournaments().find(t => t.id === player.teamId || (player.teamId && t.id && toUUID(t.id) === toUUID(player.teamId))) : null);
-      if (team) {
-        team.squadCount = Math.max(0, (Number(team.squadCount) || 1) - 1);
-        team.purseSpent = Math.max(0, (Number(team.purseSpent) || 0) - (Number(player.soldPrice) || 0));
-        const budget = Number(team.purseBudget || team.purse || 8000);
-        team.remainingPurse = Math.max(0, budget - team.purseSpent);
-        if (Array.isArray(team.playerIds)) {
-          team.playerIds = team.playerIds.filter(id => String(id) !== String(playerId));
-        }
-        team.updated_at = now;
-        safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
-        this._saveTeamAcrossAllKeys(team);
-        syncTeamToSupabase(team);
-        this.notify('teams_updated');
-      }
-    }
-
+    const prevTeamId = player.teamId;
     player.teamId = null;
     player.team_id = null;
     player.teamName = null;
@@ -1912,6 +1926,18 @@ class Store {
     player.isSold = false;
     player.isUnsold = true;
     player.updated_at = now;
+
+    if (prevTeamId) {
+      const team = teams.find(t => t.id === prevTeamId || (prevTeamId && t.id && toUUID(t.id) === toUUID(prevTeamId))) || (this.getAllTeamsAcrossTournaments ? this.getAllTeamsAcrossTournaments().find(t => t.id === prevTeamId || (prevTeamId && t.id && toUUID(t.id) === toUUID(prevTeamId))) : null);
+      if (team) {
+        this.recomputeTeamPurse(team, players);
+        team.updated_at = now;
+        safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
+        this._saveTeamAcrossAllKeys(team);
+        syncTeamToSupabase(team);
+        this.notify('teams_updated');
+      }
+    }
 
     this._invalidateCache('players');
     this._invalidateCache('teams');
@@ -1945,15 +1971,7 @@ class Store {
     team.iconPhoto = null;
     team.hasIconPlayer = false;
     team.iconPlayerFee = 0;
-
-    // Recalculate squad count & purse
-    const purchasedCount = Array.isArray(team.playerIds) ? team.playerIds.length : 0;
-    team.squadCount = purchasedCount;
-    const auctionSpent = Array.isArray(team.playerIds) ? (team.purseSpent || 0) : 0;
-    const budget = Number(team.purseBudget || team.purse || 8000);
-    // If purseSpent included icon fee, subtract it
-    team.purseSpent = Math.max(0, (Number(team.purseSpent) || 0) - oldIconFee);
-    team.remainingPurse = Math.max(0, budget - team.purseSpent);
+    this.recomputeTeamPurse(team);
     team.updated_at = now;
 
     // If an approved player in registry was linked as icon, revert their icon flags
@@ -2039,44 +2057,7 @@ class Store {
 
     const now = Date.now();
 
-    if (player.teamId) {
-      const team = teams.find(t => t.id === player.teamId || (t.id && toUUID(t.id) === toUUID(player.teamId)));
-      if (team) {
-        team.squadCount = Math.max(0, (Number(team.squadCount) || 1) - 1);
-        team.purseSpent = Math.max(0, (Number(team.purseSpent) || 0) - (Number(player.soldPrice) || 0));
-        const budget = Number(team.purseBudget || team.purse || 8000);
-        team.remainingPurse = Math.max(0, budget - team.purseSpent);
-        if (Array.isArray(team.playerIds)) {
-          team.playerIds = team.playerIds.filter(id => String(id) !== String(playerId) && (!toUUID(playerId) || toUUID(id) !== toUUID(playerId)));
-        }
-        team.updated_at = now;
-        safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
-        this._saveTeamAcrossAllKeys(team);
-        syncTeamToSupabase(team);
-      }
-    }
-
-    // Check and clear if this player was an icon player of ANY team
-    const pNameNorm = (player.name || '').trim().toLowerCase();
-    teams.forEach(t => {
-      const tIconName = (t.iconPlayerName || t.iconName || '').trim().toLowerCase();
-      const isIconMatch = (t.iconPlayerId && (String(t.iconPlayerId) === String(playerId) || (playerId && toUUID(t.iconPlayerId) === toUUID(playerId)))) ||
-                          (pNameNorm && tIconName && tIconName === pNameNorm);
-      if (isIconMatch) {
-        t.iconPlayerId = null;
-        t.iconPlayerName = '';
-        t.iconName = '';
-        t.iconPlayerPhotoUrl = null;
-        t.iconPhotoUrl = null;
-        t.iconPhoto = null;
-        t.hasIconPlayer = false;
-        t.updated_at = now;
-        safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
-        this._saveTeamAcrossAllKeys(t);
-        syncTeamToSupabase(t);
-      }
-    });
-
+    const prevTeamId = player.teamId;
     player.teamId = null;
     player.team_id = null;
     player.teamName = null;
@@ -2089,6 +2070,17 @@ class Store {
     player.isIcon = false;
     player.isIconPlayer = false;
     player.updated_at = now;
+
+    if (prevTeamId) {
+      const team = teams.find(t => t.id === prevTeamId || (prevTeamId && t.id && toUUID(t.id) === toUUID(prevTeamId)));
+      if (team) {
+        this.recomputeTeamPurse(team, players);
+        team.updated_at = now;
+        safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
+        this._saveTeamAcrossAllKeys(team);
+        syncTeamToSupabase(team);
+      }
+    }
 
     if (this.liveAuctionState && (this.liveAuctionState.last_sold_player_id === playerId || (playerId && toUUID(this.liveAuctionState.last_sold_player_id) === toUUID(playerId)))) {
       this.updateLiveAuctionState({
