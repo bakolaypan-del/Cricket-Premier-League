@@ -12649,7 +12649,15 @@ function renderLiveAuctionView(container) {
       isLiveMode = true;
       isConcludedMode = false;
       if (globalInfo.liveTournament?.id) {
-        store.activeTournamentId = globalInfo.liveTournament.id;
+        if (store.activeTournamentId !== globalInfo.liveTournament.id) {
+          const now = new Date().toISOString().substring(11, 23);
+          console.log(`🔄 [SPECTATOR TOURNAMENT SYNC][${now}] Switching active tournament to live auction: "${globalInfo.liveTournament.name || globalInfo.liveTournament.id}"`);
+          if (store.setActiveTournament) {
+            store.setActiveTournament(globalInfo.liveTournament.id);
+          } else {
+            store.activeTournamentId = globalInfo.liveTournament.id;
+          }
+        }
       }
       renderActiveLiveView(globalInfo);
     }
@@ -12704,6 +12712,8 @@ function renderLiveAuctionView(container) {
     });
 
     // 1. Render / Update Active Bidding Block
+    const renderTime = new Date().toISOString().substring(11, 23);
+    console.log(`🖥️ [SPECTATOR UI RENDER][${renderTime}] Player: "${state?.name || 'Waiting'}", Current Bid: ₹${state?.current_bid || 0}, Status: ${state?.status || 'IDLE'}`);
     renderActiveBlock(state, teams, allPlayers);
 
     // 2. Real-time update of player status table ONLY when data actually changed
@@ -12733,6 +12743,8 @@ function renderLiveAuctionView(container) {
   // Instant targeted recovery when mobile user wakes screen / switches back to tab
   const onAuctionVisibilityChange = async () => {
     if (document.visibilityState === 'visible' && currentRoute === 'auction') {
+      const now = new Date().toISOString().substring(11, 23);
+      console.log(`📱 [SPECTATOR SCREEN WAKEUP][${now}] Tab became visible -> running instant targeted recovery`);
       if (store.recoverTournamentAuctionState) {
         await store.recoverTournamentAuctionState();
       }
@@ -12743,8 +12755,10 @@ function renderLiveAuctionView(container) {
   window.__cplAuctionVisibilityHandler = onAuctionVisibilityChange;
   document.addEventListener('visibilitychange', onAuctionVisibilityChange);
 
-  const onAuctionChange = () => {
+  const onAuctionChange = (e) => {
     if (currentRoute === 'auction') {
+      const now = new Date().toISOString().substring(11, 23);
+      console.log(`⚡ [SPECTATOR EVENT][${now}] Event "${e?.type || 'auction_event'}" received -> rendering live auction update`);
       pollActiveAuctionState();
     }
   };
@@ -13867,8 +13881,10 @@ export function openLiveAuctionProjectorView() {
     pollProjector();
   }, 60000);
 
-  const onProjAuctionChange = () => {
+  const onProjAuctionChange = (e) => {
     if (document.getElementById('live-auction-projector-view-modal')) {
+      const now = new Date().toISOString().substring(11, 23);
+      console.log(`📽️ [PROJECTOR EVENT][${now}] Event "${e?.type || 'auction_event'}" received -> updating projector display`);
       pollProjector();
     }
   };

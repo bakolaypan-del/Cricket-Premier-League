@@ -7069,6 +7069,9 @@ export function startAuctionForPlayerDirectly(p, customStartingPrice = null) {
   p.basePrice = startingPrice;
   store.updatePlayer(p);
 
+  const startNow = new Date().toISOString().substring(11, 23);
+  console.log(`🔨 [ADMIN AUCTION START][${startNow}] Started auction for "${p.name}". Base price: ₹${startingPrice}`);
+
   activeAuction = {
     player: p,
     currentBid: startingPrice,
@@ -7348,6 +7351,9 @@ export function renderActiveAuctionBlock() {
       activeAuction.leadingTeam = team;
       activeAuction.timerSecs = 30; // Reset timer on bid
 
+      const bidNow = new Date().toISOString().substring(11, 23);
+      console.log(`🔨 [ADMIN BID CLICK][${bidNow}] Team: "${team.name}", New Bid: ₹${newBid}, Player: "${activeAuction.player?.name}"`);
+
       if (activeAuction.player) {
         store.updateLiveAuctionState({
           active_player_id: activeAuction.player.id,
@@ -7386,6 +7392,8 @@ export function renderActiveAuctionBlock() {
     activeAuction = { player: null, currentBid: 0, leadingTeam: null, timerSecs: 30, timerInterval: null, isSold: false, isUnsold: false, bidHistory: [] };
 
     // Reset cloud live auction state so all phones clear the block immediately
+    const cancelNow = new Date().toISOString().substring(11, 23);
+    console.log(`🚫 [ADMIN CANCEL BIDDING][${cancelNow}] Cleared active bidding for "${playerToCancel.name}"`);
     store.updateLiveAuctionState({
       status: 'IDLE',
       active_player_id: null,
@@ -7411,6 +7419,9 @@ export function renderActiveAuctionBlock() {
     activeAuction.currentBid = prev.currentBid;
     activeAuction.leadingTeam = prev.leadingTeam;
     activeAuction.timerSecs = 30;
+
+    const undoNow = new Date().toISOString().substring(11, 23);
+    console.log(`↩️ [ADMIN UNDO BID][${undoNow}] Reverted to Bid: ₹${prev.currentBid}, Leading Team: "${prev.leadingTeam?.name || 'None'}"`);
 
     if (activeAuction.player) {
       store.updateLiveAuctionState({
@@ -7462,6 +7473,9 @@ export function renderActiveAuctionBlock() {
 
     playAuctionAudio('sold');
 
+    const soldNow = new Date().toISOString().substring(11, 23);
+    console.log(`🎉 [ADMIN MARK SOLD][${soldNow}] Player "${p.name}" SOLD to "${team.name}" for ₹${price}`);
+
     // 2. Broadcast SOLD stamp to all spectator phones, projector and admin screen
     await store.updateLiveAuctionState({
       status: 'SOLD',
@@ -7499,6 +7513,9 @@ export function renderActiveAuctionBlock() {
   document.getElementById('auction-mark-unsold-btn')?.addEventListener('click', async () => {
     if (confirm(`Mark "${p.name}" as UNSOLD for this round?`)) {
       if (activeAuction.timerInterval) clearInterval(activeAuction.timerInterval);
+
+      const unsoldNow = new Date().toISOString().substring(11, 23);
+      console.log(`⚠️ [ADMIN MARK UNSOLD][${unsoldNow}] Player "${p.name}" marked UNSOLD`);
 
       // 1. FIRST Broadcast UNSOLD stamp IMMEDIATELY to all spectator phones, projector and admin screen
       await store.updateLiveAuctionState({

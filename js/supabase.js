@@ -44,6 +44,24 @@ export function ensureGlobalBroadcastChannel() {
         .on('broadcast', { event: 'fixture_update' }, (msg) => {
           processFixtureUpdate(msg?.payload);
         })
+        .on('broadcast', { event: 'live_auction_update' }, (msg) => {
+          const now = new Date().toISOString().substring(11, 23);
+          const st = msg?.payload?.state;
+          console.log(`⚡ [REALTIME WS GLOBAL][${now}] Received live_auction_update:`, {
+            player: st?.name,
+            bid: st?.current_bid,
+            status: st?.status,
+            tournament_id: msg?.payload?.tournament_id
+          });
+          if (st && typeof window !== 'undefined' && window.store) {
+            window.store.liveAuctionState = st;
+            if (st.active_player_id) {
+              try { localStorage.setItem('cpl_live_auction_state', JSON.stringify(st)); } catch(e) {}
+            }
+            window.dispatchEvent(new CustomEvent('cpl_live_auction_updated', { detail: st }));
+            console.log(`📢 [REALTIME DISPATCHED][${now}] Dispatched cpl_live_auction_updated to UI. Player: "${st.name}", Bid: ₹${st.current_bid}, Status: ${st.status}`);
+          }
+        })
         .subscribe((status, err) => {
           console.log('[SUPABASE REALTIME] Global channel status:', status, err || '');
         });
@@ -693,11 +711,23 @@ export async function initRealtimePushListener(onUpdateCallback, tournamentId) {
         }
       })
       .on('broadcast', { event: 'live_auction_update' }, (msg) => {
-        if (msg?.payload?.state && typeof window !== 'undefined' && window.store) {
+        const now = new Date().toISOString().substring(11, 23);
+        const st = msg?.payload?.state;
+        console.log(`⚡ [REALTIME WS TOURNAMENT][${now}] Received live_auction_update:`, {
+          player: st?.name,
+          bid: st?.current_bid,
+          status: st?.status,
+          tournament_id: msg?.payload?.tournament_id
+        });
+        if (st && typeof window !== 'undefined' && window.store) {
           const tId = msg.payload.tournament_id;
           if (!tId || tId === window.store.activeTournamentId || toUUID(tId) === toUUID(window.store.activeTournamentId)) {
-            window.store.liveAuctionState = msg.payload.state;
-            window.dispatchEvent(new CustomEvent('cpl_live_auction_updated', { detail: msg.payload.state }));
+            window.store.liveAuctionState = st;
+            if (st.active_player_id) {
+              try { localStorage.setItem('cpl_live_auction_state', JSON.stringify(st)); } catch(e) {}
+            }
+            window.dispatchEvent(new CustomEvent('cpl_live_auction_updated', { detail: st }));
+            console.log(`📢 [REALTIME DISPATCHED][${now}] Dispatched cpl_live_auction_updated to UI. Player: "${st.name}", Bid: ₹${st.current_bid}, Status: ${st.status}`);
           }
         }
       })
@@ -2009,22 +2039,48 @@ export async function saveLiveAuctionToCloud(state, tournamentId = null) {
   try {
     const tId = toUUID(tournamentId) || toUUID(typeof window !== 'undefined' && window.store?.activeTournamentId) || DEFAULT_TOURNAMENT_UUID;
 
-    // 1. Broadcast FIRST over Realtime channel for instant sub-100ms display across all spectator devices
-    //    This fires immediately without waiting for the DB round-trip (200-800ms savings)
-    if (activeRealtimeChannel) {
+    const now = new Date().toISOString().substring(11, 23);
+    console.log(`📡 [ADMIN BROADCAST START][${now}] Player: "${state?.name}", Bid: ₹${state?.current_bid}, Status: ${state?.status}, Tournament: ${tId}`);
+
+    // 1. Broadcast FIRST over universal global channel (reaches EVERY device regardless of active tournament)
+    const gChan = ensureGlobalBroadcastChannel();
+    if (gChan) {
+      gChan.send({
+        type: 'broadcast',
+        event: 'live_auction_update',
+        payload: { tournament_id: tId, state: state || {} }
+      }).then(res => {
+        const ackTime = new Date().toISOString().substring(11, 23);
+        console.log(`⚡ [ADMIN BROADCAST ACK GLOBAL][${ackTime}] Result:`, res);
+      }).catch(err => {
+        console.warn(`⚠️ [ADMIN BROADCAST ERROR GLOBAL]`, err);
+      });
+    }
+
+    // 2. Also broadcast over tournament-specific channel if active
+    if (activeRealtimeChannel && activeRealtimeChannel !== gChan) {
       activeRealtimeChannel.send({
         type: 'broadcast',
         event: 'live_auction_update',
         payload: { tournament_id: tId, state: state || {} }
-      }).catch(() => {});
+      }).then(res => {
+        const ackTime = new Date().toISOString().substring(11, 23);
+        console.log(`⚡ [ADMIN BROADCAST ACK TOURNAMENT][${ackTime}] Result:`, res);
+      }).catch(err => {
+        console.warn(`⚠️ [ADMIN BROADCAST ERROR TOURNAMENT]`, err);
+      });
     }
     
-    // 2. Persist to tournament_auctions.live_state (runs after broadcast, does NOT block spectators)
+    // 3. Persist to tournament_auctions.live_state in background
+    const dbStartTime = Date.now();
     const { error: liveErr } = await supabase.from('tournament_auctions').upsert({
       tournament_id: tId,
       live_state: state || {},
       updated_at: new Date().toISOString()
     }, { onConflict: 'tournament_id' });
+    const dbDuration = Date.now() - dbStartTime;
+    const dbEndTime = new Date().toISOString().substring(11, 23);
+    console.log(`💾 [ADMIN DB SAVED][${dbEndTime}] tournament_auctions updated in ${dbDuration}ms. Error:`, liveErr?.message || 'none');
 
     if (liveErr) {
       console.warn('[SUPABASE] saveLiveAuction to tournament_auctions failed, falling back:', liveErr.message);
