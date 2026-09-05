@@ -1,9 +1,9 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=13.0.71';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.71';
-import { renderAdminDashboard } from './admin.js?v=13.0.71';
-import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getLocalPopupSettings, fetchNoticeBoardFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.71';
+import { store } from './store.js?v=13.0.72';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.72';
+import { renderAdminDashboard } from './admin.js?v=13.0.72';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getLocalPopupSettings, fetchNoticeBoardFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.72';
 import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.53';
 import { shops } from './shopsData.js?v=12.0.2';
 
@@ -3935,11 +3935,7 @@ export function renderCustomTournamentHub(container, tourney) {
               const totalPurse = allTeams.reduce((sum, t) => sum + Number(t.purseBudget || t.purse || tourney.teamPurse || 8000), 0) || (allTeams.length * 8000);
               const totalSpent = allTeams.reduce((sum, t) => {
                 const hasIcon = !!((t.iconPlayerName && t.iconPlayerName.trim()) || (t.iconName && t.iconName.trim()) || (t.iconPlayerId && t.iconPlayerId.trim()));
-                const teamIconFee = Number(t.iconPlayerFee !== undefined && t.iconPlayerFee !== null
-                  ? t.iconPlayerFee
-                  : (t.iconFee !== undefined && t.iconFee !== null
-                    ? t.iconFee
-                    : store.getAuctionSettings(t.tournament_id || t.tournamentId || tourney?.id).defaultIconPrice)) || 1000;
+                const teamIconFee = store.resolveTeamIconFee(t, tourney?.id);
                 const iconDeduction = hasIcon ? teamIconFee : 0;
                 const teamPlayers = allPlayers.filter(p => {
                   if (!p) return false;
@@ -4098,13 +4094,10 @@ export function renderCustomTournamentHub(container, tourney) {
                           (team.iconName && p.name && p.name.trim().toLowerCase() === team.iconName.trim().toLowerCase())
                         ));
                         const iconFee = team
-                          ? (Number(team.iconPlayerFee !== undefined && team.iconPlayerFee !== null
-                              ? team.iconPlayerFee
-                              : (team.iconFee !== undefined && team.iconFee !== null
-                                ? team.iconFee
-                                : store.getAuctionSettings(team.tournament_id || team.tournamentId || tourney?.id).defaultIconPrice)) || 1000)
-                          : (Number(store.getAuctionSettings(tourney?.id).defaultIconPrice) || 1000);
-                        const soldAmt = isSold ? (isIcon ? iconFee : (Number(p.soldPrice) || Number(p.boughtPrice) || Number(p.basePrice) || 300)) : 0;
+                          ? store.resolveTeamIconFee(team, tourney?.id)
+                          : (Number(store.getAuctionSettings(tourney?.id).defaultIconPrice) || 500);
+                        const tourneyBase = Number(store.getAuctionSettings(tourney?.id).defaultBasePrice) || 300;
+                        const soldAmt = isSold ? (isIcon ? iconFee : (Number(p.soldPrice) || Number(p.boughtPrice) || Number(p.basePrice) || tourneyBase)) : 0;
                         const photo = p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png';
                         const searchTokens = `${p.name || ''} ${team?.name || ''} ${p.village || ''} ${p.category || ''}`.toLowerCase();
 
@@ -5016,11 +5009,7 @@ export function renderCustomTournamentHub(container, tourney) {
       b.className = `auction-team-filter-pill px-3.5 py-1.5 rounded-full text-xs font-black transition-all whitespace-nowrap cursor-pointer shrink-0 ${isSel ? 'bg-amber-500 text-slate-950 shadow-xs' : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'}`;
     });
 
-    const defaultIconFee = Number(t.iconPlayerFee !== undefined && t.iconPlayerFee !== null
-      ? t.iconPlayerFee
-      : (t.iconFee !== undefined && t.iconFee !== null
-        ? t.iconFee
-        : store.getAuctionSettings(t.tournament_id || t.tournamentId || tourney?.id).defaultIconPrice)) || 1000;
+    const defaultIconFee = store.resolveTeamIconFee(t, tourney?.id);
     const hasIcon = !!((t.iconPlayerName && t.iconPlayerName.trim()) || (t.iconName && t.iconName.trim()) || (t.iconPlayerId && t.iconPlayerId.trim()));
     const iconDeduction = hasIcon ? defaultIconFee : 0;
     const teamSquad = allPlayers.filter(p => {
@@ -5413,11 +5402,7 @@ function openFinalAuctionSummaryModal(tourney, allTeams, allPlayers) {
   
   const totalSpent = allTeams.reduce((sum, t) => {
     const hasIcon = !!((t.iconPlayerName && t.iconPlayerName.trim()) || (t.iconName && t.iconName.trim()) || (t.iconPlayerId && t.iconPlayerId.trim()));
-    const iconFee = Number(t.iconPlayerFee !== undefined && t.iconPlayerFee !== null
-      ? t.iconPlayerFee
-      : (t.iconFee !== undefined && t.iconFee !== null
-        ? t.iconFee
-        : store.getAuctionSettings(t.tournament_id || t.tournamentId || tourney?.id).defaultIconPrice)) || 1000;
+    const iconFee = store.resolveTeamIconFee(t, tourney?.id);
     const iconDeduction = hasIcon ? iconFee : 0;
     const teamPlayers = allPlayers.filter(p => {
       if (!p) return false;
@@ -6367,7 +6352,7 @@ function openAuctionSummaryModal() {
                   </div>
                 </div>
                 <div class="text-right shrink-0">
-                  <div class="text-xs sm:text-sm font-black text-amber-900 font-mono">₹ 1,000</div>
+                  <div class="text-xs sm:text-sm font-black text-amber-900 font-mono">₹ ${(Number(currentTeam.iconPlayer.price || currentTeam.iconDeduction || currentTeam.iconFee) || 500).toLocaleString('en-IN')}</div>
                   <div class="text-[8px] text-amber-700 font-bold uppercase">Icon Fee</div>
                 </div>
               </div>
@@ -11866,6 +11851,11 @@ function renderLiveAuctionView(container) {
             const isUnsold = (p.auctionStatus === 'UNSOLD' && !p.teamId);
             const team = teams.find(t => t.id === p.teamId);
             const teamLogo = team ? (team.logoUrl || team.teamLogoUrl || '') : '';
+            const isIconPlayer = Boolean(p.isIcon || p.isIconPlayer);
+            const playerTourneyId = p.tournament_id || p.tournamentId || (team && (team.tournament_id || team.tournamentId));
+            const tourneyRules = store.getAuctionSettings(playerTourneyId);
+            const tourneyBase = Number(tourneyRules?.defaultBasePrice) || 300;
+            const iconFee = Number(p.soldPrice || p.price || (team && store.resolveTeamIconFee(team, playerTourneyId)) || tourneyRules?.defaultIconPrice || 500);
 
             return `
               <tr class="hover:bg-blue-50/30 transition-colors">
@@ -11890,9 +11880,9 @@ function renderLiveAuctionView(container) {
                 </td>
                 <td class="py-2 px-2.5">
                   ${isSold ? `
-                    <div class="inline-flex items-center gap-1 px-2 py-0.5 ${(p.isIcon || p.isIconPlayer) ? 'bg-amber-50 text-amber-900 border-amber-300' : 'bg-blue-50 text-blue-800 border-blue-200/80'} border rounded-md text-[10px] font-black max-w-[160px] truncate">
-                      ${(p.isIcon || p.isIconPlayer) ? '⭐' : (teamLogo ? `<img src="${teamLogo}" class="w-3.5 h-3.5 rounded-xs object-cover shrink-0" />` : '🛡️')}
-                      <span class="truncate">${team ? team.name : (p.teamName || 'Sold')} ${(p.isIcon || p.isIconPlayer) ? '(Icon)' : ''}</span>
+                    <div class="inline-flex items-center gap-1 px-2 py-0.5 ${isIconPlayer ? 'bg-amber-50 text-amber-900 border-amber-300' : 'bg-blue-50 text-blue-800 border-blue-200/80'} border rounded-md text-[10px] font-black max-w-[160px] truncate">
+                      ${isIconPlayer ? '⭐' : (teamLogo ? `<img src="${teamLogo}" class="w-3.5 h-3.5 rounded-xs object-cover shrink-0" />` : '🛡️')}
+                      <span class="truncate">${team ? team.name : (p.teamName || 'Sold')} ${isIconPlayer ? '(Icon)' : ''}</span>
                     </div>
                   ` : isUnsold ? `
                     <span class="inline-flex items-center gap-1 px-1.5 py-0.5 bg-rose-50 text-rose-700 border border-rose-200 rounded text-[9px] font-black whitespace-nowrap">
@@ -11904,8 +11894,8 @@ function renderLiveAuctionView(container) {
                     </span>
                   `}
                 </td>
-                <td class="py-2 px-3 text-right font-mono font-black ${isSold ? ((p.isIcon || p.isIconPlayer) ? 'text-amber-800 text-xs' : 'text-emerald-700 text-xs') : 'text-slate-400 text-[10px]'} whitespace-nowrap">
-                  ${isSold ? ((p.isIcon || p.isIconPlayer) ? '⭐ ₹ 1,000' : `₹ ${Number(p.soldPrice || p.basePrice || 300).toLocaleString('en-IN')}`) : `₹${Number(p.basePrice || 300).toLocaleString('en-IN')}`}
+                <td class="py-2 px-3 text-right font-mono font-black ${isSold ? (isIconPlayer ? 'text-amber-800 text-xs' : 'text-emerald-700 text-xs') : 'text-slate-400 text-[10px]'} whitespace-nowrap">
+                  ${isSold ? (isIconPlayer ? `⭐ ₹ ${iconFee.toLocaleString('en-IN')}` : `₹ ${Number(p.soldPrice || p.basePrice || tourneyBase).toLocaleString('en-IN')}`) : `₹ ${Number(p.basePrice || tourneyBase).toLocaleString('en-IN')}`}
                 </td>
               </tr>
             `;
@@ -12136,11 +12126,7 @@ function renderLiveAuctionView(container) {
     lastRenderedPursesHash = currentPursesHash;
 
     pursesWrapper.innerHTML = teams.map(t => {
-      const iconFee = Number(t.iconPlayerFee !== undefined && t.iconPlayerFee !== null
-        ? t.iconPlayerFee
-        : (t.iconFee !== undefined && t.iconFee !== null
-          ? t.iconFee
-          : store.getAuctionSettings(t.tournament_id || t.tournamentId).defaultIconPrice)) || 1000;
+      const iconFee = store.resolveTeamIconFee(t);
       const hasIcon = !!((t.iconPlayerName && t.iconPlayerName.trim()) || (t.iconName && t.iconName.trim()) || (t.iconPlayerId && t.iconPlayerId.trim()));
       const iconDeduction = hasIcon ? iconFee : 0;
       const totalPurse = Number(t.purseBudget || t.purse || 8000);
@@ -12872,13 +12858,9 @@ export function openLiveAuctionProjectorView() {
         <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3.5">
           ${soldPlayers.map(p => {
             const team = teams.find(t => t.id === p.teamId || (p.teamId && t.id && toUUID(t.id) === toUUID(p.teamId))) || { name: p.teamName || 'Unknown Franchise' };
-            const isIcon = (p.isIcon || p.isIconPlayer);
-            const iconFee = Number(team.iconPlayerFee !== undefined && team.iconPlayerFee !== null
-              ? team.iconPlayerFee
-              : (team.iconFee !== undefined && team.iconFee !== null
-                ? team.iconFee
-                : store.getAuctionSettings(team.tournament_id || team.tournamentId || projTourneyId).defaultIconPrice)) || 1000;
-            const finalSoldPrice = isIcon ? iconFee : (Number(p.soldPrice) || Number(p.basePrice) || 300);
+            const iconFee = Number(p.soldPrice) || store.resolveTeamIconFee(team, projTourneyId);
+            const tourneyBase = Number(store.getAuctionSettings(projTourneyId).defaultBasePrice) || 300;
+            const finalSoldPrice = isIcon ? iconFee : (Number(p.soldPrice) || Number(p.basePrice) || tourneyBase);
             return `
               <div class="p-3.5 sm:p-4 bg-white border-2 border-slate-200/90 rounded-2xl shadow-sm hover:border-slate-300 transition-all flex items-center justify-between gap-3.5">
                 <div class="flex items-center gap-3 min-w-0">
@@ -12968,11 +12950,7 @@ export function openLiveAuctionProjectorView() {
     const pageTeams = teams.slice(startIdx, startIdx + 4);
 
     box.innerHTML = pageTeams.map((t, idx) => {
-      const defaultIconFee = Number(t.iconPlayerFee !== undefined && t.iconPlayerFee !== null
-        ? t.iconPlayerFee
-        : (t.iconFee !== undefined && t.iconFee !== null
-          ? t.iconFee
-          : store.getAuctionSettings(t.tournament_id || t.tournamentId || projTourneyId).defaultIconPrice)) || 1000;
+      const defaultIconFee = store.resolveTeamIconFee(t, projTourneyId);
       const hasIcon = !!((t.iconPlayerName && t.iconPlayerName.trim()) || (t.iconName && t.iconName.trim()) || (t.iconPlayerId && t.iconPlayerId.trim()));
       const iconName = t.iconPlayerName || t.iconName || 'Icon Player';
       const iconDeduction = hasIcon ? defaultIconFee : 0;
@@ -12985,8 +12963,8 @@ export function openLiveAuctionProjectorView() {
         return isMatch && isSoldStatus;
       });
       const iconPlayer = purchasedPlayers.find(p => (p.isIcon || p.isIconPlayer) || ((p.name || '').trim().toLowerCase() === (iconName || '').trim().toLowerCase()) || (t.iconPlayerId && (p.id === t.iconPlayerId || toUUID(p.id) === toUUID(t.iconPlayerId))));
-      const nonIconPlayers = purchasedPlayers.filter(p => p !== iconPlayer);
-      const spent = iconDeduction + nonIconPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || Number(p.basePrice) || 300), 0);
+      const tourneyBase = Number(store.getAuctionSettings(projTourneyId).defaultBasePrice) || 300;
+      const spent = iconDeduction + nonIconPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || Number(p.basePrice) || tourneyBase), 0);
       const left = Math.max(0, totalPurse - spent);
       const squadCount = (hasIcon ? 1 : 0) + nonIconPlayers.length;
 
@@ -13092,8 +13070,11 @@ export function openLiveAuctionProjectorView() {
     // 1. Update Top League Statistics Pills
     const soldList = allPlayers.filter(p => p.teamId || p.auctionStatus === 'SOLD');
     const unsoldList = allPlayers.filter(p => p.auctionStatus === 'UNSOLD' && !p.teamId);
-    const pendingList = allPlayers.filter(p => !p.teamId && p.auctionStatus !== 'SOLD' && p.auctionStatus !== 'UNSOLD');
-    const totalSpent = soldList.reduce((sum, p) => sum + (Number(p.soldPrice) || (p.isIcon ? 1000 : 0) || 0), 0);
+    const totalSpent = soldList.reduce((sum, p) => {
+      const isIcon = Boolean(p.isIcon || p.isIconPlayer);
+      const iconFee = isIcon ? (Number(p.soldPrice || p.price) || store.resolveTeamIconFee(teams.find(t => t.id === p.teamId), projTourneyId)) : 0;
+      return sum + (Number(p.soldPrice) || iconFee || 0);
+    }, 0);
 
     const totalEl = document.getElementById('proj-stat-total');
     const soldEl = document.getElementById('proj-stat-sold');
@@ -13409,11 +13390,7 @@ export function openLiveAuctionProjectorView() {
       lastProjectorPursesHash = currentPursesHash;
       franchiseList.innerHTML = teams.slice(0, 8).map(t => {
         const hasIcon = !!((t.iconPlayerName && t.iconPlayerName.trim()) || (t.iconName && t.iconName.trim()) || (t.iconPlayerId && t.iconPlayerId.trim()));
-        const iconFee = Number(t.iconPlayerFee !== undefined && t.iconPlayerFee !== null
-          ? t.iconPlayerFee
-          : (t.iconFee !== undefined && t.iconFee !== null
-            ? t.iconFee
-            : store.getAuctionSettings(t.tournament_id || t.tournamentId).defaultIconPrice)) || 1000;
+        const iconFee = store.resolveTeamIconFee(t);
         const iconDeduction = hasIcon ? iconFee : 0;
         const totalPurse = Number(t.purseBudget || t.purse || 8000);
         const purchasedNonIconPlayers = allPlayers.filter(p => {
@@ -13424,8 +13401,8 @@ export function openLiveAuctionProjectorView() {
           const iconPlayerName = (t.iconPlayerName || t.iconName || '').trim().toLowerCase();
           const isIcon = hasIcon && (((p.name || '').trim().toLowerCase() === iconPlayerName) || (t.iconPlayerId && (p.id === t.iconPlayerId || toUUID(p.id) === toUUID(t.iconPlayerId))));
           return isMatch && isSoldStatus && !isIcon;
-        });
-        const auctionSpent = purchasedNonIconPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || Number(p.basePrice) || 300), 0);
+        const tourneyBase = Number(store.getAuctionSettings(t.tournament_id || t.tournamentId).defaultBasePrice) || 300;
+        const auctionSpent = purchasedNonIconPlayers.reduce((sum, p) => sum + (Number(p.soldPrice) || Number(p.basePrice) || tourneyBase), 0);
         const spent = iconDeduction + auctionSpent;
         const left = Math.max(0, totalPurse - spent);
         const squadCount = (hasIcon ? 1 : 0) + purchasedNonIconPlayers.length;
@@ -13522,11 +13499,7 @@ export function openTeamPurchasedSquadModal(teamId) {
   const allPlayers = store.getPlayers();
   const hasIcon = !!((team.iconPlayerName && team.iconPlayerName.trim()) || (team.iconName && team.iconName.trim()) || (team.iconPlayerId && team.iconPlayerId.trim()));
   const iconName = team.iconPlayerName || team.iconName || 'Icon Player';
-  const defaultIconFee = Number(team.iconPlayerFee !== undefined && team.iconPlayerFee !== null
-    ? team.iconPlayerFee
-    : (team.iconFee !== undefined && team.iconFee !== null
-      ? team.iconFee
-      : store.getAuctionSettings(team.tournament_id || team.tournamentId).defaultIconPrice)) || 1000;
+  const defaultIconFee = store.resolveTeamIconFee(team);
   const iconDeduction = hasIcon ? defaultIconFee : 0;
   const targetSquadSize = Number(store.getAuctionSettings(team.tournament_id || team.tournamentId).maxSquadSize) || 13;
 

@@ -65,7 +65,7 @@ import {
   saveNoticeBoardToCloud,
   fetchNoticeBoardFromCloud,
   broadcastLiveScore
-} from './supabase.js?v=13.0.71';
+} from './supabase.js?v=13.0.72';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -2895,7 +2895,7 @@ class Store {
     const defaultSettings = {
       defaultBasePrice: 300,
       defaultPurseBudget: 8000,
-      defaultIconPrice: 1000,
+      defaultIconPrice: 500,
       maxSquadSize: 13,
       bidIncrementSlabs: [
         { maxLimit: 1000, increment: 50 },
@@ -2915,9 +2915,9 @@ class Store {
       return {
         ...defaultSettings,
         ...parsed,
-        defaultBasePrice: (!parsed.defaultBasePrice || Number(parsed.defaultBasePrice) === 200) ? 300 : Number(parsed.defaultBasePrice),
+        defaultBasePrice: (parsed.defaultBasePrice !== undefined && parsed.defaultBasePrice !== null && parsed.defaultBasePrice !== '') ? Number(parsed.defaultBasePrice) : 300,
         defaultPurseBudget: Number(parsed.defaultPurseBudget) || 8000,
-        defaultIconPrice: (parsed.defaultIconPrice !== undefined) ? Number(parsed.defaultIconPrice) : 1000,
+        defaultIconPrice: (parsed.defaultIconPrice !== undefined && parsed.defaultIconPrice !== null && parsed.defaultIconPrice !== '') ? Number(parsed.defaultIconPrice) : 500,
         maxSquadSize: Number(parsed.maxSquadSize) || 13,
         bidIncrementSlabs: Array.isArray(parsed.bidIncrementSlabs) && parsed.bidIncrementSlabs.length > 0
           ? parsed.bidIncrementSlabs
@@ -2933,17 +2933,17 @@ class Store {
       const rawFee = (team.iconPlayerFee !== undefined && team.iconPlayerFee !== null && team.iconPlayerFee !== '')
         ? team.iconPlayerFee
         : ((team.iconFee !== undefined && team.iconFee !== null && team.iconFee !== '') ? team.iconFee : null);
-      if (rawFee !== null && rawFee !== undefined && !isNaN(Number(rawFee))) {
+      if (rawFee !== null && rawFee !== undefined && !isNaN(Number(rawFee)) && Number(rawFee) > 0) {
         return Number(rawFee);
       }
     }
     const tourneyId = (team && (team.tournament_id || team.tournamentId)) || fallbackTourneyId || this.activeTournamentId;
     const tourneySettings = this.getAuctionSettings(tourneyId);
     const tourneyIconPrice = tourneySettings?.defaultIconPrice;
-    if (tourneyIconPrice !== null && tourneyIconPrice !== undefined && !isNaN(Number(tourneyIconPrice))) {
+    if (tourneyIconPrice !== null && tourneyIconPrice !== undefined && !isNaN(Number(tourneyIconPrice)) && Number(tourneyIconPrice) > 0) {
       return Number(tourneyIconPrice);
     }
-    return 1000;
+    return 500;
   }
 
   calculateNextBidIncrement(currentBid, tournamentId = null) {
@@ -2960,7 +2960,7 @@ class Store {
         return Number(slab.increment) || 50;
       }
     }
-    return Number(slabs[slabs.length - 1]?.increment) || 200;
+    return 50;
   }
 
   updateAuctionSettings(settings, tournamentId = null) {
@@ -2973,6 +2973,62 @@ class Store {
     this._invalidateCache('teams');
     this.notify('auction_settings_updated');
     this.notify('teams_updated');
+  }
+
+  syncAuctionRulesToEntities(defaultBasePrice, defaultPurseBudget, defaultIconPrice, tournamentId = null) {
+    const basePriceNum = Number(defaultBasePrice) || 300;
+    const purseBudgetNum = Number(defaultPurseBudget) || 8000;
+    const iconPriceNum = Number(defaultIconPrice) || 500;
+
+    const players = this.getPlayers();
+    let playersChanged = false;
+    players.forEach(p => {
+      // For all approved unsold players, ensure their basePrice matches tournament defaultBasePrice
+      if (p.auctionStatus !== 'SOLD' && !p.teamId && !p.isIcon && !p.isIconPlayer) {
+        p.basePrice = basePriceNum;
+        playersChanged = true;
+        if (typeof syncPlayerToSupabase === 'function') syncPlayerToSupabase(p);
+      }
+      // If player is an icon player, update their soldPrice to match the set icon price
+      if (p.isIcon || p.isIconPlayer) {
+        p.soldPrice = iconPriceNum;
+        p.sold_price = iconPriceNum;
+        playersChanged = true;
+        if (typeof syncPlayerToSupabase === 'function') syncPlayerToSupabase(p);
+      }
+    });
+
+    const teams = this.getTeams();
+    let teamsChanged = false;
+    teams.forEach(t => {
+      t.purseBudget = purseBudgetNum;
+      t.purse = purseBudgetNum;
+      const hasIcon = !!(t.hasIconPlayer || t.iconPlayerId || t.iconPlayerName);
+      if (hasIcon) {
+        t.iconPlayerFee = iconPriceNum;
+        t.iconFee = iconPriceNum;
+      }
+      const iconDeduction = hasIcon ? (Number(t.iconPlayerFee) || iconPriceNum) : 0;
+      const squadSpent = Array.isArray(t.playerIds) ? t.playerIds.reduce((sum, pid) => {
+        const pl = players.find(p => p.id === pid && !p.isIcon && !p.isIconPlayer);
+        return sum + (pl ? (Number(pl.soldPrice) || 0) : 0);
+      }, 0) : 0;
+      t.purseSpent = iconDeduction + squadSpent;
+      t.remainingPurse = Math.max(0, purseBudgetNum - t.purseSpent);
+      teamsChanged = true;
+      if (typeof syncTeamToSupabase === 'function') syncTeamToSupabase(t);
+    });
+
+    if (playersChanged) {
+      delete this._cache.players;
+      safeSetLocalStorage(this._scopedKey('PLAYERS'), players);
+      this.notify('players_updated');
+    }
+    if (teamsChanged) {
+      delete this._cache.teams;
+      safeSetLocalStorage(this._scopedKey('TEAMS'), teams);
+      this.notify('teams_updated');
+    }
   }
 
   // --- REGISTRATION CONTROL CONFIG & MASTER TOGGLE ---
@@ -3273,7 +3329,7 @@ class Store {
           teamName: t.teamName,
           teamId: t.teamId,
           isIcon: true,
-          soldPrice: t.iconPlayer.price || 1000
+          soldPrice: t.iconPlayer.price || t.iconDeduction || 500
         });
       }
       t.auctionedPlayers.forEach(p => {

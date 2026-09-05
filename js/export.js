@@ -1,5 +1,5 @@
-import { store } from './store.js?v=13.0.71';
-import { toUUID, getOptimizedImageUrl, compressImageToTarget } from './supabase.js?v=13.0.71';
+import { store } from './store.js?v=13.0.72';
+import { toUUID, getOptimizedImageUrl, compressImageToTarget } from './supabase.js?v=13.0.72';
 
 export async function preparePlayerPhotoForPDF(targetSrc, targetSizeKb = 30, maxDimension = 350) {
   if (!targetSrc) return '';
@@ -756,12 +756,7 @@ async function convertImageToLightweightBase64(url, maxDim = 100, quality = 0.70
 // HELPER: Prepare structured squad data for a team
 export function getTeamFinalSquadData(team, allPlayers) {
   const tourneyId = team.tournament_id || team.tournamentId || store.activeTournamentId;
-  const tourneySettings = store.getAuctionSettings(tourneyId);
-  const defaultIconFee = Number(team.iconPlayerFee !== undefined && team.iconPlayerFee !== null
-    ? team.iconPlayerFee
-    : (team.iconFee !== undefined && team.iconFee !== null
-      ? team.iconFee
-      : tourneySettings.defaultIconPrice)) || 1000;
+  const defaultIconFee = store.resolveTeamIconFee(team, tourneyId);
   const hasIcon = !!((team.iconPlayerName && team.iconPlayerName.trim()) || (team.iconName && team.iconName.trim()) || (team.iconPlayerId && team.iconPlayerId.trim()));
   const iconRawName = (team.iconPlayerName || team.iconName || '').trim();
   const iconPlayerId = team.iconPlayerId || '';
@@ -839,11 +834,7 @@ function generateTeamSinglePageHtml(team, allPlayers, processedIconItem, process
   const tourneyName = tournamentName || getTournamentDocName();
   const tourneyId = team.tournament_id || team.tournamentId || store.activeTournamentId;
   const tourneySettings = store.getAuctionSettings(tourneyId);
-  const defaultIconFee = Number(team.iconPlayerFee !== undefined && team.iconPlayerFee !== null
-    ? team.iconPlayerFee
-    : (team.iconFee !== undefined && team.iconFee !== null
-      ? team.iconFee
-      : tourneySettings.defaultIconPrice)) || 1000;
+  const defaultIconFee = store.resolveTeamIconFee(team, tourneyId);
   const targetSquadSize = Number(tourneySettings.maxSquadSize) || 13;
   const squadData = getTeamFinalSquadData(team, allPlayers);
   const { totalPurse, iconDeduction, auctionSpent, totalSpent, remainingPurse } = squadData;

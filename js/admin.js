@@ -1,8 +1,8 @@
 // Admin Master Data & Payment Verification Panel with Single Source Cloud Control (Developer: Suman Kolay)
 
-import { store } from './store.js?v=13.0.71';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportMatchScorecardPNG, exportFullMatchSummaryPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.71';
-import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID, compressImageToTarget, saveScorecardsToSupabase } from './supabase.js?v=13.0.71';
+import { store } from './store.js?v=13.0.72';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportMatchScorecardPNG, exportFullMatchSummaryPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.72';
+import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID, compressImageToTarget, saveScorecardsToSupabase } from './supabase.js?v=13.0.72';
 import { shops } from './shopsData.js?v=12.0.2';
 
 let activeAdminTab = (() => { try { return sessionStorage.getItem('cpl_admin_tab') || (store.isMasterAdmin() ? 'payments' : 'overview'); } catch(e) { return 'payments'; } })();
@@ -722,7 +722,7 @@ export function renderAdminDashboard(containerEl) {
                   </div>
                   <div>
                     <label class="block text-[10px] font-bold text-amber-800 uppercase mb-1">⭐ ICON PRICE (₹)</label>
-                    <input type="number" id="auction-setting-icon-price" value="${store.getAuctionSettings(store.activeTournamentId).defaultIconPrice || 1000}" class="w-full bg-amber-50/60 border border-amber-300 text-amber-950 text-xs rounded-xl p-2 font-bold" title="Auto-deducted from team purse upon assigning an icon player" />
+                    <input type="number" id="auction-setting-icon-price" value="${store.getAuctionSettings(store.activeTournamentId).defaultIconPrice || 500}" class="w-full bg-amber-50/60 border border-amber-300 text-amber-950 text-xs rounded-xl p-2 font-bold" title="Auto-deducted from team purse upon assigning an icon player" />
                   </div>
                   <div>
                     <label class="block text-[10px] font-bold text-sky-800 uppercase mb-1">👥 SQUAD SIZE</label>
@@ -799,9 +799,19 @@ export function renderAdminDashboard(containerEl) {
 
               <!-- Put Player on Block Form with Live Preview & Base Price Setter -->
               <div class="border-t border-slate-100 pt-3 space-y-3">
-                <h4 class="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-                  <span>🎯</span> Start Auction for a Player
-                </h4>
+                <div class="flex items-center justify-between flex-wrap gap-2">
+                  <h4 class="text-xs font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
+                    <span>🎯</span> Start Auction for a Player
+                  </h4>
+                  <div class="flex items-center gap-1.5 text-[9.5px] font-bold flex-wrap">
+                    <span class="px-2 py-0.5 bg-amber-100 text-amber-900 rounded-md border border-amber-300">
+                      ⭐ Icon Price: ₹${store.getAuctionSettings(store.activeTournamentId).defaultIconPrice || 500}
+                    </span>
+                    <span class="px-2 py-0.5 bg-blue-100 text-blue-900 rounded-md border border-blue-300">
+                      Default Base: ₹${store.getAuctionSettings(store.activeTournamentId).defaultBasePrice || 300}
+                    </span>
+                  </div>
+                </div>
                 <div>
                   <label class="block text-xs font-bold text-slate-600 mb-1">SELECT APPROVED PLAYER FROM QUEUE</label>
                   <input type="text" id="auction-player-search" placeholder="🔍 Search player by name, role..." class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 mb-1.5 font-bold focus:border-amber-500 focus:outline-none shadow-sm" />
@@ -919,22 +929,26 @@ export function renderAdminDashboard(containerEl) {
               <div class="sm:hidden space-y-2">
                 ${soldPlayers.map(p => {
                     const assignedTeam = teams.find(t => t.id === p.teamId) || { name: 'Unknown Team' };
+                    const isIcon = (p.isIcon || p.isIconPlayer);
+                    const iconAmt = isIcon
+                      ? (Number(p.soldPrice) || store.resolveTeamIconFee(assignedTeam) || store.getAuctionSettings(store.activeTournamentId).defaultIconPrice || 500)
+                      : (Number(p.soldPrice) || 0);
                     return `
                     <div class="p-3 border border-slate-200 rounded-xl space-y-1.5">
                       <div class="flex items-center gap-2.5">
                         <img src="${p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png'}" class="w-9 h-9 rounded-lg object-cover border border-slate-200 shadow-2xs shrink-0" onerror="this.src='assets/card_jsl_user.png'" />
                         <div class="flex-1 min-w-0">
                           <div class="font-black text-slate-900 text-xs flex items-center gap-1.5 truncate">
-                            ${p.name} ${(p.isIcon || p.isIconPlayer) ? `<span class="px-1 bg-amber-400 text-slate-950 font-black text-[7px] rounded">⭐ ICON</span>` : ''}
+                            ${p.name} ${isIcon ? `<span class="px-1 bg-amber-400 text-slate-950 font-black text-[7px] rounded">⭐ ICON</span>` : ''}
                           </div>
                           <div class="text-[9px] text-slate-500">${p.category || 'All Rounder'}</div>
                         </div>
                         <div class="text-right shrink-0">
-                          <div class="font-mono font-black text-emerald-700 text-xs">${(p.isIcon || p.isIconPlayer) ? '⭐ Icon' : `₹${(Number(p.soldPrice) || 0).toLocaleString('en-IN')}`}</div>
+                          <div class="font-mono font-black ${isIcon ? 'text-amber-800' : 'text-emerald-700'} text-xs">${isIcon ? `⭐ ₹ ${iconAmt.toLocaleString('en-IN')} (Icon)` : `₹${iconAmt.toLocaleString('en-IN')}`}</div>
                           <div class="text-[9px] text-sky-700 font-bold truncate">🛡️ ${assignedTeam.name}</div>
                         </div>
                       </div>
-                      ${!(p.isIcon || p.isIconPlayer) ? `<button class="admin-unsell-player-btn w-full py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-lg text-[9px] font-black cursor-pointer" data-player-id="${p.id}" data-player-name="${p.name}" data-team-name="${assignedTeam.name}" data-price="${p.soldPrice || 0}">❌ Remove & Refund</button>` : ''}
+                      ${!isIcon ? `<button class="admin-unsell-player-btn w-full py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-lg text-[9px] font-black cursor-pointer" data-player-id="${p.id}" data-player-name="${p.name}" data-team-name="${assignedTeam.name}" data-price="${p.soldPrice || 0}">❌ Remove & Refund</button>` : ''}
                     </div>`;
                 }).join('')}
               </div>
@@ -953,6 +967,10 @@ export function renderAdminDashboard(containerEl) {
                   <tbody class="divide-y divide-slate-100 font-semibold">
                     ${soldPlayers.map(p => {
                       const assignedTeam = teams.find(t => t.id === p.teamId) || { name: 'Unknown Team' };
+                      const isIcon = (p.isIcon || p.isIconPlayer);
+                      const iconAmt = isIcon
+                        ? (Number(p.soldPrice) || store.resolveTeamIconFee(assignedTeam) || store.getAuctionSettings(store.activeTournamentId).defaultIconPrice || 500)
+                        : (Number(p.soldPrice) || Number(p.basePrice) || 0);
                       return `
                         <tr class="hover:bg-slate-50 transition-colors">
                           <td class="py-2.5 px-3">
@@ -961,7 +979,7 @@ export function renderAdminDashboard(containerEl) {
                               <div>
                                 <div class="font-black text-slate-900 text-xs flex items-center gap-1.5">
                                   <span>${p.name}</span>
-                                  ${(p.isIcon || p.isIconPlayer) ? `<span class="px-1.5 py-0.2 bg-amber-400 text-slate-950 font-black text-[8px] rounded uppercase tracking-wider">⭐ ICON</span>` : ''}
+                                  ${isIcon ? `<span class="px-1.5 py-0.2 bg-amber-400 text-slate-950 font-black text-[8px] rounded uppercase tracking-wider">⭐ ICON</span>` : ''}
                                 </div>
                                 <div class="text-[9px] text-slate-500">${p.village || 'N/A'}</div>
                               </div>
@@ -969,8 +987,8 @@ export function renderAdminDashboard(containerEl) {
                           </td>
                           <td class="py-2.5 px-3"><span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-[9px] font-bold border border-slate-200">${p.category || 'All Rounder'}</span></td>
                           <td class="py-2.5 px-3 font-bold text-sky-800">🛡️ ${assignedTeam.name}</td>
-                          <td class="py-2.5 px-3 text-center font-mono font-black text-emerald-700">${(p.isIcon || p.isIconPlayer) ? '⭐ ₹ 1,000 (Icon)' : `₹ ${(Number(p.soldPrice) || Number(p.basePrice) || 0).toLocaleString('en-IN')}`}</td>
-                          <td class="py-2.5 px-3 text-right">${(p.isIcon || p.isIconPlayer) ? `<span class="text-[10px] text-amber-700 font-bold italic">Franchise Icon</span>` : `<button class="admin-unsell-player-btn px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-lg text-[10px] font-black transition-all shadow-2xs cursor-pointer" data-player-id="${p.id}" data-player-name="${p.name}" data-team-name="${assignedTeam.name}" data-price="${p.soldPrice || 0}">❌ Remove & Refund</button>`}</td>
+                          <td class="py-2.5 px-3 text-center font-mono font-black ${isIcon ? 'text-amber-800' : 'text-emerald-700'}">${isIcon ? `⭐ ₹ ${iconAmt.toLocaleString('en-IN')} (Icon)` : `₹ ${iconAmt.toLocaleString('en-IN')}`}</td>
+                          <td class="py-2.5 px-3 text-right">${isIcon ? `<span class="text-[10px] text-amber-700 font-bold italic">Franchise Icon</span>` : `<button class="admin-unsell-player-btn px-2.5 py-1.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-300 rounded-lg text-[10px] font-black transition-all shadow-2xs cursor-pointer" data-player-id="${p.id}" data-player-name="${p.name}" data-team-name="${assignedTeam.name}" data-price="${p.soldPrice || 0}">❌ Remove & Refund</button>`}</td>
                         </tr>`;
                     }).join('')}
                   </tbody>
@@ -2386,12 +2404,15 @@ export function renderAdminDashboard(containerEl) {
     e.preventDefault();
     const defaultBasePrice = Number(document.getElementById('auction-setting-base-price')?.value) || 300;
     const defaultPurseBudget = Number(document.getElementById('auction-setting-purse-budget')?.value) || 8000;
-    const defaultIconPrice = Number(document.getElementById('auction-setting-icon-price')?.value) || 1000;
+    const defaultIconPrice = Number(document.getElementById('auction-setting-icon-price')?.value) || 500;
     const maxSquadSize = Number(document.getElementById('auction-setting-squad-size')?.value) || 13;
     const bidIncrementSlabs = getSlabsFromUI();
 
     store.updateAuctionSettings({ defaultBasePrice, defaultPurseBudget, defaultIconPrice, maxSquadSize, bidIncrementSlabs }, store.activeTournamentId);
-    alert(`✅ Tournament Auction parameters, Icon Price (₹${defaultIconPrice}), Squad Target (${maxSquadSize}/team) & ${bidIncrementSlabs.length} Dynamic Bid Slabs updated successfully!`);
+    if (typeof store.syncAuctionRulesToEntities === 'function') {
+      store.syncAuctionRulesToEntities(defaultBasePrice, defaultPurseBudget, defaultIconPrice, store.activeTournamentId);
+    }
+    alert(`✅ Tournament Auction Rules Saved!\n\n• Default Base Price: ₹${defaultBasePrice} (synced across all auction players)\n• Purse Budget: ₹${defaultPurseBudget} (applied to all teams)\n• Icon Player Price: ₹${defaultIconPrice} (applied to all team icons)\n• Squad Size Target: ${maxSquadSize}/team\n• Dynamic Bid Slabs: ${bidIncrementSlabs.length} thresholds configured`);
     renderAdminDashboard(containerEl);
   });
 
@@ -6939,8 +6960,9 @@ export function openNextPlayerAuctionModal(remainingPlayers) {
           ${validPlayers.map(p => {
             const sNo = p.displayRegistrationNumber || p.serialNo || '';
             const sNoDisplay = sNo ? `#${String(sNo).padStart(2, '0')}` : '';
-            const regId = p.registrationId || p.regNo || ('REG-' + String(sNo || 1).padStart(4, '0'));
-            const pBase = p.basePrice || store.getAuctionSettings().defaultBasePrice || 300;
+            const tourneyAuctionRules = store.getAuctionSettings(store.activeTournamentId);
+            const tourneyBase = Number(tourneyAuctionRules.defaultBasePrice) || 300;
+            const pBase = (p.hasCustomBasePrice && Number(p.basePrice) > 0) ? Number(p.basePrice) : tourneyBase;
             return `
             <div class="p-3 bg-slate-950 border border-slate-800 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:border-amber-400/60 transition-all next-player-row" data-name="${p.name.toLowerCase()}" data-cat="${(p.category || '').toLowerCase()}" data-serial="${String(sNo)}" data-reg="${regId.toLowerCase()}">
               <div class="flex items-center gap-3 min-w-0">
@@ -8568,7 +8590,7 @@ export function openEditTeamModal(team = null, onSaved = null) {
 
   const teamTourneyId = team?.tournament_id || team?.tournamentId || store.activeTournamentId;
   const tourneyAuctionSettings = store.getAuctionSettings(teamTourneyId);
-  const tourneyDefaultIconFee = Number(tourneyAuctionSettings.defaultIconPrice) || 1000;
+  const tourneyDefaultIconFee = Number(tourneyAuctionSettings.defaultIconPrice) || 500;
   const teamIconFeeVal = !isNew ? (team.iconPlayerFee !== undefined && team.iconPlayerFee !== null ? team.iconPlayerFee : team.iconFee) : undefined;
   const initialIconFee = teamIconFeeVal !== undefined && teamIconFeeVal !== null ? teamIconFeeVal : tourneyDefaultIconFee;
 
@@ -8712,6 +8734,25 @@ export function openEditTeamModal(team = null, onSaved = null) {
               <input type="text" id="edit-icon-name" placeholder="Enter full name of icon player" value="${isNew ? '' : (team.iconPlayerName || '')}" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-sm" />
             </div>
 
+            <!-- ⭐ ICON PLAYER PRICE (MANDATORY TO SET ICON) -->
+            <div id="icon-price-setting-wrapper" class="p-3.5 bg-gradient-to-br from-amber-50/90 to-orange-50/70 border-2 border-amber-300 rounded-2xl space-y-2 shadow-2xs ${(!isNew && (team.iconPlayerName || team.iconPlayerId)) ? '' : 'hidden'}">
+              <div class="flex items-center justify-between">
+                <label class="block text-[11px] font-black text-amber-950 uppercase tracking-wider">
+                  ⭐ Icon Player Price (₹) <span class="text-rose-600 font-black">*MANDATORY TO SET ICON</span>
+                </label>
+                <span class="text-[9.5px] text-amber-900 font-bold bg-amber-200/80 px-2 py-0.5 rounded-md">
+                  Tournament Default: ₹${tourneyDefaultIconFee.toLocaleString('en-IN')}
+                </span>
+              </div>
+              <div class="flex items-center gap-2">
+                <span class="text-sm font-black text-amber-900 font-mono">₹</span>
+                <input type="number" id="edit-icon-fee" placeholder="Enter Icon Price (e.g. ${tourneyDefaultIconFee})" value="${initialIconFee || ''}" min="1" step="50" class="w-full bg-white border-2 border-amber-400 text-slate-900 text-xs rounded-xl p-2.5 font-mono font-black focus:border-amber-600 focus:outline-none shadow-sm" />
+              </div>
+              <p class="text-[9.5px] text-amber-800 font-medium">
+                ⚠️ Explicit Price Setting: You must enter an Icon Price (> ₹0). If not set, this player cannot be assigned as an Icon Player.
+              </p>
+            </div>
+
             <!-- Icon Photo Upload -->
             <div>
               <div class="flex items-center justify-between mb-1.5">
@@ -8735,16 +8776,6 @@ export function openEditTeamModal(team = null, onSaved = null) {
                   </div>
                 </div>
               </div>
-            </div>
-
-            <!-- Icon Player Fee / Purse Deduction (₹) -->
-            <div class="pt-2 border-t border-emerald-200/60">
-              <div class="flex items-center justify-between mb-1">
-                <label class="block text-[10px] font-bold text-slate-700 uppercase">⭐ Icon Player Fee / Purse Deduction (₹)</label>
-                <span class="text-[9.5px] text-emerald-800 font-bold bg-emerald-100/80 px-2 py-0.5 rounded-md">Tournament Default: ₹${tourneyDefaultIconFee.toLocaleString('en-IN')}</span>
-              </div>
-              <input type="number" id="edit-icon-fee" placeholder="Default: ${tourneyDefaultIconFee}" value="${initialIconFee}" min="0" step="50" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 focus:border-emerald-500 focus:outline-none shadow-sm font-mono font-bold" />
-              <p class="text-[9.5px] text-slate-500 mt-1">Amount auto-deducted from this team's purse upon assigning their icon player (can be customized per team or set to 0).</p>
             </div>
           </div>
 
@@ -8942,15 +8973,22 @@ export function openEditTeamModal(team = null, onSaved = null) {
     const preview = document.getElementById('edit-icon-photo-preview');
 
     const selectedDisplay = document.getElementById('edit-icon-selected-display');
+    const priceWrapper = document.getElementById('icon-price-setting-wrapper');
+    const feeInput = document.getElementById('edit-icon-fee');
+
     if (val === '__CUSTOM__') {
       if (customWrapper) customWrapper.classList.remove('hidden');
       if (selectedDisplay) { selectedDisplay.textContent = '✍️ Custom player selected'; selectedDisplay.classList.remove('hidden'); }
+      if (priceWrapper) priceWrapper.classList.remove('hidden');
+      if (feeInput && (!feeInput.value || Number(feeInput.value) <= 0)) feeInput.value = tourneyDefaultIconFee || 500;
     } else if (val === '') {
       if (customWrapper) customWrapper.classList.add('hidden');
       if (nameInput) nameInput.value = '';
       iconPhotoData = '';
       if (preview) preview.src = 'assets/player_jsl_hd.jpg';
       if (selectedDisplay) selectedDisplay.classList.add('hidden');
+      if (priceWrapper) priceWrapper.classList.add('hidden');
+      if (feeInput) feeInput.value = '0';
     } else {
       if (customWrapper) customWrapper.classList.add('hidden');
       const selectedOption = e.target.options[e.target.selectedIndex];
@@ -8962,6 +9000,8 @@ export function openEditTeamModal(team = null, onSaved = null) {
         if (preview) preview.src = pPhoto;
       }
       if (selectedDisplay) { selectedDisplay.textContent = '✅ Selected: ' + pName; selectedDisplay.classList.remove('hidden'); }
+      if (priceWrapper) priceWrapper.classList.remove('hidden');
+      if (feeInput && (!feeInput.value || Number(feeInput.value) <= 0)) feeInput.value = tourneyDefaultIconFee || 500;
     }
   });
 
@@ -9051,10 +9091,25 @@ export function openEditTeamModal(team = null, onSaved = null) {
         iconPhotoData = '';
       }
 
+      const hasSelectedIcon = !!(iconPlayerIdVal || iconNameVal);
       const iconFeeInputVal = document.getElementById('edit-icon-fee')?.value;
-      const parsedIconFee = (iconFeeInputVal !== '' && iconFeeInputVal !== undefined && !isNaN(Number(iconFeeInputVal)))
-        ? Number(iconFeeInputVal)
-        : tourneyDefaultIconFee;
+      const numIconFee = Number(iconFeeInputVal);
+
+      if (hasSelectedIcon) {
+        if (!iconFeeInputVal || isNaN(numIconFee) || numIconFee <= 0) {
+          if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.innerHTML = `<i data-lucide="${isNew ? 'plus-circle' : 'save'}" class="w-4 h-4"></i> ${isNew ? 'Register Team Now' : 'Save Team Changes'}`;
+            if (window.lucide) window.lucide.createIcons();
+          }
+          alert("⚠️ ICON PRICE REQUIRED:\n\nYou have selected an Icon Player for this team, but have not set the Icon Player Price (₹).\n\nPlease enter the Icon Player Price (greater than ₹0) to assign this icon player.");
+          const priceWrapper = document.getElementById('icon-price-setting-wrapper');
+          if (priceWrapper) priceWrapper.classList.remove('hidden');
+          document.getElementById('edit-icon-fee')?.focus();
+          return;
+        }
+      }
+      const parsedIconFee = hasSelectedIcon ? numIconFee : 0;
 
       if (isNew) {
         // --- NEW TEAM REGISTRATION ---

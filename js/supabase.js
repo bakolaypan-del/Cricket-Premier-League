@@ -1072,13 +1072,31 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
 
     const fixtures = Array.from(matchesMap.values());
 
+    const cloudAuctionSettings = (tourneyMeta?.format_config?.auction_settings && typeof tourneyMeta.format_config.auction_settings === 'object')
+      ? tourneyMeta.format_config.auction_settings
+      : (tourneyMeta?.auction_settings && typeof tourneyMeta.auction_settings === 'object')
+        ? tourneyMeta.auction_settings
+        : null;
+
+    const resolvedAuctionSettings = {
+      defaultBasePrice: Number(cloudAuctionSettings?.defaultBasePrice) || Number(tourneyMeta.base_price) || 200,
+      defaultPurseBudget: Number(cloudAuctionSettings?.defaultPurseBudget) || Number(tourneyMeta.total_team_budget) || 8000,
+      defaultIconPrice: Number(cloudAuctionSettings?.defaultIconPrice) || Number(tourneyMeta.icon_price) || 500,
+      maxSquadSize: Number(cloudAuctionSettings?.maxSquadSize) || 13,
+      bidIncrementSlabs: Array.isArray(cloudAuctionSettings?.bidIncrementSlabs) ? cloudAuctionSettings.bidIncrementSlabs : [
+        { maxLimit: 1000, increment: 50 },
+        { maxLimit: 2000, increment: 100 },
+        { maxLimit: 999999, increment: 200 }
+      ]
+    };
+
     return {
       players,
       teams,
       fixtures,
       liveAuction: null,
       playerProfiles: [],
-      auctionSettings: { defaultBasePrice: Number(tourneyMeta.icon_price) || 300, defaultPurseBudget: Number(tourneyMeta.total_team_budget) || 8000 },
+      auctionSettings: resolvedAuctionSettings,
       registrationSettings: (tourneyMeta.registration_settings && typeof tourneyMeta.registration_settings === 'object') ? tourneyMeta.registration_settings : { isPlayerRegOpen: true, isTeamRegOpen: true, isRegistrationOpen: true },
       tournamentMeta: tourneyMeta,
       clearedAt: 0,
@@ -1901,7 +1919,29 @@ export async function saveAuctionSettingsToCloud(settings, tournamentId = null) 
   if (!supabase) return;
   try {
     const tId = toUUID(tournamentId) || toUUID(typeof window !== 'undefined' && window.store?.activeTournamentId) || DEFAULT_TOURNAMENT_UUID;
-    await supabase.from('tournaments').update({ auction_settings: settings, updated_at: new Date().toISOString() }).eq('id', tId);
+    let { data: currentTourney } = await supabase.from('tournaments').select('id, format_config').eq('id', tId).maybeSingle();
+    let targetId = tId;
+    if (!currentTourney && tournamentId) {
+      const cleanSlug = String(tournamentId).replace(/^t_/, '').trim();
+      const { data: bySlug } = await supabase.from('tournaments').select('id, format_config').or(`slug.ilike.${cleanSlug},category_code.ilike.${cleanSlug}`).maybeSingle();
+      if (bySlug) {
+        currentTourney = bySlug;
+        targetId = bySlug.id;
+      }
+    }
+    if (currentTourney) {
+      const config = currentTourney.format_config || {};
+      config.auction_settings = settings || {};
+      const updates = {
+        format_config: config,
+        icon_price: Number(settings?.defaultIconPrice) || 500,
+        total_team_budget: Number(settings?.defaultPurseBudget) || 8000,
+        updated_at: new Date().toISOString()
+      };
+      await supabase.from('tournaments').update(updates).eq('id', targetId);
+    }
+    // Also try updating auction_settings column directly if table has it
+    await supabase.from('tournaments').update({ auction_settings: settings, updated_at: new Date().toISOString() }).eq('id', tId).catch(() => {});
   } catch (e) { console.warn('[SUPABASE] saveAuctionSettings:', e.message); }
 }
 
@@ -2443,8 +2483,8 @@ export async function saveCustomTournamentToCloud(tourney) {
       category_code: tourney.shortCode || tourney.category || 'CUSTOM',
       mode: dbMode,
       registration_fee: Number(tourney.entryFee || tourney.playerEntryFee) || 0,
-      total_team_budget: Number(tourney.teamPurse || tourney.auctionPurse || tourney.purse) || 10000,
-      icon_price: Number(tourney.basePrice) || 300,
+      total_team_budget: Number(tourney.teamPurse || tourney.auctionPurse || tourney.purse) || 8000,
+      icon_price: Number(tourney.iconPrice || tourney.iconFee || tourney.defaultIconPrice) || 500,
       venue_name: tourney.venue || 'TBD',
       banner_url: tourney.posterUrl || tourney.poster_url || tourney.bannerUrl || tourney.banner_url || null,
       status: dbStatus,
@@ -2571,8 +2611,9 @@ export async function fetchCustomTournamentsFromCloud() {
       kickoffDate: extra.kickoff_date || null,
       prizeWinner: Number(extra.prize_winner) || 35000,
       entryFee: Number(t.registration_fee) || 300,
-      teamPurse: Number(t.total_team_budget) || 8000,
-      basePrice: Number(t.icon_price) || 300,
+      teamPurse: Number(t.total_team_budget) || Number(t.format_config?.auction_settings?.defaultPurseBudget) || 8000,
+      iconPrice: Number(t.icon_price) || Number(t.format_config?.auction_settings?.defaultIconPrice) || 500,
+      basePrice: Number(t.format_config?.auction_settings?.defaultBasePrice) || Number(t.base_price) || 200,
       logo_url: t.logo_url || t.banner_url || '',
       banner_url: t.banner_url || t.logo_url || '',
       logoUrl: t.logo_url || t.banner_url || '',
