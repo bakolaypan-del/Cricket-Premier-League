@@ -825,7 +825,7 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
     const [playersRes, teamsRes, matchesRes, tourneyRes] = await Promise.all([
       supabase.from('players').select(`
         id, tournament_id, person_id, category_name,
-        base_price, is_icon, team_id, status, sold_price, verified, reg_number,
+        base_price, is_icon, team_id, status, auction_status, sold_price, bid_history, verified, reg_number,
         updated_at, created_at,
         person:person_id (
           id, name, phone, photo_url, role, batting_style, bowling_style, dob, village, district, state, jersey_size
@@ -962,15 +962,16 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
         playingType: overrideData.role || prof.role || p.role || 'All-Rounder',
         category: overrideData.category || p.category_name || prof.role || 'All-Rounder',
         basePrice: Number(overrideData.basePrice || p.base_price) || 300,
-        isIcon: (overrideData.isIcon !== undefined) ? overrideData.isIcon : (p.is_icon === true),
-        teamId: (overrideData.teamId !== undefined) ? overrideData.teamId : (p.team_id || null),
+        isIcon: (p.is_icon === true || overrideData.isIcon === true),
+        teamId: (p.team_id || overrideData.teamId || null),
         teamName: overrideData.teamName || null,
-        auctionStatus: overrideData.auctionStatus || p.auction_status || (overrideData.teamId || p.team_id ? 'SOLD' : (p.status === 'unsold' ? 'UNSOLD' : 'PENDING')),
-        isSold: (overrideData.auctionStatus === 'SOLD' || overrideData.isSold === true || !!overrideData.teamId || !!p.team_id || p.auction_status === 'SOLD'),
-        isUnsold: (overrideData.auctionStatus === 'UNSOLD' || overrideData.isUnsold === true || p.auction_status === 'UNSOLD'),
-        status: overrideData.status || p.status,
-        soldPrice: Number(overrideData.soldPrice !== undefined ? overrideData.soldPrice : (p.sold_price || 0)) || 0,
-        boughtPrice: Number(overrideData.soldPrice !== undefined ? overrideData.soldPrice : (p.sold_price || 0)) || 0,
+        auctionStatus: (p.auction_status ? p.auction_status.toUpperCase() : (overrideData.auctionStatus || (p.team_id ? 'SOLD' : (p.status === 'unsold' ? 'UNSOLD' : 'AVAILABLE')))),
+        isSold: (p.auction_status === 'SOLD' || !!p.team_id || overrideData.auctionStatus === 'SOLD' || overrideData.isSold === true),
+        isUnsold: (p.auction_status === 'UNSOLD' || (!p.team_id && p.status === 'unsold') || overrideData.auctionStatus === 'UNSOLD' || overrideData.isUnsold === true),
+        status: p.status || overrideData.status,
+        soldPrice: Number(p.sold_price !== undefined && p.sold_price !== null ? p.sold_price : (overrideData.soldPrice || 0)) || 0,
+        boughtPrice: Number(p.sold_price !== undefined && p.sold_price !== null ? p.sold_price : (overrideData.soldPrice || 0)) || 0,
+        bidHistory: Array.isArray(p.bid_history) ? p.bid_history : (overrideData.bidHistory || []),
         verified: isApproved,
         paymentStatus: finalStatus,
         registrationStatus: finalStatus,
@@ -1262,63 +1263,29 @@ export async function syncPlayerToSupabase(playerData) {
           currentTourney = bySlug;
           targetId = bySlug.id;
         }
-      }
-      const existingConfig = currentTourney?.format_config || {};
-      const existingStatuses = existingConfig.player_statuses || {};
-      const existingOverrides = existingConfig.player_overrides || {};
+    const isSoldVal = (playerData.auctionStatus === 'SOLD' || playerData.isSold === true || !!playerData.teamId);
+    const isUnsoldVal = (playerData.auctionStatus === 'UNSOLD' || playerData.isUnsold === true);
+    const soldPriceVal = Number(playerData.soldPrice || playerData.sold_price || playerData.boughtPrice) || 0;
+    const resolvedAuctionStatus = isSoldVal ? 'SOLD' : (isUnsoldVal ? 'UNSOLD' : (playerData.auctionStatus ? playerData.auctionStatus.toUpperCase() : 'AVAILABLE'));
 
-      existingStatuses[playerUUID] = statusToSave;
-      existingStatuses[playerData.id] = statusToSave;
-      if (cleanPhone) existingStatuses[cleanPhone] = statusToSave;
-
-      const isSoldVal = (playerData.auctionStatus === 'SOLD' || playerData.isSold === true || !!playerData.teamId);
-      const isUnsoldVal = (playerData.auctionStatus === 'UNSOLD' || playerData.isUnsold === true);
-      const soldPriceVal = Number(playerData.soldPrice || playerData.sold_price || playerData.boughtPrice) || 0;
-
-      const overrideObj = {
-        name: playerData.name,
-        role: playerData.role || playerData.category || playerData.playingType,
-        category: playerData.category || playerData.category_name,
-        basePrice: Number(playerData.basePrice || playerData.base_price) || 300,
-        teamId: playerData.teamId || playerData.team_id || null,
-        teamName: playerData.teamName || null,
-        soldPrice: soldPriceVal,
-        auctionStatus: isSoldVal ? 'SOLD' : (isUnsoldVal ? 'UNSOLD' : (playerData.auctionStatus || 'PENDING')),
-        isSold: isSoldVal,
-        isUnsold: isUnsoldVal,
-        paymentStatus: statusToSave,
-        registrationStatus: statusToSave,
-        verified: isApproved,
-        remarks: playerData.remarks || playerData.paymentRef || '',
-        updated_at: new Date().toISOString()
-      };
-      existingOverrides[playerUUID] = overrideObj;
-      existingOverrides[playerData.id] = overrideObj;
-      if (cleanPhone) existingOverrides[cleanPhone] = overrideObj;
-
-      existingConfig.player_statuses = existingStatuses;
-      existingConfig.player_overrides = existingOverrides;
-      await supabase.from('tournaments').update({ format_config: existingConfig }).eq('id', targetId);
-      console.log("[SUPABASE] Synced player to cloud config:", playerData.name, "Status:", statusToSave, "Team:", playerData.teamName || playerData.teamId || 'None');
-    } catch(errConfig) {
-      console.warn("[SUPABASE] tournament format_config status save warning:", errConfig);
-    }
-
-    // Also update players table directly by UUID and Phone
+    // Update players table directly (Single Source of Truth)
     try {
       const updatePayload = {
         category_name: playerData.category || playerData.category_name || undefined,
-        base_price: Number(playerData.basePrice || playerData.base_price) || 300,
         verified: isApproved,
-        status: isRejected ? 'rejected' : (isSoldVal ? 'sold' : (isUnsoldVal ? 'unsold' : derivePlayerStatus(playerData))),
+        status: isRejected ? 'rejected' : (isApproved ? 'approved' : derivePlayerStatus(playerData)),
+        auction_status: resolvedAuctionStatus,
         team_id: (playerData.teamId || playerData.team_id) ? toUUID(playerData.teamId || playerData.team_id) : null,
         sold_price: (soldPriceVal != null) ? soldPriceVal : 0,
+        is_icon: (playerData.isIcon === true || playerData.is_icon === true),
+        bid_history: Array.isArray(playerData.bidHistory) ? playerData.bidHistory : undefined,
         updated_at: new Date().toISOString()
       };
       Object.keys(updatePayload).forEach(k => updatePayload[k] === undefined && delete updatePayload[k]);
       if (playerUUID) {
         const { error: pErr1 } = await supabase.from('players').update(updatePayload).eq('id', playerUUID);
         if (pErr1) console.error("[SUPABASE] players update by UUID failed:", pErr1.message, pErr1.details, "player:", playerData.name);
+        else console.log("[SUPABASE] Synced player auction data to players table:", playerData.name, "Status:", resolvedAuctionStatus, "Team:", playerData.teamId || 'None');
       }
       if (cleanPhone) {
         // Keep universal person profile synchronized
@@ -1420,33 +1387,21 @@ export async function deletePlayerFromSupabase(playerId, phone = null, tournamen
       await supabase.from('player_verification_docs').delete().eq('player_id', playerUUID);
     } catch (e) {}
 
-    // 3. Persist deletion in tournament format_config to prevent RLS ghost restores
+    // 3. Persist deletion in tournament format_config (deleted_player_ids only)
     try {
       const { data: currentTourney } = await supabase.from('tournaments').select('id, format_config').eq('id', tId).maybeSingle();
       if (currentTourney) {
         const existingConfig = currentTourney.format_config || {};
-        const existingStatuses = existingConfig.player_statuses || {};
-        const existingOverrides = existingConfig.player_overrides || {};
         const deletedIds = Array.isArray(existingConfig.deleted_player_ids) ? existingConfig.deleted_player_ids : [];
-
-        delete existingStatuses[playerUUID];
-        delete existingStatuses[playerId];
-        if (cleanPhone) delete existingStatuses[cleanPhone];
-
-        delete existingOverrides[playerUUID];
-        delete existingOverrides[playerId];
-        if (cleanPhone) delete existingOverrides[cleanPhone];
 
         if (!deletedIds.includes(playerUUID)) deletedIds.push(playerUUID);
         if (!deletedIds.includes(playerId)) deletedIds.push(playerId);
         if (cleanPhone && !deletedIds.includes(cleanPhone)) deletedIds.push(cleanPhone);
 
-        existingConfig.player_statuses = existingStatuses;
-        existingConfig.player_overrides = existingOverrides;
         existingConfig.deleted_player_ids = deletedIds;
 
         await supabase.from('tournaments').update({ format_config: existingConfig }).eq('id', currentTourney.id);
-        console.log("[SUPABASE] Persisted permanent player deletion in tournament cloud config:", playerId);
+        console.log("[SUPABASE] Persisted player deletion in tournament deleted_player_ids:", playerId);
       }
     } catch (errConfig) {
       console.warn("[SUPABASE] format_config delete error:", errConfig);
