@@ -105,11 +105,19 @@ WHERE t.organiser_id = p.id
   AND p.phone IS NULL
   AND t.registration_settings->>'organiser_phone' IS NOT NULL;
 
--- 5. DROP REDUNDANT registration_settings COLUMN FROM tournaments
+-- 5. PERFORMANCE INDEXES FOR FAST LOOKUPS & ZERO ROW-SCAN BOTTLENECKS
+CREATE INDEX IF NOT EXISTS idx_tournaments_slug ON public.tournaments (slug);
+CREATE INDEX IF NOT EXISTS idx_tournaments_category_code ON public.tournaments (category_code);
+CREATE INDEX IF NOT EXISTS idx_tournaments_organiser_id ON public.tournaments (organiser_id);
+CREATE INDEX IF NOT EXISTS idx_tournaments_status ON public.tournaments (status, approval_status);
+CREATE INDEX IF NOT EXISTS idx_profiles_phone ON public.profiles (phone);
+CREATE INDEX IF NOT EXISTS idx_profiles_role ON public.profiles (role);
+
+-- 6. DROP REDUNDANT registration_settings COLUMN FROM tournaments
 ALTER TABLE public.tournaments
   DROP COLUMN IF EXISTS registration_settings;
 
--- 6. DROP OBSOLETE TABLES
+-- 7. DROP OBSOLETE TABLES
 DROP TABLE IF EXISTS public.tournament_owners CASCADE;
 DROP TABLE IF EXISTS public.user_accounts CASCADE;
 
