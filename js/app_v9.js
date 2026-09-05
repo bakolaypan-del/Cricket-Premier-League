@@ -1,9 +1,9 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=13.0.70';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.70';
-import { renderAdminDashboard } from './admin.js?v=13.0.70';
-import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getLocalPopupSettings, fetchNoticeBoardFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.70';
+import { store } from './store.js?v=13.0.71';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.71';
+import { renderAdminDashboard } from './admin.js?v=13.0.71';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getLocalPopupSettings, fetchNoticeBoardFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.71';
 import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.53';
 import { shops } from './shopsData.js?v=12.0.2';
 
@@ -338,16 +338,17 @@ function initApp() {
   initRealtimePlayerToast();
 
   const safeRenderCurrentView = () => {
+    // ROUTE TRANSITION SHIELD:
+    // When navigating to any section, the view is already freshly rendered.
+    // Background cloud sync events finishing right after navigation (< 2s)
+    // must NEVER destroy the DOM and re-render, eliminating the 1-time blink.
+    if (Date.now() - _lastNavTime < 2000) {
+      return;
+    }
+
     // PROTECT ACTIVE USER FORMS: Only prevent re-render if user is filling player/team registration forms
     const isUserFillingForm = document.getElementById('player-reg-modal') || document.getElementById('team-reg-modal') || document.getElementById('edit-player-modal');
     if (isUserFillingForm) return;
-
-    // IF ON HOME/LANDING PAGE: Update counters in-place, but allow full re-render for fixture updates
-    if (currentRoute === 'landing') {
-      const regCountEl = document.getElementById('landing-registered-count');
-      if (regCountEl) regCountEl.textContent = store.getTotalRegisteredPlayersCount ? store.getTotalRegisteredPlayersCount() : store.getPlayers().length;
-      // Fall through to full re-render so new/live fixtures appear
-    }
 
     // IF ON AUCTION TAB, NEVER WIPE THE AUCTION VIEW: Let pollActiveAuctionState() handle smooth in-place updates
     if (currentRoute === 'auction') {
@@ -359,7 +360,7 @@ function initApp() {
     }
 
     // IF ON TOURNAMENT-HUB TAB: Smooth in-place counter updates & real-time modal update
-    if (currentRoute === 'tournament-hub') {
+    if (currentRoute === 'tournament-hub' || currentRoute.startsWith('t/')) {
       const pCountEl = document.getElementById('tournament-hub-players-count');
       const tCountEl = document.getElementById('tournament-hub-teams-count');
       if (pCountEl) pCountEl.textContent = store.getPlayers().length;
@@ -378,7 +379,7 @@ function initApp() {
         `;
         if (window.lucide) window.lucide.createIcons();
       }
-      // Fall through to full re-render so new/live fixtures appear on tournament hub
+      return;
     }
 
     // IF ON ADMIN TAB: Smooth in-place real-time table refresh
@@ -450,10 +451,12 @@ function initApp() {
   window.addEventListener('teams_updated', safeRenderCurrentView);
   window.addEventListener('fixtures_updated', safeRenderCurrentView);
   window.addEventListener('registration_settings_updated', () => {
+    if (Date.now() - _lastNavTime < 2000) return;
     if (renderDebounceTimer) clearTimeout(renderDebounceTimer);
     renderDebounceTimer = setTimeout(() => renderCurrentView(), 250);
   });
   window.addEventListener('custom_tournaments_updated', () => {
+    if (Date.now() - _lastNavTime < 2000) return;
     if (currentRoute === 'admin') return;
     if (renderDebounceTimer) clearTimeout(renderDebounceTimer);
     renderDebounceTimer = setTimeout(() => {
@@ -490,6 +493,7 @@ function initApp() {
 }
 
 let _navLock = 0;
+let _lastNavTime = 0;
 function navigate(route, pushState = true) {
   // Clear any active pollers, intervals, and swipe listeners from previous routes
   if (auctionPollInterval) {
@@ -523,6 +527,7 @@ function navigate(route, pushState = true) {
   if (pushState && now - _navLock < 300) return;
   if (pushState) _navLock = now;
   currentRoute = route;
+  _lastNavTime = now;
   try { sessionStorage.setItem('cpl_last_route', route); } catch(e) {}
   if (pushState && history.pushState) {
     history.pushState({ route }, '', `#${route}`);
@@ -531,23 +536,15 @@ function navigate(route, pushState = true) {
   const container = document.getElementById('main-content');
 
   // Smooth seamless swap with no vibration, flash, or double-render
-  if (container && prevRoute !== route) {
+  if (container) {
     container.style.transition = 'none';
-    container.style.opacity = '0';
-    renderNavbar();
-    renderMobileBottomNav();
-    renderFooter();
-    renderCurrentView();
-    window.scrollTo({ top: 0 });
-    void container.offsetHeight; // Force reflow to ensure smooth transition
-    container.style.transition = 'opacity 0.15s ease-out';
     container.style.opacity = '1';
-  } else {
-    renderNavbar();
-    renderMobileBottomNav();
-    renderFooter();
-    renderCurrentView();
   }
+  renderNavbar();
+  renderMobileBottomNav();
+  renderFooter();
+  renderCurrentView();
+  window.scrollTo({ top: 0 });
 
   // Option 02: On-demand Cloud Data Sync on Navigation
   store.syncWithCloud().catch(err => console.warn("On-demand sync notice:", err));
@@ -1976,9 +1973,7 @@ function renderCurrentView() {
     renderTournamentHub(container);
     checkAndPromptWhatsAppGroup();
     store._isSyncingWithCloud = false;
-    store.syncWithCloud().then(() => {
-      if (currentRoute === 'tournament-hub') renderTournamentHub(container);
-    }).catch(() => {});
+    store.syncWithCloud().catch(() => {});
   } else if (currentRoute === 'admin') {
     renderAdminDashboard(container);
   } else if (currentRoute === 'fixtures') {
