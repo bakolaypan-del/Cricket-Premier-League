@@ -3587,47 +3587,19 @@ class Store {
     // Register tournament owner credentials so admin login works
     if (tourneyData.organizer && tourneyData.organizer.phone) {
       const org = tourneyData.organizer;
+      const cleanOrgPhone = org.phone.replace(/[^0-9]/g, '');
       const owners = this.getTournamentOwners();
       const ownerKey = record.supabaseId || id;
-      const cleanPhone = org.phone.replace(/[^0-9]/g, '');
-      const hashedPw = await hashPassword(org.password || org.phone, cleanPhone);
+      const hashedPw = await hashPassword(org.password || org.phone, cleanOrgPhone);
       owners[ownerKey] = {
-        phone: cleanPhone,
+        phone: cleanOrgPhone,
         name: org.name || 'Tournament Owner',
         email: org.email || '',
         password: hashedPw,
         assignedAt: Date.now()
       };
       safeSetLocalStorage(STORAGE_KEYS.TOURNAMENT_OWNERS, owners);
-      if (record.supabaseId) {
-        saveTournamentOwnerToCloud(record.supabaseId, owners[ownerKey]);
-      }
       this.notify('tournament_owners_updated');
-
-      // Create user_account for the organiser so they can log in
-      const cleanOrgPhone = org.phone.replace(/[^0-9]/g, '');
-      let accounts = this.getUserAccounts();
-      let orgAcc = accounts.find(a => a.phone === cleanOrgPhone);
-      const tourneyRef = record.supabaseId || id;
-      if (!orgAcc) {
-        orgAcc = {
-          phone: cleanOrgPhone,
-          password: org.password || cleanOrgPhone,
-          name: org.name || 'Tournament Owner',
-          role: 'TOURNAMENT_OWNER',
-          isFirstLogin: false,
-          ownedTournaments: [tourneyRef],
-          created_at: Date.now()
-        };
-        accounts.push(orgAcc);
-      } else {
-        orgAcc.role = 'TOURNAMENT_OWNER';
-        if (!orgAcc.ownedTournaments) orgAcc.ownedTournaments = [];
-        if (!orgAcc.ownedTournaments.includes(tourneyRef)) orgAcc.ownedTournaments.push(tourneyRef);
-        orgAcc.password = org.password || orgAcc.password;
-      }
-      safeSetLocalStorage(STORAGE_KEYS.USER_ACCOUNTS, accounts);
-      saveUserAccountToCloud(orgAcc);
 
       // Also register organiser in Supabase Auth so their login gets a real session (RLS requires it)
       const orgEmail = org.email || `${cleanOrgPhone}@cpl.tournament.org`;
