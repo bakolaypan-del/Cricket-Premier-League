@@ -829,7 +829,7 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
   try {
     const tId = await resolveTournamentUUID(tournamentId) || toUUID(tournamentId) || DEFAULT_TOURNAMENT_UUID;
 
-    const [playersRes, teamsRes, matchesRes, tourneyRes] = await Promise.all([
+    const [playersRes, teamsRes, matchesRes, tourneyRes, auctionRes] = await Promise.all([
       supabase.from('players').select(`
         id, tournament_id, person_id, category_name,
         base_price, is_icon, team_id, status, auction_status, sold_price, bid_history, verified, reg_number,
@@ -849,9 +849,9 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
         id, category_code, slug, name, registration_fee, total_team_budget, icon_price,
         kickoff_date, prize_winner, is_registration_open, is_player_reg_open, is_team_reg_open,
         closed_reason, approval_status, format_config,
-        profile:organiser_id ( id, full_name, phone, upi_id, payment_qr_url ),
-        auction:tournament_auctions ( purse_budget, base_price, icon_price, max_squad_size, min_squad_size, bid_increment_slabs, status, live_state )
-      `).eq('id', tId).maybeSingle()
+        profile:organiser_id ( id, full_name, phone, upi_id, payment_qr_url )
+      `).eq('id', tId).maybeSingle(),
+      supabase.from('tournament_auctions').select('*').eq('tournament_id', tId).maybeSingle().catch(() => ({ data: null }))
     ]);
     // Docs and profiles are fetched on-demand only (not every poll) to save mobile data
     const docsRes = { data: [], error: null };
@@ -863,8 +863,7 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
         id, category_code, slug, name, registration_fee, total_team_budget, icon_price,
         kickoff_date, prize_winner, is_registration_open, is_player_reg_open, is_team_reg_open,
         closed_reason, approval_status, format_config,
-        profile:organiser_id ( id, full_name, phone, upi_id, payment_qr_url ),
-        auction:tournament_auctions ( purse_budget, base_price, icon_price, max_squad_size, min_squad_size, bid_increment_slabs, status )
+        profile:organiser_id ( id, full_name, phone, upi_id, payment_qr_url )
       `).or(`slug.ilike.${cleanSlug},category_code.ilike.${cleanSlug}`).maybeSingle();
       if (fallbackT) tourneyMeta = fallbackT;
     }
@@ -1153,7 +1152,7 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
 
     const fixtures = Array.from(matchesMap.values());
 
-    const auctionRec = Array.isArray(tourneyMeta.auction) ? tourneyMeta.auction[0] : (tourneyMeta.auction || {});
+    const auctionRec = auctionRes?.data || (Array.isArray(tourneyMeta.auction) ? tourneyMeta.auction[0] : (tourneyMeta.auction || {}));
     const cloudAuctionSettings = (tourneyMeta?.format_config?.auction_settings && typeof tourneyMeta.format_config.auction_settings === 'object')
       ? tourneyMeta.format_config.auction_settings
       : (tourneyMeta?.auction_settings && typeof tourneyMeta.auction_settings === 'object')
