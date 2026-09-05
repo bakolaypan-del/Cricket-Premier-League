@@ -2112,6 +2112,31 @@ export async function fetchGlobalLiveAuctionStatus() {
   }
 }
 
+/**
+ * Highly-optimized, low-quota auction recovery function:
+ * 1. Fetches single row from tournament_auctions.live_state (using indexed primary key)
+ * 2. Fetches only the players belonging to that tournament_id with minimal columns
+ */
+export async function fetchTournamentAuctionRecovery(tournamentId = null) {
+  if (!supabase) return { liveState: null, players: null };
+  try {
+    const rawTid = tournamentId || (typeof window !== 'undefined' && window.store?.activeTournamentId) || DEFAULT_TOURNAMENT_UUID;
+    const tId = await resolveTournamentUUID(rawTid) || toUUID(rawTid) || DEFAULT_TOURNAMENT_UUID;
+
+    const [auctionRes, playersRes] = await Promise.all([
+      supabase.from('tournament_auctions').select('live_state').eq('tournament_id', tId).maybeSingle(),
+      supabase.from('players').select('id, team_id, sold_price, auction_status, is_icon, status').eq('tournament_id', tId).neq('status', 'deleted')
+    ]);
+
+    const liveState = auctionRes?.data?.live_state || null;
+    const players = playersRes?.data || null;
+    return { liveState, players };
+  } catch (err) {
+    console.warn('[SUPABASE] fetchTournamentAuctionRecovery notice:', err);
+    return { liveState: null, players: null };
+  }
+}
+
 export async function saveAuctionPermanentArchiveToCloud(archiveData, tournamentId = null) {
   if (!supabase || !archiveData) return;
   try {

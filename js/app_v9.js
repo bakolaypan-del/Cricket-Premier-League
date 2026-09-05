@@ -12667,17 +12667,6 @@ function renderLiveAuctionView(container) {
     if (!isNewActive && stateUpdatedAt < lastAuctionSyncTimestamp && stateUpdatedAt > 0) {
       return;
     }
-    lastAuctionSyncTimestamp = Math.max(lastAuctionSyncTimestamp, stateUpdatedAt || Date.now());
-
-    if (now - lastAuctionCloudHeartbeat > 10000) {
-      lastAuctionCloudHeartbeat = now;
-      try {
-        await store.syncWithCloud();
-      } catch (err) {
-        console.warn("Auction cloud sync notice:", err);
-      }
-    }
-
     const liveTourneyId = globalInfo.liveTournament?.id || globalInfo.liveTournament?.supabaseId || store.activeTournamentId;
     const liveTourneyUUID = toUUID(liveTourneyId);
 
@@ -12728,19 +12717,34 @@ function renderLiveAuctionView(container) {
     renderFranchisePurses(teams, allPlayers, state);
   };
 
-  // Immediate Initial Render — Realtime WebSocket handles instant updates;
-  // 30s fallback poll only as safety net, skips when tab is hidden
+  // Immediate Initial Render — Realtime WebSocket handles instant live bidding & sold stamps.
+  // Targeted recovery query (1-row tournament_auctions + indexed players) runs on reconnect/tab wakeup.
   pollActiveAuctionState();
-  auctionPollInterval = setInterval(() => {
-    if (document.visibilityState === 'hidden') return;
-    pollActiveAuctionState();
-  }, 30000);
 
-  const onAuctionChange = async () => {
+  // Safety net interval lengthened to 60s (skips when tab hidden) using targeted recovery instead of full table sweep
+  auctionPollInterval = setInterval(async () => {
+    if (document.visibilityState === 'hidden' || currentRoute !== 'auction') return;
+    if (store.recoverTournamentAuctionState) {
+      await store.recoverTournamentAuctionState();
+    }
+    pollActiveAuctionState();
+  }, 60000);
+
+  // Instant targeted recovery when mobile user wakes screen / switches back to tab
+  const onAuctionVisibilityChange = async () => {
+    if (document.visibilityState === 'visible' && currentRoute === 'auction') {
+      if (store.recoverTournamentAuctionState) {
+        await store.recoverTournamentAuctionState();
+      }
+      pollActiveAuctionState();
+    }
+  };
+  document.removeEventListener('visibilitychange', window.__cplAuctionVisibilityHandler);
+  window.__cplAuctionVisibilityHandler = onAuctionVisibilityChange;
+  document.addEventListener('visibilitychange', onAuctionVisibilityChange);
+
+  const onAuctionChange = () => {
     if (currentRoute === 'auction') {
-      try {
-        if (store.fetchPlayersFromCloud) await store.fetchPlayersFromCloud();
-      } catch(e) {}
       pollActiveAuctionState();
     }
   };
@@ -13841,14 +13845,16 @@ export function openLiveAuctionProjectorView() {
   const initLive = store.getLiveAuctionStateSync();
   updateProjectorDisplay(initLive, initTeams, initPlayers);
 
-  // Real-time Poller (every 1 second for projector)
+  // Real-time Poller (projector view)
   const pollProjector = async () => {
     if (!document.getElementById('live-auction-projector-view-modal')) {
       if (projectorPollInterval) { clearInterval(projectorPollInterval); projectorPollInterval = null; }
       if (projectorAutoTourTimer) { clearTimeout(projectorAutoTourTimer); projectorAutoTourTimer = null; }
       return;
     }
-    const state = await store.getLiveAuctionState();
+    const state = store.recoverTournamentAuctionState
+      ? await store.recoverTournamentAuctionState()
+      : await store.getLiveAuctionState();
     const teams = store.getTeams();
     const allPlayers = store.getPlayers();
     updateProjectorDisplay(state, teams, allPlayers);
@@ -13859,7 +13865,7 @@ export function openLiveAuctionProjectorView() {
   projectorPollInterval = setInterval(() => {
     if (document.visibilityState === 'hidden') return;
     pollProjector();
-  }, 30000);
+  }, 60000);
 
   const onProjAuctionChange = () => {
     if (document.getElementById('live-auction-projector-view-modal')) {

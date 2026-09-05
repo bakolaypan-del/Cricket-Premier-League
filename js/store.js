@@ -58,6 +58,7 @@ import {
   fetchGlobalUniquePlayersCount,
   updateTournamentApprovalStatus,
   fetchLiveAuctionFromCloud,
+  fetchTournamentAuctionRecovery,
   fetchGlobalLiveAuctionStatus,
   fetchVerificationDocs,
   fetchPersonProfiles,
@@ -3200,6 +3201,70 @@ class Store {
       return cloud;
     }
     return this.getNoticeBoard();
+  }
+
+  // --- RECOVER AUCTION STATE TARGETED (1 ROW AUCTION + INDEXED TOURNAMENT PLAYERS ONLY) ---
+  async recoverTournamentAuctionState(tournamentId = null) {
+    const targetTid = tournamentId || this.activeTournamentId;
+    try {
+      const { liveState, players } = await fetchTournamentAuctionRecovery(targetTid);
+      let changed = false;
+
+      if (liveState) {
+        const cloudTs = Number(liveState.updated_at || 0);
+        const localTs = Number(this.liveAuctionState?.updated_at || 0);
+        if (cloudTs >= localTs || !this.liveAuctionState || liveState.active_player_id) {
+          this.liveAuctionState = liveState;
+          safeSetLocalStorage(this._scopedKey('LIVE_AUCTION_STATE'), liveState);
+          changed = true;
+        }
+      }
+
+      if (Array.isArray(players) && players.length > 0) {
+        const localPlayers = this.getPlayers();
+        const playerUpdatesMap = new Map(players.map(p => [p.id, p]));
+        let playersChanged = false;
+
+        const updatedList = localPlayers.map(lp => {
+          const cloudP = playerUpdatesMap.get(lp.id);
+          if (!cloudP) return lp;
+
+          const newSoldPrice = (cloudP.sold_price != null) ? Number(cloudP.sold_price) : lp.soldPrice;
+          const newTeamId = (cloudP.team_id !== undefined) ? cloudP.team_id : lp.teamId;
+          const newAuctionStatus = cloudP.auction_status || (newTeamId ? 'SOLD' : lp.auctionStatus);
+
+          if (lp.soldPrice !== newSoldPrice || lp.teamId !== newTeamId || lp.auctionStatus !== newAuctionStatus) {
+            playersChanged = true;
+            return {
+              ...lp,
+              soldPrice: newSoldPrice,
+              boughtPrice: newSoldPrice,
+              teamId: newTeamId,
+              team_id: newTeamId,
+              auctionStatus: newAuctionStatus,
+              isSold: (newAuctionStatus === 'SOLD' || !!newTeamId),
+              isUnsold: (newAuctionStatus === 'UNSOLD')
+            };
+          }
+          return lp;
+        });
+
+        if (playersChanged) {
+          safeSetLocalStorage(this._scopedKey('PLAYERS'), updatedList);
+          this._invalidateCache('players');
+          this.notify('players_updated');
+        }
+      }
+
+      if (changed) {
+        this.notify('live_auction_updated');
+      }
+
+      return this.liveAuctionState;
+    } catch (err) {
+      console.warn('[STORE] recoverTournamentAuctionState notice:', err);
+      return this.liveAuctionState;
+    }
   }
 
   // --- LIVE AUCTION STATE ---
