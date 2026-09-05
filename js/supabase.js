@@ -712,6 +712,13 @@ export async function initRealtimePushListener(onUpdateCallback, tournamentId) {
       .on('postgres_changes', { event: '*', schema: 'public', table: 'matches', ...(tFilter && { filter: tFilter }) }, (payload) => {
         if (typeof onUpdateCallback === 'function') onUpdateCallback(payload);
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'tournament_auctions', ...(tFilter && { filter: tFilter }) }, (payload) => {
+        if (payload?.new?.live_state && typeof window !== 'undefined' && window.store) {
+          window.store.liveAuctionState = payload.new.live_state;
+          window.dispatchEvent(new CustomEvent('cpl_live_auction_updated', { detail: payload.new.live_state }));
+        }
+        if (typeof onUpdateCallback === 'function') onUpdateCallback(payload);
+      })
       .on('postgres_changes', { event: '*', schema: 'public', table: 'tournaments', ...(tId && { filter: `id=eq.${tId}` }) }, (payload) => {
         if (payload?.new?.format_config?.live_auction && typeof window !== 'undefined' && window.store) {
           window.store.liveAuctionState = payload.new.format_config.live_auction;
@@ -843,7 +850,7 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
         kickoff_date, prize_winner, is_registration_open, is_player_reg_open, is_team_reg_open,
         closed_reason, approval_status, format_config,
         profile:organiser_id ( id, full_name, phone, upi_id, payment_qr_url ),
-        auction:tournament_auctions ( purse_budget, base_price, icon_price, max_squad_size, min_squad_size, bid_increment_slabs, status )
+        auction:tournament_auctions ( purse_budget, base_price, icon_price, max_squad_size, min_squad_size, bid_increment_slabs, status, live_state )
       `).eq('id', tId).maybeSingle()
     ]);
     // Docs and profiles are fetched on-demand only (not every poll) to save mobile data
@@ -1983,22 +1990,22 @@ export async function saveLiveAuctionToCloud(state, tournamentId = null) {
   try {
     const tId = toUUID(tournamentId) || toUUID(typeof window !== 'undefined' && window.store?.activeTournamentId) || DEFAULT_TOURNAMENT_UUID;
     
-    // Save to format_config.live_auction in tournaments table (guaranteed 200 OK without RLS restrictions)
-    let { data: currentTourney } = await supabase.from('tournaments').select('id, format_config').eq('id', tId).maybeSingle();
-    let targetId = tId;
-    if (!currentTourney && tournamentId) {
-      const cleanSlug = String(tournamentId).replace(/^t_/, '').trim();
-      const { data: bySlug } = await supabase.from('tournaments').select('id, format_config').or(`slug.ilike.${cleanSlug},category_code.ilike.${cleanSlug}`).maybeSingle();
-      if (bySlug) {
-        currentTourney = bySlug;
-        targetId = bySlug.id;
-      }
-    }
+    // Save to tournament_auctions.live_state (isolated from main tournaments table)
+    const { error: liveErr } = await supabase.from('tournament_auctions').upsert({
+      tournament_id: tId,
+      live_state: state || {},
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'tournament_id' });
 
-    if (currentTourney) {
-      const config = currentTourney.format_config || {};
-      config.live_auction = state || {};
-      await supabase.from('tournaments').update({ format_config: config, updated_at: new Date().toISOString() }).eq('id', targetId);
+    if (liveErr) {
+      console.warn('[SUPABASE] saveLiveAuction to tournament_auctions failed, falling back:', liveErr.message);
+      // Fallback to tournaments format_config for backwards-compatibility
+      let { data: currentTourney } = await supabase.from('tournaments').select('id, format_config').eq('id', tId).maybeSingle();
+      if (currentTourney) {
+        const config = currentTourney.format_config || {};
+        config.live_auction = state || {};
+        await supabase.from('tournaments').update({ format_config: config, updated_at: new Date().toISOString() }).eq('id', currentTourney.id);
+      }
     }
 
     // Broadcast over Realtime channel for instant sub-100ms display across all devices
@@ -2016,12 +2023,15 @@ export async function fetchLiveAuctionFromCloud(tournamentId = null) {
   if (!supabase) return null;
   try {
     const tId = toUUID(tournamentId) || toUUID(typeof window !== 'undefined' && window.store?.activeTournamentId) || DEFAULT_TOURNAMENT_UUID;
-    let { data: tourney } = await supabase.from('tournaments').select('id, format_config').eq('id', tId).maybeSingle();
-    if (!tourney && tournamentId) {
-      const cleanSlug = String(tournamentId).replace(/^t_/, '').trim();
-      const { data: bySlug } = await supabase.from('tournaments').select('id, format_config').or(`slug.ilike.${cleanSlug},category_code.ilike.${cleanSlug}`).maybeSingle();
-      if (bySlug) tourney = bySlug;
+    
+    // 1. Fetch from tournament_auctions.live_state
+    const { data: auctionRow } = await supabase.from('tournament_auctions').select('live_state').eq('tournament_id', tId).maybeSingle();
+    if (auctionRow?.live_state && Object.keys(auctionRow.live_state).length > 0) {
+      return auctionRow.live_state;
     }
+
+    // 2. Fallback to format_config.live_auction
+    let { data: tourney } = await supabase.from('tournaments').select('id, format_config').eq('id', tId).maybeSingle();
     if (tourney?.format_config?.live_auction) {
       return tourney.format_config.live_auction;
     }
@@ -2034,7 +2044,10 @@ export async function fetchGlobalLiveAuctionStatus() {
   try {
     const { data: tournaments, error } = await supabase
       .from('tournaments')
-      .select('id, name, slug, logo_url, banner_url, format_config, updated_at')
+      .select(`
+        id, name, slug, logo_url, banner_url, format_config, updated_at,
+        auction:tournament_auctions ( live_state )
+      `)
       .order('updated_at', { ascending: false });
 
     if (error || !Array.isArray(tournaments)) {
@@ -2046,7 +2059,8 @@ export async function fetchGlobalLiveAuctionStatus() {
     let liveState = null;
 
     for (const t of tournaments) {
-      const state = t.format_config?.live_auction;
+      const auctionRec = Array.isArray(t.auction) ? t.auction[0] : (t.auction || {});
+      const state = auctionRec?.live_state || t.format_config?.live_auction;
       if (state && (state.status === 'BIDDING' || state.status === 'SOLD' || state.status === 'UNSOLD') && state.active_player_id && !state.is_ended && state.status !== 'ENDED') {
         liveTourney = t;
         liveState = state;
@@ -2058,16 +2072,20 @@ export async function fetchGlobalLiveAuctionStatus() {
       isLive: !!liveTourney,
       liveTournament: liveTourney,
       liveState: liveState,
-      recentTournaments: tournaments.map(t => ({
-        id: t.id,
-        name: t.name,
-        slug: t.slug,
-        logoUrl: t.logo_url || t.banner_url || 'assets/jsl_logo.jpg',
-        bannerUrl: t.banner_url || t.logo_url || 'assets/jsl_logo.jpg',
-        customTeamsCount: t.format_config?.custom_teams?.length || 0,
-        auctionStatus: (t.format_config?.live_auction?.is_ended || t.format_config?.live_auction?.status === 'ENDED' || (t.format_config?.custom_teams?.length > 0 && !t.format_config?.live_auction?.active_player_id)) ? 'CONCLUDED' : 'IDLE',
-        updatedAt: t.updated_at
-      }))
+      recentTournaments: tournaments.map(t => {
+        const auctionRec = Array.isArray(t.auction) ? t.auction[0] : (t.auction || {});
+        const aState = auctionRec?.live_state || t.format_config?.live_auction;
+        return {
+          id: t.id,
+          name: t.name,
+          slug: t.slug,
+          logoUrl: t.logo_url || t.banner_url || 'assets/jsl_logo.jpg',
+          bannerUrl: t.banner_url || t.logo_url || 'assets/jsl_logo.jpg',
+          customTeamsCount: 0,
+          auctionStatus: (aState?.is_ended || aState?.status === 'ENDED' || !aState?.active_player_id) ? 'CONCLUDED' : 'IDLE',
+          updatedAt: t.updated_at
+        };
+      })
     };
   } catch (e) {
     console.warn('[SUPABASE] fetchGlobalLiveAuctionStatus error:', e);
