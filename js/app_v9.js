@@ -1,9 +1,9 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=13.0.79';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.79';
-import { renderAdminDashboard } from './admin.js?v=13.0.79';
-import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getLocalPopupSettings, fetchNoticeBoardFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.79';
+import { store } from './store.js?v=13.0.80';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.80';
+import { renderAdminDashboard } from './admin.js?v=13.0.80';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getLocalPopupSettings, fetchNoticeBoardFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.80';
 import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.53';
 import { shops } from './shopsData.js?v=12.0.2';
 
@@ -14045,12 +14045,29 @@ function renderCareerHubView(container) {
   const drawCareerHub = () => {
     const rawList = store.getPlayersForTournament ? store.getPlayersForTournament(selectedTourneyId) : store.getPlayers();
     const players = (rawList || []).filter(p => (p.registrationStatus || p.paymentStatus) !== 'REJECTED');
-    const fixtures = store.getFixtures();
-    const activeOrCompletedFixtures = fixtures.filter(f => f.status === 'COMPLETED' || f.status === 'LIVE');
+    const allCrossFixtures = (store.getAllFixturesAcrossTournaments ? store.getAllFixturesAcrossTournaments() : (store.getFixtures ? store.getFixtures() : [])) || [];
+    
+    // Filter fixtures for selected tournament (or keep all for 'ALL')
+    const activeOrCompletedFixtures = allCrossFixtures.filter(f => {
+      if (!f) return false;
+      if (selectedTourneyId !== 'ALL') {
+        const fTid = String(f.tournament_id || f.tournamentId || f.leagueId || '');
+        const fCode = (f.leagueCode || '').toUpperCase();
+        const targetTourney = allTourneys.find(t => (t.supabaseId || t.id) === selectedTourneyId || t.slug === selectedTourneyId);
+        const tCode = (targetTourney?.category_code || targetTourney?.slug || '').toUpperCase();
+        const matchesTourney = (fTid && (fTid === selectedTourneyId || toUUID(fTid) === toUUID(selectedTourneyId))) || (fCode && tCode && fCode === tCode);
+        if (!matchesTourney) return false;
+      }
+      return f.status === 'COMPLETED' || f.status === 'completed' || f.status === 'LIVE' || f.status === 'live' || !!(f.result && String(f.result).trim());
+    });
+
+    const allGlobalPlayers = store.getPlayersForTournament ? store.getPlayersForTournament('ALL') : store.getPlayers();
 
     const list = players.map(p => {
       let runs = 0;
       let balls = 0;
+      let fours = 0;
+      let sixes = 0;
       let wickets = 0;
       let runsConceded = 0;
       let ballsBowled = 0;
@@ -14061,16 +14078,38 @@ function renderCareerHubView(container) {
       let fiveWickets = 0;
       let highestScore = 0;
 
+      const pIdStr = String(p.id || '');
+      const pUUID = toUUID(p.id);
+      const pPhone10 = (p.phone || p.mobile || '').replace(/[^0-9]/g, '').slice(-10);
+
       activeOrCompletedFixtures.forEach(f => {
-        if (f.liveMatchState && f.liveMatchState.playerStats && f.liveMatchState.playerStats[p.id]) {
-          const ps = f.liveMatchState.playerStats[p.id];
-          const r = ps.runs || 0;
-          const w = ps.wickets || 0;
+        const state = f.liveMatchState || f.liveState || {};
+        const pStats = state.playerStats || f.playerStats || {};
+
+        let ps = pStats[pIdStr] || (pUUID ? pStats[pUUID] : null);
+
+        // Cross-tournament player matching via phone number
+        if (!ps && pPhone10) {
+          for (const [statPid, statVal] of Object.entries(pStats)) {
+            if (!statVal) continue;
+            const matchedPl = allGlobalPlayers.find(x => String(x.id) === String(statPid) || (toUUID(x.id) && toUUID(x.id) === toUUID(statPid)));
+            if (matchedPl && (matchedPl.phone || matchedPl.mobile || '').replace(/[^0-9]/g, '').slice(-10) === pPhone10) {
+              ps = statVal;
+              break;
+            }
+          }
+        }
+
+        if (ps) {
+          const r = Number(ps.runs || ps.runsScored || 0);
+          const w = Number(ps.wickets || ps.wicketsTaken || 0);
           runs += r;
-          balls += ps.balls || 0;
+          balls += Number(ps.balls || ps.ballsFaced || 0);
+          fours += Number(ps.fours || ps['4s'] || 0);
+          sixes += Number(ps.sixes || ps['6s'] || 0);
           wickets += w;
-          runsConceded += ps.runsConceded || 0;
-          ballsBowled += ps.ballsBowled || 0;
+          runsConceded += Number(ps.runsConceded || ps.runsAgainst || 0);
+          ballsBowled += Number(ps.ballsBowled || ((ps.overs || 0) * 6 + (ps.oversBalls || 0)));
           if (ps.dismissed) dismissals += 1;
           matches += 1;
 
@@ -14508,10 +14547,20 @@ function openCareerDetailModal(playerId) {
     };
   }
 
-  const allRegistrations = store.getPlayers().filter(p => (p.phone || '').trim() === phone);
-  const fixtures = store.getFixtures();
-  const activeOrCompletedFixtures = fixtures.filter(f => f.status === 'COMPLETED' || f.status === 'LIVE');
-  
+  const allRegistrations = (store.getPlayersForTournament ? store.getPlayersForTournament('ALL') : store.getPlayers()).filter(p => {
+    if (!phone) return String(p.id) === String(playerId) || toUUID(p.id) === toUUID(playerId);
+    const pPhone = (p.phone || p.mobile || '').replace(/[^0-9]/g, '').slice(-10);
+    const targetPhone = phone.replace(/[^0-9]/g, '').slice(-10);
+    return (pPhone && targetPhone && pPhone === targetPhone) || String(p.id) === String(playerId) || toUUID(p.id) === toUUID(playerId);
+  });
+  const allFixturesList = (store.getAllFixturesAcrossTournaments ? store.getAllFixturesAcrossTournaments() : (store.getFixtures ? store.getFixtures() : [])) || [];
+  const activeOrCompletedFixtures = allFixturesList.filter(f => f.status === 'COMPLETED' || f.status === 'completed' || f.status === 'LIVE' || f.status === 'live' || !!(f.result && String(f.result).trim()));
+
+  const playerIdsSet = new Set(allRegistrations.map(r => String(r.id)).concat([String(playerId), String(playerReg.id)]));
+  if (toUUID(playerId)) playerIdsSet.add(toUUID(playerId));
+  if (toUUID(playerReg.id)) playerIdsSet.add(toUUID(playerReg.id));
+  const phone10 = (phone || '').replace(/[^0-9]/g, '').slice(-10);
+
   let totalRuns = 0;
   let totalWickets = 0;
   let matchesCount = 0;
@@ -14523,14 +14572,35 @@ function openCareerDetailModal(playerId) {
   let fiveWickets = 0;
 
   activeOrCompletedFixtures.forEach(f => {
-    if (f.liveMatchState && f.liveMatchState.playerStats && f.liveMatchState.playerStats[profile.id]) {
-      const ps = f.liveMatchState.playerStats[profile.id];
-      const r = ps.runs || 0;
-      const w = ps.wickets || 0;
+    const state = f.liveMatchState || f.liveState || {};
+    const pStats = state.playerStats || f.playerStats || {};
+
+    let ps = null;
+    for (const pid of playerIdsSet) {
+      if (pStats[pid]) {
+        ps = pStats[pid];
+        break;
+      }
+    }
+
+    if (!ps && phone10) {
+      for (const [statPid, statVal] of Object.entries(pStats)) {
+        if (!statVal) continue;
+        const matchedPl = allList.find(x => String(x.id) === String(statPid) || (toUUID(x.id) && toUUID(x.id) === toUUID(statPid)));
+        if (matchedPl && (matchedPl.phone || matchedPl.mobile || '').replace(/[^0-9]/g, '').slice(-10) === phone10) {
+          ps = statVal;
+          break;
+        }
+      }
+    }
+
+    if (ps) {
+      const r = Number(ps.runs || ps.runsScored || 0);
+      const w = Number(ps.wickets || ps.wicketsTaken || 0);
       totalRuns += r;
       totalWickets += w;
-      runsConceded += ps.runsConceded || 0;
-      ballsBowled += ps.ballsBowled || 0;
+      runsConceded += Number(ps.runsConceded || ps.runsAgainst || 0);
+      ballsBowled += Number(ps.ballsBowled || ((ps.overs || 0) * 6 + (ps.oversBalls || 0)));
       if (ps.dismissed) dismissals += 1;
       matchesCount += 1;
 
@@ -14557,27 +14627,29 @@ function openCareerDetailModal(playerId) {
 
   const seasonalTimeline = allRegistrations.map(reg => {
     const teamId = reg.teamId;
-    const team = store.getTeamById(teamId);
+    const team = store.getTeamById ? store.getTeamById(teamId) : null;
     
     // Get team matches stats
     let regRuns = 0;
     let regWickets = 0;
     let regMatches = 0;
 
-    if (teamId) {
-      const teamMatches = activeOrCompletedFixtures.filter(f => f.teamAId === teamId || f.teamBId === teamId);
-      teamMatches.forEach(f => {
-        if (f.liveMatchState && f.liveMatchState.playerStats && f.liveMatchState.playerStats[profile.id]) {
-          const ps = f.liveMatchState.playerStats[profile.id];
-          regRuns += ps.runs || 0;
-          regWickets += ps.wickets || 0;
-          regMatches += 1;
-        }
-      });
-    }
+    activeOrCompletedFixtures.forEach(f => {
+      const isTeamMatch = !teamId || f.teamAId === teamId || f.teamBId === teamId || (toUUID(f.teamAId) && toUUID(f.teamAId) === toUUID(teamId)) || (toUUID(f.teamBId) && toUUID(f.teamBId) === toUUID(teamId));
+      if (!isTeamMatch) return;
+
+      const state = f.liveMatchState || f.liveState || {};
+      const pStats = state.playerStats || f.playerStats || {};
+      const ps = pStats[reg.id] || (toUUID(reg.id) ? pStats[toUUID(reg.id)] : null);
+      if (ps) {
+        regRuns += Number(ps.runs || ps.runsScored || 0);
+        regWickets += Number(ps.wickets || ps.wicketsTaken || 0);
+        regMatches += 1;
+      }
+    });
 
     return {
-      leagueCode: reg.leagueCategory || 'T',
+      leagueCode: reg.leagueCategory || reg.leagueCode || 'T',
       year: 2026,
       teamName: team ? team.name : 'Unassigned / Free Agent',
       matches: regMatches,

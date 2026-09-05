@@ -1,5 +1,5 @@
-import { store } from './store.js?v=13.0.79';
-import { toUUID, getOptimizedImageUrl, compressImageToTarget } from './supabase.js?v=13.0.79';
+import { store } from './store.js?v=13.0.80';
+import { toUUID, getOptimizedImageUrl, compressImageToTarget } from './supabase.js?v=13.0.80';
 
 export async function preparePlayerPhotoForPDF(targetSrc, targetSizeKb = 30, maxDimension = 350) {
   if (!targetSrc) return '';
@@ -2444,14 +2444,32 @@ export function exportPlayerSocialCard(player, team, tourney) {
   let totalSixes = 0;
 
   try {
-    const fixtures = (typeof store !== 'undefined' && store.getFixtures) ? store.getFixtures() : [];
+    const fixtures = (typeof store !== 'undefined' && store.getAllFixturesAcrossTournaments)
+      ? store.getAllFixturesAcrossTournaments()
+      : ((typeof store !== 'undefined' && store.getFixtures) ? store.getFixtures() : []);
+    const pUUID = toUUID(player.id);
+    const pPhone10 = (player.phone || player.mobile || '').replace(/[^0-9]/g, '').slice(-10);
+
     fixtures.forEach(f => {
-      if (f.liveMatchState && f.liveMatchState.playerStats && f.liveMatchState.playerStats[player.id]) {
-        const ps = f.liveMatchState.playerStats[player.id];
-        totalRuns += ps.runs || 0;
-        totalBalls += ps.balls || 0;
-        totalWickets += ps.wickets || 0;
-        totalSixes += ps.sixes || 0;
+      const state = f.liveMatchState || f.liveState || {};
+      const pStats = state.playerStats || f.playerStats || {};
+      let ps = pStats[player.id] || (pUUID ? pStats[pUUID] : null);
+
+      if (!ps && pPhone10) {
+        for (const [statPid, statVal] of Object.entries(pStats)) {
+          if (!statVal) continue;
+          if (statVal.phone && statVal.phone.slice(-10) === pPhone10) {
+            ps = statVal;
+            break;
+          }
+        }
+      }
+
+      if (ps) {
+        totalRuns += Number(ps.runs || ps.runsScored || 0);
+        totalBalls += Number(ps.balls || ps.ballsFaced || 0);
+        totalWickets += Number(ps.wickets || ps.wicketsTaken || 0);
+        totalSixes += Number(ps.sixes || ps['6s'] || 0);
       }
     });
   } catch(e) {}

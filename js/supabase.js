@@ -2694,6 +2694,49 @@ export async function fetchUniversalPlayersFromCloud() {
   } catch (e) { return {}; }
 }
 
+export async function fetchAllTournamentsPlayers() {
+  if (!supabase) return {};
+  try {
+    const { data: players, error } = await supabase
+      .from('players')
+      .select('id, tournament_id, name, phone, photo_url, role, category_name, base_price, is_icon, team_id, status, sold_price, verified, reg_number, updated_at, created_at, dob, age, village, district, state, jersey_size')
+      .neq('status', 'deleted');
+    if (error || !Array.isArray(players)) return {};
+    const result = {};
+    players.forEach(p => {
+      const tid = p.tournament_id;
+      if (!tid) return;
+      if (!result[tid]) result[tid] = [];
+      result[tid].push({
+        id: p.id,
+        tournament_id: tid,
+        name: p.name,
+        phone: p.phone,
+        category: p.category_name || p.role || 'All-Rounder',
+        playingType: p.category_name || p.role || 'All-Rounder',
+        role: p.role || p.category_name || 'All-Rounder',
+        photoUrl: p.photo_url || '',
+        player_photo_url: p.photo_url || '',
+        teamId: p.team_id || null,
+        basePrice: Number(p.base_price) || 300,
+        isIcon: !!p.is_icon,
+        registrationStatus: p.verified ? 'APPROVED' : (p.status || 'APPROVED'),
+        paymentStatus: p.verified ? 'APPROVED' : (p.status || 'APPROVED'),
+        displayRegistrationNumber: p.reg_number,
+        village: p.village || '',
+        district: p.district || 'Paschim Medinipur',
+        state: p.state || 'West Bengal',
+        age: p.age || '',
+        dob: p.dob || null
+      });
+    });
+    return result;
+  } catch (e) {
+    console.warn('[SUPABASE] fetchAllTournamentsPlayers:', e.message);
+    return {};
+  }
+}
+
 export async function saveTournamentFormatToCloud(leagueCode, formatConfig) {
   if (!supabase) return;
   try {

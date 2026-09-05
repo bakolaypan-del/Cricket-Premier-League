@@ -62,10 +62,11 @@ import {
   fetchVerificationDocs,
   fetchPersonProfiles,
   fetchAllTournamentsFixtures,
+  fetchAllTournamentsPlayers,
   saveNoticeBoardToCloud,
   fetchNoticeBoardFromCloud,
   broadcastLiveScore
-} from './supabase.js?v=13.0.79';
+} from './supabase.js?v=13.0.80';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -632,6 +633,14 @@ class Store {
       } catch (errOwners) {
         console.warn("Owners sync notice:", errOwners);
       }
+
+      // Cross-Tournament Live Sync
+      try {
+        await Promise.all([
+          this.syncCrossTournamentFixtures(),
+          this.syncCrossTournamentPlayers()
+        ]);
+      } catch (eCross) {}
     } catch (err) {
       console.warn("Cloud sync error:", err);
     } finally {
@@ -647,12 +656,15 @@ class Store {
       const activeUUID = toUUID(activeTid);
       let changed = false;
       for (const [tid, fixtures] of Object.entries(allFixturesByTid)) {
-        if (tid === activeTid || tid === activeUUID || toUUID(tid) === activeUUID) continue;
-        const key = scopedKey(STORAGE_KEYS.FIXTURES, toUUID(tid) || tid);
+        const canonicalTid = toUUID(tid) || tid;
+        const key = scopedKey(STORAGE_KEYS.FIXTURES, canonicalTid);
         const existing = localStorage.getItem(key);
         const newStr = JSON.stringify(fixtures);
         if (existing !== newStr) {
           safeSetLocalStorage(key, fixtures);
+          if (canonicalTid !== tid) {
+            safeSetLocalStorage(scopedKey(STORAGE_KEYS.FIXTURES, tid), fixtures);
+          }
           changed = true;
         }
       }
@@ -665,10 +677,38 @@ class Store {
     }
   }
 
+  async syncCrossTournamentPlayers() {
+    try {
+      const allPlayersByTid = await fetchAllTournamentsPlayers();
+      if (!allPlayersByTid || typeof allPlayersByTid !== 'object') return;
+      let changed = false;
+      for (const [tid, players] of Object.entries(allPlayersByTid)) {
+        const canonicalTid = toUUID(tid) || tid;
+        const key = scopedKey(STORAGE_KEYS.PLAYERS, canonicalTid);
+        const existing = localStorage.getItem(key);
+        const newStr = JSON.stringify(players);
+        if (existing !== newStr) {
+          safeSetLocalStorage(key, players);
+          if (canonicalTid !== tid) {
+            safeSetLocalStorage(scopedKey(STORAGE_KEYS.PLAYERS, tid), players);
+          }
+          changed = true;
+        }
+      }
+      if (changed) {
+        this._invalidateCache('players');
+        this.notify('players_updated');
+      }
+    } catch (e) {
+      console.warn('[STORE] crossTournamentPlayers sync:', e.message);
+    }
+  }
+
   startCloudPolling() {
     if (this.cloudPollingInterval) clearInterval(this.cloudPollingInterval);
     this.cloudPollingInterval = null;
     this.syncCrossTournamentFixtures();
+    this.syncCrossTournamentPlayers();
   }
 
   async fetchDocsOnDemand() {
@@ -2516,6 +2556,17 @@ class Store {
     if (this._cache.fixtures) return this._cache.fixtures;
     let all = JSON.parse(localStorage.getItem(this._scopedKey('FIXTURES'))) || [];
 
+    // Fallback to authoritative custom_matches from tournament format config if local cache is empty
+    if (all.length === 0) {
+      const activeTourney = (this.getCustomTournaments() || []).find(t => {
+        const tid = t.supabaseId || t.id;
+        return tid === this.activeTournamentId || toUUID(tid) === toUUID(this.activeTournamentId) || t.slug === this.activeTournamentId;
+      });
+      if (activeTourney && Array.isArray(activeTourney.format_config?.custom_matches) && activeTourney.format_config.custom_matches.length > 0) {
+        all = [...activeTourney.format_config.custom_matches];
+      }
+    }
+
     // Clean out fixtures that belong to another tournament's teams
     const activeTid = this.activeTournamentId;
     const activeUUID = toUUID(activeTid);
@@ -2716,65 +2767,60 @@ class Store {
   getAllFixturesAcrossTournaments() {
     const allTourneys = this.getCustomTournaments() || [];
     const activeTid = this.activeTournamentId;
-    const activeFixtures = this.getFixtures();
     const map = new Map();
 
-    // 1. Add active tournament fixtures (if cleared, activeFixtures is [], so 0 matches for active tournament)
-    activeFixtures.forEach(f => {
-      if (f && f.id) {
-        const fCode = (f.leagueCode || '').toUpperCase();
-        const fTid = f.tournament_id || f.tournamentId || f.leagueId;
+    const addFixture = (f, tourneyObj) => {
+      if (!f || !f.id) return;
+      const fTid = f.tournament_id || f.tournamentId || f.leagueId;
+      const effectiveTid = tourneyObj?.supabaseId || tourneyObj?.id || fTid || activeTid;
+      const tourneyCode = (tourneyObj?.category_code || tourneyObj?.code || tourneyObj?.slug || f.leagueCode || 'T').toUpperCase();
+      const effectiveName = tourneyObj?.name || f.tournamentName || (tourneyCode === 'JSL' ? 'Jhankra Super League 2026' : (tourneyCode === 'JCT2026' ? 'JHARGRAM CRICKET TOURNAMENT' : 'Cricket Premier League'));
+      const effectiveLogo = tourneyObj?.logo_url || tourneyObj?.banner_url || f.logoUrl || 'assets/jsl_logo.jpg';
 
-        const tourney = allTourneys.find(t => {
-          const tCode = (t.category_code || t.code || t.category || t.shortCode || t.slug || '').toUpperCase();
-          const tId = t.supabaseId || t.id;
-          if (fTid && (tId === fTid || t.id === fTid || t.supabaseId === fTid)) return true;
-          if (fCode && tCode && (fCode === tCode || (fCode === 'K2026' && (tCode === 'KPL' || tCode === 'K2026')) || (fCode === 'KPL' && (tCode === 'K2026' || tCode === 'KPL')))) return true;
-          return false;
-        }) || (fTid ? allTourneys.find(t => (t.supabaseId || t.id) === fTid) : null) || {};
+      const existing = map.get(f.id);
+      const isCompleted = f.status === 'COMPLETED' || f.status === 'completed' || !!(f.result && String(f.result).trim());
+      const hasStats = !!(f.liveMatchState?.playerStats && Object.keys(f.liveMatchState.playerStats).length > 0);
 
-        const effectiveTid = tourney.supabaseId || tourney.id || fTid || activeTid;
-        const tourneyCode = (tourney.category_code || tourney.code || tourney.slug || '').toUpperCase();
-        const effectiveCode = (tourneyCode || fCode || 'T').toUpperCase();
-        const effectiveName = tourney.name || f.tournamentName || (effectiveCode === 'JSL' ? 'Jhankra Super League 2026' : ((effectiveCode === 'KPL' || effectiveCode === 'K2026' || effectiveCode === 'T2') ? 'Kuapur Premier League' : 'Cricket Premier League'));
-        const effectiveLogo = tourney.logo_url || tourney.banner_url || 'assets/jsl_logo.jpg';
-
+      if (!existing || isCompleted || hasStats) {
         map.set(f.id, {
+          ...(existing || {}),
           ...f,
           tournamentId: effectiveTid,
           tournamentName: effectiveName,
-          leagueCode: effectiveCode,
+          leagueCode: tourneyCode,
           logoUrl: effectiveLogo
         });
       }
-    });
+    };
 
-    // 2. Add fixtures from other tournaments ONLY if explicitly saved
+    // 1. Process active tournament fixtures
+    const activeFixtures = this.getFixtures() || [];
+    const activeTourney = allTourneys.find(t => {
+      const tid = t.supabaseId || t.id;
+      return tid === activeTid || toUUID(tid) === toUUID(activeTid) || t.slug === activeTid;
+    });
+    activeFixtures.forEach(f => addFixture(f, activeTourney));
+
+    // 2. Process all tournaments (format_config.custom_matches + localStorage)
     allTourneys.forEach(t => {
       const tid = t.supabaseId || t.id;
-      if (tid === activeTid || toUUID(tid) === toUUID(activeTid)) return; // Already processed active tournament above!
+      const canonicalTid = toUUID(tid) || tid;
 
+      // 2a. Include authoritative cloud format_config.custom_matches
+      if (Array.isArray(t.format_config?.custom_matches)) {
+        t.format_config.custom_matches.forEach(cm => addFixture(cm, t));
+      }
+
+      // 2b. Include localStorage scoped matches
       let localScopedMatches = [];
       try {
-        const localRaw = localStorage.getItem(`cpl_fixtures_v8_${tid}`);
+        const localRaw = localStorage.getItem(`cpl_fixtures_v8_${canonicalTid}`) || (canonicalTid !== tid ? localStorage.getItem(`cpl_fixtures_v8_${tid}`) : null);
         if (localRaw !== null) {
           localScopedMatches = JSON.parse(localRaw) || [];
-        } else {
-          localScopedMatches = [];
         }
       } catch (e) {}
 
-      localScopedMatches.forEach(cm => {
-        if (cm && cm.id && !map.has(cm.id)) {
-          map.set(cm.id, {
-            ...cm,
-            tournamentId: tid,
-            tournamentName: t.name || `${t.slug} Premier League`,
-            leagueCode: (t.category_code || t.code || t.slug || cm.leagueCode || 'T').toUpperCase(),
-            logoUrl: t.logo_url || t.banner_url || 'assets/jsl_logo.jpg'
-          });
-        }
-      });
+      localScopedMatches.forEach(cm => addFixture(cm, t));
     });
 
     const deletedIdsRaw = typeof localStorage !== 'undefined' ? localStorage.getItem('cpl_deleted_fixture_ids') : null;
@@ -3692,14 +3738,40 @@ class Store {
     if (!tourneyId || tourneyId === 'ALL') {
       const allTourneys = this.getAllAvailableTournaments();
       const combinedMap = new Map();
+
+      // 1. Current active tournament players
+      const activePlayers = this.getPlayers() || [];
+      activePlayers.forEach(p => {
+        if (!p || !p.id) return;
+        const phone = (p.phone || p.mobile || '').replace(/[^0-9]/g, '').slice(-10);
+        const uKey = phone ? `phone_${phone}` : `id_${p.id}`;
+        combinedMap.set(uKey, p);
+      });
+
+      // 2. Cross-tournament players from scoped local storage
       for (const t of allTourneys) {
         const canonicalTid = toUUID(t.supabaseId || t.id) || t.supabaseId || t.id;
-        const sk = scopedKey(STORAGE_KEYS.PLAYERS, canonicalTid);
+        const sk1 = scopedKey(STORAGE_KEYS.PLAYERS, canonicalTid);
+        const sk2 = scopedKey(STORAGE_KEYS.PLAYERS, t.id || t.slug);
         try {
-          const raw = JSON.parse(localStorage.getItem(sk)) || [];
+          const raw = JSON.parse(localStorage.getItem(sk1)) || (sk2 !== sk1 ? JSON.parse(localStorage.getItem(sk2)) : null) || [];
           for (const p of raw) {
-            if (p && p.id && !combinedMap.has(p.id)) {
-              combinedMap.set(p.id, p);
+            if (p && p.id) {
+              const phone = (p.phone || p.mobile || '').replace(/[^0-9]/g, '').slice(-10);
+              const uKey = phone ? `phone_${phone}` : `id_${p.id}`;
+              if (!combinedMap.has(uKey)) {
+                combinedMap.set(uKey, p);
+              } else {
+                // Merge details (preserve non-empty photo, village, etc.)
+                const existing = combinedMap.get(uKey);
+                combinedMap.set(uKey, {
+                  ...p,
+                  ...existing,
+                  photoUrl: existing.photoUrl || p.photoUrl || p.player_photo_url,
+                  village: existing.village || p.village,
+                  category: existing.category || p.category || p.playingType
+                });
+              }
             }
           }
         } catch(e) {}
@@ -3709,12 +3781,17 @@ class Store {
     }
     
     const canonicalTid = toUUID(tourneyId) || tourneyId;
-    const sk = scopedKey(STORAGE_KEYS.PLAYERS, canonicalTid);
+    const sk1 = scopedKey(STORAGE_KEYS.PLAYERS, canonicalTid);
+    const sk2 = scopedKey(STORAGE_KEYS.PLAYERS, tourneyId);
     try {
-      const raw = JSON.parse(localStorage.getItem(sk)) || [];
+      const raw = JSON.parse(localStorage.getItem(sk1)) || JSON.parse(localStorage.getItem(sk2)) || [];
       if (raw.length > 0) return raw;
     } catch(e) {}
-    return this.getPlayers();
+
+    if (tourneyId === this.activeTournamentId || canonicalTid === toUUID(this.activeTournamentId) || tourneyId === 'leg-jsl') {
+      return this.getPlayers();
+    }
+    return [];
   }
 
   async approveTournament(tourneyId, slug = null, supabaseId = null) {
