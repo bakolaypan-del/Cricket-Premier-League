@@ -1,9 +1,9 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=13.0.77';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.77';
-import { renderAdminDashboard } from './admin.js?v=13.0.77';
-import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getLocalPopupSettings, fetchNoticeBoardFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.77';
+import { store } from './store.js?v=13.0.78';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.78';
+import { renderAdminDashboard } from './admin.js?v=13.0.78';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getLocalPopupSettings, fetchNoticeBoardFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.78';
 import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.53';
 import { shops } from './shopsData.js?v=12.0.2';
 
@@ -2801,7 +2801,559 @@ export function sharePointsTableToWhatsApp(groupName, teams, tourney) {
   const waUrl = `https://api.whatsapp.com/send?text=${encodeURIComponent(text)}`;
   window.open(waUrl, '_blank');
 }
-window.sharePointsTableToWhatsApp = sharePointsTableToWhatsApp;
+// --- SHARED TOURNAMENT AWARDS & STATS ENGINE (IPL CHAMPIONSHIP CARD SYSTEM) ---
+export function resolvePlayerAndTeam(pidOrObj, defaultTeam = '', customTeams = null, customPlayers = null) {
+  const allPlayers = customPlayers || (store.getAllPlayersAcrossTournaments ? store.getAllPlayersAcrossTournaments() : store.getPlayers());
+  const allTeams = customTeams || (store.getAllTeamsAcrossTournaments ? store.getAllTeamsAcrossTournaments() : store.getTeams());
+
+  let p = null;
+  if (typeof pidOrObj === 'object' && pidOrObj !== null) {
+    p = pidOrObj;
+    if (p.id) {
+      const fullP = allPlayers.find(x => x && (x.id === p.id || String(x.id) === String(p.id) || (toUUID(x.id) && toUUID(x.id) === toUUID(p.id))));
+      if (fullP) p = { ...fullP, ...p };
+    }
+  } else if (typeof pidOrObj === 'string' && pidOrObj) {
+    p = allPlayers.find(x => x && (x.id === pidOrObj || String(x.id) === String(pidOrObj) || (toUUID(x.id) && toUUID(x.id) === toUUID(pidOrObj)))) || { id: pidOrObj };
+  }
+
+  if (!p) return { name: 'Player', teamName: defaultTeam, photoUrl: '', player: null };
+
+  let teamName = '';
+  const pTeamId = p.teamId || p.team_id;
+  if (pTeamId) {
+    const t = allTeams.find(tt => tt && (tt.id === pTeamId || String(tt.id) === String(pTeamId) || (toUUID(tt.id) && toUUID(tt.id) === toUUID(pTeamId))));
+    if (t && t.name) teamName = t.name;
+  }
+  if (!teamName && p.id) {
+    const t = allTeams.find(tt => tt && (
+      (Array.isArray(tt.players) && (tt.players.includes(p.id) || (toUUID(p.id) && tt.players.some(pid => toUUID(pid) === toUUID(p.id))))) ||
+      (Array.isArray(tt.playerIds) && (tt.playerIds.includes(p.id) || (toUUID(p.id) && tt.playerIds.some(pid => toUUID(pid) === toUUID(p.id)))))
+    ));
+    if (t && t.name) teamName = t.name;
+  }
+  if (!teamName) {
+    teamName = p.teamName || p.team || defaultTeam || '';
+  }
+
+  const rawPhoto = p.photoUrl || p.player_photo_url || '';
+  const cleanPhoto = (rawPhoto && typeof rawPhoto === 'string' && !rawPhoto.includes('card_jsl_user') && !rawPhoto.includes('default')) ? rawPhoto : '';
+
+  return {
+    name: p.name || 'Player',
+    teamName: teamName,
+    photoUrl: cleanPhoto,
+    player: p
+  };
+}
+window.resolvePlayerAndTeam = resolvePlayerAndTeam;
+
+export function renderAwardAvatarHtml(player, name, fallbackInitials, accent = 'slate') {
+  const photo = player?.photoUrl || player?.player_photo_url;
+  const hasRealPhoto = photo && typeof photo === 'string' && photo.trim() !== '' && !photo.includes('card_jsl_user') && !photo.includes('default');
+  const initials = fallbackInitials || (name && name !== 'Player' && name !== 'Awaiting matches' ? name.split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() : '🏏');
+
+  if (hasRealPhoto) {
+    return `
+      <div class="w-full h-full relative flex items-center justify-center">
+        <img src="${photo}" alt="${name || 'Player'}" class="w-full h-full object-cover rounded-full" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';" />
+        <div style="display:none;" class="w-full h-full rounded-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 text-white font-black flex items-center justify-center text-sm sm:text-base tracking-wider shadow-inner select-none">
+          ${initials}
+        </div>
+      </div>
+    `;
+  }
+
+  // Deep colour avatar with crisp white bold initials (NO default set picture!)
+  return `
+    <div class="w-full h-full rounded-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-950 text-white font-black flex items-center justify-center text-sm sm:text-base tracking-wider shadow-inner select-none">
+      ${initials}
+    </div>
+  `;
+}
+
+export function renderTeamAvatarHtml(team) {
+  const logo = team?.logoUrl || team?.teamLogoUrl;
+  const hasLogo = logo && typeof logo === 'string' && logo.trim() !== '' && !logo.includes('card_jsl_user');
+  const initials = team?.name ? team.name.split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() : '🏆';
+
+  if (hasLogo) {
+    return `
+      <div class="w-full h-full relative flex items-center justify-center">
+        <img src="${logo}" alt="${team?.name || 'Team'}" class="w-full h-full object-cover rounded-full" onerror="this.style.display='none'; if(this.nextElementSibling) this.nextElementSibling.style.display='flex';" />
+        <div style="display:none;" class="w-full h-full rounded-full bg-gradient-to-br from-amber-600 via-amber-700 to-amber-900 text-white font-black flex items-center justify-center text-sm sm:text-base tracking-wider shadow-inner select-none">
+          ${initials}
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div class="w-full h-full rounded-full bg-gradient-to-br from-amber-600 via-amber-700 to-amber-900 text-white font-black flex items-center justify-center text-sm sm:text-base tracking-wider shadow-inner select-none">
+      ${initials}
+    </div>
+  `;
+}
+
+export function getChampionshipCategories({ topBatsman, topBowler, topSixes, topFours, topKeeper, topFielder, topMaidens, topDotBalls, topTeam, defaultTourneyName = 'Tournament' }) {
+  return [
+    {
+      id: 'runs',
+      badge: 'Orange Cap',
+      title: 'Most Runs',
+      icon: '🧢',
+      badgeBg: 'bg-amber-500 text-slate-950',
+      cardBorder: 'border-amber-200/80',
+      avatarBorder: 'border-amber-400 bg-amber-50',
+      statBoxBg: 'bg-amber-50/90 border-amber-100',
+      statNumColor: 'text-amber-950',
+      statLabelColor: 'text-amber-700',
+      rankColor: 'text-amber-700',
+      player: topBatsman,
+      name: topBatsman?.name,
+      teamName: topBatsman?.teamName || topBatsman?.team,
+      val: topBatsman?.totalRuns ?? topBatsman?.runs ?? 0,
+      unit: 'Runs',
+      accent: 'amber',
+      defaultSub: defaultTourneyName
+    },
+    {
+      id: 'wickets',
+      badge: 'Purple Cap',
+      title: 'Most Wickets',
+      icon: '⚡',
+      badgeBg: 'bg-purple-600 text-white',
+      cardBorder: 'border-purple-200/80',
+      avatarBorder: 'border-purple-400 bg-purple-50',
+      statBoxBg: 'bg-purple-50/90 border-purple-100',
+      statNumColor: 'text-purple-950',
+      statLabelColor: 'text-purple-700',
+      rankColor: 'text-purple-700',
+      player: topBowler,
+      name: topBowler?.name,
+      teamName: topBowler?.teamName || topBowler?.team,
+      val: topBowler?.totalWickets ?? topBowler?.wickets ?? 0,
+      unit: 'Wkts',
+      accent: 'purple',
+      defaultSub: defaultTourneyName
+    },
+    {
+      id: 'sixes',
+      badge: 'Max Sixes',
+      title: 'Most Sixes',
+      icon: '💥',
+      badgeBg: 'bg-rose-600 text-white',
+      cardBorder: 'border-rose-200/80',
+      avatarBorder: 'border-rose-400 bg-rose-50',
+      statBoxBg: 'bg-rose-50/90 border-rose-100',
+      statNumColor: 'text-rose-950',
+      statLabelColor: 'text-rose-700',
+      rankColor: 'text-rose-700',
+      player: topSixes,
+      name: topSixes?.name,
+      teamName: topSixes?.teamName || topSixes?.team,
+      val: topSixes?.totalSixes ?? topSixes?.sixes ?? 0,
+      unit: 'Sixes',
+      accent: 'rose',
+      defaultSub: defaultTourneyName
+    },
+    {
+      id: 'fours',
+      badge: 'Boundary King',
+      title: 'Most Fours',
+      icon: '🎯',
+      badgeBg: 'bg-teal-600 text-white',
+      cardBorder: 'border-teal-200/80',
+      avatarBorder: 'border-teal-400 bg-teal-50',
+      statBoxBg: 'bg-teal-50/90 border-teal-100',
+      statNumColor: 'text-teal-950',
+      statLabelColor: 'text-teal-700',
+      rankColor: 'text-teal-700',
+      player: topFours,
+      name: topFours?.name,
+      teamName: topFours?.teamName || topFours?.team,
+      val: topFours?.totalFours ?? topFours?.fours ?? 0,
+      unit: 'Fours',
+      accent: 'teal',
+      defaultSub: defaultTourneyName
+    },
+    {
+      id: 'keeper',
+      badge: 'Golden Glove',
+      title: 'Best Wicketkeeper',
+      icon: '🧤',
+      badgeBg: 'bg-blue-600 text-white',
+      cardBorder: 'border-blue-200/80',
+      avatarBorder: 'border-blue-400 bg-blue-50',
+      statBoxBg: 'bg-blue-50/90 border-blue-100',
+      statNumColor: 'text-blue-950',
+      statLabelColor: 'text-blue-700',
+      rankColor: 'text-blue-700',
+      player: topKeeper,
+      name: topKeeper?.name,
+      teamName: topKeeper?.teamName || topKeeper?.team,
+      val: (topKeeper?.stumpings || 0) + (topKeeper?.catches || 0),
+      unit: 'Dismissals',
+      accent: 'blue',
+      defaultSub: defaultTourneyName
+    },
+    {
+      id: 'fielder',
+      badge: 'Top Catches',
+      title: 'Best Fielder',
+      icon: '🦅',
+      badgeBg: 'bg-emerald-600 text-white',
+      cardBorder: 'border-emerald-200/80',
+      avatarBorder: 'border-emerald-400 bg-emerald-50',
+      statBoxBg: 'bg-emerald-50/90 border-emerald-100',
+      statNumColor: 'text-emerald-950',
+      statLabelColor: 'text-emerald-700',
+      rankColor: 'text-emerald-700',
+      player: topFielder,
+      name: topFielder?.name,
+      teamName: topFielder?.teamName || topFielder?.team,
+      val: topFielder?.fielding ?? topFielder?.catches ?? 0,
+      unit: 'Catches',
+      accent: 'emerald',
+      defaultSub: defaultTourneyName
+    },
+    {
+      id: 'maidens',
+      badge: 'Tight Bowling',
+      title: 'Maiden Overs',
+      icon: '🛡️',
+      badgeBg: 'bg-slate-700 text-white',
+      cardBorder: 'border-slate-200/80',
+      avatarBorder: 'border-slate-400 bg-slate-50',
+      statBoxBg: 'bg-slate-100/90 border-slate-200',
+      statNumColor: 'text-slate-900',
+      statLabelColor: 'text-slate-600',
+      rankColor: 'text-slate-700',
+      player: topMaidens,
+      name: topMaidens?.name,
+      teamName: topMaidens?.teamName || topMaidens?.team,
+      val: topMaidens?.totalMaidens ?? topMaidens?.maidens ?? 0,
+      unit: 'Maidens',
+      accent: 'slate',
+      defaultSub: defaultTourneyName
+    },
+    {
+      id: 'dotballs',
+      badge: 'Dot Master',
+      title: 'Most Dot Balls',
+      icon: '🎯',
+      badgeBg: 'bg-indigo-600 text-white',
+      cardBorder: 'border-indigo-200/80',
+      avatarBorder: 'border-indigo-400 bg-indigo-50',
+      statBoxBg: 'bg-indigo-50/90 border-indigo-100',
+      statNumColor: 'text-indigo-950',
+      statLabelColor: 'text-indigo-700',
+      rankColor: 'text-indigo-700',
+      player: topDotBalls,
+      name: topDotBalls?.name,
+      teamName: topDotBalls?.teamName || topDotBalls?.team,
+      val: topDotBalls?.totalDotBalls ?? topDotBalls?.dotBalls ?? 0,
+      unit: 'Dots',
+      accent: 'indigo',
+      defaultSub: defaultTourneyName
+    },
+    ...(topTeam ? [{
+      id: 'team',
+      badge: 'Best Franchise',
+      title: 'Best Team',
+      icon: '🏆',
+      badgeBg: 'bg-amber-600 text-white',
+      cardBorder: 'border-amber-200/80',
+      avatarBorder: 'border-amber-400 bg-amber-50',
+      statBoxBg: 'bg-amber-50/90 border-amber-100',
+      statNumColor: 'text-amber-950',
+      statLabelColor: 'text-amber-700',
+      rankColor: 'text-amber-700',
+      player: topTeam,
+      name: topTeam.name,
+      teamName: topTeam.group ? `Group ${topTeam.group}` : defaultTourneyName,
+      val: topTeam.played > 0 ? `${topTeam.points || 0} Pts` : '-',
+      unit: 'Points',
+      isTeam: true,
+      accent: 'amber',
+      defaultSub: defaultTourneyName
+    }] : [])
+  ];
+}
+
+export function renderChampionshipCardHtml(cat) {
+  const hasActiveLeader = cat.player && (cat.isTeam || Number(cat.val) > 0 || (typeof cat.val === 'string' && cat.val !== '-'));
+  const playerName = hasActiveLeader ? (cat.player?.name || cat.name || 'Player') : 'Awaiting matches';
+  const playerTeam = hasActiveLeader ? (cat.teamName || cat.player?.teamName || cat.player?.team || '') : '';
+  const displayVal = hasActiveLeader ? cat.val : '-';
+
+  return `
+    <div class="award-card bg-white rounded-3xl p-3.5 sm:p-4 shadow-sm border ${cat.cardBorder} flex flex-col items-center justify-between text-center relative overflow-hidden transition-all hover:shadow-md min-h-[250px] cursor-pointer group" data-award-key="${cat.id}" onclick="window.openTournamentAwardModal('${cat.id}')">
+      
+      <!-- Top Badge Row -->
+      <div class="w-full flex items-center justify-between gap-1 mb-1">
+        <span class="px-2 py-0.5 ${cat.badgeBg} font-black text-[8px] sm:text-[9px] rounded-full uppercase tracking-wider shadow-2xs flex items-center gap-1 shrink-0">
+          <span>${cat.icon}</span> <span>${cat.badge}</span>
+        </span>
+        <span class="text-[10px] font-black font-mono ${cat.rankColor}">#1</span>
+      </div>
+
+      <!-- Circular Avatar (Deep color / white initials, NO default silhouette!) -->
+      <div class="relative my-1.5">
+        <div class="w-16 h-16 sm:w-18 sm:h-18 rounded-full overflow-hidden border-2 ${cat.avatarBorder} shadow-sm shrink-0 flex items-center justify-center bg-slate-900">
+          ${cat.isTeam 
+            ? renderTeamAvatarHtml(cat.player) 
+            : renderAwardAvatarHtml(cat.player, playerName, playerName ? playerName.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase() : '🏏', cat.accent)}
+        </div>
+      </div>
+
+      <!-- Hero Stat Container Box -->
+      <div class="w-full ${cat.statBoxBg} rounded-2xl py-1.5 px-2 my-1 border">
+        <div class="text-2xl sm:text-3xl font-black font-mono tracking-tight leading-none ${cat.statNumColor}">
+          ${displayVal}
+        </div>
+        <div class="text-[9.5px] sm:text-[10px] font-bold uppercase tracking-wide mt-0.5 ${cat.statLabelColor}">
+          ${cat.title}
+        </div>
+      </div>
+
+      <!-- Player Name & Team -->
+      <div class="min-w-0 w-full pt-1">
+        <h4 class="text-xs sm:text-[13px] font-black text-slate-900 truncate uppercase leading-tight">
+          ${playerName}
+        </h4>
+        <p class="text-[9.5px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate mt-0.5">
+          ${playerTeam || (cat.defaultSub || 'Tournament')}
+        </p>
+      </div>
+
+      <!-- Option for View Full List -->
+      <div class="w-full pt-2 mt-2 border-t border-slate-100 flex items-center justify-center gap-1 text-[10px] font-black text-slate-600 group-hover:text-emerald-700 transition-colors">
+        <span>View Full List</span> <span class="transition-transform group-hover:translate-x-0.5">→</span>
+      </div>
+    </div>
+  `;
+}
+
+export function renderMvpPodiumHtml(mvpPlayer, tourneyName = 'Tournament') {
+  if (!mvpPlayer || (!mvpPlayer.mvp && !mvpPlayer.totalRuns && !mvpPlayer.totalWickets && !mvpPlayer.runs && !mvpPlayer.wickets)) {
+    return `
+      <div class="p-3.5 sm:p-4 bg-gradient-to-r from-amber-500/10 via-amber-50 to-white rounded-3xl text-slate-900 shadow-sm border border-amber-300/80 flex items-center justify-between gap-3 relative overflow-hidden">
+        <div class="space-y-1 min-w-0">
+          <div class="flex items-center gap-1.5">
+            <span class="px-2.5 py-0.5 bg-amber-500 text-slate-950 text-[8.5px] sm:text-[9px] font-black rounded-full uppercase tracking-wider shadow-2xs flex items-center gap-1">
+              <span>👑</span> <span>TOURNAMENT MVP</span>
+            </span>
+            <span class="text-[9px] font-bold text-amber-900">Official Leaderboard</span>
+          </div>
+          <h3 class="text-xs sm:text-sm font-black text-slate-900 leading-tight uppercase">Tournament MVP Leaderboard</h3>
+          <p class="text-[10px] text-slate-500 font-medium">Activates dynamically as match scorecards are recorded.</p>
+        </div>
+        <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-amber-100 border-2 border-amber-300 flex items-center justify-center text-2xl shadow-2xs shrink-0">
+          🏆
+        </div>
+      </div>
+    `;
+  }
+
+  const name = mvpPlayer.name || 'Player';
+  const team = mvpPlayer.teamName || mvpPlayer.team || tourneyName;
+  const runs = mvpPlayer.totalRuns ?? mvpPlayer.runs ?? 0;
+  const wkts = mvpPlayer.totalWickets ?? mvpPlayer.wickets ?? 0;
+  const sixes = mvpPlayer.totalSixes ?? mvpPlayer.sixes ?? 0;
+  const pts = mvpPlayer.mvp ?? 0;
+
+  return `
+    <div class="award-card p-3.5 sm:p-4 bg-gradient-to-r from-amber-500/15 via-amber-50 to-white rounded-3xl text-slate-900 shadow-sm border border-amber-300/90 flex items-center justify-between gap-3 relative overflow-hidden cursor-pointer hover:shadow-md transition-all group" data-award-key="mvp" onclick="window.openTournamentAwardModal('mvp')">
+      <div class="space-y-1 min-w-0">
+        <div class="flex items-center gap-1.5 flex-wrap">
+          <span class="px-2.5 py-0.5 bg-amber-500 text-slate-950 text-[8.5px] sm:text-[9px] font-black rounded-full uppercase tracking-wider shadow-2xs flex items-center gap-1">
+            <span>👑</span> <span>TOURNAMENT MVP</span>
+          </span>
+          <span class="text-[9px] font-bold text-amber-900 font-mono">#1 Live Leader</span>
+        </div>
+        <h3 class="text-sm sm:text-base font-black text-slate-900 leading-tight uppercase truncate">${name}</h3>
+        <p class="text-[10px] font-bold text-slate-500 uppercase tracking-wider truncate">${team}</p>
+        <p class="text-[10.5px] text-slate-600 font-medium">
+          Runs: <strong class="text-slate-900 font-mono">${runs}</strong> • Wkts: <strong class="text-slate-900 font-mono">${wkts}</strong> • 6s: <strong class="text-slate-900 font-mono">${sixes}</strong> • Pts: <strong class="text-amber-700 font-mono">${pts}</strong>
+        </p>
+        <div class="pt-0.5 flex items-center gap-1 text-[10px] font-black text-amber-800 group-hover:gap-1.5 transition-all">
+          <span>View Full List</span> <span class="transition-transform group-hover:translate-x-0.5">→</span>
+        </div>
+      </div>
+      <div class="w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden border-2 border-amber-400 shadow-sm shrink-0 flex items-center justify-center bg-slate-900">
+        ${renderAwardAvatarHtml(mvpPlayer, name, name ? name.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase() : '👑', 'amber')}
+      </div>
+    </div>
+  `;
+}
+
+export function openTournamentAwardModal(key, customCache = null) {
+  const cache = customCache || window.__cplAwardsCache;
+  if (!cache) return;
+  const { category, rows, standings } = cache;
+
+  // Per-award title/icon + which discipline table to draw.
+  const META = {
+    runs:        { icon:'🧢', title:'Orange Cap (Best Batsman)',        metric:'Most Runs',        accent:'amber',   group:'bat' },
+    fours:       { icon:'🎯', title:'Boundary King (Most Fours)',       metric:'Most Fours',       accent:'teal',    group:'bat' },
+    sixes:       { icon:'💥', title:'Max Sixes (Six Hitter)',           metric:'Most Sixes',       accent:'rose',    group:'bat' },
+    wickets:     { icon:'⚡', title:'Purple Cap (Best Bowler)',         metric:'Most Wickets',     accent:'purple',  group:'bowl' },
+    maidens:     { icon:'🛡️', title:'Tight Bowling (Maiden Overs)',     metric:'Most Maidens',     accent:'slate',   group:'bowl' },
+    stumpings:   { icon:'🧤', title:'Golden Glove (Best Wicketkeeper)', metric:'Most Dismissals',  accent:'blue',    group:'keep' },
+    keeper:      { icon:'🧤', title:'Golden Glove (Best Wicketkeeper)', metric:'Most Dismissals',  accent:'blue',    group:'keep' },
+    fielding:    { icon:'🦅', title:'Top Catches (Best Fielder)',       metric:'Catches + Run-outs',accent:'emerald',group:'field' },
+    fielder:     { icon:'🦅', title:'Top Catches (Best Fielder)',       metric:'Catches + Run-outs',accent:'emerald',group:'field' },
+    mvp:         { icon:'👑', title:'Tournament MVP',                   metric:'MVP Points',       accent:'amber',   group:'mvp' },
+    team:        { icon:'🏆', title:'Best Team',                        metric:'Points + NRR',     accent:'amber',   group:'team' },
+    dotballs:    { icon:'🎯', title:'Dot Master (Most Dot Balls)',      metric:'Most Dot Balls',   accent:'indigo',  group:'bowl' },
+    highest_score:{ icon:'👑', title:'Highest Individual Score',        metric:'Runs in an Innings',accent:'amber',  group:'bat' },
+    fastest_50:  { icon:'⚡', title:'Fastest Fifty',                    metric:'Balls to 50',        accent:'orange', group:'bat' },
+    fastest_100: { icon:'🚀', title:'Fastest Century',                  metric:'Balls to 100',       accent:'red',    group:'bat' },
+    best_partnership:{ icon:'🤝', title:'Best Partnership',             metric:'Partnership Runs',   accent:'emerald',group:'bat' },
+    innings_sixes:{ icon:'💥', title:'Innings Most Sixes',               metric:'Most Sixes',         accent:'rose',   group:'bat' },
+    innings_fours:{ icon:'🎯', title:'Innings Most Fours',               metric:'Most Fours',         accent:'cyan',   group:'bat' },
+    best_economy: { icon:'🛡️', title:'Best Economy Rate',                metric:'Economy Rate',       accent:'teal',   group:'bowl' },
+  };
+
+  const m = META[key] || META.mvp;
+  const sr = (r) => (r.balls > 0) ? (r.runs / r.balls * 100).toFixed(1) : '0.0';
+  const ov = (r) => ((r.ballsBowled || 0) / 6).toFixed(1);
+  const econ = (r) => (r.ballsBowled > 0) ? ((r.runsConceded || 0) / (r.ballsBowled / 6)).toFixed(2) : '0.00';
+
+  // Column set per discipline: {label, val(row), key? (highlight when === sortKey)}
+  const COLS = {
+    bat:   [ {l:'Runs',v:r=>r.runs||r.totalRuns||0,k:'runs'}, {l:'Balls',v:r=>r.balls||0}, {l:'4s',v:r=>r.fours||r.totalFours||0,k:'fours'}, {l:'6s',v:r=>r.sixes||r.totalSixes||0,k:'sixes'}, {l:'SR',v:sr} ],
+    bowl:  [ {l:'Wkts',v:r=>r.wickets||r.totalWickets||0,k:'wickets'}, {l:'Overs',v:ov}, {l:'Runs',v:r=>r.runsConceded||0}, {l:'Econ',v:econ}, {l:'Mdns',v:r=>r.maidens||r.totalMaidens||0,k:'maidens'}, {l:'Dots',v:r=>r.dotBalls||r.totalDotBalls||0,k:'dotballs'} ],
+    keep:  [ {l:'Stump',v:r=>r.stumpings||0,k:'stumpings'}, {l:'Catches',v:r=>r.catches||0}, {l:'Total',v:r=>(r.stumpings||0)+(r.catches||0),k:'keeper'} ],
+    field: [ {l:'Catches',v:r=>r.catches||0}, {l:'Run-outs',v:r=>r.runOuts||0}, {l:'Total',v:r=>r.fielding||((r.catches||0)+(r.runOuts||0)),k:'fielding'} ],
+    mvp:   [ {l:'MVP',v:r=>r.mvp||0,k:'mvp'}, {l:'Runs',v:r=>r.runs||r.totalRuns||0}, {l:'Wkts',v:r=>r.wickets||r.totalWickets||0}, {l:'6s',v:r=>r.sixes||r.totalSixes||0}, {l:'Fld',v:r=>r.fielding||0} ],
+  };
+
+  let headerCols, bodyRows;
+  if (m.group === 'team') {
+    headerCols = [ {l:'P'}, {l:'W'}, {l:'L'}, {l:'Pts',k:1}, {l:'NRR'} ];
+    const played = (standings || []).filter(t => t.played > 0);
+    const list = played.length > 0 ? played : (standings || []);
+    bodyRows = list.map((t, i) => {
+      const cells = [t.played, t.won, t.lost, `<span class="font-black text-amber-600">${t.points}</span>`, t.nrr];
+      return { rank: i + 1, name: t.name, sub: t.group ? `Group ${t.group}` : 'Franchise', player: t, cells };
+    });
+  } else {
+    const cols = COLS[m.group] || COLS.mvp;
+    const sortKey = (key === 'keeper') ? 'stumpings' : (key === 'fielder') ? 'fielding' : key;
+    headerCols = cols.map(c => ({ l: c.l, k: c.k === key || c.k === sortKey }));
+
+    // Everyone who has activity in this discipline, ranked by the award metric.
+    const include = (r) => m.group === 'mvp' ? (r.balls > 0 || r.ballsBowled > 0 || r.catches > 0 || r.stumpings > 0 || r.runOuts > 0 || r.mvp > 0)
+      : m.group === 'bat' ? (r.balls > 0 || r.runs > 0 || r.totalRuns > 0)
+      : m.group === 'bowl' ? (r.ballsBowled > 0 || r.wickets > 0 || r.totalWickets > 0 || r.dotBalls > 0)
+      : m.group === 'keep' ? (r.stumpings > 0 || r.catches > 0)
+      : (r.fielding > 0 || r.catches > 0);
+    const getEcon = (r) => r.ballsBowled > 0 ? (r.runsConceded / (r.ballsBowled / 6)) : 999;
+    const list = (rows || []).filter(include).sort((a, b) => {
+      const valA = (sortKey === 'runs' || sortKey === 'highest_score') ? (a.totalRuns ?? a.runs ?? 0)
+        : (sortKey === 'wickets') ? (a.totalWickets ?? a.wickets ?? 0)
+        : (sortKey === 'sixes' || sortKey === 'innings_sixes') ? (a.totalSixes ?? a.sixes ?? 0)
+        : (sortKey === 'fours' || sortKey === 'innings_fours') ? (a.totalFours ?? a.fours ?? 0)
+        : (sortKey === 'maidens') ? (a.totalMaidens ?? a.maidens ?? 0)
+        : (sortKey === 'dotballs') ? (a.totalDotBalls ?? a.dotBalls ?? 0)
+        : (sortKey === 'fielding') ? (a.fielding ?? ((a.catches||0)+(a.runOuts||0)))
+        : (sortKey === 'stumpings') ? ((a.stumpings||0)+(a.catches||0))
+        : (a[sortKey] || 0);
+
+      const valB = (sortKey === 'runs' || sortKey === 'highest_score') ? (b.totalRuns ?? b.runs ?? 0)
+        : (sortKey === 'wickets') ? (b.totalWickets ?? b.wickets ?? 0)
+        : (sortKey === 'sixes' || sortKey === 'innings_sixes') ? (b.totalSixes ?? b.sixes ?? 0)
+        : (sortKey === 'fours' || sortKey === 'innings_fours') ? (b.totalFours ?? b.fours ?? 0)
+        : (sortKey === 'maidens') ? (b.totalMaidens ?? b.maidens ?? 0)
+        : (sortKey === 'dotballs') ? (b.totalDotBalls ?? b.dotBalls ?? 0)
+        : (sortKey === 'fielding') ? (b.fielding ?? ((b.catches||0)+(b.runOuts||0)))
+        : (sortKey === 'stumpings') ? ((b.stumpings||0)+(b.catches||0))
+        : (b[sortKey] || 0);
+
+      const diff = valB - valA;
+      if (diff !== 0) return diff;
+      if (sortKey === 'wickets') {
+        const econDiff = getEcon(a) - getEcon(b);
+        if (Math.abs(econDiff) > 0.001) return econDiff;
+      }
+      return (b.mvp || 0) - (a.mvp || 0);
+    });
+
+    bodyRows = list.map((r, i) => {
+      const resolved = resolvePlayerAndTeam(r, r.teamName || r.team || '—');
+      return {
+        rank: i + 1,
+        name: resolved.name,
+        sub: resolved.teamName || '—',
+        photoUrl: resolved.photoUrl,
+        player: resolved.player || r,
+        cells: cols.map(c => c.k === key || c.k === sortKey ? `<span class="font-black text-${m.accent}-600">${c.v(r)}</span>` : c.v(r))
+      };
+    });
+  }
+
+  const bodyHtml = bodyRows.length ? bodyRows.map(br => `
+    <tr class="${br.rank === 1 ? `bg-${m.accent}-50/60` : 'hover:bg-slate-50'} border-b border-slate-100">
+      <td class="py-2.5 px-2 text-center">
+        <span class="inline-flex items-center justify-center w-6 h-6 rounded-lg text-[10px] font-black ${br.rank === 1 ? `bg-${m.accent}-600 text-white` : br.rank <= 3 ? `bg-${m.accent}-100 text-${m.accent}-700` : 'bg-slate-100 text-slate-500'}">${br.rank}</span>
+      </td>
+      <td class="py-2 px-2 min-w-0">
+        <div class="flex items-center gap-2 min-w-0">
+          <div class="w-8 h-8 rounded-full overflow-hidden shrink-0 border border-slate-200 bg-slate-900 flex items-center justify-center">
+            ${m.group === 'team' ? renderTeamAvatarHtml(br.player || { name: br.name }) : renderAwardAvatarHtml(br.player, br.name, br.name ? br.name.split(' ').map(w=>w[0]).slice(0,2).join('').toUpperCase() : '🏏')}
+          </div>
+          <div class="min-w-0">
+            <div class="text-xs font-black text-slate-900 truncate uppercase">${br.rank === 1 ? '👑 ' : ''}${br.name}</div>
+            <div class="text-[10px] font-bold text-slate-400 truncate uppercase">${br.sub}</div>
+          </div>
+        </div>
+      </td>
+      ${br.cells.map(c => `<td class="py-2.5 px-2 text-center text-xs font-bold text-slate-700 whitespace-nowrap font-mono">${c}</td>`).join('')}
+    </tr>`).join('') : `
+    <tr><td colspan="${headerCols.length + 2}" class="py-8 text-center text-xs font-bold text-slate-400">No players recorded for this award yet.</td></tr>`;
+
+  document.getElementById('tournament-award-modal')?.remove();
+  const modalHtml = `
+    <div id="tournament-award-modal" class="fixed inset-0 z-[70] modal-overlay flex items-center justify-center p-3 bg-slate-950/70 backdrop-blur-md animate-fade-in">
+      <div class="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200 flex flex-col max-h-[88vh] overflow-hidden">
+        <div class="flex items-center justify-between gap-3 p-4 border-b border-slate-100">
+          <div class="flex items-center gap-2.5 min-w-0">
+            <span class="w-10 h-10 rounded-2xl bg-${m.accent}-50 border border-${m.accent}-100 flex items-center justify-center text-xl shrink-0">${m.icon}</span>
+            <div class="min-w-0">
+              <div class="text-[9px] font-black uppercase tracking-wider text-${m.accent}-600">${category} · ${m.metric}</div>
+              <h3 class="text-base font-black text-slate-900 leading-tight truncate uppercase">${m.title}</h3>
+            </div>
+          </div>
+          <button id="close-award-modal" class="p-1.5 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all cursor-pointer shrink-0"><i data-lucide="x" class="w-5 h-5"></i></button>
+        </div>
+        <div class="overflow-auto">
+          <table class="w-full border-collapse">
+            <thead class="sticky top-0 bg-slate-50 z-10">
+              <tr class="border-b border-slate-200">
+                <th class="py-2.5 px-2 text-[9px] font-black uppercase tracking-wider text-slate-500 text-center w-10">#</th>
+                <th class="py-2.5 px-2 text-[9px] font-black uppercase tracking-wider text-slate-500 text-left">Player</th>
+                ${headerCols.map(h => `<th class="py-2.5 px-2 text-[9px] font-black uppercase tracking-wider text-center ${h.k ? `text-${m.accent}-600 font-black` : 'text-slate-500'} whitespace-nowrap">${h.l}</th>`).join('')}
+              </tr>
+            </thead>
+            <tbody>${bodyHtml}</tbody>
+          </table>
+        </div>
+        <div class="p-3 border-t border-slate-100 text-center bg-slate-50/50">
+          <span class="text-[10px] font-bold text-slate-400 font-mono">${bodyRows.length} ${m.group === 'team' ? 'team' : 'player'}${bodyRows.length !== 1 ? 's' : ''} · sorted by ${m.metric.toLowerCase()}</span>
+        </div>
+      </div>
+    </div>`;
+
+  document.body.insertAdjacentHTML('beforeend', modalHtml);
+  if (window.lucide) window.lucide.createIcons();
+  const modal = document.getElementById('tournament-award-modal');
+  const close = () => modal?.remove();
+  document.getElementById('close-award-modal')?.addEventListener('click', close);
+  modal?.addEventListener('click', (e) => { if (e.target === modal) close(); });
+}
+window.openTournamentAwardModal = openTournamentAwardModal;
 
 // --- DEDICATED CUSTOM TOURNAMENT HUB VIEW WITH DYNAMIC MULTI-TENANT ARCHITECTURE ---
 export function renderCustomTournamentHub(container, tourney) {
@@ -2969,11 +3521,14 @@ export function renderCustomTournamentHub(container, tourney) {
 
       let entry = playerStatsMap.get(pid);
       if (!entry) {
-        const playerObj = allPlayers.find(p => p.id === pid || (p.id && pid && toUUID(p.id) === toUUID(pid))) || {};
+        const resolved = resolvePlayerAndTeam(pid, tourney.name, allTeams, allPlayers);
         entry = {
           id: pid,
-          name: ps.name || playerObj.name || 'Unknown Player',
-          photoUrl: playerObj.photoUrl || playerObj.player_photo_url || 'assets/card_jsl_user.png',
+          name: ps.name || resolved.name || 'Unknown Player',
+          teamName: resolved.teamName || ps.teamName || ps.team || tourney.name || '',
+          team: resolved.teamName || ps.teamName || ps.team || tourney.name || '',
+          photoUrl: resolved.photoUrl || '',
+          player_photo_url: resolved.photoUrl || '',
           runs: 0,
           balls: 0,
           fours: 0,
@@ -2986,11 +3541,16 @@ export function renderCustomTournamentHub(container, tourney) {
           catches: 0,
           stumpings: 0,
           runOuts: 0,
-          age: playerObj.age
+          dotBalls: 0,
+          age: resolved.player?.age
         };
         playerStatsMap.set(pid, entry);
       }
 
+      if (ps.teamName && !entry.teamName) {
+        entry.teamName = ps.teamName;
+        entry.team = ps.teamName;
+      }
       entry.runs += Number(ps.runs || ps.runsScored || 0);
       entry.balls += Number(ps.balls || ps.ballsFaced || 0);
       entry.fours += Number(ps.fours || ps['4s'] || 0);
@@ -3002,6 +3562,7 @@ export function renderCustomTournamentHub(container, tourney) {
       entry.catches += Number(ps.catches || 0);
       entry.stumpings += Number(ps.stumpings || 0);
       entry.runOuts += Number(ps.runOuts || 0);
+      entry.dotBalls += Number(ps.dotBalls || ps.dots || 0);
     });
   });
 
@@ -3022,6 +3583,13 @@ export function renderCustomTournamentHub(container, tourney) {
     };
   });
 
+  // Stash tournament awards cache for the modal
+  window.__cplAwardsCache = {
+    category: tourney.name || 'Tournament Hub',
+    rows: tournamentPlayerStats,
+    standings: computeTeamStandings(teams, allFixtures)
+  };
+
   const topBatsman = tournamentPlayerStats.filter(p => p.totalRuns > 0).sort((a, b) => b.totalRuns - a.totalRuns)[0] || null;
   const topBowler = tournamentPlayerStats.filter(p => p.totalWickets > 0).sort((a, b) => b.totalWickets - a.totalWickets)[0] || null;
   const topSixes = tournamentPlayerStats.filter(p => p.totalSixes > 0).sort((a, b) => b.totalSixes - a.totalSixes)[0] || null;
@@ -3029,7 +3597,7 @@ export function renderCustomTournamentHub(container, tourney) {
   const topMaidens = tournamentPlayerStats.filter(p => p.totalMaidens > 0).sort((a, b) => b.totalMaidens - a.totalMaidens)[0] || null;
   const topDotBalls = tournamentPlayerStats.filter(p => p.totalDotBalls > 0).sort((a, b) => b.totalDotBalls - a.totalDotBalls)[0] || null;
   const topTwos = tournamentPlayerStats.filter(p => p.totalTwos > 0).sort((a, b) => b.totalTwos - a.totalTwos)[0] || null;
-  const topKeeper = tournamentPlayerStats.filter(p => p.stumpings > 0).sort((a, b) => b.stumpings - a.stumpings)[0] || null;
+  const topKeeper = tournamentPlayerStats.filter(p => (p.stumpings + p.catches) > 0).sort((a, b) => (b.stumpings + b.catches) - (a.stumpings + a.catches))[0] || null;
   const topFielder = tournamentPlayerStats.filter(p => p.fielding > 0).sort((a, b) => b.fielding - a.fielding)[0] || null;
   const emergingPlayer = tournamentPlayerStats.filter(p => p.age && Number(p.age) <= 19 && (p.totalRuns > 0 || p.totalWickets > 0)).sort((a, b) => (b.totalRuns + b.totalWickets * 20) - (a.totalRuns + a.totalWickets * 20))[0] || null;
   const topMVP = tournamentPlayerStats.filter(p => p.mvp > 0).sort((a, b) => b.mvp - a.mvp)[0] || null;
@@ -3057,7 +3625,7 @@ export function renderCustomTournamentHub(container, tourney) {
           teamName: state.bestPartnership.teamName || tourney.name,
           val: `${pRuns} Runs`,
           rawVal: pRuns,
-          photoUrl: 'assets/card_jsl_user.png'
+          photoUrl: ''
         };
       }
     }
@@ -3067,11 +3635,10 @@ export function renderCustomTournamentHub(container, tourney) {
     Object.keys(pStats).forEach(pid => {
       const ps = pStats[pid];
       if (!ps) return;
-      const playerObj = allPlayers.find(p => p.id === pid || (p.id && pid && toUUID(p.id) === toUUID(pid))) || {};
-      const teamObj = allTeams.find(t => t.id === playerObj.teamId || t.id === playerObj.team_id || (t.players && t.players.includes(pid)));
-      const teamName = teamObj?.name || playerObj.teamName || playerObj.team || tourney.name || 'Tournament';
-      const pPhoto = playerObj.photoUrl || playerObj.player_photo_url || ps.photoUrl || 'assets/card_jsl_user.png';
-      const pName = ps.name || playerObj.name || 'Player';
+      const resolved = resolvePlayerAndTeam(pid, tourney.name, allTeams, allPlayers);
+      const teamName = resolved.teamName || ps.teamName || ps.team || tourney.name || 'Tournament';
+      const pPhoto = resolved.photoUrl || '';
+      const pName = ps.name || resolved.name || 'Player';
 
       const runs = Number(ps.runs || ps.runsScored || 0);
       const balls = Number(ps.balls || ps.ballsFaced || 0);
@@ -3183,7 +3750,7 @@ export function renderCustomTournamentHub(container, tourney) {
           teamName: p1.teamName || tourney.name,
           val: `${combined} Runs`,
           rawVal: combined,
-          photoUrl: p1.photoUrl || 'assets/card_jsl_user.png'
+          photoUrl: p1.photoUrl || ''
         };
       }
     }
@@ -4343,225 +4910,25 @@ export function renderCustomTournamentHub(container, tourney) {
       <div id="hub-tab-stats" class="hidden space-y-3 animate-fade-in">
         
         <!-- 1. BEST MVP PLAYER PODIUM BOX (IPL PRO CHAMPIONSHIP STYLE) -->
-        ${topMVP ? `
-          <div class="p-3.5 sm:p-4 bg-gradient-to-r from-amber-500/15 via-amber-50 to-white rounded-3xl text-slate-900 shadow-sm border border-amber-300/90 flex items-center justify-between gap-3 relative overflow-hidden">
-            <div class="space-y-1 min-w-0">
-              <div class="flex items-center gap-1.5">
-                <span class="px-2.5 py-0.5 bg-amber-500 text-slate-950 text-[8.5px] sm:text-[9px] font-black rounded-full uppercase tracking-wider shadow-2xs flex items-center gap-1">
-                  <span>👑</span> <span>TOURNAMENT MVP</span>
-                </span>
-                <span class="text-[9px] font-bold text-amber-900 font-mono">#1 Live Leader</span>
-              </div>
-              <h3 class="text-sm sm:text-base font-black text-slate-900 leading-tight uppercase truncate">${topMVP.name}</h3>
-              <p class="text-[10.5px] text-slate-600 font-medium">
-                Runs: <strong class="text-slate-900 font-mono">${topMVP.totalRuns || 0}</strong> • Wkts: <strong class="text-slate-900 font-mono">${topMVP.totalWickets || 0}</strong> • 6s: <strong class="text-slate-900 font-mono">${topMVP.totalSixes || 0}</strong> • Pts: <strong class="text-amber-700 font-mono">${topMVP.mvp || 0}</strong>
-              </p>
-            </div>
-            <div class="w-14 h-14 sm:w-16 sm:h-16 rounded-full overflow-hidden border-2 border-amber-400 shadow-sm shrink-0 bg-white">
-              <img src="${topMVP.photoUrl || topMVP.player_photo_url || 'assets/card_jsl_user.png'}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
-            </div>
-          </div>
-        ` : `
-          <div class="p-3.5 sm:p-4 bg-gradient-to-r from-amber-500/10 via-amber-50 to-white rounded-3xl text-slate-900 shadow-sm border border-amber-300/80 flex items-center justify-between gap-3 relative overflow-hidden">
-            <div class="space-y-1 min-w-0">
-              <div class="flex items-center gap-1.5">
-                <span class="px-2.5 py-0.5 bg-amber-500 text-slate-950 text-[8.5px] sm:text-[9px] font-black rounded-full uppercase tracking-wider shadow-2xs flex items-center gap-1">
-                  <span>👑</span> <span>TOURNAMENT MVP</span>
-                </span>
-                <span class="text-[9px] font-bold text-amber-900">Official Leaderboard</span>
-              </div>
-              <h3 class="text-xs sm:text-sm font-black text-slate-900 leading-tight uppercase">Tournament MVP Leaderboard</h3>
-              <p class="text-[10px] text-slate-500 font-medium">Activates dynamically as match scorecards are recorded.</p>
-            </div>
-            <div class="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-amber-100 border-2 border-amber-300 flex items-center justify-center text-2xl shadow-2xs shrink-0">
-              🏆
-            </div>
-          </div>
-        `}
+        ${renderMvpPodiumHtml(topMVP, tourney.name)}
 
         <!-- 2. AWARDS LEADERBOARD GRID (IPL PRO CHAMPIONSHIP CARDS - DESIGN 2) -->
         <div class="grid grid-cols-2 gap-3 sm:gap-4">
-          
           ${(() => {
-            const categories = [
-              {
-                id: 'runs',
-                badge: 'Orange Cap',
-                title: 'Most Runs',
-                icon: '🧢',
-                badgeBg: 'bg-amber-500 text-slate-950',
-                cardBorder: 'border-amber-200/80',
-                avatarBorder: 'border-amber-400 bg-amber-50',
-                statBoxBg: 'bg-amber-50/90 border-amber-100',
-                statNumColor: 'text-amber-950',
-                statLabelColor: 'text-amber-700',
-                rankColor: 'text-amber-700',
-                player: topBatsman,
-                val: topBatsman?.totalRuns || topBatsman?.runs || 0,
-                unit: 'Runs'
-              },
-              {
-                id: 'wickets',
-                badge: 'Purple Cap',
-                title: 'Most Wickets',
-                icon: '⚡',
-                badgeBg: 'bg-purple-600 text-white',
-                cardBorder: 'border-purple-200/80',
-                avatarBorder: 'border-purple-400 bg-purple-50',
-                statBoxBg: 'bg-purple-50/90 border-purple-100',
-                statNumColor: 'text-purple-950',
-                statLabelColor: 'text-purple-700',
-                rankColor: 'text-purple-700',
-                player: topBowler,
-                val: topBowler?.totalWickets || topBowler?.wickets || 0,
-                unit: 'Wkts'
-              },
-              {
-                id: 'sixes',
-                badge: 'Max Sixes',
-                title: 'Most Sixes',
-                icon: '💥',
-                badgeBg: 'bg-rose-600 text-white',
-                cardBorder: 'border-rose-200/80',
-                avatarBorder: 'border-rose-400 bg-rose-50',
-                statBoxBg: 'bg-rose-50/90 border-rose-100',
-                statNumColor: 'text-rose-950',
-                statLabelColor: 'text-rose-700',
-                rankColor: 'text-rose-700',
-                player: topSixes,
-                val: topSixes?.totalSixes || topSixes?.sixes || 0,
-                unit: 'Sixes'
-              },
-              {
-                id: 'fours',
-                badge: 'Boundary King',
-                title: 'Most Fours',
-                icon: '🎯',
-                badgeBg: 'bg-teal-600 text-white',
-                cardBorder: 'border-teal-200/80',
-                avatarBorder: 'border-teal-400 bg-teal-50',
-                statBoxBg: 'bg-teal-50/90 border-teal-100',
-                statNumColor: 'text-teal-950',
-                statLabelColor: 'text-teal-700',
-                rankColor: 'text-teal-700',
-                player: topFours,
-                val: topFours?.totalFours || topFours?.fours || 0,
-                unit: 'Fours'
-              },
-              {
-                id: 'keeper',
-                badge: 'Golden Glove',
-                title: 'Best Wicketkeeper',
-                icon: '🧤',
-                badgeBg: 'bg-blue-600 text-white',
-                cardBorder: 'border-blue-200/80',
-                avatarBorder: 'border-blue-400 bg-blue-50',
-                statBoxBg: 'bg-blue-50/90 border-blue-100',
-                statNumColor: 'text-blue-950',
-                statLabelColor: 'text-blue-700',
-                rankColor: 'text-blue-700',
-                player: topKeeper,
-                val: topKeeper?.dismissals || topKeeper?.catches || 0,
-                unit: 'Dismissals'
-              },
-              {
-                id: 'fielder',
-                badge: 'Top Catches',
-                title: 'Best Fielder',
-                icon: '🦅',
-                badgeBg: 'bg-emerald-600 text-white',
-                cardBorder: 'border-emerald-200/80',
-                avatarBorder: 'border-emerald-400 bg-emerald-50',
-                statBoxBg: 'bg-emerald-50/90 border-emerald-100',
-                statNumColor: 'text-emerald-950',
-                statLabelColor: 'text-emerald-700',
-                rankColor: 'text-emerald-700',
-                player: topFielder,
-                val: topFielder?.catches || 0,
-                unit: 'Catches'
-              },
-              {
-                id: 'maidens',
-                badge: 'Tight Bowling',
-                title: 'Maiden Overs',
-                icon: '🛡️',
-                badgeBg: 'bg-slate-700 text-white',
-                cardBorder: 'border-slate-200/80',
-                avatarBorder: 'border-slate-400 bg-slate-50',
-                statBoxBg: 'bg-slate-100/90 border-slate-200',
-                statNumColor: 'text-slate-900',
-                statLabelColor: 'text-slate-600',
-                rankColor: 'text-slate-700',
-                player: topMaidens,
-                val: topMaidens?.totalMaidens || topMaidens?.maidens || 0,
-                unit: 'Maidens'
-              },
-              {
-                id: 'dotballs',
-                badge: 'Dot Master',
-                title: 'Most Dot Balls',
-                icon: '🎯',
-                badgeBg: 'bg-indigo-600 text-white',
-                cardBorder: 'border-indigo-200/80',
-                avatarBorder: 'border-indigo-400 bg-indigo-50',
-                statBoxBg: 'bg-indigo-50/90 border-indigo-100',
-                statNumColor: 'text-indigo-950',
-                statLabelColor: 'text-indigo-700',
-                rankColor: 'text-indigo-700',
-                player: topDotBalls,
-                val: topDotBalls?.totalDotBalls || topDotBalls?.dotBalls || 0,
-                unit: 'Dots'
-              }
-            ];
-
-            return categories.map(cat => {
-              const hasActiveLeader = cat.player && (Number(cat.val) > 0);
-              const playerPhoto = cat.player?.photoUrl || cat.player?.player_photo_url || 'assets/card_jsl_user.png';
-              const playerObj = allPlayers.find(p => p.id === cat.player?.id || (p.id && cat.player?.id && toUUID(p.id) === toUUID(cat.player.id))) || {};
-              const playerTeam = allTeams.find(t => t.id === playerObj.teamId || t.id === playerObj.team_id || (t.players && t.players.includes(cat.player?.id)))?.name || playerObj.teamName || playerObj.team || cat.player?.teamName || cat.player?.team || tourney.name || 'Tournament';
-
-              return `
-                <div class="bg-white rounded-3xl p-3.5 sm:p-4 shadow-sm border ${cat.cardBorder} flex flex-col items-center justify-between text-center relative overflow-hidden transition-all hover:shadow-md min-h-[225px]">
-                  
-                  <!-- Top Badge Row -->
-                  <div class="w-full flex items-center justify-between gap-1 mb-1">
-                    <span class="px-2 py-0.5 ${cat.badgeBg} font-black text-[8px] sm:text-[9px] rounded-full uppercase tracking-wider shadow-2xs flex items-center gap-1 shrink-0">
-                      <span>${cat.icon}</span> <span>${cat.badge}</span>
-                    </span>
-                    <span class="text-[10px] font-black font-mono ${cat.rankColor}">#1</span>
-                  </div>
-
-                  <!-- Circular Player Avatar -->
-                  <div class="relative my-1.5">
-                    <div class="w-16 h-16 sm:w-18 sm:h-18 rounded-full overflow-hidden border-2 ${cat.avatarBorder} shadow-sm bg-slate-50 shrink-0">
-                      <img src="${playerPhoto}" alt="${hasActiveLeader ? cat.player.name : 'Player'}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
-                    </div>
-                  </div>
-
-                  <!-- Hero Stat Container Box -->
-                  <div class="w-full ${cat.statBoxBg} rounded-2xl py-1.5 px-2 my-1 border">
-                    <div class="text-2xl sm:text-3xl font-black font-mono tracking-tight leading-none ${cat.statNumColor}">
-                      ${hasActiveLeader ? cat.val : '-'}
-                    </div>
-                    <div class="text-[9.5px] sm:text-[10px] font-bold uppercase tracking-wide mt-0.5 ${cat.statLabelColor}">
-                      ${cat.title}
-                    </div>
-                  </div>
-
-                  <!-- Player Name & Team -->
-                  <div class="min-w-0 w-full pt-1">
-                    <h4 class="text-xs sm:text-[13px] font-black text-slate-900 truncate uppercase leading-tight">
-                      ${hasActiveLeader ? cat.player.name : 'Awaiting matches'}
-                    </h4>
-                    <p class="text-[9.5px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate mt-0.5">
-                      ${hasActiveLeader ? playerTeam : (tourney.name || 'Tournament')}
-                    </p>
-                  </div>
-                </div>
-              `;
-            }).join('');
+            const hubCategories = getChampionshipCategories({
+              topBatsman,
+              topBowler,
+              topSixes,
+              topFours,
+              topKeeper,
+              topFielder,
+              topMaidens,
+              topDotBalls,
+              topTeam,
+              defaultTourneyName: tourney.name
+            });
+            return hubCategories.map(renderChampionshipCardHtml).join('');
           })()}
-
         </div>
 
         <!-- 3. VIEW MORE STATISTICS TOGGLE & 7 ADDITIONAL MILESTONE CARDS (DESIGN 2) -->
@@ -4588,6 +4955,7 @@ export function renderCustomTournamentHub(container, tourney) {
                   statNumColor: 'text-amber-950',
                   statLabelColor: 'text-amber-700',
                   rankColor: 'text-amber-700',
+                  accent: 'amber',
                   data: recordHighestScore
                 },
                 {
@@ -4602,6 +4970,7 @@ export function renderCustomTournamentHub(container, tourney) {
                   statNumColor: 'text-orange-950',
                   statLabelColor: 'text-orange-700',
                   rankColor: 'text-orange-700',
+                  accent: 'orange',
                   data: recordFastest50
                 },
                 {
@@ -4616,6 +4985,7 @@ export function renderCustomTournamentHub(container, tourney) {
                   statNumColor: 'text-red-950',
                   statLabelColor: 'text-red-700',
                   rankColor: 'text-red-700',
+                  accent: 'red',
                   data: recordFastest100
                 },
                 {
@@ -4630,6 +5000,7 @@ export function renderCustomTournamentHub(container, tourney) {
                   statNumColor: 'text-emerald-950',
                   statLabelColor: 'text-emerald-700',
                   rankColor: 'text-emerald-700',
+                  accent: 'emerald',
                   data: recordBestPartnership
                 },
                 {
@@ -4644,6 +5015,7 @@ export function renderCustomTournamentHub(container, tourney) {
                   statNumColor: 'text-rose-950',
                   statLabelColor: 'text-rose-700',
                   rankColor: 'text-rose-700',
+                  accent: 'rose',
                   data: recordInningsSixes
                 },
                 {
@@ -4658,6 +5030,7 @@ export function renderCustomTournamentHub(container, tourney) {
                   statNumColor: 'text-cyan-950',
                   statLabelColor: 'text-cyan-700',
                   rankColor: 'text-cyan-700',
+                  accent: 'cyan',
                   data: recordInningsFours
                 },
                 {
@@ -4672,20 +5045,20 @@ export function renderCustomTournamentHub(container, tourney) {
                   statNumColor: 'text-teal-950',
                   statLabelColor: 'text-teal-700',
                   rankColor: 'text-teal-700',
+                  accent: 'teal',
                   data: recordBestEconomy
                 }
               ];
 
               return moreCategories.map(cat => {
                 const item = cat.data;
-                const hasLeader = !!item && !!item.val;
-                const photo = item?.photoUrl || 'assets/card_jsl_user.png';
                 const name = item?.name || 'Awaiting matches';
                 const team = item?.teamName || tourney.name || 'Tournament';
                 const val = item?.val || '-';
+                const initials = (name && name !== 'Player' && name !== 'Awaiting matches') ? name.split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() : '🏏';
 
                 return `
-                  <div class="bg-white rounded-3xl p-3.5 sm:p-4 shadow-sm border ${cat.cardBorder} flex flex-col items-center justify-between text-center relative overflow-hidden transition-all hover:shadow-md min-h-[225px]">
+                  <div class="award-card bg-white rounded-3xl p-3.5 sm:p-4 shadow-sm border ${cat.cardBorder} flex flex-col items-center justify-between text-center relative overflow-hidden transition-all hover:shadow-md min-h-[250px] cursor-pointer group" data-award-key="${cat.id}" onclick="window.openTournamentAwardModal('${cat.id}')">
                     
                     <!-- Top Badge Row -->
                     <div class="w-full flex items-center justify-between gap-1 mb-1">
@@ -4695,10 +5068,10 @@ export function renderCustomTournamentHub(container, tourney) {
                       <span class="text-[10px] font-black font-mono ${cat.rankColor}">#1</span>
                     </div>
 
-                    <!-- Circular Player Avatar -->
+                    <!-- Circular Player Avatar (Deep color gradient, NO default silhouette!) -->
                     <div class="relative my-1.5">
-                      <div class="w-16 h-16 sm:w-18 sm:h-18 rounded-full overflow-hidden border-2 ${cat.avatarBorder} shadow-sm bg-slate-50 shrink-0">
-                        <img src="${photo}" alt="${name}" class="w-full h-full object-cover" onerror="this.src='assets/card_jsl_user.png'" />
+                      <div class="w-16 h-16 sm:w-18 sm:h-18 rounded-full overflow-hidden border-2 ${cat.avatarBorder} shadow-sm shrink-0 flex items-center justify-center bg-slate-900">
+                        ${renderAwardAvatarHtml(item, name, initials, cat.accent || 'amber')}
                       </div>
                     </div>
 
@@ -4720,6 +5093,11 @@ export function renderCustomTournamentHub(container, tourney) {
                       <p class="text-[9.5px] sm:text-[10px] font-bold text-slate-400 uppercase tracking-wider truncate mt-0.5">
                         ${team}
                       </p>
+                    </div>
+
+                    <!-- Option for View Full List -->
+                    <div class="w-full pt-2 mt-2 border-t border-slate-100 flex items-center justify-center gap-1 text-[10px] font-black text-slate-600 group-hover:text-emerald-700 transition-colors">
+                      <span>View Full List</span> <span class="transition-transform group-hover:translate-x-0.5">→</span>
                     </div>
                   </div>
                 `;
@@ -4827,6 +5205,14 @@ export function renderCustomTournamentHub(container, tourney) {
       }
     });
   }
+
+  // Award cards in Tournament Hub -> open the full ranked leaderboard
+  container.querySelectorAll('#hub-tab-stats .award-card').forEach(card => {
+    card.addEventListener('click', (e) => {
+      const key = e.currentTarget.getAttribute('data-award-key');
+      if (key) openTournamentAwardModal(key);
+    });
+  });
 
   // If URL has a tab param, open that section directly
   if (hubTab && hubTab !== 'home') {
@@ -8926,125 +9312,6 @@ function renderFixturesView(container) {
       </div>`;
   };
 
-  // Full "every player" leaderboard for a clicked award card. Reads the cache the
-  // Awards tab stashed on window.__cplAwardsCache when it last rendered.
-  const openTournamentAwardModal = (key) => {
-    const cache = window.__cplAwardsCache;
-    if (!cache) return;
-    const { category, rows, standings } = cache;
-
-    // Per-award title/icon + which discipline table to draw.
-    const META = {
-      runs:      { icon:'🏏', title:'Best Batsman',      metric:'Most Runs',        accent:'emerald', group:'bat' },
-      fours:     { icon:'🏸', title:'Four Hitter',       metric:'Most Fours',       accent:'cyan',    group:'bat' },
-      sixes:     { icon:'💥', title:'Six Hitter',        metric:'Most Sixes',       accent:'amber',   group:'bat' },
-      wickets:   { icon:'🎯', title:'Best Bowler',       metric:'Most Wickets',     accent:'rose',    group:'bowl' },
-      maidens:   { icon:'🛡️', title:'Best Maiden Overs', metric:'Most Maidens',     accent:'slate',   group:'bowl' },
-      stumpings: { icon:'🧤', title:'Best Wicketkeeper',  metric:'Most Stumpings',   accent:'violet',  group:'keep' },
-      fielding:  { icon:'🤾', title:'Best Fielder',       metric:'Catches + Run-outs',accent:'sky',    group:'field' },
-      mvp:       { icon:'⭐', title:'Tournament MVP',      metric:'Weighted Composite',accent:'fuchsia',group:'mvp' },
-      team:      { icon:'🏆', title:'Best Team',          metric:'Wins + NRR',       accent:'amber',   group:'team' },
-    };
-    const m = META[key] || META.mvp;
-    const sr = (r) => r.balls > 0 ? (r.runs / r.balls * 100).toFixed(1) : '0.0';
-    const ov = (r) => (r.ballsBowled / 6).toFixed(1);
-    const econ = (r) => r.ballsBowled > 0 ? (r.runsConceded / (r.ballsBowled / 6)).toFixed(2) : '0.00';
-
-    // Column set per discipline: {label, val(row), key? (highlight when === sortKey)}
-    const COLS = {
-      bat:   [ {l:'Runs',v:r=>r.runs,k:'runs'}, {l:'Balls',v:r=>r.balls}, {l:'4s',v:r=>r.fours,k:'fours'}, {l:'6s',v:r=>r.sixes,k:'sixes'}, {l:'SR',v:sr} ],
-      bowl:  [ {l:'Wkts',v:r=>r.wickets,k:'wickets'}, {l:'Overs',v:ov}, {l:'Runs',v:r=>r.runsConceded}, {l:'Econ',v:econ}, {l:'Mdns',v:r=>r.maidens,k:'maidens'} ],
-      keep:  [ {l:'Stump',v:r=>r.stumpings,k:'stumpings'}, {l:'Catches',v:r=>r.catches} ],
-      field: [ {l:'Catches',v:r=>r.catches}, {l:'Run-outs',v:r=>r.runOuts}, {l:'Total',v:r=>r.fielding,k:'fielding'} ],
-      mvp:   [ {l:'MVP',v:r=>r.mvp,k:'mvp'}, {l:'Runs',v:r=>r.runs}, {l:'Wkts',v:r=>r.wickets}, {l:'Fld',v:r=>r.fielding} ],
-    };
-
-    let headerCols, bodyRows;
-    if (m.group === 'team') {
-      headerCols = [ {l:'P'}, {l:'W'}, {l:'L'}, {l:'Pts',k:1}, {l:'NRR'} ];
-      const played = (standings || []).filter(t => t.played > 0);
-      bodyRows = played.map((t, i) => {
-        const cells = [t.played, t.won, t.lost, `<span class="font-black text-amber-600">${t.points}</span>`, t.nrr];
-        return { rank:i+1, name:t.name, sub:`Group ${t.group}`, cells };
-      });
-    } else {
-      const cols = COLS[m.group];
-      headerCols = cols.map(c => ({ l:c.l, k: c.k === key }));
-      // Everyone who has activity in this discipline, ranked by the award metric.
-      const include = (r) => m.group === 'mvp' ? (r.balls > 0 || r.ballsBowled > 0 || r.catches > 0 || r.stumpings > 0 || r.runOuts > 0)
-        : m.group === 'bat' ? (r.balls > 0 || r.runs > 0)
-        : m.group === 'bowl' ? (r.ballsBowled > 0 || r.wickets > 0)
-        : m.group === 'keep' ? (r.stumpings > 0 || r.catches > 0)
-        : (r.fielding > 0);
-      const getEcon = (r) => r.ballsBowled > 0 ? (r.runsConceded / (r.ballsBowled / 6)) : 999;
-      const list = (rows || []).filter(include).sort((a, b) => {
-        const diff = (b[key] || 0) - (a[key] || 0);
-        if (diff !== 0) return diff;
-        if (key === 'wickets') {
-          const econDiff = getEcon(a) - getEcon(b);
-          if (Math.abs(econDiff) > 0.001) return econDiff;
-        }
-        return (b.mvp || 0) - (a.mvp || 0);
-      });
-      bodyRows = list.map((r, i) => ({
-        rank: i+1, name: r.name, sub: r.team || '—',
-        cells: cols.map(c => c.k === key ? `<span class="font-black text-${m.accent}-600">${c.v(r)}</span>` : c.v(r))
-      }));
-    }
-
-    const bodyHtml = bodyRows.length ? bodyRows.map(br => `
-      <tr class="${br.rank === 1 ? `bg-${m.accent}-50/60` : 'hover:bg-slate-50'} border-b border-slate-100">
-        <td class="py-2 px-2 text-center">
-          <span class="inline-flex items-center justify-center w-6 h-6 rounded-lg text-[10px] font-black ${br.rank===1?`bg-${m.accent}-600 text-white`:br.rank<=3?`bg-${m.accent}-100 text-${m.accent}-700`:'bg-slate-100 text-slate-500'}">${br.rank}</span>
-        </td>
-        <td class="py-2 px-2 min-w-0">
-          <div class="text-xs font-black text-slate-900 truncate">${br.rank===1?'👑 ':''}${br.name}</div>
-          <div class="text-[10px] font-bold text-slate-400 truncate">${br.sub}</div>
-        </td>
-        ${br.cells.map(c => `<td class="py-2 px-2 text-center text-xs font-bold text-slate-700 whitespace-nowrap">${c}</td>`).join('')}
-      </tr>`).join('') : `
-      <tr><td colspan="${headerCols.length + 2}" class="py-8 text-center text-xs font-bold text-slate-400">No players recorded for this award yet.</td></tr>`;
-
-    document.getElementById('tournament-award-modal')?.remove();
-    const modalHtml = `
-      <div id="tournament-award-modal" class="fixed inset-0 z-[70] modal-overlay flex items-center justify-center p-3 bg-slate-950/70 backdrop-blur-md animate-fade-in">
-        <div class="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200 flex flex-col max-h-[88vh] overflow-hidden">
-          <div class="flex items-center justify-between gap-3 p-4 border-b border-slate-100">
-            <div class="flex items-center gap-2.5 min-w-0">
-              <span class="w-10 h-10 rounded-2xl bg-${m.accent}-50 border border-${m.accent}-100 flex items-center justify-center text-xl shrink-0">${m.icon}</span>
-              <div class="min-w-0">
-                <div class="text-[9px] font-black uppercase tracking-wider text-${m.accent}-600">${category} · ${m.metric}</div>
-                <h3 class="text-base font-black text-slate-900 leading-tight truncate">${m.title}</h3>
-              </div>
-            </div>
-            <button id="close-award-modal" class="p-1.5 text-slate-400 hover:text-slate-900 hover:bg-slate-100 rounded-xl transition-all cursor-pointer shrink-0"><i data-lucide="x" class="w-5 h-5"></i></button>
-          </div>
-          <div class="overflow-auto">
-            <table class="w-full border-collapse">
-              <thead class="sticky top-0 bg-slate-50 z-10">
-                <tr class="border-b border-slate-200">
-                  <th class="py-2.5 px-2 text-[9px] font-black uppercase tracking-wider text-slate-500 text-center w-10">#</th>
-                  <th class="py-2.5 px-2 text-[9px] font-black uppercase tracking-wider text-slate-500 text-left">Player</th>
-                  ${headerCols.map(h => `<th class="py-2.5 px-2 text-[9px] font-black uppercase tracking-wider text-center ${h.k?`text-${m.accent}-600`:'text-slate-500'} whitespace-nowrap">${h.l}</th>`).join('')}
-                </tr>
-              </thead>
-              <tbody>${bodyHtml}</tbody>
-            </table>
-          </div>
-          <div class="p-3 border-t border-slate-100 text-center">
-            <span class="text-[10px] font-bold text-slate-400">${bodyRows.length} ${m.group==='team'?'team':'player'}${bodyRows.length!==1?'s':''} · sorted by ${m.metric.toLowerCase()}</span>
-          </div>
-        </div>
-      </div>`;
-    document.body.insertAdjacentHTML('beforeend', modalHtml);
-    if (window.lucide) window.lucide.createIcons();
-    const modal = document.getElementById('tournament-award-modal');
-    const close = () => modal?.remove();
-    document.getElementById('close-award-modal')?.addEventListener('click', close);
-    modal?.addEventListener('click', (e) => { if (e.target === modal) close(); });
-  };
-  window.openTournamentAwardModal = openTournamentAwardModal;
-
   const drawFixtures = () => {
     let selectedCategory = activeFixtureCategory || 'ALL';
     if (selectedCategory === 'T') selectedCategory = 'ALL';
@@ -9424,31 +9691,75 @@ function renderFixturesView(container) {
         `;
       }
     } else if (activeFixtureSubTab === 'awards') {
-      // ---------------- TOURNAMENT AWARDS ----------------
+      // ---------------- TOURNAMENT AWARDS (IPL PRO CHAMPIONSHIP STYLE - EXACT SAME AS TOURNAMENT HUB) ----------------
       const agg = {};
       rawFixtures.forEach(f => {
-        const ps = f.liveMatchState && f.liveMatchState.playerStats;
+        const state = f.liveMatchState || f.liveState || {};
+        const ps = state.playerStats || f.playerStats;
         if (!ps || typeof ps !== 'object') return;
         Object.keys(ps).forEach(pid => {
           const s = ps[pid] || {};
-          if (!agg[pid]) agg[pid] = { runs:0, balls:0, fours:0, sixes:0, wickets:0, runsConceded:0, ballsBowled:0, maidens:0, catches:0, stumpings:0, runOuts:0 };
+          if (!agg[pid]) agg[pid] = {
+            id: pid,
+            name: s.name || '',
+            teamName: s.teamName || s.team || '',
+            runs: 0,
+            balls: 0,
+            fours: 0,
+            sixes: 0,
+            wickets: 0,
+            runsConceded: 0,
+            ballsBowled: 0,
+            maidens: 0,
+            catches: 0,
+            stumpings: 0,
+            runOuts: 0,
+            dotBalls: 0
+          };
           const a = agg[pid];
-          a.runs += s.runs||0; a.balls += s.balls||0; a.fours += s.fours||0; a.sixes += s.sixes||0;
-          a.wickets += s.wickets||0; a.runsConceded += s.runsConceded||0; a.ballsBowled += s.ballsBowled||0;
-          a.maidens += s.maidens||0; a.catches += s.catches||0; a.stumpings += s.stumpings||0; a.runOuts += s.runOuts||0;
+          if (s.name && !a.name) a.name = s.name;
+          if ((s.teamName || s.team) && !a.teamName) a.teamName = s.teamName || s.team;
+          a.runs += Number(s.runs || s.runsScored || 0);
+          a.balls += Number(s.balls || s.ballsFaced || 0);
+          a.fours += Number(s.fours || s['4s'] || 0);
+          a.sixes += Number(s.sixes || s['6s'] || 0);
+          a.wickets += Number(s.wickets || s.wicketsTaken || 0);
+          a.runsConceded += Number(s.runsConceded || s.runsAgainst || 0);
+          a.ballsBowled += Number(s.ballsBowled || ((s.overs || 0) * 6 + (s.oversBalls || 0)));
+          a.maidens += Number(s.maidens || 0);
+          a.catches += Number(s.catches || 0);
+          a.stumpings += Number(s.stumpings || 0);
+          a.runOuts += Number(s.runOuts || 0);
+          a.dotBalls += Number(s.dotBalls || s.dots || 0);
         });
       });
 
-      const allPlayers = store.getPlayers();
-      const allTeams = store.getAllTeamsAcrossTournaments();
-      const nameOf = (pid) => (allPlayers.find(p => p.id === pid)?.name) || 'Unknown Player';
-      const teamOf = (pid) => { const p = allPlayers.find(x => x.id === pid); const t = p && allTeams.find(tt => tt.id === p.teamId); return t ? t.name : ''; };
-
+      const tourneyContextName = selectedCategory === 'ALL' ? 'Premier League' : (selectedCategory + ' Premier League');
       const rows = Object.keys(agg).map(pid => {
         const a = agg[pid];
-        const mvp = a.runs*1 + a.fours*1 + a.sixes*2 + a.wickets*20 + a.maidens*8 + a.catches*8 + a.stumpings*10 + a.runOuts*8;
+        const resolved = resolvePlayerAndTeam(pid, a.teamName || tourneyContextName);
+        const name = a.name || resolved.name || 'Player';
+        const teamName = resolved.teamName || a.teamName || tourneyContextName;
+        const mvp = (a.runs * 1) + (a.fours * 1) + (a.sixes * 2) + (a.wickets * 20) + (a.maidens * 8) + (a.catches * 8) + (a.stumpings * 10) + (a.runOuts * 8);
         const fielding = a.catches + a.runOuts;
-        return { pid, name: nameOf(pid), team: teamOf(pid), ...a, mvp, fielding };
+        return {
+          id: pid,
+          pid,
+          name,
+          team: teamName,
+          teamName,
+          photoUrl: resolved.photoUrl || '',
+          player_photo_url: resolved.photoUrl || '',
+          ...a,
+          totalRuns: a.runs,
+          totalWickets: a.wickets,
+          totalSixes: a.sixes,
+          totalFours: a.fours,
+          totalMaidens: a.maidens,
+          totalDotBalls: a.dotBalls,
+          mvp,
+          fielding
+        };
       });
 
       const topBy = (key) => {
@@ -9462,81 +9773,53 @@ function renderFixturesView(container) {
           }
           return (y.mvp || 0) - (x.mvp || 0);
         });
-        return s.length ? { win: s[0], runner: s[1] || null } : null;
+        return s.length ? s[0] : null;
       };
 
       const standings = computeTeamStandings(leagueTeams, rawFixtures);
-      const bestTeam = (standings[0] && standings[0].played > 0) ? standings[0] : null;
-      const hasAnyData = rows.length > 0 || bestTeam;
+      const bestTeam = (standings[0] && standings[0].played > 0) ? standings[0] : (standings[0] || null);
 
-      const SVG = {
-        bat:    '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 3.5l6.5 6.5-8 8-6.5-6.5z"/><path d="M6 13.5L3.5 16l4.5 4.5L10.5 18"/></svg>',
-        ball:   '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="8.5"/><path d="M12 3.5v17" stroke-dasharray="1.5 2.5"/></svg>',
-        gloves: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 12V7.5a1.5 1.5 0 0 1 3 0V11M9 11V6a1.5 1.5 0 0 1 3 0v5M12 11V7a1.5 1.5 0 0 1 3 0v5.5"/><path d="M6 12a1.5 1.5 0 0 0-3 0v1.5a6 6 0 0 0 6 6h3.5a4.5 4.5 0 0 0 4.5-4.5V9a1.5 1.5 0 0 0-3 0"/></svg>',
-        hand:   '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="6" r="2.5"/><path d="M4.5 19a7.5 7.5 0 0 1 15 0z"/></svg>',
-        shield: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.2-3 7.3-7 8.5C8 21.3 5 18.2 5 14V6z"/></svg>',
-        star:   '<svg viewBox="0 0 24 24" width="17" height="17" fill="currentColor"><path d="M12 3l2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 16.9 6.8 19.2l1-5.9L3.5 9.2l5.9-.8z"/></svg>',
-        trophy: '<svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4h8v5a4 4 0 0 1-8 0z"/><path d="M8 6H5.5a2 2 0 0 0 0 4H8M16 6h2.5a2 2 0 0 1 0 4H16M9.5 20h5M12 13v3.5"/></svg>',
-        six:    '<svg viewBox="0 0 24 24" width="17" height="17"><text x="12" y="17.5" text-anchor="middle" font-size="15" font-weight="900" fill="currentColor" font-family="system-ui,sans-serif">6</text></svg>',
-        four:   '<svg viewBox="0 0 24 24" width="17" height="17"><text x="12" y="17.5" text-anchor="middle" font-size="15" font-weight="900" fill="currentColor" font-family="system-ui,sans-serif">4</text></svg>',
-      };
-
-      const specs = [
-        { title:'Best Batsman',      key:'runs',      accent:'emerald', svg:SVG.bat },
-        { title:'Best Bowler',       key:'wickets',   accent:'rose',    svg:SVG.ball },
-        { title:'Best Wicketkeeper', key:'stumpings', accent:'violet',  svg:SVG.gloves },
-        { title:'Best Fielder',      key:'fielding',  accent:'sky',     svg:SVG.hand },
-        { title:'Six Hitter',        key:'sixes',     accent:'amber',   svg:SVG.six },
-        { title:'Four Hitter',       key:'fours',     accent:'cyan',    svg:SVG.four },
-        { title:'Best Maiden Overs', key:'maidens',   accent:'slate',   svg:SVG.shield },
-        { title:'Tournament MVP',    key:'mvp',       accent:'fuchsia', svg:SVG.star },
-      ];
+      const topMVP = topBy('mvp');
+      const topBatsman = topBy('totalRuns') || topBy('runs');
+      const topBowler = topBy('totalWickets') || topBy('wickets');
+      const topSixes = topBy('totalSixes') || topBy('sixes');
+      const topFours = topBy('totalFours') || topBy('fours');
+      const topKeeper = rows.filter(p => (p.stumpings || 0) + (p.catches || 0) > 0).sort((a, b) => ((b.stumpings || 0) + (b.catches || 0)) - ((a.stumpings || 0) + (a.catches || 0)))[0] || null;
+      const topFielder = topBy('fielding');
+      const topMaidens = topBy('totalMaidens') || topBy('maidens');
+      const topDotBalls = topBy('totalDotBalls') || topBy('dotBalls');
 
       window.__cplAwardsCache = { category: selectedCategory, rows, standings };
 
-      const compactCard = (key, accent, svg, title, name) => `
-        <button type="button" data-award-key="${key}" class="award-card text-left rounded-2xl p-3 bg-white border border-slate-200 shadow-2xs hover:shadow-md hover:border-${accent}-300 hover:-translate-y-0.5 transition-all cursor-pointer flex flex-col gap-2 overflow-hidden group">
-          <div class="h-1 -mx-3 -mt-3 mb-0.5 bg-gradient-to-r from-${accent}-400 to-${accent}-600"></div>
-          <div class="flex items-center gap-2 min-w-0">
-            <span class="w-8 h-8 rounded-lg bg-gradient-to-br from-${accent}-400 to-${accent}-600 text-white flex items-center justify-center shrink-0 shadow-sm">${svg}</span>
-            <span class="text-[10px] font-black uppercase tracking-wide text-slate-600 leading-tight">${title}</span>
+      const mcCategories = getChampionshipCategories({
+        topBatsman,
+        topBowler,
+        topSixes,
+        topFours,
+        topKeeper,
+        topFielder,
+        topMaidens,
+        topDotBalls,
+        topTeam: bestTeam,
+        defaultTourneyName: tourneyContextName
+      });
+
+      mainContentHtml = `
+        <div class="space-y-3 animate-fade-in">
+          
+          <!-- 1. BEST MVP PLAYER PODIUM BOX (EXACT SAME AS TOURNAMENT HUB) -->
+          ${renderMvpPodiumHtml(topMVP, tourneyContextName)}
+
+          <!-- 2. AWARDS LEADERBOARD GRID (EXACT SAME AS TOURNAMENT HUB) -->
+          <div class="grid grid-cols-2 gap-3 sm:gap-4">
+            ${mcCategories.map(renderChampionshipCardHtml).join('')}
           </div>
-          <div class="text-sm font-black ${name ? 'text-slate-900' : 'text-slate-400'} truncate leading-tight">${name || 'Awaiting matches'}</div>
-          <div class="mt-auto flex items-center gap-1 text-[10px] font-black text-${accent}-600 group-hover:gap-1.5 transition-all">
-            View Full List <span class="transition-transform group-hover:translate-x-0.5">→</span>
-          </div>
-        </button>`;
 
-      const cardHtml = (sp) => {
-        const t = topBy(sp.key);
-        return compactCard(sp.key, sp.accent, sp.svg, sp.title, t ? t.win.name : '');
-      };
-
-      const bestTeamHtml = compactCard('team', 'amber', SVG.trophy, 'Best Team', bestTeam ? bestTeam.name : '');
-
-      if (!hasAnyData) {
-        mainContentHtml = `
-          <div class="bg-white border-2 border-emerald-200 rounded-3xl p-8 text-center shadow-sm space-y-2 animate-fade-in">
-            <div class="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 border border-amber-200 flex items-center justify-center mx-auto text-2xl">🏆</div>
-            <h3 class="text-sm font-black text-slate-900">${selectedCategory === 'ALL' ? 'Tournament' : selectedCategory} Awards Coming Soon</h3>
-            <p class="text-[11px] text-slate-500 max-w-sm mx-auto">Player and team awards will appear here automatically as matches are scored.</p>
-          </div>`;
-      } else {
-        mainContentHtml = `
-          <div class="space-y-3 animate-fade-in">
-            <div class="flex items-center justify-between flex-wrap gap-2">
-              <h3 class="text-sm font-black text-slate-900 flex items-center gap-2"><span>🏆</span> ${selectedCategory === 'ALL' ? 'Overall' : selectedCategory} Tournament Awards</h3>
-              <span class="text-[10px] font-bold text-slate-500 bg-white border border-slate-200 px-2.5 py-1 rounded-lg shadow-2xs">Tap a card for the full list →</span>
-            </div>
-            <div class="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-              ${specs.map(cardHtml).join('')}
-              ${bestTeamHtml}
-            </div>
-            <p class="text-[10px] text-slate-400 leading-relaxed px-1">
-              Keeper, fielder and maiden awards reflect matches scored after this feature went live; all others cover every completed match.
-            </p>
-          </div>`;
-      }
+          <p class="text-[10px] text-slate-400 leading-relaxed px-1 text-center sm:text-left">
+            Keeper, fielder and maiden awards reflect live matches; all others cover every completed match. Tap any card or "View Full List" for full player rankings.
+          </p>
+        </div>
+      `;
     } else {
       // ---------------- STANDINGS / POINTS TABLE SUBTAB ----------------
       if (selectedCategory === 'ALL') {
