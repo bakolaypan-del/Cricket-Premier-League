@@ -12,3 +12,8 @@ node_modules/
 scratch/
 
 .vercel
+
+# Local database backups & dumps
+supabase_backup_local.sql
+supabase_data_dump.json
+supabase_csv/

@@ -823,7 +823,14 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
     const tId = await resolveTournamentUUID(tournamentId) || toUUID(tournamentId) || DEFAULT_TOURNAMENT_UUID;
 
     const [playersRes, teamsRes, matchesRes, tourneyRes] = await Promise.all([
-      supabase.from('players').select('id, tournament_id, name, phone, photo_url, role, category_name, base_price, is_icon, team_id, status, sold_price, verified, reg_number, updated_at, created_at, dob, age, village, district, state, jersey_size').eq('tournament_id', tId).neq('status', 'deleted'),
+      supabase.from('players').select(`
+        id, tournament_id, person_id, category_name,
+        base_price, is_icon, team_id, status, sold_price, verified, reg_number,
+        updated_at, created_at,
+        person:person_id (
+          id, name, phone, photo_url, role, batting_style, bowling_style, dob, village, district, state, jersey_size
+        )
+      `).eq('tournament_id', tId).neq('status', 'deleted'),
       supabase.from('teams').select('id, tournament_id, name, short_name, owner_name, owner_phone, logo_url, budget_total, budget_remaining, updated_at').eq('tournament_id', tId),
       supabase.from('matches').select('*').eq('tournament_id', tId),
       supabase.from('tournaments').select('category_code, slug, name, registration_fee, total_team_budget, icon_price, registration_settings, format_config').eq('id', tId).maybeSingle()
@@ -857,14 +864,16 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
     const dedupedPlayersMap = new Map();
     dbPlayers.forEach(p => {
       if (!p) return;
-      const cleanPhone = (p.phone || '').replace(/[^0-9]/g, '');
+      const cleanPhone = (p.person?.phone || p.phone || '').replace(/[^0-9]/g, '');
       const key = (cleanPhone && cleanPhone !== '0000000000' && cleanPhone.length >= 7) ? `ph_${cleanPhone}` : `id_${p.id}`;
       const existing = dedupedPlayersMap.get(key);
       if (!existing) {
         dedupedPlayersMap.set(key, p);
       } else {
-        const currentHasCdn = typeof p.photo_url === 'string' && p.photo_url.includes('cloudinary.com');
-        const existingHasCdn = typeof existing.photo_url === 'string' && existing.photo_url.includes('cloudinary.com');
+        const currentPhoto = p.person?.photo_url || p.photo_url;
+        const existingPhoto = existing.person?.photo_url || existing.photo_url;
+        const currentHasCdn = typeof currentPhoto === 'string' && currentPhoto.includes('cloudinary.com');
+        const existingHasCdn = typeof existingPhoto === 'string' && existingPhoto.includes('cloudinary.com');
         if (currentHasCdn && !existingHasCdn) {
           dedupedPlayersMap.set(key, p);
         }
@@ -887,7 +896,7 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
       const serial = p.reg_number || (idx + 1);
       const doc = docsByPlayerId.get(p.id) || {};
       const cleanPhone = (p.phone || '').replace(/[^0-9]/g, '');
-      const prof = profilesByPhone.get(cleanPhone) || {};
+      const prof = p.person || profilesByPhone.get(cleanPhone) || {};
 
       const overrideData = playerOverrides[p.id] || (cleanPhone && playerOverrides[cleanPhone]) || {};
       const statusFromConfig = (overrideData.paymentStatus || overrideData.registrationStatus || playerStatuses[p.id] || (cleanPhone && playerStatuses[cleanPhone]) || '').toUpperCase();
@@ -897,21 +906,33 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
       const isApproved = (finalStatus === 'APPROVED');
       const isRejected = (finalStatus === 'REJECTED');
 
-      const photo = overrideData.photoUrl || (p.photo_url && p.photo_url.includes('cloudinary.com') ? p.photo_url : null) || (prof.photo_url && prof.photo_url.includes('cloudinary.com') ? prof.photo_url : null) || overrideData.player_photo_url || p.photo_url || 'assets/card_jsl_user.png';
+      const photo = overrideData.photoUrl || (prof.photo_url && prof.photo_url.includes('cloudinary.com') ? prof.photo_url : null) || (p.photo_url && p.photo_url.includes('cloudinary.com') ? p.photo_url : null) || overrideData.player_photo_url || prof.photo_url || p.photo_url || 'assets/card_jsl_user.png';
+
+      const resolvedDob = overrideData.dob || prof.dob || p.dob || doc.dob || null;
+      let resolvedAge = overrideData.age || prof.age || p.age || null;
+      if (!resolvedAge && resolvedDob) {
+        const birthYear = new Date(resolvedDob).getFullYear();
+        if (!isNaN(birthYear)) resolvedAge = new Date().getFullYear() - birthYear;
+      }
+
+      const resolvedVillage = overrideData.village || prof.village || p.village || '';
+      const resolvedDistrict = overrideData.district || prof.district || p.district || 'Paschim Medinipur';
+      const resolvedState = overrideData.state || prof.state || p.state || 'West Bengal';
 
       return {
         id: p.id,
+        person_id: p.person_id || prof.id || null,
         tournament_id: p.tournament_id,
         leagueId: tId,
-        name: overrideData.name || p.name,
-        phone: p.phone,
-        mobile: p.phone,
+        name: overrideData.name || prof.name || p.name,
+        phone: prof.phone || p.phone,
+        mobile: prof.phone || p.phone,
         fatherName: overrideData.fatherName || p.father_name || prof.father_name || '',
         photoUrl: photo,
         hdPhotoUrl: photo,
         player_photo_url: photo,
-        role: overrideData.role || p.role || prof.role || 'All-Rounder',
-        playingType: overrideData.role || p.role || prof.role || 'All-Rounder',
+        role: overrideData.role || prof.role || p.role || 'All-Rounder',
+        playingType: overrideData.role || prof.role || p.role || 'All-Rounder',
         category: overrideData.category || p.category_name || prof.role || 'All-Rounder',
         basePrice: Number(overrideData.basePrice || p.base_price) || 300,
         isIcon: (overrideData.isIcon !== undefined) ? overrideData.isIcon : (p.is_icon === true),
@@ -928,11 +949,11 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
         registrationStatus: finalStatus,
         remarks: overrideData.remarks || doc.payment_ref || p.remarks || '',
         paymentRef: overrideData.remarks || doc.payment_ref || p.payment_ref || '',
-        dob: overrideData.dob || p.dob || doc.dob || prof.dob || null,
-        age: overrideData.age || p.age || prof.age || null,
-        village: overrideData.village || p.village || prof.village || '',
-        district: overrideData.district || p.district || prof.district || 'Paschim Medinipur',
-        state: overrideData.state || p.state || prof.state || 'West Bengal',
+        dob: resolvedDob,
+        age: resolvedAge,
+        village: resolvedVillage,
+        district: resolvedDistrict,
+        state: resolvedState,
         idCardFrontUrl: doc.aadhaar_url || prof.idCardFrontUrl || '',
         aadharPhotoUrl: doc.aadhaar_url || prof.aadharPhotoUrl || '',
         idCardBackUrl: prof.idCardBackUrl || '',
@@ -943,10 +964,10 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
         displayRegistrationNumber: serial,
         registrationId: `${regPrefix}-${String(serial).padStart(4, '0')}`,
         regNo: `${regPrefix}-${String(serial).padStart(4, '0')}`,
-        address: overrideData.address || (p.village ? `${p.village}, ${p.district || 'Paschim Medinipur'}` : (overrideData.village ? `${overrideData.village}, ${overrideData.district || 'Paschim Medinipur'}` : (prof.village ? `${prof.village}, ${prof.district || 'Paschim Medinipur'}` : ''))),
+        address: overrideData.address || (resolvedVillage ? `${resolvedVillage}, ${resolvedDistrict}` : ''),
         battingStyle: overrideData.battingStyle || prof.batting_style || p.batting_style || p.battingStyle || 'Right Hand Bat',
         bowlingStyle: overrideData.bowlingStyle || prof.bowling_style || p.bowling_style || p.bowlingStyle || 'Right Hand Medium',
-        jerseySize: p.jersey_size || prof.jersey_size || '',
+        jerseySize: prof.jersey_size || p.jersey_size || '',
         isWicketKeeper: !!(p.is_wicket_keeper || p.isWicketKeeper),
         created_at: p.created_at,
         updated_at: p.updated_at
@@ -1224,18 +1245,8 @@ export async function syncPlayerToSupabase(playerData) {
     // Also update players table directly by UUID and Phone
     try {
       const updatePayload = {
-        name: playerData.name || undefined,
-        phone: cleanPhone || undefined,
-        role: playerData.role || playerData.category || playerData.playingType || undefined,
         category_name: playerData.category || playerData.category_name || undefined,
         base_price: Number(playerData.basePrice || playerData.base_price) || 300,
-        photo_url: playerData.hdPhotoUrl || playerData.photoUrl || playerData.player_photo_url || undefined,
-        dob: playerData.dob || undefined,
-        age: playerData.age ? Number(playerData.age) : undefined,
-        village: playerData.village || undefined,
-        district: playerData.district || undefined,
-        state: playerData.state || undefined,
-        jersey_size: playerData.jerseySize || playerData.jersey_size || undefined,
         verified: isApproved,
         status: isRejected ? 'rejected' : (isSoldVal ? 'sold' : (isUnsoldVal ? 'unsold' : derivePlayerStatus(playerData))),
         team_id: (playerData.teamId || playerData.team_id) ? toUUID(playerData.teamId || playerData.team_id) : null,
@@ -1248,8 +1259,22 @@ export async function syncPlayerToSupabase(playerData) {
         if (pErr1) console.error("[SUPABASE] players update by UUID failed:", pErr1.message, pErr1.details, "player:", playerData.name);
       }
       if (cleanPhone) {
-        const { error: pErr2 } = await supabase.from('players').update(updatePayload).eq('phone', cleanPhone).eq('tournament_id', tournamentUUID);
-        if (pErr2) console.error("[SUPABASE] players update by phone failed:", pErr2.message, pErr2.details, "player:", playerData.name);
+        // Keep universal person profile synchronized
+        const personUpdate = {
+          name: playerData.name || undefined,
+          photo_url: playerData.hdPhotoUrl || playerData.photoUrl || playerData.player_photo_url || undefined,
+          role: playerData.role || playerData.category || playerData.playingType || undefined,
+          dob: playerData.dob || undefined,
+          village: playerData.village || undefined,
+          district: playerData.district || undefined,
+          state: playerData.state || undefined,
+          jersey_size: playerData.jerseySize || playerData.jersey_size || undefined,
+          updated_at: new Date().toISOString()
+        };
+        Object.keys(personUpdate).forEach(k => personUpdate[k] === undefined && delete personUpdate[k]);
+        if (Object.keys(personUpdate).length > 1) {
+          await supabase.from('person_profiles').update(personUpdate).eq('phone', cleanPhone);
+        }
       }
     } catch (pUpdateErr) {
       console.error("[SUPABASE] players table update exception:", pUpdateErr, "player:", playerData.name);
@@ -1302,11 +1327,19 @@ export async function deletePlayerFromSupabase(playerId, phone = null, tournamen
 
     // 1. Attempt direct delete from players table, fallback to marking as deleted
     let directDeleteWorked = false;
+    let targetPersonId = null;
+    if (cleanPhone) {
+      try {
+        const { data: pRec } = await supabase.from('person_profiles').select('id').eq('phone', cleanPhone).maybeSingle();
+        if (pRec?.id) targetPersonId = pRec.id;
+      } catch (e) {}
+    }
+
     try {
       const { data: before } = await supabase.from('players').select('id').eq('id', playerUUID);
       await supabase.from('players').delete().eq('id', playerUUID);
-      if (cleanPhone) {
-        await supabase.from('players').delete().eq('phone', cleanPhone).eq('tournament_id', tId);
+      if (targetPersonId) {
+        await supabase.from('players').delete().eq('person_id', targetPersonId).eq('tournament_id', tId);
       }
       const { data: after } = await supabase.from('players').select('id').eq('id', playerUUID);
       directDeleteWorked = (before?.length > 0 && (!after || after.length === 0));
@@ -1314,8 +1347,8 @@ export async function deletePlayerFromSupabase(playerId, phone = null, tournamen
     if (!directDeleteWorked) {
       try {
         await supabase.from('players').update({ status: 'deleted', updated_at: new Date().toISOString() }).eq('id', playerUUID);
-        if (cleanPhone) {
-          await supabase.from('players').update({ status: 'deleted', updated_at: new Date().toISOString() }).eq('phone', cleanPhone).eq('tournament_id', tId);
+        if (targetPersonId) {
+          await supabase.from('players').update({ status: 'deleted', updated_at: new Date().toISOString() }).eq('person_id', targetPersonId).eq('tournament_id', tId);
         }
       } catch (markErr) {}
     }
@@ -2699,7 +2732,13 @@ export async function fetchAllTournamentsPlayers() {
   try {
     const { data: players, error } = await supabase
       .from('players')
-      .select('id, tournament_id, name, phone, photo_url, role, category_name, base_price, is_icon, team_id, status, sold_price, verified, reg_number, updated_at, created_at, dob, age, village, district, state, jersey_size')
+      .select(`
+        id, tournament_id, person_id, category_name, base_price, is_icon, team_id,
+        status, sold_price, verified, reg_number, updated_at, created_at,
+        person:person_id (
+          id, name, phone, photo_url, role, batting_style, bowling_style, dob, village, district, state, jersey_size
+        )
+      `)
       .neq('status', 'deleted');
     if (error || !Array.isArray(players)) return {};
     const result = {};
@@ -2707,27 +2746,29 @@ export async function fetchAllTournamentsPlayers() {
       const tid = p.tournament_id;
       if (!tid) return;
       if (!result[tid]) result[tid] = [];
+      const prof = p.person || {};
       result[tid].push({
         id: p.id,
+        person_id: p.person_id || prof.id || null,
         tournament_id: tid,
-        name: p.name,
-        phone: p.phone,
-        category: p.category_name || p.role || 'All-Rounder',
-        playingType: p.category_name || p.role || 'All-Rounder',
-        role: p.role || p.category_name || 'All-Rounder',
-        photoUrl: p.photo_url || '',
-        player_photo_url: p.photo_url || '',
+        name: prof.name || '',
+        phone: prof.phone || '',
+        category: p.category_name || prof.role || 'All-Rounder',
+        playingType: p.category_name || prof.role || 'All-Rounder',
+        role: prof.role || p.category_name || 'All-Rounder',
+        photoUrl: prof.photo_url || '',
+        player_photo_url: prof.photo_url || '',
         teamId: p.team_id || null,
         basePrice: Number(p.base_price) || 300,
         isIcon: !!p.is_icon,
         registrationStatus: p.verified ? 'APPROVED' : (p.status || 'APPROVED'),
         paymentStatus: p.verified ? 'APPROVED' : (p.status || 'APPROVED'),
         displayRegistrationNumber: p.reg_number,
-        village: p.village || '',
-        district: p.district || 'Paschim Medinipur',
-        state: p.state || 'West Bengal',
-        age: p.age || '',
-        dob: p.dob || null
+        village: prof.village || '',
+        district: prof.district || 'Paschim Medinipur',
+        state: prof.state || 'West Bengal',
+        jerseySize: prof.jersey_size || '',
+        dob: prof.dob || null
       });
     });
     return result;
@@ -2777,7 +2818,7 @@ export async function fetchGlobalUniquePlayersCount() {
   if (!supabase) return 0;
   try {
     const [playersRes, tourneyRes] = await Promise.all([
-      supabase.from('players').select('id, phone, name, tournament_id'),
+      supabase.from('players').select('id, person_id, tournament_id'),
       supabase.from('tournaments').select('id, format_config')
     ]);
     const data = playersRes.data || [];
@@ -2793,18 +2834,12 @@ export async function fetchGlobalUniquePlayersCount() {
     if (Array.isArray(data)) {
       const unique = new Set();
       data.forEach(p => {
-        const clean = (p.phone || '').replace(/[^0-9]/g, '');
+        const key = p.person_id || p.id;
         const tourneyDeleted = deletedByTourney.get(p.tournament_id);
-        if (tourneyDeleted) {
-          if (tourneyDeleted.has(p.id) || (clean && tourneyDeleted.has(clean))) {
-            return;
-          }
+        if (tourneyDeleted && (tourneyDeleted.has(p.id) || (p.person_id && tourneyDeleted.has(p.person_id)))) {
+          return;
         }
-        if (clean && clean.length >= 10) {
-          unique.add(clean);
-        } else if (p.id) {
-          unique.add(p.id);
-        }
+        if (key) unique.add(key);
       });
       return unique.size;
     }
@@ -2959,14 +2994,23 @@ export async function dbRegisterPlayer(playerData, docsData = null) {
     const cleanPhone = (playerData.phone || '').replace(/[^0-9]/g, '').slice(-10);
     if (cleanPhone && tid) {
       try {
-        const { data: existingPlayer } = await supabase
-          .from('players')
+        const { data: existingPerson } = await supabase
+          .from('person_profiles')
           .select('id, name')
           .eq('phone', cleanPhone)
-          .eq('tournament_id', tid)
           .maybeSingle();
-        if (existingPlayer) {
-          throw new Error(`You are already registered for this tournament! (Name: ${existingPlayer.name})`);
+
+        if (existingPerson?.id) {
+          const { data: existingPlayer } = await supabase
+            .from('players')
+            .select('id')
+            .eq('person_id', existingPerson.id)
+            .eq('tournament_id', tid)
+            .maybeSingle();
+
+          if (existingPlayer) {
+            throw new Error(`You are already registered for this tournament! (Name: ${existingPerson.name || playerData.name})`);
+          }
         }
       } catch (dupErr) {
         if (dupErr.message && dupErr.message.includes('already registered')) throw dupErr;
@@ -2976,22 +3020,45 @@ export async function dbRegisterPlayer(playerData, docsData = null) {
     const playerUUID = (playerData.id && UUID_FORMAT_RE.test(playerData.id)) ? playerData.id : generateUUID();
     playerData.id = playerUUID;
 
+    // 1. Upsert into Universal Person Profiles first
+    let personId = null;
+    const phoneToSave = playerData.phone || cleanPhone;
+    if (phoneToSave) {
+      try {
+        const personPayload = {
+          phone: phoneToSave,
+          name: playerData.name,
+          photo_url: playerData.photo_url || playerData.photoUrl || null,
+          role: playerData.role || playerData.category || 'All-Rounder',
+          batting_style: playerData.battingStyle || playerData.batting_style || 'Right Hand Bat',
+          bowling_style: playerData.bowlingStyle || playerData.bowling_style || 'Right Arm Medium',
+          dob: playerData.dob || null,
+          village: playerData.village || null,
+          district: playerData.district || null,
+          state: playerData.state || 'West Bengal',
+          jersey_size: playerData.jerseySize || playerData.jersey_size || null,
+          security_pin: playerData.securityPin || playerData.security_pin || null,
+          updated_at: new Date().toISOString()
+        };
+        const { data: personData } = await supabase
+          .from('person_profiles')
+          .upsert(personPayload, { onConflict: 'phone' })
+          .select('id')
+          .maybeSingle();
+        if (personData?.id) personId = personData.id;
+      } catch (personErr) {
+        console.warn("[POSTGRES] person_profiles upsert notice:", personErr);
+      }
+    }
+
+    // 2. Insert into Tournament Players (only tournament-specific fields, person_id references person_profiles)
     const pPayload = {
       id: playerUUID,
       tournament_id: tid,
-      name: playerData.name,
-      phone: playerData.phone,
-      photo_url: playerData.photo_url || playerData.photoUrl || null,
-      role: playerData.role || playerData.category || 'All-Rounder',
+      person_id: personId,
       category_name: playerData.category_name || playerData.category || 'Category B',
       base_price: Number(playerData.base_price || playerData.basePrice) || 300,
       reg_number: playerData.reg_number || playerData.serialNo || null,
-      dob: playerData.dob || null,
-      age: playerData.age ? Number(playerData.age) : null,
-      village: playerData.village || null,
-      district: playerData.district || null,
-      state: playerData.state || 'West Bengal',
-      jersey_size: playerData.jerseySize || playerData.jersey_size || null,
       verified: false,
       status: 'available',
       source: 'registered',
@@ -3006,7 +3073,7 @@ export async function dbRegisterPlayer(playerData, docsData = null) {
 
     if (error) throw error;
 
-    // 2. Save Sensitive Verification Docs (Aadhaar & Payment Proof) in Isolated Table
+    // 3. Save Sensitive Verification Docs (Aadhaar & Payment Proof) in Isolated Table
     if (docsData && player?.id) {
       await supabase
         .from('player_verification_docs')
@@ -3020,29 +3087,6 @@ export async function dbRegisterPlayer(playerData, docsData = null) {
           status: 'pending'
         });
     }
-
-    // 3. Upsert into Universal Person Profiles
-    if (player.phone) {
-      await supabase
-        .from('person_profiles')
-        .upsert({
-          phone: player.phone,
-          name: player.name,
-          photo_url: player.photo_url,
-          role: player.role,
-          batting_style: playerData.battingStyle || playerData.batting_style || 'Right Hand Bat',
-          bowling_style: playerData.bowlingStyle || playerData.bowling_style || 'Right Arm Medium',
-          dob: playerData.dob || null,
-          age: playerData.age || null,
-          village: playerData.village || null,
-          district: playerData.district || null,
-          state: playerData.state || null,
-          jersey_size: playerData.jerseySize || playerData.jersey_size || null,
-          security_pin: playerData.securityPin || playerData.security_pin || null,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'phone' });
-    }
-
     return player;
   } catch (err) {
     console.error("[POSTGRES] dbRegisterPlayer failed:", err.message || err);

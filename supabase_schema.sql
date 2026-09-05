@@ -69,7 +69,6 @@ CREATE TABLE IF NOT EXISTS public.person_profiles (
   batting_style TEXT DEFAULT 'Right Hand Bat',
   bowling_style TEXT DEFAULT 'Right Arm Medium',
   dob DATE,
-  age INT,
   village TEXT,
   district TEXT,
   state TEXT,
@@ -116,10 +115,6 @@ CREATE TABLE IF NOT EXISTS public.players (
   tournament_id UUID NOT NULL REFERENCES public.tournaments(id) ON DELETE CASCADE,
   person_id UUID REFERENCES public.person_profiles(id) ON DELETE SET NULL,
   reg_number INT,
-  name TEXT NOT NULL,
-  phone TEXT NOT NULL,
-  photo_url TEXT,
-  role TEXT DEFAULT 'All-Rounder',
   category_name TEXT DEFAULT 'Category B',
   base_price NUMERIC DEFAULT 200,
   is_icon BOOLEAN DEFAULT false,
@@ -127,14 +122,15 @@ CREATE TABLE IF NOT EXISTS public.players (
   status TEXT DEFAULT 'available' CHECK (status IN ('available', 'sold', 'unsold', 'withdrawn')),
   sold_price NUMERIC DEFAULT 0,
   verified BOOLEAN DEFAULT false,
-  jersey_size TEXT,
   source TEXT DEFAULT 'registered' CHECK (source IN ('registered', 'manual')),
   created_at TIMESTAMPTZ DEFAULT now(),
   updated_at TIMESTAMPTZ DEFAULT now()
 );
 
 CREATE INDEX IF NOT EXISTS idx_players_tourney ON public.players(tournament_id);
-CREATE INDEX IF NOT EXISTS idx_players_phone ON public.players(phone);
+CREATE INDEX IF NOT EXISTS idx_players_person_id ON public.players(person_id);
+CREATE INDEX IF NOT EXISTS idx_players_tourney_status ON public.players(tournament_id, status);
+CREATE INDEX IF NOT EXISTS idx_players_tourney_person ON public.players(tournament_id, person_id);
 CREATE INDEX IF NOT EXISTS idx_players_verified ON public.players(verified);
 CREATE INDEX IF NOT EXISTS idx_players_team ON public.players(team_id);
 
