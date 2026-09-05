@@ -1,9 +1,9 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=13.0.80';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.80';
-import { renderAdminDashboard } from './admin.js?v=13.0.80';
-import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getLocalPopupSettings, fetchNoticeBoardFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.80';
+import { store } from './store.js?v=13.0.81';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.81';
+import { renderAdminDashboard } from './admin.js?v=13.0.81';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getLocalPopupSettings, fetchNoticeBoardFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.81';
 import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.53';
 import { shops } from './shopsData.js?v=12.0.2';
 
@@ -14143,10 +14143,22 @@ function renderCareerHubView(container) {
       // Total Performance Points (with milestone bonuses!)
       let points = runs * 1 + wickets * 25 + matches * 10 + (halfCenturies * 8) + (centuries * 16) + (fiveWickets * 16);
 
+      let pPhoto = p.photoUrl || p.player_photo_url || p.photo_url || p.avatar || '';
+      if (!pPhoto || pPhoto.includes('card_jsl_user')) {
+        const matchedPl = allGlobalPlayers.find(x => 
+          (pPhone10 && (x.phone || x.mobile || '').replace(/[^0-9]/g, '').slice(-10) === pPhone10 && (x.photoUrl || x.player_photo_url || x.photo_url)) ||
+          (String(x.id) === pIdStr && (x.photoUrl || x.player_photo_url || x.photo_url))
+        );
+        if (matchedPl) {
+          pPhoto = matchedPl.photoUrl || matchedPl.player_photo_url || matchedPl.photo_url || '';
+        }
+      }
+
       return {
         id: p.id,
         name: p.name || 'Unnamed Player',
-        photoUrl: p.photoUrl || p.player_photo_url || '',
+        photoUrl: pPhoto,
+        player_photo_url: pPhoto,
         category: p.category || p.playingType || 'All Rounder',
         village: p.village || 'N/A',
         battingStyle: p.battingStyle || 'Right Hand Bat',
@@ -14207,6 +14219,77 @@ function renderCareerHubView(container) {
       return b.points - a.points || b.runs - a.runs;
     });
 
+    // Helper: Render Compact Leader Highlight Card with circular player photo
+    const renderLeaderHighlightCard = (leader, type, title, icon, accentColor, statText) => {
+      const hasStats = leader && ((type === 'runs' && leader.runs > 0) || (type === 'wickets' && leader.wickets > 0) || (type === 'mvp' && leader.points > 0));
+      const name = hasStats ? leader.name : '—';
+      const playerId = (hasStats && leader.id) ? leader.id : '';
+      
+      const theme = {
+        amber: {
+          bg: 'bg-gradient-to-b from-amber-50/80 via-white to-amber-50/20',
+          border: 'border-amber-200/90',
+          badgeBg: 'bg-amber-100/90 text-amber-900 border-amber-200/80',
+          ring: 'ring-2 ring-amber-400 ring-offset-1 ring-offset-white shadow-xs',
+          statBg: 'bg-amber-500/10 border-amber-300/80 text-amber-900'
+        },
+        sky: {
+          bg: 'bg-gradient-to-b from-sky-50/80 via-white to-sky-50/20',
+          border: 'border-sky-200/90',
+          badgeBg: 'bg-sky-100/90 text-sky-900 border-sky-200/80',
+          ring: 'ring-2 ring-sky-400 ring-offset-1 ring-offset-white shadow-xs',
+          statBg: 'bg-sky-500/10 border-sky-300/80 text-sky-900'
+        },
+        emerald: {
+          bg: 'bg-gradient-to-b from-emerald-50/80 via-white to-emerald-50/20',
+          border: 'border-emerald-200/90',
+          badgeBg: 'bg-emerald-100/90 text-emerald-900 border-emerald-200/80',
+          ring: 'ring-2 ring-emerald-400 ring-offset-1 ring-offset-white shadow-xs',
+          statBg: 'bg-emerald-500/10 border-emerald-300/80 text-emerald-900'
+        }
+      }[accentColor];
+
+      const initials = (name && name !== '—') 
+        ? name.split(' ').map(w => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase() 
+        : icon;
+
+      const avatarHtml = hasStats 
+        ? renderAwardAvatarHtml(leader, name, initials, accentColor)
+        : `<div class="w-full h-full rounded-full bg-slate-100 flex items-center justify-center text-slate-400 text-xs">${icon}</div>`;
+
+      return `
+        <div class="${theme.bg} ${theme.border} border rounded-xl sm:rounded-2xl p-2 sm:p-2.5 flex flex-col items-center justify-between text-center shadow-2xs transition-all ${playerId ? 'cursor-pointer active:scale-95 hover:shadow-xs view-career-detail-btn' : ''}" ${playerId ? `data-id="${playerId}" title="Click to view career profile"` : ''}>
+          
+          <!-- Category Header Pill -->
+          <div class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full border text-[7.5px] sm:text-[9.5px] font-black uppercase tracking-wider ${theme.badgeBg}">
+            <span>${icon}</span>
+            <span class="truncate">${title} <span class="hidden sm:inline">Leader</span></span>
+          </div>
+
+          <!-- Compact Circular Avatar with Ring & Floating Badge -->
+          <div class="relative w-11 h-11 sm:w-13 sm:h-13 my-1.5 shrink-0">
+            <div class="w-full h-full rounded-full overflow-hidden ${theme.ring} bg-slate-900 flex items-center justify-center">
+              ${avatarHtml}
+            </div>
+            <span class="absolute -bottom-0.5 -right-0.5 w-4 h-4 sm:w-5 sm:h-5 bg-white rounded-full shadow-xs border border-slate-200 flex items-center justify-center text-[9px] sm:text-[11px] leading-none select-none">
+              ${icon}
+            </span>
+          </div>
+
+          <!-- Player Name -->
+          <div class="w-full text-[10.5px] sm:text-xs font-black text-slate-900 truncate leading-tight mt-0.5 px-0.5" title="${name}">
+            ${name}
+          </div>
+
+          <!-- Stat Pill -->
+          <div class="w-full mt-1 px-1 py-0.5 rounded-md border font-mono font-black text-[10px] sm:text-[11.5px] leading-tight text-center truncate ${theme.statBg}">
+            ${statText}
+          </div>
+
+        </div>
+      `;
+    };
+
     container.innerHTML = `
       <div class="space-y-3 sm:space-y-4 animate-fade-in pb-16 w-full max-w-4xl mx-auto px-1 sm:px-3 text-slate-900">
         
@@ -14222,48 +14305,11 @@ function renderCareerHubView(container) {
             </span>
           </div>
 
-          <!-- Single Row 3 Top Performers (Compact & Colorful on White Background) -->
+          <!-- Single Row 3 Top Performers (Compact & Colorful on White Background with Player Photos) -->
           <div class="grid grid-cols-3 gap-1.5 sm:gap-3">
-            
-            <!-- 1. Top Run Scorer -->
-            <div class="bg-amber-50/80 border border-amber-200/90 rounded-xl p-2 text-center shadow-2xs flex flex-col justify-between">
-              <div>
-                <span class="text-[8px] sm:text-[9.5px] font-black uppercase tracking-wider text-amber-900 block truncate">🏏 Runs Leader</span>
-                <div class="text-[11px] sm:text-xs md:text-sm font-black text-slate-900 truncate mt-0.5 leading-tight">
-                  ${topRunScorer && topRunScorer.runs > 0 ? topRunScorer.name : '—'}
-                </div>
-              </div>
-              <div class="text-[10px] sm:text-xs font-black text-amber-700 font-mono mt-0.5">
-                ${topRunScorer && topRunScorer.runs > 0 ? `${topRunScorer.runs} Runs` : '0 Runs'}
-              </div>
-            </div>
-
-            <!-- 2. Top Wicket Taker -->
-            <div class="bg-sky-50/80 border border-sky-200/90 rounded-xl p-2 text-center shadow-2xs flex flex-col justify-between">
-              <div>
-                <span class="text-[8px] sm:text-[9.5px] font-black uppercase tracking-wider text-sky-900 block truncate">⚡ Wkts Leader</span>
-                <div class="text-[11px] sm:text-xs md:text-sm font-black text-slate-900 truncate mt-0.5 leading-tight">
-                  ${topWicketTaker && topWicketTaker.wickets > 0 ? topWicketTaker.name : '—'}
-                </div>
-              </div>
-              <div class="text-[10px] sm:text-xs font-black text-sky-700 font-mono mt-0.5">
-                ${topWicketTaker && topWicketTaker.wickets > 0 ? `${topWicketTaker.wickets} Wkts` : '0 Wkts'}
-              </div>
-            </div>
-
-            <!-- 3. MVP Player -->
-            <div class="bg-emerald-50/80 border border-emerald-200/90 rounded-xl p-2 text-center shadow-2xs flex flex-col justify-between">
-              <div>
-                <span class="text-[8px] sm:text-[9.5px] font-black uppercase tracking-wider text-emerald-900 block truncate">👑 MVP Leader</span>
-                <div class="text-[11px] sm:text-xs md:text-sm font-black text-slate-900 truncate mt-0.5 leading-tight">
-                  ${topMvp && topMvp.points > 0 ? topMvp.name : '—'}
-                </div>
-              </div>
-              <div class="text-[10px] sm:text-xs font-black text-emerald-700 font-mono mt-0.5">
-                ${topMvp && topMvp.points > 0 ? `${topMvp.points} Pts` : '0 Pts'}
-              </div>
-            </div>
-
+            ${renderLeaderHighlightCard(topRunScorer, 'runs', 'Runs', '🏏', 'amber', (topRunScorer && topRunScorer.runs > 0) ? `${topRunScorer.runs} Runs` : '0 Runs')}
+            ${renderLeaderHighlightCard(topWicketTaker, 'wickets', 'Wkts', '⚡', 'sky', (topWicketTaker && topWicketTaker.wickets > 0) ? `${topWicketTaker.wickets} Wkts` : '0 Wkts')}
+            ${renderLeaderHighlightCard(topMvp, 'mvp', 'MVP', '👑', 'emerald', (topMvp && topMvp.points > 0) ? `${topMvp.points} Pts` : '0 Pts')}
           </div>
         </div>
 
