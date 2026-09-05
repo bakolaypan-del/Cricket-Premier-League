@@ -842,7 +842,8 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
         id, category_code, slug, name, registration_fee, total_team_budget, icon_price,
         kickoff_date, prize_winner, is_registration_open, is_player_reg_open, is_team_reg_open,
         closed_reason, approval_status, format_config,
-        profile:organiser_id ( id, full_name, phone, upi_id, payment_qr_url )
+        profile:organiser_id ( id, full_name, phone, upi_id, payment_qr_url ),
+        auction:tournament_auctions ( purse_budget, base_price, icon_price, max_squad_size, min_squad_size, bid_increment_slabs, status )
       `).eq('id', tId).maybeSingle()
     ]);
     // Docs and profiles are fetched on-demand only (not every poll) to save mobile data
@@ -855,7 +856,8 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
         id, category_code, slug, name, registration_fee, total_team_budget, icon_price,
         kickoff_date, prize_winner, is_registration_open, is_player_reg_open, is_team_reg_open,
         closed_reason, approval_status, format_config,
-        profile:organiser_id ( id, full_name, phone, upi_id, payment_qr_url )
+        profile:organiser_id ( id, full_name, phone, upi_id, payment_qr_url ),
+        auction:tournament_auctions ( purse_budget, base_price, icon_price, max_squad_size, min_squad_size, bid_increment_slabs, status )
       `).or(`slug.ilike.${cleanSlug},category_code.ilike.${cleanSlug}`).maybeSingle();
       if (fallbackT) tourneyMeta = fallbackT;
     }
@@ -1143,6 +1145,7 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
 
     const fixtures = Array.from(matchesMap.values());
 
+    const auctionRec = Array.isArray(tourneyMeta.auction) ? tourneyMeta.auction[0] : (tourneyMeta.auction || {});
     const cloudAuctionSettings = (tourneyMeta?.format_config?.auction_settings && typeof tourneyMeta.format_config.auction_settings === 'object')
       ? tourneyMeta.format_config.auction_settings
       : (tourneyMeta?.auction_settings && typeof tourneyMeta.auction_settings === 'object')
@@ -1150,15 +1153,16 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
         : null;
 
     const resolvedAuctionSettings = {
-      defaultBasePrice: Number(cloudAuctionSettings?.defaultBasePrice) || Number(tourneyMeta.base_price) || 200,
-      defaultPurseBudget: Number(cloudAuctionSettings?.defaultPurseBudget) || Number(tourneyMeta.total_team_budget) || 8000,
-      defaultIconPrice: Number(cloudAuctionSettings?.defaultIconPrice) || Number(tourneyMeta.icon_price) || 500,
-      maxSquadSize: Number(cloudAuctionSettings?.maxSquadSize) || 13,
-      bidIncrementSlabs: Array.isArray(cloudAuctionSettings?.bidIncrementSlabs) ? cloudAuctionSettings.bidIncrementSlabs : [
+      defaultBasePrice: Number(auctionRec.base_price) || Number(cloudAuctionSettings?.defaultBasePrice) || Number(tourneyMeta.base_price) || 300,
+      defaultPurseBudget: Number(auctionRec.purse_budget) || Number(cloudAuctionSettings?.defaultPurseBudget) || Number(tourneyMeta.total_team_budget) || 8000,
+      defaultIconPrice: Number(auctionRec.icon_price) || Number(cloudAuctionSettings?.defaultIconPrice) || Number(tourneyMeta.icon_price) || 500,
+      maxSquadSize: Number(auctionRec.max_squad_size) || Number(cloudAuctionSettings?.maxSquadSize) || 15,
+      minSquadSize: Number(auctionRec.min_squad_size) || 11,
+      bidIncrementSlabs: Array.isArray(auctionRec.bid_increment_slabs) ? auctionRec.bid_increment_slabs : (Array.isArray(cloudAuctionSettings?.bidIncrementSlabs) ? cloudAuctionSettings.bidIncrementSlabs : [
         { maxLimit: 1000, increment: 50 },
         { maxLimit: 2000, increment: 100 },
         { maxLimit: 999999, increment: 200 }
-      ]
+      ])
     };
 
     return {
@@ -1985,32 +1989,37 @@ export async function saveFullFixturesListToCloud(fixturesList, tournamentId = n
 }
 
 export async function saveAuctionSettingsToCloud(settings, tournamentId = null) {
-  if (!supabase) return;
+  if (!supabase || !settings) return;
   try {
     const tId = toUUID(tournamentId) || toUUID(typeof window !== 'undefined' && window.store?.activeTournamentId) || DEFAULT_TOURNAMENT_UUID;
-    let { data: currentTourney } = await supabase.from('tournaments').select('id, format_config').eq('id', tId).maybeSingle();
-    let targetId = tId;
-    if (!currentTourney && tournamentId) {
-      const cleanSlug = String(tournamentId).replace(/^t_/, '').trim();
-      const { data: bySlug } = await supabase.from('tournaments').select('id, format_config').or(`slug.ilike.${cleanSlug},category_code.ilike.${cleanSlug}`).maybeSingle();
-      if (bySlug) {
-        currentTourney = bySlug;
-        targetId = bySlug.id;
-      }
-    }
-    if (currentTourney) {
-      const config = currentTourney.format_config || {};
-      config.auction_settings = settings || {};
-      const updates = {
-        format_config: config,
-        icon_price: Number(settings?.defaultIconPrice) || 500,
-        total_team_budget: Number(settings?.defaultPurseBudget) || 8000,
+    const purse = Number(settings.defaultPurseBudget) || 8000;
+    const base = Number(settings.defaultBasePrice) || 300;
+    const icon = Number(settings.defaultIconPrice) || 500;
+    const maxSquad = Number(settings.maxSquadSize) || 15;
+    const slabs = Array.isArray(settings.bidIncrementSlabs) ? settings.bidIncrementSlabs : undefined;
+
+    // 1. Upsert into relational tournament_auctions table (single source of truth)
+    try {
+      const auctionPayload = {
+        tournament_id: tId,
+        purse_budget: purse,
+        base_price: base,
+        icon_price: icon,
+        max_squad_size: maxSquad,
+        ...(slabs ? { bid_increment_slabs: slabs } : {}),
         updated_at: new Date().toISOString()
       };
-      await supabase.from('tournaments').update(updates).eq('id', targetId);
+      await supabase.from('tournament_auctions').upsert(auctionPayload, { onConflict: 'tournament_id' });
+    } catch (tblErr) {
+      console.warn('[SUPABASE] tournament_auctions upsert notice:', tblErr.message);
     }
-    // Also try updating auction_settings column directly if table has it
-    await supabase.from('tournaments').update({ auction_settings: settings, updated_at: new Date().toISOString() }).eq('id', tId).catch(() => {});
+
+    // 2. Also keep tournaments budget & icon columns in sync
+    await supabase.from('tournaments').update({
+      total_team_budget: purse,
+      icon_price: icon,
+      updated_at: new Date().toISOString()
+    }).eq('id', tId).catch(() => {});
   } catch (e) { console.warn('[SUPABASE] saveAuctionSettings:', e.message); }
 }
 
@@ -2556,7 +2565,25 @@ export async function saveCustomTournamentToCloud(tourney) {
     if (tourney.supabaseId) payload.id = tourney.supabaseId;
     const { data, error } = await supabase.from('tournaments').upsert(payload, { onConflict: 'slug' }).select('id').single();
     if (error) console.warn('[SUPABASE] saveCustomTournament error:', error.message);
-    if (!error && data?.id) return data.id;
+    if (!error && data?.id) {
+      // Sync auction configuration into tournament_auctions table
+      try {
+        const teamPurse = Number(tourney.teamPurse || tourney.auctionPurse || tourney.purse) || 8000;
+        const basePrice = Number(tourney.basePrice || tourney.defaultBasePrice) || 300;
+        const iconPrice = Number(tourney.iconPrice || tourney.iconFee || tourney.defaultIconPrice) || 500;
+        await supabase.from('tournament_auctions').upsert({
+          tournament_id: data.id,
+          purse_budget: teamPurse,
+          base_price: basePrice,
+          icon_price: iconPrice,
+          max_squad_size: Number(tourney.maxSquad || tourney.maxSquadSize) || 15,
+          updated_at: new Date().toISOString()
+        }, { onConflict: 'tournament_id' });
+      } catch (aucErr) {
+        console.warn('[SUPABASE] tournament_auctions initial sync notice:', aucErr.message);
+      }
+      return data.id;
+    }
     return null;
   } catch (e) {
     console.warn('[SUPABASE] saveCustomTournament:', e.message);
