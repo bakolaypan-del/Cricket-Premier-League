@@ -1,8 +1,8 @@
 // Admin Master Data & Payment Verification Panel with Single Source Cloud Control (Developer: Suman Kolay)
 
-import { store } from './store.js?v=13.0.73';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportMatchScorecardPNG, exportFullMatchSummaryPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.73';
-import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID, compressImageToTarget, saveScorecardsToSupabase } from './supabase.js?v=13.0.73';
+import { store } from './store.js?v=13.0.74';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportMatchScorecardPNG, exportFullMatchSummaryPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.74';
+import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID, compressImageToTarget, saveScorecardsToSupabase } from './supabase.js?v=13.0.74';
 import { shops } from './shopsData.js?v=12.0.2';
 
 let activeAdminTab = (() => { try { return sessionStorage.getItem('cpl_admin_tab') || (store.isMasterAdmin() ? 'payments' : 'overview'); } catch(e) { return 'payments'; } })();
@@ -8746,7 +8746,7 @@ export function openEditTeamModal(team = null, onSaved = null) {
               </div>
               <div class="flex items-center gap-2">
                 <span class="text-sm font-black text-amber-900 font-mono">₹</span>
-                <input type="number" id="edit-icon-fee" placeholder="Enter Icon Price (e.g. ${tourneyDefaultIconFee})" value="${initialIconFee || ''}" min="1" step="50" class="w-full bg-white border-2 border-amber-400 text-slate-900 text-xs rounded-xl p-2.5 font-mono font-black focus:border-amber-600 focus:outline-none shadow-sm" />
+                <input type="number" id="edit-icon-fee" placeholder="Enter Icon Price (e.g. ${tourneyDefaultIconFee})" value="${initialIconFee || ''}" min="0" step="any" class="w-full bg-white border-2 border-amber-400 text-slate-900 text-xs rounded-xl p-2.5 font-mono font-black focus:border-amber-600 focus:outline-none shadow-sm" />
               </div>
               <p class="text-[9.5px] text-amber-800 font-medium">
                 ⚠️ Explicit Price Setting: You must enter an Icon Price (> ₹0). If not set, this player cannot be assigned as an Icon Player.

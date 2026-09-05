@@ -65,7 +65,7 @@ import {
   saveNoticeBoardToCloud,
   fetchNoticeBoardFromCloud,
   broadcastLiveScore
-} from './supabase.js?v=13.0.73';
+} from './supabase.js?v=13.0.74';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
