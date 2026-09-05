@@ -13479,9 +13479,12 @@ export function openLiveAuctionProjectorView() {
     const franchiseList = document.getElementById('proj-franchise-list');
     if (!heroContainer || !franchiseList) return;
 
+    const projTourneyId = (typeof store !== 'undefined' && store.activeTournamentId) ? store.activeTournamentId : null;
+
     // 1. Update Top League Statistics Pills
     const soldList = allPlayers.filter(p => p.teamId || p.auctionStatus === 'SOLD');
     const unsoldList = allPlayers.filter(p => p.auctionStatus === 'UNSOLD' && !p.teamId);
+    const pendingList = allPlayers.filter(p => !p.teamId && p.auctionStatus !== 'SOLD' && p.auctionStatus !== 'UNSOLD');
     const totalSpent = soldList.reduce((sum, p) => {
       const isIcon = Boolean(p.isIcon || p.isIconPlayer);
       const iconFee = isIcon ? (Number(p.soldPrice || p.price) || store.resolveTeamIconFee(teams.find(t => t.id === p.teamId), projTourneyId)) : 0;
