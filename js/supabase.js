@@ -561,6 +561,9 @@ export function processLiveScoreUpdate(p) {
         if (p.status) fixtures[idx].status = p.status;
         if (p.result !== undefined) fixtures[idx].result = p.result;
         if (p.winnerTeamId !== undefined) fixtures[idx].winnerTeamId = p.winnerTeamId;
+        if (fixtures[idx].result && String(fixtures[idx].result).trim() && fixtures[idx].status !== 'COMPLETED') {
+          fixtures[idx].status = 'COMPLETED';
+        }
         if (p.teamAScore) fixtures[idx].teamAScore = p.teamAScore;
         if (p.teamBScore) fixtures[idx].teamBScore = p.teamBScore;
         if (p.oversLimit) fixtures[idx].oversLimit = p.oversLimit;
@@ -571,11 +574,12 @@ export function processLiveScoreUpdate(p) {
         updatedAny = true;
       } else if (p.liveMatchState) {
         // Fixture not yet in this scoped cache: append it so spectator sees it!
+        const isCompletedPlaceholder = (p.status === 'COMPLETED') || !!(p.result && String(p.result).trim());
         const placeholderFixture = {
           id: p.fixtureId,
           tournament_id: fTid,
           leagueId: fTid,
-          status: p.status || 'LIVE',
+          status: isCompletedPlaceholder ? 'COMPLETED' : (p.status || 'LIVE'),
           result: p.result || null,
           winnerTeamId: p.winnerTeamId || null,
           teamAScore: p.teamAScore || null,

@@ -65,7 +65,7 @@ import {
   saveNoticeBoardToCloud,
   fetchNoticeBoardFromCloud,
   broadcastLiveScore
-} from './supabase.js?v=13.0.76';
+} from './supabase.js?v=13.0.77';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -496,8 +496,10 @@ class Store {
             }
 
             const freshestLive = cloudLive || localF.liveMatchState || localF.liveState || null;
+            const isFinished = cf.status === 'COMPLETED' || !!(cf.result && String(cf.result).trim());
             return {
               ...cf,
+              status: isFinished ? 'COMPLETED' : (cf.status || 'SCHEDULED'),
               liveState: freshestLive,
               liveMatchState: freshestLive,
               teamAName: cf.teamAName || localF.teamAName,
@@ -2540,10 +2542,14 @@ class Store {
       all.forEach(f => {
         if (!f || !f.id) return;
         const liveMem = window.__cplLiveScores[f.id] || (toUUID(f.id) ? window.__cplLiveScores[toUUID(f.id)] : null);
+        const isDone = f.status === 'COMPLETED' || !!(f.result && String(f.result).trim());
+        if (isDone) {
+          f.status = 'COMPLETED';
+        }
         if (liveMem) {
           f.liveMatchState = liveMem;
           f.liveState = liveMem;
-          if (f.status !== 'COMPLETED') f.status = 'LIVE';
+          if (!isDone) f.status = 'LIVE';
         }
       });
     }
@@ -2584,7 +2590,13 @@ class Store {
         if (!updatedFixture.liveMatchState._v) updatedFixture.liveMatchState._v = Date.now();
         updatedFixture.liveState = updatedFixture.liveMatchState;
       }
+      if (updatedFixture.result && String(updatedFixture.result).trim() && updatedFixture.status !== 'COMPLETED') {
+        updatedFixture.status = 'COMPLETED';
+      }
       fixtures[idx] = { ...fixtures[idx], ...updatedFixture, updated_at: Date.now() };
+      if (fixtures[idx].result && String(fixtures[idx].result).trim() && fixtures[idx].status !== 'COMPLETED') {
+        fixtures[idx].status = 'COMPLETED';
+      }
       this._invalidateCache('fixtures');
       safeSetLocalStorage(this._scopedKey('FIXTURES'), fixtures);
       const fixtureTid = fixtures[idx].tournament_id || fixtures[idx].leagueId || this.activeTournamentId;
@@ -2774,10 +2786,14 @@ class Store {
       result.forEach(f => {
         if (!f || !f.id) return;
         const liveMem = window.__cplLiveScores[f.id] || (toUUID(f.id) ? window.__cplLiveScores[toUUID(f.id)] : null);
+        const isDone = f.status === 'COMPLETED' || !!(f.result && String(f.result).trim());
+        if (isDone) {
+          f.status = 'COMPLETED';
+        }
         if (liveMem) {
           f.liveMatchState = liveMem;
           f.liveState = liveMem;
-          if (f.status !== 'COMPLETED') f.status = 'LIVE';
+          if (!isDone) f.status = 'LIVE';
         }
       });
     }

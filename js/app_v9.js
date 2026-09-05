@@ -1,9 +1,9 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=13.0.76';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.76';
-import { renderAdminDashboard } from './admin.js?v=13.0.76';
-import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getLocalPopupSettings, fetchNoticeBoardFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.76';
+import { store } from './store.js?v=13.0.77';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.77';
+import { renderAdminDashboard } from './admin.js?v=13.0.77';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getLocalPopupSettings, fetchNoticeBoardFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.77';
 import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.53';
 import { shops } from './shopsData.js?v=12.0.2';
 
@@ -4162,21 +4162,21 @@ export function renderCustomTournamentHub(container, tourney) {
           ${allFixtures.length > 0 ? `
             <div class="space-y-3">
               ${allFixtures.map(f => {
-                const isLive = f.status === 'LIVE';
-                const isCompleted = f.status === 'COMPLETED';
-                const statusText = f.status || 'COMPLETED';
+                const isCompleted = f.status === 'COMPLETED' || !!(f.result && String(f.result).trim());
+                const isLive = !isCompleted && (f.status === 'LIVE' || (f.liveMatchState && (f.liveMatchState.runs > 0 || f.liveMatchState.overs > 0 || f.liveMatchState.balls > 0)));
+                const statusText = f.status || (isCompleted ? 'COMPLETED' : 'SCHEDULED');
                 const liveState = f.liveMatchState || f.liveState || {};
                 const aScore = f.teamAScore || {};
                 const bScore = f.teamBScore || {};
                 let teamAScoreTxt = '';
                 let teamBScoreTxt = '';
-                if (isLive) {
+                if (isCompleted) {
+                  teamAScoreTxt = aScore.runs !== undefined ? `${aScore.runs}/${aScore.wickets || 0}` : '';
+                  teamBScoreTxt = bScore.runs !== undefined ? `${bScore.runs}/${bScore.wickets || 0}` : '';
+                } else if (isLive) {
                   const isBattingTeamA = liveState.innings !== 2;
                   teamAScoreTxt = isBattingTeamA ? `${liveState.runs || 0}/${liveState.wickets || 0} (${liveState.overs || 0}.${liveState.balls || 0})` : (f.teamAScore ? `${f.teamAScore.runs}/${f.teamAScore.wickets}` : '');
                   teamBScoreTxt = !isBattingTeamA ? `${liveState.runs || 0}/${liveState.wickets || 0} (${liveState.overs || 0}.${liveState.balls || 0})` : (f.teamBScore ? `${f.teamBScore.runs}/${f.teamBScore.wickets}` : '');
-                } else if (isCompleted) {
-                  teamAScoreTxt = aScore.runs !== undefined ? `${aScore.runs}/${aScore.wickets || 0}` : '';
-                  teamBScoreTxt = bScore.runs !== undefined ? `${bScore.runs}/${bScore.wickets || 0}` : '';
                 }
 
                 return `
@@ -4206,7 +4206,7 @@ export function renderCustomTournamentHub(container, tourney) {
                     <!-- Footer: Venue + Result -->
                     <div class="flex items-center justify-between px-3.5 pb-3 pt-1">
                       <span class="text-[10px] font-bold text-slate-400 uppercase truncate max-w-[50%]">${f.venue || tourney.venue || 'VENUE'}</span>
-                      ${isCompleted && f.result ? `<span class="text-[10px] font-bold text-slate-500 truncate max-w-[50%] text-right">${f.result}</span>` : isLive ? `<span class="text-[10px] font-black text-rose-500">${liveState.isSuperOver ? '⚡ Super Over in progress' : 'Match in progress'}</span>` : `<span class="text-[10px] font-bold text-slate-400">${f.time || ''}</span>`}
+                      ${isCompleted && f.result ? `<span class="text-[10px] font-bold text-slate-500 truncate max-w-[50%] text-right">${f.result}</span>` : isLive ? `<span class="text-[10px] font-black text-rose-500">${liveState.isSuperOver ? '⚡ Super Over in progress' : 'Match in progress'}</span>` : isCompleted ? `<span class="text-[10px] font-bold text-slate-400">Match Completed</span>` : `<span class="text-[10px] font-bold text-slate-400">${f.time || ''}</span>`}
                     </div>
                   </div>
                 `;
@@ -9164,20 +9164,20 @@ function renderFixturesView(container) {
       const logoB = teamBObj?.logoUrl || teamBObj?.teamLogoUrl || 'assets/card_jsl_user.png';
 
       const liveState = window.__cplLiveScores?.[m.id] || (toUUID(m.id) ? window.__cplLiveScores?.[toUUID(m.id)] : null) || m.liveMatchState || m.liveState || {};
-      const isLive = m.status === 'LIVE' || (liveState && (liveState.runs > 0 || liveState.overs > 0 || liveState.balls > 0));
-      const isCompleted = m.status === 'COMPLETED' || !!m.result;
+      const isCompleted = m.status === 'COMPLETED' || !!(m.result && String(m.result).trim());
+      const isLive = !isCompleted && (m.status === 'LIVE' || isFixtureLive(m));
       const aScore = m.teamAScore || {};
       const bScore = m.teamBScore || {};
 
       let teamAScoreTxt = '-';
       let teamBScoreTxt = '-';
-      if (isLive) {
+      if (isCompleted) {
+        teamAScoreTxt = aScore.runs !== undefined ? `${aScore.runs}/${aScore.wickets || 0} (${aScore.overs || 0}.${aScore.balls || 0} ov)` : '-';
+        teamBScoreTxt = bScore.runs !== undefined ? `${bScore.runs}/${bScore.wickets || 0} (${bScore.overs || 0}.${bScore.balls || 0} ov)` : '-';
+      } else if (isLive) {
         const isBattingTeamA = liveState.innings !== 2;
         teamAScoreTxt = isBattingTeamA ? `${liveState.runs || 0}/${liveState.wickets || 0} (${liveState.overs || 0}.${liveState.balls || 0})` : (m.teamAScore ? `${m.teamAScore.runs}/${m.teamAScore.wickets}` : '-');
         teamBScoreTxt = !isBattingTeamA ? `${liveState.runs || 0}/${liveState.wickets || 0} (${liveState.overs || 0}.${liveState.balls || 0})` : (m.teamBScore ? `${m.teamBScore.runs}/${m.teamBScore.wickets}` : '-');
-      } else if (isCompleted) {
-        teamAScoreTxt = aScore.runs !== undefined ? `${aScore.runs}/${aScore.wickets || 0} (${aScore.overs || 0}.${aScore.balls || 0} ov)` : '-';
-        teamBScoreTxt = bScore.runs !== undefined ? `${bScore.runs}/${bScore.wickets || 0} (${bScore.overs || 0}.${bScore.balls || 0} ov)` : '-';
       }
 
       const startTs = m.startedAtTimestamp || Date.now();
@@ -9219,7 +9219,7 @@ function renderFixturesView(container) {
           <!-- Footer: Venue + Result/Time -->
           <div class="flex items-center justify-between px-3.5 pb-3 pt-1">
             <span class="text-[10px] font-bold text-slate-400 uppercase truncate max-w-[50%]">${m.venue || 'VENUE'}</span>
-            ${isCompleted && m.result ? `<span class="text-[10px] font-bold text-slate-500 truncate max-w-[50%] text-right">${m.result}</span>` : isLive ? `<span class="text-[10px] font-black text-rose-500">${liveState.isSuperOver ? '⚡ Super Over in progress' : 'Match in progress'}</span>` : `<span class="text-[10px] font-bold text-slate-400">${m.time || ''}</span>`}
+            ${isCompleted && m.result ? `<span class="text-[10px] font-bold text-slate-500 truncate max-w-[50%] text-right">${m.result}</span>` : isLive ? `<span class="text-[10px] font-black text-rose-500">${liveState.isSuperOver ? '⚡ Super Over in progress' : 'Match in progress'}</span>` : isCompleted ? `<span class="text-[10px] font-bold text-slate-400">Match Completed</span>` : `<span class="text-[10px] font-bold text-slate-400">${m.time || ''}</span>`}
           </div>
         </div>
       `;
@@ -10093,8 +10093,8 @@ export function openMatchCenterModal(fixtureId) {
   const playing11B = teamBPlayers.filter(p => (pxiB.playing11Ids || []).includes(p.id));
 
   const state = fixture.liveMatchState || fixture.liveState || {};
-  const isLive = fixture.status === 'LIVE';
-  const isCompleted = fixture.status === 'COMPLETED';
+  const isCompleted = fixture.status === 'COMPLETED' || !!(fixture.result && String(fixture.result).trim());
+  const isLive = !isCompleted && (fixture.status === 'LIVE' || (state && (state.runs > 0 || state.overs > 0 || state.balls > 0)));
   const currentInnings = state.innings || (isCompleted ? 2 : 1);
   const pStats = state.playerStats || {};
 
@@ -10118,7 +10118,9 @@ export function openMatchCenterModal(fixtureId) {
                 <span class="px-2 py-0.5 bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[9px] font-mono font-black rounded-md uppercase shrink-0">
                   ${(fixture.tournamentName || (store.getCustomTournamentById(fixture.tournamentId || fixture.tournament_id)?.name) || 'CRICKET PREMIER LEAGUE').toUpperCase()} • MATCH ${fixture.matchNo || 1}
                 </span>
-                ${isLive && state.isSuperOver ? `<span class="px-2 py-0.5 bg-amber-500 text-white text-[9px] font-black rounded-md uppercase animate-pulse shrink-0">⚡ SUPER OVER</span>` : isLive ? `<span class="px-2 py-0.5 bg-red-500 text-white text-[9px] font-black rounded-md uppercase animate-pulse shrink-0">🔴 LIVE</span>` : (isCompleted ? `<span class="px-2 py-0.5 bg-emerald-500 text-slate-950 text-[9px] font-black rounded-md uppercase shrink-0">COMPLETED</span>` : `<span class="px-2 py-0.5 bg-amber-400 text-slate-950 text-[9px] font-black rounded-md uppercase shrink-0">SCHEDULED</span>`)}
+                <span id="mc-status-badge">
+                  ${!isCompleted && isLive && state.isSuperOver ? `<span class="px-2 py-0.5 bg-amber-500 text-white text-[9px] font-black rounded-md uppercase animate-pulse shrink-0">⚡ SUPER OVER</span>` : (!isCompleted && isLive) ? `<span class="px-2 py-0.5 bg-red-500 text-white text-[9px] font-black rounded-md uppercase animate-pulse shrink-0">🔴 LIVE</span>` : (isCompleted ? `<span class="px-2 py-0.5 bg-emerald-500 text-slate-950 text-[9px] font-black rounded-md uppercase shrink-0">COMPLETED</span>` : `<span class="px-2 py-0.5 bg-amber-400 text-slate-950 text-[9px] font-black rounded-md uppercase shrink-0">SCHEDULED</span>`)}
+                </span>
               </div>
               <h2 class="text-sm sm:text-base font-black text-white leading-tight mt-0.5 truncate">
                 ${fixture.teamAName} vs ${fixture.teamBName}
@@ -10166,6 +10168,7 @@ export function openMatchCenterModal(fixtureId) {
 
   let mcLiveHandler = null;
   let mcVisibilityHandler = null;
+  let mcLivePoller = null;
   const removeModal = () => {
     if (mcLiveHandler) {
       window.removeEventListener('fixtures_updated', mcLiveHandler);
@@ -10176,6 +10179,10 @@ export function openMatchCenterModal(fixtureId) {
     if (mcVisibilityHandler) {
       document.removeEventListener('visibilitychange', mcVisibilityHandler);
       mcVisibilityHandler = null;
+    }
+    if (mcLivePoller) {
+      clearInterval(mcLivePoller);
+      mcLivePoller = null;
     }
     if (window.renderActiveMatchCenter === renderMatchCenterContent) window.renderActiveMatchCenter = null;
     document.getElementById('match-center-modal')?.remove();
@@ -10198,8 +10205,19 @@ export function openMatchCenterModal(fixtureId) {
     const fixture = store.getFixtures().find(f => f.id === fixtureId || (toUUID(f.id) && toUUID(f.id) === toUUID(fixtureId))) || (store.getAllFixturesAcrossTournaments ? store.getAllFixturesAcrossTournaments().find(f => f.id === fixtureId || (toUUID(f.id) && toUUID(f.id) === toUUID(fixtureId))) : null) || {};
     const state = window.__cplLiveScores?.[fixtureId] || (toUUID(fixtureId) ? window.__cplLiveScores?.[toUUID(fixtureId)] : null) || fixture.liveMatchState || fixture.liveState || {};
     const pStats = state.playerStats || {};
-    const isLive = fixture.status === 'LIVE' || (state && (state.runs > 0 || state.overs > 0 || state.balls > 0));
-    const isCompleted = fixture.status === 'COMPLETED';
+    const isCompleted = fixture.status === 'COMPLETED' || !!(fixture.result && String(fixture.result).trim());
+    const isLive = !isCompleted && (fixture.status === 'LIVE' || (state && (state.runs > 0 || state.overs > 0 || state.balls > 0)));
+
+    const badgeEl = document.getElementById('mc-status-badge');
+    if (badgeEl) {
+      badgeEl.innerHTML = !isCompleted && isLive && state.isSuperOver 
+        ? `<span class="px-2 py-0.5 bg-amber-500 text-white text-[9px] font-black rounded-md uppercase animate-pulse shrink-0">⚡ SUPER OVER</span>` 
+        : (!isCompleted && isLive) 
+        ? `<span class="px-2 py-0.5 bg-red-500 text-white text-[9px] font-black rounded-md uppercase animate-pulse shrink-0">🔴 LIVE</span>` 
+        : isCompleted 
+        ? `<span class="px-2 py-0.5 bg-emerald-500 text-slate-950 text-[9px] font-black rounded-md uppercase shrink-0">COMPLETED</span>` 
+        : `<span class="px-2 py-0.5 bg-amber-400 text-slate-950 text-[9px] font-black rounded-md uppercase shrink-0">SCHEDULED</span>`;
+    }
     const teamAObj = store.getTeamById(fixture.teamAId) || {};
     const teamBObj = store.getTeamById(fixture.teamBId) || {};
     const logoA = teamAObj.logoUrl || teamAObj.teamLogoUrl || 'assets/card_jsl_user.png';
@@ -11154,6 +11172,25 @@ export function openMatchCenterModal(fixtureId) {
     }
   };
   document.addEventListener('visibilitychange', mcVisibilityHandler);
+  // Fallback Poller: Ensures real-time batsman stats and score updates on spectator phones even during network fluctuations
+  mcLivePoller = setInterval(() => {
+    if (!document.getElementById('match-center-modal')) {
+      if (mcLivePoller) {
+        clearInterval(mcLivePoller);
+        mcLivePoller = null;
+      }
+      return;
+    }
+    if (document.visibilityState === 'visible') {
+      const curF = store.getFixtures().find(f => f.id === fixtureId || (toUUID(f.id) && toUUID(f.id) === toUUID(fixtureId))) || {};
+      const isDone = curF.status === 'COMPLETED' || !!(curF.result && String(curF.result).trim());
+      if (!isDone) {
+        Promise.resolve(store.syncWithCloud()).then(() => {
+          if (document.getElementById('match-center-modal')) renderMatchCenterContent();
+        }).catch(() => {});
+      }
+    }
+  }, 2500);
 
   renderMatchCenterContent();
 }
