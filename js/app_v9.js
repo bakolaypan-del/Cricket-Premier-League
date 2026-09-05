@@ -3434,6 +3434,8 @@ export function renderCustomTournamentHub(container, tourney) {
           unique.set(uKey, p);
         }
       }
+    });
+
     const uniqueList = Array.from(unique.values());
     uniqueList.sort((a, b) => {
       const numA = Number(a.reg_number || a.displayRegistrationNumber || a.serialNo);
