@@ -3434,9 +3434,18 @@ export function renderCustomTournamentHub(container, tourney) {
           unique.set(uKey, p);
         }
       }
+    const uniqueList = Array.from(unique.values());
+    uniqueList.sort((a, b) => {
+      const numA = Number(a.reg_number || a.displayRegistrationNumber || a.serialNo);
+      const numB = Number(b.reg_number || b.displayRegistrationNumber || b.serialNo);
+      const hasA = !isNaN(numA) && numA > 0;
+      const hasB = !isNaN(numB) && numB > 0;
+      if (hasA && hasB) return numA - numB;
+      if (hasA) return -1;
+      if (hasB) return 1;
+      return new Date(a.created_at || a.createdTime || 0) - new Date(b.created_at || b.createdTime || 0);
     });
-
-    return Array.from(unique.values());
+    return uniqueList;
   })();
 
   const displayPlayers = allPlayers;
@@ -4384,8 +4393,9 @@ export function renderCustomTournamentHub(container, tourney) {
                 const serial = String(idx + 1).padStart(2, '0');
                 const isApproved = (p.registrationStatus || p.paymentStatus || '').toUpperCase().includes('APPROVED') || (p.registrationStatus || p.paymentStatus || '').toUpperCase().includes('VERIFIED') || p.verified === true;
                 const photo = p.photoUrl || p.player_photo_url || 'assets/card_jsl_user.png';
-                const regCode = `${(tourney.shortCode || 'JSL').toUpperCase()}-2026-${String(serial).padStart(4, '0')}`;
-                const searchTokens = `${p.name || ''} ${p.mobile || p.phone || ''} ${serial} ${regCode} ${p.village || ''} ${p.address || ''} ${p.category || ''} ${p.role || ''}`.toLowerCase();
+                const regNumber = p.reg_number || p.displayRegistrationNumber || (idx + 1);
+                const regCode = p.registrationId || p.regNo || `${(tourney.shortCode || 'JSL').toUpperCase()}-2026-${String(regNumber).padStart(4, '0')}`;
+                const searchTokens = `${p.name || ''} ${p.mobile || p.phone || ''} ${serial} ${regNumber} ${regCode} ${p.village || ''} ${p.address || ''} ${p.category || ''} ${p.role || ''}`.toLowerCase();
                 const rawCat = (p.category || p.role || 'allrounder').toLowerCase().replace(/[^a-z]/g, '');
 
                 return `
@@ -7097,7 +7107,17 @@ function openRegisteredPlayersModal(allPlayers = store.getPlayers()) {
   // Option 02: On-demand Cloud Sync when modal opens
   store.syncWithCloud().catch(err => console.warn("Modal sync notice:", err));
 
-  const playersList = Array.isArray(allPlayers) ? allPlayers : store.getPlayers();
+  const rawList = Array.isArray(allPlayers) ? allPlayers : store.getPlayers();
+  const playersList = [...rawList].sort((a, b) => {
+    const numA = Number(a.reg_number || a.displayRegistrationNumber || a.serialNo);
+    const numB = Number(b.reg_number || b.displayRegistrationNumber || b.serialNo);
+    const hasA = !isNaN(numA) && numA > 0;
+    const hasB = !isNaN(numB) && numB > 0;
+    if (hasA && hasB) return numA - numB;
+    if (hasA) return -1;
+    if (hasB) return 1;
+    return new Date(a.created_at || a.createdTime || 0) - new Date(b.created_at || b.createdTime || 0);
+  });
   let filteredPlayers = [...playersList];
 
   const renderPlayerListContent = () => {
@@ -7367,7 +7387,7 @@ function openFullPlayerProfileModal(player) {
         <!-- PLAYER NAME, REG ID & STATUS BADGE -->
         <div class="space-y-1">
           <span class="px-2.5 py-0.5 bg-slate-100 text-slate-800 font-mono font-black text-xs rounded border border-slate-300 shadow-sm">
-            ${player.registrationId || player.regNo || 'REG-0001'} (Serial #${player.displayRegistrationNumber || player.serialNo || 1})
+            ${player.registrationId || player.regNo || ('REG-' + String(player.reg_number || player.displayRegistrationNumber || 1).padStart(4, '0'))} (Serial #${player.displaySerial || player.serialNo || 1})
           </span>
           <h2 class="text-lg sm:text-xl font-black text-slate-900 leading-tight mt-1">${player.name}</h2>
           <div class="inline-block px-3 py-0.5 bg-emerald-100 text-emerald-800 font-extrabold text-xs rounded-full border border-emerald-300">

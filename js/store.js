@@ -1031,6 +1031,8 @@ class Store {
 
     const uniquePlayers = Array.from(uniqueMap.values());
     const getCanonicalRank = (p) => {
+      const regNo = Number(p.reg_number || p.displayRegistrationNumber);
+      if (!isNaN(regNo) && regNo > 0) return regNo;
       if (p.id && p.id.startsWith('ply-1787000000000-')) {
         const num = parseInt(p.id.replace('ply-1787000000000-', ''), 10);
         if (!isNaN(num) && num > 0) return num;
@@ -1131,10 +1133,12 @@ class Store {
         basePrice: (!p.basePrice || Number(p.basePrice) === 200) ? 300 : Number(p.basePrice),
         photoUrl: validPhoto,
         player_photo_url: validPhoto,
-        serialNo: displayNo,
-        displayRegistrationNumber: displayNo,
-        registrationId: regId,
-        regNo: regId
+        reg_number: p.reg_number || p.displayRegistrationNumber || displayNo,
+        serialNo: idx + 1,
+        displaySerial: idx + 1,
+        displayRegistrationNumber: p.reg_number || p.displayRegistrationNumber || displayNo,
+        registrationId: p.registrationId || regId,
+        regNo: p.regNo || regId
       };
     });
 

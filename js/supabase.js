@@ -880,6 +880,16 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
       }
     });
     const uniqueDbPlayers = Array.from(dedupedPlayersMap.values());
+    uniqueDbPlayers.sort((a, b) => {
+      const numA = Number(a.reg_number);
+      const numB = Number(b.reg_number);
+      const hasA = !isNaN(numA) && numA > 0;
+      const hasB = !isNaN(numB) && numB > 0;
+      if (hasA && hasB) return numA - numB;
+      if (hasA) return -1;
+      if (hasB) return 1;
+      return new Date(a.created_at || 0) - new Date(b.created_at || 0);
+    });
 
     const dbTeams = (!teamsRes.error && Array.isArray(teamsRes.data)) ? teamsRes.data : [];
     const dbMatches = (!matchesRes.error && Array.isArray(matchesRes.data)) ? matchesRes.data : [];
@@ -961,9 +971,10 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
         paymentReceiptUrl: doc.payment_screenshot_url || prof.paymentReceiptUrl || '',
         paymentProofUrl: doc.payment_screenshot_url || prof.paymentProofUrl || '',
         serialNo: serial,
-        displayRegistrationNumber: serial,
-        registrationId: `${regPrefix}-${String(serial).padStart(4, '0')}`,
-        regNo: `${regPrefix}-${String(serial).padStart(4, '0')}`,
+        reg_number: p.reg_number || serial,
+        displayRegistrationNumber: p.reg_number || serial,
+        registrationId: `${regPrefix}-${String(p.reg_number || serial).padStart(4, '0')}`,
+        regNo: `${regPrefix}-${String(p.reg_number || serial).padStart(4, '0')}`,
         address: overrideData.address || (resolvedVillage ? `${resolvedVillage}, ${resolvedDistrict}` : ''),
         battingStyle: overrideData.battingStyle || prof.batting_style || p.batting_style || p.battingStyle || 'Right Hand Bat',
         bowlingStyle: overrideData.bowlingStyle || prof.bowling_style || p.bowling_style || p.bowlingStyle || 'Right Hand Medium',
@@ -2739,7 +2750,8 @@ export async function fetchAllTournamentsPlayers() {
           id, name, phone, photo_url, role, batting_style, bowling_style, dob, village, district, state, jersey_size
         )
       `)
-      .neq('status', 'deleted');
+      .neq('status', 'deleted')
+      .order('reg_number', { ascending: true, nullsFirst: false });
     if (error || !Array.isArray(players)) return {};
     const result = {};
     players.forEach(p => {
