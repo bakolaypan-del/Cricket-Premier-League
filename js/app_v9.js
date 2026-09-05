@@ -1,9 +1,9 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=13.0.75';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.75';
-import { renderAdminDashboard } from './admin.js?v=13.0.75';
-import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getLocalPopupSettings, fetchNoticeBoardFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.75';
+import { store } from './store.js?v=13.0.76';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.76';
+import { renderAdminDashboard } from './admin.js?v=13.0.76';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getLocalPopupSettings, fetchNoticeBoardFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.76';
 import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.53';
 import { shops } from './shopsData.js?v=12.0.2';
 
@@ -11512,34 +11512,67 @@ function renderLiveAuctionView(container) {
           </div>
         </div>
 
-        <!-- All Tournaments Hub Directory Grid -->
-        <div class="space-y-2">
-          <div class="flex items-center justify-between px-1">
-            <h3 class="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-wider flex items-center gap-1.5">
-              <span>🏛️</span> Browse Auction Archives
-            </h3>
-            <span class="text-[10px] font-bold text-slate-400">${allTourneys.length} Leagues</span>
-          </div>
-
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-            ${allTourneys.map(t => `
-              <div class="p-2.5 bg-white border border-slate-200/90 hover:border-amber-400 rounded-2xl shadow-2xs hover:shadow-xs transition-all flex items-center justify-between gap-2.5 group">
-                <div class="flex items-center gap-2.5 min-w-0">
-                  <div class="w-10 h-10 rounded-xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0 shadow-2xs">
-                    <img src="${t.posterUrl || t.logoUrl || 'assets/jsl_logo.jpg'}" class="w-full h-full object-cover" onerror="this.src='assets/jsl_logo.jpg'" />
-                  </div>
-                  <div class="min-w-0">
-                    <h4 class="text-xs font-black text-slate-900 truncate group-hover:text-amber-800 transition-colors uppercase">${t.name}</h4>
-                    <div class="text-[9.5px] text-slate-400 font-bold truncate mt-0.5">📍 ${t.venue || 'Local'} • ${t.teamsCount || 4} Teams</div>
-                  </div>
+        <!-- Collapsible Past Auction Archives Section (Closed by default) -->
+        <div class="bg-white border-2 border-slate-200/90 rounded-2xl sm:rounded-3xl shadow-xs overflow-hidden transition-all">
+          
+          <!-- Accordion Trigger Header -->
+          <button id="toggle-auction-archives-btn" type="button" class="w-full p-3 sm:p-4 flex items-center justify-between gap-3 text-left transition-colors hover:bg-slate-50/90 cursor-pointer select-none group">
+            <div class="flex items-center gap-3 min-w-0">
+              <span class="w-9 h-9 sm:w-10 sm:h-10 rounded-2xl bg-amber-50 text-amber-900 border border-amber-200 flex items-center justify-center shrink-0 text-lg shadow-2xs group-hover:scale-105 transition-transform">
+                🏛️
+              </span>
+              <div class="min-w-0">
+                <div class="flex items-center gap-2 flex-wrap">
+                  <h3 class="text-xs sm:text-sm font-black text-slate-900 uppercase tracking-wide truncate">
+                    Browse Auction Archives
+                  </h3>
+                  <span class="px-2 py-0.5 rounded-full text-[9px] sm:text-[10px] font-black bg-slate-100 text-slate-600 border border-slate-200 shrink-0">
+                    ${allTourneys.length} Leagues
+                  </span>
                 </div>
-
-                <a href="#t/${t.slug}?tab=auction" class="px-2.5 py-1.5 bg-slate-900 hover:bg-slate-800 text-amber-400 font-black text-[11px] rounded-xl shadow-xs flex items-center gap-1 shrink-0 transition-transform active:scale-95">
-                  <span>Hub</span> <span>➔</span>
-                </a>
+                <p class="text-[10px] text-slate-400 font-medium truncate mt-0.5">
+                  Click to explore historical player prices, final bids & squad vaults
+                </p>
               </div>
-            `).join('')}
+            </div>
+
+            <div class="flex items-center gap-2 shrink-0">
+              <span id="auction-archives-toggle-label" class="hidden sm:inline-block text-[10.5px] font-black text-amber-900 bg-amber-100/80 px-2.5 py-1 rounded-xl border border-amber-300/80 group-hover:bg-amber-200 transition-colors">
+                View Archives
+              </span>
+              <span class="w-7 h-7 rounded-xl bg-slate-100 group-hover:bg-slate-200 flex items-center justify-center transition-colors">
+                <i id="auction-archives-chevron" data-lucide="chevron-down" class="w-4 h-4 text-slate-600 transition-transform duration-300"></i>
+              </span>
+            </div>
+          </button>
+
+          <!-- Collapsible Content Drawer (Hidden by default) -->
+          <div id="auction-archives-content" class="hidden border-t border-slate-100 bg-slate-50/70 p-3 sm:p-4 space-y-3 animate-fade-in">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              ${allTourneys.map(t => `
+                <div class="p-3 bg-white border border-slate-200/90 hover:border-amber-400 rounded-2xl shadow-2xs hover:shadow-xs transition-all flex items-center justify-between gap-3 group">
+                  <div class="flex items-center gap-3 min-w-0">
+                    <div class="w-11 h-11 rounded-2xl bg-slate-100 border border-slate-200 overflow-hidden flex items-center justify-center shrink-0 shadow-2xs">
+                      <img src="${t.posterUrl || t.logoUrl || 'assets/jsl_logo.jpg'}" class="w-full h-full object-cover" onerror="this.src='assets/jsl_logo.jpg'" />
+                    </div>
+                    <div class="min-w-0">
+                      <h4 class="text-xs sm:text-sm font-black text-slate-900 truncate group-hover:text-amber-800 transition-colors uppercase leading-tight">${t.name}</h4>
+                      <div class="text-[10px] text-slate-400 font-bold truncate mt-1 flex items-center gap-1">
+                        <span>📍</span> <span class="truncate">${t.venue || 'Local Ground'}</span>
+                        <span>•</span>
+                        <span class="text-sky-700 font-black">${t.teamsCount || 4} Teams</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <a href="#t/${t.slug}?tab=auction" class="px-3 py-1.5 bg-slate-900 hover:bg-amber-500 hover:text-slate-950 text-amber-400 font-black text-[11px] rounded-xl shadow-xs flex items-center gap-1.5 shrink-0 transition-all active:scale-95">
+                    <span>Hub</span> <span>➔</span>
+                  </a>
+                </div>
+              `).join('')}
+            </div>
           </div>
+
         </div>
 
         <!-- Realtime Live Stream Standby Notice -->
@@ -11552,6 +11585,25 @@ function renderLiveAuctionView(container) {
 
       </div>
     `;
+
+    const toggleArchivesBtn = document.getElementById('toggle-auction-archives-btn');
+    const archivesContent = document.getElementById('auction-archives-content');
+    const archivesChevron = document.getElementById('auction-archives-chevron');
+    const archivesToggleLabel = document.getElementById('auction-archives-toggle-label');
+
+    toggleArchivesBtn?.addEventListener('click', () => {
+      const isHidden = archivesContent?.classList.contains('hidden');
+      if (isHidden) {
+        archivesContent?.classList.remove('hidden');
+        archivesChevron?.classList.add('rotate-180');
+        if (archivesToggleLabel) archivesToggleLabel.textContent = 'Hide Archives';
+      } else {
+        archivesContent?.classList.add('hidden');
+        archivesChevron?.classList.remove('rotate-180');
+        if (archivesToggleLabel) archivesToggleLabel.textContent = 'View Archives';
+      }
+    });
+
     if (window.lucide) window.lucide.createIcons();
   };
 
