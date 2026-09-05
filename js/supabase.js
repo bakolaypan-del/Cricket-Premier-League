@@ -851,7 +851,13 @@ export async function fetchCloudDataFromSupabase(tournamentId = DEFAULT_TOURNAME
         closed_reason, approval_status, format_config,
         profile:organiser_id ( id, full_name, phone, upi_id, payment_qr_url )
       `).eq('id', tId).maybeSingle(),
-      supabase.from('tournament_auctions').select('*').eq('tournament_id', tId).maybeSingle().catch(() => ({ data: null }))
+      (async () => {
+        try {
+          return await supabase.from('tournament_auctions').select('*').eq('tournament_id', tId).maybeSingle();
+        } catch (e) {
+          return { data: null, error: e };
+        }
+      })()
     ]);
     // Docs and profiles are fetched on-demand only (not every poll) to save mobile data
     const docsRes = { data: [], error: null };
