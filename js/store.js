@@ -217,6 +217,9 @@ function getPlayerTimestamp(p) {
 
 class Store {
   constructor() {
+    if (typeof window !== 'undefined') {
+      window.store = this;
+    }
     clearOldStorageQuota();
     // One-time fixture cache bust to clear stale cross-tournament data (v2)
     const FIX_CACHE_VER = 'cpl_fixture_cache_v2';
@@ -4592,3 +4595,6 @@ class Store {
 }
 
 export const store = new Store();
+if (typeof window !== 'undefined') {
+  window.store = store;
+}

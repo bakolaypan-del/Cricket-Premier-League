@@ -53,13 +53,18 @@ export function ensureGlobalBroadcastChannel() {
             status: st?.status,
             tournament_id: msg?.payload?.tournament_id
           });
-          if (st && typeof window !== 'undefined' && window.store) {
-            window.store.liveAuctionState = st;
+          if (st) {
+            if (typeof window !== 'undefined' && window.store) {
+              window.store.liveAuctionState = st;
+            }
             if (st.active_player_id) {
               try { localStorage.setItem('cpl_live_auction_state', JSON.stringify(st)); } catch(e) {}
             }
-            window.dispatchEvent(new CustomEvent('cpl_live_auction_updated', { detail: st }));
-            console.log(`📢 [REALTIME DISPATCHED][${now}] Dispatched cpl_live_auction_updated to UI. Player: "${st.name}", Bid: ₹${st.current_bid}, Status: ${st.status}`);
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('cpl_live_auction_updated', { detail: st }));
+              window.dispatchEvent(new CustomEvent('live_auction_updated', { detail: st }));
+              console.log(`📢 [REALTIME DISPATCHED][${now}] Dispatched cpl_live_auction_updated & live_auction_updated to UI. Player: "${st.name}", Bid: ₹${st.current_bid}, Status: ${st.status}`);
+            }
           }
         })
         .subscribe((status, err) => {
@@ -719,15 +724,21 @@ export async function initRealtimePushListener(onUpdateCallback, tournamentId) {
           status: st?.status,
           tournament_id: msg?.payload?.tournament_id
         });
-        if (st && typeof window !== 'undefined' && window.store) {
-          const tId = msg.payload.tournament_id;
-          if (!tId || tId === window.store.activeTournamentId || toUUID(tId) === toUUID(window.store.activeTournamentId)) {
-            window.store.liveAuctionState = st;
+        if (st) {
+          const tId = msg?.payload?.tournament_id;
+          const curTid = (typeof window !== 'undefined' && window.store?.activeTournamentId) || null;
+          if (!tId || !curTid || tId === curTid || toUUID(tId) === toUUID(curTid)) {
+            if (typeof window !== 'undefined' && window.store) {
+              window.store.liveAuctionState = st;
+            }
             if (st.active_player_id) {
               try { localStorage.setItem('cpl_live_auction_state', JSON.stringify(st)); } catch(e) {}
             }
-            window.dispatchEvent(new CustomEvent('cpl_live_auction_updated', { detail: st }));
-            console.log(`📢 [REALTIME DISPATCHED][${now}] Dispatched cpl_live_auction_updated to UI. Player: "${st.name}", Bid: ₹${st.current_bid}, Status: ${st.status}`);
+            if (typeof window !== 'undefined') {
+              window.dispatchEvent(new CustomEvent('cpl_live_auction_updated', { detail: st }));
+              window.dispatchEvent(new CustomEvent('live_auction_updated', { detail: st }));
+              console.log(`📢 [REALTIME DISPATCHED][${now}] Dispatched cpl_live_auction_updated & live_auction_updated to UI. Player: "${st.name}", Bid: ₹${st.current_bid}, Status: ${st.status}`);
+            }
           }
         }
       })
