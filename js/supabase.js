@@ -1258,18 +1258,7 @@ export async function syncPlayerToSupabase(playerData) {
       updated_at: new Date().toISOString()
     };
 
-    // Persist status & full player overrides permanently to tournament format_config (bypasses RLS constraints)
     const statusToSave = isApproved ? 'APPROVED' : (isRejected ? 'REJECTED' : 'PENDING');
-    try {
-      let { data: currentTourney } = await supabase.from('tournaments').select('id, format_config').eq('id', tournamentUUID).maybeSingle();
-      let targetId = tournamentUUID;
-      if (!currentTourney && rawTid) {
-        const cleanSlug = String(rawTid).replace(/^t_/, '').trim();
-        const { data: bySlug } = await supabase.from('tournaments').select('id, format_config').or(`slug.ilike.${cleanSlug},category_code.ilike.${cleanSlug}`).maybeSingle();
-        if (bySlug) {
-          currentTourney = bySlug;
-          targetId = bySlug.id;
-        }
     const isSoldVal = (playerData.auctionStatus === 'SOLD' || playerData.isSold === true || !!playerData.teamId);
     const isUnsoldVal = (playerData.auctionStatus === 'UNSOLD' || playerData.isUnsold === true);
     const soldPriceVal = Number(playerData.soldPrice || playerData.sold_price || playerData.boughtPrice) || 0;
