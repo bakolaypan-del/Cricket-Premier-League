@@ -1,9 +1,9 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=13.0.68';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.68';
-import { renderAdminDashboard } from './admin.js?v=13.0.68';
-import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, fetchNoticeBoardFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.68';
+import { store } from './store.js?v=13.0.69';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.69';
+import { renderAdminDashboard } from './admin.js?v=13.0.69';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, fetchNoticeBoardFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.69';
 import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.53';
 import { shops } from './shopsData.js?v=12.0.2';
 
@@ -3912,6 +3912,7 @@ export function renderCustomTournamentHub(container, tourney) {
                   (team.iconPlayerName && p.name && p.name.trim().toLowerCase() === team.iconPlayerName.trim().toLowerCase()) ||
                   (team.iconName && p.name && p.name.trim().toLowerCase() === team.iconName.trim().toLowerCase())
                 ));
+                const defaultIconFee = store.resolveTeamIconFee(team, tourney?.id);
                 const finalPrice = isIcon ? defaultIconFee : (Number(p.soldPrice) || Number(p.boughtPrice) || Number(p.basePrice) || 300);
                 return { ...p, team, isIcon, finalPrice };
               }).sort((a, b) => b.finalPrice - a.finalPrice).slice(0, 8);
@@ -5390,6 +5391,7 @@ function openFinalAuctionSummaryModal(tourney, allTeams, allPlayers) {
       (team.iconPlayerName && p.name && p.name.trim().toLowerCase() === team.iconPlayerName.trim().toLowerCase()) ||
       (team.iconName && p.name && p.name.trim().toLowerCase() === team.iconName.trim().toLowerCase())
     ));
+    const defaultIconFee = store.resolveTeamIconFee(team, tourney?.id);
     const finalPrice = isIcon ? defaultIconFee : (Number(p.soldPrice) || Number(p.boughtPrice) || Number(p.basePrice) || 300);
     return { ...p, team, isIcon, finalPrice };
   }).sort((a, b) => b.finalPrice - a.finalPrice).slice(0, 8);
@@ -5533,6 +5535,7 @@ function openFinalAuctionSummaryModal(tourney, allTeams, allPlayers) {
             <!-- ALL TEAM SQUADS BREAKDOWN -->
             <div class="space-y-4">
               ${allTeams.map(t => {
+                const defaultIconFee = store.resolveTeamIconFee(t, tourney?.id);
                 const hasIcon = !!((t.iconPlayerName && t.iconPlayerName.trim()) || (t.iconName && t.iconName.trim()) || (t.iconPlayerId && t.iconPlayerId.trim()));
                 const iconDeduction = hasIcon ? defaultIconFee : 0;
                 const teamSquad = allPlayers.filter(p => {
