@@ -2008,8 +2008,18 @@ export async function saveLiveAuctionToCloud(state, tournamentId = null) {
   if (!supabase) return;
   try {
     const tId = toUUID(tournamentId) || toUUID(typeof window !== 'undefined' && window.store?.activeTournamentId) || DEFAULT_TOURNAMENT_UUID;
+
+    // 1. Broadcast FIRST over Realtime channel for instant sub-100ms display across all spectator devices
+    //    This fires immediately without waiting for the DB round-trip (200-800ms savings)
+    if (activeRealtimeChannel) {
+      activeRealtimeChannel.send({
+        type: 'broadcast',
+        event: 'live_auction_update',
+        payload: { tournament_id: tId, state: state || {} }
+      }).catch(() => {});
+    }
     
-    // Save to tournament_auctions.live_state (isolated from main tournaments table)
+    // 2. Persist to tournament_auctions.live_state (runs after broadcast, does NOT block spectators)
     const { error: liveErr } = await supabase.from('tournament_auctions').upsert({
       tournament_id: tId,
       live_state: state || {},
@@ -2025,15 +2035,6 @@ export async function saveLiveAuctionToCloud(state, tournamentId = null) {
         config.live_auction = state || {};
         await supabase.from('tournaments').update({ format_config: config, updated_at: new Date().toISOString() }).eq('id', currentTourney.id);
       }
-    }
-
-    // Broadcast over Realtime channel for instant sub-100ms display across all devices
-    if (activeRealtimeChannel) {
-      activeRealtimeChannel.send({
-        type: 'broadcast',
-        event: 'live_auction_update',
-        payload: { tournament_id: tId, state: state || {} }
-      }).catch(() => {});
     }
   } catch (e) { console.warn('[SUPABASE] saveLiveAuction:', e.message); }
 }

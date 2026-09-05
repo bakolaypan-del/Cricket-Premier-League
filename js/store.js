@@ -795,7 +795,19 @@ class Store {
           }
           return;
         }
-        this.syncWithCloud();
+        // Skip full syncWithCloud for tournament_auctions and tournaments postgres_changes:
+        // The broadcast handler already pushes live auction state instantly via WebSocket.
+        // Only trigger full sync for player/team/match table changes (debounced).
+        const table = payload?.table || '';
+        if (table === 'tournament_auctions' || table === 'tournaments') {
+          return;
+        }
+        if (!this._realtimeSyncTimer) {
+          this._realtimeSyncTimer = setTimeout(() => {
+            this._realtimeSyncTimer = null;
+            this.syncWithCloud();
+          }, 2000);
+        }
       }, this.activeTournamentId || null);
     } catch (err) {
       console.warn("Realtime push setup notice:", err);
@@ -3330,7 +3342,8 @@ class Store {
   async getGlobalLiveAuctionInfo() {
     const activeTourney = this.getCustomTournaments().find(t => (t.supabaseId || t.id) === this.activeTournamentId) || {};
     const localState = this.getLiveAuctionStateSync();
-    const isLocalLive = localState && (localState.status === 'BIDDING' || localState.status === 'SOLD' || localState.status === 'UNSOLD') && localState.active_player_id && !localState.is_ended && localState.status !== 'ENDED';
+    const liveStatuses = new Set(['BIDDING', 'SOLD', 'UNSOLD', 'OPEN', 'LIVE']);
+    const isLocalLive = localState && liveStatuses.has(localState.status) && localState.active_player_id && !localState.is_ended;
 
     // 1. If local state is ALREADY actively live (e.g. from sub-100ms WebSocket broadcast), return immediately to prevent network race conditions!
     if (isLocalLive) {
