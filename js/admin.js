@@ -1,8 +1,8 @@
 // Admin Master Data & Payment Verification Panel with Single Source Cloud Control (Developer: Suman Kolay)
 
-import { store } from './store.js?v=13.0.74';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportMatchScorecardPNG, exportFullMatchSummaryPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.74';
-import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID, compressImageToTarget, saveScorecardsToSupabase } from './supabase.js?v=13.0.74';
+import { store } from './store.js?v=13.0.75';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportMatchScorecardPNG, exportFullMatchSummaryPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, openUserGuidePDF } from './export.js?v=13.0.75';
+import { saveAdSettingsToCloud, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, savePopupSettingsToCloud, uploadHDImage, getOptimizedImageUrl, syncTeamToSupabase, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID, compressImageToTarget, saveScorecardsToSupabase } from './supabase.js?v=13.0.75';
 import { shops } from './shopsData.js?v=12.0.2';
 
 let activeAdminTab = (() => { try { return sessionStorage.getItem('cpl_admin_tab') || (store.isMasterAdmin() ? 'payments' : 'overview'); } catch(e) { return 'payments'; } })();
@@ -103,7 +103,7 @@ export function renderAdminDashboard(containerEl) {
   }
 
   const leagues = store.getAccessibleLeagues();
-  const curTourneyObj = (customTournaments.find(t => (t.supabaseId || t.id) === activeTid) || leagues.find(l => (l.id || l.code) === activeTid)) || {
+  const curTourneyObj = (customTournaments.find(t => (t.supabaseId || t.id) === activeTid || toUUID(t.id) === toUUID(activeTid)) || leagues.find(l => (l.id || l.code) === activeTid)) || {
     id: activeTid,
     name: 'Tournament',
     shortCode: 'T',
@@ -132,8 +132,20 @@ export function renderAdminDashboard(containerEl) {
 
   const regSettings = store.getRegistrationSettings();
   const isRegOpen = store.isRegistrationOpen();
-  
-  const initialLeagueCode = (leagues[0]?.code || leagues[0]?.category || 'T').toUpperCase();
+
+  // Strictly filter tournaments for scheduler, formats, and league dropdowns:
+  // - Master Super Admin sees all tournaments in dropdown
+  // - Non-master Tournament Organiser ONLY sees their own tournament!
+  const accessibleTourneys = isMaster
+    ? (allTournaments && allTournaments.length > 0 ? allTournaments : (leagues && leagues.length > 0 ? leagues : [curTourneyObj]))
+    : (allTournaments.filter(t => t.id === activeTid || toUUID(t.id) === toUUID(activeTid)).length > 0
+        ? allTournaments.filter(t => t.id === activeTid || toUUID(t.id) === toUUID(activeTid))
+        : (leagues.filter(l => l.id === activeTid || toUUID(l.id) === toUUID(activeTid)).length > 0
+            ? leagues.filter(l => l.id === activeTid || toUUID(l.id) === toUUID(activeTid))
+            : [curTourneyObj]));
+
+  const curLeagueCode = (curTourneyObj.category_code || curTourneyObj.code || curTourneyObj.slug || curTourneyObj.shortCode || accessibleTourneys[0]?.category_code || accessibleTourneys[0]?.slug || 'T').toUpperCase();
+  const initialLeagueCode = curLeagueCode;
   const initialFormat = store.getTournamentFormat(initialLeagueCode);
   const initialFmt = initialFormat.format || 'TWO_GROUPS';
   let initialStageOptionsHtml = '';
@@ -1093,7 +1105,11 @@ export function renderAdminDashboard(containerEl) {
               <div>
                 <label class="block text-[10px] font-black text-slate-600 uppercase tracking-wider mb-1">Target Tournament</label>
                 <select id="group-mgr-league-select" class="w-full bg-white border border-slate-300 text-slate-900 text-xs rounded-xl p-2 font-bold cursor-pointer">
-                  ${leagues.map(l => `<option value="${(l.code || l.category || 'T').toUpperCase()}">${l.name || l.code}</option>`).join('')}
+                  ${accessibleTourneys.map(l => {
+                    const lCode = (l.category_code || l.code || l.category || l.slug || l.shortCode || 'T').toUpperCase();
+                    const isSelected = (lCode === initialLeagueCode || l.id === activeTid || toUUID(l.id) === toUUID(activeTid));
+                    return `<option value="${lCode}" ${isSelected ? 'selected' : ''}>${l.name || l.code}</option>`;
+                  }).join('')}
                 </select>
               </div>
 
@@ -1131,7 +1147,11 @@ export function renderAdminDashboard(containerEl) {
                 <div>
                   <label class="block text-[10px] font-bold text-slate-600 mb-1">TOURNAMENT LEAGUE</label>
                   <select id="fixture-league-category" class="w-full bg-slate-50 border border-slate-300 text-slate-900 text-xs rounded-xl p-2.5 font-bold">
-                    ${leagues.map(l => `<option value="${(l.code || l.category || 'T').toUpperCase()}">${l.name || l.code}</option>`).join('')}
+                    ${accessibleTourneys.map(l => {
+                      const lCode = (l.category_code || l.code || l.category || l.slug || l.shortCode || 'T').toUpperCase();
+                      const isSelected = (lCode === initialLeagueCode || l.id === activeTid || toUUID(l.id) === toUUID(activeTid));
+                      return `<option value="${lCode}" ${isSelected ? 'selected' : ''}>${l.name || l.code}</option>`;
+                    }).join('')}
                   </select>
                 </div>
                 <div>

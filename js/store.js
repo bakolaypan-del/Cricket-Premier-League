@@ -65,7 +65,7 @@ import {
   saveNoticeBoardToCloud,
   fetchNoticeBoardFromCloud,
   broadcastLiveScore
-} from './supabase.js?v=13.0.74';
+} from './supabase.js?v=13.0.75';
 
 const STORAGE_KEYS = {
   LEAGUES: 'cpl_leagues_v8',
@@ -879,7 +879,7 @@ class Store {
       return allLeagues;
     }
 
-    // 2. Tournament Owner / Admin (e.g. Pintu Santra - 8972144166)
+    // 2. Tournament Owner / Admin
     if (currentUser) {
       const userPhone = (currentUser.phone || currentUser.mobile || '').replace(/[^0-9]/g, '');
       const owners = this.getTournamentOwners();
@@ -893,22 +893,52 @@ class Store {
 
       if (Array.isArray(currentUser.ownedTournaments)) {
         currentUser.ownedTournaments.forEach(id => {
-          if (id && !permittedTourneyIds.includes(id.toUpperCase())) permittedTourneyIds.push(id.toUpperCase());
+          if (id && !permittedTourneyIds.includes(String(id).toUpperCase())) permittedTourneyIds.push(String(id).toUpperCase());
         });
       }
 
       if (permittedTourneyIds.length > 0) {
         const filtered = allLeagues.filter(l => {
-          const lCode = (l.code || l.category || l.shortCode || '').toUpperCase();
+          const lCode = (l.code || l.category || l.shortCode || l.category_code || l.slug || '').toUpperCase();
           const lId = (l.id || '').toUpperCase();
-          return permittedTourneyIds.some(pid => pid.includes(lCode) || pid === lId);
+          const lSupabaseId = (l.supabaseId || '').toUpperCase();
+          return permittedTourneyIds.some(pid => {
+            const upid = String(pid).toUpperCase();
+            return upid === lId ||
+                   upid === lSupabaseId ||
+                   toUUID(upid) === toUUID(lId) ||
+                   toUUID(upid) === toUUID(lSupabaseId) ||
+                   upid.includes(lCode) ||
+                   lCode.includes(upid);
+          });
         });
         if (filtered.length > 0) return filtered;
       }
     }
 
-    // Default fallback for non-master Tournament Admin: return first league
-    return allLeagues.slice(0, 1);
+    // 3. Fallback for non-master Tournament Admin: strictly scope to ACTIVE TOURNAMENT
+    if (this.activeTournamentId) {
+      const activeMatch = allLeagues.filter(l => {
+        const lId = l.id || '';
+        const lSupabaseId = l.supabaseId || '';
+        return lId === this.activeTournamentId ||
+               toUUID(lId) === toUUID(this.activeTournamentId) ||
+               lSupabaseId === this.activeTournamentId ||
+               toUUID(lSupabaseId) === toUUID(this.activeTournamentId);
+      });
+      if (activeMatch.length > 0) return activeMatch;
+
+      const customTourneys = this.getCustomTournaments ? this.getCustomTournaments() : [];
+      const activeTourneyObj = customTourneys.find(t => 
+        (t.supabaseId || t.id) === this.activeTournamentId || 
+        toUUID(t.id) === toUUID(this.activeTournamentId) || 
+        toUUID(t.supabaseId) === toUUID(this.activeTournamentId)
+      );
+      if (activeTourneyObj) return [activeTourneyObj];
+    }
+
+    // 4. Default fallback: NEVER return another tournament's league for non-master!
+    return allLeagues.filter(l => (l.id && l.id === this.activeTournamentId) || (l.supabaseId && l.supabaseId === this.activeTournamentId));
   }
 
   getLeagueById(id) {
