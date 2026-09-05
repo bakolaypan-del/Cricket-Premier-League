@@ -1,9 +1,9 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=13.0.78';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.78';
-import { renderAdminDashboard } from './admin.js?v=13.0.78';
-import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getLocalPopupSettings, fetchNoticeBoardFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.78';
+import { store } from './store.js?v=13.0.79';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.79';
+import { renderAdminDashboard } from './admin.js?v=13.0.79';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getLocalPopupSettings, fetchNoticeBoardFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.79';
 import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.53';
 import { shops } from './shopsData.js?v=12.0.2';
 
@@ -145,6 +145,8 @@ let introScreenInitialized = false;
 let renderDebounceTimer = null;
 let auctionPollInterval = null;
 let pollActiveAuctionState = null;
+let _navLock = 0;
+let _lastNavTime = 0;
 
 let activeFixtureCategory = (() => {
   try {
@@ -492,8 +494,6 @@ function initApp() {
   });
 }
 
-let _navLock = 0;
-let _lastNavTime = 0;
 function navigate(route, pushState = true) {
   // Clear any active pollers, intervals, and swipe listeners from previous routes
   if (auctionPollInterval) {
@@ -3587,7 +3587,7 @@ export function renderCustomTournamentHub(container, tourney) {
   window.__cplAwardsCache = {
     category: tourney.name || 'Tournament Hub',
     rows: tournamentPlayerStats,
-    standings: computeTeamStandings(teams, allFixtures)
+    standings: computeTeamStandings(allTeams, allFixtures)
   };
 
   const topBatsman = tournamentPlayerStats.filter(p => p.totalRuns > 0).sort((a, b) => b.totalRuns - a.totalRuns)[0] || null;
