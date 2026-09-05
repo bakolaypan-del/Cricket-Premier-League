@@ -1,9 +1,9 @@
 // Core Application Router & Registration Portal (Developer: Suman Kolay - Cambria & Deep Blue Theme)
 
-import { store } from './store.js?v=13.0.69';
-import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.69';
-import { renderAdminDashboard } from './admin.js?v=13.0.69';
-import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, fetchNoticeBoardFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.69';
+import { store } from './store.js?v=13.0.70';
+import { exportPlayersToCSV, exportTeamsToCSV, exportPlayersToPDF, exportTeamsToPDF, exportTeamFinalSquadToPDF, exportAllTeamsFinalSquadsToPDF, exportMatchScorecardPDF, exportAuctionSummaryPDF, exportPlayerSocialCard, printDigitalPass, openUserGuidePDF } from './export.js?v=13.0.70';
+import { renderAdminDashboard } from './admin.js?v=13.0.70';
+import { uploadHDImage, fetchAdSettingsFromCloud, fetchPopupSettingsFromCloud, getLocalPopupSettings, fetchNoticeBoardFromCloud, getOptimizedImageUrl, initVisitorTracking, fetchVisitorStats, dbLookupPlayerByPhone, dbRegisterPlayer, dbGetNextRegNumber, compressImageToTarget, sendPhoneOtp, verifyPhoneOtp, generateUUID, resolveTournamentUUID, registerTournamentUUID, toUUID } from './supabase.js?v=13.0.70';
 import { initPushNotifications, requestNotificationPermission, toggleNotificationSetting, isNotificationsEnabled, notifyMatchLive, notifyMatchResult, notifyWicketFall } from './notifications.js?v=13.0.53';
 import { shops } from './shopsData.js?v=12.0.2';
 
@@ -408,6 +408,25 @@ function initApp() {
       }
     }
 
+    // IF ON HOME / LANDING PAGE, NEVER WIPE THE SCREEN ON BACKGROUND STORE EVENTS:
+    // Simply update live counters in place without destroying DOM, causing vibration, or resetting carousels
+    if (currentRoute === 'landing') {
+      const regCountEl = document.getElementById('landing-registered-count');
+      if (regCountEl) {
+        const players = store.getPlayers();
+        const regCount = store.getTotalRegisteredPlayersCount ? store.getTotalRegisteredPlayersCount() : players.length;
+        if (regCountEl.dataset.rawVal !== String(regCount)) {
+          regCountEl.dataset.rawVal = String(regCount);
+          if (window.updateYouTubeLiveCounterElement) {
+            window.updateYouTubeLiveCounterElement('landing-registered-count', regCount, false);
+          } else {
+            regCountEl.textContent = regCount;
+          }
+        }
+      }
+      return;
+    }
+
     if (renderDebounceTimer) clearTimeout(renderDebounceTimer);
     renderDebounceTimer = setTimeout(() => {
       const scrollY = window.scrollY;
@@ -472,10 +491,32 @@ function initApp() {
 
 let _navLock = 0;
 function navigate(route, pushState = true) {
+  // Clear any active pollers, intervals, and swipe listeners from previous routes
   if (auctionPollInterval) {
     clearInterval(auctionPollInterval);
     auctionPollInterval = null;
   }
+  if (window._tournamentCountdownInterval) {
+    clearInterval(window._tournamentCountdownInterval);
+    window._tournamentCountdownInterval = null;
+  }
+  if (window._tournamentRotateInterval) {
+    clearInterval(window._tournamentRotateInterval);
+    window._tournamentRotateInterval = null;
+  }
+  if (window._auctionNoticeCountdownInterval) {
+    clearInterval(window._auctionNoticeCountdownInterval);
+    window._auctionNoticeCountdownInterval = null;
+  }
+  if (window._carouselAutoTimer) {
+    clearInterval(window._carouselAutoTimer);
+    window._carouselAutoTimer = null;
+  }
+  if (typeof window._carouselCleanup === 'function') {
+    window._carouselCleanup();
+    window._carouselCleanup = null;
+  }
+
   const prevRoute = currentRoute;
   const now = Date.now();
   if (prevRoute === route && pushState) return;
@@ -489,18 +530,18 @@ function navigate(route, pushState = true) {
 
   const container = document.getElementById('main-content');
 
-  // Instant swap with fade-in (no blink)
+  // Smooth seamless swap with no vibration, flash, or double-render
   if (container && prevRoute !== route) {
+    container.style.transition = 'none';
     container.style.opacity = '0';
     renderNavbar();
     renderMobileBottomNav();
     renderFooter();
     renderCurrentView();
     window.scrollTo({ top: 0 });
-    requestAnimationFrame(() => {
-      container.style.transition = 'opacity 0.18s ease-in';
-      container.style.opacity = '1';
-    });
+    void container.offsetHeight; // Force reflow to ensure smooth transition
+    container.style.transition = 'opacity 0.15s ease-out';
+    container.style.opacity = '1';
   } else {
     renderNavbar();
     renderMobileBottomNav();
@@ -2213,9 +2254,10 @@ function buildTournamentCarouselHTML(allTournaments) {
 }
 
 function renderFirstPageLanding(containerEl) {
-  const teams = store.getTeams();
   const players = store.getPlayers();
   const allTournaments = store.getCustomTournaments ? store.getCustomTournaments() : [];
+  const popupSettings = getLocalPopupSettings();
+  const isCountdownActive = popupSettings.isCountdownEnabled !== false && allTournaments.length > 0;
 
   containerEl.innerHTML = `
     <div class="w-full max-w-5xl mx-auto space-y-4 sm:space-y-6 animate-fade-in py-2 sm:py-4 text-slate-900">
@@ -2258,7 +2300,7 @@ function renderFirstPageLanding(containerEl) {
       </div>
 
       <!-- ⏳ ROTATING TOURNAMENT COUNTDOWN SHOWCASE (SPLIT-FLAP FLIP-CLOCK) -->
-      <div id="tournament-countdown-card" class="w-full max-w-sm mx-auto bg-gradient-to-b from-white to-slate-50/80 border border-slate-200/80 rounded-xl shadow-sm text-slate-900 animate-fade-in relative overflow-hidden">
+      <div id="tournament-countdown-card" class="${isCountdownActive ? '' : 'hidden '}w-full max-w-sm mx-auto bg-gradient-to-b from-white to-slate-50/80 border border-slate-200/80 rounded-xl shadow-sm text-slate-900 relative overflow-hidden">
 
         <!-- Tournament Info (rotates) -->
         <div id="showcase-tourney-info" class="tourney-showcase-slide fade-in px-2.5 pt-2 pb-0.5 relative z-10 text-center">
@@ -2455,6 +2497,15 @@ function renderFirstPageLanding(containerEl) {
   const carousel = document.getElementById('tourney-carousel');
   const dotsContainer = document.getElementById('tourney-carousel-dots');
   if (carousel && carousel.children.length > 1) {
+    if (window._carouselAutoTimer) {
+      clearInterval(window._carouselAutoTimer);
+      window._carouselAutoTimer = null;
+    }
+    if (typeof window._carouselCleanup === 'function') {
+      window._carouselCleanup();
+      window._carouselCleanup = null;
+    }
+
     const totalSlides = carousel.children.length;
     let currentSlide = 0;
     let autoTimer = null;
@@ -2480,6 +2531,7 @@ function renderFirstPageLanding(containerEl) {
     const startAuto = () => {
       if (autoTimer) clearInterval(autoTimer);
       autoTimer = setInterval(() => goToSlide(currentSlide + 1), 3800);
+      window._carouselAutoTimer = autoTimer;
     };
     startAuto();
 
@@ -2540,6 +2592,13 @@ function renderFirstPageLanding(containerEl) {
     carousel.addEventListener('mousedown', onTouchStart);
     window.addEventListener('mousemove', onTouchMove);
     window.addEventListener('mouseup', onTouchEnd);
+
+    window._carouselCleanup = () => {
+      if (autoTimer) clearInterval(autoTimer);
+      window._carouselAutoTimer = null;
+      window.removeEventListener('mousemove', onTouchMove);
+      window.removeEventListener('mouseup', onTouchEnd);
+    };
 
     // Card click: navigate only if it was a tap (not a swipe drag)
     carousel.querySelectorAll('.tourney-card').forEach(card => {
@@ -5683,22 +5742,36 @@ export async function initTournamentCountdown() {
   const card = document.getElementById('tournament-countdown-card');
   if (!card) return;
 
+  const localSettings = getLocalPopupSettings();
+  if (localSettings.isCountdownEnabled === false) {
+    card.classList.add('hidden');
+    if (window._tournamentCountdownInterval) { clearInterval(window._tournamentCountdownInterval); window._tournamentCountdownInterval = null; }
+    if (window._tournamentRotateInterval) { clearInterval(window._tournamentRotateInterval); window._tournamentRotateInterval = null; }
+    return;
+  }
+
+  const allTourneys = store.getCustomTournaments ? store.getCustomTournaments() : [];
+  if (!allTourneys.length) {
+    card.classList.add('hidden');
+    if (window._tournamentCountdownInterval) { clearInterval(window._tournamentCountdownInterval); window._tournamentCountdownInterval = null; }
+    if (window._tournamentRotateInterval) { clearInterval(window._tournamentRotateInterval); window._tournamentRotateInterval = null; }
+    return;
+  }
+
   // Check admin settings from cloud
-  let settings = {};
+  let settings = localSettings;
   try {
-    settings = (await fetchPopupSettingsFromCloud()) || {};
+    const cloudSettings = await fetchPopupSettingsFromCloud();
+    if (cloudSettings) settings = cloudSettings;
     if (settings.isCountdownEnabled === false) {
       card.classList.add('hidden');
+      if (window._tournamentCountdownInterval) { clearInterval(window._tournamentCountdownInterval); window._tournamentCountdownInterval = null; }
+      if (window._tournamentRotateInterval) { clearInterval(window._tournamentRotateInterval); window._tournamentRotateInterval = null; }
       return;
-    } else {
-      card.classList.remove('hidden');
     }
   } catch (err) {
     console.warn('Countdown settings fetch fallback:', err);
   }
-
-  const allTourneys = store.getCustomTournaments ? store.getCustomTournaments() : [];
-  if (!allTourneys.length) { card.classList.add('hidden'); return; }
 
   // Filter: admin-selected tournaments, or fallback to latest 3 by kickoffDate
   const selectedSlugs = settings.countdownTournamentSlugs || [];

@@ -2072,6 +2072,18 @@ const DEFAULT_POPUP_SETTINGS = {
   adExpiryTime: 0
 };
 
+export function getLocalPopupSettings() {
+  if (typeof localStorage !== 'undefined') {
+    try {
+      const stored = localStorage.getItem('cpl_popup_settings');
+      if (stored) {
+        return { ...DEFAULT_POPUP_SETTINGS, ...JSON.parse(stored) };
+      }
+    } catch(e) {}
+  }
+  return { ...DEFAULT_POPUP_SETTINGS };
+}
+
 export async function savePopupSettingsToCloud(settings) {
   try {
     const current = await fetchPopupSettingsFromCloud();
